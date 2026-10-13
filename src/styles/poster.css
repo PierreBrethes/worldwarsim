@@ -1,0 +1,183 @@
+/* Les affiches au survol (`WWS/prototypes/table-etat-major.html`, `.card` et `.fiche`) : une
+   carte de presse au-dessus de la pièce, tenue par une tige. Le calque suit la caméra comme les
+   étiquettes ; l'affiche elle-même ne bouge pas dans son calque. */
+
+.map-poster-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.map-poster {
+  position: absolute;
+  bottom: 15px;
+  left: 0;
+  width: 196px;
+  display: grid;
+  gap: 5px;
+  padding: 9px 11px 10px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 0 12px 26px rgb(0 0 0 / 42%);
+  font: 13px/1.25 var(--font-body);
+  white-space: normal;
+  transform: translateX(-50%);
+}
+
+.map-poster--pile {
+  width: 252px;
+  gap: 7px;
+  padding: 10px 12px 11px;
+  box-shadow: 0 14px 30px rgb(0 0 0 / 45%);
+}
+
+.map-poster--washed {
+  opacity: 0.9;
+}
+
+/* La tige : un fil de papier cerné d'encre, de la carte à la pièce. */
+.map-poster::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  width: 1px;
+  height: 14px;
+  background: var(--paper);
+  box-shadow: 0 0 0 0.5px var(--ink);
+}
+
+/* Sans place au-dessus, l'affiche passe sous la pièce et la tige remonte vers elle. */
+.map-poster-anchor--below .map-poster {
+  top: 15px;
+  bottom: auto;
+}
+
+.map-poster-anchor--below .map-poster::after {
+  top: -15px;
+  bottom: auto;
+}
+
+.map-poster-eyebrow {
+  font: 600 10px/1.2 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.map-poster h3 {
+  margin: 0;
+  font: 700 18px/1.05 var(--font-display);
+}
+
+.map-poster h3::first-letter {
+  text-transform: uppercase;
+}
+
+.map-poster-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.map-poster-row > span:first-child {
+  white-space: nowrap;
+}
+
+.map-poster-num {
+  font: 500 12px/1.25 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.map-poster-chip {
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  font: 600 10px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.map-poster-chip--ok {
+  color: var(--interaction);
+}
+
+.map-poster-chip--cut {
+  color: var(--critical);
+}
+
+/* L'ocre est celle de mes fils : une marche, un chantier, un lot qui avancent. */
+.map-poster-bar {
+  height: 4px;
+  background: rgb(42 33 24 / 15%);
+}
+
+.map-poster-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--arc-mine);
+}
+
+/* La fiche de pile : la vie en dix crans, puis la charge. */
+.map-poster-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+
+.map-poster-hp {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  height: 7px;
+}
+
+.map-poster-hp > i {
+  background: rgb(42 33 24 / 14%);
+}
+
+.map-poster-load {
+  display: grid;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid rgb(42 33 24 / 22%);
+}
+
+.map-poster-load-bar {
+  display: flex;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(20% - 1px),
+    rgb(42 33 24 / 22%) calc(20% - 1px) 20%
+  );
+}
+
+.map-poster-load-bar > b {
+  display: block;
+  height: 100%;
+}
+
+@media (max-width: 640px) {
+  .map-poster {
+    width: 160px;
+    font-size: 12px;
+  }
+
+  .map-poster--pile {
+    width: 210px;
+  }
+
+  .map-poster h3 {
+    font-size: 15px;
+  }
+}

@@ -6,7 +6,6 @@ describe('PileSheet', () => {
   it('prints the count of a stack and inks a wounded role red on three notches', () => {
     const markup = renderToStaticMarkup(
       <PileSheet
-        at={{ x: 0, y: 0 }}
         cargo={[]}
         lines={[
           {

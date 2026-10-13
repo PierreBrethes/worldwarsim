@@ -766,3 +766,11 @@
 .label--pointed:not(.label--grouped) .label-bar {
   display: block;
 }
+
+/* **L'affiche remplace le cartouche le temps du survol** (`map/MapLabels.tsx`, `PosterLayer`) :
+   elle porte le nom et plus, deux fois le même nom serait du bruit. Effacé et non retiré : le
+   cartouche reste l'emprise du survol, sans quoi le pointeur le quitterait en le cachant. */
+.label--postered .label-lines,
+.label--postered .label-bar {
+  opacity: 0;
+}

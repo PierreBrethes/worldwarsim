@@ -295,7 +295,16 @@ rôle, trois au plus et un jeton « +N », jeton « ×N », 3/2/1 hommes par tie
 les marques présentes), dessinés par `src/map/engine/standing.ts` ; elle n'est **habillée que si
 tous ses groupes ont leur figurine et qu'elles sont chargées** — sinon elle garde sa planche
 entière. Habillée, son étiquette DOM efface sa planche et reste l'emprise du clic et du survol ;
-le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). La page
+le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). **Et toute
+pièce se lit au survol en affiche** (13/10/2026, gabarit `.card`/`.fiche` du prototype
+`table-etat-major.html`) : ma pile (la fiche), mon mouvement (trajet, heure, barre ocre), mon
+bâtiment (production, « relié »/« hors réseau », chantier ou lot), un relevé adverse (délavé, une
+heure, « composition inconnue, nation inconnue » — rien que ce que l'arc sert) et un objectif
+(palier, dépôt). Ce qu'elle dit sort d'**une** fonction pure, `posterOf`
+(`src/domain/map-poster.ts`) ; le dessin est une seule pièce (`MapPoster.tsx`) que la couche des
+étiquettes tient au-dessus de la pièce et fait suivre la caméra (`PosterLayer`, `MapLabels.tsx`).
+Souris seulement — au toucher, le tap lit déjà et ouvre ce que la pièce ouvre ; un clic la ferme,
+pour ne pas doubler la surface qu'il ouvre ; elle efface le cartouche le temps du survol. La page
 `/figurines.html`, servie en développement seulement, montre chaque figurine à côté de sa
 planche. Un arc adverse porte un **bloc** de son milieu, dos à l'œil, et une dernière position
 connue un **bloc délavé** au bout de son tronçon figé (`lastKnownMedium`, `arcs.ts`) — rien de plus

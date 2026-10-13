@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './tokens.css';
 @import './labels.css';
+@import './poster.css';
 @import './indicators.css';
 @import './compass-rose.css';
 

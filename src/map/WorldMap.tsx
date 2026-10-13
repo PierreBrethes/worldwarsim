@@ -3,7 +3,15 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type HoveredRegion, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
@@ -34,7 +42,7 @@ import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
-import { MapLabels, type StackHover } from './MapLabels';
+import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
 import {
@@ -128,7 +136,8 @@ type Props = {
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
-  onStackHover?: (hover: StackHover | null) => void;
+  /** The press card a hovered piece wears; the map places it, the board writes it. */
+  poster?: (label: MapLabel) => ReactNode;
   /** What the target allows. The map asks the question; it does not know the view. */
   compassOf: (target: CompassTarget) => Compass | null;
   /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
@@ -270,7 +279,7 @@ export function WorldMap({
   onRegionsLoaded,
   onArcHover,
   onLabelHover,
-  onStackHover,
+  poster,
   compassOf,
   onCompassAction,
   building = false,
@@ -808,7 +817,7 @@ export function WorldMap({
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
-        onStackHover={onStackHover ?? (() => {})}
+        poster={poster ?? noPoster}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}
@@ -1092,3 +1101,5 @@ function lineText(label: MapLabel, role: 'nature'): string | null {
   const line = label.lines.find((candidate) => candidate.role === role);
   return line === undefined || !('text' in line) ? null : line.text;
 }
+
+const noPoster = (): ReactNode => null;

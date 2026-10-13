@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 import { asDuration } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
@@ -23,7 +25,6 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
-import type { TroopStation } from '@/domain/player-view';
 import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
 import {
   GROUP_MARGIN_PX,
@@ -42,13 +43,6 @@ import { DepositMark } from '@/emblems/DepositMark';
 import { resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
-
-export type StackHover = {
-  readonly station: TroopStation;
-  readonly labelId: string;
-  readonly x: number;
-  readonly y: number;
-};
 
 /**
  * The board's label layer. One DOM node per label, moved by `transform` from the engine's
@@ -86,7 +80,7 @@ export function MapLabels({
   secondarySelected,
   onMovementHover,
   onReachHover,
-  onStackHover,
+  poster,
   onSelect,
   onOpenBuilding,
   onOpenStack,
@@ -113,8 +107,8 @@ export function MapLabels({
   onMovementHover: (id: string | null) => void;
   /** What the label covers on the ground, while the pointer is on it and no longer. */
   onReachHover: (reach: Reach | null) => void;
-  /** A posted pile under the pointer, for its read-only sheet; `null` when it leaves. */
-  onStackHover: (hover: StackHover | null) => void;
+  /** **The press card a hovered piece wears** (`PosterLayer`), `null` for a piece that has none. */
+  poster: (label: MapLabel) => ReactNode;
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
@@ -183,6 +177,9 @@ export function MapLabels({
    * Écrit sur le nœud et non dans l'état React : un survol ne rend pas cent étiquettes.
    */
   const pointed = useRef<string | null>(null);
+  const showPoster = useRef<(id: string | null) => void>(() => {});
+  const posterAnchor = useRef<HTMLDivElement | null>(null);
+  const posterPlace = useRef<PosterPlace | null>(null);
   const point = useCallback(
     (id: string | null) => {
       const previous = pointed.current;
@@ -447,6 +444,17 @@ export function MapLabels({
         }
       }
 
+      const place = posterPlace.current;
+      const poster = posterAnchor.current;
+      const under = place === null ? undefined : states.current.get(place.id);
+      if (place !== null && poster !== null && under !== undefined) {
+        poster.style.visibility = under.visible ? '' : 'hidden';
+        const top = under.y - place.lift;
+        const below = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX;
+        poster.classList.toggle('map-poster-anchor--below', below);
+        poster.style.transform = `translate3d(${under.x + place.shift}px, ${below ? under.y : top}px, 0)`;
+      }
+
       // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
       // dont il prend la place — et disparaît avec lui.
       for (const group of groupsNow.current) {
@@ -529,13 +537,7 @@ export function MapLabels({
               point(label.id);
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
               onReachHover(label.reach);
-              if (label.type === 'stack' && label.station !== null && event.buttons === 0)
-                onStackHover({
-                  station: label.station,
-                  labelId: label.id,
-                  x: event.clientX,
-                  y: event.clientY,
-                });
+              if (event.buttons === 0) showPoster.current(label.id);
             }}
             onPointerMove={(event) => {
               if (holding && event.pointerType !== 'touch')
@@ -546,7 +548,7 @@ export function MapLabels({
               point(null);
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
               onReachHover(null);
-              onStackHover(null);
+              showPoster.current(null);
             }}
             onClick={(event) => {
               if (pressedWith.current === 'touch') point(label.id);
@@ -591,6 +593,9 @@ export function MapLabels({
             }}
             onPointerDown={(event) => {
               pressedWith.current = event.pointerType;
+              // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
+              // doublerait. Elle revient au survol suivant.
+              showPoster.current(null);
               // L'autoscroll du navigateur s'arme au bouton du milieu et se plante sur la carte.
               if (buttonAt(event.button) === 'middle') event.preventDefault();
             }}
@@ -757,6 +762,110 @@ export function MapLabels({
           </div>
         );
       })}
+      <PosterLayer
+        register={showPoster}
+        labels={labels}
+        poster={poster}
+        holding={holding}
+        roots={roots}
+        blocks={blocks}
+        anchor={posterAnchor}
+        place={posterPlace}
+        engine={engine}
+      />
+    </div>
+  );
+}
+
+/** Where the poster stands relative to its label's anchor, measured once per render of it. */
+type PosterPlace = {
+  readonly id: string;
+  /** From the anchor up to the top of the piece the label draws — its plate, its silhouette. */
+  readonly lift: number;
+  /** From the anchor to the middle of that piece: a plate hangs left of its mast. */
+  readonly shift: number;
+  readonly height: number;
+};
+
+const POSTER_STEM_PX = 18;
+const POSTER_MARGIN_PX = 8;
+/** A movement head draws nothing in the DOM — its pawn is in the scene, about this tall. */
+const POSTER_MIN_LIFT_PX = 34;
+
+/**
+ * **L'affiche de la pièce survolée** (table d'état-major) : la souris seule l'ouvre — au toucher
+ * le tap lit déjà, et ouvre ce que la pièce ouvre. Its own state, so a hover renders one card and
+ * not a hundred labels; the label layer's loop moves its anchor (`posterPlace`).
+ */
+function PosterLayer({
+  register,
+  labels,
+  poster,
+  holding,
+  roots,
+  blocks,
+  anchor,
+  place,
+  engine,
+}: {
+  register: RefObject<(id: string | null) => void>;
+  labels: ReadonlyArray<MapLabel>;
+  poster: (label: MapLabel) => ReactNode;
+  /** Pièce en main, la fiche latérale parle : le survol se tait (ADR 0026 §6). */
+  holding: boolean;
+  roots: RefObject<Map<string, HTMLElement>>;
+  blocks: RefObject<Map<string, HTMLElement>>;
+  anchor: RefObject<HTMLDivElement | null>;
+  place: RefObject<PosterPlace | null>;
+  engine: MapEngine | null;
+}) {
+  const [id, setId] = useState<string | null>(null);
+  useEffect(() => {
+    register.current = setId;
+    return () => {
+      register.current = () => {};
+    };
+  }, [register]);
+  // A pile that leaves takes its label away without a pointerleave.
+  const label = holding || id === null ? undefined : labels.find((each) => each.id === id);
+  const card = label === undefined ? null : poster(label);
+  const shown = card === null || label === undefined ? null : label.id;
+
+  useLayoutEffect(() => {
+    if (shown === null) return;
+    const root = roots.current.get(shown);
+    root?.classList.add('label--postered');
+    // Au-dessus de la pièce elle-même — la planche, la silhouette — et non du cartouche effacé,
+    // qui s'étend à droite du mât.
+    const face = blocks.current
+      .get(shown)
+      ?.querySelector(':scope > .label-pictogram, :scope > .label-camp')
+      ?.getBoundingClientRect();
+    const origin = root?.getBoundingClientRect();
+    const drawn = face !== undefined && origin !== undefined && face.height > 0;
+    place.current = {
+      id: shown,
+      lift: drawn ? Math.max(POSTER_MIN_LIFT_PX, origin.top - face.top) : POSTER_MIN_LIFT_PX,
+      shift: drawn ? face.left + face.width / 2 - origin.left : 0,
+      height: anchor.current?.firstElementChild?.getBoundingClientRect().height ?? 0,
+    };
+    return () => {
+      root?.classList.remove('label--postered');
+      place.current = null;
+    };
+  });
+  // Placé par la boucle des étiquettes : la carte ne rend que sur demande (`frame-demand.ts`).
+  useEffect(() => {
+    engine?.invalidate();
+  });
+
+  return (
+    <div
+      ref={anchor}
+      className="map-poster-anchor"
+      style={shown === null ? { display: 'none' } : { visibility: 'hidden' }}
+    >
+      {card}
     </div>
   );
 }
