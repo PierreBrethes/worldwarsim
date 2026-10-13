@@ -29,9 +29,10 @@ export type SurveyedCamp = {
 };
 
 /**
- * **The camps a hand sets down** (ADR 0026 §4): new since the last display, and seen now. The
- * first display is the loading — everything already stands; a camp turning to its last known
- * position keeps its id and stays put; a last known position new to the display is a memory.
+ * **The camps a hand sets down** (ADR 0026 §4): seen now, and not seen at the last display —
+ * new, or a last known position covered again. `known` holds the covered ids only. The first
+ * display is the loading — everything already stands; a camp turning to its last known
+ * position stays put.
  */
 export function appearedCamps(
   known: ReadonlySet<string> | null,
@@ -46,8 +47,9 @@ const HEIGHT = 1.9;
 const DEPTH = 0.6;
 const BODY = new RoundedBoxGeometry(1.5, HEIGHT, DEPTH, 3, 0.1);
 BODY.translate(0, HEIGHT / 2, 0);
-const BACK = new PlaneGeometry(1.1, 1.1);
+const BACK = new PlaneGeometry(1.3, 1.6);
 BACK.translate(0, HEIGHT / 2, DEPTH / 2 + 0.004);
+const WASHED_INK_OPACITY = 0.7;
 const WOOD = new MeshStandardMaterial({ color: '#1e1a15', roughness: 0.45 });
 const WASHED_OPACITY = 0.35;
 const WOOD_WASHED = new MeshStandardMaterial({
@@ -75,29 +77,53 @@ const RING_INK = new MeshBasicMaterial({
 });
 
 /** One canvas per medium, drawn on first use — the engine module loads before any document
- *  is needed, and the tests import it without one. */
-const pictograms = new Map<string, MeshStandardMaterial>();
-function pictogramOf(medium: Medium, washed: boolean): MeshStandardMaterial {
+ *  is needed, and the tests import it without one. Each silhouette is fitted to the back plane. */
+const pictograms = new Map<string, MeshBasicMaterial>();
+function pictogramOf(medium: Medium, washed: boolean): MeshBasicMaterial {
   const key = `${medium}:${washed}`;
   let material = pictograms.get(key);
   if (material) return material;
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
+  canvas.width = 128;
+  canvas.height = 160;
   const ctx = canvas.getContext('2d')!;
-  ctx.setTransform(5.6, 0, 0, 5.6, 8, 8);
+  const paths = silhouettePaths(medium).map((d) => new Path2D(d));
+  const box = silhouetteBox(medium);
+  const pad = 8;
+  const scale = Math.min((128 - 2 * pad) / box.w, (160 - 2 * pad) / box.h);
+  ctx.setTransform(
+    scale,
+    0,
+    0,
+    scale,
+    (128 - box.w * scale) / 2 - box.x * scale,
+    (160 - box.h * scale) / 2 - box.y * scale,
+  );
   ctx.fillStyle = '#e4d8bd';
-  for (const path of silhouettePaths(medium)) ctx.fill(new Path2D(path));
+  for (const path of paths) ctx.fill(path);
   const map = new CanvasTexture(canvas);
   map.colorSpace = SRGBColorSpace;
-  material = new MeshStandardMaterial({
+  material = new MeshBasicMaterial({
     map,
-    roughness: 0.8,
     transparent: true,
     depthWrite: false,
-    ...(washed ? { opacity: WASHED_OPACITY } : {}),
+    ...(washed ? { opacity: WASHED_INK_OPACITY } : {}),
   });
   pictograms.set(key, material);
   return material;
+}
+
+/** The bounding box of a medium's silhouette, read off its path coordinates. */
+function silhouetteBox(medium: Medium): { x: number; y: number; w: number; h: number } {
+  const numbers = silhouettePaths(medium)
+    .join(' ')
+    .match(/-?\d+(?:\.\d+)?/g)!
+    .map(Number);
+  const xs = numbers.filter((_, k) => k % 2 === 0);
+  const ys = numbers.filter((_, k) => k % 2 === 1);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
 }
 
 /** `piece` is what a hand lifts; the shadow and the ring stay on the ground. */
@@ -118,10 +144,6 @@ function block(medium: Medium, washed: boolean): { object: Group; piece: Group }
   }
   return { object, piece };
 }
-
-/** The yaw that turns a piece's back (+z) to the eye: a billboard that only turns about the vertical. */
-export const yawToward = (at: Vector3, eye: Vector3): number =>
-  Math.atan2(eye.x - at.x, eye.z - at.z);
 
 /** A last known position's block, for the review page. */
 export const washedBlock = (medium: Medium): Group => block(medium, true).object;
@@ -218,7 +240,7 @@ export class CampLayer {
   /** Diffed by sighting id: the view is re-served at every step of any column. */
   display(camps: ReadonlyArray<SurveyedCamp>, now: number): void {
     const appeared = new Set(this.motion === 'full' ? appearedCamps(this.known, camps) : []);
-    this.known = new Set(camps.map((camp) => camp.id));
+    this.known = new Set(camps.filter((camp) => !camp.washed).map((camp) => camp.id));
     const next = new Map<string, Placed>();
     for (const camp of camps) {
       const key = `${camp.medium}:${camp.washed}`;
@@ -260,13 +282,13 @@ export class CampLayer {
       );
   }
 
-  orient(cameraPosition: Vector3, now: number): void {
+  orient(cameraPosition: Vector3, yaw: number, now: number): void {
     for (const entry of this.placed.values()) {
       const { object, piece } = entry;
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
       object.scale.setScalar(near);
-      object.rotation.set(0, yawToward(object.position, cameraPosition), 0);
+      object.rotation.set(0, yaw, 0);
       if (entry.landing === null) continue;
       const d = (now - entry.landing.since) / 1000;
       if (this.motion !== 'full' || d >= HAND_GONE) {

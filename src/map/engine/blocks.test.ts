@@ -16,6 +16,10 @@ describe('which surveyed camps are set down by a hand', () => {
     expect(appearedCamps(new Set(['a']), [camp('a', true)])).toEqual([]);
   });
 
+  it('a last known position covered again is set down like a new sighting', () => {
+    expect(appearedCamps(new Set(), [camp('a')])).toEqual(['a']);
+  });
+
   it('a last known position new to the display is a memory, not a sighting under the eyes', () => {
     expect(appearedCamps(new Set(), [camp('a', true)])).toEqual([]);
   });
