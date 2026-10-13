@@ -55,10 +55,9 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  * the building to the edge, it decides whether the plate stands on the board at all. Off by
  * default, the player's own economy would be invisible until he found the button.
  *
- * `deposits` is on for the same reason and a sharper one: it is the layer that answers "where
- * do I put a mine", and the fallback for a player who never finds the button is to right-click
- * a hundred regions one by one. Counted on `public/deposits.json`, a playable nation holds
- * nine to seventeen of them — the layer is thin enough that showing it costs nothing to read.
+ * `deposits` is off, and that hides nothing: the board draws every deposit close up whatever
+ * the bascule, which only stretches them to the whole admin-1 layer and to the edge
+ * (carte allégée, 13/10/2026). On by default, it sowed pictograms over a continent seen whole.
  *
  * `outposts` joins them for exactly the argument written above, and the layer is thinner still:
  * a point is a column already spent, and its garrison has **no other address on the board**.
@@ -66,7 +65,7 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
-  deposits: true,
+  deposits: false,
   outposts: true,
   /** Allumée pour la même raison que les avant-postes : une réserve annoncée par dépêche qui ne
    *  se tient nulle part sur la carte ne ferait converger personne. */
@@ -97,9 +96,6 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
  */
 const HALF_BADGE = 15;
 export const EDGE_MARGIN = 14 + HALF_BADGE;
-
-/** Below this, two same-category indicators no longer read apart: they merge. */
-export const CLUSTER_THRESHOLD = 48;
 
 export type EdgePoint = { readonly x: number; readonly y: number; readonly heading: number };
 
@@ -140,47 +136,80 @@ export type RawIndicator = {
   readonly id: string;
   readonly category: IndicatorCategory;
   readonly priority: number;
+  /** The point folded onto the inner rectangle (`clampToEdge`). */
   readonly x: number;
   readonly y: number;
+  /** How far the real point lies from the eye, in world units: the smallest is the nearest. A
+   *  screen distance would lie for a point behind the camera. */
+  readonly reach: number;
 };
+
+export type EdgeSide = 'top' | 'right' | 'bottom' | 'left';
 
 export type IndicatorGroup = {
   readonly id: string;
   readonly category: IndicatorCategory;
+  readonly side: EdgeSide;
   readonly priority: number;
   readonly members: ReadonlyArray<string>;
+  /** What a click brings back: framing a whole edge of deposits would fly to the world view. */
+  readonly nearest: string;
 };
 
 /**
- * Kernel clustering, category by category: the highest priority opens the group, the
- * followers join it if they fall within its radius. One pass, no moving average — the result
- * therefore depends only on positions, and it is identical from one computation to the next
- * as long as the camera has not moved. That is what allows recomputing only at rest.
+ * **One token per edge and per category** (carte allégée, 13/10/2026). Grouping by screen
+ * distance left a column of pictograms along each rim, the loudest thing on the screen; the
+ * rim only has to say *there is more of this, that way*. The token's place is the mean of its
+ * members, which the per-frame pass computes. Depends only on positions, so it is identical
+ * from one computation to the next while the camera holds — what allows recomputing at rest.
  */
 export function cluster(
   indicators: ReadonlyArray<RawIndicator>,
-  threshold: number = CLUSTER_THRESHOLD,
+  width: number,
+  height: number,
 ): ReadonlyArray<IndicatorGroup> {
-  const kernels: Array<{ kernel: RawIndicator; members: string[] }> = [];
-
-  for (const indicator of [...indicators].sort(
-    (first, second) => second.priority - first.priority,
-  )) {
-    const near = kernels.find(
-      ({ kernel }) =>
-        kernel.category === indicator.category &&
-        Math.hypot(kernel.x - indicator.x, kernel.y - indicator.y) < threshold,
-    );
-    if (near) near.members.push(indicator.id);
-    else kernels.push({ kernel: indicator, members: [indicator.id] });
+  const groups = new Map<string, { side: EdgeSide; members: RawIndicator[] }>();
+  for (const indicator of indicators) {
+    const side = sideOf(indicator.x, indicator.y, width, height);
+    const id = `${indicator.category}:${side}`;
+    const group = groups.get(id);
+    if (group) group.members.push(indicator);
+    else groups.set(id, { side, members: [indicator] });
   }
+  return [...groups]
+    .sort(([first], [second]) => first.localeCompare(second))
+    .map(([id, { side, members }]) => {
+      const ranked = [...members].sort(
+        (first, second) => second.priority - first.priority || first.id.localeCompare(second.id),
+      );
+      const lead = ranked[0] as RawIndicator;
+      const nearest = ranked.reduce((best, member) => (member.reach < best.reach ? member : best));
+      return {
+        id,
+        category: lead.category,
+        side,
+        priority: lead.priority,
+        members: ranked.map((member) => member.id),
+        nearest: nearest.id,
+      };
+    });
+}
 
-  return kernels.map(({ kernel, members }) => ({
-    id: `${kernel.category}:${kernel.id}`,
-    category: kernel.category,
-    priority: kernel.priority,
-    members,
-  }));
+/** The edge a folded point sits on: the nearest of the four, `top` first at a corner. */
+export function sideOf(x: number, y: number, width: number, height: number): EdgeSide {
+  // Read every frame by the edge layer: comparisons, nothing allocated.
+  let side: EdgeSide = 'top';
+  let gap = y;
+  if (width - x < gap) {
+    side = 'right';
+    gap = width - x;
+  }
+  if (height - y < gap) {
+    side = 'bottom';
+    gap = height - y;
+  }
+  if (x < gap) side = 'left';
+  return side;
 }
 
 /**

@@ -39,6 +39,27 @@ const ANCHOR_ELEVATION = COUNTRY_THICKNESS + 0.01;
 export type DetailLevel = 'glyph' | 'expanded';
 
 /**
+ * **The close layer** (carte allégée, 13/10/2026): what the ground holds, once the eye is on a
+ * country. The admin-1 layer is already whole over a continent seen entire (under
+ * `REGIONS_FULL_DISTANCE`), and a deposit hung on it sowed pictograms over all of Europe.
+ * Placeholders, read on the board: France fills the screen at 11, Europe at 24.
+ */
+const CLOSE_FULL_DISTANCE = 14;
+export const CLOSE_GONE_DISTANCE = 20;
+
+export const closeShare = (cameraDistance: number): number =>
+  Math.min(
+    1,
+    Math.max(
+      0,
+      (CLOSE_GONE_DISTANCE - cameraDistance) / (CLOSE_GONE_DISTANCE - CLOSE_FULL_DISTANCE),
+    ),
+  );
+
+/** Which zoomed-in layer a label comes and goes with, if any. */
+export type LabelLayerFade = 'regions' | 'close' | null;
+
+/**
  * Projections are rewritten in place every frame rather than rebuilt: this loop runs at
  * sixty frames per second and is not allowed to allocate anything.
  */
@@ -59,6 +80,8 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
+  distance: number;
   /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
   plateScale: number;
   /**
@@ -75,12 +98,12 @@ export type NamedAnchor = {
   readonly id: string;
   readonly anchor: LabelAnchor;
   /**
-   * The label is part of the zoomed-in layer, not merely anchored on one of its regions: it
-   * appears and fades with the admin-1 borders. A building says what a nation *holds* and is
-   * worth seeing from orbit; what the ground *contains* is only useful once the eye is close
-   * enough to build on it.
+   * The label is part of a zoomed-in layer, not merely anchored on one of its regions: it
+   * appears and fades with the admin-1 borders, or closer still. A building says what a nation
+   * *holds* and is worth seeing from orbit; what the ground *contains* is only useful once the
+   * eye is close enough to build on it.
    */
-  readonly withRegionLayer: boolean;
+  readonly fadesWith: LabelLayerFade;
 };
 
 export type EdgeInsets = {
@@ -98,7 +121,7 @@ const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
  */
 export class LabelLayer {
   private readonly fixed = new Map<string, Vector3>();
-  private readonly withRegions = new Set<string>();
+  private readonly fading = new Map<string, 'regions' | 'close'>();
   private readonly projections: LabelProjection[] = [];
   private readonly normalized = new Vector3();
   private readonly gaze = new Vector3();
@@ -118,6 +141,8 @@ export class LabelLayer {
     private readonly groundOfRegion: (regionId: string) => Vector3 | null,
     /** How much of the admin-1 layer is on screen, `0` when it is not — one source, no twin. */
     private readonly regionShare: () => number,
+    /** How much of the close layer is on screen (`closeShare`). */
+    private readonly closeLayerShare: () => number,
     /** Whether my figurines stand at this label's point, rather than its plate. */
     private readonly isDressed: (id: string) => boolean,
   ) {}
@@ -125,9 +150,9 @@ export class LabelLayer {
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
     this.anchors = anchors;
     this.fixed.clear();
-    this.withRegions.clear();
+    this.fading.clear();
     this.projections.length = 0;
-    for (const { id, anchor, withRegionLayer } of anchors) {
+    for (const { id, anchor, fadesWith } of anchors) {
       if (anchor.kind === 'ground') {
         this.fixed.set(id, this.frame.projectLonLat(anchor.lonLat, ANCHOR_ELEVATION));
       }
@@ -143,15 +168,16 @@ export class LabelLayer {
         x: 0,
         y: 0,
         lod: 'glyph',
-        fade: withRegionLayer ? 0 : 1,
+        fade: fadesWith === null ? 1 : 0,
         dressed: 0,
+        distance: 0,
         plateScale: 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
         heading: 0,
       });
-      if (withRegionLayer) this.withRegions.add(id);
+      if (fadesWith !== null) this.fading.set(id, fadesWith);
     }
   }
 
@@ -172,10 +198,12 @@ export class LabelLayer {
     mobilePositions: ReadonlyMap<string, Vector3>,
   ): ReadonlyArray<LabelProjection> {
     camera.getWorldDirection(this.gaze);
-    const share = this.regionShare();
+    const regionShare = this.regionShare();
+    const closeShare = this.closeLayerShare();
 
     for (const projection of this.projections) {
-      projection.fade = this.withRegions.has(projection.id) ? share : 1;
+      const layer = this.fading.get(projection.id);
+      projection.fade = layer === undefined ? 1 : layer === 'regions' ? regionShare : closeShare;
       const position = this.fixed.get(projection.id) ?? mobilePositions.get(projection.id);
       // Faded out is not merely invisible: it does not park at the edge either. An indicator
       // pointing at a layer the eye cannot reach would send the camera to nothing.
@@ -200,6 +228,7 @@ export class LabelLayer {
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
       projection.visible = inFrame;
+      projection.distance = distance;
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';

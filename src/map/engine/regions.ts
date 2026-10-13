@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { builtInk, PALETTE } from './palette';
+import { builtInk, HELD_OPACITY, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import {
   mulberry,
@@ -59,22 +59,6 @@ const HOVER_OPACITY = 0.85;
 
 /** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
 const DESIGNATED_OPACITY = 0.62;
-
-/**
- * **La couleur de possession ne suit pas le fondu du rapproché** (décision de Pierre, 31/08) :
- * au-delà du seuil les traits de région disparaissent, la teinte reste. On voit qui tient quoi
- * sans voir le découpage — et c'est l'apparition des frontières intérieures, elle seule, qui
- * annonce au joueur qu'une région devient survolable.
- *
- * L'opacité est donc constante : c'est un lavis posé sur l'encre du pays, jamais un aplat qui
- * remplacerait le sol.
- *
- * **Elle est montée d'un cran le 31/08** (contrôle visuel de Pierre) : à 0,5 sur le terrain clair,
- * un bleu de siège se lisait gris — un joueur doit reconnaître sa couleur sans y penser. Le
- * plancher du délavage (`FADED_WASH`) ne bouge pas : il multiplie cette opacité, donc l'écart
- * franc/délavé — qui est une information (ADR 0020 §5) — reste le même rapport.
- */
-export const HELD_OPACITY = 0.72;
 
 /**
  * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
@@ -346,6 +330,14 @@ export class RegionLayer {
    * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
    * quand les 500 Ko atterrissent, comme pour les bâtiments.
    */
+  /** The countries not laid on the bare paper (an opponent nation's lavis), by `adm0`: the pen
+   *  reads its ground from there. */
+  private grounds: ReadonlyMap<string, string> = new Map();
+
+  setGrounds(grounds: ReadonlyMap<string, string>): void {
+    this.grounds = grounds;
+  }
+
   showHeld(claims: ReadonlyArray<HeldClaim>): void {
     const signature = JSON.stringify(claims);
     if (signature === this.laid) return;
@@ -617,12 +609,14 @@ export class RegionLayer {
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
     const painted = held === undefined || held.state === 'suspended' ? null : held;
+    const under = (region && this.grounds.get(region.country)) ?? PALETTE.neutralLand;
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
       performance.now(),
       painted?.ink ?? null,
       painted === null ? 0 : HELD_OPACITY * painted.wash,
+      under,
     );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
@@ -632,7 +626,9 @@ export class RegionLayer {
 
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
      *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
-    this.hoverMaterial.color.set(inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0)));
+    this.hoverMaterial.color.set(
+      inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0), under),
+    );
 
     const points: number[] = [];
     for (const ring of region.rings) {

@@ -11,6 +11,7 @@ import {
   alertMark,
   cluster,
   idleConstruction,
+  sideOf,
   strongestMark,
   type IndicatorToggles,
   type IndicatorGroup,
@@ -25,10 +26,10 @@ import type { MapEngine } from './engine';
  * The screen edge. An entity out of frame is not lost: its label folds onto the rim,
  * reduced to its pictogram alone, and a click brings the camera back to it.
  *
- * Two cadences, never mixed: position follows the camera per frame, written as `transform`
- * on the anchor node; clustering, which decides *which* nodes exist, only recomputes at
- * orbit rest. Clustering per frame would flicker the counts at every degree of orbit, for a
- * result nobody would have time to read.
+ * One token per edge and per category (`cluster`). Two cadences, never mixed: position follows
+ * the camera per frame, written as `transform` on the anchor node; grouping, which decides
+ * *which* nodes exist, only recomputes at orbit rest. Grouping per frame would flicker the
+ * counts at every degree of orbit, for a result nobody would have time to read.
  *
  * Classes styled in `src/styles/indicators.css`:
  * `indicator--<category>` · `--clustered` · `--threat | --offensive | --imminent` ·
@@ -68,8 +69,11 @@ export function EdgeIndicators({
   const roots = useRef(new Map<string, HTMLElement>());
   const latest = useRef<ReadonlyArray<LabelProjection>>([]);
   const named = useRef(new Map<string, HTMLElement>());
+  const layer = useRef<HTMLDivElement>(null);
 
   const compose = useCallback(() => {
+    const width = layer.current?.clientWidth ?? 0;
+    const height = layer.current?.clientHeight ?? 0;
     const raw = latest.current.flatMap<RawIndicator>((projection) => {
       const label = kept.get(projection.id);
       if (!projection.atEdge || label === undefined) return [];
@@ -82,10 +86,11 @@ export function EdgeIndicators({
           priority: label.priority,
           x: projection.edgeX,
           y: projection.edgeY,
+          reach: projection.distance,
         },
       ];
     });
-    const composed = cluster(raw);
+    const composed = cluster(raw, width, height);
     setGroups((previous) => (sameGroups(previous, composed) ? previous : composed));
   }, [kept]);
 
@@ -112,9 +117,10 @@ export function EdgeIndicators({
     if (!engine) return;
     engine.onEdges = (projections) => {
       latest.current = projections;
-      /** Le cadre se mesure **une fois par passe** : relu pour chaque cartouche, il forçait une
-       *  mise en page après chaque écriture de style. Ils ont tous le même parent. */
-      let frame: { width: number; height: number } | null = null;
+      /** Le cadre se mesure **une fois par passe**, avant toute écriture : relu pour chaque
+       *  cartouche, il forçait une mise en page après chaque écriture de style. */
+      const width = layer.current?.clientWidth ?? 0;
+      const height = layer.current?.clientHeight ?? 0;
       for (const projection of projections) {
         const tag = named.current.get(projection.id);
         if (tag === undefined) continue;
@@ -123,11 +129,6 @@ export function EdgeIndicators({
           continue;
         }
         tag.style.display = '';
-        frame ??= {
-          width: tag.parentElement?.clientWidth ?? 0,
-          height: tag.parentElement?.clientHeight ?? 0,
-        };
-        const { width, height } = frame;
         /** Tourné vers l'intérieur : collé au bord droit, le cartouche part vers la gauche ; collé
          *  en haut ou en bas, il se pose dans l'écran plutôt qu'à cheval sur le bord. */
         const across = projection.edgeX > width / 2 ? '-100%' : '0';
@@ -148,7 +149,13 @@ export function EdgeIndicators({
         const rank = membership.get(projection.id);
         if (rank === undefined) continue;
         const sum = sums[rank];
-        if (sum === undefined) continue;
+        // Grouping waits for rest; a member that slid round a corner meanwhile would pull the
+        // token off its edge, into the screen.
+        if (
+          sum === undefined ||
+          sideOf(projection.edgeX, projection.edgeY, width, height) !== groups[rank]?.side
+        )
+          continue;
         sum.x += projection.edgeX;
         sum.y += projection.edgeY;
         sum.count += 1;
@@ -203,7 +210,7 @@ export function EdgeIndicators({
   }, [groups, kept]);
 
   return (
-    <div className="edge-indicators">
+    <div className="edge-indicators" ref={layer}>
       {/* L'ancre porte la translation, le bouton le zoom de l'interface : réunis, le zoom
           multiplierait aussi la position et le cartouche tomberait hors de l'écran. */}
       {[...destinations].map(([id, name]) => (
@@ -242,7 +249,7 @@ export function EdgeIndicators({
             ref={(node) => {
               register(roots.current, group.id, node);
             }}
-            onClick={() => engine?.journeyTo(group.members)}
+            onClick={() => engine?.journeyTo([group.nearest])}
           >
             <span className="indicator-triangle" aria-hidden>
               <svg viewBox="0 0 20 20">
@@ -297,6 +304,7 @@ function sameGroups(
       return (
         other !== undefined &&
         group.id === other.id &&
+        group.nearest === other.nearest &&
         group.members.length === other.members.length &&
         group.members.every((member, place) => member === other.members[place])
       );

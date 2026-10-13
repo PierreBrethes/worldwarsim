@@ -25,38 +25,53 @@ export const PALETTE = {
 } as const;
 
 /**
- * How much ink the sheet carries. A country is inked once; a region that bears a building is
- * inked again over it — the same pen, a heavier hand.
+ * **How much ink the sheet carries: a lavis, not a flat** (carte allégée, 13/10/2026). Every
+ * held region, and every country held whole, is the seat's ink laid at this load **over the
+ * paper** — no longer over the nation's ink laid full, which stacked two dark inks and buried
+ * the pieces. The ink keeps its hue (France stays blue), the sheet comes back through it, and
+ * the pieces stand out of it as on the prototype (`WWS/prototypes/table-etat-major.html`).
+ *
+ * It does not follow the zoomed-in fade (Pierre, 31/08): beyond the threshold the region
+ * strokes go, the tint stays — who holds what reads without the cut.
+ *
+ * The survey's wash floor (`FADED_WASH`) multiplies this load, so the gap between fresh and
+ * faded — an information, ADR 0020 §5 — keeps its ratio.
+ *
+ * History: 0.5 → 0.72 on 31/08 when a seat blue read grey over bare sand, and the home sheet
+ * was then painted over its nation's ink at full. Back to 0.65 on 13/10, over the paper.
  */
-const COUNTRY_LOAD = 0.45;
-const BUILT_LOAD = 0.7;
+export const HELD_OPACITY = 0.65;
+
+/** A region that bears a building: the same pen, a heavier hand. */
+const BUILT_LOAD = 0.8;
 
 const channelsOf = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 };
 
-/**
- * The nation's ink laid heavier, for a region that carries a building. **Denser, never
- * lighter**: the board is ink on paper, so more matter absorbs more sheet. The load composes
- * on the paper the way ink does — the sheet's channel raised to the ratio of the two loads —
- * rather than mixing toward black or toward white. Both alternatives cost the reading of the
- * map: white brings Italy and China back to the bare sand they already sit close to, and
- * flattens the eight nations onto one pale family, when the nation's colour is the first
- * signal the map gives. This keeps France blue and the USSR red.
- */
-export function builtInk(countryInk: string): string {
-  const paper = channelsOf(PALETTE.neutralLand);
-  return `#${channelsOf(countryInk)
-    .map((channel, index) => {
-      const sheet = Math.max(1, paper[index]!);
-      const transmitted = Math.min(1, channel / sheet);
-      return Math.round(sheet * transmitted ** (BUILT_LOAD / COUNTRY_LOAD))
+/** The ink laid on the paper at a load, as the framebuffer blends it: in sRGB. */
+export function lavis(
+  ink: string,
+  load: number = HELD_OPACITY,
+  ground: string = PALETTE.neutralLand,
+): string {
+  const paper = channelsOf(ground);
+  return `#${channelsOf(ink)
+    .map((channel, index) =>
+      Math.round(paper[index]! * (1 - load) + channel * load)
         .toString(16)
-        .padStart(2, '0');
-    })
+        .padStart(2, '0'),
+    )
     .join('')}`;
 }
+
+/**
+ * The nation's ink laid heavier, for a region that carries a building: denser than the
+ * country's lavis, never darker than the ink itself — a built region is a stronger wash, not
+ * a black patch that would compete with the building standing on it.
+ */
+export const builtInk = (countryInk: string): string => lavis(countryInk, BUILT_LOAD);
 
 /**
  * The inks of the "taut thread" plates, verbatim. Ink on paper: a calm ochre for what I

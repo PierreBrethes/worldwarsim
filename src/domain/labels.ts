@@ -189,7 +189,7 @@ export type MapMarker =
        *
        * Nor its reach. A building says what a nation *holds* and stays legible from orbit; a
        * deposit only answers "where do I build", so it comes and goes with the admin-1 layer
-       * that makes building possible at all (`withRegionLayer`, `map/engine/labels.ts`).
+       * that makes building possible at all (`fadesWith`, `map/engine/labels.ts`).
        */
       readonly kind: 'deposit';
       readonly id: string;

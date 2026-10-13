@@ -142,10 +142,11 @@ function nearestHolder(regionId: string, outposts: ReadonlyArray<ControlOutpost>
  * réel, `#2f5d7c` se lisait gris plutôt que bleu, et sa propre couleur est la seule chose qu'un
  * joueur doit reconnaître sans y penser. Le sépia a été assombri du même coup — il tombait entre
  * le rouge et l'ocre, et c'est le seul écart que la saturation avait resserré au lieu de
- * l'ouvrir.
+ * l'ouvrir. **Le bleu a quitté le sarcelle le 13/10** (`#276893` → `#2457a8`) : posé en lavis
+ * sur le sable (`lavis`, `map/engine/palette.ts`), il virait au gris-vert.
  */
 export const SEAT_INKS: ReadonlyArray<string> = [
-  '#276893',
+  '#2457a8',
   '#b2432f',
   '#66833c',
   '#c09533',

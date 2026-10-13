@@ -1210,17 +1210,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
      * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
      * (`DEPOSIT_REGIONS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
-     * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
-     * au dézoom, rien ne pleut sur la carte.
+     * encre ni ligne. **Ils sont toujours là, au rapproché seulement** (carte allégée, 13/10) :
+     * la bascule ne les allume pas, elle les étend à toute la couche des régions et au bord
+     * de l'écran (`fadesWith`, `map/engine/labels.ts`).
      */
-    const deposits: ReadonlyArray<MapMarker> = toggles.deposits
-      ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
-          kind: 'deposit' as const,
-          id: `deposit-${regionId}`,
-          regionId,
-          deposit,
-        }))
-      : [];
+    const deposits: ReadonlyArray<MapMarker> = DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+      kind: 'deposit' as const,
+      id: `deposit-${regionId}`,
+      regionId,
+      deposit,
+    }));
 
     /**
      * **A founded outpost has to stand on the board.** Without this the column that planted it
@@ -1414,7 +1413,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.surveyedInstallations,
     knownRegionById,
     toggles.buildings,
-    toggles.deposits,
     toggles.objectives,
   ]);
 

@@ -125,13 +125,21 @@ export function readIndicatorToggles(): IndicatorToggles {
   return Object.fromEntries(
     CATEGORIES.map((category) => [
       category,
-      typeof kept[category] === 'boolean' ? kept[category] : DEFAULT_TOGGLES[category],
+      typeof kept[category] === 'boolean' && (category !== 'deposits' || kept[DEPOSITS_CLOSE])
+        ? kept[category]
+        : DEFAULT_TOGGLES[category],
     ]),
   ) as IndicatorToggles;
 }
 
+/**
+ * Before 13/10 any bascule touched wrote the whole object, `deposits: true` included — the
+ * default of the time, not the player's choice. Only what is written since says it.
+ */
+const DEPOSITS_CLOSE = 'depositsClose';
+
 export function keepIndicatorToggles(toggles: IndicatorToggles): void {
-  localStorage.setItem(INDICATORS_KEY, JSON.stringify(toggles));
+  localStorage.setItem(INDICATORS_KEY, JSON.stringify({ ...toggles, [DEPOSITS_CLOSE]: true }));
 }
 
 const WINDOW_LAYOUT_KEY = 'wws-window-layout';

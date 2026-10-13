@@ -23,6 +23,7 @@ const raw = (override: Partial<RawIndicator>): RawIndicator => ({
   priority: 1,
   x: 0,
   y: 0,
+  reach: 0,
   ...override,
 });
 
@@ -54,13 +55,12 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
 });
 
 describe('toggles', () => {
-  // Buildings, deposits and outposts sit apart: their bascules govern the board itself, so
-  // lighting them costs the edge nothing, and hiding them would cost the player his own
-  // economy, the only map of where he may put one, and the points his spent columns hold.
+  // Buildings and outposts sit apart: their bascules govern the board itself, so lighting them
+  // costs the edge nothing, and hiding them would cost the player his own economy and the
+  // points his spent columns hold. Deposits are drawn close up whatever their bascule.
   it('only lights what the player owns on the ground, plus inbound, on first load', () => {
     expect(Object.entries(DEFAULT_TOGGLES).filter(([, on]) => on)).toEqual([
       ['buildings', true],
-      ['deposits', true],
       ['outposts', true],
       ['objectives', true],
       ['inbound', true],
@@ -100,41 +100,74 @@ describe('clampToEdge', () => {
 });
 
 describe('cluster', () => {
-  it('merges two nearby indicators of the same category', () => {
-    const groups = cluster([raw({ id: 'a', x: 100, y: 100 }), raw({ id: 'b', x: 120, y: 110 })]);
+  const RIGHT = WIDTH - EDGE_MARGIN;
+  const BOTTOM = HEIGHT - EDGE_MARGIN;
+
+  it('folds every indicator of a category on one edge into a single token, however far apart', () => {
+    const groups = cluster(
+      [raw({ id: 'a', x: RIGHT, y: 60 }), raw({ id: 'b', x: RIGHT, y: 540 })],
+      WIDTH,
+      HEIGHT,
+    );
     expect(groups).toHaveLength(1);
     expect(groups[0]?.members).toEqual(['a', 'b']);
   });
 
+  it('keeps one token per edge', () => {
+    const groups = cluster(
+      [raw({ id: 'a', x: RIGHT, y: 300 }), raw({ id: 'b', x: 500, y: BOTTOM })],
+      WIDTH,
+      HEIGHT,
+    );
+    expect(groups.map((group) => group.id).sort()).toEqual(['outposts:bottom', 'outposts:right']);
+  });
+
   it('never merges two different categories', () => {
-    const groups = cluster([
-      raw({ id: 'a', x: 100, y: 100 }),
-      raw({ id: 'b', category: 'forces', x: 101, y: 100 }),
-    ]);
+    const groups = cluster(
+      [raw({ id: 'a', x: RIGHT, y: 100 }), raw({ id: 'b', category: 'forces', x: RIGHT, y: 101 })],
+      WIDTH,
+      HEIGHT,
+    );
     expect(groups).toHaveLength(2);
   });
 
-  it('keeps apart two indicators beyond the threshold', () => {
-    const groups = cluster([raw({ id: 'a', x: 100, y: 100 }), raw({ id: 'b', x: 100, y: 200 })]);
-    expect(groups).toHaveLength(2);
-  });
-
-  it('opens the group with the highest priority — the kernel carries it', () => {
-    const groups = cluster([
-      raw({ id: 'a', priority: 1, x: 100, y: 100 }),
-      raw({ id: 'b', priority: 4, x: 110, y: 100 }),
-    ]);
+  it('carries the highest priority, and leads with it', () => {
+    const groups = cluster(
+      [
+        raw({ id: 'a', priority: 1, x: RIGHT, y: 100 }),
+        raw({ id: 'b', priority: 4, x: RIGHT, y: 400 }),
+      ],
+      WIDTH,
+      HEIGHT,
+    );
     expect(groups[0]?.members).toEqual(['b', 'a']);
     expect(groups[0]?.priority).toBe(4);
   });
 
-  it('yields the same partition twice in a row — what allows computing at rest', () => {
+  it('names the member nearest the view — the one a click brings back', () => {
+    const groups = cluster(
+      [
+        raw({ id: 'far', x: RIGHT, y: 100, reach: 4000 }),
+        raw({ id: 'near', x: RIGHT, y: 400, reach: 700 }),
+      ],
+      WIDTH,
+      HEIGHT,
+    );
+    expect(groups[0]?.nearest).toBe('near');
+  });
+
+  it('answers the same whatever the order it is handed — what allows computing at rest', () => {
     const raws = [
-      raw({ id: 'a', x: 100, y: 100 }),
-      raw({ id: 'b', x: 130, y: 100 }),
-      raw({ id: 'c', x: 400, y: 100 }),
+      raw({ id: 'a', x: RIGHT, y: 100 }),
+      raw({ id: 'b', x: 30, y: 100 }),
+      raw({ id: 'c', x: 400, y: EDGE_MARGIN }),
     ];
-    expect(cluster(raws)).toEqual(cluster(raws));
+    expect(cluster(raws, WIDTH, HEIGHT)).toEqual(cluster([...raws].reverse(), WIDTH, HEIGHT));
+  });
+
+  it('files a corner under one edge, and says which', () => {
+    const groups = cluster([raw({ id: 'a', x: RIGHT, y: EDGE_MARGIN })], WIDTH, HEIGHT);
+    expect(groups[0]?.side).toBe('top');
   });
 });
 
