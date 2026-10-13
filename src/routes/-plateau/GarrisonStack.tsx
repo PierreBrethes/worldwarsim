@@ -434,7 +434,7 @@ function TroopCards({
           >
             <UnitSprite nation={nation} role={troop.role} height={58} width={40} />
             <span className="flex min-w-0 flex-1 flex-col gap-[3px] pr-[22px]">
-              <span className="text-[14.5px] leading-[1.1] font-bold">
+              <span className="text-[14.5px] leading-[1.1] font-bold break-words hyphens-auto">
                 {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
               </span>
               {carrier === null ? (
