@@ -1793,6 +1793,13 @@ export const fr = {
     columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },
   },
 
+  /** **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7) : la phrase de la
+   *  dépêche, « rejouer » (`fr.replay.play`) et « voir ». */
+  combatToast: {
+    show: 'voir',
+    close: 'fermer',
+  },
+
   /** La visée en carte : ce qui remplace la modale d’envoi. */
   aim: {
     /** A place has no name: the degrees are the name, to one decimal — the precision a click

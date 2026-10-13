@@ -396,6 +396,21 @@ body {
   }
 }
 
+/* A combat dispatch slides in from the masthead it was printed under, and slides back out. */
+@keyframes dispatch-toast-in {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+}
+
+@keyframes dispatch-toast-out {
+  to {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+}
+
 @keyframes curtain-rise {
   from {
     opacity: 1;
