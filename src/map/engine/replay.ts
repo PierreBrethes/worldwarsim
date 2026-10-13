@@ -1,5 +1,6 @@
 import {
   AdditiveBlending,
+  BoxGeometry,
   CanvasTexture,
   Group,
   Mesh,
@@ -11,9 +12,10 @@ import {
   SpriteMaterial,
   type Material,
   type Object3D,
+  Vector3,
 } from 'three';
 import type { Medium } from '@/domain/ids';
-import type { ReplayFrame, ReplayPiece } from '@/domain/replay';
+import { STEP_MS, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
@@ -91,6 +93,44 @@ function drawFlash(): CanvasTexture {
   return texture;
 }
 
+/**
+ * **Both salvoes leave at once** (ADR 0014): each piece sends one shot of ink across the gap —
+ * mine at the blocks, the blocks at mine, the prototype's pairing (`table-etat-major.html`,
+ * `updateReplay`). `null` when there is nothing in front to aim at. Indices into the frame's
+ * pieces, mine first.
+ */
+export function salvoTarget(k: number, mine: number, theirs: number): number | null {
+  if (k < mine) return theirs === 0 ? null : mine + (k % theirs);
+  return mine === 0 ? null : ((k - mine) * 2) % mine;
+}
+
+/** A shot's share of its flight through the salvo step, staggered by its rank; `null` before it
+ *  leaves and after it lands. Reduced motion holds every shot halfway across. */
+export function shotShare(progress: number, k: number, still: boolean): number | null {
+  if (still) return 0.5;
+  const jitter = (k % 3) * 0.05;
+  const share = (progress - jitter) / (1 - jitter);
+  return share > 0 && share < 1 ? share : null;
+}
+
+/** How long both lines shake as the salvoes land, and how far they lean, in radians. */
+const SHAKE_MS = 500;
+const SHAKE = 0.05;
+export function shakeOf(step: ReplayFrame['step'], progress: number, still: boolean): number {
+  if (still || step !== 'pertes') return 0;
+  const hit = (progress * STEP_MS.pertes) / SHAKE_MS;
+  return hit < 1 ? Math.sin(hit * Math.PI * 3) * SHAKE * (1 - hit) : 0;
+}
+/** The salvo's smoke hangs on into the losses: a puff does not vanish as the shot lands. */
+const LINGER_MS = 900;
+
+const SHOT = new BoxGeometry(0.012, 0.012, 0.16);
+const SHOT_INK = new MeshBasicMaterial({ color: '#2b2118' });
+const MUZZLE_HEIGHT = 0.12;
+const from = new Vector3();
+const to = new Vector3();
+const FORWARD = new Vector3(0, 0, 1);
+
 const PLATE = new PlaneGeometry(1, 1).translate(0, 0.5, 0);
 const CARD = new MeshStandardMaterial({ color: '#e4d8bd', roughness: 0.8 });
 const plates = new Map<string, MeshBasicMaterial>();
@@ -139,6 +179,7 @@ type Piece = {
   readonly flash: Sprite;
   flashSize: number;
   readonly firing: Smoke;
+  readonly shot: Mesh;
   burning: Smoke | null;
   look: Look;
 };
@@ -167,6 +208,8 @@ export class ReplayScene {
     this.pieces = pieces.map((piece, k) =>
       this.stand(piece, nation, medium, spots[piece.side][piece.side === 'mine' ? k : k - mine]!),
     );
+    // After the holders, which keep the pieces' order.
+    this.object.add(...this.pieces.map((piece) => piece.shot));
   }
 
   private stand(
@@ -195,6 +238,7 @@ export class ReplayScene {
       flash: flashSprite,
       flashSize: FLASH_SIZE,
       firing,
+      shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
       look: 'whole',
     };
@@ -250,6 +294,7 @@ export class ReplayScene {
       }
     }
     pivot.add(built.body, marker);
+    built.shot.visible = false;
     this.object.add(holder);
     return built;
   }
@@ -273,13 +318,21 @@ export class ReplayScene {
         step === 'salves' ? (still ? 1 : Math.sin(Math.PI * Math.min(1, progress / 0.35))) : 0;
       piece.flash.visible = salvo > 0.02;
       piece.flash.scale.setScalar(piece.flashSize * salvo);
-      piece.firing.object.visible = step === 'salves';
-      piece.firing.frame(still ? 0.4 : progress * 0.9 + 0.05);
+      const lingering = step === 'pertes' && progress * STEP_MS.pertes < LINGER_MS;
+      piece.firing.object.visible = step === 'salves' || (lingering && !still);
+      piece.firing.frame(
+        still
+          ? 0.4
+          : step === 'salves'
+            ? progress * 0.9 + 0.05
+            : 0.95 + (progress * STEP_MS.pertes) / 1000,
+      );
 
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;
       const sign = piece.side === 'mine' ? -1 : 1;
       holder.position.x = piece.home[0] + sign * RETREAT * retreat;
+      holder.rotation.z = shakeOf(step, progress, still);
       if (piece.burns) {
         pivot.rotation.set(0, 0, 0);
       } else if (piece.side === 'theirs') {
@@ -301,6 +354,19 @@ export class ReplayScene {
         piece.look = look;
         dress(piece.body, look === 'burnt' ? charred : look === 'washed' ? washedOf : null);
       }
+    });
+    // Aimed once every holder stands where this frame puts it.
+    const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
+    this.pieces.forEach((piece, k) => {
+      const target = this.pieces[salvoTarget(k, mine, count - mine) ?? -1];
+      const share = step === 'salves' ? shotShare(progress, k, still) : null;
+      piece.shot.visible = share !== null && target !== undefined;
+      if (!piece.shot.visible) return;
+      from.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
+      to.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
+      piece.shot.position.lerpVectors(from, to, share!);
+      // In the scene's own frame: `lookAt` would read `to` as a world point.
+      piece.shot.quaternion.setFromUnitVectors(FORWARD, to.sub(from).normalize());
     });
   }
 
