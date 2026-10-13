@@ -599,11 +599,6 @@ export class MapEngine {
     if (this.maquettes.display(maquettes)) this.invalidate();
   }
 
-  /** The labels folded into one cartouche, lead first: their maquettes gather around its mast. */
-  gatherMaquettes(groups: ReadonlyArray<ReadonlyArray<string>>): void {
-    if (this.maquettes.gather(groups)) this.invalidate();
-  }
-
   /**
    * **Lifts a piece, or puts it back with `null`** (ADR 0026 §6). The original washes out where
    * it stands; a copy of the held groups follows the ground under the mouse, and the
