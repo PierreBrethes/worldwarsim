@@ -250,7 +250,7 @@ function DeskWindow({
         tabIndex={-1}
         role="dialog"
         onPointerDown={inFront ? undefined : onBringForward}
-        className="hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
+        className="float hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px)`,
           width: size ? size.width : `min(${width}px, 100%)`,

@@ -2479,7 +2479,7 @@ function MapButtons({
 }
 
 const MAP_BUTTON =
-  'paper-grain flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] shadow-[0_2px_0_rgba(15,10,4,.55)]';
+  'paper-grain flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
 
 function Loading() {
   return (

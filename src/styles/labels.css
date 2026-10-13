@@ -687,7 +687,7 @@
   left: -100px;
   width: 200px;
   border: 1px solid var(--ink);
-  box-shadow: 0 8px 18px rgb(0 0 0 / 45%);
+  box-shadow: var(--shadow-float);
   color: var(--ink);
   pointer-events: auto;
   white-space: normal;

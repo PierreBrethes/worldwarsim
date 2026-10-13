@@ -81,7 +81,7 @@ export function DemolitionCard({
         bottom: fromBottom ? `calc(100% - ${at.y - 18}px)` : undefined,
       }}
     >
-      <div className="paper-grain border border-[var(--ink)] p-[3px]">
+      <div className="float paper-grain border border-[var(--ink)] p-[3px]">
         <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
           <div className="text-[9px] tracking-[.2em] text-[var(--critical)] uppercase">
             {fr.demolition.kicker}
