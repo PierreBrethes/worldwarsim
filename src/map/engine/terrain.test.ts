@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
-import { DRAW_S, inkOn, penShare, SKETCH_S, sketchRegion, STAGGER_S } from './terrain';
+import { DRAW_S, inkOn, zoomFade, penShare, SKETCH_S, sketchRegion, STAGGER_S } from './terrain';
 import { PALETTE } from './palette';
 
 const TYPES: ReadonlyArray<RegionType> = [
@@ -99,5 +99,13 @@ describe('the order of the pen', () => {
   it('draws nothing, without a NaN, where no anchor fits', () => {
     const nowhere = { ...square(4), covers: () => false };
     expect(sketchRegion({ type: 'forest', seed: 1, ...nowhere })).toEqual([]);
+  });
+});
+
+describe('zoomFade', () => {
+  it('is fully opaque a hair past the disappearance threshold', () => {
+    expect(zoomFade(0)).toBe(0);
+    expect(zoomFade(0.08)).toBe(1);
+    expect(zoomFade(0.5)).toBe(1);
   });
 });
