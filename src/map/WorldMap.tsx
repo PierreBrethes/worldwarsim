@@ -861,6 +861,7 @@ export function WorldMap({
         }
         muted={placing !== null}
         destinations={destinationIds}
+        depositLayer={indicators.deposits ? 'regions' : 'close'}
       />
       <EdgeIndicators
         labels={labels}

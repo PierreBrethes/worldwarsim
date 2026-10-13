@@ -93,6 +93,7 @@ export function MapLabels({
   onHoldOver,
   muted,
   destinations,
+  depositLayer,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
@@ -138,6 +139,8 @@ export function MapLabels({
   muted: boolean;
   /** Les destinations de la colonne armée, cerclées au pied (lot mobile-3, A8). */
   destinations: ReadonlySet<string>;
+  /** Le rapproché par défaut ; la bascule « gisements » les rend à toute la couche des régions. */
+  depositLayer: 'regions' | 'close';
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
@@ -395,16 +398,16 @@ export function MapLabels({
 
   useEffect(() => {
     if (!engine) return;
-    // A deposit belongs to the zoomed-in layer, not merely to a region: it comes and goes with
-    // the admin-1 borders, on their fade and not on a threshold of its own.
+    // A deposit belongs to the zoomed-in layer, not merely to a region: close up by default, with
+    // the admin-1 borders when its bascule asks for them.
     engine.setLabelAnchors(
       labels.map(({ id, anchor, type }) => ({
         id,
         anchor,
-        withRegionLayer: type === 'deposit',
+        fadesWith: type === 'deposit' ? depositLayer : null,
       })),
     );
-  }, [engine, labels]);
+  }, [engine, labels, depositLayer]);
 
   useEffect(() => {
     if (!engine) return;

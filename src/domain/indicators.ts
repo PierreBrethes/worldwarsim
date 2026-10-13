@@ -55,10 +55,9 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  * the building to the edge, it decides whether the plate stands on the board at all. Off by
  * default, the player's own economy would be invisible until he found the button.
  *
- * `deposits` is on for the same reason and a sharper one: it is the layer that answers "where
- * do I put a mine", and the fallback for a player who never finds the button is to right-click
- * a hundred regions one by one. Counted on `public/deposits.json`, a playable nation holds
- * nine to seventeen of them — the layer is thin enough that showing it costs nothing to read.
+ * `deposits` is off, and that hides nothing: the board draws every deposit close up whatever
+ * the bascule, which only stretches them to the whole admin-1 layer and to the edge
+ * (carte allégée, 13/10/2026). On by default, it sowed pictograms over a continent seen whole.
  *
  * `outposts` joins them for exactly the argument written above, and the layer is thinner still:
  * a point is a column already spent, and its garrison has **no other address on the board**.
@@ -66,7 +65,7 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
-  deposits: true,
+  deposits: false,
   outposts: true,
   /** Allumée pour la même raison que les avant-postes : une réserve annoncée par dépêche qui ne
    *  se tient nulle part sur la carte ne ferait converger personne. */

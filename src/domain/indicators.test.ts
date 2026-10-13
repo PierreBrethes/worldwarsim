@@ -55,13 +55,12 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
 });
 
 describe('toggles', () => {
-  // Buildings, deposits and outposts sit apart: their bascules govern the board itself, so
-  // lighting them costs the edge nothing, and hiding them would cost the player his own
-  // economy, the only map of where he may put one, and the points his spent columns hold.
+  // Buildings and outposts sit apart: their bascules govern the board itself, so lighting them
+  // costs the edge nothing, and hiding them would cost the player his own economy and the
+  // points his spent columns hold. Deposits are drawn close up whatever their bascule.
   it('only lights what the player owns on the ground, plus inbound, on first load', () => {
     expect(Object.entries(DEFAULT_TOGGLES).filter(([, on]) => on)).toEqual([
       ['buildings', true],
-      ['deposits', true],
       ['outposts', true],
       ['objectives', true],
       ['inbound', true],

@@ -46,7 +46,7 @@ import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
-import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
+import { LabelLayer, closeShare, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
@@ -453,6 +453,7 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
+      () => closeShare(this.camera.position.distanceTo(this.controls.target)),
       (id) => this.standing.isDressed(id) || this.camps.isDressed(id),
     );
 
