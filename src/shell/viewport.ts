@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 /**
  * **Un seuil, jamais un agent.** Sous cette largeur les surfaces du plateau cessent d'être des
@@ -36,3 +36,24 @@ function useMedia(query: string): boolean {
   }, [query]);
   return matches;
 }
+
+/**
+ * **Ce que la réglette et la colonne couvrent de la carte**, en pixels d'écran depuis le bord de
+ * la carte : la table est plein écran, l'interface posée dessus. Ce qui se range au bord — les
+ * indicateurs, l'échelle de route — s'y retire au lieu de passer dessous.
+ */
+export type BoardInsets = {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+};
+
+export const BoardInsetsContext = createContext<BoardInsets>({
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+});
+
+export const useBoardInsets = (): BoardInsets => useContext(BoardInsetsContext);

@@ -17,6 +17,21 @@ import { nearWeight } from './figurines/figurine';
  */
 export const LABEL_EXPANDED_DISTANCE = 220;
 
+const PLATE_FLOOR = 0.4;
+const PLATE_SHRINK_DISTANCE = 300;
+
+/**
+ * A folded building keeps its plate at any distance, but the buildings of one nation fall within
+ * a few pixels of each other at world scale: five plates of 46 px piled into one giant
+ * building. Past the expanded threshold the plate shrinks with the camera's distance, so the
+ * pile reads as a cluster of small marks.
+ */
+export function plateScale(distance: number): number {
+  const t =
+    (distance - LABEL_EXPANDED_DISTANCE) / (PLATE_SHRINK_DISTANCE - LABEL_EXPANDED_DISTANCE);
+  return 1 - (1 - PLATE_FLOOR) * Math.min(1, Math.max(0, t));
+}
+
 /** The anchor sits on the crust, not above it: the callout must start from the ground it
  *  designates. */
 const ANCHOR_ELEVATION = COUNTRY_THICKNESS + 0.01;
@@ -67,6 +82,8 @@ export type LabelProjection = {
   dressed: number;
   /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
   distance: number;
+  /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
+  plateScale: number;
   /**
    * Off-frame: the anchor parks at the screen edge.
    */
@@ -89,6 +106,15 @@ export type NamedAnchor = {
   readonly fadesWith: LabelLayerFade;
 };
 
+export type EdgeInsets = {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+};
+
+const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
 /**
  * The engine's anchor registry. It knows neither DOM nor React: it says where each label
  * lands on screen, whether it lands, and at what detail level. The interface does the rest.
@@ -101,6 +127,9 @@ export class LabelLayer {
   private readonly gaze = new Vector3();
   private readonly toward = new Vector3();
   private anchors: ReadonlyArray<NamedAnchor> = [];
+  /** What the interface lays over the map's rim, in canvas pixels: an indicator folded under the
+   *  rule or the column would point at something nobody can click. */
+  edgeInsets: EdgeInsets = NO_INSETS;
 
   /**
    * A region anchor is resolved, not computed: its interior point comes from the region
@@ -142,6 +171,7 @@ export class LabelLayer {
         fade: fadesWith === null ? 1 : 0,
         dressed: 0,
         distance: 0,
+        plateScale: 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -202,13 +232,20 @@ export class LabelLayer {
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
+      projection.plateScale = plateScale(distance);
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
 
       projection.atEdge = !projection.visible;
       if (projection.atEdge) {
-        const edge = clampToEdge(behind ? width - x : x, behind ? height - y : y, width, height);
-        projection.edgeX = edge.x;
-        projection.edgeY = edge.y;
+        const { top, right, bottom, left } = this.edgeInsets;
+        const edge = clampToEdge(
+          (behind ? width - x : x) - left,
+          (behind ? height - y : y) - top,
+          width - left - right,
+          height - top - bottom,
+        );
+        projection.edgeX = edge.x + left;
+        projection.edgeY = edge.y + top;
         projection.heading = edge.heading;
       }
     }

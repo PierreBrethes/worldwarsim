@@ -41,6 +41,7 @@ import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/setti
 import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
+import { useBoardInsets } from '@/shell/viewport';
 import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
@@ -300,6 +301,7 @@ export function WorldMap({
   replayBelow = 0,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const insets = useBoardInsets();
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
    *  callback that changed identity. */
   const regionsLoaded = useRef(onRegionsLoaded);
@@ -642,6 +644,10 @@ export function WorldMap({
   }, [readyEngine, motion]);
 
   useEffect(() => {
+    readyEngine?.setEdgeInsets(insets);
+  }, [readyEngine, insets]);
+
+  useEffect(() => {
     readyEngine?.freezeOrbit(rose !== null);
   }, [readyEngine, rose]);
 
@@ -830,14 +836,8 @@ export function WorldMap({
           WebkitMaskImage: 'linear-gradient(transparent, #000 85%)',
         }}
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1]"
-        style={{
-          background:
-            'radial-gradient(ellipse 75% 68% at 50% 44%, rgba(228,216,189,.045) 0%, transparent 42%), radial-gradient(ellipse 85% 75% at 50% 46%, transparent 48%, rgba(10,7,3,.5) 100%)',
-        }}
-      />
+      <div aria-hidden className="map-veil" />
+      <div aria-hidden className="map-grain" />
       <MapLabels
         labels={labels}
         engine={readyEngine}
@@ -870,7 +870,7 @@ export function WorldMap({
         destinations={edgeNames}
       />
       {designatedArc && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute z-10" style={{ top: insets.top + 16, left: insets.left + 16 }}>
           <RouteScale arc={designatedArc} />
         </div>
       )}

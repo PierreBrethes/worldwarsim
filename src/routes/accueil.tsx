@@ -39,7 +39,7 @@ function OfflineHome() {
 function HomeSheet({ turning, children }: { turning: Turning; children: ReactNode }) {
   return (
     <Newspaper width={WIDTH} turning={turning}>
-      <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+      <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] float">
         <div className="flex items-baseline justify-between gap-5 px-(--sheet-pad) pt-[13px] pb-[9px]">
           <span className="eyebrow">{fr.home.edition}</span>
           <span className="eyebrow">{fr.home.audience}</span>

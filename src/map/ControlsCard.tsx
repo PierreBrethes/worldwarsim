@@ -48,7 +48,7 @@ export function CornerCard({
     <section
       role="dialog"
       aria-label={title}
-      className="hud paper-grain w-[320px] border border-[var(--ink)] font-(family-name:--font-body) text-[var(--ink)] shadow-[0_2px_0_rgba(15,10,4,.55)]"
+      className="hud paper-grain w-[320px] border border-[var(--ink)] font-(family-name:--font-body) text-[var(--ink)] float"
     >
       <div className="flex items-baseline justify-between border-b border-[var(--ink)] px-4 pt-3 pb-2">
         <h2 className="text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">{title}</h2>

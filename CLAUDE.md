@@ -149,9 +149,32 @@ sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien n'es
 (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
 réelle et l'heure d'arrivée, seul le serveur date un mouvement.
 
+**La table est plein écran — 13/10/2026** (décision de Pierre). Plus de cadre noir : la carte
+prend tout l'écran, et l'interface se pose dessus. En haut, la **réglette** (`src/shell/Reglette.tsx`),
+une bande de papier avec marge et ombre : drapeau et nation (vers la fenêtre Nation), l'enseigne
+(vers l'accueil) et la saison, le chantier, les mouvements en cases, et les huit réserves —
+icône, chiffre, jauge du stock sur son plafond. **Le rouge n'y sert qu'à l'alerte, et l'alerte
+est la réserve à sec** (`drynessOf`, `src/domain/resource-band.ts`) : vide, ou vide avant
+`DRY_SOON_HOURS` au débit net que la vue sert déjà — chiffre, jauge, cercle et une étiquette
+« à sec dans N h » qui pend sous la case. Au plafond n'est pas une alarme : la jauge pleine à
+l'encre, le diagnostic à la carte de la réserve. À gauche, la
+**colonne des surfaces** (`SurfaceColumn.tsx`) : en tête le carré d'encre « N à faire », qui
+déplie la carte `NextActions` à sa droite (repli retenu), puis Nation, Écon., Abaque, Journal
+(badge des non-lus — la mention a quitté la réglette), Presse (rang), Télég. Les **réglages** sont
+au pied de la pile des boutons de carte, et la fiche du survol à gauche de cette pile, bas
+alignés. **Un seul jeton de marge et d'écart** (`--table-margin`, `--table-gap`, `tokens.css`),
+lu des deux côtés. Ce qui se range au bord s'écarte de la réglette et de la colonne : le cadre
+publie `--board-top` et des `BoardInsets` (`viewport.ts`), que lisent les indicateurs de bord
+(`setEdgeInsets`), l'échelle de route, les notices et les fenêtres, qui s'ouvrent à droite de la colonne. **Au téléphone**, la réglette
+sur deux lignes (sans cercle) et, à la place de la barre de pied, le **rapporteur**
+(`Protractor.tsx`) : un quart de cercle d'encre dans le coin bas droit ; ouvert, six ronds de
+papier sortent en éventail le long d'un arc fin, sans fond — à faire, chantiers, journal, presse,
+télégraphe, réglages — et le coin ne dit plus que « fermer ». Transitions CSS seules, qui suivent le réglage d'animations de carte. Les
+boutons de carte passent en bas à gauche.
+
 **Ce qui a une position ne vit pas dans un panneau** (décision Pierre, 30/08, couche permanente) :
-le widget de troupes est **supprimé** et remplacé, bas-gauche, par la carte **« à faire
-maintenant »** (`src/routes/-plateau/NextActions.tsx`, règle pure dans
+le widget de troupes est **supprimé** et remplacé par la carte **« à faire
+maintenant »**, aujourd'hui dépliée depuis la tête de la colonne (`src/routes/-plateau/NextActions.tsx`, règle pure dans
 `src/domain/next-actions.ts`). Une ligne par chose qui attend le joueur — poses de fondation
 offertes, chantier sans tête de file, bâtiment de projection sans lot, troupe posée sans ordre,
 troupe hors ravitaillement, slot de mouvement libre — et chaque ligne recentre la carte ou ouvre
@@ -286,8 +309,9 @@ articulations nommées (`squadOf`), un modèle pour le reste — ou `null` dès 
 de fichier : rien plutôt que la mauvaise figurine. Les GLB sortent de Claude Design sur un
 gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la planche, pièces
 nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de triangles et
-aux noms de son rôle. La France et l'Allemagne sont sculptées ; il manque le R35
-(blindé MK1 français) et le Ju 52 (transport aérien allemand). Seul le MK1 de l'infanterie
+aux noms de son rôle. Les huit nations sont sculptées, à quelques trous près : le R35
+(blindé MK1 français), le Ju 52 allemand, l'infanterie MK2 japonaise et les cargos, porte-avions
+et transports qui n'ont pas non plus de planche. Seul le MK1 de l'infanterie
 marche : un MK2 garde la pose où il a été sculpté (le bazooka français à genou). Le **pion d'un mouvement `mien`** porte sa figurine sur le fil, tournée vers sa
 route ; les arcs adverses n'en ont jamais (`movementRoles` rend `null` hors `mine`). Une **pile
 posée** à un point se lit en groupes (`pilePieces`, `src/domain/pile-pieces.ts` : un groupe par

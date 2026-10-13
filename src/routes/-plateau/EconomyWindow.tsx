@@ -2058,7 +2058,7 @@ function QueuedNotice({
   return (
     <div
       role="status"
-      className="sticky bottom-3 z-[3] mx-[10px] mt-3 flex items-center gap-[10px] bg-[var(--ink)] py-2 pr-2 pl-[14px] text-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,.45)]"
+      className="sticky bottom-3 z-[3] mx-[10px] mt-3 flex items-center gap-[10px] bg-[var(--ink)] py-2 pr-2 pl-[14px] text-[var(--paper)] float"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
         <span className="text-[13.5px] font-bold">

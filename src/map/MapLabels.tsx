@@ -376,6 +376,7 @@ export function MapLabels({
           stagger: 0,
           fade: 1,
           dressed: 0,
+          plateScale: 1,
           x: 0,
           y: 0,
         },
@@ -435,6 +436,12 @@ export function MapLabels({
         if (dressed !== state.dressed) {
           state.dressed = dressed;
           anchor.style.setProperty('--dressed', String(dressed));
+        }
+
+        const plate = Math.round(projection.plateScale * 20) / 20;
+        if (plate !== state.plateScale) {
+          state.plateScale = plate;
+          anchor.style.setProperty('--plate-scale', String(plate));
         }
 
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
@@ -948,6 +955,7 @@ type RenderState = {
   stagger: number;
   fade: number;
   dressed: number;
+  plateScale: number;
   x: number;
   y: number;
 };

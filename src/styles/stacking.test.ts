@@ -23,7 +23,6 @@ const LADDER = [
   '--z-rose',
   '--z-hovercard',
   '--z-veil',
-  '--z-grain',
   '--z-notice',
 ] as const;
 

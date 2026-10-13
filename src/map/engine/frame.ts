@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { EqualStencilFunc, type Material, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { OutlineSample, World } from '@/domain/world';
 
@@ -17,8 +17,22 @@ export const SEA_LEVEL = COUNTRY_THICKNESS - 0.004;
  */
 export const RECESSION = { land: 2, wash: 4, sea: 6 } as const;
 export const PLINTH_HEIGHT = 5;
-/** Written by the country sheets, read by the region fills; the coastal wash writes 1 on water. */
+/** Written by the country sheets, read through `onLand`; the coastal wash writes 1 on water. */
 export const LAND_STENCIL = 2;
+
+/**
+ * **Ce qui se pose sur une région ne déborde pas de la terre** : son contour (10m simplifié)
+ * n'est pas celui du pays (50m) — au Morbihan, au Péloponnèse, des kilomètres de mer —, et
+ * l'aplat, le trait de survol et la plume passaient dessus. Le pays marque le stencil
+ * (`LAND_STENCIL`), ce qui suit ne s'imprime que là. À poser sur un matériau rendu après les
+ * pays (transparent ou `renderOrder` supérieur).
+ */
+export const onLand = <M extends Material>(material: M): M => {
+  material.stencilWrite = true;
+  material.stencilRef = LAND_STENCIL;
+  material.stencilFunc = EqualStencilFunc;
+  return material;
+};
 
 /**
  * The world's frame. **La table est plate** (13/10/2026) : la courbure d'horizon, qui n'était

@@ -24,7 +24,7 @@ export function SentNotice({
   return (
     <div
       role="status"
-      className="hud paper-grain flex items-center gap-3 border border-[var(--ink)] px-3 py-[10px] text-[var(--ink)] shadow-[0_10px_24px_rgba(0,0,0,.45)]"
+      className="hud paper-grain flex items-center gap-3 border border-[var(--ink)] px-3 py-[10px] text-[var(--ink)] float"
     >
       <Stamp label={fr.sent.stamp} size="small" />
       <span className="flex min-w-0 flex-1 flex-col gap-[3px]">

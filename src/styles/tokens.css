@@ -1,5 +1,5 @@
 /* Season interface — design tokens
-   1940 illustrated press. Sharp corners, no shadows, no radius.
+   1940 illustrated press. Sharp corners, no radius; shadows only on what floats over the map (`--shadow-float`).
    The contrast budget belongs to the game layer. */
 
 :root {
@@ -108,33 +108,38 @@
   --z-rose: 52;
   --z-hovercard: 55;
   --z-veil: 60;
-  --z-grain: 70;
   --z-notice: 80;
 
   /* geometry */
-  --topbar-h: 58px;
-  --rail-w: 52px;
-  /* Les deux bords du plateau sous le seuil, en pixels d'écran : le cadre les mesure et les
-     publie (`shell/Shell.tsx`), feuilles et fenêtres se posent entre eux. */
+  /* La table plein écran (13/10) : une marge au bord de l'écran et un écart entre carrés, en
+     pixels d'écran, lus par la réglette, la colonne des surfaces et la pile des boutons de carte.
+     Une surface `.hud` les divise par l'échelle. */
+  --table-margin: 20px;
+  --table-gap: 9px;
+  /* Les bords du plateau, en pixels d'écran : le cadre les mesure et les publie
+     (`shell/Shell.tsx`), feuilles et fenêtres se posent entre eux. */
   --board-top: 0px;
   --board-bottom: 0px;
+  --board-left: 0px;
   --dock-w: 430px;
   --panel-ctx-w: 308px;
   --panel-side-w: 250px;
   --plinth-h: 14px;
   --radius: 0;
   --shadow: none;
+  --shadow-float: 0 12px 26px rgb(0 0 0 / 42%);
 }
 
-/* halftone screen — every paper surface */
+/* Plain paper, laid flat: the halftone screen lowered the contrast of everything written on it
+   (table d'état-major, socle papier). A hatch now only ever means a state. */
 .paper,
 .paper-grain {
   background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--ink) 5.5%, transparent) 0 1px,
-    transparent 1px 5px
-  );
+}
+
+/* Whatever floats over the map: the press-poster shadow of the table prototype. */
+.float {
+  box-shadow: var(--shadow-float);
 }
 
 .paper {

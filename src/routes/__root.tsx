@@ -46,7 +46,6 @@ function Root() {
     <>
       {open ? <Outlet /> : <SignedIn />}
       <Notifications />
-      <div className="grain" aria-hidden />
     </>
   );
 }

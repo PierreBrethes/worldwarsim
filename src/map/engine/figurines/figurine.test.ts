@@ -17,7 +17,7 @@ describe('figurineFor', () => {
   it('answers null where nothing is sculpted, so the plate stays', () => {
     expect(figurineFor(null, 'infantry', [1])).toBeNull();
     expect(figurineFor('atlantis', 'infantry', [1])).toBeNull();
-    expect(figurineFor('italy', 'infantry', [1])).toBeNull();
+    expect(figurineFor('japan', 'airTransport', [1])).toBeNull();
     expect(figurineFor('france', 'cargo', [1])).toBeNull();
     expect(figurineFor('france', 'infantry', [])).toBeNull();
   });
