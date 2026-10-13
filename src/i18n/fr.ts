@@ -2512,7 +2512,7 @@ export const fr = {
               lines: [
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
-                'Une troupe touchée est armée : touchez une cible cerclée, ou l’un des raccourcis de sa fiche. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
+                'Touchez une de vos piles pour la lever : sa fiche s’ouvre au pied. Touchez la carte pour la poser, la pile pour la reposer. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
                 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
               ],
             }
@@ -2522,6 +2522,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
+                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -2642,6 +2643,7 @@ export const fr = {
       orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
       separator: '·',
       pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
+      lift: ` ${fr.mapUi.mouse.click.left} : lever une pile, puis la poser`,
     }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
@@ -2652,6 +2654,11 @@ export const fr = {
         effect: 'orienter et incliner la caméra',
       },
       { gesture: 'clic gauche net', effect: 'sélectionner l’entité visée' },
+      {
+        gesture: `${fr.mapUi.mouse.click.left} sur une pile`,
+        effect: 'la lever ; le suivant, sur la carte, la pose',
+      },
+      { gesture: 'échap', effect: 'reposer la pièce en main' },
       {
         gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')],
         effect: 'déplacer la carte',
@@ -2666,6 +2673,7 @@ export const fr = {
     /** **Le doigt ne lit pas le mappage** (décision mobile-1c) : trois lignes, toujours les mêmes. */
     fingerGestures: [
       { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
+      { gesture: 'toucher une pile', effect: 'la lever ; toucher la carte la pose' },
       { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
       { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],

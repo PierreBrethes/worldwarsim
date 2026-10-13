@@ -179,6 +179,14 @@ describe('les notices lisent le mappage', () => {
     expect(sentence(WHEEL_ACTS_MAPPING)).toContain('clic droit glissé — déplacer la carte');
   });
 
+  /** Lever et poser restent au gauche quel que soit le mappage (ADR 0026 §6). */
+  it('nomme le clic gauche pour lever et poser, sous tout mappage', () => {
+    for (const mapping of [CLASSIC_MAPPING, WHEEL_ACTS_MAPPING]) {
+      expect(sentence(mapping)).toContain('clic gauche net sur une pile — la lever');
+      expect(fr.mapUi.gestureHint(mapping).lift).toContain('clic gauche net : lever une pile');
+    }
+  });
+
   it('nomme le même bouton dans l’aide-mémoire et dans le bandeau', () => {
     const columns = (mapping: MouseMapping) =>
       fr.briefing.columns(60, 25, 120, { finger: false, phone: false, mapping });

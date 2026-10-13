@@ -864,6 +864,8 @@ function GestureHint({ mapping }: { mapping: MouseMapping }) {
       {hint.orient}
       <span className="text-[var(--paper-dim)]">{hint.separator}</span>
       {hint.pan}
+      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      {hint.lift}
     </div>
   );
 }
