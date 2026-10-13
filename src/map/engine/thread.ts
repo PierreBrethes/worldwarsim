@@ -60,7 +60,7 @@ export const threadWidth = (thickness: number): number => thickness * WIDTH_PER_
  * also halved its hairline from afar, where a 1.25 px band vanishes under the pieces. The floor
  * keeps the hierarchy between movements (mine over the others) at a share above the thickness.
  */
-export const THREAD_FLOOR_BOOST = 1.6;
+const THREAD_FLOOR_BOOST = 1.6;
 export const threadFloorPx = (thickness: number): number => thickness * THREAD_FLOOR_BOOST;
 
 /**
@@ -83,7 +83,7 @@ export const DRIFT_CEILING_PX_S = 6;
 /** A tab back in the foreground must not catch up its drift in one jump. */
 const MAX_DRIFT_STEP_S = 0.1;
 
-/** The air leg's ground trace: a floor of a pixel, and a share of the ribbon's true width. */
+/** The air leg's ground trace: thick enough to read at night under the raised thread. */
 const SHADOW_THICKNESS = 1.6;
 const SHADOW_SHARE = 0.4;
 
