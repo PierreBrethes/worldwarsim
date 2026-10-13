@@ -89,15 +89,17 @@ export type HeldClaim = {
     readonly id: string;
     readonly wash: number;
     /**
-     * **Le souvenir d'une couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste
-     * hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
+     * Les trois états que sert `control.held`, tels quels. `suspended` est **le souvenir d'une
+     * couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
      * disparaissait pourtant de la carte : son propriétaire n'avait plus rien à lire là où il
      * tenait la veille. Hachurée, elle dit la suspension sans jamais se faire passer pour une
      * possession, ce qu'un aplat pâle aurait fait.
      */
-    readonly suspended: boolean;
+    readonly state: 'current' | 'surveyed' | 'suspended';
   }>;
 };
+
+type HeldState = HeldClaim['regions'][number]['state'];
 
 /**
  * **La hachure se mesure en pixels d'écran, pas en kilomètres** (ADR 0020 §1 : « une couleur qui
@@ -113,26 +115,63 @@ const HATCH_PERIOD = 9;
 const HATCH_WIDTH = 3.4;
 const HATCH_EDGE = 0.9;
 
-function hatch(material: MeshStandardMaterial): MeshStandardMaterial {
+/**
+ * Le même procédé pour toutes les trames du sol : `trame` est la position du fragment en pixels
+ * CSS, et le corps ne fait que moduler la couleur déjà éclairée. La clef de programme porte le
+ * corps — sans elle, three.js reconnaît deux trames au même `onBeforeCompile` et leur sert le
+ * premier programme compilé.
+ */
+export function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.hatchScale = { value: window.devicePixelRatio || 1 };
+    shader.uniforms.trameScale = { value: window.devicePixelRatio || 1 };
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'uniform float hatchScale;\nvoid main() {')
+      .replace('void main() {', 'uniform float trameScale;\nvoid main() {')
       .replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
-        float band = mod((gl_FragCoord.x + gl_FragCoord.y) / hatchScale, ${HATCH_PERIOD.toFixed(1)});
-        float ink = 1.0 - smoothstep(
-          ${(HATCH_WIDTH - HATCH_EDGE).toFixed(2)},
-          ${(HATCH_WIDTH + HATCH_EDGE).toFixed(2)},
-          band
-        );
-        if (ink <= 0.004) discard;
-        gl_FragColor.a *= ink;`,
+        vec2 trame = gl_FragCoord.xy / trameScale;
+        ${body}`,
       );
   };
+  material.customProgramCacheKey = () => body;
   return material;
 }
+
+const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
+  screenTrame(
+    material,
+    `float band = mod(trame.x + trame.y, ${HATCH_PERIOD.toFixed(1)});
+    float ink = 1.0 - smoothstep(
+      ${(HATCH_WIDTH - HATCH_EDGE).toFixed(2)},
+      ${(HATCH_WIDTH + HATCH_EDGE).toFixed(2)},
+      band
+    );
+    if (ink <= 0.004) discard;
+    gl_FragColor.a *= ink;`,
+  );
+
+/**
+ * **Un relevé est gravé, il n'est pas imprimé** (`table-etat-major.md`) : la couleur du tenant vu
+ * ce jour-là, en tailles horizontales serrées sur un fond plus pâle de la même encre. Le fond
+ * garde la teinte lisible au loin — c'est le score, il doit se lire sans zoom —, les tailles la
+ * distinguent de l'encre fraîche d'une région à jour, au même délavage. Horizontales, pour ne
+ * jamais se confondre avec la hachure oblique d'une zone suspendue.
+ */
+const ENGRAVE_PERIOD = 4;
+const ENGRAVE_WIDTH = 1.7;
+const ENGRAVE_EDGE = 0.6;
+const ENGRAVE_GROUND = 0.45;
+
+const engrave = (material: MeshStandardMaterial): MeshStandardMaterial =>
+  screenTrame(
+    material,
+    `float cut = 1.0 - smoothstep(
+      ${(ENGRAVE_WIDTH - ENGRAVE_EDGE).toFixed(2)},
+      ${(ENGRAVE_WIDTH + ENGRAVE_EDGE).toFixed(2)},
+      mod(trame.y, ${ENGRAVE_PERIOD.toFixed(1)})
+    );
+    gl_FragColor.a *= mix(${ENGRAVE_GROUND.toFixed(2)}, 1.0, cut);`,
+  );
 
 /**
  * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
@@ -205,7 +244,7 @@ export class RegionLayer {
    *  à sa couleur plutôt qu'à celle de son terrain. */
   private heldByRegion = new Map<
     string,
-    { readonly ink: string; readonly wash: number; readonly suspended: boolean }
+    { readonly ink: string; readonly wash: number; readonly state: HeldState }
   >();
   /** A big region costs 100+ ms to sketch (the Nunavut), and the pointer crosses it again and
    *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
@@ -304,9 +343,7 @@ export class RegionLayer {
     this.claims = claims;
     this.heldByRegion = new Map(
       claims.flatMap((claim) =>
-        claim.regions.map(
-          ({ id, wash, suspended }) => [id, { ink: claim.ink, wash, suspended }] as const,
-        ),
+        claim.regions.map(({ id, wash, state }) => [id, { ink: claim.ink, wash, state }] as const),
       ),
     );
     this.forgetSketches();
@@ -368,19 +405,19 @@ export class RegionLayer {
     for (const claim of this.claims) {
       /** La clef porte la franchise **et** la trame : deux régions de même encre ne partagent un
        *  maillage que si elles se peignent de la même façon. */
-      const byWash = new Map<string, { wash: number; suspended: boolean; ids: Set<string> }>();
+      const byWash = new Map<string, { wash: number; state: HeldState; ids: Set<string> }>();
       for (const region of claim.regions) {
-        const key = `${region.wash}/${region.suspended}`;
+        const key = `${region.wash}/${region.state}`;
         const kept = byWash.get(key) ?? {
           wash: region.wash,
-          suspended: region.suspended,
+          state: region.state,
           ids: new Set<string>(),
         };
         kept.ids.add(region.id);
         byWash.set(key, kept);
       }
-      for (const { wash, suspended, ids } of byWash.values()) {
-        const lift = suspended ? SUSPENDED_LIFT : HELD_LIFT;
+      for (const { wash, state, ids } of byWash.values()) {
+        const lift = state === 'suspended' ? SUSPENDED_LIFT : HELD_LIFT;
         const parts = this.prepared
           .filter(({ region }) => ids.has(region.id))
           .map(({ region }) => this.fillOf(region, lift));
@@ -395,7 +432,16 @@ export class RegionLayer {
           opacity: HELD_OPACITY * wash,
           depthWrite: false,
         });
-        this.held.add(new Mesh(geometry, suspended ? hatch(material) : material));
+        this.held.add(
+          new Mesh(
+            geometry,
+            state === 'suspended'
+              ? hatch(material)
+              : state === 'surveyed'
+                ? engrave(material)
+                : material,
+          ),
+        );
       }
     }
   }
@@ -552,7 +598,7 @@ export class RegionLayer {
     this.hoverOutline.geometry.dispose();
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
-    const painted = held === undefined || held.suspended ? null : held;
+    const painted = held === undefined || held.state === 'suspended' ? null : held;
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),

@@ -558,7 +558,12 @@ n'y a pas d'horloge dans ce jeu et on n'en invente pas une ici. Les écritures s
 tenant et ligne de moins d'une heure, rien n'est réécrit ; le sol de personne et son propre sol ne
 fondent aucune ligne. L'ancienneté se voit **en permanence** — un relevé ancien est délavé
 (`surveyWash`, cranté pour que la géométrie fusionnée ne se refonde pas à chaque minute) — et le
-survol donne la date en clair, « relevé du 12 août ».
+survol donne la date en clair, « relevé du 12 août ». **Et chaque état a sa matière** (13/10/2026,
+`table-etat-major.md`) : le *vierge* est au crayon — un grain de graphite et un trait oblique sur
+tout le sol (`countries.ts`), que l'encre des régions connues couvre —, le *relevé* est gravé —
+tailles horizontales sur un fond pâle de la même encre, délavées par le même `surveyWash` —, le
+*à jour* est à l'encre fraîche, pleine ; toutes trois en pixels d'écran (`screenTrame`,
+`regions.ts`), comme la hachure des zones suspendues.
 
 **Et il se démantèle** (décision du 16/09, `convex/outposts.ts`, `dismantle`) : un refus unique
 (`outpostDismantleRefusalOf`, `NOT_YOURS` et `OUTPOST_SERVING` — on ne retire pas la route sous une

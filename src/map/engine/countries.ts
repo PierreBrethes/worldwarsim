@@ -13,6 +13,7 @@ import type { ProjectedCountry, World } from '@/domain/world';
 import type { Curvature } from './curvature';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, DRAFT, type WorldFrame } from './frame';
+import { screenTrame } from './regions';
 
 /**
  * Two keys because two vocabularies meet on the slab: `name` is what `world.json` inks by,
@@ -33,6 +34,19 @@ export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
  */
 const BORDER_LIFT = 0.004;
 const GROUND_RECESSION = 2;
+
+/**
+ * **Ce qu'on n'a jamais relevé est au crayon** (`table-etat-major.md`, ADR 0020 §5) : un grain de
+ * graphite et un trait oblique à peine posé, en pixels d'écran comme la hachure des zones
+ * suspendues. Il porte sur tout le sol et c'est l'encre des régions connues qui le couvre : la
+ * région vierge est simplement celle où rien n'est venu par-dessus, sans liste à tenir.
+ * Couleur déjà encodée en sRGB à ce point du programme, d'où un graphite écrit en clair.
+ */
+const PENCIL = `
+  float tooth = fract(sin(dot(floor(trame), vec2(12.9898, 78.233))) * 43758.5453);
+  float stroke = 1.0 - smoothstep(0.5, 1.3, mod(trame.x - trame.y, 7.0));
+  float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
 
 function extrudeRings(country: ProjectedCountry, frame: WorldFrame): BufferGeometry {
   const geometries = country.rings.map((ring) => {
@@ -86,14 +100,17 @@ export function buildCountries(
   for (const country of world.countries) {
     const mesh = new Mesh(
       curvature.register(extrudeRings(country, frame)),
-      new MeshStandardMaterial({
-        color: PALETTE.neutralLand,
-        roughness: 0.97,
-        metalness: 0,
-        polygonOffset: true,
-        polygonOffsetFactor: 0,
-        polygonOffsetUnits: GROUND_RECESSION,
-      }),
+      screenTrame(
+        new MeshStandardMaterial({
+          color: PALETTE.neutralLand,
+          roughness: 0.97,
+          metalness: 0,
+          polygonOffset: true,
+          polygonOffsetFactor: 0,
+          polygonOffsetUnits: GROUND_RECESSION,
+        }),
+        PENCIL,
+      ),
     ) as CountryMesh;
     mesh.userData = { name: country.name, adm0: country.adm0 };
     meshes.push(mesh);
