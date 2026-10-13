@@ -51,6 +51,7 @@ import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain
 import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
+import { unlinkedProducers } from '@/domain/next-actions';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
@@ -1176,6 +1177,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [heldRaw],
   );
 
+  const cutRegions = useMemo(
+    () => [...new Set(unlinkedProducers(view).map((building) => building.regionId))],
+    [view],
+  );
+
   const reachedOutposts = useMemo(
     () =>
       view.me.outposts.map(({ id, lonLat, level, standsAt }) => ({
@@ -1950,6 +1956,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               inkByCountry={inkByCountry}
               held={held}
               outposts={reachedOutposts}
+              cutRegions={cutRegions}
               built={built}
               selectedCountry={country ?? null}
               playerNation={view.me.nation}

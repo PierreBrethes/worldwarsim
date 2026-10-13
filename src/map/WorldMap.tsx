@@ -34,6 +34,7 @@ import {
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
+import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
@@ -82,6 +83,9 @@ type Props = {
   held: ReadonlyArray<HeldClaim>;
   /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
   outposts: ReadonlyArray<ReachedOutpost>;
+  /** The regions where a site of mine stands cut off (ADR 0020 §6): a region that joins them is
+   *  stamped « hors réseau » beside its maquette. */
+  cutRegions?: ReadonlyArray<string>;
   /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
@@ -261,6 +265,7 @@ export function WorldMap({
   inkByCountry,
   held,
   outposts,
+  cutRegions = NO_REGIONS,
   built,
   selectedCountry,
   playerNation,
@@ -730,9 +735,22 @@ export function WorldMap({
   useEffect(() => {
     if (!readyEngine || replayView === null) return;
     setRose(null);
+    // « Terrain tenu », the account's own stamp, pressed on the board too as the account opens.
+    const held = replayView.won
+      ? {
+          kind: 'held' as const,
+          at: [replayView.point.lon, replayView.point.lat] as const,
+          words: { word: fr.replay.held, hour: asClockTime(replayView.at) },
+        }
+      : null;
+    let shown: ReplayStep | null = null;
     readyEngine.playReplay(
       replayView,
-      (step, ended) => replayStep.current?.(step, ended),
+      (step, ended) => {
+        if (held !== null && step === 'compte-rendu' && shown !== step) readyEngine.inkBurst(held);
+        shown = step;
+        replayStep.current?.(step, ended);
+      },
       below.current,
     );
     return () => readyEngine.stopReplay();
@@ -793,6 +811,17 @@ export function WorldMap({
     if (before === null) return;
     for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
   }, [outposts, readyEngine]);
+
+  const cutBefore = useRef<ReadonlyArray<string> | null>(null);
+  useEffect(() => {
+    const before = cutBefore.current;
+    cutBefore.current = cutRegions;
+    if (before === null || readyEngine === null) return;
+    const hour = asClockTime(Date.now());
+    for (const regionId of cutRegions)
+      if (!before.includes(regionId))
+        readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
+  }, [cutRegions, readyEngine]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {

@@ -47,7 +47,7 @@ import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
-import type { InkBurst } from '@/domain/ink-bursts';
+import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import {
@@ -549,6 +549,21 @@ export class MapEngine {
   inkBurst(burst: InkBurst): void {
     this.invalidate();
     this.ink.burst(burst, performance.now());
+  }
+
+  /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
+  inkCut(regionId: string, words: StampWords): void {
+    this.invalidate();
+    const at = this.regions.anchorOf(regionId);
+    if (at === null) return;
+    this.ink.burst(
+      {
+        kind: 'cut',
+        at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+        words,
+      },
+      performance.now(),
+    );
   }
 
   /** A point of mine now holds this far: its reach is inked once around it. */
