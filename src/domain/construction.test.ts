@@ -6,6 +6,7 @@ import {
   placementOf,
   riseOf,
   upgradeHold,
+  workSitesOf,
   type OutpostRaise,
   type Site,
 } from './construction';
@@ -623,5 +624,98 @@ describe('riseOf', () => {
     expect(riseOf(-5, 30)).toBe(1);
     expect(riseOf(45, 30)).toBe(0);
     expect(riseOf(0, 0)).toBe(1);
+  });
+});
+
+describe('workSitesOf', () => {
+  const LOADED = 1_000_000;
+  const me = (over: Partial<PlayerView['me']>) =>
+    ({
+      buildings: [
+        { id: 'b-foundry', key: 'foundry', regionId: 'r-f', level: 2, nextLevelMinutes: 90 },
+      ],
+      construction: null,
+      constructionQueue: [],
+      ...over,
+    }) as unknown as PlayerView['me'];
+  const head = (key: BuildingKey | 'outpost', regionId: string, minutesLeft: number) => ({
+    id: 'w',
+    name: key,
+    key,
+    outpostId: null,
+    regionId,
+    regionName: 'Marne',
+    point: null,
+    minutesLeft,
+  });
+  const queued = (
+    key: BuildingKey | 'outpost',
+    regionId: string,
+    level: number,
+    outpostId: string | null = null,
+  ) => ({
+    id: `q-${regionId}`,
+    name: key,
+    key,
+    outpostId,
+    regionId,
+    regionName: 'Meuse',
+    level,
+  });
+
+  it('dates the head of the queue — a first level rises by the catalog, a raise by the building', () => {
+    expect(workSitesOf(me({ construction: head('farm', 'r-a', 10) }), CATALOG, LOADED)).toEqual([
+      expect.objectContaining({
+        phase: 'rising',
+        key: 'farm',
+        regionId: 'r-a',
+        level: 1,
+        finishesAt: LOADED + 600_000,
+        minutes: 30,
+      }),
+    ]);
+    expect(workSitesOf(me({ construction: head('foundry', 'r-f', 45) }), CATALOG, LOADED)).toEqual([
+      expect.objectContaining({
+        phase: 'raising',
+        key: 'foundry',
+        level: 3,
+        finishesAt: LOADED + 2_700_000,
+        minutes: 90,
+      }),
+    ]);
+  });
+
+  it('plans a queued first level by its rank and leaves it undated; a queued raise draws nothing', () => {
+    const sites = workSitesOf(
+      me({
+        construction: head('farm', 'r-a', 10),
+        constructionQueue: [
+          queued('mill', 'r-b', 1),
+          queued('foundry', 'r-f', 3),
+          queued('barracks', 'r-c', 1),
+        ],
+      }) as PlayerView['me'],
+      CATALOG,
+      LOADED,
+    );
+    expect(sites.map((site) => [site.phase, site.regionId, site.rank, site.finishesAt])).toEqual([
+      ['rising', 'r-a', 0, LOADED + 600_000],
+      ['queued', 'r-b', 1, null],
+      ['queued', 'r-c', 3, null],
+    ]);
+  });
+
+  it("leaves an outpost's works to its own mast", () => {
+    const outpost = { ...head('outpost', 'r-o', 5), outpostId: 'o1' };
+    expect(
+      workSitesOf(
+        me({
+          construction: outpost,
+          constructionQueue: [queued('outpost', 'r-p', 2, 'o2')],
+        }) as PlayerView['me'],
+        CATALOG,
+        LOADED,
+      ),
+    ).toEqual([]);
   });
 });

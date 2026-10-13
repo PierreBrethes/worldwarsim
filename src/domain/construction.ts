@@ -693,3 +693,63 @@ function conditionOf(
  */
 export const riseOf = (minutesLeft: number, totalMinutes: number): number =>
   totalMinutes <= 0 ? 1 : Math.min(1, Math.max(0, 1 - minutesLeft / totalMinutes));
+
+/**
+ * **A building site as the board stands it** (mode chantier): paid and waiting its turn — a
+ * plan inked on the ground —, a first level rising, or a standing building raised a level. Only
+ * the head of the queue is dated (`constructionQueue` carries no due time, and none is invented
+ * here); a queued raise draws nothing, the building already stands. An outpost's works stay on
+ * its own mast.
+ */
+export type WorkSite = {
+  readonly phase: 'queued' | 'rising' | 'raising';
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly regionName: string;
+  /** The level the works will stand at. */
+  readonly level: number;
+  /** Its place in the queue, 0 at the head. */
+  readonly rank: number;
+  readonly finishesAt: number | null;
+  /** What the whole level lasts: the catalog's for a first level, the building's for a raise. */
+  readonly minutes: number;
+};
+
+export function workSitesOf(
+  me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
+  catalog: Readonly<Record<BuildingKey, BuildSpec>>,
+  loadedAt: number,
+): WorkSite[] {
+  const sites: WorkSite[] = [];
+  const work = me.construction;
+  if (work !== null && work.outpostId === null && work.key !== 'outpost') {
+    const key = work.key;
+    const standing = me.buildings.find(
+      (building) => building.regionId === work.regionId && building.key === key,
+    );
+    sites.push({
+      phase: standing === undefined ? 'rising' : 'raising',
+      key,
+      regionId: work.regionId,
+      regionName: work.regionName,
+      level: standing === undefined ? 1 : standing.level + 1,
+      rank: 0,
+      finishesAt: loadedAt + work.minutesLeft * 60_000,
+      minutes: standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes,
+    });
+  }
+  me.constructionQueue.forEach((queued, k) => {
+    if (queued.outpostId !== null || queued.key === 'outpost' || queued.level !== 1) return;
+    sites.push({
+      phase: 'queued',
+      key: queued.key,
+      regionId: queued.regionId,
+      regionName: queued.regionName,
+      level: 1,
+      rank: k + 1,
+      finishesAt: null,
+      minutes: catalog[queued.key].minutes,
+    });
+  });
+  return sites;
+}

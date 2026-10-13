@@ -1290,6 +1290,8 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
+    finished: 'achevé',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
     unidentified: 'non identifié',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
@@ -3000,7 +3002,15 @@ export const fr = {
     network: 'réseau',
     linked: 'relié',
     unlinked: 'hors réseau',
-    works: 'chantier',
+    /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
+    worksSite: (region: string) => `chantier · ${region}`,
+    raisingSite: (region: string) => `élévation · ${region}`,
+    queuedSite: (region: string) => `en file · ${region}`,
+    raising: (name: string, from: number, to: number) => `${name}, niv. ${from} → ${to}`,
+    left: 'reste',
+    /** Rien derrière la tête de file n'est daté : la file dit son rang, jamais une heure. */
+    queued: (ahead: number) =>
+      ahead === 1 ? 'après le chantier en cours' : `après ${ahead} chantiers`,
     lot: 'lot',
     lotProgress: (produced: number, ordered: number) => `${produced} / ${ordered}`,
     surveyed: (time: string) => `relevé · ${time}`,
@@ -3033,6 +3043,8 @@ export const fr = {
     groupList: (caption: string) => `${caption} — ouvrir la liste`,
     groupHeader: (caption: string, region: string) => `${caption} · ${region}`,
     constructionPrefix: 'chantier ',
+    /** Le fanion du piquet de chantier d'une élévation : le niveau qui monte. */
+    pennant: (level: number) => `niv. ${level}`,
     estimated: 'estimé',
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la
      *  passe, jamais un compte à rebours de marche. */

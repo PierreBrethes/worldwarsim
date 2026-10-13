@@ -1,5 +1,8 @@
 import { useMapMotion } from '@/data/mapMotion';
-import type { Poster } from '@/domain/map-poster';
+import type { MapLabel } from '@/domain/labels';
+import { posterOf, type Poster } from '@/domain/map-poster';
+import type { PlayerView } from '@/domain/player-view';
+import { useClock } from '@/shell/clock';
 import { LoadingGauge } from '@/map/LoadingGauge';
 import { PileSheet } from './PileSheet';
 
@@ -42,4 +45,11 @@ export function MapPoster({ poster }: { poster: Poster }) {
       )}
     </section>
   );
+}
+
+/** The poster read again every second: a site's « reste » counts down while it is hovered. */
+export function LivePoster({ label, view }: { label: MapLabel; view: PlayerView }) {
+  const now = useClock();
+  const poster = posterOf(label, view, now);
+  return poster === null ? null : <MapPoster poster={poster} />;
 }
