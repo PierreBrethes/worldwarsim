@@ -28,7 +28,13 @@ export type PilePieces = {
   readonly more: number;
   /** Every troop of the pile, the +N's included: what a click on a counter lifts. */
   readonly troopIds: ReadonlyArray<string>;
+  /** **The pile deployed** while it is in hand (ADR 0026 §6, 13/10): one piece per troop, the
+   *  +N's included, in the groups' order — each read alone, as if it stood by itself. */
+  readonly spread: ReadonlyArray<SpreadPiece>;
 };
+
+export type SpreadPiece = Pick<PieceGroup, 'role' | 'figures' | 'wear'> &
+  Pick<SheetLine, 'notches' | 'ink'> & { readonly troopId: string };
 
 export type SheetLine = {
   readonly role: UnitRole;
@@ -94,6 +100,20 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
     })),
     more: Math.max(0, buckets.length - SHOWN_GROUPS),
     troopIds: troops.map((t) => t.id),
+    spread: buckets.flatMap(({ troops: members }) =>
+      members.map((troop) => {
+        const [alone] = bucketsOf([troop]) as [Bucket];
+        const [line] = pileSheet([troop]) as [SheetLine];
+        return {
+          troopId: troop.id,
+          role: troop.role,
+          figures: figuresOf(alone),
+          wear: wearOf(alone.ratio),
+          notches: line.notches,
+          ink: line.ink,
+        };
+      }),
+    ),
   };
 }
 

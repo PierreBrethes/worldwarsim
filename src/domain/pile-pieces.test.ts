@@ -14,7 +14,7 @@ const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStreng
 
 describe('pilePieces', () => {
   it('is empty for no troops', () => {
-    expect(pilePieces([])).toEqual({ groups: [], more: 0, troopIds: [] });
+    expect(pilePieces([])).toEqual({ groups: [], more: 0, troopIds: [], spread: [] });
     expect(pileSheet([])).toEqual([]);
   });
 
@@ -111,6 +111,43 @@ describe('pilePieces', () => {
     const [group] = pilePieces([troop('armor', 1, 0, 0)]).groups;
     expect(group?.wear).toBe('whole');
     expect(pileSheet([troop('armor', 1, 0, 0)])[0]?.health).toBe(100);
+  });
+});
+
+describe('the pile deployed', () => {
+  it("stands every troop on its own, grouped by role in the groups' order, the +N's included", () => {
+    const pile = [
+      { ...troop('fighter'), id: 'f1' },
+      { ...troop('armor'), id: 'a1' },
+      { ...troop('infantry'), id: 'i1' },
+      { ...troop('armor'), id: 'a2' },
+      { ...troop('bomber'), id: 'b1' },
+      { ...troop('landTransport'), id: 'l1' },
+    ];
+    expect(pilePieces(pile).spread.map((p) => p.troopId)).toEqual([
+      'a1',
+      'a2',
+      'i1',
+      'l1',
+      'f1',
+      'b1',
+    ]);
+  });
+
+  it('reads each troop alone: its men, its marks, its wear and its notches', () => {
+    const [squad, tank] = pilePieces([
+      { ...troop('infantry', 2, 50), id: 'i1' },
+      { ...troop('armor', 1, 20), id: 'a1' },
+    ]).spread;
+    expect(squad).toEqual({
+      troopId: 'i1',
+      role: 'infantry',
+      figures: [2, 2],
+      wear: 'smoking',
+      notches: 5,
+      ink: 'ochre',
+    });
+    expect(tank).toMatchObject({ figures: [1], wear: 'burning', notches: 2, ink: 'red' });
   });
 });
 

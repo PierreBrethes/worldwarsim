@@ -78,10 +78,12 @@ reste délavé, et le curseur prend la main de la souris — ouverte au survol d
 pièce en main. Aucune main n'est dessinée sur le plateau (révision de Pierre, 13/10). **Lever ne fait que lever** : la pièce en main suffit
 à dire qu'un ordre est armé. Il n'y a ni cartouche ni bandeau.
 
-**Ce qu'on lève.** Un clic sur un groupe de figurines prend ce groupe seul. Un clic sur
-l'étiquette ou sur un jeton prend toute la pile. Maj + clic ajoute un autre groupe de la même
-pile. Pièce en main, la fiche s'ouvre **sur le côté**, avec les cases du panneau de garnison :
-cocher ou décocher y ajuste la composition sans lâcher la pièce.
+**Ce qu'on lève — révision de Pierre, 13/10.** Un clic sur la pile, quelle qu'en soit la pièce,
+la prend toute, et **la pile se déploie au sol** : une figurine par troupe, côte à côte, chacune
+avec sa vie en dix crans. Un clic sur une troupe déployée l'ajoute à la main ou l'en retire —
+hors main, elle se délave. Ce geste remplace Maj + clic, qui disparaît. Pièce en main, la fiche
+s'ouvre **sur le côté**, avec les cases du panneau de garnison : cocher ou décocher y ajuste la
+même composition, sans lâcher la pièce. Reposer la pièce, ou l'envoyer, referme le déploiement.
 
 **La route est celle du serveur, jamais une courbe à part.** Tant que le pointeur bouge, aucun
 trait n'est montré. Quand il s'arrête un court instant, la route et l'heure de

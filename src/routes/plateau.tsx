@@ -714,10 +714,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
       else {
+        // Une troupe de la pile déployée compose la main : la fiche, remontée sur la main, en
+        // reprend les cases — et la caméra ne bouge pas sous le doigt qui coche.
         liftHand(move.hand);
         /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
          *  toucher qui la repose tomberait sur la feuille. */
-        if (narrow)
+        if (narrow && click.kind === 'pile')
           setReveal({
             ...boardPoint(clientX, clientY),
             floor: sheetHeight('peek'),
@@ -741,7 +743,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
-      return applyPileClick({ station, troopIds, shift: false }, clientX, clientY);
+      return applyPileClick({ kind: 'pile', station, troopIds }, clientX, clientY);
     },
     [openGarrison, boardPoint, view.me, marching, applyPileClick],
   );
@@ -1421,7 +1423,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
-  /** Un groupe de figurines, ou toute la pile par son jeton. */
+  /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée. */
   const pieceClick = useCallback(
     (hit: PieceClick): boolean => {
       const pile = markers.find(
@@ -1429,8 +1431,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           marker.kind === 'stack' && marker.id === hit.pileId,
       );
       if (pile === undefined || pile.station.kind === 'home') return false;
+      const station = pile.station;
+      const troopId = hit.troopIds[0];
       return applyPileClick(
-        { station: pile.station, troopIds: hit.troopIds, shift: hit.shift },
+        hit.spread && troopId !== undefined
+          ? { kind: 'troop', station, troopId }
+          : { kind: 'pile', station, troopIds: pile.pieces.troopIds },
         hit.clientX,
         hit.clientY,
       );
