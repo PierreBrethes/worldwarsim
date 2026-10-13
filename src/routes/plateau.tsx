@@ -1728,7 +1728,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [convex, seat, windows, markJournalRead, closeWindow, dropHand],
   );
   const replayStep = useCallback(
-    (step: ReplayStep) => setReplay((current) => current && { ...current, step }),
+    (step: ReplayStep, ended: boolean) =>
+      setReplay(
+        (current) => current && { ...current, step, playing: ended ? false : current.playing },
+      ),
     [],
   );
 
@@ -1967,6 +1970,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               reveal={reveal}
               replay={replay}
               onReplayStep={replayStep}
+              replayBelow={narrow ? REPLAY_BELOW_NARROW : 0}
             />
             {selectedLoot !== null && selectedLootSighting !== null && (
               <LootCrateCard
@@ -2386,6 +2390,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  * autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
+
+/** Au téléphone, le bandeau du rejeu et son compte rendu couvrent le bas de la carte : la scène
+ *  se cadre dans ce qui reste au-dessus. */
+const REPLAY_BELOW_NARROW = 0.45;
 
 /** Clear of the closed hand the cursor draws, thirty-two pixels wide. */
 const REST_TAG_GAP = 20;

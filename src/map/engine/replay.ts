@@ -304,6 +304,11 @@ export class ReplayScene {
     });
   }
 
+  /** A hull burns on: its smoke wants frames after the replay is held. */
+  get smoking(): boolean {
+    return this.pieces.some((piece) => piece.burning?.object.visible === true);
+  }
+
   dispose(): void {
     for (const piece of this.pieces) dress(piece.body, null);
     this.object.removeFromParent();

@@ -210,7 +210,10 @@ type Props = {
     readonly playing: boolean;
     readonly stepping: { readonly direction: 1 | -1; readonly nonce: number } | null;
   } | null;
-  onReplayStep?: (step: ReplayStep) => void;
+  /** Chaque étape à son début, et la fin quand le rejeu a tout joué (`ended`). */
+  onReplayStep?: (step: ReplayStep, ended: boolean) => void;
+  /** La part basse de l'écran que le plateau couvre pendant le rejeu : la scène se cadre au-dessus. */
+  replayBelow?: number;
 };
 
 /**
@@ -285,6 +288,7 @@ export function WorldMap({
   reveal = null,
   replay = null,
   onReplayStep,
+  replayBelow = 0,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
@@ -676,14 +680,21 @@ export function WorldMap({
   }, [readyEngine, focus]);
 
   const replayStep = useRef(onReplayStep);
+  /** Lu au lancement : la caméra ne bouge pas si l'écran tourne en plein rejeu. */
+  const below = useRef(replayBelow);
   useEffect(() => {
     replayStep.current = onReplayStep;
-  }, [onReplayStep]);
+    below.current = replayBelow;
+  }, [onReplayStep, replayBelow]);
   const replayView = replay?.view ?? null;
   useEffect(() => {
     if (!readyEngine || replayView === null) return;
     setRose(null);
-    readyEngine.playReplay(replayView, (step) => replayStep.current?.(step));
+    readyEngine.playReplay(
+      replayView,
+      (step, ended) => replayStep.current?.(step, ended),
+      below.current,
+    );
     return () => readyEngine.stopReplay();
   }, [readyEngine, replayView]);
   const replayPlaying = replay?.playing ?? true;

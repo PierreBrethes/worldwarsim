@@ -553,11 +553,17 @@ export class MapEngine {
    * **Plays a combat's replay at its point** (surface 4.7, ADR 0026 §7): the camera travels
    * there, my figurines and the enemy's blocks are set down face to face, and the steps of
    * `replayAt` play out — automatically, about ten seconds, unless `setReplayAutoplay(false)`.
-   * `onStep` is told each step as it begins, `compte-rendu` included: the account card is the
-   * caller's. Whatever stands at the point is hidden meanwhile. A second call replaces the first
-   * replay but keeps the camera saved by the first.
+   * `onStep` is told each step as it begins, `compte-rendu` included, and once more with `ended`
+   * when the replay has played to its end: the account card is the caller's. `below` is the share
+   * of the screen the caller covers at the bottom: the scene is framed above it. Whatever stands
+   * at the point is hidden meanwhile. A second call replaces the first replay but keeps the
+   * camera saved by the first.
    */
-  playReplay(view: ReplayView, onStep: (step: ReplayStep) => void = () => {}): void {
+  playReplay(
+    view: ReplayView,
+    onStep: (step: ReplayStep, ended: boolean) => void = () => {},
+    below = 0,
+  ): void {
     this.invalidate();
     const saved = this.replay?.saved ?? {
       target: this.controls.target.clone(),
@@ -579,7 +585,19 @@ export class MapEngine {
             Math.sin(REPLAY_ELEVATION),
             (orientation.z / flat) * Math.cos(REPLAY_ELEVATION),
           );
-    const distance = Math.max(REPLAY_MIN_DISTANCE, replayReach(view) * 2.2);
+    // Fitted to the height left above `below`, and to the width on a portrait screen.
+    const aspect = this.screenWidth / this.screenHeight;
+    const distance = Math.max(
+      REPLAY_MIN_DISTANCE,
+      replayReach(view) * 2.2 * Math.max(1 / (1 - below), 1 / Math.min(1, aspect)),
+    );
+    // The eye aims nearer than the scene, on the ground towards itself, so that the scene rises
+    // to the middle of the height left: by `below / 2` of the screen.
+    const nearer =
+      (below * Math.tan((this.camera.fov * Math.PI) / 360) * distance) / Math.sin(REPLAY_ELEVATION);
+    const aim = center
+      .clone()
+      .add(new Vector3(tilted.x, 0, tilted.z).normalize().multiplyScalar(nearer));
     const scene = new ReplayScene(
       this.playerNation,
       replayAt(view, 0).pieces,
@@ -598,9 +616,10 @@ export class MapEngine {
       until: REPLAY_MS,
       clock: performance.now(),
       step: null,
+      ended: false,
       onStep,
     };
-    this.travel(center, tilted, distance, stepBounds('voyage').end - stepBounds('voyage').start);
+    this.travel(aim, tilted, distance, stepBounds('voyage').end - stepBounds('voyage').start);
   }
 
   /** Off, the step under way plays to its end and the replay holds there; on, it reads on to the end. */
@@ -608,6 +627,12 @@ export class MapEngine {
     this.invalidate();
     const replay = this.replay;
     if (replay === null) return;
+    // Played again from the end, it starts over.
+    if (on && replay.t >= REPLAY_MS) {
+      replay.t = 0;
+      // Told again even when the end is shown at once, as cut motion does.
+      replay.ended = false;
+    }
     replay.until = on ? REPLAY_MS : this.stepEndAt(replay.t);
     replay.clock = performance.now();
   }
@@ -1367,16 +1392,23 @@ export class MapEngine {
   private advanceReplay(now: number): void {
     const replay = this.replay;
     if (replay === null) return;
-    // It plays for ten seconds, and a burning hull smokes after: frames are due all along.
-    this.invalidate();
-    replay.t = Math.min(replay.until, Math.max(replay.t, replay.t + now - replay.clock));
+    // Cut motion shows the account at once: the replay is over as soon as it begins.
+    replay.t =
+      this.ambience.motion === 'off'
+        ? REPLAY_MS
+        : Math.min(replay.until, Math.max(replay.t, replay.t + now - replay.clock));
     replay.clock = now;
     const frame = replayAt(replay.view, replay.t, this.ambience.motion);
-    if (frame.step !== replay.step) {
+    const ended = replay.t >= REPLAY_MS;
+    if (frame.step !== replay.step || ended !== replay.ended) {
       replay.step = frame.step;
-      replay.onStep(frame.step);
+      replay.ended = ended;
+      replay.onStep(frame.step, ended);
     }
     replay.scene.show(frame, now / 1000, this.ambience.motion !== 'full');
+    // Frames are due while it plays, and while a hull burns at full motion; held, it is still.
+    if (replay.t < replay.until || (this.ambience.motion === 'full' && replay.scene.smoking))
+      this.invalidate();
   }
 
   /** What stands at the point would stand inside the replay: piles, blocks, passing pawns. */
@@ -1640,7 +1672,8 @@ type Replay = {
   until: number;
   clock: number;
   step: ReplayStep | null;
-  readonly onStep: (step: ReplayStep) => void;
+  ended: boolean;
+  readonly onStep: (step: ReplayStep, ended: boolean) => void;
 };
 
 /** The eye's elevation over a replay, and its least distance: the figurines full (`nearWeight`). */
