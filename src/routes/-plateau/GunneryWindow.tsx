@@ -74,13 +74,11 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
           <p className="font-(family-name:--font-display) text-[17px] leading-[1.25] text-[var(--ink)]">
             {fr.gunnery.guarantee}
           </p>
-          <p className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
-            {fr.gunnery.lead}
-          </p>
-          {/* Le bonus de défense et le contact, repliés : ils se lisent une fois, la table tous
-              les jours. Le contact est le même pour tous — il se dit ici, et jamais sur la fiche
-              d'un rôle, où il passerait pour une de ses qualités. */}
-          <div className="mt-[3px]">
+          {/* Le bonus de défense et le contact, repliés au bout de la phrase : ils se lisent une
+              fois, la table tous les jours. Le contact est le même pour tous — il se dit ici, et
+              jamais sur la fiche d'un rôle, où il passerait pour une de ses qualités. */}
+          <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
+            {fr.gunnery.lead}{' '}
             <HelpMark>
               {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}{' '}
               {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
