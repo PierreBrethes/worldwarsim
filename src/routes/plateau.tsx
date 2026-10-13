@@ -2002,7 +2002,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               key={`${stationKeyOf(hand.station)}-${lifts}`}
               view={view}
               station={hand.station}
-              place={stationNames(view).place(hand.station)}
+              place={
+                hand.station.kind === 'point'
+                  ? pilePlace(hand.station, stationNames(view), regionAt)
+                  : stationNames(view).place(hand.station)
+              }
               held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
               troopIds={hand.troopIds}
               onCompose={compose}
