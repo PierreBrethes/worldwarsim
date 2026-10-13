@@ -1286,6 +1286,10 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
+    /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
+     *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
+    arrived: 'arrivé',
+    engaged: 'engagé',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
     unidentified: 'non identifié',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */

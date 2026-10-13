@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { inkBursts } from './ink-bursts';
+import { STAMP_MS, inkBursts, stampAt } from './ink-bursts';
 import type { CombatReport, JournalDispatch } from './player-view';
 
-const combat = { point: { lon: 2, lat: 49 } } as CombatReport;
+const combat = { point: { lon: 2, lat: 49 }, won: false } as CombatReport;
+const hour = (at: number) =>
+  new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const dispatch = (
   at: number,
   kind: JournalDispatch['kind'],
@@ -23,12 +25,27 @@ const dispatch = (
 describe('inkBursts', () => {
   it('stamps a combat at its pass, once it is newer than what the map has seen', () => {
     const journal = [dispatch(20, 'assault', combat), dispatch(5, 'attacked', combat)];
-    expect(inkBursts(journal, 10, [])).toEqual([{ kind: 'combat', at: [2, 49] }]);
+    expect(inkBursts(journal, 10, [])).toEqual([
+      { kind: 'combat', at: [2, 49], words: { word: 'engagé', hour: hour(20) } },
+    ]);
+  });
+
+  it('stamps « terrain tenu » after « engagé » when the ground was held', () => {
+    const won = { ...combat, won: true };
+    expect(inkBursts([dispatch(20, 'assault', won)], 10, [])).toEqual([
+      { kind: 'combat', at: [2, 49], words: { word: 'engagé', hour: hour(20) } },
+      {
+        kind: 'held',
+        at: [2, 49],
+        words: { word: 'terrain tenu', hour: hour(20) },
+        delayMs: STAMP_MS,
+      },
+    ]);
   });
 
   it('stamps an arrival at the end of the thread that vanished', () => {
     expect(inkBursts([dispatch(20, 'column')], 10, [[10, 40]])).toEqual([
-      { kind: 'arrival', at: [10, 40] },
+      { kind: 'arrival', at: [10, 40], words: { word: 'arrivé', hour: hour(20) } },
     ]);
   });
 
@@ -41,8 +58,8 @@ describe('inkBursts', () => {
     ];
     expect(inkBursts([dispatch(20, 'column')], 10, vanished)).toEqual([]);
     expect(inkBursts([dispatch(20, 'column'), dispatch(21, 'column')], 10, vanished)).toEqual([
-      { kind: 'arrival', at: [10, 40] },
-      { kind: 'arrival', at: [11, 41] },
+      { kind: 'arrival', at: [10, 40], words: { word: 'arrivé', hour: hour(20) } },
+      { kind: 'arrival', at: [11, 41], words: { word: 'arrivé', hour: hour(21) } },
     ]);
   });
 
@@ -50,5 +67,25 @@ describe('inkBursts', () => {
     expect(inkBursts([], 0, [[10, 40]])).toEqual([]);
     expect(inkBursts([dispatch(20, 'column')], 0, [])).toEqual([]);
     expect(inkBursts([dispatch(20, 'sighting')], 0, [[10, 40]])).toEqual([]);
+  });
+});
+
+describe('stampAt', () => {
+  it('presses from 1.7 to 1 in 0.14 s, as the prototype does', () => {
+    expect(stampAt(0, 'full')).toEqual({ scale: 1.7, opacity: 0 });
+    expect(stampAt(70, 'full')!.scale).toBeCloseTo(1.35);
+    expect(stampAt(140, 'full')).toEqual({ scale: 1, opacity: 0.88 });
+  });
+
+  it('holds three seconds, then lifts, then is gone', () => {
+    expect(stampAt(2999, 'full')!.opacity).toBe(0.88);
+    expect(stampAt(3200, 'full')!.opacity).toBeCloseTo(0.58);
+    expect(stampAt(STAMP_MS, 'full')).toBeNull();
+    expect(STAMP_MS).toBeCloseTo(3587, 0);
+  });
+
+  it('lays flat at once when motion is reduced, and waits unseen while delayed', () => {
+    expect(stampAt(0, 'reduced')).toEqual({ scale: 1, opacity: 0.88 });
+    expect(stampAt(-10, 'full')).toEqual({ scale: 1, opacity: 0 });
   });
 });

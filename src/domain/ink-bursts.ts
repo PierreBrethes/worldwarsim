@@ -1,13 +1,57 @@
+import { fr } from '@/i18n/fr';
+import { asClockTime } from './duration';
 import type { LonLat } from './geo';
+import type { MapMotion } from './map-motion';
 import type { JournalDispatch } from './player-view';
 
-export type InkBurst = { readonly kind: 'arrival' | 'combat'; readonly at: LonLat };
+/** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
+export type StampWords = { readonly word: string; readonly hour: string };
+
+/**
+ * A mark of ink on the board. `words` turns it into the prototype's grained stamp; without, it
+ * is the wordless ring (an arrival) or splash (a combat). `delayMs` holds it back, so a second
+ * stamp waits for the first to lift.
+ */
+export type InkBurst = {
+  readonly kind: 'arrival' | 'combat' | 'cut' | 'held';
+  readonly at: LonLat;
+  readonly words?: StampWords;
+  readonly delayMs?: number;
+};
+
+/** The prototype's `stampAnim`: pressed from 1.7 to 1 in 0.14 s, held to 3 s, lifted at 1.5/s. */
+const PRESS_MS = 140;
+const HOLD_MS = 3000;
+const PEAK = 0.88;
+const LIFT_PER_MS = 0.0015;
+export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
+
+/** A stamp at `age` ms: its scale and opacity, `null` once lifted. Reduced motion lays it flat
+ *  at once — no press, the same hold. */
+export function stampAt(
+  age: number,
+  motion: MapMotion,
+): { readonly scale: number; readonly opacity: number } | null {
+  if (age >= STAMP_MS) return null;
+  if (age < 0) return { scale: 1, opacity: 0 };
+  if (age < PRESS_MS && motion === 'full') {
+    const pressed = age / PRESS_MS;
+    return { scale: 1.7 - 0.7 * pressed, opacity: pressed * PEAK };
+  }
+  return {
+    scale: 1,
+    opacity: age > HOLD_MS ? Math.max(0, PEAK - (age - HOLD_MS) * LIFT_PER_MS) : PEAK,
+  };
+}
+
+const stamped = (word: string, at: number): StampWords => ({ word, hour: asClockTime(at) });
 
 /**
  * The map stamps only what a dispatch already tells the player, never more: a combat the player
- * is a party to (the report carries its point), and an arrival of the player's own column. An arrival
- * dispatch names no place, so its place is the end of the thread that just disappeared.
- * `seenAt` keeps out the dispatches already there when the map opened.
+ * is a party to (the report carries its point, and whether the ground was held), and an arrival
+ * of the player's own column. An arrival dispatch names no place, so its place is the end of the
+ * thread that just disappeared. `seenAt` keeps out the dispatches already there when the map
+ * opened.
  */
 export function inkBursts(
   journal: ReadonlyArray<JournalDispatch>,
@@ -15,15 +59,36 @@ export function inkBursts(
   vanishedEnds: ReadonlyArray<LonLat>,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
-  const combats = fresh.flatMap((dispatch): InkBurst[] =>
-    dispatch.combat === null
-      ? []
-      : [{ kind: 'combat', at: [dispatch.combat.point.lon, dispatch.combat.point.lat] }],
-  );
+  const combats = fresh.flatMap((dispatch): InkBurst[] => {
+    if (dispatch.combat === null) return [];
+    const at: LonLat = [dispatch.combat.point.lon, dispatch.combat.point.lat];
+    const engaged: InkBurst = {
+      kind: 'combat',
+      at,
+      words: stamped(fr.stamps.engaged, dispatch.at),
+    };
+    return dispatch.combat.won
+      ? [
+          engaged,
+          {
+            kind: 'held',
+            at,
+            words: stamped(fr.replay.held, dispatch.at),
+            delayMs: STAMP_MS,
+          },
+        ]
+      : [engaged];
+  });
   // A dispatch does not name its movement: the ends only pair with the dispatches when every
   // vanished thread has one. Otherwise an attack resolved alongside would steal the stamp.
-  const paired =
-    vanishedEnds.length === fresh.filter((dispatch) => dispatch.kind === 'column').length;
-  const arrivals = paired ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at })) : [];
+  const columns = fresh.filter((dispatch) => dispatch.kind === 'column');
+  const paired = vanishedEnds.length === columns.length;
+  const arrivals = paired
+    ? vanishedEnds.map((at, k): InkBurst => ({
+        kind: 'arrival',
+        at,
+        words: stamped(fr.stamps.arrived, columns[k]!.at),
+      }))
+    : [];
   return [...combats, ...arrivals];
 }
