@@ -80,15 +80,13 @@ export function inkBursts(
       : [engaged];
   });
   // A dispatch does not name its movement: the ends only pair with the dispatches when every
-  // vanished thread has one. Otherwise an attack resolved alongside would steal the stamp.
+  // vanished thread has one. Otherwise an attack resolved alongside would steal the stamp. Nor
+  // does an end say which dispatch is its own: the batch wears the hour of the latest.
   const columns = fresh.filter((dispatch) => dispatch.kind === 'column');
   const paired = vanishedEnds.length === columns.length;
+  const words = stamped(fr.stamps.arrived, Math.max(0, ...columns.map((column) => column.at)));
   const arrivals = paired
-    ? vanishedEnds.map((at, k): InkBurst => ({
-        kind: 'arrival',
-        at,
-        words: stamped(fr.stamps.arrived, columns[k]!.at),
-      }))
+    ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
   return [...combats, ...arrivals];
 }

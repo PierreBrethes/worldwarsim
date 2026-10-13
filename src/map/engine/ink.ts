@@ -81,6 +81,7 @@ type Stamp = {
   /** Where it was put, before it is pushed aside by its size on screen. */
   readonly at: Vector3;
   readonly worded: boolean;
+  readonly kind: InkBurst['kind'];
 };
 
 const PLANE = new PlaneGeometry(1, 1);
@@ -211,10 +212,11 @@ export class InkLayer {
     const point = this.frame.projectLonLat(at);
     if (words !== undefined) {
       const texture = wordedTexture(words);
-      this.stamp(PLANE, { map: texture }, point, now + delayMs, true);
+      this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true);
     }
     if (kind === 'combat' || (kind === 'arrival' && words === undefined))
       this.stamp(
+        kind,
         this.geometries[kind],
         { color: kind === 'combat' ? ARC_COLORS.enemyDetected.trace : PALETTE.border },
         point,
@@ -223,7 +225,14 @@ export class InkLayer {
       );
   }
 
+  /** Lifts every stamp of `kind` at once: what the replay pressed goes with it. */
+  lift(kind: InkBurst['kind']): void {
+    for (const stamp of this.stamps) if (stamp.kind === kind) unstamp(stamp);
+    this.stamps = this.stamps.filter((stamp) => stamp.kind !== kind);
+  }
+
   private stamp(
+    kind: InkBurst['kind'],
     geometry: ShapeGeometry | PlaneGeometry,
     paint: { color?: string; map?: CanvasTexture },
     at: Vector3,
@@ -247,7 +256,7 @@ export class InkLayer {
     mesh.renderOrder = BURST_RANK;
     mesh.position.copy(at);
     this.group.add(mesh);
-    this.stamps.push({ mesh, start, at, worded });
+    this.stamps.push({ mesh, start, at, worded, kind });
   }
 
   animate(now: number, unitsPerPixel: number): void {

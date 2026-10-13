@@ -83,9 +83,13 @@ type Props = {
   held: ReadonlyArray<HeldClaim>;
   /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
   outposts: ReadonlyArray<ReachedOutpost>;
-  /** The regions where a site of mine stands cut off (ADR 0020 §6): a region that joins them is
-   *  stamped « hors réseau » beside its maquette. */
-  cutRegions?: ReadonlyArray<string>;
+  /**
+   * **My regions that lost their colour** (ADR 0020 §6), and those where something of mine
+   * produces: a region that loses it under a producer is stamped « hors réseau » beside its
+   * maquette. The colour is what is diffed, not the sites — a producer finished on ground already
+   * cut was never cut.
+   */
+  cut?: { readonly unlinked: ReadonlyArray<string>; readonly producing: ReadonlySet<string> };
   /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
@@ -252,6 +256,9 @@ export type PlacingBuilding = {
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
+const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
+/** The branches that open the order card (`actOnCompass`) rather than act at once. */
+const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set(['aim', 'plunder', 'collect']);
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
@@ -268,7 +275,7 @@ export function WorldMap({
   inkByCountry,
   held,
   outposts,
-  cutRegions = NO_REGIONS,
+  cut = NO_CUT,
   built,
   selectedCountry,
   playerNation,
@@ -400,17 +407,24 @@ export function WorldMap({
       const rect = container.current?.getBoundingClientRect();
       if (drawn === null || rect === undefined) return;
       const at = { x: clientX - rect.left, y: clientY - rect.top };
-      if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
+      /** **La pièce se pose là où l'ordre se lit** — sous une rose ou une carte d'ordre — et pas
+       *  quand le geste part droit au serveur : un refus la laisserait figée au sol. */
+      const setDown = () => {
+        if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
+      };
       if (aiming && onOrderTarget?.(drawn, at) === true) {
+        setDown();
         setRose(null);
         return;
       }
       const sole = aiming ? soleOrderOf(drawn) : null;
       if (sole !== null) {
+        if (ORDER_CARD_KEYS.has(sole.key)) setDown();
         setRose(null);
         onCompassAction(sole, at);
         return;
       }
+      setDown();
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
        *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
@@ -750,17 +764,24 @@ export function WorldMap({
           words: { word: fr.replay.held, hour: asClockTime(replayView.at) },
         }
       : null;
-    let shown: ReplayStep | null = null;
+    // Once a replay: stepping back and forth through the account does not stamp it again.
+    let stamped = false;
     readyEngine.playReplay(
       replayView,
       (step, ended) => {
-        if (held !== null && step === 'compte-rendu' && shown !== step) readyEngine.inkBurst(held);
-        shown = step;
+        if (held !== null && step === 'compte-rendu' && !stamped) {
+          stamped = true;
+          readyEngine.inkBurst(held);
+        }
         replayStep.current?.(step, ended);
       },
       below.current,
     );
-    return () => readyEngine.stopReplay();
+    return () => {
+      readyEngine.stopReplay();
+      // « Quitter » takes the account's stamp with it: it belonged to the replay.
+      if (stamped) readyEngine.liftStamps('held');
+    };
   }, [readyEngine, replayView]);
   const replayPlaying = replay?.playing ?? true;
   useEffect(() => {
@@ -822,13 +843,13 @@ export function WorldMap({
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);
   useEffect(() => {
     const before = cutBefore.current;
-    cutBefore.current = cutRegions;
+    cutBefore.current = cut.unlinked;
     if (before === null || readyEngine === null) return;
     const hour = asClockTime(Date.now());
-    for (const regionId of cutRegions)
-      if (!before.includes(regionId))
+    for (const regionId of cut.unlinked)
+      if (!before.includes(regionId) && cut.producing.has(regionId))
         readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
-  }, [cutRegions, readyEngine]);
+  }, [cut, readyEngine]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {

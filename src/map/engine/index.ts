@@ -551,6 +551,12 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
+  /** The stamps of `kind` lifted from the board, as a replay that is left takes its own. */
+  liftStamps(kind: InkBurst['kind']): void {
+    this.invalidate();
+    this.ink.lift(kind);
+  }
+
   /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
   inkCut(regionId: string, words: StampWords): void {
     this.invalidate();

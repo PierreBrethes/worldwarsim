@@ -58,7 +58,7 @@ describe('inkBursts', () => {
     ];
     expect(inkBursts([dispatch(20, 'column')], 10, vanished)).toEqual([]);
     expect(inkBursts([dispatch(20, 'column'), dispatch(21, 'column')], 10, vanished)).toEqual([
-      { kind: 'arrival', at: [10, 40], words: { word: 'arrivé', hour: hour(20) } },
+      { kind: 'arrival', at: [10, 40], words: { word: 'arrivé', hour: hour(21) } },
       { kind: 'arrival', at: [11, 41], words: { word: 'arrivé', hour: hour(21) } },
     ]);
   });

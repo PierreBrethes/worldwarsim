@@ -50,8 +50,8 @@ import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
-import { unlinkedProducers } from '@/domain/next-actions';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
@@ -1178,9 +1178,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [heldRaw],
   );
 
-  const cutRegions = useMemo(
-    () => [...new Set(unlinkedProducers(view).map((building) => building.regionId))],
-    [view],
+  const cut = useMemo(
+    () => ({
+      unlinked: view.me.regions.filter((region) => !region.linked).map((region) => region.id),
+      producing: new Set(
+        view.me.buildings
+          .filter((building) => produces(building.key))
+          .map((building) => building.regionId),
+      ),
+    }),
+    [view.me.regions, view.me.buildings],
   );
 
   const reachedOutposts = useMemo(
@@ -1958,7 +1965,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               inkByCountry={inkByCountry}
               held={held}
               outposts={reachedOutposts}
-              cutRegions={cutRegions}
+              cut={cut}
               built={built}
               selectedCountry={country ?? null}
               playerNation={view.me.nation}

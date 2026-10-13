@@ -366,6 +366,8 @@ const PROTOTYPE_UNIT = 0.3;
 const RETURN_HOP = CARRIED_LIFT * 0.67;
 /** Regathered from its deployment, the pile drops this little onto the board. */
 const SETTLE_DROP = CARRIED_LIFT * 0.6;
+/** A set-down piece slides onto its point while it drops: a moment more to arrive there. */
+const SETTLE_TAIL = 0.2;
 
 /**
  * **The piece in hand** (ADR 0026 §6, the prototype's `lp`). It hangs `lift` above the board,
@@ -375,6 +377,9 @@ const SETTLE_DROP = CARRIED_LIFT * 0.6;
  */
 type Carried = {
   readonly pileId: string;
+  readonly troopIds: ReadonlyArray<string>;
+  /** What a click is cast at: the copy is the piece as it is seen. */
+  readonly targets: ReadonlyArray<Mesh>;
   readonly object: Group;
   readonly piece: Group;
   readonly shadow: { readonly object: Group; readonly materials: MeshBasicMaterial[] };
@@ -399,6 +404,12 @@ function carriedShadow(): Carried['shadow'] {
     part.material = material;
   });
   return { object, materials };
+}
+
+/** Off the board, and its own shadow's materials freed: the rest is shared. */
+function discard(carried: Carried): void {
+  carried.object.removeFromParent();
+  for (const material of carried.shadow.materials) material.dispose();
 }
 
 /** The held groups only, the +N with them when a troop beyond the three shown is held. */
@@ -632,6 +643,16 @@ export class StandingLayer {
   /** The troops of the piece under `ray`, among the piles standing in sight — a troop of the
    *  deployed pile first: the pile it stands for has shrunk away under it. */
   pick(ray: Raycaster): PiecePick | null {
+    // The piece in hand, or on its way home, is taken where it is seen: a click on it is a click
+    // on its pile, never on the board under it.
+    let copy: { distance: number; pick: PieceHold } | null = null;
+    for (const carried of [this.carried, this.leaving]) {
+      if (carried === null || carried.object.parent === null) continue;
+      const distance = footedHit(ray, carried.object, carried.targets);
+      if (distance !== null && (copy === null || distance < copy.distance))
+        copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
+    }
+    if (copy !== null) return { ...copy.pick, spread: false };
     const spread = this.spread;
     // Half open, the troops have taken over from the groups: before, the pile still answers.
     const deployed =
@@ -695,7 +716,7 @@ export class StandingLayer {
       lifted.down = null;
       this.leaving = lifted;
     } else {
-      lifted?.object.removeFromParent();
+      if (lifted !== null) discard(lifted);
       if (previous !== null) {
         const entry = this.dressed.get(previous.pileId);
         if (entry) wash(entry.object, false);
@@ -726,6 +747,8 @@ export class StandingLayer {
     const now = performance.now();
     const carried: Carried = {
       pileId: held.pileId,
+      troopIds: held.troopIds,
+      targets: copy.targets,
       object,
       piece,
       shadow,
@@ -831,7 +854,16 @@ export class StandingLayer {
    *  regathered pile drops too: every frame while it lasts, at full motion. */
   get isCarrying(): boolean {
     if (this.motion !== 'full') return false;
-    return this.carried !== null || this.leaving !== null || this.settle !== null;
+    const carried = this.carried;
+    // Set down under its rose, it lies still: only its drop wants frames.
+    const moving =
+      carried !== null &&
+      carried.object.parent !== null &&
+      carried.object.visible &&
+      (carried.down === null
+        ? carried.pointer !== null
+        : (performance.now() - carried.down.since) / 1000 < DROP_DONE + SETTLE_TAIL);
+    return moving || this.leaving !== null || this.settle !== null;
   }
 
   /** The ground under the pointer, `null` off the board or under a finger. */
@@ -844,7 +876,9 @@ export class StandingLayer {
   setDown(at: Vector3): void {
     const carried = this.carried;
     if (carried === null) return;
-    carried.down = { at: at.clone(), since: performance.now(), from: carried.lift };
+    // Set down again elsewhere, it is taken up first: it drops from the carried height.
+    const from = carried.down === null ? carried.lift : CARRIED_LIFT;
+    carried.down = { at: at.clone(), since: performance.now(), from };
   }
 
   /** The copy on its way home is done with: it goes, and the pile it left is whole again. */
@@ -852,7 +886,7 @@ export class StandingLayer {
     const leaving = this.leaving;
     if (leaving === null) return;
     this.leaving = null;
-    leaving.object.removeFromParent();
+    discard(leaving);
     if (this.held?.pileId === leaving.pileId) return;
     const entry = this.dressed.get(leaving.pileId);
     if (entry) wash(entry.object, false);
@@ -993,6 +1027,8 @@ export class StandingLayer {
   dispose(): void {
     this.fold();
     this.dropLeaving();
+    if (this.carried !== null) discard(this.carried);
+    this.carried = null;
     this.group.removeFromParent();
     this.faces.keepOnly(new Set());
   }
