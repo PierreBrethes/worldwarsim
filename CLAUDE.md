@@ -286,8 +286,9 @@ articulations nommées (`squadOf`), un modèle pour le reste — ou `null` dès 
 de fichier : rien plutôt que la mauvaise figurine. Les GLB sortent de Claude Design sur un
 gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la planche, pièces
 nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de triangles et
-aux noms de son rôle. La France et l'Allemagne sont sculptées ; il manque le R35
-(blindé MK1 français) et le Ju 52 (transport aérien allemand). Seul le MK1 de l'infanterie
+aux noms de son rôle. Les huit nations sont sculptées, à quelques trous près : le R35
+(blindé MK1 français), le Ju 52 allemand, l'infanterie MK2 japonaise et les cargos, porte-avions
+et transports qui n'ont pas non plus de planche. Seul le MK1 de l'infanterie
 marche : un MK2 garde la pose où il a été sculpté (le bazooka français à genou). Le **pion d'un mouvement `mien`** porte sa figurine sur le fil, tournée vers sa
 route ; les arcs adverses n'en ont jamais (`movementRoles` rend `null` hors `mine`). Une **pile
 posée** à un point se lit en groupes (`pilePieces`, `src/domain/pile-pieces.ts` : un groupe par
