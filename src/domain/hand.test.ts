@@ -61,8 +61,8 @@ describe('clickPile', () => {
     expect(clickPile(held(['t1']), troop('t1'))).toEqual({ kind: 'drop' });
   });
 
-  it('a troop clicked with an empty hand is lifted alone', () => {
-    expect(clickPile(empty, troop('t1'))).toEqual({ kind: 'lift', hand: held(['t1']) });
+  it('a deployed troop means nothing with an empty hand: lifting takes the whole pile', () => {
+    expect(clickPile(empty, troop('t1'))).toEqual({ kind: 'drop' });
   });
 });
 

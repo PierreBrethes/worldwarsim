@@ -36,7 +36,9 @@ export function clickPile(hand: Hand, click: PileClick): HandMove {
   const troopIds = click.kind === 'pile' ? click.troopIds : [click.troopId];
   if (troopIds.length === 0) return unchanged(hand);
   if (hand.kind === 'empty')
-    return { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds } };
+    return click.kind === 'pile'
+      ? { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds } }
+      : unchanged(hand);
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
   if (click.kind === 'pile') return { kind: 'drop' };
   const rest = hand.troopIds.filter((id) => id !== click.troopId);

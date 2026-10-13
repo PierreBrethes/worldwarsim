@@ -520,7 +520,11 @@ export class StandingLayer {
           if (this.dressed.get(pile.id) !== entry) return;
           entry.ready = true;
           // After the hull is blackened: that callback was chained before this one.
-          if (this.held?.pileId === pile.id) wash(entry.object, true);
+          if (this.held?.pileId === pile.id) {
+            wash(entry.object, true);
+            // Redrawn while deployed: the troops' wear and notches are read again.
+            this.deploy(this.held);
+          }
           this.group.add(entry.object);
           this.changed();
         },
@@ -528,6 +532,9 @@ export class StandingLayer {
       );
     }
     for (const gone of this.dressed.values()) gone.object.removeFromParent();
+    // Redrawn in hand, the deployment is built again from the new pieces once they are in; a
+    // closing one closes on what remains.
+    if (this.spread?.opening && next.get(this.spread.pileId)?.ready === false) this.fold();
     this.dressed = next;
     // The troops that marched off left the deployed pile; it closes on what remains.
     const spread = this.spread;
@@ -572,7 +579,13 @@ export class StandingLayer {
    *  deployed pile first: the pile it stands for has shrunk away under it. */
   pick(ray: Raycaster): PiecePick | null {
     const spread = this.spread;
-    if (spread !== null && spread.opening && spread.ready && spread.object.visible) {
+    // Half open, the troops have taken over from the groups: before, the pile still answers.
+    const deployed =
+      spread !== null &&
+      spread.opening &&
+      spread.ready &&
+      this.progressOf(spread, performance.now()) >= 0.5;
+    if (spread !== null && deployed && spread.object.visible) {
       const hit = ray.intersectObject(spread.object, true).find((h) => h.object.userData.troopId);
       if (hit)
         return {
@@ -584,7 +597,7 @@ export class StandingLayer {
     let best: { distance: number; pick: PieceHold } | null = null;
     for (const [pileId, entry] of this.dressed) {
       if (!entry.ready || !entry.object.visible || 'beside' in entry.at) continue;
-      if (spread?.pileId === pileId && spread.opening && spread.ready) continue;
+      if (deployed && spread?.pileId === pileId) continue;
       const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
       if (distance === undefined || (best !== null && best.distance <= distance)) continue;
       const troopIds = pickedIn(ray, entry.targets, entry.pieces);
@@ -692,6 +705,9 @@ export class StandingLayer {
         () => {
           if (this.spread !== fresh) return;
           fresh.ready = true;
+          // The models landed after the first wash: wash them too.
+          const inHand = new Set(this.held?.troopIds);
+          for (const [troopId, part] of fresh.parts) wash(part.object, !inHand.has(troopId));
           // The models landed after the click: the opening starts now, not behind their back.
           fresh.from = 0;
           fresh.since = performance.now();
