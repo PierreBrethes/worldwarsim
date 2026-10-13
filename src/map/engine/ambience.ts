@@ -11,6 +11,8 @@ export type AmbientLayer = {
   readonly fx: Fx;
   /** Steps per second, `AMBIENT_HZ` when absent: the sea swells at 12, the wind flows at 30. */
   readonly hz?: number;
+  /** True when it has nothing to animate: its beat asks for no frame — a smoke without a worn pile in sight. */
+  idle?(): boolean;
   frame(time: number, motion: MapMotion): void;
 };
 
@@ -37,6 +39,7 @@ export class Ambience {
     if (this.motion !== 'full') return false;
     let stepped = false;
     for (const paced of this.layers) {
+      if (paced.layer.idle?.()) continue;
       const step = ambientStep(nowMs, paced.layer.hz);
       if (step === paced.step) continue;
       paced.step = step;

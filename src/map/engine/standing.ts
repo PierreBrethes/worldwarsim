@@ -292,6 +292,10 @@ export class StandingLayer {
 
   readonly smoke: AmbientLayer = {
     fx: 'smoke',
+    idle: () =>
+      ![...this.dressed.values()].some(
+        ({ ready, object, smokes }) => ready && object.visible && smokes.length > 0,
+      ),
     frame: (time) => {
       this.time = time;
       for (const { ready, smokes } of this.dressed.values())
