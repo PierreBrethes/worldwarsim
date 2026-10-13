@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
 import { Pawn } from './pawn';
 
@@ -9,9 +10,9 @@ import { Pawn } from './pawn';
 const MEDIUMS: ReadonlyArray<Medium> = ['land', 'sea', 'air'];
 
 const wornCostume = (pawn: Pawn): Medium | null => {
-  const worn = pawn.object.children.flatMap((costume, index) =>
-    costume.visible ? [MEDIUMS[index]!] : [],
-  );
+  const worn = pawn.object.children
+    .slice(0, MEDIUMS.length)
+    .flatMap((costume, index) => (costume.visible ? [MEDIUMS[index]!] : []));
   return worn.length === 1 ? worn[0]! : null;
 };
 
@@ -23,7 +24,6 @@ const wornCostume = (pawn: Pawn): Medium | null => {
 describe('the spriteless pawn', () => {
   it('holds the three medium silhouettes and only wears one', () => {
     const pawn = new Pawn(null, '#000');
-    expect(pawn.object.children).toHaveLength(3);
     expect(wornCostume(pawn)).toBe('land');
   });
 
@@ -35,5 +35,66 @@ describe('the spriteless pawn', () => {
     expect(wornCostume(pawn)).toBe('land');
     pawn.wear('air');
     expect(wornCostume(pawn)).toBe('air');
+  });
+});
+
+describe('the wake', () => {
+  const close = new Vector3(0, 5, 0);
+  const wakeOf = (pawn: Pawn) => pawn.object.getObjectByName('wake')!;
+
+  it('trails behind a hull at sea, in the axis of its road', () => {
+    const pawn = new Pawn(null, '#000');
+    pawn.wear('sea');
+    pawn.place(new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+    pawn.orient(close, 0);
+    pawn.object.updateMatrixWorld(true);
+    const wake = wakeOf(pawn);
+    expect(wake.visible).toBe(true);
+    const puffs = wake.children.filter((puff) => puff.visible);
+    expect(puffs.length).toBeGreaterThan(0);
+    for (const puff of puffs) {
+      const at = puff.getWorldPosition(new Vector3());
+      expect(at.x).toBeLessThan(0);
+      expect(Math.abs(at.z)).toBeLessThan(Math.abs(at.x));
+    }
+  });
+
+  it('is not drawn on land nor in the air', () => {
+    const pawn = new Pawn(null, '#000');
+    for (const medium of ['land', 'air'] as const) {
+      pawn.wear(medium);
+      pawn.orient(close, 0);
+      expect(wakeOf(pawn).visible).toBe(false);
+    }
+  });
+});
+
+describe('the plane shadow', () => {
+  const close = new Vector3(0, 8, 0);
+  const shadowOf = (pawn: Pawn) => pawn.object.getObjectByName('shadow')!;
+
+  it('lies on the ground under a plane in flight, the gap its altitude', () => {
+    const pawn = new Pawn(null, '#000');
+    pawn.wear('air');
+    pawn.place(new Vector3(0, 3, 0), new Vector3(1, 3, 0), 0.5);
+    pawn.orient(close, 0);
+    pawn.object.updateMatrixWorld(true);
+    const shadow = shadowOf(pawn);
+    expect(shadow.visible).toBe(true);
+    expect(shadow.getWorldPosition(new Vector3()).y).toBeCloseTo(0.5);
+  });
+
+  it('is never stuck under a plane on the ground, nor under a hull or a column', () => {
+    const pawn = new Pawn(null, '#000');
+    pawn.wear('air');
+    pawn.place(new Vector3(0, 0.5, 0), new Vector3(1, 0.5, 0), 0.5);
+    pawn.orient(close, 0);
+    expect(shadowOf(pawn).visible).toBe(false);
+    for (const medium of ['land', 'sea'] as const) {
+      pawn.wear(medium);
+      pawn.place(new Vector3(0, 3, 0), new Vector3(1, 3, 0), 0.5);
+      pawn.orient(close, 0);
+      expect(shadowOf(pawn).visible).toBe(false);
+    }
   });
 });

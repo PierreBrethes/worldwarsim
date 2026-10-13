@@ -1,4 +1,4 @@
-import { Group, QuadraticBezierCurve3, Vector3, type InterleavedBufferAttribute } from 'three';
+import { Group, Vector3, type InterleavedBufferAttribute } from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -32,6 +32,19 @@ export const airRise = (chord: number): number =>
   Math.min(AIR_RISE_MAX, Math.max(AIR_RISE_MIN, chord * AIR_RISE_SHARE));
 
 const AIR_SEGMENTS = 48;
+
+/** The share of an air leg spent climbing, and as much descending. */
+const CLIMB_SHARE = 0.35;
+
+/**
+ * **An air leg's altitude against its rise, by the share flown**: it takes off, holds its cruise,
+ * comes down to land (point 15 of `table-etat-major`: the plane's shadow says its altitude). A
+ * parabola never cruised — the gap between a plane and its shadow changed all the way.
+ */
+export function flightAltitude(share: number): number {
+  const k = Math.min(1, Math.max(0, Math.min(share, 1 - share) / CLIMB_SHARE));
+  return k * k * (3 - 2 * k);
+}
 
 /**
  * The remainder's dashes, in pixels. The stroke has the same thickness as the covered part —
@@ -428,11 +441,12 @@ function airLeg(route: ComputedRoute, frame: WorldFrame): ThreadLeg {
   const departure = frame.projectLonLat(route.points[0]!, SURFACE_ALTITUDE);
   const arrival = frame.projectLonLat(route.points[route.points.length - 1]!, SURFACE_ALTITUDE);
   const rise = airRise(departure.distanceTo(arrival));
-  const middle = departure.clone().lerp(arrival, 0.5);
-  // A quadratic Bézier peaks at half its control point: for the apex to be the requested
-  // rise, the control climbs double.
-  middle.y += rise * 2;
-  const vertices = new QuadraticBezierCurve3(departure, middle, arrival).getPoints(AIR_SEGMENTS);
+  const vertices = Array.from({ length: AIR_SEGMENTS + 1 }, (_, k) => {
+    const share = k / AIR_SEGMENTS;
+    const point = departure.clone().lerp(arrival, share);
+    point.y += rise * flightAltitude(share);
+    return point;
+  });
   return { medium: 'air', strands: [strandOf(vertices)], length: lengthOf(vertices) };
 }
 

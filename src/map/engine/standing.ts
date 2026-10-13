@@ -171,7 +171,7 @@ export function pileObject(
   };
 }
 
-function blacken(figurine: Object3D): void {
+export function blacken(figurine: Object3D): void {
   figurine.traverse((part) => {
     if (part instanceof Mesh && !(part.material instanceof MeshBasicMaterial))
       part.material = Array.isArray(part.material)

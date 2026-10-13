@@ -8,11 +8,14 @@ import {
   ShapeGeometry,
   Vector3,
 } from 'three';
+import type { Wear } from '@/domain/pile-pieces';
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { nearWeight, type Figurine } from './figurines/figurine';
+import { contactShadow, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
+import { PLUME_BY_WEAR, Smoke, Wake } from './smoke';
+import { blacken } from './standing';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -28,6 +31,9 @@ import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
  */
 const PAWN_SHARE = 0.031;
 const PAWN_SILHOUETTE_SHARE = 0.018;
+
+/** Below this gap a plane is on the ground: a shadow glued under it would say nothing. */
+const AIRBORNE_GAP = 0.05;
 
 /** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
 type SpriteCostume = {
@@ -59,14 +65,23 @@ export class Pawn {
   private readonly sprites = new Map<Medium, SpriteCostume>();
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
+  private readonly smokes = new Map<Medium, Smoke>();
+  private readonly wake = new Wake();
+  private readonly shadow = contactShadow();
+  /** Height of the ground under the pawn, relative to it: zero, or below a plane. */
+  private groundBelow = 0;
   private medium: Medium = 'land';
   private westward = false;
   private heading = 0;
+  /** The effects' clock: it only runs while `step` is called, so reduced motion stills them. */
+  private clock = 0;
 
   constructor(
     sprites: MediumSprites | null,
     color: string,
     figurines: Readonly<Record<Medium, Figurine | null>> | null = null,
+    /** My movement's wear per medium (`movementWear`); `null` for anything not mine. */
+    wear: Readonly<Record<Medium, Wear>> | null = null,
   ) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
@@ -80,8 +95,28 @@ export class Pawn {
         figurine.object.visible = false;
         this.figurines.set(medium, figurine);
         this.object.add(figurine.object);
+        const worn = wear?.[medium] ?? 'whole';
+        const plume = PLUME_BY_WEAR[worn];
+        if (plume !== null) {
+          // A worn vehicle on the move smokes as it does standing (ADR 0026 §5).
+          const smoke = new Smoke(plume);
+          this.smokes.set(medium, smoke);
+          void figurine.ready.then(
+            () => {
+              figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
+              if (worn === 'burning') blacken(figurine.object);
+            },
+            () => {},
+          );
+        }
       }
     }
+    this.wake.object.name = 'wake';
+    this.wake.object.visible = false;
+    this.object.add(this.wake.object);
+    this.shadow.name = 'shadow';
+    this.shadow.visible = false;
+    this.object.add(this.shadow);
   }
 
   set visible(value: boolean) {
@@ -105,8 +140,10 @@ export class Pawn {
     if (entering) entering.visible = true;
   }
 
-  place(position: Vector3, pointAhead: Vector3): void {
+  /** `groundY` is the board's height under the point: a plane flies above it (`flightAltitude`). */
+  place(position: Vector3, pointAhead: Vector3, groundY = position.y): void {
     this.object.position.copy(position);
+    this.groundBelow = groundY - position.y;
     this.westward = pointAhead.x < position.x;
     const dx = pointAhead.x - position.x;
     const dz = pointAhead.z - position.z;
@@ -117,6 +154,9 @@ export class Pawn {
   /** What spins on the worn figurine — its propellers — and nothing else. */
   step(elapsedSeconds: number): void {
     this.figurines.get(this.medium)?.spin(elapsedSeconds);
+    this.clock += elapsedSeconds;
+    if (this.wake.object.visible) this.wake.frame(this.clock);
+    this.smokes.get(this.medium)?.frame(this.clock);
   }
 
   /**
@@ -126,8 +166,17 @@ export class Pawn {
    */
   orient(cameraPosition: Vector3, yaw: number): void {
     const distance = this.object.position.distanceTo(cameraPosition);
+    const close = nearWeight(distance);
+    // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».
+    this.wake.object.visible = this.medium === 'sea' && close > 0;
+    this.wake.object.rotation.set(0, this.heading, 0);
+    this.wake.object.scale.setScalar(close);
+    // The gap between a plane and its shadow is its altitude: it opens at take-off and closes on landing.
+    this.shadow.visible = this.medium === 'air' && close > 0 && -this.groundBelow > AIRBORNE_GAP;
+    this.shadow.position.y = this.groundBelow;
+    this.shadow.scale.setScalar(close);
     const figurine = this.figurines.get(this.medium);
-    const near = figurine === undefined ? 0 : nearWeight(distance);
+    const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
       figurine.object.rotation.set(0, figurine.facesEye ? yaw : this.heading, 0);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole, UnitTier } from './ids';
-import { pilePieces, pileSheet } from './pile-pieces';
+import type { ArcView } from './player-view';
+import { movementWear, pilePieces, pileSheet } from './pile-pieces';
 
 let serial = 0;
 const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStrength = 100) => ({
@@ -134,5 +135,33 @@ describe('pileSheet', () => {
         ink: 'ochre',
       },
     ]);
+  });
+});
+
+describe('movementWear', () => {
+  const mine = (troopIds: ReadonlyArray<string>) =>
+    ({ state: 'mine', troopIds }) as unknown as ArcView;
+
+  it('reads the wear of the face each medium wears, from the troops the movement carries', () => {
+    const hull = troop('cargo', 1, 40);
+    const tanks = [troop('armor', 1, 20), troop('armor', 1, 30)];
+    const elsewhere = troop('fighter', 1, 10);
+    const wear = movementWear(mine([hull.id, ...tanks.map((t) => t.id)]), [
+      hull,
+      ...tanks,
+      elsewhere,
+    ]);
+    expect(wear).toEqual({ land: 'burning', sea: 'smoking', air: 'whole' });
+  });
+
+  it('leaves infantry unsmoking: it says its strength by its men', () => {
+    const men = [troop('infantry', 1, 10), troop('infantry', 1, 10), troop('armor', 1, 10)];
+    expect(movementWear(mine(men.map((t) => t.id)), men)?.land).toBe('whole');
+  });
+
+  it('serves nothing for a movement that is not mine', () => {
+    const hull = troop('cargo', 1, 10);
+    const enemy = { state: 'enemyDetected', troopIds: [hull.id] } as unknown as ArcView;
+    expect(movementWear(enemy, [hull])).toBeNull();
   });
 });

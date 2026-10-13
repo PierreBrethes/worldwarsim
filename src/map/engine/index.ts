@@ -33,7 +33,7 @@ import {
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
-import type { ArcView } from '@/domain/player-view';
+import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -42,7 +42,7 @@ import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
-import { ReachRing } from './reach';
+import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
@@ -453,8 +453,20 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
-  displayArcs(arcs: ReadonlyArray<ArcView>): void {
+  /** A point of mine now holds this far: its reach is inked once around it. */
+  inkReach(at: LonLat, km: number): void {
     this.invalidate();
+    const ring = circleAround(this.frame, at, km).positions;
+    const vertices = Array.from(
+      { length: ring.length / 3 },
+      (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
+    );
+    this.ink.traceReach(vertices, performance.now());
+  }
+
+  displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
+    this.invalidate();
+    this.arcs.troops = troops;
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
     // nothing on screen moved.

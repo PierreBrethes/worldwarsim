@@ -207,6 +207,12 @@ Avis de Pierre du 12/10 entre crochets.
   tant que rien ne l'autorise. Les tirs de `strikes` (rôles des deux camps) ne sont servis à
   personne : un rejeu qui les lirait devra les filtrer par camp.
   [*Pierre adore l'idée ; il manque une étape au déroulé — laquelle, à dire au grilling.*]
+  **Grillé le 13/10** : on ne rejoue que **ses** combats (ceux de ses dépêches). Rejeu **court**
+  (une dizaine de secondes) en lecture automatique, avec un bouton qui la coupe et des flèches
+  pour avancer **étape par étape** — voyage, pose, salves, pertes, déroute, compte rendu. En face,
+  **un bloc par troupe adverse** que le compte rendu compte ; aux pertes, figurines et blocs
+  tombent **un à un**, des deux côtés, puis les déroutés reculent. Le décompte final reste dans un
+  cartouche. Quitter le rejeu se confirme, et la caméra revient où elle était.
 - **Le chantier monte** : échafaudage, puis le bâtiment qui pousse dans un nuage de plâtre ; un
   recrutement fini fait sortir les figurines de la caserne. [*Oui.*]
 - **Ce qu'on relève se pose sur la table.** [*D'accord, précisé.*] Quand un relevé adverse

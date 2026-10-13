@@ -1,6 +1,9 @@
 import {
   CanvasTexture,
+  CircleGeometry,
   Group,
+  Mesh,
+  MeshBasicMaterial,
   type Material,
   MeshStandardMaterial,
   SRGBColorSpace,
@@ -114,6 +117,71 @@ export class Smoke {
       puff.visible = step > 0;
       puff.material = this.steps[step]!;
       puff.position.set(lean, height, 0);
+      puff.scale.setScalar(size);
+    });
+  }
+}
+
+/**
+ * **A hull at sea leaves a wake** (proposition `table-etat-major`, point 15: the wake says the
+ * sea). Two rows of foam fall back from the stern and open into a V, in board units and in the
+ * pawn's own frame — front towards +z, as its figurine faces its road. Like a puff of smoke, a
+ * foam patch is a function of the time: a stopped clock leaves a still wake that still says « at
+ * sea ».
+ */
+export const WAKE_LIFE = 2.4;
+const WAKE_PUFFS = 12;
+const WAKE_STERN = 0.3;
+const WAKE_LENGTH = 1.3;
+const WAKE_OPACITY = 0.6;
+
+export function wakePuffAt(rank: number, time: number) {
+  const phase = (((time / WAKE_LIFE + Math.floor(rank / 2) / (WAKE_PUFFS / 2)) % 1) + 1) % 1;
+  return {
+    ahead: -(WAKE_STERN + WAKE_LENGTH * phase),
+    side: (rank % 2 === 0 ? -1 : 1) * (0.06 + 0.4 * phase),
+    size: 0.12 + 0.38 * Math.sqrt(phase),
+    opacity: WAKE_OPACITY * (phase < 0.1 ? phase / 0.1 : 1 - (phase - 0.1) / 0.9),
+  };
+}
+
+const FOAM = '#f4ecd8';
+const WAKE_DISC = new CircleGeometry(0.5, 16).rotateX(-Math.PI / 2);
+let wakeSteps: MeshBasicMaterial[] | null = null;
+
+/** One wake, its pool fixed at birth; geometry, materials and texture are the module's. */
+export class Wake {
+  readonly object = new Group();
+
+  constructor() {
+    puffTexture ??= drawPuff();
+    wakeSteps ??= Array.from(
+      { length: OPACITY_STEPS + 1 },
+      (_, k) =>
+        new MeshBasicMaterial({
+          map: puffTexture,
+          color: FOAM,
+          transparent: true,
+          depthWrite: false,
+          opacity: (WAKE_OPACITY * k) / OPACITY_STEPS,
+        }),
+    );
+    for (let k = 0; k < WAKE_PUFFS; k++) {
+      const puff = new Mesh(WAKE_DISC, wakeSteps[0]);
+      puff.renderOrder = 3;
+      this.object.add(puff);
+    }
+    this.frame(0);
+  }
+
+  frame(time: number): void {
+    this.object.children.forEach((child, rank) => {
+      const puff = child as Mesh;
+      const { ahead, side, size, opacity } = wakePuffAt(rank, time);
+      const step = Math.round((opacity / WAKE_OPACITY) * OPACITY_STEPS);
+      puff.visible = step > 0;
+      puff.material = wakeSteps![step]!;
+      puff.position.set(side, 0.004, ahead);
       puff.scale.setScalar(size);
     });
   }

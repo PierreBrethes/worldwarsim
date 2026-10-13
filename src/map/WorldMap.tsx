@@ -23,8 +23,10 @@ import {
   type ArcView,
   type JournalDispatch,
   type TroopStation,
+  type TroopView,
 } from '@/domain/player-view';
 import { inkBursts } from '@/domain/ink-bursts';
+import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
@@ -47,6 +49,8 @@ import {
 type Props = {
   world: World;
   arcs: ReadonlyArray<ArcView>;
+  /** My troops: a movement's wear is read on them, the arc does not carry strength. */
+  troops: ReadonlyArray<TroopView>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
@@ -60,6 +64,8 @@ type Props = {
    * jamais recalculé ici : la carte dessine ce qu'on lui tend.
    */
   held: ReadonlyArray<HeldClaim>;
+  /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
+  outposts: ReadonlyArray<ReachedOutpost>;
   /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
@@ -215,12 +221,14 @@ const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles }
 export function WorldMap({
   world,
   arcs,
+  troops,
   journal,
   labels,
   standing,
   camps,
   inkByCountry,
   held,
+  outposts,
   built,
   selectedCountry,
   playerNation,
@@ -677,8 +685,8 @@ export function WorldMap({
   const designatedArc = arcs.find((arc) => arc.id === accentedMovement) ?? null;
 
   useEffect(() => {
-    engine.current?.displayArcs(arcs);
-  }, [arcs]);
+    engine.current?.displayArcs(arcs, troops);
+  }, [arcs, troops]);
 
   useEffect(() => {
     readyEngine?.displayStanding(standing, COUNTER_TEXTS);
@@ -687,6 +695,14 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
+
+  const reachedBefore = useRef<ReadonlyArray<ReachedOutpost> | null>(null);
+  useEffect(() => {
+    const before = reachedBefore.current;
+    reachedBefore.current = outposts;
+    if (before === null) return;
+    for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
+  }, [outposts, readyEngine]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {
