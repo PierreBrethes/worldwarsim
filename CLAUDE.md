@@ -99,20 +99,21 @@ aucun aérodrome » de l'ancienne fenêtre Production : tout le matériel du jeu
 posséder**. En lecture seule, et il tient l'entrée de rail que l'onglet « prod. » a libérée.
 
 **Le mouvement s'ordonne depuis la carte, et de nulle part ailleurs** (décisions 12a et 13a,
-`WWS/docs/design/propositions/flux-mouvement-en-carte.md`). La fenêtre Troupes, la modale
-« Envoi d'un mouvement » et le widget des trajets sont **supprimés**. À leur place : un
-**panneau de garnison** qui compose la pile (le clic sur le mât d'un bâtiment de projection et
-celui sur une pile qui porte plusieurs troupes ouvrent le même, un seul état de sélection) ; puis
-la **visée** : clic droit sur la cible, rose des vents contextuelle, aperçu d'arc et confirmation
-« envoyer — irréversible » au bout de l'arc.
+ADR 0026 §6). On **lève** une pile, on la **pose** : une seule main au plateau (`Hand`), dont
+dérivent la colonne armée et la pièce que porte le moteur, et une seule règle pour les clics sur
+ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). Un bâtiment
+ou un avant-poste n'a pas de figurines : son **panneau de garnison** compose la pile et
+« préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
+l'heure de la première marche ; la pose ouvre la rose au point de pose, ou passe droit à
+« envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
+la rose et l'aperçu refermés la reposent.
 
-**La carte au clic droit agit, la popin lit** (décision Pierre, 30/08). Le clic gauche sur une
-troupe seule ouvre le cartouche (`TroopBadge.tsx`, qui ne porte aucun ordre) et **l'arme du même
-geste** ; la destination se nomme au clic droit **ailleurs**. La rose ne s'ouvre avec lui que
-s'il y a quelque chose à faire **sur place** — fonder un avant-poste, et rien d'autre
-aujourd'hui : un bateau désigné n'ouvre donc aucun menu. Deux cibles, jamais un menu mixte : le
-sprite rend la rose de la troupe, la région celle du bâti. Il n'y a plus de fenêtre « visée
-armée » — le cartouche porte l'état.
+**La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
+main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la
+main sans la lâcher ; elle ne porte aucun ordre. Le cartouche `TroopBadge` et la feuille de visée
+du téléphone sont **supprimés**. Le bouton « agir » garde la rose sur place — fonder sur sa pile,
+bâtir sur sa région. Au toucher, un tap lève, un tap sur la carte pose, un tap sur la pièce
+repose.
 
 **Et quel bouton agit est une préférence, pas une règle** (retour de la partie du 11/09,
 `src/domain/mouse-mapping.ts`). La grammaire ne bouge pas — un bouton oriente, un bouton déplace,
@@ -286,10 +287,9 @@ rôle, trois au plus et un jeton « +N », jeton « ×N », 3/2/1 hommes par tie
 les marques présentes), dessinés par `src/map/engine/standing.ts` ; elle n'est **habillée que si
 tous ses groupes ont leur figurine et qu'elles sont chargées** — sinon elle garde sa planche
 entière. Habillée, son étiquette DOM efface sa planche et reste l'emprise du clic et du survol ;
-le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). Le cartouche
-`TroopBadge` reste jusqu'au lever-poser (lot 4), parce qu'il porte l'état armé. La page
+le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). La page
 `/figurines.html`, servie en développement seulement, montre chaque figurine à côté de sa
-planche. Les blocs adverses, le lever-poser et les garnisons de bâtiment sont les lots suivants.
+planche. Les blocs adverses et les garnisons de bâtiment sont les lots suivants.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
