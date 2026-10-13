@@ -2020,11 +2020,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             />
           )}
           {resting !== null && order === null && preview && (
+            /* Placed outside the `.hud` zoom, which would scale the board point as well. */
             <div
-              className="hud pointer-events-none absolute z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] text-[var(--paper)]"
+              className="pointer-events-none absolute z-10"
               style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
             >
-              {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
+              <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper)]">
+                {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
+              </div>
             </div>
           )}
           {column && order && (
