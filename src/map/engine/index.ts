@@ -74,6 +74,7 @@ import {
   type StandingPile,
 } from './standing';
 import { PointerRest } from './pointer-rest';
+import { nearer, type PieceHit } from './piece-pick';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { ReplayScene, replayReach } from './replay';
 import {
@@ -123,6 +124,15 @@ export type MapActClick = {
 export type PieceClick = PiecePick & {
   clientX: number;
   clientY: number;
+};
+
+/** A clean press on a drawn piece (`MapEngine.onPiecePress`), already read through the mapping. */
+export type PiecePress = {
+  readonly labelId: string;
+  readonly press: ReturnType<typeof cleanPressAt>;
+  readonly pointerType: string;
+  readonly clientX: number;
+  readonly clientY: number;
 };
 
 /** Where a held piece's pointer stopped: what `onAct` gets, and the DOM label it stopped on —
@@ -335,6 +345,8 @@ export class MapEngine {
   /** The piece in hand, `null` when nothing is held (ADR 0026 §6). */
   private held: PieceHold | null = null;
   private hoveredPiece = false;
+  /** The label of the piece under the mouse (`onPieceHover`). */
+  private hoveredLabel: string | null = null;
   private readonly rest = new PointerRest();
   private readonly lastPointer = { clientX: 0, clientY: 0 };
   /** The label under a held piece's pointer, `null` over the bare board. */
@@ -347,6 +359,15 @@ export class MapEngine {
    * done with that press. Unset, the press reads the board as it always did.
    */
   onPieceClick?: ((hit: PieceClick) => void) | undefined;
+  /**
+   * **The piece under the mouse, by its label's id** — a figurine, a maquette, a block, a pawn
+   * covers far more of the screen than its label does, and is what the player points at. `null`
+   * off every piece. A finger has no hover, a press in course or a building held none either.
+   */
+  onPieceHover?: ((labelId: string | null) => void) | undefined;
+  /** A clean press on a piece the canvas drew: its label answers it as if it had been pressed
+   *  itself, and says whether it did — `false` lets the board read the press. */
+  onPiecePress?: ((press: PiecePress) => boolean) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -1171,6 +1192,8 @@ export class MapEngine {
     // Another finger of a pinch lifted: the press stays spoiled until its own finger goes.
     if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
+    // A press hides the piece under the pointer: released, it is there again.
+    this.hoverDirty = true;
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
@@ -1189,6 +1212,7 @@ export class MapEngine {
       this.updateHover();
     }
     if (press.picks && this.pickAt(event)) return;
+    if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt(event);
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
@@ -1218,6 +1242,31 @@ export class MapEngine {
     return true;
   }
 
+  /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
+  private pressPiece(event: PointerEvent, press: ReturnType<typeof cleanPressAt>): boolean {
+    if (this.onPiecePress === undefined || this.placing !== null || this.designating) return false;
+    if (!this.castAt(event.clientX, event.clientY)) return false;
+    const labelId = this.pieceUnder()?.id;
+    if (labelId === undefined) return false;
+    return this.onPiecePress({
+      labelId,
+      press,
+      pointerType: event.pointerType,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }
+
+  /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
+  private pieceUnder(): PieceHit | null {
+    return [
+      this.standing.under(this.ray),
+      this.camps.under(this.ray),
+      this.arcs.pawnUnder(this.ray),
+      this.maquettes.under(this.ray),
+    ].reduce(nearer, null);
+  }
+
   /**
    * **The mouse moved over a DOM label**, which takes it from the canvas: a held piece's stop is
    * told there too, on that label — a mast, a camp, an objective are where one puts down.
@@ -1238,7 +1287,7 @@ export class MapEngine {
     const { clientX, clientY } = this.lastPointer;
     const click = this.actClickAt(clientX, clientY);
     if (click.point === null && this.restLabel === null) return;
-    this.onRest?.({ ...click, labelId: this.restLabel });
+    this.onRest?.({ ...click, labelId: this.restLabel ?? this.hoveredLabel });
   }
 
   private readAt(event: PointerEvent): void {
@@ -1612,10 +1661,22 @@ export class MapEngine {
     const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
     const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
+    const pointing =
+      onScreen &&
+      !this.fingerOnBoard &&
+      this.gesture === null &&
+      this.placing === null &&
+      !this.designating;
+    const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    if (label !== this.hoveredLabel) {
+      this.hoveredLabel = label;
+      this.onPieceHover?.(label);
+    }
 
+    // The piece stands in front of its region: the region is not what the pointer is on.
     if (!this.fingerOnBoard || this.regionTapped) {
       this.regionTapped = false;
-      this.updateRegionHover(hit?.point ?? null);
+      this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
     }
 
     const piece = !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null;
@@ -1652,7 +1713,8 @@ export class MapEngine {
     }
 
     this.hovered = touched ?? null;
-    const adm0 = this.fingerOnBoard ? null : (this.hovered?.userData.adm0 ?? null);
+    const adm0 =
+      this.fingerOnBoard || label !== null ? null : (this.hovered?.userData.adm0 ?? null);
     if (adm0 !== this.hoveredCountry) {
       this.hoveredCountry = adm0;
       this.onCountryHover(adm0);

@@ -799,3 +799,10 @@
 .label--postered .label-bar {
   opacity: 0;
 }
+
+/* Habillée, la pièce prend le pointeur par la toile : son étiquette, plantée au milieu d'elle,
+   ne vole plus le clic de ce qu'elle couvre. Le clavier la garde. */
+.label-anchor.label-anchor--dressed .label-block,
+.label-anchor.label-anchor--dressed .label-block * {
+  pointer-events: none;
+}

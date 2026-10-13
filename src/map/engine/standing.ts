@@ -21,6 +21,7 @@ import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
+import { drawnHit, nearer, type PieceHit } from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -587,13 +588,15 @@ export class StandingLayer {
       spread.ready &&
       this.progressOf(spread, performance.now()) >= 0.5;
     if (spread !== null && deployed && spread.object.visible) {
-      const hit = ray.intersectObject(spread.object, true).find((h) => h.object.userData.troopId);
-      if (hit)
-        return {
-          pileId: spread.pileId,
-          troopIds: [hit.object.userData.troopId as string],
-          spread: true,
-        };
+      // A troop is taken by its whole figurine, its footprint where a rifle is a pixel wide.
+      let troop: PieceHit | null = null;
+      for (const [troopId, { object }] of spread.parts) {
+        const distance =
+          drawnHit(ray, object) ??
+          ray.intersectObject(object, true).find((hit) => hit.object.userData.troopId)?.distance;
+        if (distance !== undefined) troop = nearer(troop, { id: troopId, distance });
+      }
+      if (troop !== null) return { pileId: spread.pileId, troopIds: [troop.id], spread: true };
     }
     let best: { distance: number; pick: PieceHold } | null = null;
     for (const [pileId, entry] of this.dressed) {
@@ -605,6 +608,19 @@ export class StandingLayer {
       if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
     }
     return best === null ? null : { ...best.pick, spread: false };
+  }
+
+  /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside
+   *  its maquette included: what the pointer is over is not only what it may lift. */
+  under(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const [id, entry] of this.dressed) {
+      if (!entry.ready || !entry.object.visible) continue;
+      const distance =
+        drawnHit(ray, entry.object) ?? ray.intersectObjects([...entry.targets], false)[0]?.distance;
+      if (distance !== undefined) best = nearer(best, { id, distance });
+    }
+    return best;
   }
 
   /**

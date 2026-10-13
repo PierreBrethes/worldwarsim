@@ -12,6 +12,7 @@ import {
   type Object3D,
   Plane,
   Quaternion,
+  type Raycaster,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -22,6 +23,7 @@ import { nearWeight, sceneOf } from './figurines/figurine';
 import { PALETTE } from './palette';
 import { washedOf } from './standing';
 import { pieceScale } from './piece-scale';
+import { nearer, type PieceHit } from './piece-pick';
 
 /**
  * **What a maquette stands on and as** (ADR 0026 §1): a building, a surveyed installation or a
@@ -391,6 +393,20 @@ export class MaquetteLayer {
     lot.rising?.scaffold?.geometry.dispose();
   }
 
+  /** The maquette under `ray`, by the instance it hits: each is tried by its bounds first. */
+  under(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const lot of this.lots.values()) {
+      if (!lot.group.visible) continue;
+      for (const hit of ray.intersectObjects(lot.meshes, false)) {
+        const item = hit.instanceId === undefined ? undefined : lot.items[hit.instanceId];
+        if (item !== undefined && item.near > 0 && !item.cleared)
+          best = nearer(best, { id: item.id, distance: hit.distance });
+      }
+    }
+    return best;
+  }
+
   /** Its maquette stands, so its plate gives way — not while a replay has cleared it away. */
   isDressed(id: string): boolean {
     const dressed = this.byId.get(id);
@@ -437,7 +453,11 @@ export class MaquetteLayer {
       });
       if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       if (!moved) continue;
-      for (const mesh of lot.meshes) mesh.instanceMatrix.needsUpdate = true;
+      for (const mesh of lot.meshes) {
+        mesh.instanceMatrix.needsUpdate = true;
+        // The pointer's test reads the bounds first: they must follow the instances.
+        mesh.computeBoundingSphere();
+      }
       lot.group.visible = lot.items.some((item) => item.near > 0);
     }
   }

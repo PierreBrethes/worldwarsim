@@ -144,6 +144,7 @@ export function contactShadow(): Group {
     const disc = new Mesh(geometry, material);
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.004;
+    disc.userData.ground = true;
     shadow.add(disc);
   }
   return shadow;

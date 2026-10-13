@@ -9,6 +9,7 @@ import {
   PlaneGeometry,
   RingGeometry,
   SRGBColorSpace,
+  type Raycaster,
   type Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -20,6 +21,7 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
 import { pieceScale } from './piece-scale';
+import { drawnHit, nearer, type PieceHit } from './piece-pick';
 
 /** A surveyed enemy camp as the board stands it: its label id, its point, its medium, its age. */
 export type SurveyedCamp = {
@@ -141,6 +143,7 @@ function block(medium: Medium, washed: boolean): { object: Group; piece: Group }
   if (washed) {
     const ring = new Mesh(RING, RING_INK);
     ring.scale.setScalar(FIGURINE_SCALE);
+    ring.userData.ground = true;
     object.add(ring);
   }
   return { object, piece };
@@ -273,6 +276,17 @@ export class CampLayer {
 
   isDressed(id: string): boolean {
     return this.placed.has(id);
+  }
+
+  /** The block under `ray`, the hand that lays it down aside. */
+  under(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const [id, { object, piece }] of this.placed) {
+      if (!object.visible) continue;
+      const distance = drawnHit(ray, piece);
+      if (distance !== null) best = nearer(best, { id, distance });
+    }
+    return best;
   }
 
   /** A force at sea floats on the water, not on the crust's height. */
