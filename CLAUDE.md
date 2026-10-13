@@ -406,11 +406,9 @@ prochain tap ou quand la sélection part. La feuille du sol s'ouvre alors à l'a
 **Et la carte s'allège pour que les pièces ressortent — 13/10/2026.** Le bord de l'écran ne
 porte plus qu'**un jeton par bord et par sorte**, avec son compte, posé à la moyenne de ses
 membres (`cluster`, `src/domain/indicators.ts`) ; un clic recentre sur **le plus proche** du
-groupe (`nearest`) — cadrer tout un bord de gisements renverrait à la vue monde. Les
-**gisements** ne tiennent plus à la couche des régions, qui est déjà pleine sur l'Europe entière
-(< 30) : ils vivent au **rapproché** (`closeShare`, 14 → 20, `map/engine/labels.ts`), quel que
-soit le réglage, et la bascule « gisements » — éteinte par défaut — les rend à toute la couche
-des régions et au bord de l'écran. Les **teintes de possession sont un lavis** : l'encre du siège posée
+groupe (`nearest`) — cadrer tout un bord de gisements renverrait à la vue monde. La bascule
+« gisements » a deux états seulement : masqués, ou partout (couche des régions et bord ; cochée
+par défaut). Les **teintes de possession sont un lavis** : l'encre du siège posée
 sur le papier à `HELD_OPACITY` (0,65, `map/engine/palette.ts`, fonction `lavis`), pour une région
 comme pour un pays tenu entier — la feuille n'empile plus l'encre du siège sur celle de la nation
 posée pleine, qui écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
