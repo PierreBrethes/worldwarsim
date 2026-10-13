@@ -78,4 +78,12 @@ describe('posterPlacement', () => {
     expect(at.side).toBe('below');
     expect(at.y + insets.stem + poster.height).toBeLessThanOrEqual(800 - 100 - 8);
   });
+
+  it('keeps its side across the seam, and leaves it once that side no longer fits', () => {
+    const near = { left: 580, right: 620, top: 165, bottom: 400 };
+    expect(posterPlacement(near, poster, viewport, insets).side).toBe('right');
+    expect(posterPlacement(near, poster, viewport, insets, 'above').side).toBe('above');
+    const far = { ...near, top: 150 };
+    expect(posterPlacement(far, poster, viewport, insets, 'above').side).toBe('right');
+  });
 });

@@ -184,6 +184,7 @@ export function MapLabels({
   const showPoster = useRef<(id: string | null) => void>(() => {});
   const posterAnchor = useRef<HTMLDivElement | null>(null);
   const posterPlace = useRef<PosterPlace | null>(null);
+  const posterSide = useRef<{ id: string; side: PosterSpot['side'] } | null>(null);
   const point = useCallback(
     (id: string | null) => {
       const previous = pointed.current;
@@ -526,8 +527,10 @@ export function MapLabels({
               margin: POSTER_MARGIN_PX,
               stem: POSTER_STEM_PX,
             },
+            posterSide.current?.id === place.id ? posterSide.current.side : undefined,
           );
           ({ side, x, y, stem } = spot);
+          posterSide.current = { id: place.id, side };
         } else {
           const top = under.y - place.lift;
           side = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX ? 'below' : 'above';
