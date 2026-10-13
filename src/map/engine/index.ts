@@ -98,8 +98,9 @@ export type PieceClick = PieceHold & {
   clientY: number;
 };
 
-/** Where a held piece's pointer stopped: what `onAct` gets, on a point that exists. */
-export type PointerStop = Omit<MapActClick, 'point'> & { point: LonLat };
+/** Where a held piece's pointer stopped: what `onAct` gets, and the DOM label it stopped on —
+ *  the canvas does not see under a label, so the point may be missing there. */
+export type PointerStop = MapActClick & { labelId: string | null };
 
 /**
  * The trowel, hot spot on its point — top *right* of the drawing, hence `29 3`: at `0 0` the
@@ -288,6 +289,8 @@ export class MapEngine {
   private hoveredPiece = false;
   private readonly rest = new PointerRest();
   private readonly lastPointer = { clientX: 0, clientY: 0 };
+  /** The label under a held piece's pointer, `null` over the bare board. */
+  private restLabel: string | null = null;
 
   /**
    * **A clean press took one of my pieces** — a group by its figurines, the whole pile by a
@@ -466,8 +469,8 @@ export class MapEngine {
 
   /**
    * **Lifts a piece, or puts it back with `null`** (ADR 0026 §6). The original washes out where
-   * it stands; a copy of the held groups follows the ground under the mouse, a closed hand on
-   * it, and the cursor closes — the cursor alone when the pile is not dressed. Pointer stops are
+   * it stands; a copy of the held groups follows the ground under the mouse, and the
+   * cursor closes — the cursor alone when the pile is not dressed. Pointer stops are
    * told through `onRest` from the first move on; the clean left press then puts down
    * (`onAct`) rather than reads.
    */
@@ -475,7 +478,8 @@ export class MapEngine {
     this.invalidate();
     this.held = held;
     this.standing.hold(held);
-    this.rest.stop();
+    // Another piece, or none: the route told for the last stop is not this one's.
+    if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
   }
@@ -864,6 +868,7 @@ export class MapEngine {
       this.aimPointer(event.clientX, event.clientY);
       this.lastPointer.clientX = event.clientX;
       this.lastPointer.clientY = event.clientY;
+      this.restLabel = null;
       if (!this.fingerOnBoard) this.pointerMoved();
     });
     canvas.addEventListener('pointerleave', () => {
@@ -995,6 +1000,18 @@ export class MapEngine {
     return true;
   }
 
+  /**
+   * **The mouse moved over a DOM label**, which takes it from the canvas: a held piece's stop is
+   * told there too, on that label — a mast, a camp, an objective are where one puts down.
+   */
+  pointerOverLabel(labelId: string, clientX: number, clientY: number): void {
+    this.invalidate();
+    this.restLabel = labelId;
+    this.lastPointer.clientX = clientX;
+    this.lastPointer.clientY = clientY;
+    this.pointerMoved();
+  }
+
   private pointerMoved(): void {
     if (this.held !== null && this.rest.moved(performance.now())) this.onRestless?.();
   }
@@ -1002,8 +1019,8 @@ export class MapEngine {
   private tellRest(): void {
     const { clientX, clientY } = this.lastPointer;
     const click = this.actClickAt(clientX, clientY);
-    if (click.point === null) return;
-    this.onRest?.({ ...click, point: click.point });
+    if (click.point === null && this.restLabel === null) return;
+    this.onRest?.({ ...click, labelId: this.restLabel });
   }
 
   private readAt(event: PointerEvent): void {

@@ -11,9 +11,11 @@ import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
   isDestinationAction,
+  isOrder,
   soleOrderOf,
   type CompassAction,
   type CompassTarget,
+  type OrderAction,
   type Compass,
 } from '@/domain/compass-rose';
 import {
@@ -83,10 +85,10 @@ type Props = {
   /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
   /**
-   * **Le pointeur s'est arrêté, pièce en main** : la première marche que la rose y offrirait, à
+   * **Le pointeur s'est arrêté, pièce en main** : le premier ordre que la rose y offrirait, à
    * faire chiffrer par le serveur — `null` quand il n'y en a pas, ou que le pointeur repart.
    */
-  onRestAim?: (action: CompassAction | null, at: { x: number; y: number }) => void;
+  onRestAim?: (action: OrderAction | null, at: { x: number; y: number }) => void;
   /** La rose s'est refermée sans ordre : la pièce en main se repose. */
   onRoseDismiss?: () => void;
   /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
@@ -201,19 +203,9 @@ export type PlacingBuilding = {
   readonly figures: string;
 };
 
-/**
- * **Une destination de la colonne armée** : l'étiquette qui la porte, le nom que sa rose
- * écrit, et cette rose même — c'est elle qu'un raccourci de la feuille rejoue, jamais une copie.
- */
-export type Destination = {
-  readonly labelId: string;
-  readonly name: string;
-  readonly compass: Compass;
-};
-
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
-const NO_DESTINATIONS: ReadonlyArray<Destination> = [];
+const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
 
@@ -449,8 +441,9 @@ export function WorldMap({
     return () => clearTimeout(timer);
   }, [gestureHint]);
 
-  const onLabelAct = useCallback(
-    (label: MapLabel, clientX: number, clientY: number) => {
+  /** What a label names under the pointer: its own target, or — aiming — the ground it covers. */
+  const labelTarget = useCallback(
+    (label: MapLabel, clientX: number, clientY: number): CompassTarget | null => {
       const map = engine.current;
       const country = map?.countryAtPoint(clientX, clientY) ?? null;
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
@@ -471,27 +464,29 @@ export function WorldMap({
        * colonne vient y entrer en garnison, et la rose armée le dit ou dit pourquoi non. Au repos
        * il garde sa rose d'élévation — la grammaire de la visée ne change toujours pas d'un
        * signe, elle a seulement une adresse de plus. Un chantier, lui, n'a pas de bâtiment et
-       * rend son sol.
+       * rend son sol. **Un relevé — camp, installation, caisse — et un objectif gardent leur
+       * cible** : leur rose armée est l'attaque, l'expédition ou le ramassage, que le sol nu
+       * n'offre pas.
        */
-      const ground = map?.pointAt(clientX, clientY) ?? null;
-      const aimed =
-        aiming &&
-        target?.kind !== 'outpost' &&
-        target?.kind !== 'force' &&
-        target?.kind !== 'building' &&
-        map !== null
-          ? pointTarget(
-              country,
-              region,
-              ground,
-              ground !== null && coastAt(ground),
-              ground !== null && landAt(ground),
-            )
-          : target;
-      if (aimed === null) return;
-      openRose(aimed, clientX, clientY);
+      if (!aiming || map === null || (target !== null && target.kind !== 'country')) return target;
+      const ground = map.pointAt(clientX, clientY);
+      return pointTarget(
+        country,
+        region,
+        ground,
+        ground !== null && coastAt(ground),
+        ground !== null && landAt(ground),
+      );
     },
-    [openRose, aiming, coastAt, landAt],
+    [aiming, coastAt, landAt],
+  );
+
+  const onLabelAct = useCallback(
+    (label: MapLabel, clientX: number, clientY: number) => {
+      const aimed = labelTarget(label, clientX, clientY);
+      if (aimed !== null) openRose(aimed, clientX, clientY);
+    },
+    [openRose, labelTarget],
   );
 
   const onLabelOpen = useCallback(
@@ -518,21 +513,29 @@ export function WorldMap({
     readyEngine?.holdPiece(holding);
   }, [readyEngine, holding]);
 
-  /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est le sol sous le pointeur,
-   *  lue comme la pose la lirait, et la marche est la première que la rose y offrirait. */
+  /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
+   *  là — l'étiquette sous le pointeur ou le sol —, et l'ordre est le premier que la rose y
+   *  offrirait. */
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onRest = ({ country, region, point, clientX, clientY }) => {
+    readyEngine.onRest = ({ country, region, point, clientX, clientY, labelId }) => {
       const rect = container.current?.getBoundingClientRect();
-      const target = pointTarget(country, region, point, coastAt(point), landAt(point));
-      const aim =
-        target === null
-          ? undefined
-          : compassOf(target)?.actions.find((action) => action.key === 'aim');
-      onRestAim?.(aim ?? null, { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) });
+      const label =
+        labelId === null ? undefined : labels.find((candidate) => candidate.id === labelId);
+      const target =
+        label !== undefined
+          ? labelTarget(label, clientX, clientY)
+          : point === null
+            ? null
+            : pointTarget(country, region, point, coastAt(point), landAt(point));
+      const order = target === null ? undefined : compassOf(target)?.actions.find(isOrder);
+      onRestAim?.(order ?? null, {
+        x: clientX - (rect?.left ?? 0),
+        y: clientY - (rect?.top ?? 0),
+      });
     };
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
-  }, [readyEngine, compassOf, onRestAim, coastAt, landAt]);
+  }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget]);
 
   /**
    * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
@@ -540,21 +543,16 @@ export function WorldMap({
    * ramassage — la même fonction que le geste, donc jamais un cercle sur ce que la rose refuse
    * (ADR 0015). Le sol nu n'y est pas : il est partout.
    */
-  const destinations = useMemo<ReadonlyArray<Destination>>(() => {
+  const destinationIds = useMemo(() => {
     if (!aiming || !showDestinations) return NO_DESTINATIONS;
-    const found = labels.flatMap((label): ReadonlyArray<Destination> => {
-      const target = targetOfLabel(label, null, null, coastAt, landAt);
-      if (target === null || target.kind === 'country' || target.kind === 'point') return [];
-      const fan = compassOf(target);
-      if (fan === null || !fan.actions.some(isDestinationAction)) return [];
-      return [{ labelId: label.id, name: fan.name, compass: fan }];
-    });
-    return found;
+    return new Set(
+      labels.flatMap((label) => {
+        const target = targetOfLabel(label, null, null, coastAt, landAt);
+        if (target === null || target.kind === 'country' || target.kind === 'point') return [];
+        return compassOf(target)?.actions.some(isDestinationAction) === true ? [label.id] : [];
+      }),
+    );
   }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
-  const destinationIds = useMemo(
-    () => new Set(destinations.map((destination) => destination.labelId)),
-    [destinations],
-  );
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
    * 03/10) — un toucher y recentre. Les destinations de la colonne armée ne s'y nomment plus
@@ -741,6 +739,9 @@ export function WorldMap({
         onAct={onLabelAct}
         mapping={mapping}
         holding={holding !== null}
+        onHoldOver={(labelId, clientX, clientY) =>
+          engine.current?.pointerOverLabel(labelId, clientX, clientY)
+        }
         muted={placing !== null}
         destinations={destinationIds}
       />

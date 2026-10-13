@@ -941,20 +941,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     if (view.me.defeated || !hand.troopIds.every((troopId) => here.has(troopId))) dropHand();
   }, [hand, view.me, marching, dropHand]);
 
-  /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). */
-  const compose = useCallback((troopIds: ReadonlyArray<string>) => {
-    setHand((previous) => {
-      const move = composeHand(previous, troopIds);
-      if (move.kind !== 'lift') return EMPTY_HAND;
-      return previous.kind === 'held' && previous.troopIds.join() === troopIds.join()
-        ? previous
-        : move.hand;
-    });
-  }, []);
+  /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). Un
+   *  ordre choisi pour l'ancienne composition ne vaut plus pour la nouvelle. */
+  const compose = useCallback(
+    (troopIds: ReadonlyArray<string>) => {
+      if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
+      const move = composeHand(hand, troopIds);
+      if (move.kind !== 'lift') {
+        dropHand();
+        return;
+      }
+      setHand(move.hand);
+      setOrder(null);
+    },
+    [hand, dropHand],
+  );
 
   const restAt = useCallback(
-    (action: CompassAction | null, at: { x: number; y: number }) =>
-      setResting(action !== null && isOrder(action) ? { ...choiceOf(action), ...at } : null),
+    (action: OrderAction | null, at: { x: number; y: number }) =>
+      setResting(action === null ? null : { ...choiceOf(action), ...at }),
     [],
   );
 
@@ -2014,12 +2019,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onDrop={dropHand}
             />
           )}
-          {resting !== null && order === null && marchPreview && (
+          {resting !== null && order === null && preview && (
             <div
               className="hud pointer-events-none absolute z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] text-[var(--paper)]"
               style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
             >
-              {fr.aim.arrival(asLocalTime(marchPreview.arrivesAt))}
+              {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
             </div>
           )}
           {column && order && (

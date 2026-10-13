@@ -92,6 +92,7 @@ export function MapLabels({
   onAct,
   mapping,
   holding,
+  onHoldOver,
   muted,
   destinations,
 }: {
@@ -131,6 +132,9 @@ export function MapLabels({
   /** **Une pièce en main**, et le clic gauche pose au lieu de lire — sauf sur une de mes piles,
    *  dont le clic dit lui-même s'il reprend, repose ou vise (`clickPile`). */
   holding: boolean;
+  /** Pièce en main, la souris qui passe sur une étiquette : la toile ne la voit plus, et c'est
+   *  pourtant là qu'on pose sur un mât, un camp, un objectif. */
+  onHoldOver: (labelId: string, clientX: number, clientY: number) => void;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
   muted: boolean;
@@ -485,6 +489,10 @@ export function MapLabels({
                   x: event.clientX,
                   y: event.clientY,
                 });
+            }}
+            onPointerMove={(event) => {
+              if (holding && event.pointerType !== 'touch')
+                onHoldOver(label.id, event.clientX, event.clientY);
             }}
             onPointerLeave={(event) => {
               if (event.pointerType === 'touch') return;
