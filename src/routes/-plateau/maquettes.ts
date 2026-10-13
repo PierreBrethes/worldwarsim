@@ -3,14 +3,15 @@ import { depositOfRegion } from '@/domain/world';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
-import { buildMinutes } from '../../../convex/constants';
+import { asClockTime } from '@/domain/duration';
+import { fr } from '@/i18n/fr';
 
 /**
  * **What stands in maquettes up close, among the markers on the board** (ADR 0026 §1): what is
  * drawn today by its plate, and nothing more — my standing buildings, the installations I
- * surveyed, the neutral objectives. A first level under the crane rises with its work, by the
- * scale of a first level — the one the server dated it by. An upgrade keeps its building whole,
- * and the crane beside it: what already stands is not raised again.
+ * surveyed, the neutral objectives. A site at work wears its works (mode chantier): a plan in
+ * the queue, a first level rising, a raise scaffolded whole — what already stands is not raised
+ * again.
  */
 export function maquettesOf(
   markers: ReadonlyArray<MapMarker>,
@@ -23,7 +24,7 @@ export function maquettesOf(
       at: StandingMaquette['at'],
       url: string | null,
       washed = false,
-      rising?: StandingMaquette['rising'],
+      works?: StandingMaquette['works'],
       smoking = false,
     ) =>
       url === null
@@ -34,7 +35,7 @@ export function maquettesOf(
               at,
               url,
               washed,
-              ...(rising && { rising }),
+              ...(works && { works }),
               ...(smoking && { smoking }),
             },
           ];
@@ -44,9 +45,21 @@ export function maquettesOf(
           marker.lonLat === null ? { regionId: marker.regionId } : { lonLat: marker.lonLat },
           buildingMaquette(marker.key, depositOfRegion(marker.regionId)),
           false,
-          marker.level === null && marker.finishesAt !== null
-            ? { finishesAt: Math.round(marker.finishesAt), minutes: buildMinutes(marker.key, 1) }
-            : undefined,
+          marker.works === null
+            ? undefined
+            : {
+                phase: marker.works.phase,
+                level: marker.works.level,
+                finishesAt:
+                  marker.works.finishesAt === null ? null : Math.round(marker.works.finishesAt),
+                minutes: marker.works.minutes,
+                pennant:
+                  marker.works.phase === 'raising' ? fr.labels.pennant(marker.works.level) : null,
+                stamp:
+                  marker.works.finishesAt === null
+                    ? null
+                    : { word: fr.stamps.finished, hour: asClockTime(marker.works.finishesAt) },
+              },
           marker.buildingId !== null && producing.has(marker.buildingId),
         );
       case 'installation':

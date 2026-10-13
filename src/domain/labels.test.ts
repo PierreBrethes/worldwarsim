@@ -330,7 +330,7 @@ describe('buildLabels', () => {
         name: 'Mine',
         level: 1,
         plate: '/mine.webp',
-        finishesAt: null,
+        works: null,
         reach: null,
         ink: '#2f4f78',
       },

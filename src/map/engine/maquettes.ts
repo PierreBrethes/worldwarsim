@@ -1,31 +1,29 @@
 import {
   Box3,
-  BufferGeometry,
-  Float32BufferAttribute,
+  type BufferGeometry,
   Group,
   InstancedMesh,
-  LineBasicMaterial,
-  LineSegments,
   type Material,
   Matrix4,
   Mesh,
   type Object3D,
-  Plane,
+  type Plane,
   Quaternion,
   type Raycaster,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { riseOf } from '@/domain/construction';
 import type { LonLat } from '@/domain/geo';
+import type { StampWords } from '@/domain/ink-bursts';
+import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { nearWeight, sceneOf } from './figurines/figurine';
-import { PALETTE } from './palette';
 import { washedOf } from './standing';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
 import { Smoke, type Plume } from './smoke';
+import { groundFootprint, WorksDressing, type Works } from './works';
 
 /**
  * **A factory at work smokes** (`table-etat-major.html`, `fac.userData.stacks`): a slow grey
@@ -53,8 +51,8 @@ export type StandingMaquette = {
   readonly url: string;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
-  /** A first level under the crane: it rises from the ground with its work (`riseOf`). */
-  readonly rising?: { readonly finishesAt: number; readonly minutes: number };
+  /** A site at work (mode chantier): its plan, its first level rising, or a raise. */
+  readonly works?: Works;
   /** One of my producers at work: a thread of smoke rises from its chimneys. */
   readonly smoking?: boolean;
 };
@@ -265,18 +263,12 @@ type Placed = {
   readonly smoking: boolean;
   /** One per chimney once the model has landed, empty for a site that does not produce. */
   smokes: Smoke[];
+  /** When it stood up under the eyes (`Date.now()`): it bounces once. */
+  settledAt: number | null;
 };
 
-/**
- * **A site rising**: its lot alone, its materials cut by a plane that climbs with the work —
- * the shadow map honours the same cut (`clipShadows`) — and a scaffold inked at the cut.
- */
-type Rising = {
-  readonly finishesAt: number;
-  readonly minutes: number;
-  readonly cut: Plane;
-  scaffold: LineSegments | null;
-};
+/** **A site at work**: its lot alone, dressed once its model has landed (`WorksDressing`). */
+type AtWork = { readonly works: Works; dressing: WorksDressing | null };
 
 /** The exemplars of one model in one ink, drawn as instances: one draw call per material. */
 type Lot = {
@@ -284,38 +276,12 @@ type Lot = {
   readonly group: Group;
   model: Model | null;
   meshes: InstancedMesh[];
-  readonly rising: Rising | null;
+  readonly atWork: AtWork | null;
 };
 
 const UP = new Vector3(0, 1, 0);
-const DOWN = new Vector3(0, -1, 0);
-const SCAFFOLD_INK = new LineBasicMaterial({ color: PALETTE.border });
-
-/** Four posts from the ground to a height of one and the ring that ties them at the top, around
- *  the footprint a little wide: the lot scales it up to the cut. */
-function scaffoldOf(box: Box3): LineSegments {
-  const [x0, x1, z0, z1] = [box.min.x, box.max.x, box.min.z, box.max.z].map((v) => v * 1.08) as [
-    number,
-    number,
-    number,
-    number,
-  ];
-  const corners = [
-    [x0, z0],
-    [x1, z0],
-    [x1, z1],
-    [x0, z1],
-  ] as const;
-  const points = corners.flatMap(([x, z], k) => {
-    const [nx, nz] = corners[(k + 1) % 4]!;
-    return [x, 0, z, x, 1, z, x, 1, z, nx, 1, nz];
-  });
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-  const scaffold = new LineSegments(geometry, SCAFFOLD_INK);
-  scaffold.matrixAutoUpdate = false;
-  return scaffold;
-}
+/** A site that stands under the eyes gives a little: up, down, still. */
+const BOUNCE_MS = 450;
 const matrix = new Matrix4();
 const scale = new Vector3();
 const placedBox = new Box3();
@@ -332,13 +298,14 @@ export class MaquetteLayer {
   private byId = new Map<string, { item: Placed; lot: Lot }>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
+  motion: MapMotion = 'full';
 
   constructor(
     private readonly frame: WorldFrame,
     private readonly groundOfRegion: (regionId: string) => Vector3 | null,
     private readonly changed: () => void,
-    /** A site seen rising has stood up under the player's eyes: the board stamps it. */
-    private readonly posed: (at: Vector3) => void,
+    /** A site seen at work has stood up under the player's eyes: the board stamps it. */
+    private readonly posed: (at: Vector3, words: StampWords) => void,
   ) {}
 
   /** Re-served at every step of any column: says whether anything changed, and only then
@@ -347,18 +314,25 @@ export class MaquetteLayer {
     const drawn = JSON.stringify(maquettes);
     if (drawn === this.drawn) return false;
     this.drawn = drawn;
-    // Seen rising: stood up close, before the rebuild resets every near weight.
-    const seen = new Set(
-      this.maquettes
-        .filter((m) => m.rising && (this.byId.get(m.id)?.item.near ?? 0) > 0)
-        .map((m) => m.id),
+    // Seen at work: stood up close, before the rebuild resets every near weight. A plan is
+    // not seen standing up — it becomes a rising site, not a building.
+    const seen = new Map(
+      this.maquettes.flatMap((m) =>
+        m.works?.stamp && (this.byId.get(m.id)?.item.near ?? 0) > 0
+          ? [[m.id, { stamp: m.works.stamp, level: m.works.level }] as const]
+          : [],
+      ),
     );
     this.maquettes = maquettes;
     this.rebuild();
     for (const maquette of maquettes) {
       const stood = this.byId.get(maquette.id);
-      if (stood !== undefined && seen.has(maquette.id) && !maquette.rising)
-        this.posed(stood.item.at);
+      const was = seen.get(maquette.id);
+      // Done, or done and the next level already started on it: either way it stood up.
+      const stoodUp = was !== undefined && (!maquette.works || maquette.works.level > was.level);
+      if (stood === undefined || was === undefined || !stoodUp) continue;
+      this.posed(stood.item.at, was.stamp);
+      if (this.motion === 'full') stood.item.settledAt = Date.now();
     }
     return true;
   }
@@ -376,8 +350,8 @@ export class MaquetteLayer {
           : this.groundOfRegion(maquette.at.regionId);
       if (ground === null) continue;
       ground.setY(COUNTRY_THICKNESS);
-      const key = maquette.rising
-        ? `${maquette.url} rising ${maquette.id}`
+      const key = maquette.works
+        ? `${maquette.url} works ${maquette.id}`
         : `${maquette.url} ${maquette.washed}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
@@ -386,9 +360,7 @@ export class MaquetteLayer {
           group: new Group(),
           model: null,
           meshes: [],
-          rising: maquette.rising
-            ? { ...maquette.rising, cut: new Plane(DOWN, 0), scaffold: null }
-            : null,
+          atWork: maquette.works ? { works: maquette.works, dressing: null } : null,
         };
         this.lots.set(key, lot);
         this.group.add(lot.group);
@@ -407,9 +379,10 @@ export class MaquetteLayer {
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
-        // A rising site and a ghost of a survey do not work.
-        smoking: maquette.smoking === true && !maquette.rising && !maquette.washed,
+        // A site at work and a ghost of a survey do not produce.
+        smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
         smokes: [],
+        settledAt: null,
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -443,11 +416,25 @@ export class MaquetteLayer {
   private landed(lot: Lot, model: Model, washed: boolean): void {
     if (![...this.lots.values()].includes(lot)) return;
     lot.model = model;
-    const rising = lot.rising;
-    lot.meshes = model.parts.map(({ geometry, material }) => {
+    const atWork = lot.atWork;
+    if (atWork !== null) {
+      atWork.dressing = new WorksDressing(
+        atWork.works,
+        model.box,
+        groundFootprint(
+          model.parts.map(({ geometry }) => geometry),
+          model.box,
+        ),
+      );
+      lot.group.add(atWork.dressing.object);
+    }
+    const cut = atWork?.dressing?.cut ?? null;
+    // A plan in the queue has no volume yet.
+    const parts = atWork?.works.phase === 'queued' ? [] : model.parts;
+    lot.meshes = parts.map(({ geometry, material }) => {
       const mesh = new InstancedMesh(
         geometry,
-        rising !== null ? cutOf(material, rising.cut) : washed ? washedOf(material) : material,
+        cut !== null ? cutOf(material, cut) : washed ? washedOf(material) : material,
         lot.items.length,
       );
       mesh.matrixAutoUpdate = false;
@@ -455,7 +442,7 @@ export class MaquetteLayer {
       mesh.frustumCulled = false;
       return mesh;
     });
-    lot.group.add(...lot.meshes);
+    if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
     for (const item of lot.items) {
       if (!item.smoking) continue;
       item.smokes = model.chimneys.map(() => new Smoke(FACTORY_SMOKE));
@@ -463,22 +450,19 @@ export class MaquetteLayer {
       // Its smoke is placed with its matrix: the next `orient` places both.
       item.near = -1;
     }
-    if (rising !== null) {
-      rising.scaffold = scaffoldOf(model.box);
-      lot.group.add(rising.scaffold);
-    }
     this.changed();
   }
 
   private clear(lot: Lot): void {
     lot.group.removeFromParent();
     // Geometry and materials are the model's, shared by every lot drawn from it — but for a
-    // rising site's cut copies, and its scaffold's lines.
+    // rising site's cut copies, and its works' dressing.
+    const cut = lot.atWork?.dressing?.cut ?? null;
     for (const mesh of lot.meshes) {
       mesh.dispose();
-      if (lot.rising !== null) (mesh.material as Material).dispose();
+      if (cut !== null) (mesh.material as Material).dispose();
     }
-    lot.rising?.scaffold?.geometry.dispose();
+    lot.atWork?.dressing?.dispose();
   }
 
   /** The world box of a maquette as drawn now — its model's bounds under its instance's placement. */
@@ -494,12 +478,13 @@ export class MaquetteLayer {
       scale.setScalar(item.near * model.scale * pieceScale.buildings),
     );
     placedBox.copy(model.box).applyMatrix4(matrix);
-    // A rising site is drawn up to its cut only: the box the poster clears stops there too.
-    if (dressed.lot.rising !== null)
-      placedBox.max.y = Math.max(
-        placedBox.min.y,
-        Math.min(placedBox.max.y, dressed.lot.rising.cut.constant),
-      );
+    // A rising site is drawn up to its cut only, a plan lies flat: the box the poster clears
+    // stops there too.
+    const atWork = dressed.lot.atWork;
+    const cut = atWork?.dressing?.cut ?? null;
+    if (atWork?.works.phase === 'queued') placedBox.max.y = placedBox.min.y;
+    else if (cut !== null)
+      placedBox.max.y = Math.max(placedBox.min.y, Math.min(placedBox.max.y, cut.constant));
     return placedBox;
   }
 
@@ -508,10 +493,16 @@ export class MaquetteLayer {
     let best: PieceHit | null = null;
     for (const lot of this.lots.values()) {
       if (!lot.group.visible) continue;
+      const dressing = lot.atWork?.dressing ?? null;
+      const plan = dressing?.pick(ray) ?? null;
+      const site = lot.items[0];
+      if (plan !== null && site !== undefined && site.near > 0 && !site.cleared)
+        best = nearer(best, { id: site.id, distance: plan });
+      const cut = dressing?.cut ?? null;
       for (const hit of ray.intersectObjects(lot.meshes, false)) {
         const item = hit.instanceId === undefined ? undefined : lot.items[hit.instanceId];
         // A rising site is drawn up to its cut: above it there is nothing to point at.
-        const built = lot.rising === null || hit.point.y <= lot.rising.cut.constant;
+        const built = cut === null || hit.point.y <= cut.constant;
         if (item !== undefined && item.near > 0 && !item.cleared && built)
           best = nearer(best, { id: item.id, distance: hit.distance });
       }
@@ -553,21 +544,29 @@ export class MaquetteLayer {
         const near = item.cleared
           ? 0
           : Math.round(nearWeight(item.at.distanceTo(cameraPosition)) * 100) / 100;
-        if (near === item.near) return;
+        const bounce = item.settledAt === null ? null : bounceAt(now - item.settledAt);
+        // Its last bounce sets it back on its feet: one more placement, then still.
+        const ending = item.settledAt !== null && bounce === null;
+        if (ending) item.settledAt = null;
+        if (near === item.near && item.settledAt === null && !ending) return;
         item.near = near;
         moved = true;
-        matrix.compose(
-          item.at,
-          item.turn,
-          scale.setScalar(near * lot.model!.scale * pieceScale.buildings),
-        );
+        const size = near * lot.model!.scale * pieceScale.buildings;
+        matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
         item.smokes.forEach((smoke, c) => {
           smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
           smoke.object.scale.setScalar(near * pieceScale.buildings);
         });
       });
-      if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
+      const site = lot.items[0];
+      if (lot.atWork?.dressing && site !== undefined)
+        lot.atWork.dressing.place(
+          site.at,
+          site.turn,
+          Math.max(site.near, 0) * lot.model.scale * pieceScale.buildings,
+          now,
+        );
       if (!moved) continue;
       for (const mesh of lot.meshes) {
         mesh.instanceMatrix.needsUpdate = true;
@@ -597,18 +596,9 @@ export class MaquetteLayer {
     },
   };
 
-  /** Slow — a first level lasts tens of minutes: the board's heartbeat moves it enough, and no
-   *  frame is ever asked for it. */
-  private rise(rising: Rising, item: Placed, model: Model, now: number): void {
-    const share = riseOf((rising.finishesAt - now) / 60_000, rising.minutes);
-    const height =
-      model.box.max.y * model.scale * pieceScale.buildings * Math.max(item.near, 0) * share;
-    rising.cut.constant = item.at.y + height;
-    const scaffold = rising.scaffold;
-    if (scaffold === null) return;
-    scaffold.visible = share < 1 && item.near > 0;
-    const width = Math.max(item.near, 0) * model.scale * pieceScale.buildings;
-    scaffold.matrix.compose(item.at, item.turn, scale.set(width, Math.max(height, 1e-4), width));
+  /** A site stood up under the eyes is bouncing: the board keeps drawing until it is still. */
+  get settling(): boolean {
+    return [...this.byId.values()].some(({ item }) => item.settledAt !== null);
   }
 
   dispose(): void {
@@ -618,6 +608,12 @@ export class MaquetteLayer {
     this.group.removeFromParent();
   }
 }
+
+/** Up a tenth, down a little, still: the vertical give of a site that just stood up. */
+const bounceAt = (elapsed: number): number | null =>
+  elapsed >= BOUNCE_MS
+    ? null
+    : 1 + 0.1 * Math.sin((2 * Math.PI * elapsed) / BOUNCE_MS) * (1 - elapsed / BOUNCE_MS);
 
 /** A rising site's own copy of a material, cut above the work — its shadow with it. */
 function cutOf(material: Material, cut: Plane): Material {

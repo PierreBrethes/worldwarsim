@@ -506,8 +506,7 @@
   opacity: calc(1 - var(--dressed, 0));
 }
 
-/* The same for a building, a surveyed installation and an objective in maquette (ADR 0026 §1).
-   An upgrade's crane is a pictogram, not a plate: it stays beside the building. */
+/* The same for a building, a surveyed installation and an objective in maquette (ADR 0026 §1). */
 .label--building .label-plate,
 .label--building .label-bar,
 .label--building:not(.label--selected)::before,
@@ -620,6 +619,30 @@
   fill: none;
   stroke: var(--ink);
   stroke-width: 1.6;
+}
+
+/* **Le fanion de chantier** (mode chantier) : le piquet que la maquette plante au pied d'un
+   site au travail, réduit à la planche au loin — sur son coin, ou seul sur le mât d'un plan en
+   file. Il s'efface avec la planche quand la maquette pousse. */
+.label-pennant {
+  display: block;
+  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1px rgb(38 30 20 / 40%));
+}
+
+.label-plate + .label-pennant {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+}
+
+.label-pennant-cloth {
+  fill: var(--arc-mine);
+  stroke: var(--ink);
+  stroke-width: 0.8;
+}
+
+.label--building .label-pennant {
+  opacity: calc(1 - var(--dressed, 0));
 }
 
 .label-flag-cloth {
