@@ -388,7 +388,6 @@ export class MapEngine {
     this.scene.add(this.regions.built);
     this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
-    this.scene.add(this.regions.props);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
     // material's pixel thickness. Without it, a 1.5 px stroke would only hover to the pixel.
@@ -975,7 +974,6 @@ export class MapEngine {
     this.arcs.motion = motion;
     this.camps.motion = motion;
     this.ink.motion = motion;
-    this.regions.instantGrowth = motion !== 'full';
   }
 
   /**
@@ -1235,7 +1233,7 @@ export class MapEngine {
     this.animateJourney();
     this.controls.update();
     if (this.hoverDirty) {
-      // Le survol change ce qui s'allume, et sème les accessoires d'une région qui poussent.
+      // Le survol change ce qui s'allume.
       this.invalidate();
       this.hoverDirty = false;
       this.updateHover();

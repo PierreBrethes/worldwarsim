@@ -12,11 +12,10 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import type { RegionType } from '@/domain/ids';
 import type { Curvature } from './curvature';
 import { builtInk, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { createProp, disposeTerrain, TYPE_TINTS } from './terrain';
+import { TYPE_TINTS } from './terrain';
 
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
@@ -44,7 +43,7 @@ const BUILT_LIFT = 0.001;
  *  read over the ink of what already stands there. */
 const DESIGNATED_LIFT = 0.002;
 const HOVER_LIFT = 0.0035;
-const PROP_LIFT = 0.001;
+const ANCHOR_LIFT = 0.001;
 
 /** Thin enough that the contour reads as a pen stroke and not as a second border. */
 const HOVER_OPACITY = 0.85;
@@ -175,8 +174,6 @@ export class RegionLayer {
   /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
   readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
-  readonly props = new Group();
-  instantGrowth = false;
   private readonly lineMaterial: LineBasicMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
   private readonly designatedMaterial: MeshStandardMaterial;
@@ -193,7 +190,6 @@ export class RegionLayer {
   private inkByRegion = new Map<string, string>();
   private builtIds: ReadonlySet<string> = new Set();
   private designatedIds: ReadonlySet<string> = new Set();
-  private birth = 0;
   private share = 0;
 
   constructor(
@@ -429,7 +425,7 @@ export class RegionLayer {
     const prepared = this.prepared.find(({ region }) => region.id === regionId);
     if (prepared === undefined) return null;
     const [x, y] = interiorPoint(prepared);
-    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + PROP_LIFT);
+    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + ANCHOR_LIFT);
   }
 
   /**
@@ -498,7 +494,6 @@ export class RegionLayer {
     this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
-    this.growProps();
   }
 
   dispose(): void {
@@ -517,15 +512,10 @@ export class RegionLayer {
     this.builtMaterial.dispose();
     this.designatedMaterial.dispose();
     this.hoverMaterial.dispose();
-    // The props share the terrain module's geometries and materials: `disposeTerrain` frees
-    // them once, and detaching here keeps the engine's final sweep from meeting them again.
-    this.props.clear();
     this.lines.removeFromParent();
     this.built.removeFromParent();
     this.designated.removeFromParent();
     this.hoverOutline.removeFromParent();
-    this.props.removeFromParent();
-    disposeTerrain();
   }
 
   /**
@@ -540,7 +530,6 @@ export class RegionLayer {
     if (region === this.hoveredRegion) return;
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
-    this.props.clear();
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
       this.hoverOutline.visible = false;
@@ -548,11 +537,8 @@ export class RegionLayer {
     }
 
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
-     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». Les
-     *  accessoires 3D poussent quand même — ils disent le terrain, et le terrain n'a pas changé. */
-    const { type } = region;
-    this.hoverMaterial.color.set(this.inkByRegion.get(region.id) ?? TYPE_TINTS[type]);
-    this.sowProps(prepared, type);
+     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
+    this.hoverMaterial.color.set(this.inkByRegion.get(region.id) ?? TYPE_TINTS[region.type]);
 
     const points: number[] = [];
     for (const ring of region.rings) {
@@ -608,46 +594,6 @@ export class RegionLayer {
     }
     positions.needsUpdate = true;
     return geometry;
-  }
-
-  /**
-   * Sows the type's 3D props — interior points by rejection in the box, seed drawn from the
-   * name so the same clearing shows on every hover. Size and count follow the area: an Oise
-   * reads up close, an Amazon from afar.
-   */
-  private sowProps(prepared: PreparedRegion, type: RegionType): void {
-    const [minX, minY, maxX, maxY] = prepared.box;
-    const random = mulberry(seed(prepared.region.name));
-    const count = Math.min(24, Math.max(8, Math.round(Math.sqrt(prepared.area) * 8)));
-    const size = Math.min(0.9, Math.max(0.28, 0.18 + Math.sqrt(prepared.area) * 0.06));
-    let placed = 0;
-    let attempts = 0;
-    while (placed < count && attempts < count * 80) {
-      attempts++;
-      const x = minX + random() * (maxX - minX);
-      const y = minY + random() * (maxY - minY);
-      if (!contains(prepared.region, x, y)) continue;
-      const prop = createProp(type);
-      prop.position.copy(this.frame.toWorld(x, y, COUNTRY_THICKNESS + PROP_LIFT));
-      prop.rotation.y = random() * Math.PI * 2;
-      prop.scale.setScalar(0.0001);
-      prop.userData.size = size * (0.7 + random() * 0.6);
-      prop.userData.delay = placed * 35 + random() * 50;
-      this.props.add(prop);
-      placed++;
-    }
-    this.birth = performance.now();
-  }
-
-  /** The growth: scale 0 → size with a slight overshoot, staggered prop by prop. */
-  private growProps(): void {
-    if (this.props.children.length === 0) return;
-    const age = this.instantGrowth ? Infinity : performance.now() - this.birth;
-    for (const child of this.props.children) {
-      const t = Math.min(1, Math.max(0, (age - (child.userData.delay as number)) / 320));
-      const overshoot = 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
-      child.scale.setScalar(Math.max(0.0001, (child.userData.size as number) * overshoot));
-    }
   }
 }
 
