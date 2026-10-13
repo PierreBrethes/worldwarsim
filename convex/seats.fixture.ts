@@ -46,6 +46,14 @@ export async function signIn(t: Bench, nickname: string): Promise<string> {
   return token;
 }
 
+/**
+ * Le germe de la saison tire les objectifs neutres au lancement (`objectives.place`). Laissé à
+ * `Math.random`, environ une saison sur cent cinquante posait un objectif sur Prahova, et sa
+ * garnison irrégulière répondait à la place de la troupe du test : une suite rouge au hasard.
+ * Vérifié : aucun objectif sur `ROU-310` avec ce germe pour France/URSS, les nations des suites.
+ */
+export const TEST_SEASON_SEED = 1;
+
 /** Un compte neuf qui fonde une saison : la place du fondateur, et le code de l'invitation. */
 export async function foundSeat(
   t: Bench,
@@ -59,6 +67,7 @@ export async function foundSeat(
     durationHours,
     compensation,
   });
+  await t.run(async (ctx) => ctx.db.patch(seasonId, { seed: TEST_SEASON_SEED }));
   return { seat: { token, seasonId }, code };
 }
 
