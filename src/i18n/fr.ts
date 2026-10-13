@@ -929,7 +929,6 @@ export const fr = {
       'Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une partie existante.',
     backHome: 'retour à l’accueil',
     loading: 'Préparation du plateau…',
-    regionLabel: 'Région',
     /**
      * What the ground holds, and nothing else. The terrain type used to read here: it came
      * from a hash of the region's name, so the tooltip was printing an invention where the

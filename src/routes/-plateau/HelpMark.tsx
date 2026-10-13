@@ -12,23 +12,26 @@ import { fr } from '@/i18n/fr';
 export function HelpMark({ children }: { children: ReactNode }) {
   const [side, setSide] = useState({ upward: false, leftward: true });
   return (
-    <details
-      className="relative inline-block align-middle"
-      onToggle={(event) => {
-        const mark = event.currentTarget.getBoundingClientRect();
-        const room = roomOf(event.currentTarget);
-        setSide({
-          upward: room.bottom - mark.bottom < 180,
-          leftward: room.right - mark.left < NOTE_WIDTH + 10,
-        });
-      }}
-    >
+    <details className="relative inline-block align-middle">
+      {/* Le côté se mesure au clic, avant que la note ne s'ouvre : mesurée après, elle se
+          montrerait une image du mauvais côté puis sauterait. */}
       <summary
+        onClick={(event) => {
+          const details = event.currentTarget.parentElement as HTMLElement;
+          const mark = details.getBoundingClientRect();
+          const room = roomOf(details);
+          setSide({
+            upward: room.bottom - mark.bottom < 180,
+            leftward: room.right - mark.left < NOTE_WIDTH + 10,
+          });
+        }}
         aria-label={fr.common.help}
         title={fr.common.help}
-        className="grid h-[16px] w-[16px] cursor-pointer list-none place-items-center border border-(color:--ink)/50 font-(family-name:--font-display) text-[11px] leading-none text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] [&::-webkit-details-marker]:hidden"
+        className="block cursor-pointer list-none [&::-webkit-details-marker]:hidden"
       >
-        ?
+        <span className="grid h-[16px] w-[16px] place-items-center border border-(color:--ink)/50 font-(family-name:--font-display) text-[11px] leading-none text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]">
+          ?
+        </span>
       </summary>
       <span
         className={`float absolute z-20 block max-w-[70vw] border border-[var(--ink)] bg-[var(--paper)] px-3 py-[8px] text-left font-(family-name:--font-body) text-[12px] leading-[1.45] font-normal tracking-normal text-[var(--ink-soft)] normal-case italic ${

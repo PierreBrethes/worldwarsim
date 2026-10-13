@@ -138,10 +138,10 @@ export function EconomyWindow({
           <div className="flex min-h-0 min-w-0 shrink-0 flex-col md:flex-1 md:shrink md:overflow-auto">
             <Header
               note={
-                <span className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
                   <ChartLegend />
                   <HelpMark>{fr.economy.lead}</HelpMark>
-                </span>
+                </div>
               }
             >
               {fr.economy.chartHeader}
@@ -990,7 +990,7 @@ function EstateRow({
       <span className="w-[62px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
         {fr.economy.level(building.level)}
       </span>
-      <span className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+      <div className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
         {building.key === 'listening' ? (
           <>
             {fr.economy.listeningUnfigured} <HelpMark>{fr.economy.listeningTemporary}</HelpMark>
@@ -998,7 +998,7 @@ function EstateRow({
         ) : (
           fr.buildingEffects[building.key]
         )}
-      </span>
+      </div>
       {building.cappedByHq && (
         <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--critical)] uppercase">
           {fr.economy.cappedByHq}
@@ -1290,7 +1290,7 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
   return (
     <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-(color:--ink)/35 bg-[var(--paper)] px-4 py-[5px]">
       <span className="eyebrow">{children}</span>
-      {note !== undefined && <span className="ml-auto">{note}</span>}
+      {note !== undefined && <div className="ml-auto">{note}</div>}
     </div>
   );
 }
