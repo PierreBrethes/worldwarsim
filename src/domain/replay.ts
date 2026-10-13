@@ -1,27 +1,6 @@
 import type { UnitRole, UnitTier } from './ids';
+import type { ReplayView } from './player-view';
 import type { MapMotion } from './map-motion';
-
-/**
- * **A combat replayed, as its participant may see it** (surface 4.7, ADR 0026 §7, grilling of
- * 13/10). Mine by role, theirs in totals only — the fog does not lift because shots were fired.
- */
-// ponytail: declared here until `player-view.ts` serves it; then import it from there.
-export type ReplayView = {
-  combatId: string;
-  at: number;
-  point: { lon: number; lat: number };
-  side: 'attacker' | 'defender';
-  won: boolean;
-  mine: ReadonlyArray<{
-    role: UnitRole;
-    tier: UnitTier;
-    troops: number;
-    lost: number;
-    routed: number;
-    destroyed: number;
-  }>;
-  theirs: { troops: number; lost: number; routed: number; destroyed: number };
-};
 
 export type ReplayStep = 'voyage' | 'pose' | 'salves' | 'pertes' | 'deroute' | 'compte-rendu';
 

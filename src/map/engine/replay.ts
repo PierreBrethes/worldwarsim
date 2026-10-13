@@ -13,7 +13,8 @@ import {
   type Object3D,
 } from 'three';
 import type { Medium } from '@/domain/ids';
-import type { ReplayFrame, ReplayPiece, ReplayView } from '@/domain/replay';
+import type { ReplayFrame, ReplayPiece } from '@/domain/replay';
+import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';

@@ -66,8 +66,8 @@ import {
   stepBounds,
   steppedFrom,
   type ReplayStep,
-  type ReplayView,
 } from '@/domain/replay';
+import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
 export type { CounterTexts, PieceHold, StandingPile } from './standing';

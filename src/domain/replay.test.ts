@@ -6,8 +6,8 @@ import {
   stepBounds,
   steppedFrom,
   type ReplayPiece,
-  type ReplayView,
 } from './replay';
+import type { ReplayView } from './player-view';
 
 const view: ReplayView = {
   combatId: 'c1',
