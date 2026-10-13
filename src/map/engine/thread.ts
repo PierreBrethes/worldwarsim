@@ -34,7 +34,7 @@ export const airRise = (chord: number): number =>
 const AIR_SEGMENTS = 48;
 
 /** The share of an air leg spent climbing, and as much descending. */
-const CLIMB_SHARE = 0.25;
+const CLIMB_SHARE = 0.35;
 
 /**
  * **An air leg's altitude against its rise, by the share flown**: it takes off, holds its cruise,

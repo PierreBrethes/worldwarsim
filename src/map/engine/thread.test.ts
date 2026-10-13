@@ -320,8 +320,8 @@ describe('the air arc', () => {
       pointOnLeg(leg, local, point);
       return point.y - leg.strands[0]!.vertices[0]!.y;
     };
-    expect(heightAt(0.4)).toBeCloseTo(heightAt(0.5), 3);
-    expect(heightAt(0.6)).toBeCloseTo(heightAt(0.5), 3);
+    expect(heightAt(0.45)).toBeCloseTo(heightAt(0.5), 3);
+    expect(heightAt(0.55)).toBeCloseTo(heightAt(0.5), 3);
   });
 });
 
@@ -335,6 +335,6 @@ describe('flightAltitude', () => {
   });
 
   it('holds its cruise in the middle', () => {
-    for (const share of [0.3, 0.5, 0.7]) expect(flightAltitude(share)).toBe(1);
+    for (const share of [0.4, 0.5, 0.6]) expect(flightAltitude(share)).toBe(1);
   });
 });
