@@ -2651,6 +2651,7 @@ export const fr = {
     none: 'aucun',
     garrison: 'garnison',
     heldBy: 'tenue par',
+    moreDetails: 'détails',
     /**
      * **Le tenant tel qu'on l'a vu, et la date en clair** (ADR 0020 §5). La date ne dit pas
      * l'ancienneté — le délavage de la teinte la porte déjà, en permanence — elle dit *quand*,
