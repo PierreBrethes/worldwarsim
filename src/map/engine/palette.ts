@@ -18,6 +18,8 @@ export const PALETTE = {
   rimStroke: '#3a2a18',
   /** The light of moving air and breaking water, paler than the sheet so it reads on both seas. */
   foam: '#f4ecd8',
+  /** The wind's ink: the sheet's own tone, so a ribbon is ambience and not a white line over the pieces. */
+  wind: '#cfc5aa',
 } as const;
 
 /**
