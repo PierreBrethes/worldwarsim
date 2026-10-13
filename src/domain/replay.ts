@@ -4,8 +4,8 @@ import type { MapMotion } from './map-motion';
 
 export type ReplayStep = 'voyage' | 'pose' | 'salves' | 'pertes' | 'deroute' | 'compte-rendu';
 
-/** A short replay, read through in about ten seconds (grilling of 13/10). `@a-mesurer`. */
-const STEP_MS: Readonly<Record<ReplayStep, number>> = {
+/** @a-mesurer — a short replay, read through in about ten seconds (grilling of 13/10). */
+export const STEP_MS: Readonly<Record<ReplayStep, number>> = {
   voyage: 1500,
   pose: 1200,
   salves: 900,
