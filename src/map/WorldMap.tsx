@@ -11,10 +11,10 @@ import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
   isDestinationAction,
+  soleOrderOf,
   type CompassAction,
   type CompassTarget,
   type Compass,
-  withheldUnderFinger,
 } from '@/domain/compass-rose';
 import {
   PREVIEW_ARC_ID,
@@ -35,6 +35,8 @@ import {
   MapEngine,
   type BuiltRegions,
   type HeldClaim,
+  type PieceClick,
+  type PieceHold,
   type SearchArea,
   type StandingPile,
   type SurveyedCamp,
@@ -71,14 +73,22 @@ type Props = {
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
   /**
-   * Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât.
-   *
-   * **Il rend vrai quand le clic a désigné une troupe**, et la rose s'ouvre alors sur le sprite
-   * avec le cartouche : la popin lit, la rose agit (décision Pierre, 30/08). Faux quand c'est la
-   * fenêtre de garnison qui répond — un menu posé par-dessus un panneau ferait deux réponses à un
-   * seul clic. La règle qui sépare les deux reste au plateau, qui seul sait ce qui se tient là.
+   * **Le clic sur l'étiquette d'une adresse à moi** : une pile posée se lève (toute la pile), un
+   * mât d'avant-poste ouvre sa garnison. Il rend vrai quand le clic **pose** la pièce en main sur
+   * cette pile — elle devient la destination, et la carte ouvre la rose comme au clic « agir ».
    */
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
+  /** **La pièce en main** (ADR 0026 §6), que le moteur porte sous le pointeur. */
+  holding?: PieceHold | null;
+  /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
+  onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
+  /**
+   * **Le pointeur s'est arrêté, pièce en main** : la première marche que la rose y offrirait, à
+   * faire chiffrer par le serveur — `null` quand il n'y en a pas, ou que le pointeur repart.
+   */
+  onRestAim?: (action: CompassAction | null, at: { x: number; y: number }) => void;
+  /** La rose s'est refermée sans ordre : la pièce en main se repose. */
+  onRoseDismiss?: () => void;
   /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
   onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
@@ -151,23 +161,11 @@ type Props = {
    */
   fingerRose?: { readonly floor: number } | null;
   /**
-   * **Au doigt, la rose d'une pile à soi qui n'a rien à proposer ne s'ouvre pas** (décision 2a
-   * du 05/10) : le toucher lit et agit d'un seul geste, et une rose de refus doublait la feuille
-   * de la troupe en se calant sur le bandeau. Son motif ne se tait pas (ADR 0015) — il remonte
-   * ici, mot pour mot, et la feuille le porte. `null` quand la rose s'ouvre.
-   */
-  onForceMotive?: (labelId: string, motive: string | null) => void;
-  /**
    * **Les destinations d'une colonne armée, cerclées sur la carte et nommées au bord** quand
    * elles sont hors champ (lot mobile-3, A8). Le plateau l'allume sous le seuil ; la carte
    * décide lesquelles, par la même rose que le geste ouvrirait.
    */
   showDestinations?: boolean;
-  /** **Ces destinations, rendues au plateau**, de la plus proche à la plus lointaine de
-   *  `aimOrigin` — l'étiquette d'où la colonne part : la feuille en offre les trois premières
-   *  sous le pouce (refonte mobile, 1b). */
-  aimOrigin?: string | null;
-  onDestinations?: (destinations: ReadonlyArray<Destination>) => void;
   /**
    * **Sous le seuil, une cible visée ouvre la feuille d'ordre, pas la rose** (refonte mobile,
    * 1c) : le type d'ordre s'y choisit. Le plateau rend vrai quand il a pris la cible — une rose
@@ -236,6 +234,10 @@ export function WorldMap({
   onSelect,
   onOpenBuilding,
   onOpenStack,
+  holding = null,
+  onPieceClick,
+  onRestAim,
+  onRoseDismiss,
   onOpenLoot,
   onOpenCamp,
   onOpenObjective,
@@ -260,10 +262,7 @@ export function WorldMap({
   focus = null,
   searchArea = null,
   fingerRose = null,
-  onForceMotive,
   showDestinations = false,
-  aimOrigin = null,
-  onDestinations,
   onOrderTarget,
   covered = false,
   reveal = null,
@@ -345,13 +344,11 @@ export function WorldMap({
         setRose(null);
         return;
       }
-      if (target.kind === 'force') {
-        const withheld = fingerRose !== null && withheldUnderFinger(target, drawn);
-        onForceMotive?.(target.id, withheld ? drawn.refusal : null);
-        if (withheld) {
-          setRose(null);
-          return;
-        }
+      const sole = aiming ? soleOrderOf(drawn) : null;
+      if (sole !== null) {
+        setRose(null);
+        onCompassAction(sole, at);
+        return;
       }
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
@@ -367,7 +364,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onOrderTarget, onForceMotive],
+    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -452,42 +449,6 @@ export function WorldMap({
     return () => clearTimeout(timer);
   }, [gestureHint]);
 
-  /**
-   * **Le clic gauche sur un sprite de troupe ouvre les deux à la fois** (décision Pierre, 30/08) :
-   * le cartouche en lecture, la rose en action. La cible est celle du clic droit, mot pour mot —
-   * `targetOfLabel`, jamais un éventail parallèle — donc les deux gestes répondent la même chose
-   * sur le même sprite.
-   */
-  const onLabelOpen = useCallback(
-    (label: MapLabel, clientX: number, clientY: number) => {
-      if (label.station === null) return;
-      const map = engine.current;
-      const target = targetOfLabel(
-        label,
-        map?.countryAtPoint(clientX, clientY) ?? null,
-        map?.regionAtPoint(clientX, clientY) ?? null,
-        coastAt,
-        landAt,
-      );
-      /** **Sous le doigt, en visée, une destination ne se désigne pas** : le même toucher agit
-       *  juste après (`onAct`), et désigner aurait réarmé la colonne sous la rose qui l'emmène —
-       *  « embarquer » partait avec le cargo pour seul passager. */
-      if (
-        aiming &&
-        fingerRose !== null &&
-        target !== null &&
-        compassOf(target)?.actions.some(isDestinationAction) === true
-      )
-        return;
-      if (onOpenStack?.(label.station, clientX, clientY) !== true) return;
-      /** **Une autre pile désignée en visée n'ouvre pas de rose** : `compassOf` la lirait encore
-       *  avec la colonne que ce clic vient de remplacer. */
-      if (target === null || (aiming && label.id !== aimOrigin)) return;
-      openRose(target, clientX, clientY);
-    },
-    [onOpenStack, openRose, compassOf, aiming, aimOrigin, fingerRose, coastAt, landAt],
-  );
-
   const onLabelAct = useCallback(
     (label: MapLabel, clientX: number, clientY: number) => {
       const map = engine.current;
@@ -533,6 +494,46 @@ export function WorldMap({
     [openRose, aiming, coastAt, landAt],
   );
 
+  const onLabelOpen = useCallback(
+    (label: MapLabel, clientX: number, clientY: number) => {
+      if (label.station === null) return;
+      if (onOpenStack?.(label.station, clientX, clientY) === true)
+        onLabelAct(label, clientX, clientY);
+    },
+    [onOpenStack, onLabelAct],
+  );
+
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onPieceClick =
+      onPieceClick &&
+      ((hit) => {
+        if (!onPieceClick(hit)) return;
+        const label = labels.find((candidate) => candidate.id === hit.pileId);
+        if (label !== undefined) onLabelAct(label, hit.clientX, hit.clientY);
+      });
+  }, [readyEngine, onPieceClick, labels, onLabelAct]);
+
+  useEffect(() => {
+    readyEngine?.holdPiece(holding);
+  }, [readyEngine, holding]);
+
+  /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est le sol sous le pointeur,
+   *  lue comme la pose la lirait, et la marche est la première que la rose y offrirait. */
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onRest = ({ country, region, point, clientX, clientY }) => {
+      const rect = container.current?.getBoundingClientRect();
+      const target = pointTarget(country, region, point, coastAt(point), landAt(point));
+      const aim =
+        target === null
+          ? undefined
+          : compassOf(target)?.actions.find((action) => action.key === 'aim');
+      onRestAim?.(aim ?? null, { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) });
+    };
+    readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
+  }, [readyEngine, compassOf, onRestAim, coastAt, landAt]);
+
   /**
    * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
    * A8) : une étiquette est une destination quand sa rose porte une marche, une expédition ou un
@@ -550,20 +551,6 @@ export function WorldMap({
     });
     return found;
   }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
-  /** **Rangées au commit, pas au rendu** : le moteur ne connaît la place d'une étiquette neuve
-   *  qu'une fois `MapLabels` lui a passé ses ancres, dans son propre effet — qui précède
-   *  celui-ci. Mesurées pendant le rendu, les cibles de l'armement tombaient à l'infini et la
-   *  feuille offrait des lointaines pour les plus proches. */
-  useEffect(() => {
-    if (onDestinations === undefined) return;
-    if (aimOrigin === null || readyEngine === null) {
-      onDestinations(destinations);
-      return;
-    }
-    const away = (destination: Destination) =>
-      readyEngine.labelSeparation(aimOrigin, destination.labelId) ?? Infinity;
-    onDestinations([...destinations].sort((first, second) => away(first) - away(second)));
-  }, [destinations, onDestinations, aimOrigin, readyEngine]);
   const destinationIds = useMemo(
     () => new Set(destinations.map((destination) => destination.labelId)),
     [destinations],
@@ -753,6 +740,7 @@ export function WorldMap({
         onOpenObjective={onOpenObjective ?? (() => {})}
         onAct={onLabelAct}
         mapping={mapping}
+        holding={holding !== null}
         muted={placing !== null}
         destinations={destinationIds}
       />
@@ -777,7 +765,10 @@ export function WorldMap({
           y={rose.y}
           width={rose.width}
           height={rose.height}
-          onClose={closeRose}
+          onClose={() => {
+            closeRose();
+            onRoseDismiss?.();
+          }}
           finger={fingerRose === null ? null : { floor: fingerRose.floor, onFit: fitRose }}
           onAction={(action) => {
             closeRose();

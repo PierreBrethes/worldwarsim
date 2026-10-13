@@ -750,13 +750,14 @@ function collectFan(
 }
 
 /**
- * **Au doigt, une pile à soi n'ouvre sa rose que si elle a une branche** (décision 2a du 05/10).
- * Le toucher lit et agit d'un même geste : sans « fonder », la rose ne portait qu'un refus déjà
- * à côté, dans la feuille de la troupe — qui reçoit ce même `refusal` pour le dire (ADR 0015).
- * Le bureau n'est pas concerné : un clic d'action y demande la rose, et la rose répond.
+ * **La pose saute la rose quand elle n'a qu'un ordre à offrir** (ADR 0026 §6) : rien n'est deviné
+ * à la place du joueur, il n'y a simplement rien d'autre à choisir. Une seconde branche — un autre
+ * ordre, un embarquement — ou un refus rendent la rose.
  */
-export const withheldUnderFinger = (target: CompassTarget, compass: Compass): boolean =>
-  target.kind === 'force' && compass.actions.length === 0;
+export const soleOrderOf = (compass: Compass): OrderAction | null => {
+  const [only, ...others] = compass.actions;
+  return only !== undefined && others.length === 0 && isOrder(only) ? only : null;
+};
 
 /**
  * A target's compass, or `null` when there is nothing to say — the right click then stays inert

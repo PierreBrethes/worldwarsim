@@ -298,7 +298,7 @@ export class MapEngine {
    * piece in hand or not: a click on the lifted piece is how it is put back. Nothing else is
    * done with that press. Unset, the press reads the board as it always did.
    */
-  onPieceClick?: (hit: PieceClick) => void;
+  onPieceClick?: ((hit: PieceClick) => void) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -581,14 +581,6 @@ export class MapEngine {
    *  les siens (`separatingDistance`). */
   cameraDistance(): number {
     return this.camera.position.distanceTo(this.controls.target);
-  }
-
-  /** **L'écart entre deux étiquettes, sur le plateau** : de quoi ranger les cibles d'une colonne
-   *  de la plus proche à la plus lointaine. `null` quand l'une n'est pas posée. */
-  labelSeparation(first: string, second: string): number | null {
-    const from = this.labels.position(first, this.arcs.headPositions);
-    const to = this.labels.position(second, this.arcs.headPositions);
-    return from === undefined || to === undefined ? null : from.distanceTo(to);
   }
 
   /** La caméra ne peut plus s'approcher : ce que le zoom ne sépare pas doit se séparer autrement. */

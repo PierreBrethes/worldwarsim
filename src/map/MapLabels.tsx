@@ -91,6 +91,7 @@ export function MapLabels({
   onOpenObjective,
   onAct,
   mapping,
+  holding,
   muted,
   destinations,
 }: {
@@ -112,14 +113,8 @@ export function MapLabels({
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
-  /** A pile posted on the map opens its garrison — the same panel the widget's card opens. */
-  /**
-   * Ouvre ce qui se tient là : une troupe seule se **désigne** — cartouche en lecture, pile armée
-   * — et une pile à composer ouvre la garnison. **Aucune rose ne s'ouvre ici** : cliquer sur un
-   * sprite ne propose rien, les ordres se prennent au clic droit ailleurs (décision du 30/08).
-   */
-  /** L'étiquette entière, et non sa seule adresse : la carte en tire aussi la cible de la rose,
-   *  qui s'ouvre avec le cartouche (décision du 30/08). */
+  /** **Une pile à moi se lève, une adresse de garnison s'ouvre** (ADR 0026 §6) : l'étiquette
+   *  entière, la carte en tire la pile ou la cible de la pose. */
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
   /** Coincident private sightings cycle through one shared pointer target. */
   onOpenLoot: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
@@ -133,6 +128,9 @@ export function MapLabels({
    *  s'ouvre sur l'étiquette comme elle s'ouvre sur le sol. */
   onAct: (label: MapLabel, clientX: number, clientY: number) => void;
   mapping: MouseMapping;
+  /** **Une pièce en main**, et le clic gauche pose au lieu de lire — sauf sur une de mes piles,
+   *  dont le clic dit lui-même s'il reprend, repose ou vise (`clickPile`). */
+  holding: boolean;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
   muted: boolean;
@@ -495,6 +493,11 @@ export function MapLabels({
               onStackHover(null);
             }}
             onClick={(event) => {
+              const press = cleanPressAt(mapping, pressedWith.current, event.button, holding);
+              if (holding && label.type !== 'stack') {
+                onAct(label, event.clientX, event.clientY);
+                return;
+              }
               // A building's mast opens its surface and nothing else: opening a window *and*
               // moving the country selection would be two answers to one click.
               if (label.lootSightingId !== null) {
@@ -507,16 +510,16 @@ export function MapLabels({
                 onOpenBuilding(label.building.id, event.clientX, event.clientY);
               } else if (label.station !== null) {
                 onOpenStack(label, event.clientX, event.clientY);
+                // Lever ne fait que lever (ADR 0026 §6) : la pile ne rouvre pas de rose au même clic.
+                if (label.type === 'stack') return;
               } else if (label.camp !== null) {
                 onOpenCamp(label.camp.id, event.clientX, event.clientY);
               } else if (label.objective !== null) {
                 onOpenObjective(label.objective.id, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
               // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
-              // `agir` — un seul geste, les deux réponses, comme sur le sprite d'une troupe. Le
-              // toucher net, lui, agit toujours.
-              if (cleanPressAt(mapping, pressedWith.current, event.button).acts)
-                onAct(label, event.clientX, event.clientY);
+              // `agir` — un seul geste, les deux réponses. Le toucher net, lui, agit toujours.
+              if (press.acts) onAct(label, event.clientX, event.clientY);
             }}
             onKeyDown={(event) => {
               if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {

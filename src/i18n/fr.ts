@@ -1517,8 +1517,6 @@ export const fr = {
     /** A column left standing on the map (ADR 0019 §3), named the same way. */
     postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
     postedAtSea: 'en campagne — en mer',
-    /** Le même état, nommé par la région sous la pile quand la carte la connaît. */
-    postedIn: (place: string) => `en campagne — ${place}`,
     /** Le lieu seul, pour une ligne qui dit déjà de quoi elle parle : « 1 troupe sans ordre —
      *  en mer », où « en campagne — en mer » dirait deux fois la même chose. */
     atSea: 'en mer',
@@ -1537,34 +1535,22 @@ export const fr = {
      * que D3 refusait pour l'attrition.
      */
     unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
-    /**
-     * **Le cartouche d'une troupe seule** (décision du 29/08). Sélectionner une troupe n'ouvre plus
-     * la fenêtre de garnison : elle dit ce que la vue du joueur sait déjà — le rôle, l'effectif,
-     * l'état — et la carte trace son cercle de détection. La fenêtre reste pour composer une pile.
-     */
-    badgeKicker: 'troupe',
     sheetKicker: 'fiche de pile',
     sheetHealth: (health: number) => `${health} / 100`,
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
-    /** Sous le seuil la feuille n'a pas de point d'ancrage à côté du sprite : son surtitre dit
-     *  où se tient ce qu'elle décrit (refonte mobile, 1b). */
-    badgeKickerAt: (where: string) => `troupe · ${where}`,
-    /** Le cachet de la feuille du téléphone : l'état et son prix, sans la phrase du bureau. */
-    unsuppliedStamp: (factor: number) => `hors ravitaillement ×${factor}`,
-    badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
-    /** Ce que la fenêtre « visée armée » disait d'unique, et la seule chose qu'elle disait :
-     *  combien de troupes partent ensemble (décision du 30/08). */
-    badgePile: (count: number) => `pile de ${count}`,
-    /**
-     * **Le pied du cartouche est le mode.** Désigner une troupe l'arme : le cartouche nomme donc
-     * le geste qui reste — la destination, au clic droit **ailleurs** — puis la sortie. Un mode
-     * qu'on ne sait pas quitter est un piège, et c'est la seule phrase que la fenêtre supprimée
-     * portait vraiment.
-     */
-    badgeAiming: 'choisissez la destination — clic droit sur la carte',
-    badgeDisarm: 'échap — désarme',
-    supplied: 'ravitaillée',
+  },
+
+  /**
+   * **La pièce en main** (ADR 0026 §6) : la fiche posée au bord pendant qu'on cherche où poser, et
+   * l'heure que la route du serveur rend quand le pointeur s'arrête. Le bouton qui lève et pose
+   * est le gauche, qu'aucun mappage ne déplace.
+   */
+  hand: {
+    kicker: (place: string) => `en main · ${place}`,
+    scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
+    hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
+    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
   },
 
   /**
@@ -1702,22 +1688,6 @@ export const fr = {
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
-  },
-
-  /**
-   * **La visée sous le seuil** (lot mobile-3, A8 et A3 bis) : la feuille qui tient lieu de
-   * curseur de visée et de carte de confirmation sur un téléphone.
-   */
-  aimSheet: {
-    kicker: (count: number, from: string) =>
-      `visée · ${count} troupe${plural(count, '', 's')} depuis ${from}`,
-    slots: (used: number, total: number) => `mouv. ${used} / ${total}`,
-    pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées.',
-    /** **Les trois plus proches sous le pouce** (refonte mobile, 1b) : la carte reste la porte, la
-     *  feuille en offre un raccourci. */
-    pickShort: 'Touchez une cible cerclée, ou :',
-    allTargets: (count: number) => `toutes les cibles (${count})`,
-    fewerTargets: 'les plus proches',
   },
 
   /**
