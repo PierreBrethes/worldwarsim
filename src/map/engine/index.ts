@@ -1268,7 +1268,7 @@ export class MapEngine {
    *  building's foot is lifted by its figurines, the building by its maquette opens its site. */
   private pieceToTake(): PiecePick | null {
     const piece = this.standing.pick(this.ray);
-    if (piece === null) return null;
+    if (piece === null || piece.carried) return piece;
     const maquette = this.maquettes.under(this.ray);
     return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }

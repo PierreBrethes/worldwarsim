@@ -389,9 +389,11 @@ et l'encre d'arrivée s'imprime quand il se tient sous les yeux ; une élévatio
 côté de sa grue —, un relevé daté se délave. **Et les maquettes se dégagent sur le plateau, pas à
 l'écran** (`clusterFootprints`, `maquettes.ts`) : des sites dont les emprises — un disque d'une
 envergure, à l'échelle « bâtiments » courante — se chevauchent se rangent en anneau autour de leur
-barycentre, et un anneau qui grandit jusqu'à un autre site ou un autre anneau l'absorbe. Le
+barycentre — l'emprise va jusqu'au pied de la garnison (`GARRISON_FOOT`), sans quoi celle d'un
+site seul tombait dans la maquette voisine —, et un anneau qui grandit jusqu'à un autre site ou un autre anneau l'absorbe. Le
 cartouche « N sites » n'y est pour rien : hors écran, ou avant que les étiquettes se touchent, les
-maquettes se touchaient déjà. **Et la garnison de mes bâtiments se tient à leur pied** (13/10/2026) :
+maquettes se touchaient déjà. Limite connue : rien ne borne un anneau, et un sol très dense
+peut éloigner une maquette de son mât. **Et la garnison de mes bâtiments se tient à leur pied** (13/10/2026) :
 mes troupes `stationedAt` un bâtiment sont une pile posée comme les autres — même
 `StandingLayer`, mêmes groupes (`pilePieces`), même règle « habillée entière ou rien » —, dont
 l'adresse est la maquette (`StandingPile.at.beside`) et non un point. Elle se tient à

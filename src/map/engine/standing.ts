@@ -508,6 +508,8 @@ export type PiecePick = PieceHold & {
   readonly spread: boolean;
   /** How far from the eye: a maquette in front of the piece takes the click. */
   readonly distance: number;
+  /** The piece in hand itself: it is put back wherever it is seen. */
+  readonly carried?: true;
 };
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
@@ -657,7 +659,8 @@ export class StandingLayer {
       if (distance !== null && (copy === null || distance < copy.distance))
         copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
     }
-    if (copy !== null) return { ...copy.pick, spread: false, distance: copy.distance };
+    if (copy !== null)
+      return { ...copy.pick, spread: false, distance: copy.distance, carried: true };
     const spread = this.spread;
     // Half open, the troops have taken over from the groups: before, the pile still answers.
     const deployed =

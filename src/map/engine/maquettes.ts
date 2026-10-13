@@ -169,7 +169,7 @@ type Point = readonly [x: number, z: number];
 
 /**
  * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
- * disc a span wide — overlap are gathered on a ring around their barycentre, and a ring that
+ * disc of radius `footprint`, half a span at least — overlap are gathered on a ring around their barycentre, and a ring that
  * grows into another site, or another ring, takes it in. Whether their labels fold into one
  * cartouche is the screen's affair: off screen, or before the labels touch, the maquettes
  * already do. Per site, in the order given (the caller sorts, so a ring keeps its order): where
@@ -178,6 +178,7 @@ type Point = readonly [x: number, z: number];
 export function clusterFootprints(
   points: ReadonlyArray<Point>,
   span: number,
+  footprint = span / 2,
 ): Array<{ at: Point; ring: Point }> {
   type Cluster = { members: number[]; centre: Point; reach: number };
   const clusterOf = (members: number[]): Cluster => {
@@ -188,7 +189,7 @@ export function clusterFootprints(
     return {
       members,
       centre: [sum[0] / members.length, sum[1] / members.length],
-      reach: ringRadius(members.length, span) + span / 2,
+      reach: ringRadius(members.length, span) + Math.max(footprint, span / 2),
     };
   };
   const clusters = points.map((_, k) => clusterOf([k]));
@@ -428,6 +429,8 @@ export class MaquetteLayer {
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
       MAQUETTE_SPAN * pieceScale.buildings,
+      // A lone site's garrison stands this far in front: its footprint reaches it.
+      GARRISON_FOOT * pieceScale.buildings,
     );
     items.forEach((item, k) => {
       const { at, ring } = placed[k]!;

@@ -1448,11 +1448,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
           marker.kind === 'stack' && marker.id === hit.pileId,
       );
-      const garrison = view.me.buildings.find(
-        (building) => stationKeyOf({ kind: 'building', buildingId: building.id }) === hit.pileId,
+      const building = view.me.buildings.find(
+        (candidate) => stationKeyOf({ kind: 'building', buildingId: candidate.id }) === hit.pileId,
       );
       const station: TroopStation | undefined =
-        pile?.station ?? (garrison && { kind: 'building', buildingId: garrison.id });
+        pile?.station ?? (building && { kind: 'building', buildingId: building.id });
       if (station === undefined || station.kind === 'home') return false;
       const troopId = hit.troopIds[0];
       return applyPileClick(

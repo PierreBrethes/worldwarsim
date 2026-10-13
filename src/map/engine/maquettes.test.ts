@@ -120,7 +120,8 @@ describe('clusterFootprints', () => {
       ],
       S,
     );
-    expect(placed[3]!.ring).not.toEqual([0, 0]);
+    const radius = Math.hypot(...ringOffsets(4)[0]!);
+    for (const { ring } of placed) expect(Math.hypot(...ring)).toBeCloseTo(radius);
   });
 
   it('stands no two maquettes nearer than a span, wherever the sites fall', () => {
@@ -131,6 +132,23 @@ describe('clusterFootprints', () => {
     for (let i = 0; i < placed.length; i++)
       for (let j = i + 1; j < placed.length; j++)
         expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThan(S - 1e-9);
+  });
+
+  it('keeps a lone garrison out of a neighbour maquette when the footprint reaches its foot', () => {
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [0, GARRISON_FOOT + S / 4],
+      ],
+      S,
+      GARRISON_FOOT,
+    );
+    for (const site of placed) {
+      const foot = footOf(site.ring);
+      const at = [site.at[0] - site.ring[0] + foot.x, site.at[1] - site.ring[1] + foot.z] as const;
+      for (const other of placed)
+        if (other !== site) expect(gap(at, other.at)).toBeGreaterThan(S / 2);
+    }
   });
 });
 
