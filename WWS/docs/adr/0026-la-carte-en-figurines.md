@@ -73,8 +73,9 @@ Sur ses propres pièces seulement :
 
 ### 6. On lève la pièce, on la pose — révision du 30/08, précisée le 13/10
 
-**Lever**, c'est le clic gauche net sur une de ses piles : une main fermée la prend et la pièce
-suit le pointeur, l'original reste délavé. **Lever ne fait que lever** : la pièce en main suffit
+**Lever**, c'est le clic gauche net sur une de ses piles : la pièce suit le pointeur, l'original
+reste délavé, et le curseur prend la main de la souris — ouverte au survol d'une pièce, fermée
+pièce en main. Aucune main n'est dessinée sur le plateau (révision de Pierre, 13/10). **Lever ne fait que lever** : la pièce en main suffit
 à dire qu'un ordre est armé. Il n'y a ni cartouche ni bandeau.
 
 **Ce qu'on lève.** Un clic sur un groupe de figurines prend ce groupe seul. Un clic sur
@@ -94,8 +95,7 @@ point de pose avec les seuls ordres possibles ; s'il n'y en a qu'un, on passe di
 pièce levée, la repose chez elle. Seul le serveur date un mouvement.
 
 **Au toucher**, un tap lève la pièce et ouvre sa fiche sur le côté, un tap sur la carte la pose,
-un tap sur la pièce levée la repose. La fiche ne bloque pas la pose. La main ne se montre qu'à
-la souris.
+un tap sur la pièce levée la repose. La fiche ne bloque pas la pose.
 
 **La fiche au survol remplace le cartouche** d'une troupe à soi : une ligne par rôle, la vie sur
 100, la charge. Le bloc adverse garde un cartouche au clic.

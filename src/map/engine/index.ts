@@ -112,13 +112,10 @@ const TROWEL_CURSOR = 'url(/cursors/curseur-construire.png) 29 3, crosshair';
  *  would put a drawing decision in the engine. */
 const AIM_CURSOR = 'crosshair';
 
-/** One of my pieces under the pointer, nothing in hand: the drawn hand, its fingertip the point. */
-const PIECE_CURSOR = 'url(/cursors/curseur-interactif.png) 10 2, pointer';
-
-/** A piece in hand: a closed fist in the cursors' ink, held by its middle. */
-const HOLDING_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
-  "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><path d='M7 13q0-3 3-3h13q3 0 3 3v7q0 9-9 9h-1q-9 0-9-8z' fill='#2a2118' stroke='#e4d8bd' stroke-width='1.5'/><path d='M12 11v5M16.5 11v5M21 11v5M7.5 18h5' stroke='#e4d8bd' stroke-width='1.3' stroke-linecap='round'/></svg>",
-)}") 16 16, grabbing`;
+/** One of my pieces under the pointer, nothing in hand, then in hand: the system's own hand —
+ *  the copy on the board already says what is carried (ADR 0026 §6). */
+const PIECE_CURSOR = 'grab';
+const HOLDING_CURSOR = 'grabbing';
 
 /** The one refusal the board shows with a cursor: holding a building over ground that has no
  *  shore to take it. The system's own, because refusal is a browser word before it is ours. */
@@ -1284,7 +1281,7 @@ export class MapEngine {
         onScreen && !this.fingerOnBoard
           ? this.ray.intersectObjects(this.aimable, false)[0]?.point
           : undefined;
-      this.standing.carryTo(ground ?? null, !this.fingerOnBoard);
+      this.standing.carryTo(ground ?? null);
     }
 
     const arc = this.fingerOnBoard || !onScreen ? null : this.arcs.hover(this.ray);

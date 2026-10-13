@@ -19,7 +19,6 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
-import { holdingHand } from './hand-model';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -306,7 +305,6 @@ function wash(object: Object3D, washed: boolean): void {
 
 /** The prototype's lift (`LIFT_Y`, `lpHand` at 4.2), in board units at full near weight. */
 const CARRIED_LIFT = 0.25;
-const HAND_ABOVE = 0.36;
 
 /** The held groups only, the +N with them when a troop beyond the three shown is held. */
 function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePieces {
@@ -340,8 +338,8 @@ export class StandingLayer {
   private dressed = new Map<string, Dressed>();
   private readonly faces: Faces;
   private held: PieceHold | null = null;
-  /** The copy of what is in hand and the hand holding it; `null` when the pile is not dressed. */
-  private carried: { readonly object: Group; readonly hand: Group; at: boolean } | null = null;
+  /** The copy of what is in hand; `null` when the pile is not dressed. */
+  private carried: { readonly object: Group; at: boolean } | null = null;
   /** Set by the first `display`; no pile exists before it. */
   private texts: CounterTexts = { count: String, more: String };
 
@@ -471,15 +469,11 @@ export class StandingLayer {
     );
     if (copy === null) return;
     copy.object.position.y = CARRIED_LIFT;
-    const hand = holdingHand();
-    // The setting-down hand is sized for a block; a squad is held by a smaller one.
-    hand.scale.multiplyScalar(0.75);
-    hand.position.y = CARRIED_LIFT + HAND_ABOVE;
     const object = new Group();
-    object.add(copy.object, hand);
+    object.add(copy.object);
     object.visible = false;
     for (const smoke of copy.smokes) smoke.frame(this.time);
-    const carried = { object, hand, at: false };
+    const carried = { object, at: false };
     this.carried = carried;
     copy.ready.then(
       () => {
@@ -491,13 +485,11 @@ export class StandingLayer {
     );
   }
 
-  /** The ground under the pointer, `null` off the board or under a finger; the hand only shows
-   *  to the mouse (ADR 0026 §6). */
-  carryTo(at: Vector3 | null, withHand: boolean): void {
+  /** The ground under the pointer, `null` off the board or under a finger. */
+  carryTo(at: Vector3 | null): void {
     if (this.carried === null) return;
     this.carried.at = at !== null;
     if (at !== null) this.carried.object.position.copy(at);
-    this.carried.hand.visible = withHand;
   }
 
   /** The ground moved under the piles — curvature: set them back on it. */

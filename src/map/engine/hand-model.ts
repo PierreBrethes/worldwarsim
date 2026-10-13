@@ -28,43 +28,6 @@ export function setDownHand(): Group {
   return withPalmAndArm(object);
 }
 
-function segment(length: number, radius: number): CapsuleGeometry {
-  const geometry = new CapsuleGeometry(radius, length, 4, 12);
-  geometry.translate(0, -length / 2, 0);
-  return geometry;
-}
-
-const CURLED = (
-  [
-    [-0.54, 1],
-    [-0.18, 1.15],
-    [0.18, 1.1],
-    [0.52, 0.9],
-  ] as const
-).map(([x, length]) => ({
-  x,
-  length,
-  base: segment(length * 0.55, 0.16),
-  tip: segment(length * 0.45, 0.145),
-}));
-
-/** The prototype's hand as it is (`lpHand`): fingers jointed and bent round the piece it holds. */
-export function holdingHand(): Group {
-  const object = new Group();
-  for (const { x, length, base, tip } of CURLED) {
-    const knuckle = new Group();
-    knuckle.position.set(x, -0.05, 0.62);
-    knuckle.rotation.x = -0.35;
-    const joint = new Group();
-    joint.position.y = -length * 0.55;
-    joint.rotation.x = 0.55;
-    joint.add(new Mesh(tip, SKIN));
-    knuckle.add(new Mesh(base, SKIN), joint);
-    object.add(knuckle);
-  }
-  return withPalmAndArm(object);
-}
-
 function withPalmAndArm(object: Group): Group {
   object.add(new Mesh(PALM, SKIN));
   const thumb = new Mesh(THUMB, SKIN);
