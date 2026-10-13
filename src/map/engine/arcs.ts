@@ -261,15 +261,14 @@ export class ArcLayer {
           ? (rendered.thread.legs[position.legIndex]?.medium ?? leg.medium)
           : leg.medium,
       );
-      rendered.pawn.place(this.pawnPoint, this.aheadPoint);
+      projectOnGround(this.pawnPoint, this.frame, this.groundPoint);
+      rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y);
       if (this.motion === 'full') rendered.pawn.step(elapsed);
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
       rendered.headPosition.copy(this.pawnPoint);
 
-      if (rendered.thread.tether !== null) {
-        projectOnGround(this.pawnPoint, this.frame, this.groundPoint);
+      if (rendered.thread.tether !== null)
         stretchTether(rendered.thread.tether, this.pawnPoint, this.groundPoint);
-      }
     }
   }
 

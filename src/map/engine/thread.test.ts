@@ -8,6 +8,7 @@ import { buildGrid, computeRoute, directRoute } from '@/domain/routing';
 import {
   buildThread,
   airRise,
+  flightAltitude,
   pointOnLeg,
   AIR_RISE_MAX,
   AIR_RISE_MIN,
@@ -303,5 +304,37 @@ describe('the air arc', () => {
     const chord = vertices[0]!.distanceTo(vertices.at(-1)!);
     const apex = Math.max(...vertices.map((vertex) => vertex.y)) - vertices[0]!.y;
     expect(apex).toBeCloseTo(airRise(chord), 6);
+  });
+
+  it('cruises in the middle of its leg, at the apex', () => {
+    const thread = buildThread(
+      directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1),
+      frame,
+      colors,
+      thickness,
+      opacities,
+    );
+    const leg = thread.legs[0]!;
+    const heightAt = (local: number) => {
+      const point = new Vector3();
+      pointOnLeg(leg, local, point);
+      return point.y - leg.strands[0]!.vertices[0]!.y;
+    };
+    expect(heightAt(0.4)).toBeCloseTo(heightAt(0.5), 3);
+    expect(heightAt(0.6)).toBeCloseTo(heightAt(0.5), 3);
+  });
+});
+
+describe('flightAltitude', () => {
+  it('climbs from the ground at take-off and lands back on it', () => {
+    expect(flightAltitude(0)).toBe(0);
+    expect(flightAltitude(1)).toBe(0);
+    expect(flightAltitude(0.05)).toBeGreaterThan(0);
+    expect(flightAltitude(0.05)).toBeLessThan(flightAltitude(0.15));
+    expect(flightAltitude(0.95)).toBeLessThan(flightAltitude(0.85));
+  });
+
+  it('holds its cruise in the middle', () => {
+    for (const share of [0.3, 0.5, 0.7]) expect(flightAltitude(share)).toBe(1);
   });
 });

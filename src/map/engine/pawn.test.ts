@@ -68,3 +68,33 @@ describe('the wake', () => {
     }
   });
 });
+
+describe('the plane shadow', () => {
+  const close = new Vector3(0, 8, 0);
+  const shadowOf = (pawn: Pawn) => pawn.object.getObjectByName('shadow')!;
+
+  it('lies on the ground under a plane in flight, the gap its altitude', () => {
+    const pawn = new Pawn(null, '#000');
+    pawn.wear('air');
+    pawn.place(new Vector3(0, 3, 0), new Vector3(1, 3, 0), 0.5);
+    pawn.orient(close, 0);
+    pawn.object.updateMatrixWorld(true);
+    const shadow = shadowOf(pawn);
+    expect(shadow.visible).toBe(true);
+    expect(shadow.getWorldPosition(new Vector3()).y).toBeCloseTo(0.5);
+  });
+
+  it('is never stuck under a plane on the ground, nor under a hull or a column', () => {
+    const pawn = new Pawn(null, '#000');
+    pawn.wear('air');
+    pawn.place(new Vector3(0, 0.5, 0), new Vector3(1, 0.5, 0), 0.5);
+    pawn.orient(close, 0);
+    expect(shadowOf(pawn).visible).toBe(false);
+    for (const medium of ['land', 'sea'] as const) {
+      pawn.wear(medium);
+      pawn.place(new Vector3(0, 3, 0), new Vector3(1, 3, 0), 0.5);
+      pawn.orient(close, 0);
+      expect(shadowOf(pawn).visible).toBe(false);
+    }
+  });
+});

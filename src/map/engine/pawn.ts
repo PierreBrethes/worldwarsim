@@ -11,7 +11,7 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { nearWeight, type Figurine } from './figurines/figurine';
+import { contactShadow, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 import { Wake } from './smoke';
 
@@ -29,6 +29,9 @@ import { Wake } from './smoke';
  */
 const PAWN_SHARE = 0.031;
 const PAWN_SILHOUETTE_SHARE = 0.018;
+
+/** Below this gap a plane is on the ground: a shadow glued under it would say nothing. */
+const AIRBORNE_GAP = 0.05;
 
 /** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
 type SpriteCostume = {
@@ -61,6 +64,9 @@ export class Pawn {
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
   private readonly wake = new Wake();
+  private readonly shadow = contactShadow();
+  /** Height of the ground under the pawn, relative to it: zero, or below a plane. */
+  private groundBelow = 0;
   private medium: Medium = 'land';
   private westward = false;
   private heading = 0;
@@ -89,6 +95,9 @@ export class Pawn {
     this.wake.object.name = 'wake';
     this.wake.object.visible = false;
     this.object.add(this.wake.object);
+    this.shadow.name = 'shadow';
+    this.shadow.visible = false;
+    this.object.add(this.shadow);
   }
 
   set visible(value: boolean) {
@@ -112,8 +121,10 @@ export class Pawn {
     if (entering) entering.visible = true;
   }
 
-  place(position: Vector3, pointAhead: Vector3): void {
+  /** `groundY` is the board's height under the point: a plane flies above it (`flightAltitude`). */
+  place(position: Vector3, pointAhead: Vector3, groundY = position.y): void {
     this.object.position.copy(position);
+    this.groundBelow = groundY - position.y;
     this.westward = pointAhead.x < position.x;
     const dx = pointAhead.x - position.x;
     const dz = pointAhead.z - position.z;
@@ -140,6 +151,10 @@ export class Pawn {
     this.wake.object.visible = this.medium === 'sea' && close > 0;
     this.wake.object.rotation.set(0, this.heading, 0);
     this.wake.object.scale.setScalar(close);
+    // The gap between a plane and its shadow is its altitude: it opens at take-off and closes on landing.
+    this.shadow.visible = this.medium === 'air' && close > 0 && -this.groundBelow > AIRBORNE_GAP;
+    this.shadow.position.y = this.groundBelow;
+    this.shadow.scale.setScalar(close);
     const figurine = this.figurines.get(this.medium);
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
