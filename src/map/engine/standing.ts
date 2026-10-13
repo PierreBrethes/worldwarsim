@@ -272,7 +272,7 @@ export type PieceHold = { readonly pileId: string; readonly troopIds: ReadonlyAr
 /** The prototype's (`lpLift`): what stays behind is a ghost of the piece. */
 const WASHED_OPACITY = 0.35;
 const washes = new WeakMap<Material, Material>();
-function washedOf(material: Material): Material {
+export function washedOf(material: Material): Material {
   let copy = washes.get(material);
   if (copy) return copy;
   copy = material.clone();

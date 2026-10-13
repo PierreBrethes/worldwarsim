@@ -52,12 +52,22 @@ import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
-import { WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { StandingLayer, type CounterTexts, type PieceHold, type StandingPile } from './standing';
 import { PointerRest } from './pointer-rest';
 import { CampLayer, type SurveyedCamp } from './blocks';
+import { ReplayScene, replayReach } from './replay';
+import {
+  REPLAY_MS,
+  REPLAY_STEPS,
+  replayAt,
+  stepBounds,
+  steppedFrom,
+  type ReplayStep,
+  type ReplayView,
+} from '@/domain/replay';
 
 export type { SearchArea } from './search-area';
 export type { CounterTexts, PieceHold, StandingPile } from './standing';
@@ -227,6 +237,8 @@ export class MapEngine {
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
   private journey: Journey | null = null;
+  private replay: Replay | null = null;
+  private playerNation: string | null = null;
   private readonly restListeners = new Set<() => void>();
   /**
    * Picking costs three passes — countries, arcs, then point-in-polygon over the regions —
@@ -524,6 +536,7 @@ export class MapEngine {
 
   setPlayerNation(nation: string | null): void {
     this.invalidate();
+    this.playerNation = nation;
     this.arcs.setPlayerNation(nation);
     this.standing.setNation(nation);
     this.hoverDirty = true;
@@ -532,6 +545,92 @@ export class MapEngine {
   accentArc(id: string | null): void {
     this.invalidate();
     this.arcs.accent(id);
+  }
+
+  /**
+   * **Plays a combat's replay at its point** (surface 4.7, ADR 0026 §7): the camera travels
+   * there, my figurines and the enemy's blocks are set down face to face, and the steps of
+   * `replayAt` play out — automatically, about ten seconds, unless `setReplayAutoplay(false)`.
+   * `onStep` is told each step as it begins, `compte-rendu` included: the account card is the
+   * caller's. Whatever stands at the point is hidden meanwhile. A second call replaces the first
+   * replay but keeps the camera saved by the first.
+   */
+  playReplay(view: ReplayView, onStep: (step: ReplayStep) => void = () => {}): void {
+    this.invalidate();
+    const saved = this.replay?.saved ?? {
+      target: this.controls.target.clone(),
+      position: this.camera.position.clone(),
+    };
+    this.replay?.scene.dispose();
+    const lonLat = [view.point.lon, view.point.lat] as const;
+    const onLand = this.landAt(lonLat);
+    const center = this.frame.projectLonLat(lonLat, onLand ? COUNTRY_THICKNESS : SEA_LEVEL);
+    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    const flat = Math.hypot(orientation.x, orientation.z);
+    // Seen from forty degrees above, whatever the orbit was: straight down, a fallen man is a
+    // standing one.
+    const tilted =
+      flat < 1e-3
+        ? new Vector3(0, Math.sin(REPLAY_ELEVATION), Math.cos(REPLAY_ELEVATION))
+        : new Vector3(
+            (orientation.x / flat) * Math.cos(REPLAY_ELEVATION),
+            Math.sin(REPLAY_ELEVATION),
+            (orientation.z / flat) * Math.cos(REPLAY_ELEVATION),
+          );
+    const distance = Math.max(REPLAY_MIN_DISTANCE, replayReach(view) * 2.2);
+    const scene = new ReplayScene(
+      this.playerNation,
+      replayAt(view, 0).pieces,
+      onLand ? 'land' : 'sea',
+    );
+    scene.object.position.copy(center);
+    scene.object.rotation.y = Math.atan2(tilted.x, tilted.z);
+    this.scene.add(scene.object);
+    this.replay = {
+      view,
+      scene,
+      saved,
+      center,
+      reach: replayReach(view),
+      t: 0,
+      until: REPLAY_MS,
+      clock: performance.now(),
+      step: null,
+      onStep,
+    };
+    this.travel(center, tilted, distance, stepBounds('voyage').end - stepBounds('voyage').start);
+  }
+
+  /** Off, the step under way plays to its end and the replay holds there; on, it reads on to the end. */
+  setReplayAutoplay(on: boolean): void {
+    this.invalidate();
+    const replay = this.replay;
+    if (replay === null) return;
+    replay.until = on ? REPLAY_MS : this.stepEndAt(replay.t);
+    replay.clock = performance.now();
+  }
+
+  /** An arrow: the next or the previous step, played from its start. Paused, it holds at its end. */
+  stepReplay(direction: 1 | -1): void {
+    this.invalidate();
+    const replay = this.replay;
+    if (replay === null) return;
+    const paused = replay.until < REPLAY_MS;
+    replay.t = steppedFrom(replay.t, direction);
+    replay.until = paused ? this.stepEndAt(replay.t) : REPLAY_MS;
+    replay.clock = performance.now();
+  }
+
+  /** Leaves the replay: the scene goes, what stood at the point comes back, the camera returns where it was. */
+  stopReplay(): void {
+    this.invalidate();
+    const replay = this.replay;
+    if (replay === null) return;
+    this.replay = null;
+    replay.scene.dispose();
+    const { target, position } = replay.saved;
+    const orientation = position.clone().sub(target);
+    this.travel(target, orientation.clone().normalize(), orientation.length(), JOURNEY_MS * 2);
   }
 
   /** Camera rest has two audiences — the labels and the edge — hence the subscription. */
@@ -851,6 +950,7 @@ export class MapEngine {
     this.ghost.dispose();
     this.standing.dispose();
     this.camps.dispose();
+    this.replay?.scene.dispose();
     this.arcs.dispose();
     this.ink.dispose();
     this.regions.dispose();
@@ -1227,6 +1327,63 @@ export class MapEngine {
     return (2 * Math.tan((this.camera.fov * Math.PI) / 360) * distance) / this.screenHeight;
   }
 
+  private stepEndAt(t: number): number {
+    const step = REPLAY_STEPS.find((each) => t < stepBounds(each).end);
+    return step === undefined ? REPLAY_MS : stepBounds(step).end;
+  }
+
+  /** A journey that also turns the eye; at once when motion is not full. */
+  private travel(
+    arrival: Vector3,
+    orientation: Vector3,
+    distance: number,
+    durationMs: number,
+  ): void {
+    if (this.ambience.motion !== 'full') {
+      this.journey = null;
+      this.controls.target.copy(arrival);
+      this.camera.position.copy(arrival).addScaledVector(orientation, distance);
+      this.hoverDirty = true;
+      this.postponeRest();
+      return;
+    }
+    this.journey = {
+      departure: this.controls.target.clone(),
+      arrival: arrival.clone(),
+      fromOrientation: this.camera.position.clone().sub(this.controls.target).normalize(),
+      orientation,
+      departureDistance: this.camera.position.distanceTo(this.controls.target),
+      arrivalDistance: distance,
+      startMs: performance.now(),
+      durationMs,
+    };
+  }
+
+  /** The replay's clock runs to `until`; the frame shown follows the motion setting. */
+  private advanceReplay(now: number): void {
+    const replay = this.replay;
+    if (replay === null) return;
+    // It plays for ten seconds, and a burning hull smokes after: frames are due all along.
+    this.invalidate();
+    replay.t = Math.min(replay.until, Math.max(replay.t, replay.t + now - replay.clock));
+    replay.clock = now;
+    const frame = replayAt(replay.view, replay.t, this.ambience.motion);
+    if (frame.step !== replay.step) {
+      replay.step = frame.step;
+      replay.onStep(frame.step);
+    }
+    replay.scene.show(frame, now / 1000, this.ambience.motion !== 'full');
+  }
+
+  /** What stands at the point would stand inside the replay: piles, blocks. */
+  private clearReplayGround(): void {
+    const replay = this.replay;
+    if (replay === null) return;
+    for (const layer of [this.standing.group, this.camps.group])
+      for (const object of layer.children)
+        if (object.position.distanceTo(replay.center) < replay.reach) object.visible = false;
+  }
+
   private postponeRest(): void {
     if (this.restTimer !== null) clearTimeout(this.restTimer);
     this.restTimer = setTimeout(() => {
@@ -1239,16 +1396,20 @@ export class MapEngine {
   private animateJourney(): void {
     if (this.journey === null) return;
     this.invalidate();
-    const share = Math.min(1, (performance.now() - this.journey.startMs) / JOURNEY_MS);
+    const share = Math.min(
+      1,
+      (performance.now() - this.journey.startMs) / (this.journey.durationMs ?? JOURNEY_MS),
+    );
     const eased = share * share * (3 - 2 * share);
 
     this.controls.target.copy(this.journey.departure).lerp(this.journey.arrival, eased);
     const distance =
       this.journey.departureDistance +
       (this.journey.arrivalDistance - this.journey.departureDistance) * eased;
-    this.camera.position
-      .copy(this.controls.target)
-      .addScaledVector(this.journey.orientation, distance);
+    const orientation = this.journey.fromOrientation
+      ? this.journey.fromOrientation.clone().lerp(this.journey.orientation, eased).normalize()
+      : this.journey.orientation;
+    this.camera.position.copy(this.controls.target).addScaledVector(orientation, distance);
     // A journey moves the camera without going through OrbitControls, so no `change` event
     // fires: the hover has to be invalidated by hand.
     this.hoverDirty = true;
@@ -1380,6 +1541,7 @@ export class MapEngine {
     // trace le terrain survolé tant qu'elle n'a pas fini.
     if (this.arcs.isFlowing || this.ink.active || this.regions.terrain.active) this.invalidate();
     const now = performance.now();
+    this.advanceReplay(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
@@ -1398,6 +1560,7 @@ export class MapEngine {
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
     this.camps.orient(this.camera.position, yaw, now);
+    this.clearReplayGround();
     this.regions.animate(distance, now);
     this.sea?.fade(distance);
     this.borders.material.opacity =
@@ -1428,7 +1591,29 @@ type Journey = {
   readonly arrivalDistance: number;
   readonly maxDistanceAtEnd?: number;
   readonly startMs: number;
+  /** The eye turns from this one to `orientation` on the way; it keeps `orientation` without. */
+  readonly fromOrientation?: Vector3;
+  readonly durationMs?: number;
 };
+
+type Replay = {
+  readonly view: ReplayView;
+  readonly scene: ReplayScene;
+  /** Where the camera was before the first replay: where `stopReplay` takes it back. */
+  readonly saved: { readonly target: Vector3; readonly position: Vector3 };
+  readonly center: Vector3;
+  readonly reach: number;
+  /** Milliseconds into the replay, and the moment it runs to. */
+  t: number;
+  until: number;
+  clock: number;
+  step: ReplayStep | null;
+  readonly onStep: (step: ReplayStep) => void;
+};
+
+/** The eye's elevation over a replay, and its least distance: the figurines full (`nearWeight`). */
+const REPLAY_ELEVATION = (40 * Math.PI) / 180;
+const REPLAY_MIN_DISTANCE = 5;
 
 /**
  * Frees one scene node's GPU resources. A material's texture is only released when the
