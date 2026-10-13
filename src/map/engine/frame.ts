@@ -4,15 +4,12 @@ import type { OutlineSample, World } from '@/domain/world';
 
 export const COUNTRY_THICKNESS = 0.08;
 export const SEA_LEVEL = -0.1;
-/** How far a country's slab drops below zero: its cliff plunges into the water instead of floating. */
-export const DRAFT = 0.1;
 export const PLINTH_HEIGHT = 5;
-const CURVATURE_RADIUS = 900;
 
 /**
- * The world's frame and the fake-horizon curvature. Curvature is applied to positions on the
- * CPU, never in a shader: otherwise raycasting would keep aiming at flat geometry and clicks
- * would land off-target at the edges.
+ * The world's frame. **La table est plate** (13/10/2026) : la courbure d'horizon, qui n'était
+ * plus jamais réglée au-dessus de zéro, est partie avec ses reconstructions — une carte posée
+ * sur un bureau ne bombe pas.
  */
 export class WorldFrame {
   readonly centerX: number;
@@ -20,7 +17,6 @@ export class WorldFrame {
   readonly width: number;
   readonly height: number;
   private readonly outline: ReadonlyArray<OutlineSample>;
-  private curvatureIntensity = 0;
 
   constructor(world: World) {
     this.centerX = (world.sphere.minX + world.sphere.maxX) / 2;
@@ -30,22 +26,10 @@ export class WorldFrame {
     this.outline = world.outline;
   }
 
-  get curvature(): number {
-    return this.curvatureIntensity;
-  }
-
-  set curvature(value: number) {
-    this.curvatureIntensity = value;
-  }
-
-  drop(x: number, z: number): number {
-    return (-this.curvatureIntensity * (x * x + z * z)) / (2 * CURVATURE_RADIUS);
-  }
-
   toWorld(projectedX: number, projectedY: number, height = COUNTRY_THICKNESS): Vector3 {
     const x = projectedX - this.centerX;
     const z = projectedY - this.centerY;
-    return new Vector3(x, height + this.drop(x, z), z);
+    return new Vector3(x, height, z);
   }
 
   /**
@@ -60,8 +44,7 @@ export class WorldFrame {
 
   /**
    * The inverse of `projectLonLat`, for the one gesture that starts on the board rather than on
-   * a datum: a right click names a place, and a place is a lon/lat. Curvature is not undone —
-   * it only ever moved the height, never `x` or `z`.
+   * a datum: a right click names a place, and a place is a lon/lat.
    *
    * The outline is monotonic in `y`, so a bisection finds the latitude; the longitude then reads
    * off the width at *that* latitude, since the world is not equirectangular and the edges

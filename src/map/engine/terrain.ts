@@ -467,7 +467,7 @@ export class TerrainSketches {
     });
   }
 
-  /** Forgets every drawing at once: a fade would show strands laid for a stale curvature. */
+  /** Forgets every drawing at once: a fade would show strands laid for a stale ground. */
   clear(): void {
     for (const sketch of [...this.sketches]) this.drop(sketch);
     this.busy = true;

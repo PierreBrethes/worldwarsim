@@ -33,13 +33,4 @@ describe('reading a place off the board', () => {
     expect(backLon).toBeCloseTo(lon, 4);
     expect(backLat).toBeCloseTo(lat, 4);
   });
-
-  /** Curvature moves the height and nothing else, so a place does not drift when it is on. */
-  it('reads the same place with the horizon curved', () => {
-    frame.curvature = 1;
-    const [lon, lat] = roundTrip(25.2, 44.6);
-    frame.curvature = 0;
-    expect(lon).toBeCloseTo(25.2, 4);
-    expect(lat).toBeCloseTo(44.6, 4);
-  });
 });

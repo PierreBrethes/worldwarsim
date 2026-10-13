@@ -247,15 +247,9 @@ export function buildThread(
       strokes.push(stroke);
 
       // The hovered itinerary: without it, a high arc reads as a stroke laid halfway
-      // between two countries. It is a ground trace, not a cast shadow — the board has none.
+      // between two countries. It is a ground trace, not a cast shadow — a thread casts none.
       if (leg.medium === 'air') {
-        object.add(
-          threadOf(
-            strand.vertices.map((point) => onGround(point, frame)),
-            shadowMaterial,
-            RENDER_RANK.land,
-          ),
-        );
+        object.add(threadOf(strand.vertices.map(onGround), shadowMaterial, RENDER_RANK.land));
       }
     }
   }
@@ -377,12 +371,11 @@ export function pointOnLeg(leg: ThreadLeg, local: number, out: Vector3): void {
 }
 
 /** The ground under a thread point: that is where the hovered itinerary passes. */
-export const projectOnGround = (point: Vector3, frame: WorldFrame, out: Vector3): void => {
-  out.set(point.x, SURFACE_ALTITUDE + frame.drop(point.x, point.z), point.z);
+export const projectOnGround = (point: Vector3, out: Vector3): void => {
+  out.set(point.x, SURFACE_ALTITUDE, point.z);
 };
 
-const onGround = (point: Vector3, frame: WorldFrame): Vector3 =>
-  new Vector3(point.x, SURFACE_ALTITUDE + frame.drop(point.x, point.z), point.z);
+const onGround = (point: Vector3): Vector3 => new Vector3(point.x, SURFACE_ALTITUDE, point.z);
 
 /* ----------------------------- thread cutting ---------------------------- */
 

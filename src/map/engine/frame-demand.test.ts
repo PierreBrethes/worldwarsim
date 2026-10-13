@@ -72,7 +72,7 @@ describe('every public method of the engine asks for a frame', () => {
   it('reads the engine rather than an empty list', () => {
     const names = methods.map((method) => method.name);
     expect(names).toContain('displayArcs');
-    expect(names).toContain('setCurvature');
+    expect(names).toContain('showReach');
     expect(names).toContain('cameraDistance');
     expect(names.length).toBeGreaterThan(25);
   });

@@ -291,7 +291,7 @@ export class ArcLayer {
           ? (rendered.thread.legs[position.legIndex]?.medium ?? leg.medium)
           : leg.medium,
       );
-      projectOnGround(this.pawnPoint, this.frame, this.groundPoint);
+      projectOnGround(this.pawnPoint, this.groundPoint);
       rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y);
       if (this.motion === 'full') rendered.pawn.step(elapsed);
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
@@ -303,9 +303,9 @@ export class ArcLayer {
   }
 
   /**
-   * A rebuild is a change of geometry — the curvature moved, the player's nation landed — never
-   * a change of hour. The share walked is carried over, otherwise a nudge of the curvature
-   * slider would snap every column back to where the last server answer found it.
+   * A rebuild is a change of geometry — the player's nation landed — never a change of hour.
+   * The share walked is carried over, otherwise every column would snap back to where the last
+   * server answer found it.
    */
   rebuild(): void {
     this.display(

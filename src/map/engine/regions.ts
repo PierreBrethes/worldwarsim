@@ -12,7 +12,6 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import type { Curvature } from './curvature';
 import { builtInk, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import {
@@ -253,10 +252,7 @@ export class RegionLayer {
   private designatedIds: ReadonlySet<string> = new Set();
   private share = 0;
 
-  constructor(
-    private readonly frame: WorldFrame,
-    private readonly curvature: Curvature,
-  ) {
+  constructor(private readonly frame: WorldFrame) {
     this.lineMaterial = new LineBasicMaterial({
       color: PALETTE.border,
       transparent: true,
@@ -276,6 +272,7 @@ export class RegionLayer {
       depthWrite: false,
     });
     this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
+    this.built.receiveShadow = true;
     this.built.visible = false;
 
     /**
@@ -291,6 +288,7 @@ export class RegionLayer {
       depthWrite: false,
     });
     this.designated = new Mesh(new BufferGeometry(), this.designatedMaterial);
+    this.designated.receiveShadow = true;
     this.designated.visible = false;
 
     this.hoverMaterial = new LineBasicMaterial({
@@ -322,7 +320,7 @@ export class RegionLayer {
     this.lines.geometry.dispose();
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-    this.lines.geometry = this.curvature.register(geometry);
+    this.lines.geometry = geometry;
 
     this.prepared = data.regions.map(prepare);
     this.rebuild();
@@ -376,7 +374,7 @@ export class RegionLayer {
     this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
   }
 
-  /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
+  /** The fills and the pen's strands follow the data: new regions, everything redone. */
   rebuild(): void {
     this.forgetSketches();
     this.rebuildHeld();
@@ -384,8 +382,8 @@ export class RegionLayer {
     this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
   }
 
-  /** The strands are laid on the curved slab and the pen's ground is the painted one: when either
-   *  moves, the drawing on screen and the cached ones are stale, and the next hover redoes it. */
+  /** The pen's ground is the painted one: when it changes, the drawing on screen and the cached
+   *  ones are stale, and the next hover redoes it. */
   private forgetSketches(): void {
     this.strandsCache.clear();
     this.terrain.clear();
@@ -432,16 +430,17 @@ export class RegionLayer {
           opacity: HELD_OPACITY * wash,
           depthWrite: false,
         });
-        this.held.add(
-          new Mesh(
-            geometry,
-            state === 'suspended'
-              ? hatch(material)
-              : state === 'surveyed'
-                ? engrave(material)
-                : material,
-          ),
+        const fill = new Mesh(
+          geometry,
+          state === 'suspended'
+            ? hatch(material)
+            : state === 'surveyed'
+              ? engrave(material)
+              : material,
         );
+        // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
+        fill.receiveShadow = true;
+        this.held.add(fill);
       }
     }
   }
@@ -657,7 +656,7 @@ export class RegionLayer {
     return strands;
   }
 
-  /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
+  /** The region's rings as a flat fill, laid on the sheet like the highlight was. */
   private fillOf(region: DisplayedRegion, lift: number): BufferGeometry {
     const geometries = region.rings
       .filter((ring) => {
@@ -683,15 +682,7 @@ export class RegionLayer {
           : geometries[0]!;
     if (geometries.length > 1) geometries.forEach((part) => part.dispose());
     geometry.rotateX(-Math.PI / 2);
-
-    const positions = geometry.attributes.position!;
-    for (let i = 0; i < positions.count; i++) {
-      positions.setY(
-        i,
-        COUNTRY_THICKNESS + lift + this.frame.drop(positions.getX(i), positions.getZ(i)),
-      );
-    }
-    positions.needsUpdate = true;
+    geometry.translate(0, COUNTRY_THICKNESS + lift, 0);
     return geometry;
   }
 }

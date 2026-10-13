@@ -1,9 +1,9 @@
 import {
   Color,
-  DirectionalLight,
   Fog,
   HemisphereLight,
   MOUSE,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   Raycaster,
   Scene,
@@ -40,11 +40,12 @@ import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
+import { steepestTiltAt } from './camera-tilt';
+import { castShadows, Lamp } from './lamp';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
-import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
@@ -194,7 +195,7 @@ export class MapEngine {
   private readonly renderer: WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
-  private readonly curvature: Curvature;
+  private readonly lamp: Lamp;
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -325,7 +326,6 @@ export class MapEngine {
     private readonly world: World,
   ) {
     this.frame = new WorldFrame(world);
-    this.curvature = new Curvature(this.frame);
 
     this.scene.background = new Color(PALETTE.desk);
     this.scene.fog = new Fog(PALETTE.desk, 460, 950);
@@ -337,6 +337,8 @@ export class MapEngine {
     // the context without a stencil buffer since r163 and the material would plead in vain.
     this.renderer = new WebGLRenderer({ antialias: true, stencil: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -349,7 +351,7 @@ export class MapEngine {
      *  plateau et non à la sphère — à polaire nulle, l'azimut d'`OrbitControls` n'a plus de sens
      *  et la carte tourne sur elle-même au moindre tremblement de la main. */
     this.controls.minPolarAngle = 0.05;
-    this.controls.maxPolarAngle = 1.15;
+    // Le plafond suit la distance, recalé à chaque tour de boucle (`steepestTiltAt`).
     this.controls.minDistance = 4;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
@@ -362,16 +364,15 @@ export class MapEngine {
     // many trackpads have no third button and that path must stay open.
     this.applyMapping();
 
-    this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));
-    const sun = new DirectionalLight('#fffaf0', 0.5);
-    sun.position.set(-180, 320, 160);
-    this.scene.add(sun);
+    // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
+    // la lampe qui fait la profondeur d'une ombre.
+    this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 0.8));
+    this.lamp = new Lamp(this.scene);
 
     this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
     const board = buildBoard(
       world,
       this.frame,
-      this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
       this.sea,
     );
@@ -383,15 +384,19 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
+    this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.scene.add(buildCoastalWash(world, this.frame, this.curvature));
+    this.scene.add(buildCoastalWash(world, this.frame));
 
-    const { meshes, borders } = buildCountries(world, this.frame, this.curvature);
+    const { meshes, borders } = buildCountries(world, this.frame);
     this.countries = meshes;
     this.borders = borders;
-    for (const mesh of meshes) this.scene.add(mesh);
+    for (const mesh of meshes) {
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+    }
     this.scene.add(borders);
 
     this.aimable = [...this.countries, this.surface];
@@ -427,7 +432,7 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, this.curvature);
+    this.regions = new RegionLayer(this.frame);
     this.labels = new LabelLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -529,7 +534,7 @@ export class MapEngine {
     this.regions.display(data);
     // The 500 KB land half a second after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
-    // this their labels would wait for the next curvature change to find their footing.
+    // this their labels would never find their footing.
     this.labels.rebuild();
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
@@ -850,8 +855,7 @@ export class MapEngine {
   /**
    * The region under a lon/lat, by the same pick as the hover — enclave first — so a pile's
    * cartouche and the hover card can never name two regions for one spot. `null` until the
-   * layer has landed, and wherever no region lies. The curvature only moves the height, never
-   * `x` or `z`, so the projected point reads straight back.
+   * layer has landed, and wherever no region lies.
    */
   regionAtLonLat(lonLat: LonLat): RegionIdentity | null {
     const point = this.frame.projectLonLat(lonLat);
@@ -924,22 +928,6 @@ export class MapEngine {
   showReach(reach: Reach | null): void {
     this.invalidate();
     this.reach.show(reach);
-  }
-
-  setCurvature(intensity: number): void {
-    this.invalidate();
-    this.frame.curvature = intensity;
-    this.curvature.applyAll();
-    this.reach.rebuild();
-    this.searchArea.rebuild();
-    this.ghost.rebuild();
-    this.standing.rebuild();
-    this.camps.rebuild();
-    this.arcs.rebuild();
-    this.labels.rebuild();
-    this.regions.rebuild();
-    // Every vertex on the board just moved under a pointer that did not.
-    this.hoverDirty = true;
   }
 
   resize(): void {
@@ -1589,6 +1577,9 @@ export class MapEngine {
   private loop = (): void => {
     this.animation = requestAnimationFrame(this.loop);
     this.animateJourney();
+    this.controls.maxPolarAngle = steepestTiltAt(
+      this.camera.position.distanceTo(this.controls.target),
+    );
     this.controls.update();
     if (this.hoverDirty) {
       // Le survol change ce qui s'allume.
@@ -1620,6 +1611,11 @@ export class MapEngine {
     this.standing.orient(this.camera.position);
     this.camps.orient(this.camera.position, yaw, now);
     this.clearReplayGround();
+    if (this.lamp.follow(this.controls.target, distance)) {
+      for (const root of [this.standing.group, this.camps.group, this.arcs.group])
+        castShadows(root);
+      if (this.replay) castShadows(this.replay.scene.object);
+    }
     this.regions.animate(distance, now);
     this.sea?.fade(distance);
     this.borders.material.opacity =

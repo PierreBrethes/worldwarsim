@@ -102,12 +102,6 @@ export class PlacingGhost {
     this.object.visible = true;
   }
 
-  /** Rebuilt like every other fixed anchor when the ground moves under it. */
-  rebuild(): void {
-    if (this.held === null) return;
-    this.object.position.copy(this.frame.toWorld(this.held.x, this.held.y, GHOST_LIFT));
-  }
-
   /** Yaw and pitch on its foot, and a constant area on screen — the billboard rule of a pawn. */
   orient(cameraPosition: Vector3): void {
     if (!this.object.visible) return;
