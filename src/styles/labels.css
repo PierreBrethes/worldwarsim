@@ -236,7 +236,7 @@
 
 /* Up close the block stands where the silhouette hung (ADR 0026 §4): the glyph fades, its box
    stays to take the hover and the click. */
-.label--camp .label-camp {
+.label--camp .label-camp > svg {
   opacity: calc(1 - var(--dressed, 0));
 }
 
