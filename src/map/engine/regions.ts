@@ -300,12 +300,14 @@ export class RegionLayer {
     this.designated.receiveShadow = true;
     this.designated.visible = false;
 
-    this.hoverMaterial = new LineBasicMaterial({
-      color: PALETTE.paper,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
+    this.hoverMaterial = onLand(
+      new LineBasicMaterial({
+        color: PALETTE.paper,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
     this.hoverOutline = new LineSegments(new BufferGeometry(), this.hoverMaterial);
     this.hoverOutline.renderOrder = 1;
     this.hoverOutline.visible = false;

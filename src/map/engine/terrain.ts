@@ -4,6 +4,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { RegionType } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
+import { onLand } from './frame';
 import { inkedStrands } from './ink';
 import { PALETTE } from './palette';
 
@@ -650,11 +651,13 @@ export class TerrainSketches {
   private material(ink: string): LineMaterial {
     const material =
       this.spare.pop() ??
-      new LineMaterial({
-        linewidth: STROKE_PX,
-        transparent: true,
-        depthWrite: false,
-      });
+      onLand(
+        new LineMaterial({
+          linewidth: STROKE_PX,
+          transparent: true,
+          depthWrite: false,
+        }),
+      );
     material.color.set(ink);
     material.resolution.set(this.resolution.width, this.resolution.height);
     return material;

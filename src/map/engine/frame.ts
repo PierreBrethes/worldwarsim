@@ -21,9 +21,11 @@ export const PLINTH_HEIGHT = 5;
 export const LAND_STENCIL = 2;
 
 /**
- * **Un aplat de région ne déborde pas de la terre** : son contour (10m simplifié) n'est pas celui
- * du pays (50m), et il passait sur la mer en liseré. Le pays marque le stencil (`LAND_STENCIL`),
- * l'aplat ne s'imprime que là.
+ * **Ce qui se pose sur une région ne déborde pas de la terre** : son contour (10m simplifié)
+ * n'est pas celui du pays (50m) — au Morbihan, au Péloponnèse, des kilomètres de mer —, et
+ * l'aplat, le trait de survol et la plume passaient dessus. Le pays marque le stencil
+ * (`LAND_STENCIL`), ce qui suit ne s'imprime que là. À poser sur un matériau rendu après les
+ * pays (transparent ou `renderOrder` supérieur).
  */
 export const onLand = <M extends Material>(material: M): M => {
   material.stencilWrite = true;
