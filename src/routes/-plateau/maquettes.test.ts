@@ -3,6 +3,7 @@ import type { MapMarker } from '@/domain/labels';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf } from './maquettes';
+import { buildMinutes } from '../../../convex/constants';
 
 const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}): MapMarker => ({
   kind: 'building',
@@ -36,11 +37,12 @@ describe('maquettesOf', () => {
     ]);
   });
 
-  it('keeps an upgrade standing, and leaves a first level under the crane to its plate', () => {
+  it('keeps an upgrade standing, and raises a first level by the scale of its first level', () => {
     const upgrade = building({ finishesAt: 1, plate: null });
-    const site = building({ id: 's', buildingId: null, level: null, finishesAt: 1, plate: null });
-    expect(maquettesOf([upgrade, site], () => undefined).map((m) => m.id)).toEqual([
-      'building-FRA-5328-mine',
+    const site = building({ id: 's', buildingId: null, level: null, finishesAt: 9, plate: null });
+    expect(maquettesOf([upgrade, site], () => undefined).map((m) => [m.id, m.rising])).toEqual([
+      ['building-FRA-5328-mine', undefined],
+      ['s', { finishesAt: 9, minutes: buildMinutes('mine', 1) }],
     ]);
   });
 

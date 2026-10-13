@@ -684,3 +684,12 @@ function conditionOf(
     ? { kind: 'siteFull' }
     : { kind: 'regionsTaken' };
 }
+
+/**
+ * **How far a site has risen, 0 to 1** — the share of its duration already spent. The view
+ * serves only the minutes left; the duration is the scale's (`buildMinutes`), the same the
+ * server dated the site by, so the share is read and not invented. Clamped: a site dated
+ * under an older scale, or a clock a little ahead, never overflows.
+ */
+export const riseOf = (minutesLeft: number, totalMinutes: number): number =>
+  totalMinutes <= 0 ? 1 : Math.min(1, Math.max(0, 1 - minutesLeft / totalMinutes));

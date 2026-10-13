@@ -342,7 +342,11 @@ en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface com
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
 instance par exemplaire, une géométrie par matière, toutes ramenées à `MAQUETTE_SPAN`) ; une
 mine sur charbon prend son chevalement (`buildingMaquette`), un premier niveau sous la grue
-garde sa grue, un relevé daté se délave, et les sites réunis en « N sites » se rangent en
+**monte avec son chantier** — coupé au plan où le travail est arrivé, ombre comprise, un
+échafaudage d'encre au niveau de coupe, la part lue sur les minutes restantes et la durée du
+barème (`riseOf`, `buildMinutes(clé, 1)`, rien d'inventé), au battement et sans image demandée,
+et l'encre d'arrivée s'imprime quand il se tient sous les yeux ; une élévation reste entière à
+côté de sa grue —, un relevé daté se délave, et les sites réunis en « N sites » se rangent en
 anneau sous leur cartouche. **Et la garnison de mes bâtiments se tient à leur pied** (13/10/2026) :
 mes troupes `stationedAt` un bâtiment sont une pile posée comme les autres — même
 `StandingLayer`, mêmes groupes (`pilePieces`), même règle « habillée entière ou rien » —, dont
