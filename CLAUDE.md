@@ -342,7 +342,8 @@ en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface com
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
 instance par exemplaire, une géométrie par matière, toutes ramenées à `MAQUETTE_SPAN`) ; une
 mine sur charbon prend son chevalement (`buildingMaquette`), un premier niveau sous la grue
-garde sa grue, un relevé daté ou un objectif vidé se délave. Les garnisons de bâtiment, elles,
+garde sa grue, un relevé daté se délave, et les sites réunis en « N sites » se rangent en
+anneau sous leur cartouche. Les garnisons de bâtiment, elles,
 restent lues sur le mât : pas de figurines dans un bâtiment.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
