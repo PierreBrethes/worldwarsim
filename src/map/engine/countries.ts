@@ -1,22 +1,22 @@
 import {
   BufferGeometry,
-  ExtrudeGeometry,
   Float32BufferAttribute,
   LineBasicMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
   Shape,
+  ShapeGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ProjectedCountry, World } from '@/domain/world';
 import type { Curvature } from './curvature';
 import { PALETTE } from './palette';
-import { COUNTRY_THICKNESS, DRAFT, type WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { screenTrame } from './regions';
 
 /**
- * Two keys because two vocabularies meet on the slab: `name` is what `world.json` inks by,
+ * Two keys because two vocabularies meet on the sheet: `name` is what `world.json` inks by,
  * `adm0` is what everything outside the map designates a country with — a selection, a target,
  * a label. Picking answers with the second, colouring reads the first.
  */
@@ -25,7 +25,7 @@ export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
 };
 
 /**
- * Strokes sit flush on the slab; it is the ground that recedes in depth to make room for
+ * Strokes sit flush on the sheet; it is the ground that recedes in depth to make room for
  * them. Lifting them would do up close, but in world view the buffer's precision exceeds a
  * tenth of a unit — no reasonable elevation would survive it.
  *
@@ -48,7 +48,12 @@ const PENCIL = `
   float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
 
-function extrudeRings(country: ProjectedCountry, frame: WorldFrame): BufferGeometry {
+/**
+ * **Une feuille, pas une dalle** (table d'état-major, 13/10/2026) : le pays est un aplat posé sur
+ * la mer, sans paroi ni épaisseur — la côte est un trait d'encre, pas une falaise. Les dix-huit
+ * centièmes qui le séparent de la mer ne sont là que pour le tampon de profondeur.
+ */
+function flatRings(country: ProjectedCountry, frame: WorldFrame): BufferGeometry {
   const geometries = country.rings.map((ring) => {
     const shape = new Shape();
     ring.forEach(([px, py], index) => {
@@ -57,12 +62,9 @@ function extrudeRings(country: ProjectedCountry, frame: WorldFrame): BufferGeome
       if (index === 0) shape.moveTo(x, y);
       else shape.lineTo(x, y);
     });
-    const geometry = new ExtrudeGeometry(shape, {
-      depth: COUNTRY_THICKNESS + DRAFT,
-      bevelEnabled: false,
-    });
+    const geometry = new ShapeGeometry(shape);
     geometry.rotateX(-Math.PI / 2);
-    geometry.translate(0, -DRAFT, 0);
+    geometry.translate(0, COUNTRY_THICKNESS, 0);
     return geometry;
   });
   return geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
@@ -99,7 +101,7 @@ export function buildCountries(
 
   for (const country of world.countries) {
     const mesh = new Mesh(
-      curvature.register(extrudeRings(country, frame)),
+      curvature.register(flatRings(country, frame)),
       screenTrame(
         new MeshStandardMaterial({
           color: PALETTE.neutralLand,

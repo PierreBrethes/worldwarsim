@@ -30,7 +30,7 @@ type Point = readonly [x: number, z: number];
  * a band of texels pixelates.
  *
  * The ribbon follows the whole outline, coast or not: a segment running along a land border
- * passes under the neighboring country, whose slab plunges below the sea. Detecting coasts
+ * passes under the neighboring country, whose sheet lies above the sea. Detecting coasts
  * would cost a neighborhood pass for a result depth already provides.
  */
 export function buildCoastalWash(
@@ -204,7 +204,7 @@ function bevel(vertex: Point, incoming: Point, outgoing: Point): Point | null {
  * The outline is far finer than the wash is wide: a 0.02-unit fjord notch, offset to 0.8,
  * folds over its neighbors and the ribbon shoots off in needles. The trace is therefore
  * coarsened to half a wash before offsetting — the sharp silhouette stays the country's,
- * drawn by its slab; the wash only has to border it.
+ * drawn by its sheet; the wash only has to border it.
  */
 function coarsen(outline: ReadonlyArray<Point>): ReadonlyArray<Point> {
   const kept: Point[] = [];

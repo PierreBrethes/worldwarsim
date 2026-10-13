@@ -13,7 +13,7 @@ import { ARC_COLORS } from './palette';
  */
 const SEGMENTS = 96;
 
-/** Just above the country slabs, so the ring is not swallowed by the ground it lies on. */
+/** Just above the land, so the ring is not swallowed by the ground it lies on. */
 const LIFT = 0.04;
 
 /**
