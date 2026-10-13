@@ -145,7 +145,7 @@ function block(medium: Medium, washed: boolean): { object: Group; piece: Group }
   return { object, piece };
 }
 
-/** A last known position's block, for the review page. */
+/** A last known position's block: at the end of its frozen stretch, and on the review page. */
 export const washedBlock = (medium: Medium): Group => block(medium, true).object;
 
 /** An enemy movement's « figurine »: the block of its medium, back to the eye, no heading. */
