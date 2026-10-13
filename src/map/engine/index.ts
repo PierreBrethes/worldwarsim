@@ -238,6 +238,8 @@ export class MapEngine {
   private restTimer: ReturnType<typeof setTimeout> | null = null;
   private journey: Journey | null = null;
   private replay: Replay | null = null;
+  /** The pawns a replay hid: unlike piles and blocks, nothing shows them again each frame. */
+  private readonly replayHidden = new Set<Object3D>();
   private playerNation: string | null = null;
   private readonly restListeners = new Set<() => void>();
   /**
@@ -628,6 +630,8 @@ export class MapEngine {
     if (replay === null) return;
     this.replay = null;
     replay.scene.dispose();
+    for (const pawn of this.replayHidden) pawn.visible = true;
+    this.replayHidden.clear();
     const { target, position } = replay.saved;
     const orientation = position.clone().sub(target);
     this.travel(target, orientation.clone().normalize(), orientation.length(), JOURNEY_MS * 2);
@@ -1375,13 +1379,36 @@ export class MapEngine {
     replay.scene.show(frame, now / 1000, this.ambience.motion !== 'full');
   }
 
-  /** What stands at the point would stand inside the replay: piles, blocks. */
+  /** What stands at the point would stand inside the replay: piles, blocks, passing pawns. */
   private clearReplayGround(): void {
     const replay = this.replay;
     if (replay === null) return;
     for (const layer of [this.standing.group, this.camps.group])
       for (const object of layer.children)
         if (object.position.distanceTo(replay.center) < replay.reach) object.visible = false;
+    for (const pawn of this.arcs.pawns)
+      if (pawn.visible && pawn.position.distanceTo(replay.center) < replay.reach) {
+        pawn.visible = false;
+        this.replayHidden.add(pawn);
+      }
+  }
+
+  /** A mast's label is DOM, not scene: it goes by its place on screen, inside the scene's reach. */
+  private outsideReplay(
+    projections: ReadonlyArray<LabelProjection>,
+    distance: number,
+  ): ReadonlyArray<LabelProjection> {
+    const replay = this.replay;
+    if (replay === null) return projections;
+    const center = replay.center.clone().project(this.camera);
+    const x = ((center.x + 1) / 2) * this.screenWidth;
+    const y = ((1 - center.y) / 2) * this.screenHeight;
+    const radius = replay.reach / this.unitsPerPixel(distance);
+    return projections.map((label) =>
+      label.visible && Math.hypot(label.x - x, label.y - y) < radius
+        ? { ...label, visible: false }
+        : label,
+    );
   }
 
   private postponeRest(): void {
@@ -1575,7 +1602,7 @@ export class MapEngine {
       this.screenHeight,
       this.arcs.headPositions,
     );
-    this.onLabels(projections);
+    this.onLabels(this.outsideReplay(projections, distance));
     this.onEdges(projections);
   };
 }
