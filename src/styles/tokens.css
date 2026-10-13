@@ -1,5 +1,5 @@
 /* Season interface — design tokens
-   1940 illustrated press. Sharp corners, no shadows, no radius.
+   1940 illustrated press. Sharp corners, no radius; shadows only on what floats over the map (`--shadow-float`).
    The contrast budget belongs to the game layer. */
 
 :root {
@@ -124,17 +124,20 @@
   --plinth-h: 14px;
   --radius: 0;
   --shadow: none;
+  --shadow-float: 0 12px 26px rgb(0 0 0 / 42%);
+  --shadow-float-lg: 0 18px 40px rgb(0 0 0 / 45%);
 }
 
-/* halftone screen — every paper surface */
+/* Plain paper, laid flat: the halftone screen lowered the contrast of everything written on it
+   (table d'état-major, socle papier). A hatch now only ever means a state. */
 .paper,
 .paper-grain {
   background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--ink) 5.5%, transparent) 0 1px,
-    transparent 1px 5px
-  );
+}
+
+/* Whatever floats over the map: the press-poster shadow of the table prototype. */
+.float {
+  box-shadow: var(--shadow-float);
 }
 
 .paper {

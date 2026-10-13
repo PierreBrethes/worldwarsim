@@ -98,7 +98,7 @@ function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
       ref={container}
       tabIndex={-1}
       role="dialog"
-      className="hud board-window @container flex flex-col overflow-hidden outline-none"
+      className="float hud board-window @container flex flex-col overflow-hidden outline-none"
       style={
         {
           zIndex: `calc(var(--z-window) + ${rank})`,
@@ -250,7 +250,7 @@ function DeskWindow({
         tabIndex={-1}
         role="dialog"
         onPointerDown={inFront ? undefined : onBringForward}
-        className="hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
+        className="float hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px)`,
           width: size ? size.width : `min(${width}px, 100%)`,

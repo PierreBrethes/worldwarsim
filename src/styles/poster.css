@@ -22,7 +22,7 @@
   background: var(--paper);
   color: var(--ink);
   border: 1px solid var(--ink);
-  box-shadow: 0 12px 26px rgb(0 0 0 / 42%);
+  box-shadow: var(--shadow-float);
   font: 13px/1.25 var(--font-body);
   white-space: normal;
   transform: translateX(-50%);
@@ -32,7 +32,7 @@
   width: 252px;
   gap: 7px;
   padding: 10px 12px 11px;
-  box-shadow: 0 14px 30px rgb(0 0 0 / 45%);
+  box-shadow: var(--shadow-float);
 }
 
 .map-poster--washed {

@@ -84,7 +84,7 @@ function Card({ notification }: { notification: Notification }) {
   return (
     <div
       role="alert"
-      className="paper-grain pointer-events-auto flex items-start gap-3 border border-[var(--critical)] px-[14px] py-[10px] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
+      className="paper-grain pointer-events-auto flex items-start gap-3 border border-[var(--critical)] px-[14px] py-[10px] float"
     >
       <div className="min-w-0 flex-1">
         <div className="text-[9px] tracking-[.22em] text-[var(--critical)] uppercase">
@@ -112,7 +112,7 @@ function Notice({ message }: { message: string }) {
   return (
     <div
       role="status"
-      className="paper-grain pointer-events-none border border-(color:--ink)/42 px-[14px] py-[9px] shadow-[0_8px_18px_rgba(0,0,0,.4)]"
+      className="paper-grain pointer-events-none border border-(color:--ink)/42 px-[14px] py-[9px] float"
     >
       <div className="text-[9px] tracking-[.22em] text-[var(--ink-quiet)] uppercase">
         {fr.notifications.noticeKicker}

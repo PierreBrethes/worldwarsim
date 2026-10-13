@@ -420,7 +420,7 @@ export function MovementPreview({
         bottom: fromBottom ? `calc(100% - ${at.y - 18}px)` : undefined,
       }}
     >
-      <div className="paper-grain border border-[var(--ink)] p-[3px]">
+      <div className="float paper-grain border border-[var(--ink)] p-[3px]">
         <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
           {/* Wrapping rather than abbreviating: the cost says a whole sentence, and on a card
               262 px wide it does not always share a line with the kicker. */}
