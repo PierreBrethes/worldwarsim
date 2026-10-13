@@ -303,14 +303,14 @@ export class MaquetteLayer {
   }
 
   /**
-   * **Where the garrison of a maquette stands**, `null` while its model has not landed: a pile
-   * beside a plate would stand beside nothing. Read at every frame, so that a fold or a region
+   * **Where the garrison of a maquette stands**, `null` while its model has not landed — a pile
+   * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a fold or a region
    * that lands carries the pile along. The step is at full near weight: the caller scales it as
    * the maquette is scaled.
    */
   garrisonAt(id: string): { at: Vector3; step: readonly [number, number]; facing: number } | null {
     const dressed = this.byId.get(id);
-    if (dressed === undefined || dressed.lot.model === null) return null;
+    if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
     const { at, ring } = dressed.item;
     const foot = footOf(ring);
     return { at, step: [foot.x - ring[0], foot.z - ring[1]], facing: foot.facing };

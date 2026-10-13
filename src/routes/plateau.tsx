@@ -410,7 +410,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () => (hand.kind === 'held' ? armedColumn(view, hand.station, hand.troopIds) : null),
     [view, hand],
   );
-  /** Ce que le moteur porte sous le pointeur : un mât n'a pas de figurines, la main y est seule. */
+  /** Ce que le moteur porte sous le pointeur : la pile posée ou la garnison d'où la main l'a
+   *  prise, par l'identifiant que porte sa pile ; un avant-poste n'a pas de figurines, la main y
+   *  est seule. */
   const holding = useMemo(
     () =>
       hand.kind === 'empty'
@@ -653,7 +655,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         setGarrison(null);
         setHand(EMPTY_HAND);
         setOrder(null);
-        setFocus({ ids: [`building-${standing.regionId}-${standing.key}`], nonce: Date.now() });
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
          *  garnison n'a qu'une sortie — « préparer » — et l'ouvrir à un défait promettrait
@@ -1340,7 +1342,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
-      id: `building-${building.regionId}-${building.key}`,
+      id: buildingLabelId(building),
       buildingId: building.id,
       key: building.key,
       regionId: building.regionId,
@@ -1375,7 +1377,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         : [
             {
               kind: 'building' as const,
-              id: `building-${site.regionId}-${site.key}`,
+              id: buildingLabelId(site),
               // A first level under the crane opens nothing: no line stands for it yet.
               buildingId: null,
               key: site.key,
@@ -1859,7 +1861,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const point = view.me.regions.find((region) => region.id === regionId)?.point;
       if (!toggles.buildings && point !== undefined)
         setFocus({ ids: [], places: [point], nonce: Date.now() });
-      else setFocus({ ids: [`building-${regionId}-${key}`], nonce: Date.now() });
+      else setFocus({ ids: [buildingLabelId({ regionId, key })], nonce: Date.now() });
     },
     [view.me.regions, toggles.buildings],
   );
@@ -2724,25 +2726,19 @@ function garrisonPiles(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
 ): ReadonlyArray<StandingPile> {
-  const held = new Map<string, TroopView[]>();
-  for (const troop of me.troops) {
-    const at = troop.stationedAt;
-    if (marching.has(troop.id) || at.kind !== 'building') continue;
-    held.set(at.buildingId, [...(held.get(at.buildingId) ?? []), troop]);
-  }
   return me.buildings.flatMap((building) => {
-    const troops = held.get(building.id);
-    return troops === undefined
+    // The station's key, as `holding` names the pile a hand was taken from.
+    const id = stationKeyOf({ kind: 'building', buildingId: building.id });
+    const troops = troopsAt(me, id, marching);
+    return troops.length === 0
       ? []
-      : [
-          {
-            id: `garrison-${building.id}`,
-            at: { beside: `building-${building.regionId}-${building.key}` },
-            pieces: pilePieces(troops),
-          },
-        ];
+      : [{ id, at: { beside: buildingLabelId(building) }, pieces: pilePieces(troops) }];
   });
 }
+
+/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché. */
+const buildingLabelId = ({ regionId, key }: { regionId: string; key: string }): string =>
+  `building-${regionId}-${key}`;
 
 const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(
@@ -2760,7 +2756,7 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
   }
   if (station.kind !== 'building') return null;
   const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
-  return building === undefined ? null : `building-${building.regionId}-${building.key}`;
+  return building === undefined ? null : buildingLabelId(building);
 }
 
 /** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer

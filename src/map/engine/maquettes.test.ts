@@ -9,6 +9,7 @@ import {
   spanScale,
   yawOf,
 } from './maquettes';
+import { pileLayout } from './standing';
 
 describe('yawOf', () => {
   it('turns a building the same way at every display, and two buildings apart', () => {
@@ -74,6 +75,9 @@ describe('ringOffsets', () => {
   });
 });
 
+/** The widest pile's half-width: three groups and the +N, half a squad past the last slot. */
+const PILE_REACH = pileLayout(3, true).more! + 0.1;
+
 describe('footOf', () => {
   it('stands a lone garrison in front of its maquette, facing the front', () => {
     expect(footOf([0, 0])).toEqual({ x: 0, z: GARRISON_FOOT, facing: 0 });
@@ -86,8 +90,16 @@ describe('footOf', () => {
         const foot = footOf(offset);
         expect(Math.hypot(foot.x - offset[0], foot.z - offset[1])).toBeCloseTo(GARRISON_FOOT);
         expect(foot.x - offset[0]).toBeCloseTo(GARRISON_FOOT * Math.sin(foot.facing));
-        for (const [x, z] of ring)
-          expect(Math.hypot(foot.x - x, foot.z - z)).toBeGreaterThanOrEqual(GARRISON_FOOT - 1e-9);
+        // The row runs across the facing, its widest pile reaching the +N counter's edge.
+        const [ax, az] = [Math.cos(foot.facing), -Math.sin(foot.facing)];
+        for (const [x, z] of ring) {
+          const along = Math.max(
+            -PILE_REACH,
+            Math.min(PILE_REACH, (x - foot.x) * ax + (z - foot.z) * az),
+          );
+          const nearest = Math.hypot(foot.x + along * ax - x, foot.z + along * az - z);
+          expect(nearest).toBeGreaterThanOrEqual(GARRISON_FOOT - 1e-9);
+        }
       }
     }
   });
