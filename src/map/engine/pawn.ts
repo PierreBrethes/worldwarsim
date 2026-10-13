@@ -16,6 +16,7 @@ import { contactShadow, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 import { PLUME_BY_WEAR, Smoke, Wake } from './smoke';
 import { blacken } from './standing';
+import { pieceScale } from './piece-scale';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -170,17 +171,17 @@ export class Pawn {
     // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».
     this.wake.object.visible = this.medium === 'sea' && close > 0;
     this.wake.object.rotation.set(0, this.heading, 0);
-    this.wake.object.scale.setScalar(close);
+    this.wake.object.scale.setScalar(close * pieceScale.troops);
     // The gap between a plane and its shadow is its altitude: it opens at take-off and closes on landing.
     this.shadow.visible = this.medium === 'air' && close > 0 && -this.groundBelow > AIRBORNE_GAP;
     this.shadow.position.y = this.groundBelow;
-    this.shadow.scale.setScalar(close);
+    this.shadow.scale.setScalar(close * pieceScale.troops);
     const figurine = this.figurines.get(this.medium);
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
       figurine.object.rotation.set(0, figurine.facesEye ? yaw : this.heading, 0);
-      figurine.object.scale.setScalar(near);
+      figurine.object.scale.setScalar(near * pieceScale.troops);
     }
     const costume = this.costumes.get(this.medium);
     if (costume === undefined) return;

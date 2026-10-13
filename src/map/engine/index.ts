@@ -38,6 +38,8 @@ import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { boardInstant, type DayCycle } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
+import { pieceScale } from './piece-scale';
+import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
@@ -1301,6 +1303,14 @@ export class MapEngine {
   setDayCycle(cycle: DayCycle): void {
     this.invalidate();
     this.dayCycle = cycle;
+  }
+
+  /** Percentages from the settings; the pieces re-measure on the next frame. */
+  setPieceScale(scale: PieceScale): void {
+    this.invalidate();
+    pieceScale.troops = scale.troops / 100;
+    pieceScale.buildings = scale.buildings / 100;
+    this.maquettes.resize();
   }
 
   setMapMotion(motion: MapMotion): void {

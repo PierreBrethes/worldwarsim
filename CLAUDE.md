@@ -513,6 +513,8 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 Le battement est un filet, pas une excuse : un oubli se lit comme une demi-seconde de retard au
 lieu d'une carte gelée, et il se corrige.
 
+**La taille des pièces est une préférence** (`wws-piece-scale`, 50–150 %, deux curseurs aux Réglages : troupes et bâtiments) : un facteur au rapproché seulement (`pieceScale`, `src/map/engine/piece-scale.ts`, posé par `setPieceScale`), que les planches du lointain et les seuils ignorent ; l'anneau des « N sites » et le pied des garnisons suivent les bâtiments. Le fil des mouvements pèse la moitié de ce qu'il pesait (`THREAD_WEIGHT`, `arcs.ts`).
+
 **Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : une houle
 lente passe sur la marbrure de la mer (`sea.ts` — une trame de points, essayée, fatiguait
 l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonction pure de l'heure

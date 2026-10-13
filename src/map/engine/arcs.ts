@@ -22,6 +22,7 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
+import { pieceScale } from './piece-scale';
 
 type RenderedArc = {
   arc: ArcView;
@@ -47,16 +48,19 @@ type RenderedArc = {
   loadingUntil: number | null;
 };
 
+/** Every thread's weight against its original design: the first one read too heavy on the sheet. */
+const THREAD_WEIGHT = 0.5;
+
 /**
  * Thickness carries the hierarchy between movements — the ribbon's floor in pixels, and its true
  * width in proportion (`threadWidth`): what is not mine does not push to the foreground. Within a thread it says nothing — covered and
  * remaining are the same stroke, and the dashes tell them apart.
  */
 const THICKNESSES: Readonly<Record<ArcView['state'], number>> = {
-  mine: 2.5,
-  enemyDetected: 2,
-  lastKnown: 2,
-  seaControl: 2,
+  mine: 2.5 * THREAD_WEIGHT,
+  enemyDetected: 2 * THREAD_WEIGHT,
+  lastKnown: 2 * THREAD_WEIGHT,
+  seaControl: 2 * THREAD_WEIGHT,
 };
 
 const TRACE_OPACITY = 0.55;
@@ -271,7 +275,7 @@ export class ArcLayer {
       if (rendered.relic !== null) {
         const near = nearWeight(rendered.relic.position.distanceTo(this.cameraPosition));
         rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(near);
+        rendered.relic.scale.setScalar(near * pieceScale.troops);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);
