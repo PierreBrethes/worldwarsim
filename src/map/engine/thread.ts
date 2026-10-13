@@ -251,7 +251,7 @@ export function buildThread(
       if (leg.medium === 'air') {
         object.add(
           threadOf(
-            strand.vertices.map((point) => onGround(point, frame)),
+            strand.vertices.map(onGround),
             shadowMaterial,
             RENDER_RANK.land,
           ),
@@ -377,12 +377,11 @@ export function pointOnLeg(leg: ThreadLeg, local: number, out: Vector3): void {
 }
 
 /** The ground under a thread point: that is where the hovered itinerary passes. */
-export const projectOnGround = (point: Vector3, frame: WorldFrame, out: Vector3): void => {
-  out.set(point.x, SURFACE_ALTITUDE + frame.drop(point.x, point.z), point.z);
+export const projectOnGround = (point: Vector3, out: Vector3): void => {
+  out.set(point.x, SURFACE_ALTITUDE, point.z);
 };
 
-const onGround = (point: Vector3, frame: WorldFrame): Vector3 =>
-  new Vector3(point.x, SURFACE_ALTITUDE + frame.drop(point.x, point.z), point.z);
+const onGround = (point: Vector3): Vector3 => new Vector3(point.x, SURFACE_ALTITUDE, point.z);
 
 /* ----------------------------- thread cutting ---------------------------- */
 

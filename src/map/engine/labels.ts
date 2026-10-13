@@ -17,19 +17,9 @@ import { nearWeight } from './figurines/figurine';
  */
 export const LABEL_EXPANDED_DISTANCE = 220;
 
-/**
- * The anchor sits on the crust, not above it: the callout must start from the ground it
- * designates. The remaining hair keeps the horizon test from occluding itself flush with
- * the curvature.
- */
+/** The anchor sits on the crust, not above it: the callout must start from the ground it
+ *  designates. */
 const ANCHOR_ELEVATION = COUNTRY_THICKNESS + 0.01;
-
-/**
- * The curvature does not hide much of the board, but it hides some: six points suffice to
- * know whether the eye → anchor segment passes under the crust, and the test evaporates
- * when the board is flat, which is the default setting.
- */
-const HORIZON_SAMPLES = 6;
 
 export type DetailLevel = 'glyph' | 'expanded';
 
@@ -55,8 +45,7 @@ export type LabelProjection = {
    */
   dressed: number;
   /**
-   * Off-frame but in front of the horizon: the anchor parks at the screen edge. An anchor
-   * gone behind the curvature has no right to it — we do not point at what cannot be seen.
+   * Off-frame: the anchor parks at the screen edge.
    */
   atEdge: boolean;
   edgeX: number;
@@ -85,7 +74,6 @@ export class LabelLayer {
   private readonly fixed = new Map<string, Vector3>();
   private readonly withRegions = new Set<string>();
   private readonly projections: LabelProjection[] = [];
-  private readonly point = new Vector3();
   private readonly normalized = new Vector3();
   private readonly gaze = new Vector3();
   private readonly toward = new Vector3();
@@ -137,7 +125,7 @@ export class LabelLayer {
     }
   }
 
-  /** The ground moved under the fixed anchors — curvature, or regions landing: re-set them. */
+  /** The regions landed under the fixed anchors: re-set them. */
   rebuild(): void {
     this.setAnchors(this.anchors);
   }
@@ -178,17 +166,16 @@ export class LabelLayer {
         Math.abs(this.normalized.x) < 1.08 &&
         Math.abs(this.normalized.y) < 1.08;
 
-      const occluded = this.occluded(position, camera.position);
       const x = (this.normalized.x * 0.5 + 0.5) * width;
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
-      projection.visible = inFrame && !occluded;
+      projection.visible = inFrame;
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
 
-      projection.atEdge = !occluded && !projection.visible;
+      projection.atEdge = !projection.visible;
       if (projection.atEdge) {
         const edge = clampToEdge(behind ? width - x : x, behind ? height - y : y, width, height);
         projection.edgeX = edge.x;
@@ -197,17 +184,5 @@ export class LabelLayer {
       }
     }
     return this.projections;
-  }
-
-  /** The board bulges: an anchor gone behind the horizon does not fold to the edge. */
-  private occluded(position: Vector3, eye: Vector3): boolean {
-    if (this.frame.curvature === 0) return false;
-    for (let step = 1; step < HORIZON_SAMPLES; step++) {
-      const share = step / HORIZON_SAMPLES;
-      this.point.copy(eye).lerp(position, share);
-      if (this.frame.drop(this.point.x, this.point.z) + COUNTRY_THICKNESS > this.point.y)
-        return true;
-    }
-    return false;
   }
 }

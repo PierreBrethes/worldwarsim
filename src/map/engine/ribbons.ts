@@ -376,7 +376,7 @@ export class RibbonLayer implements AmbientLayer {
   }
 
   private screenPx(x: number, z: number, out: Vector3): Vector3 {
-    out.set(x, RIBBON_ALTITUDE + this.board.drop(x, z), z).project(this.camera);
+    out.set(x, RIBBON_ALTITUDE, z).project(this.camera);
     return out.set(out.x * this.resolution.x * 0.5, out.y * this.resolution.y * 0.5, 0);
   }
 
@@ -404,8 +404,8 @@ export class RibbonLayer implements AmbientLayer {
           widthBase + ribbon.width * (widthByForce[0] + widthByForce[1] * force) * taper;
         const alpha = Math.min(1, (alphaByForce[0] + alphaByForce[1] * force) * taper * life);
         for (let s = 0; s < 2; s++) {
-          this.positions.setXYZ(vertex, x, RIBBON_ALTITUDE + this.board.drop(x, z), z);
-          this.toward.setXYZ(vertex, tx, RIBBON_ALTITUDE + this.board.drop(tx, tz), tz);
+          this.positions.setXYZ(vertex, x, RIBBON_ALTITUDE, z);
+          this.toward.setXYZ(vertex, tx, RIBBON_ALTITUDE, tz);
           this.halfWidth.setX(vertex, width / 2);
           this.alpha.setX(vertex, alpha);
           vertex++;

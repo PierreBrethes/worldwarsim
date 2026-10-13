@@ -12,7 +12,6 @@ import {
   Object3D,
 } from 'three';
 import type { World } from '@/domain/world';
-import type { Curvature } from './curvature';
 import { seaMaterial, type SeaLayer } from './sea';
 import { PALETTE } from './palette';
 import { PLINTH_HEIGHT, SEA_LEVEL, type WorldFrame } from './frame';
@@ -188,17 +187,16 @@ function buildRim(
 export function buildBoard(
   world: World,
   frame: WorldFrame,
-  curvature: Curvature,
   anisotropy: number,
   swell: SeaLayer | null,
 ): { surface: Mesh; decor: Object3D[] } {
   const surface = new Mesh(
-    curvature.register(buildSurface(world, frame)),
+    buildSurface(world, frame),
     swell ? swell.swell(seaMaterial(world, anisotropy)) : seaMaterial(world, anisotropy),
   );
 
   const plinth = new Mesh(
-    curvature.register(buildPlinth(world, frame)),
+    buildPlinth(world, frame),
     new MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.9,
@@ -208,13 +206,13 @@ export function buildBoard(
   );
 
   const graticule = new LineSegments(
-    curvature.register(buildGraticule(world, frame)),
+    buildGraticule(world, frame),
     new LineBasicMaterial({ color: PALETTE.graticule, transparent: true, opacity: 0.22 }),
   );
 
   const { band, stroke } = buildRim(world, frame);
   const rim = new Mesh(
-    curvature.register(band),
+    band,
     new MeshBasicMaterial({
       color: PALETTE.worldRim,
       transparent: true,
@@ -225,7 +223,7 @@ export function buildBoard(
     }),
   );
   const sharpOutline = new LineSegments(
-    curvature.register(stroke),
+    stroke,
     new LineBasicMaterial({ color: PALETTE.rimStroke, transparent: true, opacity: 0.85 }),
   );
 

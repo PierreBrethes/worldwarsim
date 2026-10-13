@@ -492,7 +492,7 @@ export class StandingLayer {
     if (at !== null) this.carried.object.position.copy(at);
   }
 
-  /** The ground moved under the piles — curvature: set them back on it. */
+  /** Every dressed pile set back on its point. */
   rebuild(): void {
     for (const { lonLat, object } of this.dressed.values())
       object.position.copy(this.frame.projectLonLat(lonLat, COUNTRY_THICKNESS));

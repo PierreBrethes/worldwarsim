@@ -10,7 +10,6 @@ import {
   Uint32BufferAttribute,
 } from 'three';
 import type { World } from '@/domain/world';
-import type { Curvature } from './curvature';
 import { PALETTE } from './palette';
 import { SEA_LEVEL, type WorldFrame } from './frame';
 
@@ -36,7 +35,6 @@ type Point = readonly [x: number, z: number];
 export function buildCoastalWash(
   world: World,
   frame: WorldFrame,
-  curvature: Curvature,
 ): Mesh<BufferGeometry, MeshBasicMaterial> {
   const ribbon = new Ribbon(new Color(PALETTE.seaInk), SEA_LEVEL + WASH_LIFT);
 
@@ -51,7 +49,7 @@ export function buildCoastalWash(
   }
 
   const mesh = new Mesh(
-    curvature.register(ribbon.geometry()),
+    ribbon.geometry(),
     new MeshBasicMaterial({
       vertexColors: true,
       transparent: true,

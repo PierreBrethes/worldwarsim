@@ -56,7 +56,6 @@ export class SearchAreaLayer {
   });
   private readonly fog = new Points(this.fogGeometry, this.fogMaterial);
   private readonly rim = new Points(this.rimGeometry, this.rimMaterial);
-  private shown: SearchArea | null = null;
 
   constructor(private readonly frame: WorldFrame) {
     this.fog.renderOrder = 4;
@@ -68,7 +67,6 @@ export class SearchAreaLayer {
   }
 
   show(area: SearchArea | null): void {
-    this.shown = area;
     this.object.visible = area !== null;
     if (area !== null) this.write(area);
   }
@@ -81,10 +79,6 @@ export class SearchAreaLayer {
         this.project(destinationPoint(area.center, area.radiusKm, (index / 24) * 360)),
       ),
     };
-  }
-
-  rebuild(): void {
-    if (this.shown !== null) this.write(this.shown);
   }
 
   dispose(): void {

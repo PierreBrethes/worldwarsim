@@ -9,7 +9,7 @@ import { ARC_COLORS } from './palette';
 
 /**
  * Fine enough that four hundred kilometres read as a circle rather than as a polygon, coarse
- * enough that rebuilding it on every hover and on every curvature step costs nothing.
+ * enough that rebuilding it on every hover costs nothing.
  */
 const SEGMENTS = 96;
 
@@ -75,7 +75,6 @@ export class ReachRing {
   readonly object = new Group();
   private readonly detection = new Ring(true);
   private readonly contact = new Ring(false);
-  private shown: Reach | null = null;
   /** Le rayon du contact en unités de plateau : le seuil de lisibilité se juge en pixels, et
    *  c'est le seul chiffre qui fasse le pont. Zéro quand il n'y a pas de contact à dessiner. */
   private contactUnits = 0;
@@ -86,7 +85,6 @@ export class ReachRing {
   }
 
   show(reach: Reach | null): void {
-    this.shown = reach;
     this.object.visible = reach !== null;
     if (reach === null) return;
     this.write(reach);
@@ -103,12 +101,6 @@ export class ReachRing {
   animate(unitsPerPixel: number): void {
     this.contact.line.visible =
       this.contactUnits > 0 && this.contactUnits / unitsPerPixel >= MIN_CONTACT_PIXELS;
-  }
-
-  /** The curvature moved every vertex of the board under a ring that did not: same reach, new
-   *  drop. */
-  rebuild(): void {
-    if (this.shown !== null) this.write(this.shown);
   }
 
   dispose(): void {

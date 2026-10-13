@@ -10,7 +10,6 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ProjectedCountry, World } from '@/domain/world';
-import type { Curvature } from './curvature';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { screenTrame } from './regions';
@@ -94,14 +93,13 @@ function outlinesOf(country: ProjectedCountry, frame: WorldFrame): BufferGeometr
 export function buildCountries(
   world: World,
   frame: WorldFrame,
-  curvature: Curvature,
 ): { meshes: CountryMesh[]; borders: LineSegments<BufferGeometry, LineBasicMaterial> } {
   const meshes: CountryMesh[] = [];
   const outlines: BufferGeometry[] = [];
 
   for (const country of world.countries) {
     const mesh = new Mesh(
-      curvature.register(flatRings(country, frame)),
+      flatRings(country, frame),
       screenTrame(
         new MeshStandardMaterial({
           color: PALETTE.neutralLand,
@@ -120,7 +118,7 @@ export function buildCountries(
   }
 
   const borders = new LineSegments(
-    curvature.register(mergeGeometries(outlines, false)!),
+    mergeGeometries(outlines, false)!,
     new LineBasicMaterial({ color: PALETTE.border, transparent: true, opacity: 0.62 }),
   );
 

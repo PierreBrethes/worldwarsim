@@ -44,7 +44,6 @@ import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
-import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
@@ -194,7 +193,6 @@ export class MapEngine {
   private readonly renderer: WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
-  private readonly curvature: Curvature;
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -325,7 +323,6 @@ export class MapEngine {
     private readonly world: World,
   ) {
     this.frame = new WorldFrame(world);
-    this.curvature = new Curvature(this.frame);
 
     this.scene.background = new Color(PALETTE.desk);
     this.scene.fog = new Fog(PALETTE.desk, 460, 950);
@@ -371,7 +368,6 @@ export class MapEngine {
     const board = buildBoard(
       world,
       this.frame,
-      this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
       this.sea,
     );
@@ -386,9 +382,9 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.scene.add(buildCoastalWash(world, this.frame, this.curvature));
+    this.scene.add(buildCoastalWash(world, this.frame));
 
-    const { meshes, borders } = buildCountries(world, this.frame, this.curvature);
+    const { meshes, borders } = buildCountries(world, this.frame);
     this.countries = meshes;
     this.borders = borders;
     for (const mesh of meshes) this.scene.add(mesh);
@@ -427,7 +423,7 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, this.curvature);
+    this.regions = new RegionLayer(this.frame);
     this.labels = new LabelLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -529,7 +525,7 @@ export class MapEngine {
     this.regions.display(data);
     // The 500 KB land half a second after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
-    // this their labels would wait for the next curvature change to find their footing.
+    // this their labels would never find their footing.
     this.labels.rebuild();
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
@@ -850,8 +846,7 @@ export class MapEngine {
   /**
    * The region under a lon/lat, by the same pick as the hover — enclave first — so a pile's
    * cartouche and the hover card can never name two regions for one spot. `null` until the
-   * layer has landed, and wherever no region lies. The curvature only moves the height, never
-   * `x` or `z`, so the projected point reads straight back.
+   * layer has landed, and wherever no region lies.
    */
   regionAtLonLat(lonLat: LonLat): RegionIdentity | null {
     const point = this.frame.projectLonLat(lonLat);
@@ -924,22 +919,6 @@ export class MapEngine {
   showReach(reach: Reach | null): void {
     this.invalidate();
     this.reach.show(reach);
-  }
-
-  setCurvature(intensity: number): void {
-    this.invalidate();
-    this.frame.curvature = intensity;
-    this.curvature.applyAll();
-    this.reach.rebuild();
-    this.searchArea.rebuild();
-    this.ghost.rebuild();
-    this.standing.rebuild();
-    this.camps.rebuild();
-    this.arcs.rebuild();
-    this.labels.rebuild();
-    this.regions.rebuild();
-    // Every vertex on the board just moved under a pointer that did not.
-    this.hoverDirty = true;
   }
 
   resize(): void {
