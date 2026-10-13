@@ -546,6 +546,7 @@ export class RegionLayer {
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
       performance.now(),
+      region === null ? null : (this.inkByRegion.get(region.id) ?? null),
     );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();

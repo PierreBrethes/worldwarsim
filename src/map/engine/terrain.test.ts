@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
-import { DRAW_S, penShare, SKETCH_S, sketchRegion, STAGGER_S } from './terrain';
+import { DRAW_S, inkOn, penShare, SKETCH_S, sketchRegion, STAGGER_S } from './terrain';
+import { PALETTE } from './palette';
 
 const TYPES: ReadonlyArray<RegionType> = [
   'plain',
@@ -68,5 +69,13 @@ describe('the pen', () => {
   it('has finished every stroke by SKETCH_S', () => {
     expect(SKETCH_S).toBeCloseTo(DRAW_S + STAGGER_S);
     expect(penShare(STAGGER_S, SKETCH_S)).toBe(1);
+  });
+});
+
+describe('inkOn', () => {
+  it('draws in paper on a dark seat, in ink on the bare sheet and a light seat', () => {
+    expect(inkOn('#1f3f66')).toBe(PALETTE.paper);
+    expect(inkOn(null)).toBe(PALETTE.border);
+    expect(inkOn('#e8d27a')).toBe(PALETTE.border);
   });
 });

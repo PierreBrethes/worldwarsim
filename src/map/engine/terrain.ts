@@ -1,4 +1,4 @@
-import { Group, type Vector3 } from 'three';
+import { Color, Group, type Vector3 } from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -385,6 +385,12 @@ type Sketch = {
  * The pen over the hovered region. The region being left fades while the next one draws; a
  * region hovered again while it fades is revived, not redrawn.
  */
+const hsl = { h: 0, s: 0, l: 0 };
+/** Dark ink vanishes on a dark seat's ground (France's blue): there the pen draws in paper. */
+export function inkOn(ground: string | null): string {
+  return ground !== null && new Color(ground).getHSL(hsl).l < 0.45 ? PALETTE.paper : PALETTE.border;
+}
+
 export class TerrainSketches {
   readonly group = new Group();
   motion: MapMotion = 'full';
@@ -400,7 +406,13 @@ export class TerrainSketches {
     return this.busy;
   }
 
-  show(regionId: string | null, sketch: () => PenStrands, now: number): void {
+  /** `ground` is the seat's ink when the region is held, `null` on the bare sheet. */
+  show(
+    regionId: string | null,
+    sketch: () => PenStrands,
+    now: number,
+    ground: string | null = null,
+  ): void {
     for (const leaving of this.sketches.filter(
       (s) => s.leftAt === null && s.regionId !== regionId,
     )) {
@@ -414,7 +426,7 @@ export class TerrainSketches {
       kept.leftAt = null;
       return;
     }
-    const line = new LineSegments2(new LineSegmentsGeometry(), this.material());
+    const line = new LineSegments2(new LineSegmentsGeometry(), this.material(inkOn(ground)));
     this.group.add(line);
     this.sketches.push({
       regionId,
@@ -485,15 +497,15 @@ export class TerrainSketches {
     this.sketches = this.sketches.filter((s) => s !== sketch);
   }
 
-  private material(): LineMaterial {
+  private material(ink: string): LineMaterial {
     const material =
       this.spare.pop() ??
       new LineMaterial({
-        color: PALETTE.border,
         linewidth: STROKE_PX,
         transparent: true,
         depthWrite: false,
       });
+    material.color.set(ink);
     material.resolution.set(this.resolution.width, this.resolution.height);
     return material;
   }
