@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DisplayedRegion } from '@/domain/world';
-import { contains, prepare } from './regions';
+import { contains, prepare, wholeSheets } from './regions';
 
 const square = (x: number, y: number, side: number) =>
   [
@@ -41,5 +41,45 @@ describe('contains', () => {
     const { ringBoxes, box } = prepare(archipelago);
     expect(ringBoxes).toHaveLength(4);
     expect(box).toEqual([0, 0, 45, 45]);
+  });
+});
+
+describe('wholeSheets', () => {
+  const region = (id: string, country: string): DisplayedRegion => ({
+    id,
+    country,
+    name: id,
+    type: 'plain',
+    rings: [square(0, 0, 1)],
+  });
+  const regions = [region('F-1', 'FRA'), region('F-2', 'FRA'), region('D-1', 'DEU')];
+  const current = (id: string) => ({ id, wash: 1, state: 'current' as const });
+
+  it('paints a country whose every region one claim holds, current', () => {
+    const sheets = wholeSheets(
+      [{ ink: '#276893', regions: [current('F-1'), current('F-2'), current('D-1')] }],
+      regions,
+    );
+    expect([...sheets]).toEqual([
+      ['FRA', '#276893'],
+      ['DEU', '#276893'],
+    ]);
+  });
+
+  it('leaves to the regions a country held only in part', () => {
+    expect(wholeSheets([{ ink: '#276893', regions: [current('F-1')] }], regions).size).toBe(0);
+  });
+
+  it('leaves to the regions a country one region of which is only surveyed', () => {
+    const sheets = wholeSheets(
+      [
+        {
+          ink: '#276893',
+          regions: [current('F-1'), { id: 'F-2', wash: 0.6, state: 'surveyed' }],
+        },
+      ],
+      regions,
+    );
+    expect(sheets.size).toBe(0);
   });
 });
