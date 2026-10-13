@@ -18,9 +18,8 @@ import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
-import type { WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { InkLayer } from './ink';
-import { COUNTRY_THICKNESS } from './frame';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 
