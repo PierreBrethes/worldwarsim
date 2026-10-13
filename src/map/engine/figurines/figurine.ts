@@ -115,19 +115,20 @@ export function figurineFor(
 }
 
 /**
- * The board casts no shadows: a soft dark disc under the piece is what sets it down. Two
- * discs rather than a texture, so it builds without a canvas.
+ * The lamp's shadow falls aside (`lamp.ts`); what sets the piece down right under its feet is
+ * this soft disc, kept faint so the two do not double. Two discs rather than a texture, so it
+ * builds without a canvas.
  */
 const SHADOW_INNER = new MeshBasicMaterial({
   color: '#1a120a',
   transparent: true,
-  opacity: 0.22,
+  opacity: 0.12,
   depthWrite: false,
 });
 const SHADOW_OUTER = new MeshBasicMaterial({
   color: '#1a120a',
   transparent: true,
-  opacity: 0.12,
+  opacity: 0.06,
   depthWrite: false,
 });
 const SHADOW_DISCS = (

@@ -1,9 +1,9 @@
 import {
   Color,
-  DirectionalLight,
   Fog,
   HemisphereLight,
   MOUSE,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   Raycaster,
   Scene,
@@ -41,6 +41,7 @@ import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { steepestTiltAt } from './camera-tilt';
+import { castShadows, Lamp } from './lamp';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
@@ -194,6 +195,7 @@ export class MapEngine {
   private readonly renderer: WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
+  private readonly lamp: Lamp;
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -335,6 +337,8 @@ export class MapEngine {
     // the context without a stencil buffer since r163 and the material would plead in vain.
     this.renderer = new WebGLRenderer({ antialias: true, stencil: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -360,10 +364,10 @@ export class MapEngine {
     // many trackpads have no third button and that path must stay open.
     this.applyMapping();
 
-    this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));
-    const sun = new DirectionalLight('#fffaf0', 0.5);
-    sun.position.set(-180, 320, 160);
-    this.scene.add(sun);
+    // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
+    // la lampe qui fait la profondeur d'une ombre.
+    this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 0.8));
+    this.lamp = new Lamp(this.scene);
 
     this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
     const board = buildBoard(
@@ -380,6 +384,7 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
+    this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
@@ -388,7 +393,10 @@ export class MapEngine {
     const { meshes, borders } = buildCountries(world, this.frame);
     this.countries = meshes;
     this.borders = borders;
-    for (const mesh of meshes) this.scene.add(mesh);
+    for (const mesh of meshes) {
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+    }
     this.scene.add(borders);
 
     this.aimable = [...this.countries, this.surface];
@@ -1603,6 +1611,11 @@ export class MapEngine {
     this.standing.orient(this.camera.position);
     this.camps.orient(this.camera.position, yaw, now);
     this.clearReplayGround();
+    if (this.lamp.follow(this.controls.target, distance)) {
+      for (const root of [this.standing.group, this.camps.group, this.arcs.group])
+        castShadows(root);
+      if (this.replay) castShadows(this.replay.scene.object);
+    }
     this.regions.animate(distance, now);
     this.sea?.fade(distance);
     this.borders.material.opacity =

@@ -272,6 +272,7 @@ export class RegionLayer {
       depthWrite: false,
     });
     this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
+    this.built.receiveShadow = true;
     this.built.visible = false;
 
     /**
@@ -287,6 +288,7 @@ export class RegionLayer {
       depthWrite: false,
     });
     this.designated = new Mesh(new BufferGeometry(), this.designatedMaterial);
+    this.designated.receiveShadow = true;
     this.designated.visible = false;
 
     this.hoverMaterial = new LineBasicMaterial({
@@ -428,16 +430,17 @@ export class RegionLayer {
           opacity: HELD_OPACITY * wash,
           depthWrite: false,
         });
-        this.held.add(
-          new Mesh(
-            geometry,
-            state === 'suspended'
-              ? hatch(material)
-              : state === 'surveyed'
-                ? engrave(material)
-                : material,
-          ),
+        const fill = new Mesh(
+          geometry,
+          state === 'suspended'
+            ? hatch(material)
+            : state === 'surveyed'
+              ? engrave(material)
+              : material,
         );
+        // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
+        fill.receiveShadow = true;
+        this.held.add(fill);
       }
     }
   }
