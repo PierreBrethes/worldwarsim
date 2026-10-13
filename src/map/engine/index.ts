@@ -443,7 +443,11 @@ export class MapEngine {
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
-    this.standing = new StandingLayer(this.frame, () => this.invalidate());
+    this.standing = new StandingLayer(
+      this.frame,
+      () => this.invalidate(),
+      (id) => this.maquettes.garrisonAt(id),
+    );
     this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);

@@ -23,9 +23,18 @@ import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
   readonly id: string;
-  readonly lonLat: LonLat;
+  /**
+   * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. A
+   * garrison is shown, never lifted — its garrison panel is the one way to take it in hand.
+   */
+  readonly at: { readonly lonLat: LonLat } | { readonly beside: string };
   readonly pieces: PilePieces;
 };
+
+/** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
+export type GarrisonAt = (
+  maquetteId: string,
+) => { at: Vector3; step: readonly [number, number]; facing: number } | null;
 
 /** Board units between two groups: a squad and a tank are both about a third of one wide. */
 const GROUP_SPACING = 0.5;
@@ -273,7 +282,7 @@ function counter(face: MeshStandardMaterial, x: number, z: number): Group {
 /** `ready` flips once every figurine is in: until then the pile is not on the layer and its plate stays. */
 type Dressed = {
   readonly key: string;
-  lonLat: LonLat;
+  at: StandingPile['at'];
   pieces: PilePieces;
   readonly object: Group;
   ready: boolean;
@@ -361,6 +370,7 @@ export class StandingLayer {
   constructor(
     private readonly frame: WorldFrame,
     private readonly changed: () => void,
+    private readonly garrisonAt: GarrisonAt,
   ) {
     this.faces = new Faces(changed);
   }
@@ -380,7 +390,7 @@ export class StandingLayer {
       const key = drawnKey(this.nation, pile.pieces);
       const kept = this.dressed.get(pile.id);
       if (kept?.key === key) {
-        kept.lonLat = pile.lonLat;
+        kept.at = pile.at;
         kept.pieces = pile.pieces;
         this.dressed.delete(pile.id);
         next.set(pile.id, kept);
@@ -392,7 +402,7 @@ export class StandingLayer {
       for (const target of built.targets) target.userData.pileId = pile.id;
       const entry: Dressed = {
         key,
-        lonLat: pile.lonLat,
+        at: pile.at,
         pieces: pile.pieces,
         object: built.object,
         ready: false,
@@ -447,7 +457,7 @@ export class StandingLayer {
   pick(ray: Raycaster): PieceHold | null {
     let best: { distance: number; pick: PieceHold } | null = null;
     for (const [pileId, entry] of this.dressed) {
-      if (!entry.ready || !entry.object.visible) continue;
+      if (!entry.ready || !entry.object.visible || 'beside' in entry.at) continue;
       const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
       if (distance === undefined || (best !== null && best.distance <= distance)) continue;
       const troopIds = pickedIn(ray, entry.targets, entry.pieces);
@@ -507,14 +517,29 @@ export class StandingLayer {
     if (at !== null) this.carried.object.position.copy(at);
   }
 
-  /** Every dressed pile set back on its point. */
+  /** Every dressed pile set back on its point; a garrison is set at its maquette's foot by `orient`. */
   rebuild(): void {
-    for (const { lonLat, object } of this.dressed.values())
-      object.position.copy(this.frame.projectLonLat(lonLat, COUNTRY_THICKNESS));
+    for (const { at, object } of this.dressed.values())
+      if ('lonLat' in at)
+        object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
   }
 
   orient(cameraPosition: Vector3): void {
-    for (const { object } of this.dressed.values()) {
+    for (const { object, at } of this.dressed.values()) {
+      if ('beside' in at) {
+        const foot = this.garrisonAt(at.beside);
+        if (foot === null) {
+          object.visible = false;
+          continue;
+        }
+        const near = nearWeight(foot.at.distanceTo(cameraPosition));
+        object.position.set(
+          foot.at.x + foot.step[0] * near,
+          foot.at.y,
+          foot.at.z + foot.step[1] * near,
+        );
+        object.rotation.y = foot.facing;
+      }
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
       object.scale.setScalar(near);

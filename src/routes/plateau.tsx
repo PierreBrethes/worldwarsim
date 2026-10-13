@@ -31,7 +31,7 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
-import type { PieceClick } from '@/map/engine';
+import type { PieceClick, StandingPile } from '@/map/engine';
 import {
   readWindows,
   toggleWindow,
@@ -1436,13 +1436,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [markers, applyPileClick],
   );
   const standing = useMemo(
-    () =>
-      markers.flatMap((marker) =>
+    (): ReadonlyArray<StandingPile> => [
+      ...markers.flatMap((marker) =>
         marker.kind === 'stack'
-          ? [{ id: marker.id, lonLat: marker.lonLat, pieces: marker.pieces }]
+          ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
           : [],
       ),
-    [markers],
+      ...garrisonPiles(view.me, marching),
+    ],
+    [markers, view.me, marching],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
@@ -2710,6 +2712,35 @@ function postedStacks(
       pieces: pilePieces(held),
       ink: me.ink,
     };
+  });
+}
+
+/**
+ * **Les garnisons de mes bâtiments, au pied de leur maquette** (ADR 0026 §5). Mes troupes
+ * seulement : la garnison d'un autre ne sort jamais du serveur. Une maquette qui n'est pas debout
+ * — chantier, bâtiments masqués — n'en porte aucune, et le moteur ne la pose pas.
+ */
+function garrisonPiles(
+  me: PlayerView['me'],
+  marching: ReadonlySet<string>,
+): ReadonlyArray<StandingPile> {
+  const held = new Map<string, TroopView[]>();
+  for (const troop of me.troops) {
+    const at = troop.stationedAt;
+    if (marching.has(troop.id) || at.kind !== 'building') continue;
+    held.set(at.buildingId, [...(held.get(at.buildingId) ?? []), troop]);
+  }
+  return me.buildings.flatMap((building) => {
+    const troops = held.get(building.id);
+    return troops === undefined
+      ? []
+      : [
+          {
+            id: `garrison-${building.id}`,
+            at: { beside: `building-${building.regionId}-${building.key}` },
+            pieces: pilePieces(troops),
+          },
+        ];
   });
 }
 
