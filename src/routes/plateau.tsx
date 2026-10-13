@@ -799,7 +799,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      compassOf(target, view, column?.rule ?? null, column?.station ?? null, freeCapacity),
+      compassOf(
+        target,
+        view,
+        column?.rule ?? null,
+        column?.station ?? null,
+        freeCapacity,
+        column?.troopIds ?? null,
+      ),
     [view, column, freeCapacity],
   );
 

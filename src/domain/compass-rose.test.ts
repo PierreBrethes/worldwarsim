@@ -872,6 +872,26 @@ describe('founding from the map', () => {
     expect(compass?.actions.map((action) => action.key)).toEqual(['found']);
   });
 
+  /** **Fonder porte sur la composition tenue**, pas sur toute la pile : décocher le blindé
+   *  rend la branche, et le manifeste n'emporte que l'infanterie. */
+  it('founds with the composition in hand, not the whole pile', () => {
+    const armed = {
+      roles: ['infantry' as const],
+      myRegionIds: new Set<string>(),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(),
+      afloat: false,
+      coastal: false,
+    };
+    const pile = posted(['infantry', 'armor']);
+    const inHand = (ids: ReadonlyArray<string>) =>
+      compassOf(camp, pile, armed, camp.station, 0, ids);
+    expect(inHand(['T-0'])?.actions[0]).toMatchObject({ key: 'found', troopIds: ['T-0'] });
+    const whole = inHand(['T-0', 'T-1']);
+    expect(whole?.actions).toEqual([]);
+    expect(whole?.refusal).toBe('un blindé ne fonde pas — seule l’infanterie plante un point');
+  });
+
   /**
    * **Un observateur regarde, il ne vise plus** (31/08). Le serveur refuse déjà tout
    * (`requirePlayable`) : une rose qui garderait « fonder » ou « bâtir » promettrait au défait

@@ -777,6 +777,8 @@ export function compassOf(
   /** Ce que la pile armée peut encore charger, une fois sa charge en cours déduite : le seul
    *  chiffre qui décide si « ramasser » existe (`carryCapacityOf`, lu par l'appelant). */
   freeCapacity = 0,
+  /** La composition tenue en main : c'est elle qui fonderait, pas toute la pile posée là. */
+  heldTroopIds: ReadonlyArray<string> | null = null,
 ): Compass | null {
   /**
    * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08) : le clic droit ne
@@ -804,7 +806,16 @@ export function compassOf(
   if (column !== null && target.kind !== 'force') {
     return aim(target, view, column, freeCapacity, origin);
   }
-  const fan = build(target, view);
+  const fan = build(
+    target,
+    view,
+    origin !== null &&
+      target.kind === 'force' &&
+      posted(target) !== null &&
+      stationKeyOf(posted(target)!) === stationKeyOf(origin)
+      ? heldTroopIds
+      : null,
+  );
   /**
    * **La pile qu'on tient liste les transports où elle peut monter** (ADR 0025 §3) : quand les
    * étiquettes se serrent, viser la bonne coque au pixel près n'est plus le seul chemin.
@@ -1027,12 +1038,17 @@ function refusalIn(aims: ReadonlyArray<MovementAim>, column: Column): string | n
   );
 }
 
-function build(target: CompassTarget, view: PlayerView): Fan {
+function build(
+  target: CompassTarget,
+  view: PlayerView,
+  /** La composition en main si la cible est la pile tenue, sinon `null`. */
+  composition: ReadonlyArray<string> | null,
+): Fan {
   switch (target.kind) {
     case 'region': {
       // The country's fan, plus one branch. A region is the same land seen closer: taking
       // away what the country offered would make zooming in cost the player actions.
-      const country = build({ kind: 'country', country: target.country }, view);
+      const country = build({ kind: 'country', country: target.country }, view, null);
       const buildable = buildOptionsAt(view, target.id, view.loadedAt).length > 0;
       return {
         kicker: fr.compass.region(country.name),
@@ -1154,7 +1170,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
      * thesis, not an interface limitation (decision 13a).
      */
     case 'force': {
-      const found = foundHere(target, view);
+      const found = foundHere(target, view, composition);
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
@@ -1193,7 +1209,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
     case 'point':
       return target.country === null
         ? { kicker: fr.compass.openWater, name: target.name, actions: [], refusal: null }
-        : build({ kind: 'country', country: target.country }, view);
+        : build({ kind: 'country', country: target.country }, view, null);
   }
 }
 
@@ -1379,10 +1395,14 @@ function foundingMotive(
 function foundHere(
   target: Extract<CompassTarget, { kind: 'force' }>,
   view: PlayerView,
+  /** La composition en main, ou `null` : toute la pile posée là. */
+  composition: ReadonlyArray<string> | null,
 ): { readonly action: CompassAction | null; readonly refusal: string | null } {
   const station = posted(target);
   if (station === null) return { action: null, refusal: null };
-  const held = heldAt(station, view);
+  const held = heldAt(station, view).filter(
+    (troop) => composition === null || composition.includes(troop.id),
+  );
   const onMyGround =
     target.regionId !== null &&
     view.me.buildings.some((building) => building.regionId === target.regionId);
