@@ -79,7 +79,7 @@ export function HandSheet({
     <MapCard
       kicker={fr.hand.kicker(place)}
       aside={<GunneryButton onOpen={onOpenGunnery} />}
-      at={EDGE}
+      at={edge()}
       gap={{ x: 0, y: 0 }}
       width={300}
       /* Au doigt, la feuille reste à son tiers et ouvre sur ce qui se joue — poser, fonder — :
@@ -122,5 +122,12 @@ export function HandSheet({
   );
 }
 
-/** Le coin haut-gauche du plateau : loin du pointeur qui cherche où poser. */
-const EDGE = { x: 16, y: 16 };
+/** Le coin haut-gauche du plateau, sous la réglette et à droite de la colonne (`Shell` publie
+ *  leurs bords) : loin du pointeur qui cherche où poser, et sans rien couvrir de la table. */
+function edge(): { x: number; y: number } {
+  const root = getComputedStyle(document.documentElement);
+  const inset = (name: string) => parseFloat(root.getPropertyValue(name)) || 0;
+  return { x: inset('--board-left') + EDGE_AIR, y: inset('--board-top') + EDGE_AIR };
+}
+
+const EDGE_AIR = 12;
