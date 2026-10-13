@@ -55,3 +55,21 @@ export function nightOfAltitude(altitude: number): number {
 
 export const nightAt = (epochMs: number, at: LonLat): number =>
   nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
+
+export type DayCycle = 'real' | 'hour';
+export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['real', 'hour'];
+export const DEFAULT_DAY_CYCLE: DayCycle = 'real';
+export const isDayCycle = (value: unknown): value is DayCycle =>
+  DAY_CYCLES.includes(value as DayCycle);
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * The instant the board's sun is read at. Sped up, a whole day runs in each real hour: the hour of
+ * day is the minutes into the real hour, set on the real date, so the declination stays the day's.
+ * It only steps back at the hour mark, by the day's drift of the sun (under a degree).
+ */
+export function boardInstant(epochMs: number, cycle: DayCycle): number {
+  if (cycle === 'real') return epochMs;
+  return epochMs - (epochMs % DAY_MS) + ((epochMs % HOUR_MS) / HOUR_MS) * DAY_MS;
+}

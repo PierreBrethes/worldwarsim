@@ -36,6 +36,7 @@ import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
+import { boardInstant, type DayCycle } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
@@ -211,6 +212,7 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly forcedInstant = forcedInstant(location.search);
+  private dayCycle: DayCycle = 'real';
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -1292,6 +1294,11 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
+  setDayCycle(cycle: DayCycle): void {
+    this.invalidate();
+    this.dayCycle = cycle;
+  }
+
   setMapMotion(motion: MapMotion): void {
     this.invalidate();
     this.ambience.motion = motion;
@@ -1689,7 +1696,7 @@ export class MapEngine {
     const distance = this.camera.position.distanceTo(this.controls.target);
     const looked = this.controls.target;
     this.night.apply(
-      this.forcedInstant ?? Date.now(),
+      this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle),
       this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
       distance,
     );
