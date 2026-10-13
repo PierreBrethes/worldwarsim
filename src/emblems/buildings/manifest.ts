@@ -1,4 +1,19 @@
-import type { BuildingKey } from '@/domain/ids';
+import type { BuildingKey, DepositKey } from '@/domain/ids';
+import airfieldMaquette from './airfield.glb';
+import arsenalMaquette from './arsenal.glb';
+import barracksMaquette from './barracks.glb';
+import billetsMaquette from './billets.glb';
+import coalMineMaquette from './coalMine.glb';
+import farmMaquette from './farm.glb';
+import foundryMaquette from './foundry.glb';
+import hqMaquette from './hq.glb';
+import listeningMaquette from './listening.glb';
+import millMaquette from './mill.glb';
+import mineMaquette from './mine.glb';
+import oilWellMaquette from './oilWell.glb';
+import portMaquette from './port.glb';
+import quartermasterMaquette from './quartermaster.glb';
+import warehouseMaquette from './warehouse.glb';
 import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
 import barracks from './barracks.webp';
@@ -48,3 +63,32 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];
+
+/**
+ * **The maquettes, one per plate and the same for every nation** (ADR 0026 §1): what stands at a
+ * building's point up close, in place of its plate. Same sculpting brief as the figurines — y up,
+ * origin on the ground. A historical depot reads as the warehouse it is now, as its plate does:
+ * the `depot` maquette drawn for it is not used. `null` would leave the plate.
+ */
+export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = {
+  hq: hqMaquette,
+  farm: farmMaquette,
+  mill: millMaquette,
+  mine: mineMaquette,
+  oilWell: oilWellMaquette,
+  foundry: foundryMaquette,
+  arsenal: arsenalMaquette,
+  quartermaster: quartermasterMaquette,
+  barracks: barracksMaquette,
+  airfield: airfieldMaquette,
+  port: portMaquette,
+  listening: listeningMaquette,
+  billets: billetsMaquette,
+  warehouse: warehouseMaquette,
+  depot: warehouseMaquette,
+};
+
+/** The one mine that changes with its ground: the region decides what it digs (`economy.ts`),
+ *  and the headframe says it. The deposit is public, so it tells nothing the atlas does not. */
+export const buildingMaquette = (key: BuildingKey, deposit: DepositKey | null): string | null =>
+  key === 'mine' && deposit === 'coal' ? coalMineMaquette : BUILDING_MAQUETTES[key];

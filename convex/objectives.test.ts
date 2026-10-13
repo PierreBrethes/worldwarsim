@@ -7,7 +7,7 @@ import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { RESOURCES } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
-import { OBJECTIVE_SPRITES } from '../src/emblems/objectives/manifest';
+import { OBJECTIVE_MAQUETTES, OBJECTIVE_SPRITES } from '../src/emblems/objectives/manifest';
 import {
   CARRY_CAPACITY_BY_ROLE,
   nominalStrength,
@@ -221,6 +221,7 @@ describe('the neutral objectives', () => {
       expect(Object.keys(OBJECTIVE_SPRITES).sort()).toEqual(
         OBJECTIVE_ARCHETYPES.map((archetype) => archetype.key).sort(),
       );
+      expect(Object.keys(OBJECTIVE_MAQUETTES).sort()).toEqual(Object.keys(OBJECTIVE_SPRITES).sort());
     });
   });
 
