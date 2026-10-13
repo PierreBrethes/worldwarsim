@@ -62,8 +62,15 @@ describe('toggles', () => {
       ['buildings', true],
       ['deposits', true],
       ['outposts', true],
+      ['objectives', true],
       ['inbound', true],
     ]);
+  });
+
+  it('files the neutral objectives under their own layer, and every surveyed opponent under intel', () => {
+    expect(CATEGORY_BY_TYPE.objective).toBe('objectives');
+    expect(CATEGORY_BY_TYPE.camp).toBe('intel');
+    expect(CATEGORY_BY_TYPE.installation).toBe('intel');
   });
 
   it('gives a category to each label type', () => {

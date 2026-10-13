@@ -125,6 +125,7 @@ const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
     ),
   },
   outposts: { pictogram: 'outpost' },
+  objectives: { pictogram: 'supply' },
   constructions: { pictogram: 'construction' },
   forces: { pictogram: 'forces' },
   'my-movements': {

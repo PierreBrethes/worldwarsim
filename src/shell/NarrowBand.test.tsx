@@ -100,7 +100,7 @@ describe('the narrow band', () => {
     expect(screen.queryByRole('dialog', { name: nationLabel('france') })).toBeNull();
   });
 
-  it('trades the dossier for the layers sheet, eight toggles on two columns', async () => {
+  it('trades the dossier for the layers sheet, nine toggles on two columns', async () => {
     await mount();
     act(() => dossierButton().click());
     act(() => screen.getByRole('button', { name: /Calques de la carte/ }).click());
@@ -110,7 +110,7 @@ describe('the narrow band', () => {
       within(layers)
         .getAllByRole('button')
         .filter((toggle) => toggle.hasAttribute('aria-pressed')),
-    ).toHaveLength(8);
+    ).toHaveLength(9);
     expect(screen.queryByRole('dialog', { name: nationLabel('france') })).toBeNull();
   });
 

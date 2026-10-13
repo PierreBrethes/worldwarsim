@@ -3,7 +3,7 @@ import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
-import { depositOfRegion, loadCoastalRegions, type RegionIdentity } from '@/domain/world';
+import { depositOfRegion, loadCoastalRegions, type HoveredRegion } from '@/domain/world';
 import { Row, Panel } from './Panel';
 
 /**
@@ -59,7 +59,7 @@ export function GroundPanel({
 }: {
   selected: string | null;
   hoveredCountry: string | null;
-  hoveredRegion: RegionIdentity | null;
+  hoveredRegion: HoveredRegion | null;
   holding: RegionHolding | null;
   /**
    * **L'heure où sa zone hors service redevient la sienne** (ADR 0020 §7), `null` partout
@@ -134,6 +134,9 @@ export function GroundPanel({
         <div className="mt-[10px] border-t border-[var(--ink)] pt-[9px]">
           <span className="eyebrow block">{fr.board.regionLabel}</span>
           <p className="mt-1 text-[13px] text-[var(--ink)]">{hovered.name}</p>
+          <p className="text-[11.5px] text-[var(--ink-soft)]">
+            {fr.board.regionTerrain(fr.regionTypes[hovered.type])}
+          </p>
           <p className="text-[11.5px] text-[var(--ink-soft)]">
             {deposit === null
               ? fr.board.regionNoDeposit

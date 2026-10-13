@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abbreviateStack, buildLabels, type MapMarker } from './labels';
+import { abbreviateStack, buildLabels, cartoucheShown, type MapMarker } from './labels';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
 import { asLocalTime } from './duration';
@@ -338,5 +338,50 @@ describe('abbreviateStack', () => {
 
   it('ignores zeroed roles', () => {
     expect(abbreviateStack({ infantry: 12, armor: 0 })).toBe('12 INF');
+  });
+});
+
+/**
+ * **Les pièces se nomment au survol** (retours de Pierre du 13/10) : au repos la carte montre la
+ * planche ou la figurine, le cartouche vient au pointeur — souris qui survole ou doigt qui touche —
+ * et reste sur la pièce désignée.
+ */
+describe('cartoucheShown', () => {
+  const named = { role: 'nature', text: 'Fonderie' } as const;
+  const rest = { pointed: false, selected: false };
+
+  it('keeps a building, a pile and a neutral objective quiet at rest', () => {
+    for (const type of [
+      'building',
+      'stack',
+      'objective',
+      'outpost',
+      'installation',
+      'camp',
+    ] as const)
+      expect(cartoucheShown({ type, lines: [named] }, rest)).toBe(false);
+  });
+
+  it('names the piece the pointer is on, by mouse or by finger', () => {
+    expect(cartoucheShown({ type: 'building', lines: [named] }, { ...rest, pointed: true })).toBe(
+      true,
+    );
+  });
+
+  it('keeps naming the selected piece once the pointer has left', () => {
+    expect(cartoucheShown({ type: 'stack', lines: [named] }, { ...rest, selected: true })).toBe(
+      true,
+    );
+  });
+
+  it('leaves a running countdown on the board, since it is a duration to watch', () => {
+    const due = { role: 'countdown', dueAt: LOADED_AT, prefix: '' } as const;
+    expect(cartoucheShown({ type: 'building', lines: [named, due] }, rest)).toBe(true);
+    expect(cartoucheShown({ type: 'construction', lines: [named, due] }, rest)).toBe(true);
+  });
+
+  it('never quiets a movement head', () => {
+    expect(cartoucheShown({ type: 'my-movement', lines: [named] }, rest)).toBe(true);
+    expect(cartoucheShown({ type: 'inbound-movement', lines: [named] }, rest)).toBe(true);
   });
 });

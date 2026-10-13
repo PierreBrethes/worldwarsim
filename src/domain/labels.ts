@@ -374,6 +374,33 @@ export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role:
   line.role === 'countdown';
 
 /**
+ * **Les pièces se nomment au pointeur** (retours de Pierre du 13/10) : la planche, la figurine,
+ * bientôt la maquette disent ce qu'elles sont, et vingt cartouches au repos couvraient la carte
+ * qu'ils nommaient. Les installations adverses et les objectifs suivent la même règle — un mât
+ * se lit au même geste qu'il soit à moi ou non. `pointed` est la souris qui survole ou le doigt
+ * qui vient de toucher, faute de survol.
+ *
+ * Deux exceptions, chacune pour ce qu'elle porte et non pour ce qu'elle est : un compte à
+ * rebours reste au repos, parce que c'est une durée qu'on surveille d'un coup d'œil (le chantier,
+ * l'élévation, le point qui se lève) ; et une tête de mouvement n'est pas une pièce posée — sa
+ * ligne dit l'heure d'arrivée, et l'alerte « cap sur moi » ne s'attend pas au survol.
+ */
+const NAMED_WHEN_POINTED: ReadonlySet<LabelType> = new Set([
+  'building',
+  'stack',
+  'outpost',
+  'objective',
+  'installation',
+  'camp',
+]);
+
+export const cartoucheShown = (
+  label: Pick<MapLabel, 'type' | 'lines'>,
+  { pointed, selected }: { readonly pointed: boolean; readonly selected: boolean },
+): boolean =>
+  !NAMED_WHEN_POINTED.has(label.type) || pointed || selected || label.lines.some(isCountdown);
+
+/**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
  * not coming at me — slots below mine and above the construction: an enemy contact reads
  * before a build duration, but after what I pilot myself. The building comes near-last: it

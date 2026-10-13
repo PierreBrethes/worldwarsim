@@ -18,6 +18,7 @@ export type IndicatorCategory =
   | 'buildings'
   | 'deposits'
   | 'outposts'
+  | 'objectives'
   | 'constructions'
   | 'forces'
   | 'my-movements'
@@ -29,6 +30,13 @@ export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, IndicatorCateg
   building: 'buildings',
   deposit: 'deposits',
   outpost: 'outposts',
+  /** Une réserve neutre n'est ni à moi ni à l'autre : sa propre couche, qui emporte aussi la
+   *  garnison relevée à son pied (`plateau.tsx`). */
+  objective: 'objectives',
+  /** Le renseignement est tout ce qu'on a relevé chez l'autre : ses colonnes, ses forces posées,
+   *  ses installations — trois natures, une seule question, « où est-il ». */
+  camp: 'intel',
+  installation: 'intel',
   construction: 'constructions',
   stack: 'forces',
   'my-movement': 'my-movements',
@@ -60,6 +68,9 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
   deposits: true,
   outposts: true,
+  /** Allumée pour la même raison que les avant-postes : une réserve annoncée par dépêche qui ne
+   *  se tient nulle part sur la carte ne ferait converger personne. */
+  objectives: true,
   constructions: false,
   forces: false,
   'my-movements': false,
@@ -71,6 +82,7 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
   'buildings',
   'deposits',
   'outposts',
+  'objectives',
   'constructions',
   'forces',
   'my-movements',

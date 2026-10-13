@@ -742,3 +742,27 @@
   font-size: 11px;
   color: var(--ink-soft);
 }
+
+/* **Les pièces se nomment au pointeur** (retours du 13/10, `cartoucheShown`) : au repos, la
+   planche ou la figurine seule, sans mot ni mât — comme une pièce repliée. Le cartouche vient au
+   survol, au toucher, et reste sur la pièce désignée. */
+.label--quiet .label-lines,
+.label--quiet .label-bar {
+  display: none;
+}
+
+/* Pointée, la pièce se nomme même repliée ou vue de loin, et passe devant ses voisines ; un
+   cartouche réuni garde la parole pour les siens. */
+.label-anchor:has(.label--pointed) {
+  z-index: 3;
+}
+
+.label--pointed:not(.label--grouped) .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--pointed:not(.label--grouped) .label-lines,
+.label--pointed:not(.label--grouped) .label-bar {
+  display: block;
+}

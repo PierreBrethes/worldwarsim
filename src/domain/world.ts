@@ -33,6 +33,10 @@ export type RegionIdentity = {
   readonly name: string;
 };
 
+/** La région sous le pointeur dit aussi son terrain : le survol est la seule lecture qui le
+ *  demande, et `regionAtPoint` reste une identité. */
+export type HoveredRegion = RegionIdentity & { readonly type: RegionType };
+
 export type DisplayedRegion = RegionIdentity & {
   readonly type: RegionType;
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;

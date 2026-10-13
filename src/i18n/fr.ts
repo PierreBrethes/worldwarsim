@@ -934,6 +934,8 @@ export const fr = {
      * one true fact about the region was available and unused.
      */
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
+    /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
+    regionTerrain: (terrain: string) => `terrain : ${terrain}`,
     regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
     regionCoastal: 'côtière — port possible',
   },
@@ -1131,6 +1133,7 @@ export const fr = {
     buildings: 'bâtiments',
     deposits: 'gisements',
     outposts: 'avant-postes',
+    objectives: 'objectifs neutres',
     constructions: 'chantiers',
     forces: 'forces',
     'my-movements': 'mes mouvements',
@@ -1145,6 +1148,7 @@ export const fr = {
       buildings: 'bâtiments',
       deposits: 'gisements',
       outposts: 'avant-postes',
+      objectives: 'objectifs neutres',
       constructions: 'chantiers',
       forces: 'forces',
       'my-movements': 'mouvements',

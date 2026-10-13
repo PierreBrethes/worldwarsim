@@ -52,7 +52,7 @@ import { lootWords } from '@/domain/journal';
 import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
-import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
+import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
   isOrder,
@@ -405,7 +405,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const narrow = useNarrowScreen();
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
+  const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
@@ -1303,16 +1303,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
      * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
      */
-    const camps: ReadonlyArray<MapMarker> = view.camps.map((camp) => ({
-      kind: 'camp' as const,
-      id: `camp-${camp.id}`,
-      campId: camp.id,
-      lonLat: camp.point,
-      medium: camp.medium,
-      lastKnown: camp.lastKnown,
-      since: camp.since,
-      seenMinutesAgo: camp.seenMinutesAgo,
-    }));
+    /** **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact
+     *  de la réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait
+     *  plus rien. */
+    const isObjectivePoint = (point: LonLat): boolean =>
+      view.objectives.some(
+        (objective) => objective.point[0] === point[0] && objective.point[1] === point[1],
+      );
+    const camps: ReadonlyArray<MapMarker> = view.camps
+      .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
+      .map((camp) => ({
+        kind: 'camp' as const,
+        id: `camp-${camp.id}`,
+        campId: camp.id,
+        lonLat: camp.point,
+        medium: camp.medium,
+        lastKnown: camp.lastKnown,
+        since: camp.since,
+        seenMinutesAgo: camp.seenMinutesAgo,
+      }));
 
     /**
      * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
@@ -1321,17 +1330,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * Il ne porte ni encre ni garnison — un objectif n'appartient à personne, et ce qui le tient
      * se relève comme toute force posée.
      */
-    const objectives: ReadonlyArray<MapMarker> = view.objectives.map((objective) => ({
-      kind: 'objective' as const,
-      id: `objective-${objective.id}`,
-      objectiveId: objective.id,
-      lonLat: objective.point,
-      name: fr.objectives.names[objective.key] ?? objective.key,
-      tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
-      plate: objectiveSprite(objective.key),
-      depot: lootWords(objective.depot),
-      emptied: objective.status === 'taken',
-    }));
+    const objectives: ReadonlyArray<MapMarker> = (toggles.objectives ? view.objectives : []).map(
+      (objective) => ({
+        kind: 'objective' as const,
+        id: `objective-${objective.id}`,
+        objectiveId: objective.id,
+        lonLat: objective.point,
+        name: fr.objectives.names[objective.key] ?? objective.key,
+        tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
+        plate: objectiveSprite(objective.key),
+        depot: lootWords(objective.depot),
+        emptied: objective.status === 'taken',
+      }),
+    );
 
     const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
       kind: 'installation' as const,
@@ -1428,6 +1439,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     knownRegionById,
     toggles.buildings,
     toggles.deposits,
+    toggles.objectives,
   ]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);

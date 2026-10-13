@@ -30,7 +30,7 @@ import {
   type MouseRole,
 } from '@/domain/mouse-mapping';
 import type { LonLat } from '@/domain/geo';
-import type { RegionIdentity, RegionsData, World } from '@/domain/world';
+import type { HoveredRegion, RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
@@ -269,7 +269,7 @@ export class MapEngine {
    * card has to keep answering when there is no region to name yet.
    */
   onCountryHover: (adm0: string | null) => void = () => {};
-  onRegionHover: (region: RegionIdentity | null) => void = () => {};
+  onRegionHover: (region: HoveredRegion | null) => void = () => {};
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
   /**
@@ -1558,7 +1558,7 @@ export class MapEngine {
 
   /** Region hover only exists once the layer has faded in on screen, never at sea. */
   private updateRegionHover(point: Vector3 | null): void {
-    let region: RegionIdentity | null = null;
+    let region: HoveredRegion | null = null;
     if (point !== null && this.regions.isActive) {
       region = this.regions.hover(point.x + this.frame.centerX, point.z + this.frame.centerY);
     } else {
