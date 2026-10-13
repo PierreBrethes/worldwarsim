@@ -114,6 +114,16 @@ l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au
 « envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
 la rose et l'aperçu refermés la reposent.
 
+**Et la pièce se tient comme une pièce d'échecs** (lot « tampons et gestes », 13/10/2026, gestes
+du prototype `table-etat-major.html`, courbes pures dans `src/map/engine/landing.ts`). Levée,
+la copie monte, suit le pointeur avec un temps de retard et se balance ; son ombre est un disque
+au sol qui s'étale et pâlit avec la hauteur. **Posée** là où la rose s'ouvre (`setDownPiece`),
+elle tombe, rebondit et attend l'ordre ; **reposée**, elle rentre en glissant et retombe chez
+elle ; **envoyée**, son pion prend le relais (`departures`, compté par le plateau à l'ordre
+parti) ; une pile déployée qui se referme retombe aussi. Pas de main 3D : le curseur système la
+porte. Tout cela est une animation **déclarée à la boucle** (`standing.isCarrying`), en
+`actives` seulement — réduites ou coupées, la pièce est où elle doit être, d'un coup.
+
 **Et la pile levée se déploie — 13/10/2026** (ADR 0026 §6). Lever prend toute la pile ; levée,
 une pile de plusieurs troupes s'ouvre au sol, **une figurine par troupe** avec ses dix crans de
 vie (`pilePieces(...).spread`, rangées de quatre centrées sur le point et tournées vers l'œil —
@@ -532,7 +542,11 @@ l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonc
 (`weather.ts`, `ribbons.ts`), les courants marins y passent en filigrane (`currents.ts`), une
 écume respire le long des côtes au rapproché, lue sur un seul champ de distance à la côte
 (`coast-distance.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat
-s'imprime (`ink.ts`, `ink-bursts.ts`), et le rayon d'un de mes avant-postes qui se lève ou
+s'imprime (`ink.ts`, `ink-bursts.ts`) — un **tampon grenu** du prototype, le mot et l'heure,
+écrasé de 1,7 à 1, tenu trois secondes et levé (`stampAt`) : « arrivé », « engagé », puis
+« terrain tenu » après un engagement gagné et à l'ouverture du compte rendu d'un rejeu gagné, et
+« hors réseau » sur la région d'un de mes sites à l'instant où elle décolore (`cutRegions`, lu
+sur `regions[].linked`) —, et le rayon d'un de mes avant-postes qui se lève ou
 monte se trace une fois autour de lui (`raisedReaches`, muet à l'ouverture de la carte). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
