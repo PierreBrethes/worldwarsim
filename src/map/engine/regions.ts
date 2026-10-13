@@ -341,6 +341,14 @@ export class RegionLayer {
    * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
    * quand les 500 Ko atterrissent, comme pour les bâtiments.
    */
+  /** The countries not laid on the bare paper (an opponent nation's lavis), by `adm0`: the pen
+   *  reads its ground from there. */
+  private grounds: ReadonlyMap<string, string> = new Map();
+
+  setGrounds(grounds: ReadonlyMap<string, string>): void {
+    this.grounds = grounds;
+  }
+
   showHeld(claims: ReadonlyArray<HeldClaim>): void {
     const signature = JSON.stringify(claims);
     if (signature === this.laid) return;
@@ -612,12 +620,14 @@ export class RegionLayer {
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
     const painted = held === undefined || held.state === 'suspended' ? null : held;
+    const under = (region && this.grounds.get(region.country)) ?? PALETTE.neutralLand;
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
       performance.now(),
       painted?.ink ?? null,
       painted === null ? 0 : HELD_OPACITY * painted.wash,
+      under,
     );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
@@ -627,7 +637,9 @@ export class RegionLayer {
 
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
      *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
-    this.hoverMaterial.color.set(inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0)));
+    this.hoverMaterial.color.set(
+      inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0), under),
+    );
 
     const points: number[] = [];
     for (const ring of region.rings) {

@@ -917,12 +917,17 @@ export class MapEngine {
   /** A sheet painted whole takes the holder's lavis instead of the nation's, as its region fills
    *  did: both over the paper, never one over the other (`lavis`). */
   private paintCountries(): void {
+    const grounds = new Map<string, string>();
     for (const mesh of this.countries) {
       const sheet = this.sheets.get(mesh.userData.adm0);
-      const ink = sheet ?? this.nationInks.get(mesh.userData.name);
+      const nation = this.nationInks.get(mesh.userData.name);
+      if (sheet === undefined && nation !== undefined)
+        grounds.set(mesh.userData.adm0, lavis(nation));
+      const ink = sheet ?? nation;
       mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : lavis(ink));
       mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
     }
+    this.regions.setGrounds(grounds);
   }
 
   /**

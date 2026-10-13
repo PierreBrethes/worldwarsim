@@ -156,13 +156,18 @@ describe('cluster', () => {
     expect(groups[0]?.nearest).toBe('near');
   });
 
-  it('yields the same partition twice in a row — what allows computing at rest', () => {
+  it('answers the same whatever the order it is handed — what allows computing at rest', () => {
     const raws = [
       raw({ id: 'a', x: RIGHT, y: 100 }),
       raw({ id: 'b', x: 30, y: 100 }),
       raw({ id: 'c', x: 400, y: EDGE_MARGIN }),
     ];
-    expect(cluster(raws, WIDTH, HEIGHT)).toEqual(cluster(raws, WIDTH, HEIGHT));
+    expect(cluster(raws, WIDTH, HEIGHT)).toEqual(cluster([...raws].reverse(), WIDTH, HEIGHT));
+  });
+
+  it('files a corner under one edge, and says which', () => {
+    const groups = cluster([raw({ id: 'a', x: RIGHT, y: EDGE_MARGIN })], WIDTH, HEIGHT);
+    expect(groups[0]?.side).toBe('top');
   });
 });
 

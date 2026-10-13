@@ -139,7 +139,8 @@ export type RawIndicator = {
   /** The point folded onto the inner rectangle (`clampToEdge`). */
   readonly x: number;
   readonly y: number;
-  /** How far from the screen centre the real point lies, in pixels: the smallest is the nearest. */
+  /** How far the real point lies from the eye, in world units: the smallest is the nearest. A
+   *  screen distance would lie for a point behind the camera. */
   readonly reach: number;
 };
 
@@ -148,6 +149,7 @@ export type EdgeSide = 'top' | 'right' | 'bottom' | 'left';
 export type IndicatorGroup = {
   readonly id: string;
   readonly category: IndicatorCategory;
+  readonly side: EdgeSide;
   readonly priority: number;
   readonly members: ReadonlyArray<string>;
   /** What a click brings back: framing a whole edge of deposits would fly to the world view. */
@@ -166,35 +168,48 @@ export function cluster(
   width: number,
   height: number,
 ): ReadonlyArray<IndicatorGroup> {
-  const groups = new Map<string, RawIndicator[]>();
+  const groups = new Map<string, { side: EdgeSide; members: RawIndicator[] }>();
   for (const indicator of indicators) {
-    const id = `${indicator.category}:${sideOf(indicator, width, height)}`;
+    const side = sideOf(indicator.x, indicator.y, width, height);
+    const id = `${indicator.category}:${side}`;
     const group = groups.get(id);
-    if (group) group.push(indicator);
-    else groups.set(id, [indicator]);
+    if (group) group.members.push(indicator);
+    else groups.set(id, { side, members: [indicator] });
   }
-  return [...groups].map(([id, members]) => {
-    const ranked = [...members].sort((first, second) => second.priority - first.priority);
-    const lead = ranked[0] as RawIndicator;
-    const nearest = members.reduce((best, member) => (member.reach < best.reach ? member : best));
-    return {
-      id,
-      category: lead.category,
-      priority: lead.priority,
-      members: ranked.map((member) => member.id),
-      nearest: nearest.id,
-    };
-  });
+  return [...groups]
+    .sort(([first], [second]) => first.localeCompare(second))
+    .map(([id, { side, members }]) => {
+      const ranked = [...members].sort(
+        (first, second) => second.priority - first.priority || first.id.localeCompare(second.id),
+      );
+      const lead = ranked[0] as RawIndicator;
+      const nearest = ranked.reduce((best, member) => (member.reach < best.reach ? member : best));
+      return {
+        id,
+        category: lead.category,
+        side,
+        priority: lead.priority,
+        members: ranked.map((member) => member.id),
+        nearest: nearest.id,
+      };
+    });
 }
 
-function sideOf({ x, y }: { x: number; y: number }, width: number, height: number): EdgeSide {
-  const gaps: ReadonlyArray<readonly [EdgeSide, number]> = [
-    ['top', y],
-    ['right', width - x],
-    ['bottom', height - y],
-    ['left', x],
-  ];
-  return gaps.reduce((best, gap) => (gap[1] < best[1] ? gap : best))[0];
+/** The edge a folded point sits on: the nearest of the four, `top` first at a corner. */
+export function sideOf(x: number, y: number, width: number, height: number): EdgeSide {
+  // Read every frame by the edge layer: comparisons, nothing allocated.
+  let side: EdgeSide = 'top';
+  let gap = y;
+  if (width - x < gap) {
+    side = 'right';
+    gap = width - x;
+  }
+  if (height - y < gap) {
+    side = 'bottom';
+    gap = height - y;
+  }
+  if (x < gap) side = 'left';
+  return side;
 }
 
 /**

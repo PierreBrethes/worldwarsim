@@ -30,7 +30,7 @@ export type DetailLevel = 'glyph' | 'expanded';
  * Placeholders, read on the board: France fills the screen at 11, Europe at 24.
  */
 const CLOSE_FULL_DISTANCE = 14;
-const CLOSE_GONE_DISTANCE = 20;
+export const CLOSE_GONE_DISTANCE = 20;
 
 export const closeShare = (cameraDistance: number): number =>
   Math.min(
@@ -65,6 +65,8 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
+  distance: number;
   /**
    * Off-frame: the anchor parks at the screen edge.
    */
@@ -139,6 +141,7 @@ export class LabelLayer {
         lod: 'glyph',
         fade: fadesWith === null ? 1 : 0,
         dressed: 0,
+        distance: 0,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -195,6 +198,7 @@ export class LabelLayer {
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
       projection.visible = inFrame;
+      projection.distance = distance;
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';

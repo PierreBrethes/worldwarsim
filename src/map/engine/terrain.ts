@@ -503,15 +503,18 @@ const DARK_GROUND_LUMA = 0.6;
 
 /**
  * Dark ink vanishes on a dark ground (France's blue): there the pen draws in paper. The ground is
- * what is *painted*, not the seat's ink: a held region lays it at `opacity` over the land (a
- * faded survey barely tints it). Its luma is read on the sRGB numbers, and the board's light
- * darkens what it lays on, so a ground reads dark well above the middle grey. No `ink` is the
- * bare sheet.
+ * what is *painted*: the held ink laid at `opacity` over what lies under it — the bare paper, or
+ * an opponent's country in his nation's lavis (a faded survey barely tints it). Its luma is read
+ * on the sRGB numbers, and the board's light darkens what it lays on, so a ground reads dark well
+ * above the middle grey. No `ink` is the ground alone.
  */
-export function inkOn(ink: string | null, opacity: number): string {
-  if (ink === null) return PALETTE.border;
-  const ground = parseInt(lavis(ink, opacity).slice(1), 16);
-  const channel = (shift: number) => ((ground >> shift) & 255) / 255;
+export function inkOn(
+  ink: string | null,
+  opacity: number,
+  ground: string = PALETTE.neutralLand,
+): string {
+  const painted = parseInt((ink === null ? ground : lavis(ink, opacity, ground)).slice(1), 16);
+  const channel = (shift: number) => ((painted >> shift) & 255) / 255;
   const luma = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
   return luma < DARK_GROUND_LUMA ? PALETTE.paper : PALETTE.border;
 }
@@ -543,6 +546,8 @@ export class TerrainSketches {
     now: number,
     ground: string | null = null,
     groundOpacity = 0,
+    /** What the held ink is laid over: the paper, or an opponent nation's lavis. */
+    under: string = PALETTE.neutralLand,
   ): void {
     for (const leaving of this.sketches.filter(
       (s) => s.leftAt === null && s.regionId !== regionId,
@@ -559,7 +564,7 @@ export class TerrainSketches {
     }
     const line = new LineSegments2(
       new LineSegmentsGeometry(),
-      this.material(inkOn(ground, groundOpacity)),
+      this.material(inkOn(ground, groundOpacity, under)),
     );
     /** Transparent like the fills it lies on: drawn before them, a paper stroke is tinted by the
      *  nation's ink and reads grey-blue. */

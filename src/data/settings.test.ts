@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CLASSIC_MAPPING, WHEEL_ACTS_MAPPING } from '@/domain/mouse-mapping';
-import { keepMouseMapping, readMouseMapping } from './settings';
+import { DEFAULT_TOGGLES } from '@/domain/indicators';
+import {
+  keepIndicatorToggles,
+  keepMouseMapping,
+  readIndicatorToggles,
+  readMouseMapping,
+} from './settings';
 
 /** Le magasin du navigateur, réduit à ce que les réglages lui demandent. */
 const kept = new Map<string, string>();
@@ -30,5 +36,19 @@ describe('le mappage gardé par le navigateur', () => {
       kept.set('wws-mouse-mapping', corrupt);
       expect(readMouseMapping()).toEqual(CLASSIC_MAPPING);
     }
+  });
+});
+
+describe('les bascules gardées par le navigateur', () => {
+  /** Avant le 13/10, toute bascule touchée écrivait l'objet entier, `deposits: true` compris —
+   *  le défaut d'alors, pas un choix du joueur. */
+  it('ne relit pas les gisements écrits avant leur rapproché', () => {
+    kept.set('wws-edge-indicators', JSON.stringify({ ...DEFAULT_TOGGLES, deposits: true }));
+    expect(readIndicatorToggles().deposits).toBe(false);
+  });
+
+  it('rend les gisements allumés depuis', () => {
+    keepIndicatorToggles({ ...DEFAULT_TOGGLES, deposits: true });
+    expect(readIndicatorToggles().deposits).toBe(true);
   });
 });

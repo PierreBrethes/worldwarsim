@@ -51,8 +51,12 @@ const channelsOf = (hex: string): ReadonlyArray<number> => {
 };
 
 /** The ink laid on the paper at a load, as the framebuffer blends it: in sRGB. */
-export function lavis(ink: string, load: number = HELD_OPACITY): string {
-  const paper = channelsOf(PALETTE.neutralLand);
+export function lavis(
+  ink: string,
+  load: number = HELD_OPACITY,
+  ground: string = PALETTE.neutralLand,
+): string {
+  const paper = channelsOf(ground);
   return `#${channelsOf(ink)
     .map((channel, index) =>
       Math.round(paper[index]! * (1 - load) + channel * load)

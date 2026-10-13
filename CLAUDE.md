@@ -337,8 +337,9 @@ soit le réglage, et la bascule « gisements » — éteinte par défaut — les
 des régions et au bord de l'écran. Les **teintes de possession sont un lavis** : l'encre du siège posée
 sur le papier à `HELD_OPACITY` (0,65, `map/engine/palette.ts`, fonction `lavis`), pour une région
 comme pour un pays tenu entier — la feuille n'empile plus l'encre du siège sur celle de la nation
-posée pleine, qui écrasait les pièces. Une région bâtie est le même lavis plus chargé (`builtInk`),
-et la plume des dessins lit ce même lavis (`inkOn`).
+posée pleine, qui écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
+nation, et ce qu'on y tient s'y pose par-dessus. Une région bâtie est le même lavis plus chargé (`builtInk`),
+et la plume des dessins lit ce qui est réellement peint dessous (`inkOn`, `setGrounds`).
 
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
