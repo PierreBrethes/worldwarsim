@@ -98,7 +98,7 @@ function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
       ref={container}
       tabIndex={-1}
       role="dialog"
-      className="float hud board-window @container flex flex-col overflow-hidden outline-none"
+      className="hud board-window @container flex flex-col overflow-hidden outline-none"
       style={
         {
           zIndex: `calc(var(--z-window) + ${rank})`,

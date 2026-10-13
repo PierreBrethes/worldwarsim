@@ -108,7 +108,6 @@
   --z-rose: 52;
   --z-hovercard: 55;
   --z-veil: 60;
-  --z-grain: 70;
   --z-notice: 80;
 
   /* geometry */
@@ -125,7 +124,6 @@
   --radius: 0;
   --shadow: none;
   --shadow-float: 0 12px 26px rgb(0 0 0 / 42%);
-  --shadow-float-lg: 0 18px 40px rgb(0 0 0 / 45%);
 }
 
 /* Plain paper, laid flat: the halftone screen lowered the contrast of everything written on it
