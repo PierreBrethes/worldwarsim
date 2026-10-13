@@ -20,6 +20,13 @@ import { SoleSurfaceProvider } from './sole-surface';
  * nation et des mouvements, huit colonnes dessous, et le drapeau qui ouvre le dossier de la nation — ce qu'on
  * cherche à froid, une ligne par porte. Il ne se replie plus.
  */
+vi.stubGlobal('matchMedia', (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+}));
+
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);
 
