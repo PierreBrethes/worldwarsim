@@ -11,7 +11,9 @@ import type { UnitRole } from '@/domain/ids';
 import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
-import { blockFigurine } from './blocks';
+import { blockFigurine, washedBlock } from './blocks';
+import { nearWeight } from './figurines/figurine';
+import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -24,6 +26,8 @@ type RenderedArc = {
   thread: Thread;
   unrolled: ReadonlyArray<UnrolledSegment>;
   pawn: Pawn;
+  /** A last known position's washed block, at the end of the frozen stretch; `null` otherwise. */
+  relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
   /**
@@ -180,6 +184,16 @@ export class ArcLayer {
         pawn.visible = false;
       }
 
+      const relicMedium = lastKnownMedium(arc);
+      const lastLeg = thread.legs.at(-1);
+      let relic: Group | null = null;
+      if (relicMedium !== null && lastLeg !== undefined) {
+        relic = washedBlock(relicMedium);
+        pointOnLeg(lastLeg, 1, relic.position);
+        relic.visible = false;
+        this.group.add(relic);
+      }
+
       const headPosition = new Vector3();
       this.headPositions.set(arc.id, headPosition);
 
@@ -188,6 +202,7 @@ export class ArcLayer {
         thread,
         unrolled: unrollRoute(arc.route),
         pawn,
+        relic,
         headPosition,
         /** A column the server says is at the end of its thread wins over the value the loop
          *  carried: held at the border, its pace is nil, and a pawn carried to 0,98 would
@@ -238,6 +253,12 @@ export class ArcLayer {
     this.lastFrameMs = now;
 
     for (const rendered of this.rendered) {
+      if (rendered.relic !== null) {
+        const near = nearWeight(rendered.relic.position.distanceTo(this.cameraPosition));
+        rendered.relic.visible = near > 0;
+        rendered.relic.scale.setScalar(near);
+        rendered.relic.rotation.set(0, this.cameraYaw, 0);
+      }
       const inkedUntil = this.inking.get(rendered.arc.id);
       if (inkedUntil !== undefined && now >= inkedUntil) {
         this.inking.delete(rendered.arc.id);
@@ -310,6 +331,7 @@ export class ArcLayer {
     for (const rendered of this.rendered) {
       rendered.thread.dispose();
       rendered.pawn.dispose();
+      rendered.relic?.removeFromParent();
     }
     this.rendered = [];
     this.targets = [];
@@ -335,4 +357,13 @@ function paceOf(arc: ArcView): number {
         : null;
   if (left === null || left <= 0 || arc.progress >= 1) return 0;
   return (1 - arc.progress) / (left * 60_000);
+}
+
+/**
+ * **The medium a last known position's block stands in, or `null` for no block** (ADR 0026 §4):
+ * the end of the frozen stretch, in what the sighting served — a point and a medium, nothing more.
+ * A column still watched has its pawn; mine never goes stale.
+ */
+export function lastKnownMedium(arc: ArcView): Medium | null {
+  return arc.state === 'lastKnown' ? (arc.route.legs.at(-1)?.medium ?? null) : null;
 }
