@@ -30,7 +30,7 @@ export function maquettesOf(
           buildingMaquette(marker.key, depositOfRegion(marker.regionId)),
           false,
           marker.level === null && marker.finishesAt !== null
-            ? { finishesAt: marker.finishesAt, minutes: buildMinutes(marker.key, 1) }
+            ? { finishesAt: Math.round(marker.finishesAt), minutes: buildMinutes(marker.key, 1) }
             : undefined,
         );
       case 'installation':

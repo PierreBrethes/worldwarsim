@@ -363,7 +363,8 @@ export class MapEngine {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
-    // A site under the crane is cut where its work has reached (`maquettes.ts`).
+    // Off by default in three: a site under the crane is cut where its work has reached, by a
+    // plane on its own materials (`maquettes.ts`).
     this.renderer.localClippingEnabled = true;
     container.appendChild(this.renderer.domElement);
 

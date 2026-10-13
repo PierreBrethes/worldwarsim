@@ -248,12 +248,17 @@ export class MaquetteLayer {
     const drawn = JSON.stringify(maquettes);
     if (drawn === this.drawn) return false;
     this.drawn = drawn;
-    const rising = new Set(this.maquettes.filter((m) => m.rising).map((m) => m.id));
+    // Seen rising: stood up close, before the rebuild resets every near weight.
+    const seen = new Set(
+      this.maquettes
+        .filter((m) => m.rising && (this.byId.get(m.id)?.item.near ?? 0) > 0)
+        .map((m) => m.id),
+    );
     this.maquettes = maquettes;
     this.rebuild();
     for (const maquette of maquettes) {
       const stood = this.byId.get(maquette.id);
-      if (stood !== undefined && rising.has(maquette.id) && !maquette.rising)
+      if (stood !== undefined && seen.has(maquette.id) && !maquette.rising)
         this.posed(stood.item.at);
     }
     return true;
@@ -405,7 +410,6 @@ export class MaquetteLayer {
   ): void {
     for (const lot of this.lots.values()) {
       if (lot.model === null) continue;
-      if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       let moved = false;
       lot.items.forEach((item, k) => {
         item.cleared = cleared !== null && item.at.distanceTo(cleared.center) < cleared.reach;
@@ -418,6 +422,7 @@ export class MaquetteLayer {
         matrix.compose(item.at, item.turn, scale.setScalar(near * lot.model!.scale));
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
       });
+      if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       if (!moved) continue;
       for (const mesh of lot.meshes) mesh.instanceMatrix.needsUpdate = true;
       lot.group.visible = lot.items.some((item) => item.near > 0);
@@ -425,7 +430,7 @@ export class MaquetteLayer {
   }
 
   /** Slow — a first level lasts tens of minutes: the board's heartbeat moves it enough, and no
-   *  frame is ever asked for it. Read at the near weight of the frame before, as the scale. */
+   *  frame is ever asked for it. */
   private rise(rising: Rising, item: Placed, model: Model, now: number): void {
     const share = riseOf((rising.finishesAt - now) / 60_000, rising.minutes);
     const height = model.box.max.y * model.scale * Math.max(item.near, 0) * share;
