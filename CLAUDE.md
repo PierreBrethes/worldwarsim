@@ -292,7 +292,13 @@ tous ses groupes ont leur figurine et qu'elles sont chargées** — sinon elle g
 entière. Habillée, son étiquette DOM efface sa planche et reste l'emprise du clic et du survol ;
 le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). La page
 `/figurines.html`, servie en développement seulement, montre chaque figurine à côté de sa
-planche. Les blocs adverses et les garnisons de bâtiment sont les lots suivants.
+planche. Un arc adverse porte un **bloc** de son milieu, dos à l'œil, et une dernière position
+connue un **bloc délavé** au bout de son tronçon figé (`lastKnownMedium`, `arcs.ts`) — rien de plus
+que le milieu servi. Au rapproché, le pion dit son milieu : une coque en mer laisse un **sillage**
+(`Wake`, `smoke.ts`), un avion porte son **ombre** au sol, l'écart valant son altitude — le fil
+aérien d'une route tout aérienne monte, tient sa croisière et redescend (`flightAltitude`,
+`thread.ts`) ; un véhicule entamé de mes mouvements **fume** comme posé (`movementWear`, lu sur
+mes troupes, `null` hors `mine`). Les garnisons de bâtiment sont le lot suivant.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
@@ -410,7 +416,8 @@ l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonc
 (`weather.ts`, `ribbons.ts`), les courants marins y passent en filigrane (`currents.ts`), une
 écume respire le long des côtes au rapproché, lue sur un seul champ de distance à la côte
 (`coast-distance.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat
-s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
+s'imprime (`ink.ts`, `ink-bursts.ts`), et le rayon d'un de mes avant-postes qui se lève ou
+monte se trace une fois autour de lui (`raisedReaches`, muet à l'ouverture de la carte). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
 aussi la caméra et la plume du terrain survolé (tracé, fondu court, posé d'un coup). C'est la
