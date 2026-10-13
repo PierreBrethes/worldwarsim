@@ -4,6 +4,7 @@ import type { CombatReport, JournalDispatch } from '@/domain/player-view';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { Stamp } from '@/shell/Stamp';
 import { Row } from './Panel';
+import { ReplayButton } from './ReplayDeck';
 
 /**
  * **L'arrivée sur une dépêche de combat, sous le seuil** (lot mobile-3, §6). La notification
@@ -72,6 +73,10 @@ export function DispatchSheet({
             {said.openGarrison}
           </button>
         )}
+        <ReplayButton
+          dispatch={dispatch}
+          className="min-h-[44px] w-full cursor-pointer border border-[var(--ink)] px-[10px] text-[11px] tracking-[.18em] text-[var(--ink)] uppercase"
+        />
         <div className="flex gap-[8px]">
           <button
             type="button"

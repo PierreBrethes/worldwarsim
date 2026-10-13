@@ -22,10 +22,12 @@ import {
   PREVIEW_ARC_ID,
   type ArcView,
   type JournalDispatch,
+  type ReplayView,
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
 import { inkBursts } from '@/domain/ink-bursts';
+import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useMapMotion } from '@/data/mapMotion';
@@ -198,6 +200,20 @@ type Props = {
     readonly floor: number;
     readonly nonce: number;
   } | null;
+  /**
+   * **Le rejeu d'un combat** (surface 4.7) : tant qu'il est là, la carte le joue ; parti, la
+   * caméra revient où elle était. `stepping` est une flèche, à nonce comme `focus` — deux fois la
+   * même flèche avancent deux fois.
+   */
+  replay?: {
+    readonly view: ReplayView;
+    readonly playing: boolean;
+    readonly stepping: { readonly direction: 1 | -1; readonly nonce: number } | null;
+  } | null;
+  /** Chaque étape à son début, et la fin quand le rejeu a tout joué (`ended`). */
+  onReplayStep?: (step: ReplayStep, ended: boolean) => void;
+  /** La part basse de l'écran que le plateau couvre pendant le rejeu : la scène se cadre au-dessus. */
+  replayBelow?: number;
 };
 
 /**
@@ -270,6 +286,9 @@ export function WorldMap({
   onOrderTarget,
   covered = false,
   reveal = null,
+  replay = null,
+  onReplayStep,
+  replayBelow = 0,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
@@ -659,6 +678,33 @@ export function WorldMap({
     if (finger.current) setRose(null);
     readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
   }, [readyEngine, focus]);
+
+  const replayStep = useRef(onReplayStep);
+  /** Lu au lancement : la caméra ne bouge pas si l'écran tourne en plein rejeu. */
+  const below = useRef(replayBelow);
+  useEffect(() => {
+    replayStep.current = onReplayStep;
+    below.current = replayBelow;
+  }, [onReplayStep, replayBelow]);
+  const replayView = replay?.view ?? null;
+  useEffect(() => {
+    if (!readyEngine || replayView === null) return;
+    setRose(null);
+    readyEngine.playReplay(
+      replayView,
+      (step, ended) => replayStep.current?.(step, ended),
+      below.current,
+    );
+    return () => readyEngine.stopReplay();
+  }, [readyEngine, replayView]);
+  const replayPlaying = replay?.playing ?? true;
+  useEffect(() => {
+    if (readyEngine && replayView !== null) readyEngine.setReplayAutoplay(replayPlaying);
+  }, [readyEngine, replayView, replayPlaying]);
+  const replayStepping = replay?.stepping ?? null;
+  useEffect(() => {
+    if (readyEngine && replayStepping !== null) readyEngine.stepReplay(replayStepping.direction);
+  }, [readyEngine, replayStepping]);
 
   useEffect(() => {
     if (covered) setRose(null);

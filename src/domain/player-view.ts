@@ -353,6 +353,21 @@ export type CombatTally = {
 };
 
 /**
+ * **One engagement as its replay reads it, served to a party only** (`convex/replay.ts`, ADR 0026
+ * §7). My side by role and mark; the other side the totals `CombatReport` already serves — the
+ * strikes carry both sides' roles, and the replay does not lift the fog the account kept down.
+ */
+export type ReplayView = {
+  readonly combatId: string;
+  readonly at: number;
+  readonly point: { readonly lon: number; readonly lat: number };
+  readonly side: 'attacker' | 'defender';
+  readonly won: boolean;
+  readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
+  readonly theirs: CombatTally;
+};
+
+/**
  * What the army costs to hold, beside what it is made of. The food rate served in `resources` is
  * already **net** of it — a player producing 40 and eating 45 reads −5, never 40 — so this is the
  * breakdown of a number he already sees, never a second one to reconcile.

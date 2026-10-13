@@ -13,6 +13,7 @@ import { NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
@@ -550,6 +551,8 @@ export const fr = {
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     TELEGRAPH_TOO_FAST: () => 'un message par seconde — laissez la ligne respirer',
+    UNKNOWN_COMBAT: () => 'ce combat n’a plus de compte rendu à rejouer',
+    NOT_A_PARTY: () => 'on ne rejoue que ses propres combats',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
   unexpectedError: 'une erreur imprévue est survenue — réessayez',
@@ -1754,6 +1757,36 @@ export const fr = {
     openGarrison: 'ouvrir la garnison',
     openJournal: 'voir le journal',
     later: 'plus tard',
+  },
+
+  /**
+   * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
+   * secondes, et un cartouche à la fin — chez nous par rôle, en face des totaux (ADR 0005).
+   */
+  replay: {
+    play: 'rejouer',
+    kicker: 'rejeu',
+    steps: {
+      voyage: 'en route vers le lieu',
+      pose: 'mise en place',
+      salves: 'les salves',
+      pertes: 'les pertes',
+      deroute: 'la déroute',
+      'compte-rendu': 'compte rendu',
+    } satisfies Record<ReplayStep, string>,
+    pause: 'pause',
+    resume: 'lecture',
+    previous: 'étape précédente',
+    next: 'étape suivante',
+    leave: 'quitter',
+    leaveQuestion: 'quitter le rejeu ?',
+    leaveNote: 'la carte revient où elle était',
+    stay: 'rester',
+    held: 'terrain tenu',
+    lost: 'terrain perdu',
+    mine: 'chez nous',
+    theirs: 'en face',
+    columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },
   },
 
   /** La visée en carte : ce qui remplace la modale d’envoi. */

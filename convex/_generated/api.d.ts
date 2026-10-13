@@ -48,6 +48,7 @@ import type * as pushSend from "../pushSend.js";
 import type * as readMarks from "../readMarks.js";
 import type * as regionGeometry from "../regionGeometry.js";
 import type * as regions from "../regions.js";
+import type * as replay from "../replay.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
 import type * as seasons from "../seasons.js";
@@ -108,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   readMarks: typeof readMarks;
   regionGeometry: typeof regionGeometry;
   regions: typeof regions;
+  replay: typeof replay;
   resources: typeof resources;
   routes: typeof routes;
   seasons: typeof seasons;

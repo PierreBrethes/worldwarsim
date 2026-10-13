@@ -77,6 +77,11 @@ export class ArcLayer {
   private cameraYaw = 0;
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
+
+  /** The pawns on the threads, which a replay hides where they would stand in its scene. */
+  get pawns(): ReadonlyArray<Group> {
+    return this.rendered.map((rendered) => rendered.pawn.object);
+  }
   private targets: Line2[] = [];
   private accented: string | null = null;
   private width = 1;

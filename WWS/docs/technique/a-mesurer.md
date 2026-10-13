@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ab99a6b -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : aeca019 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-34 valeurs marquées dans `convex/` et `src/domain/`.
+35 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -47,6 +47,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1019` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1038` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
+| `STEP_MS` | `{ voyage: 1500, pose: 1200, salves: 900, pertes: 3000, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:89` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
 | `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2 }` | `src/domain/troops.ts:96` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
