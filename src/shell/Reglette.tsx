@@ -1,8 +1,18 @@
-import { useEffect, useRef, useState, type ComponentProps, type Ref, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type Ref,
+  type RefObject,
+} from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
-import { currentMinutes, currentStock, type PlayerView } from '@/domain/player-view';
+import { currentMinutes, currentStock, type PlayerView, type Resource } from '@/domain/player-view';
+import { announceOf, nextAnnounceIn, onNewView, type Announcement } from '@/domain/reserve-counter';
+import { useMapMotion } from '@/data/mapMotion';
 import { asDuration } from '@/domain/duration';
 import { drynessOf, marksOf, sourceOf, type Dryness, type Mark } from '@/domain/resource-band';
 import { FlagWatermark } from '@/emblems/Flag';
@@ -201,6 +211,9 @@ export function ResourceCell({
   const fill = reserve.cap > 0 ? Math.min(1, stock / reserve.cap) : 0;
   const dry = drynessOf(stock, reserve.ratePerHour);
   const ink = dry === null ? 'var(--ink)' : 'var(--critical)';
+  const { shown, tag } = useAnnouncedStock(reserve, view.loadedAt);
+  const motion = useMapMotion();
+  const still = motion === 'off' || matchMedia(REDUCED_QUERY).matches;
   return (
     <button
       type="button"
@@ -226,10 +239,31 @@ export function ResourceCell({
         <ResourcePlate resource={resource} height={PLATE} boxed={false} />
       </span>
       <span
-        className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums"
+        aria-hidden
+        className="relative inline-flex font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums"
         style={{ color: ink }}
       >
-        {stock.toLocaleString('fr-FR')}
+        <Odometer value={shown.toLocaleString('fr-FR')} roll={motion === 'full' && !still} />
+        {tag !== null && !still && (
+          <span
+            key={tag.id}
+            className={`reserve-tag ${motion === 'reduced' ? 'reserve-tag--quiet' : ''}`}
+            style={{
+              ...(stacked
+                ? { left: '50%', bottom: 'calc(100% + 3px)', transform: 'translateX(-50%)' }
+                : { left: '100%', top: -1, marginLeft: 4 }),
+              background:
+                tag.gain > 0
+                  ? 'var(--notable)'
+                  : dry === null
+                    ? 'var(--ink-soft)'
+                    : 'var(--critical)',
+            }}
+          >
+            {tag.gain > 0 ? '+' : '−'}
+            {Math.abs(tag.gain).toLocaleString('fr-FR')}
+          </span>
+        )}
       </span>
       <span
         aria-hidden
@@ -246,6 +280,102 @@ export function ResourceCell({
       )}
       {dry !== null && <AlertTag label={dryLabel(dry, stacked)} />}
     </button>
+  );
+}
+
+const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
+
+/**
+ * Le chiffre d'une réserve tel que la réglette l'annonce (`reserve-counter.ts`) : figé entre deux
+ * annonces, roulé à la sienne. Hors de l'onglet rien ne s'annonce — tout attend le retour, et
+ * chaque réserve y parle à son tour dans la seconde et demie.
+ */
+function useAnnouncedStock(
+  reserve: Resource,
+  loadedAt: number,
+): { shown: number; tag: { gain: number; id: number } | null } {
+  const [said, setSaid] = useState(() => ({
+    shown: currentStock(reserve, loadedAt, Date.now()),
+    tag: null as { gain: number; id: number } | null,
+  }));
+  const shown = useRef(said.shown);
+  const reading = useRef({ reserve, at: loadedAt });
+  const say = useCallback((next: Announcement) => {
+    shown.current = next.shown;
+    setSaid((last) => ({
+      shown: next.shown,
+      tag: next.gain === 0 ? last.tag : { gain: next.gain, id: (last.tag?.id ?? 0) + 1 },
+    }));
+  }, []);
+
+  useEffect(() => {
+    const before = reading.current;
+    if (before.reserve === reserve && before.at === loadedAt) return;
+    reading.current = { reserve, at: loadedAt };
+    const next = onNewView(shown.current, before, reading.current);
+    if (next.gain > 0 && document.hidden) return;
+    say(next);
+  }, [reserve, loadedAt, say]);
+
+  useEffect(() => {
+    let timer = 0;
+    const after = (delay: number) => {
+      timer = window.setTimeout(() => {
+        if (!document.hidden) {
+          const { reserve: last, at } = reading.current;
+          const next = announceOf(shown.current, currentStock(last, at, Date.now()));
+          if (next !== null) say(next);
+        }
+        after(nextAnnounceIn());
+      }, delay);
+    };
+    const back = () => {
+      if (document.hidden) return;
+      window.clearTimeout(timer);
+      after(Math.random() * RETURN_SPREAD_MS);
+    };
+    after(nextAnnounceIn());
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', back);
+    };
+  }, [say]);
+
+  return said;
+}
+
+const RETURN_SPREAD_MS = 1_500;
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+/** Un compteur mécanique : une bande 0-9 par chiffre, qui glisse jusqu'au sien. Les colonnes
+ *  sont comptées depuis la droite, pour qu'un chiffre de plus ne fasse pas rouler les autres. */
+function Odometer({ value, roll }: { value: string; roll: boolean }) {
+  const chars = [...value];
+  return (
+    <span className="inline-flex h-[1em] overflow-hidden">
+      {chars.map((char, rank) =>
+        /\d/.test(char) ? (
+          <span key={chars.length - rank} className="relative inline-block h-[1em] w-[1ch]">
+            <span
+              className="absolute inset-x-0 top-0 flex flex-col"
+              style={{
+                transform: `translateY(${-Number(char)}em)`,
+                transition: roll ? 'transform 700ms cubic-bezier(.16,1,.3,1)' : 'none',
+              }}
+            >
+              {DIGITS.map((digit) => (
+                <span key={digit} className="h-[1em]">
+                  {digit}
+                </span>
+              ))}
+            </span>
+          </span>
+        ) : (
+          <span key={chars.length - rank}>{char}</span>
+        ),
+      )}
+    </span>
   );
 }
 
