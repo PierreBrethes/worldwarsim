@@ -4,7 +4,7 @@ import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
 import { BottomSheet } from './BottomSheet';
 
 /**
- * **Les huit bascules des calques, en cases de 44 px sur deux colonnes** (A4). Deux portes l'ouvrent
+ * **Les neuf bascules des calques, en cases de 44 px sur deux colonnes** (A4). Deux portes l'ouvrent
  * — le dossier de la nation et le bouton posé sur la carte. Le bureau lit la même grille dans une
  * carte du coin (`useIndicatorToggles`, une seule mémoire) : allumer les chantiers au téléphone
  * les allume aussi au bureau du même navigateur.
