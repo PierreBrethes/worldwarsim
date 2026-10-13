@@ -92,6 +92,18 @@ describe('buildLabels', () => {
     ]);
   });
 
+  it('dates the departure of my column, for its bar, from what the view serves', () => {
+    const [label] = buildLabels(viewWith([mineArc({ minutesLeft: 30, progress: 0.5 })]), []);
+    expect(label?.lines.find((line) => line.role === 'countdown')).toEqual({
+      role: 'countdown',
+      dueAt: LOADED_AT + 30 * 60_000,
+      prefix: '',
+      since: LOADED_AT - 30 * 60_000,
+    });
+    const [done] = buildLabels(viewWith([mineArc({ minutesLeft: 0, progress: 1 })]), []);
+    expect(done?.lines.find((line) => line.role === 'countdown')).not.toHaveProperty('since');
+  });
+
   it('keeps the countdown and announces the hold while the column still walks', () => {
     const [label] = buildLabels(
       viewWith([mineArc({ minutesLeft: 30, borderWait: { resolutionInMinutes: 180 } })]),

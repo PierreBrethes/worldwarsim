@@ -1,6 +1,7 @@
 import { fr, stackLabel } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import { produces } from './economy';
+import { loadingUntilOf } from './loading';
 import { isCountdown, type MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import type { CargoView, PlayerView } from './player-view';
@@ -28,13 +29,15 @@ export type Poster = {
   readonly washed: boolean;
   readonly lines: ReadonlyArray<PosterLine>;
   readonly bar: number | null;
+  /** My expedition loading on site: when its presence ends (`loadingUntilOf`), its bar crawls. */
+  readonly loading: number | null;
   readonly pile: {
     readonly lines: ReadonlyArray<SheetLine>;
     readonly cargo: ReadonlyArray<CargoView>;
   } | null;
 };
 
-const plain = { washed: false, lines: [], bar: null, pile: null } as const;
+const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
 
 export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
   if (label.type === 'stack' && label.station !== null) {
@@ -98,6 +101,7 @@ export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster
           ),
         ],
         bar: arc.progress,
+        loading: loadingUntilOf(arc),
       };
     case 'lastKnown':
       return sighting(

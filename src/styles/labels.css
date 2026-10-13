@@ -360,6 +360,18 @@
   background-size: 8.49px 8.49px;
 }
 
+/* My column's way walked: the prototype's ochre bar, no quarters — nothing drops on the way. */
+.loading-gauge--march {
+  width: 96px;
+  height: 4px;
+  border-color: var(--notable);
+  background: none;
+}
+
+.loading-gauge--march b {
+  background: var(--notable);
+}
+
 .loading-gauge--crawl b {
   animation: loading-crawl 0.7s linear infinite;
 }
