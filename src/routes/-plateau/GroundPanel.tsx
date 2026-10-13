@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
 import { depositOfRegion, loadCoastalRegions, type HoveredRegion } from '@/domain/world';
 import { useNarrowScreen } from '@/shell/viewport';
-import { Row, Panel } from './Panel';
+import { Panel } from './Panel';
 
 /**
  * **Ce que le joueur sait du tenant d'une région**, servi par `control.held` et jamais recalculé
@@ -91,138 +91,153 @@ export function GroundPanel({
    *  déjà ne pas dire. Aucune ligne ne change dessous — c'est le titre qui mentait. */
   const mine = nation !== undefined && nation === view.me.nation;
 
-  const countryRows = (
+  const title = mine
+    ? fr.selectedCountry.myTitle
+    : opponent
+      ? fr.selectedCountry.enemyTitle
+      : fr.selectedCountry.neutralTitle;
+  const marker =
+    hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker;
+
+  const heldBy =
+    holding === null
+      ? null
+      : holding.state === 'current'
+        ? nationLabel(holding.nation)
+        : fr.selectedCountry.heldBySurveyed(
+            nationLabel(holding.nation),
+            asPressDate(holding.seenAt),
+          );
+
+  /* **Ce que le pays porte, et rien d'autre** : la plage de repos d'un adversaire ne se lit nulle
+     part ailleurs en saison, l'avant-poste planté ici se nomme. Un « aucun » ne paraît plus — la
+     carte montre déjà qu'il n'y a pas de mât. La progression et le dernier renseignement, toujours
+     à zéro et à « — » tant que la part de carte et la surface 4.9 n'existent pas, sont partis. */
+  const countryLines = opponent ? (
+    <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
+  ) : outpost ? (
     <>
-      {opponent ? (
-        <>
-          <Row
-            label={fr.selectedCountry.progression}
-            value={`${Math.round(opponent.bar.progress * 100)} %`}
-          />
-          <Row label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
-          <Row label={fr.selectedCountry.lastIntel} value={opponent.lastIntel} />
-        </>
-      ) : (
-        <>
-          <Row
-            label={fr.selectedCountry.outpost}
-            value={
-              outpost
-                ? `${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specializations[outpost.specialization]}`
-                : fr.selectedCountry.none
-            }
-          />
-          {outpost && <Row label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />}
-        </>
+      <Line
+        label={fr.selectedCountry.outpost}
+        value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specializations[outpost.specialization]}`}
+      />
+      <Line label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />
+    </>
+  ) : null;
+
+  if (hovered === null) {
+    return (
+      <GroundCard
+        title={title}
+        marker={marker}
+        heading={countryLabel(country)}
+        onDeselect={onDeselect}
+      >
+        {countryLines}
+      </GroundCard>
+    );
+  }
+
+  const held = heldBy !== null && <Line label={fr.selectedCountry.heldBy} value={heldBy} />;
+  const ground = (
+    <>
+      <p className={QUIET}>
+        {deposit === null ? fr.board.regionNoDeposit : fr.board.regionDeposit(fr.deposits[deposit])}
+      </p>
+      {coastal.has(hovered.id) && <p className={QUIET}>{fr.board.regionCoastal}</p>}
+      {suspendedUntil !== null && (
+        <Line
+          label={fr.selectedCountry.suspended}
+          value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
+        />
       )}
     </>
   );
 
+  /* Au doigt, la feuille s'ouvre à l'aperçu et porte déjà son titre : la région touchée devient
+     le titre de l'affiche, son pays et son terrain la ligne dessous, le reste derrière
+     « détails ». */
+  if (narrow) {
+    return (
+      <GroundCard title={title} marker={marker} heading={hovered.name} onDeselect={onDeselect}>
+        <p className={QUIET}>
+          {countryLabel(country)} — {fr.regionTypes[hovered.type]}
+        </p>
+        {held}
+        <details>
+          <summary className="eyebrow cursor-pointer py-[6px]">
+            {fr.selectedCountry.moreDetails}
+          </summary>
+          <div className="grid gap-[5px]">
+            {ground}
+            {countryLines}
+          </div>
+        </details>
+      </GroundCard>
+    );
+  }
+
+  return (
+    <GroundCard
+      title={title}
+      detail={hovered.name}
+      marker={marker}
+      heading={countryLabel(country)}
+      onDeselect={onDeselect}
+    >
+      <p className={QUIET}>{fr.board.regionTerrain(fr.regionTypes[hovered.type])}</p>
+      {ground}
+      {held}
+      {countryLines}
+    </GroundCard>
+  );
+}
+
+const QUIET = 'text-[12.5px] leading-[1.3] text-[var(--ink-soft)]';
+
+/** L'affiche du sol : le surtitre et le pays, puis ce qu'on en sait. */
+function GroundCard({
+  title,
+  detail,
+  marker,
+  heading,
+  onDeselect,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  marker: string;
+  heading: string;
+  onDeselect: () => void;
+  children: ReactNode;
+}) {
   return (
     <Panel
-      title={
-        mine
-          ? fr.selectedCountry.myTitle
-          : opponent
-            ? fr.selectedCountry.enemyTitle
-            : fr.selectedCountry.neutralTitle
-      }
-      marker={hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker}
+      title={title}
+      {...(detail === undefined ? {} : { detail })}
+      marker={marker}
       position="static"
-      width={280}
+      width={236}
       onClose={onDeselect}
       compact
     >
-      {narrow && hovered ? (
-        <>
-          <h2 className="font-(family-name:--font-display) text-[20px] leading-[1.05] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
-            {hovered.name}
-          </h2>
-          <p className="text-[12px] text-[var(--ink-soft)]">
-            {countryLabel(country)} — {fr.regionTypes[hovered.type]}
-          </p>
-          {holding !== null && (
-            <Row
-              label={fr.selectedCountry.heldBy}
-              value={
-                holding.state === 'current'
-                  ? nationLabel(holding.nation)
-                  : fr.selectedCountry.heldBySurveyed(
-                      nationLabel(holding.nation),
-                      asPressDate(holding.seenAt),
-                    )
-              }
-            />
-          )}
-          <details className="mt-1">
-            <summary className="cursor-pointer py-[6px] text-[11px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-              {fr.selectedCountry.moreDetails}
-            </summary>
-            {countryRows}
-            <p className="text-[11.5px] text-[var(--ink-soft)]">
-              {deposit === null
-                ? fr.board.regionNoDeposit
-                : fr.board.regionDeposit(fr.deposits[deposit])}
-            </p>
-            {coastal.has(hovered.id) && (
-              <p className="text-[11px] text-[var(--ink-quiet)] italic">{fr.board.regionCoastal}</p>
-            )}
-            {suspendedUntil !== null && (
-              <Row
-                label={fr.selectedCountry.suspended}
-                value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
-              />
-            )}
-          </details>
-        </>
-      ) : (
-        <>
-          <h2 className="font-(family-name:--font-display) text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
-            {countryLabel(country)}
-          </h2>
-
-          {countryRows}
-          {hovered && (
-            <div className="mt-[10px] border-t border-[var(--ink)] pt-[9px]">
-              <span className="eyebrow block">{fr.board.regionLabel}</span>
-              <p className="mt-1 text-[13px] text-[var(--ink)]">{hovered.name}</p>
-              <p className="text-[11.5px] text-[var(--ink-soft)]">
-                {fr.board.regionTerrain(fr.regionTypes[hovered.type])}
-              </p>
-              <p className="text-[11.5px] text-[var(--ink-soft)]">
-                {deposit === null
-                  ? fr.board.regionNoDeposit
-                  : fr.board.regionDeposit(fr.deposits[deposit])}
-              </p>
-              {coastal.has(hovered.id) && (
-                <p className="text-[11px] text-[var(--ink-quiet)] italic">
-                  {fr.board.regionCoastal}
-                </p>
-              )}
-              {suspendedUntil !== null && (
-                <Row
-                  label={fr.selectedCountry.suspended}
-                  value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
-                />
-              )}
-              {holding !== null && (
-                <Row
-                  label={fr.selectedCountry.heldBy}
-                  value={
-                    holding.state === 'current'
-                      ? nationLabel(holding.nation)
-                      : fr.selectedCountry.heldBySurveyed(
-                          nationLabel(holding.nation),
-                          asPressDate(holding.seenAt),
-                        )
-                  }
-                />
-              )}
-            </div>
-          )}
-        </>
-      )}
+      <div className="grid gap-[5px] text-[13px] leading-[1.25] text-[var(--ink)]">
+        <h3 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">
+          {heading}
+        </h3>
+        {children}
+      </div>
     </Panel>
+  );
+}
+
+/** Une ligne chiffrée de l'affiche : l'intitulé à gauche, la valeur en mono à droite. */
+function Line({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="map-poster-row">
+      <span className="text-[var(--ink-soft)]">{label}</span>
+      <b className="map-poster-num font-medium">{value}</b>
+    </div>
   );
 }
 

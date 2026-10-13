@@ -17,6 +17,7 @@ const ANCHORING: Record<Position, string> = {
 
 export function Panel({
   title,
+  detail,
   marker,
   position,
   width = 260,
@@ -26,6 +27,9 @@ export function Panel({
   children,
 }: {
   title: string;
+  /** Ce qui précise le surtitre — la région sous le pointeur, après le genre du sol. Au bureau
+   *  seulement : la feuille du téléphone a son propre titre. */
+  detail?: string;
   marker?: string;
   position: Position;
   width?: number;
@@ -49,8 +53,18 @@ export function Panel({
     /* The header is the grab zone whenever a `Draggable` wraps this panel, and a plain header
        when nothing does — the handle reads the context rather than taking a callback, which
        is what lets a window, a widget and this panel move by exactly the same gesture. */
-    <DragHandle className="flex shrink-0 items-center gap-2 border-b border-[var(--ink)] px-3 py-2">
-      <span className="eyebrow flex-1">{title}</span>
+    /* Sans filet sous l'en-tête (table d'état-major) : il est le surtitre de l'affiche, et le
+       titre qui suit le sépare déjà du reste. */
+    <DragHandle className="flex shrink-0 items-center gap-2 px-3 pt-[9px] pb-[3px]">
+      <span className="eyebrow min-w-0 flex-1">
+        {title}
+        {detail !== undefined && (
+          <>
+            {' · '}
+            <span>{detail}</span>
+          </>
+        )}
+      </span>
       {marker && (
         <span className="font-(family-name:--font-mono) text-[9px] text-[var(--ink-soft)]">
           {marker}
@@ -106,7 +120,7 @@ export function Panel({
       {header}
       {!collapsed && (
         <div
-          className={`px-3 py-[10px] ${
+          className={`px-3 pt-[2px] pb-[10px] ${
             height === undefined ? '' : 'flex min-h-0 flex-1 flex-col overflow-hidden'
           }`}
         >

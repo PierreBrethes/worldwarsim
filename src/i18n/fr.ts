@@ -590,6 +590,8 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    /** Le « ? » qui déplie une phrase d'aide : la phrase se lit une fois, le chiffre tous les jours. */
+    help: 'aide',
   },
 
   /**
@@ -2650,9 +2652,7 @@ export const fr = {
     myTitle: 'Mon territoire',
     marker: 'sélection',
     hoverMarker: 'survol',
-    progression: 'progression',
     restWindow: 'plage de repos',
-    lastIntel: 'dernier renseignement',
     /**
      * **Deux questions, deux lignes** (correctif du 31/08). « Avant-poste » répond de *ce
      * pays-ci* — ai-je un point planté dedans — et c'est juste ; c'est l'étiquette qui mentait
@@ -2661,7 +2661,6 @@ export const fr = {
      */
     outpost: 'avant-poste',
     enemyOwner: 'adverse',
-    none: 'aucun',
     garrison: 'garnison',
     heldBy: 'tenue par',
     moreDetails: 'détails',
