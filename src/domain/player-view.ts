@@ -506,18 +506,11 @@ export type RegionView = {
   readonly linked: boolean;
 };
 
-export type OpponentBar =
-  | { readonly state: 'anonymous'; readonly progress: number }
-  | { readonly state: 'attributed'; readonly progress: number }
-  | { readonly state: 'exposed'; readonly progress: number; readonly frozenUntil: string };
-
 export type Opponent = {
   readonly nation: string;
   readonly ink: string;
   readonly power: string;
-  readonly bar: OpponentBar;
   readonly restWindow: string;
-  readonly lastIntel: string;
 };
 
 /**

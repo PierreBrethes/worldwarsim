@@ -123,6 +123,8 @@ export function shakeOf(step: ReplayFrame['step'], progress: number, still: bool
 }
 /** The salvo's smoke hangs on into the losses: a puff does not vanish as the shot lands. */
 const LINGER_MS = 900;
+/** ...and fades over the last of it, rather than being cut. */
+const LINGER_FADE_MS = 400;
 
 const SHOT = new BoxGeometry(0.02, 0.02, 0.24);
 const SHOT_INK = new MeshBasicMaterial({ color: '#2b2118' });
@@ -322,14 +324,13 @@ export class ReplayScene {
         step === 'salves' ? (still ? 1 : Math.sin(Math.PI * Math.min(1, progress / 0.35))) : 0;
       piece.flash.visible = salvo > 0.02;
       piece.flash.scale.setScalar(piece.flashSize * salvo);
-      const lingering = step === 'pertes' && progress * STEP_MS.pertes < LINGER_MS;
+      const elapsed = progress * STEP_MS.pertes;
+      const lingering = step === 'pertes' && elapsed < LINGER_MS;
+      const fade = lingering ? Math.min(1, (LINGER_MS - elapsed) / LINGER_FADE_MS) : 1;
       piece.firing.object.visible = step === 'salves' || (lingering && !still);
       piece.firing.frame(
-        still
-          ? 0.4
-          : step === 'salves'
-            ? progress * 0.9 + 0.05
-            : 0.95 + (progress * STEP_MS.pertes) / 1000,
+        still ? 0.4 : step === 'salves' ? progress * 0.9 + 0.05 : 0.95 + elapsed / 1000,
+        fade,
       );
 
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;

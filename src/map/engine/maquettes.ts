@@ -448,7 +448,14 @@ export class MaquetteLayer {
       item.turn,
       scale.setScalar(item.near * model.scale * pieceScale.buildings),
     );
-    return placedBox.copy(model.box).applyMatrix4(matrix);
+    placedBox.copy(model.box).applyMatrix4(matrix);
+    // A rising site is drawn up to its cut only: the box the poster clears stops there too.
+    if (dressed.lot.rising !== null)
+      placedBox.max.y = Math.max(
+        placedBox.min.y,
+        Math.min(placedBox.max.y, dressed.lot.rising.cut.constant),
+      );
+    return placedBox;
   }
 
   /** The maquette under `ray`, by the instance it hits: each is tried by its bounds first. */
