@@ -5,7 +5,7 @@ import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
 import { currentMinutes, currentStock, type PlayerView } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
 import { drynessOf, marksOf, sourceOf, type Dryness, type Mark } from '@/domain/resource-band';
-import { Flag } from '@/emblems/Flag';
+import { FlagWatermark } from '@/emblems/Flag';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { HoverCard } from './HoverCard';
@@ -36,20 +36,26 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
   return (
     <header
       ref={ref}
-      className="hud paper-grain float absolute top-[calc(var(--table-margin)/var(--hud-scale))] right-[calc(var(--table-margin)/var(--hud-scale))] left-[calc(var(--table-margin)/var(--hud-scale))] z-[var(--z-band)] flex h-[55px] items-stretch border border-[var(--ink)] text-[var(--ink)]"
-      style={{ fontFamily: 'var(--font-body)' }}
+      className="hud paper-grain float absolute top-[calc(var(--table-margin)/var(--hud-scale))] right-[calc(var(--table-margin)/var(--hud-scale))] left-[calc(var(--table-margin)/var(--hud-scale))] z-[var(--z-band)] flex items-stretch border border-[var(--ink)] text-[var(--ink)]"
+      style={{ fontFamily: 'var(--font-body)', height: RULE_HEIGHT }}
     >
-      <div className={`${CELL} gap-[10px] pl-[12px]`}>
+      {/* Le drapeau en fondu, comme au bandeau sombre (Pierre, 13/10) : il touche le bord de la
+          réglette et le nom commence là où il s'éteint. */}
+      <div
+        className={`${CELL} relative gap-[10px] overflow-hidden`}
+        style={{ paddingLeft: WATERMARK_WIDTH * 0.9 + AIR_AFTER_WATERMARK }}
+      >
         <Link
           to="/plateau"
           search={withWindow(search, 'nation')}
           title={fr.banner.nationSheet(nationLabel(me.nation))}
           aria-label={fr.banner.nationSheet(nationLabel(me.nation))}
-          className="shrink-0"
+          className="absolute inset-y-0 left-0"
+          style={{ width: WATERMARK_WIDTH }}
         >
-          <Flag nation={me.nation} width={38} onPaper />
+          <FlagWatermark nation={me.nation} opacity={0.85} onPaper />
         </Link>
-        <div className="grid gap-[2px]">
+        <div className="relative grid gap-[2px]">
           {/* L'enseigne ramène à l'accueil (05/10) : sans elle, le plateau ne se quittait que par
               la déconnexion. */}
           <span className="flex items-baseline gap-[8px]">
@@ -67,7 +73,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
             to="/plateau"
             search={withWindow(search, 'nation')}
             title={fr.banner.nationSheet(nationLabel(me.nation))}
-            className="font-(family-name:--font-display) text-[25px] leading-none font-bold tracking-[.01em] whitespace-nowrap uppercase"
+            className="font-(family-name:--font-display) text-[22px] leading-none font-bold tracking-[.01em] whitespace-nowrap uppercase"
           >
             {nationLabel(me.nation)}
           </Link>
@@ -92,7 +98,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       <div
         ref={reserves}
-        className="flex min-w-0 flex-1 items-center justify-around gap-[4px] px-[10px]"
+        className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px] max-[1500px]:gap-[6px] max-[1500px]:px-[10px]"
         onPointerLeave={(event) => {
           if (event.pointerType !== 'touch') setShown(null);
         }}
@@ -115,7 +121,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
                 now={now}
                 mark={marks[resource]}
                 left={0}
-                top={70}
+                top={RULE_HEIGHT + 15}
                 {...(marks[resource] === null ? {} : { width: 240 })}
               />
             )}
@@ -126,7 +132,14 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
   );
 }
 
-const CELL = 'flex shrink-0 items-center border-r border-(color:--ink)/25 px-[15px]';
+const CELL = 'flex shrink-0 items-center border-r border-(color:--ink)/20 px-[13px]';
+
+const RULE_HEIGHT = 48;
+/** The watermark's box is the flag's own 3:2 at the rule's height: never a distorted flag. */
+const WATERMARK_WIDTH = RULE_HEIGHT * 1.5;
+/** The fade's tail runs a little past its computed end; a letter on it would read over two
+ *  grounds. Counted in pixels: it makes up for the mask's falloff, not a proportion. */
+const AIR_AFTER_WATERMARK = 6;
 
 /** Une case par slot, pleine quand il est engagé — au-delà de huit, le compte seul : une rangée
  *  de cases qu'on dénombre ne se lit plus d'un coup d'œil. */
