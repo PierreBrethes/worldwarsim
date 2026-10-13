@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Box3, Mesh, type Object3D } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { REPLAY_MS, replayAt } from '@/domain/replay';
+import { REPLAY_MS, replayAt, stepBounds } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
-import { ReplayScene } from './replay';
+import { ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
 
 // The scene draws its pictograms and flashes on a canvas: a node run has none, a stub does.
 beforeAll(() => {
@@ -62,5 +62,39 @@ describe('ReplayScene', () => {
     scene.show(replayAt(view, REPLAY_MS), 0, true);
     expect(heightOf(scene.object.children[0]!)).toBeLessThan(standing / 2);
     expect(heightOf(scene.object.children[1]!)).toBeCloseTo(standing);
+  });
+});
+
+describe('the salvoes', () => {
+  it('cross the gap both ways, each line at the other', () => {
+    // Two of mine, one block: both of mine aim at it, and it answers the first of mine.
+    expect([0, 1, 2].map((k) => salvoTarget(k, 2, 1))).toEqual([2, 2, 0]);
+    expect(salvoTarget(0, 1, 0)).toBeNull();
+    expect(salvoTarget(0, 0, 1)).toBeNull();
+  });
+
+  it('fly through the salvo step, staggered, and hold halfway at reduced motion', () => {
+    expect(shotShare(0, 0, false)).toBeNull();
+    expect(shotShare(0.5, 0, false)).toBeCloseTo(0.5);
+    expect(shotShare(0.05, 2, false)).toBeNull();
+    expect(shotShare(1, 0, false)).toBeNull();
+    expect(shotShare(0, 1, true)).toBe(0.5);
+  });
+
+  it('shake both lines as they land, briefly, and never at reduced motion', () => {
+    expect(shakeOf('pertes', 0.05, false)).not.toBe(0);
+    expect(shakeOf('pertes', 0.5, false)).toBe(0);
+    expect(shakeOf('salves', 0.5, false)).toBe(0);
+    expect(shakeOf('pertes', 0.05, true)).toBe(0);
+  });
+
+  it('draws a shot per piece during the salvo, and none after', () => {
+    const scene = new ReplayScene(null, replayAt(luxembourg, 0).pieces, 'land');
+    const shots = () => scene.object.children.slice(4).filter((shot) => shot.visible).length;
+    const salvo = stepBounds('salves');
+    scene.show(replayAt(luxembourg, (salvo.start + salvo.end) / 2), 0, false);
+    expect(shots()).toBe(4);
+    scene.show(replayAt(luxembourg, REPLAY_MS), 0, false);
+    expect(shots()).toBe(0);
   });
 });

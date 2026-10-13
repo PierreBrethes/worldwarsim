@@ -9,12 +9,14 @@ import {
   Vector3,
 } from 'three';
 import type { Wear } from '@/domain/pile-pieces';
+import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { contactShadow, nearWeight, type Figurine } from './figurines/figurine';
+import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
-import { PLUME_BY_WEAR, Smoke, Wake } from './smoke';
+import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
+import { gaitOf, swayOf, type Gait } from './sway';
 import { blacken } from './standing';
 import { pieceScale } from './piece-scale';
 
@@ -35,6 +37,21 @@ const PAWN_SILHOUETTE_SHARE = 0.018;
 
 /** Below this gap a plane is on the ground: a shadow glued under it would say nothing. */
 const AIRBORNE_GAP = 0.05;
+
+/**
+ * **The dust a vehicle raises on the road** (`table-etat-major.html`, `dust`): low, short-lived,
+ * thrown back behind it. In model units, from the rear of a tank 2.6 long.
+ */
+const DUST: Plume = {
+  puffs: 7,
+  life: 1.1,
+  rise: 0.55,
+  lean: 3.6,
+  size: [0.5, 1.6],
+  opacity: 0.5,
+  color: '#b9a684',
+};
+const DUST_REAR = 1.1;
 
 /** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
 type SpriteCostume = {
@@ -67,6 +84,14 @@ export class Pawn {
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
   private readonly smokes = new Map<Medium, Smoke>();
+  private readonly gaits = new Map<Medium, Gait>();
+  /** Raised by a vehicle that rolls on land, `null` for any other piece. */
+  private dust: Smoke | null = null;
+  /** Its road bends here — positive to the left —, and it has gone forward since the last frame. */
+  private turn = 0;
+  private moving = false;
+  /** Full motion only: reduced and cut motion leave every piece upright and the road clear. */
+  private lively = false;
   private readonly wake = new Wake();
   private readonly shadow = contactShadow();
   /** Height of the ground under the pawn, relative to it: zero, or below a plane. */
@@ -83,6 +108,9 @@ export class Pawn {
     figurines: Readonly<Record<Medium, Figurine | null>> | null = null,
     /** My movement's wear per medium (`movementWear`); `null` for anything not mine. */
     wear: Readonly<Record<Medium, Wear>> | null = null,
+    /** My movement's roles per medium (`movementRoles`), what says how each rides; `null` for
+     *  anything not mine — an enemy block neither jolts nor banks. */
+    roles: Readonly<Record<Medium, UnitRole | null>> | null = null,
   ) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
@@ -96,6 +124,18 @@ export class Pawn {
         figurine.object.visible = false;
         this.figurines.set(medium, figurine);
         this.object.add(figurine.object);
+        figurine.object.rotation.order = 'YXZ';
+        const gait = gaitOf(roles?.[medium] ?? null);
+        if (gait !== null) this.gaits.set(medium, gait);
+        if (gait === 'rolling') {
+          this.dust = new Smoke(DUST);
+          this.dust.object.scale.setScalar(FIGURINE_SCALE);
+          this.dust.object.position.set(0, 0.1 * FIGURINE_SCALE, -DUST_REAR * FIGURINE_SCALE);
+          // A puff leans along its +x: turned, it is thrown back behind the vehicle.
+          this.dust.object.rotation.y = Math.PI / 2;
+          this.dust.object.visible = false;
+          figurine.object.add(this.dust.object);
+        }
         const worn = wear?.[medium] ?? 'whole';
         const plume = PLUME_BY_WEAR[worn];
         if (plume !== null) {
@@ -142,7 +182,9 @@ export class Pawn {
   }
 
   /** `groundY` is the board's height under the point: a plane flies above it (`flightAltitude`). */
-  place(position: Vector3, pointAhead: Vector3, groundY = position.y): void {
+  place(position: Vector3, pointAhead: Vector3, groundY = position.y, turn = 0): void {
+    this.moving = !position.equals(this.object.position);
+    this.turn = turn;
     this.object.position.copy(position);
     this.groundBelow = groundY - position.y;
     this.westward = pointAhead.x < position.x;
@@ -152,12 +194,15 @@ export class Pawn {
     if (dx !== 0 || dz !== 0) this.heading = Math.atan2(dx, dz);
   }
 
-  /** What spins on the worn figurine — its propellers — and nothing else. */
-  step(elapsedSeconds: number): void {
+  /** What spins, sways and smokes on the worn figurine; `null` is motion not full — all still. */
+  step(elapsedSeconds: number | null): void {
+    this.lively = elapsedSeconds !== null;
+    if (elapsedSeconds === null) return;
     this.figurines.get(this.medium)?.spin(elapsedSeconds);
     this.clock += elapsedSeconds;
     if (this.wake.object.visible) this.wake.frame(this.clock);
     this.smokes.get(this.medium)?.frame(this.clock);
+    if (this.dust?.object.visible) this.dust.frame(this.clock);
   }
 
   /**
@@ -180,8 +225,19 @@ export class Pawn {
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
-      figurine.object.rotation.set(0, figurine.facesEye ? yaw : this.heading, 0);
-      figurine.object.scale.setScalar(near * pieceScale.troops);
+      const scale = near * pieceScale.troops;
+      const sway = swayOf(
+        this.lively ? (this.gaits.get(this.medium) ?? null) : null,
+        this.clock,
+        this.moving,
+        this.turn,
+      );
+      figurine.object.rotation.set(sway.pitch, figurine.facesEye ? yaw : this.heading, sway.roll);
+      figurine.object.position.y = sway.lift * FIGURINE_SCALE * scale;
+      figurine.object.scale.setScalar(scale);
+      if (this.dust !== null)
+        this.dust.object.visible =
+          this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';
     }
     const costume = this.costumes.get(this.medium);
     if (costume === undefined) return;

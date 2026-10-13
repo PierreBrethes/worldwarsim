@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
+import { Group, Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
+import type { Figurine } from './figurines/figurine';
 import { Pawn } from './pawn';
 
 /**
@@ -96,5 +97,51 @@ describe('the plane shadow', () => {
       pawn.orient(close, 0);
       expect(shadowOf(pawn).visible).toBe(false);
     }
+  });
+});
+
+describe('the life of a piece of mine on its road', () => {
+  const close = new Vector3(0, 5, 0);
+  const figurine = (): Figurine => ({ object: new Group(), ready: Promise.resolve(), spin() {} });
+  const tank = (roles: boolean) => {
+    const land = figurine();
+    const pawn = new Pawn(
+      null,
+      '#000',
+      { land, sea: null, air: null },
+      null,
+      roles ? { land: 'armor', sea: null, air: null } : null,
+    );
+    return { pawn, land };
+  };
+  const roll = (pawn: Pawn, lively: boolean, x = 0.1) => {
+    pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
+    pawn.step(lively ? 0.1 : null);
+    pawn.orient(close, 0);
+  };
+  const dustOf = (land: Figurine) => land.object.children.find((child) => child.type === 'Group')!;
+
+  it('raises dust and jolts a vehicle that rolls, at full motion only', () => {
+    const { pawn, land } = tank(true);
+    roll(pawn, true);
+    expect(dustOf(land).visible).toBe(true);
+    expect(land.object.rotation.x).not.toBe(0);
+    roll(pawn, false, 0.2);
+    expect(dustOf(land).visible).toBe(false);
+    expect(land.object.rotation.x).toBe(0);
+  });
+
+  it('settles the dust when the vehicle stops', () => {
+    const { pawn, land } = tank(true);
+    roll(pawn, true);
+    roll(pawn, true);
+    expect(dustOf(land).visible).toBe(false);
+  });
+
+  it('leaves a piece that is not mine still: the fog serves it no role', () => {
+    const { pawn, land } = tank(false);
+    roll(pawn, true);
+    expect(land.object.rotation.x).toBe(0);
+    expect(land.object.children).toHaveLength(0);
   });
 });
