@@ -166,6 +166,18 @@ admin-1 apparaissent entre 65 et 30 unités de distance.
 - **Les caisses d'une pile qui charge restent** : c'est sa propre information, l'adversaire ne
   voit qu'un bloc ; la spec le dit.
 
+## Retours de Pierre du 13/10, après les lots 1 à 8
+
+- **Filtres de la carte** à adapter à ce qui existe maintenant : ajouter les objectifs neutres (et
+  revoir la liste des couches au passage).
+- **Dessins de terrain au survol** : Pierre les adore, mais certains se distinguent mal entre eux,
+  et celui de la jungle est le plus faible — à redessiner.
+- **Le type de la région** s'écrit toujours dans l'infobulle du survol.
+- **Les cartouches de nom** des bâtiments et des troupes ne s'affichent **qu'au survol** : les
+  maquettes GLB des bâtiments diront ce qu'elles sont.
+- **Les pictogrammes de gisement** posés sur la carte sont à repenser dans le style table
+  d'état-major (gravure, encre), ils sont trop simples.
+
 ## Pour le développement
 
 - **Le moteur** : instanciation (24 troupes au plafond, trois figurines chacune), les règles de
