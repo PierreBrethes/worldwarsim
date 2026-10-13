@@ -18,6 +18,7 @@ import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import type { Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
+import { dropLift } from './landing';
 import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
 import { pieceScale } from './piece-scale';
@@ -200,8 +201,6 @@ function hand(): Group {
 
 /** The prototype's landing (`liftTick`), in seconds and model units: down with the hand, a drop, a small bounce. */
 const DESCENT = 0.35;
-const FALL = 0.14;
-const BOUNCE = 0.12;
 const HAND_GONE = 0.75;
 const FROM = 7;
 const LIFT = 1.1;
@@ -212,11 +211,7 @@ function landing(d: number): { lift: number; hand: number } {
     const lift = LIFT + (FROM - LIFT) * (1 - d / DESCENT) ** 2;
     return { lift, hand: lift + HAND_ABOVE };
   }
-  const hand = LIFT + HAND_ABOVE + (d - DESCENT) * 13;
-  const t = d - DESCENT;
-  if (t < FALL) return { lift: LIFT * (1 - t / FALL) ** 2, hand };
-  if (t < FALL + BOUNCE) return { lift: Math.sin(((t - FALL) / BOUNCE) * Math.PI) * 0.11, hand };
-  return { lift: 0, hand };
+  return { lift: dropLift(d - DESCENT, LIFT), hand: LIFT + HAND_ABOVE + (d - DESCENT) * 13 };
 }
 
 type Placed = {
