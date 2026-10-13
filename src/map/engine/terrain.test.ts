@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
-import { DRAW_S, inkOn, zoomFade, penShare, SKETCH_S, sketchRegion, STAGGER_S } from './terrain';
+import {
+  DRAW_S,
+  drawVariation,
+  inkOn,
+  mulberry,
+  penShare,
+  PICTOGRAMS,
+  SKETCH_S,
+  sketchRegion,
+  STAGGER_S,
+  terrainCluster,
+  zoomFade,
+} from './terrain';
 import { PALETTE } from './palette';
 
 const TYPES: ReadonlyArray<RegionType> = [
@@ -107,5 +119,72 @@ describe('zoomFade', () => {
     expect(zoomFade(0)).toBe(0);
     expect(zoomFade(0.08)).toBe(1);
     expect(zoomFade(0.5)).toBe(1);
+  });
+});
+
+describe('the variations of a drawing', () => {
+  const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+  // Generous boxes around the base, in the prototype's pixels (y down).
+  const BOX: Record<RegionType, readonly [number, number, number, number]> = {
+    plain: [-26, -22, 26, 6],
+    forest: [-32, -32, 32, 8],
+    jungle: [-34, -45, 38, 10],
+    mountain: [-56, -34, 56, 4],
+    desert: [-34, -20, 30, 12],
+    tundra: [-24, -16, 24, 8],
+  };
+
+  it('draws the same strokes from the same seed', () => {
+    for (const type of TYPES)
+      expect(terrainCluster(type, mulberry(5))).toEqual(terrainCluster(type, mulberry(5)));
+  });
+
+  it('draws different strokes from different seeds', () => {
+    for (const type of TYPES) {
+      const drawn = new Set(seeds.map((s) => JSON.stringify(terrainCluster(type, mulberry(s)))));
+      expect(drawn.size, type).toBeGreaterThan(50);
+    }
+  });
+
+  it('keeps every variant in its box', () => {
+    for (const type of TYPES) {
+      const [x0, y0, x1, y1] = BOX[type];
+      for (const s of seeds)
+        for (const [x, y] of terrainCluster(type, mulberry(s)).flat()) {
+          expect(x, `${type} ${s}`).toBeGreaterThanOrEqual(x0);
+          expect(x, `${type} ${s}`).toBeLessThanOrEqual(x1);
+          expect(y, `${type} ${s}`).toBeGreaterThanOrEqual(y0);
+          expect(y, `${type} ${s}`).toBeLessThanOrEqual(y1);
+        }
+    }
+  });
+
+  it('gives a massif one to three peaks, all three occurring', () => {
+    const summits = (s: number) => {
+      const outline = PICTOGRAMS.mountain(0, 0, mulberry(s))[0]!;
+      return outline.filter(
+        ([, y], i) =>
+          i > 0 && i < outline.length - 1 && y < outline[i - 1]![1] && y < outline[i + 1]![1],
+      ).length;
+    };
+    const counts = new Set(seeds.map(summits));
+    expect([...counts].sort()).toEqual([1, 2, 3]);
+  });
+
+  it('mirrors, scales within 10 % and turns within 4°', () => {
+    const all = seeds.map((s) => drawVariation(mulberry(s)));
+    expect(new Set(all.map((v) => v.mirror))).toEqual(new Set([-1, 1]));
+    for (const { scale, angle } of all) {
+      expect(scale).toBeGreaterThanOrEqual(0.9);
+      expect(scale).toBeLessThanOrEqual(1.1);
+      expect(Math.abs(angle)).toBeLessThanOrEqual((4 * Math.PI) / 180);
+    }
+  });
+
+  it('varies the count of fronds, blades and furrows', () => {
+    const strokesOf = (kind: keyof typeof PICTOGRAMS) =>
+      new Set(seeds.map((s) => PICTOGRAMS[kind](0, 0, mulberry(s)).length));
+    for (const kind of ['palm', 'fern', 'tussock', 'fields', 'dune', 'conifer'] as const)
+      expect(strokesOf(kind).size, kind).toBeGreaterThan(1);
   });
 });

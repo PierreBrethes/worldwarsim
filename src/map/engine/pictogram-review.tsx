@@ -9,11 +9,11 @@ import { mulberry, terrainCluster } from './terrain';
 
 /**
  * **The dev review page** (`/pictograms.html`): every terrain drawing and every deposit mark,
- * large and at the size the board gives them, on the bare sheet and on a dark held ground —
+ * large (several variants of each, seeds 1 to 12) and at the size the board gives them, on the bare sheet and on a dark held ground —
  * where a drawing is judged before it reaches the map. Never shipped.
  */
 const TYPES = Object.keys(fr.regionTypes) as ReadonlyArray<RegionType>;
-const SEEDS = [1, 2, 3, 4, 5, 6];
+const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 /** The board's ink on a dark held ground: France's blue, which `inkOn` answers with paper. */
 const DARK_GROUND = '#3d4f74';
 
@@ -93,7 +93,7 @@ function Review() {
             data-type={type}
             style={{
               display: 'grid',
-              gridTemplateColumns: '90px 1fr 1fr 1fr',
+              gridTemplateColumns: '90px 1.2fr 1fr 1fr',
               gap: 8,
               alignItems: 'stretch',
             }}
@@ -109,8 +109,8 @@ function Review() {
               {fr.regionTypes[type]}
             </strong>
             <Sheet ground={PALETTE.neutralLand} ink={PALETTE.border}>
-              {SEEDS.slice(0, 2).map((seed) => (
-                <Cluster key={seed} type={type} seed={seed} scale={4} />
+              {SEEDS.slice(0, 4).map((seed) => (
+                <Cluster key={seed} type={type} seed={seed} scale={3} />
               ))}
             </Sheet>
             <Sheet ground={PALETTE.neutralLand} ink={PALETTE.border}>
