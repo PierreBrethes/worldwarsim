@@ -6,7 +6,7 @@ import type { RegionType } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import { onLand } from './frame';
 import { inkedStrands } from './ink';
-import { lavis, PALETTE } from './palette';
+import { PALETTE } from './palette';
 
 /**
  * **Les dessins de terrain au survol** (`WWS/docs/design/propositions/table-etat-major.md`) :
@@ -499,27 +499,6 @@ type Sketch = {
   tick: number;
 };
 
-/** France's blue held in full draws in paper, the same blue washed to a quarter in ink. */
-const DARK_GROUND_LUMA = 0.6;
-
-/**
- * Dark ink vanishes on a dark ground (France's blue): there the pen draws in paper. The ground is
- * what is *painted*: the held ink laid at `opacity` over what lies under it — the bare paper, or
- * an opponent's country in his nation's lavis (a faded survey barely tints it). Its luma is read
- * on the sRGB numbers, and the board's light darkens what it lays on, so a ground reads dark well
- * above the middle grey. No `ink` is the ground alone.
- */
-export function inkOn(
-  ink: string | null,
-  opacity: number,
-  ground: string = PALETTE.neutralLand,
-): string {
-  const painted = parseInt((ink === null ? ground : lavis(ink, opacity, ground)).slice(1), 16);
-  const channel = (shift: number) => ((painted >> shift) & 255) / 255;
-  const luma = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-  return luma < DARK_GROUND_LUMA ? PALETTE.paper : PALETTE.border;
-}
-
 /**
  * The pen over the hovered region. The region being left fades while the next one draws; a
  * region hovered again while it fades is revived, not redrawn.
@@ -539,16 +518,12 @@ export class TerrainSketches {
     return this.busy;
   }
 
-  /** `ground` is the seat's ink when the region is held, laid at `groundOpacity`; `null` on the
-   *  bare sheet. */
+  /** `pen` is the ink the ground under the drawing calls for (`penOn`). */
   show(
     regionId: string | null,
     sketch: () => PenStrands,
     now: number,
-    ground: string | null = null,
-    groundOpacity = 0,
-    /** What the held ink is laid over: the paper, or an opponent nation's lavis. */
-    under: string = PALETTE.neutralLand,
+    pen: string = PALETTE.border,
   ): void {
     for (const leaving of this.sketches.filter(
       (s) => s.leftAt === null && s.regionId !== regionId,
@@ -563,10 +538,7 @@ export class TerrainSketches {
       kept.leftAt = null;
       return;
     }
-    const line = new LineSegments2(
-      new LineSegmentsGeometry(),
-      this.material(inkOn(ground, groundOpacity, under)),
-    );
+    const line = new LineSegments2(new LineSegmentsGeometry(), this.material(pen));
     /** Transparent like the fills it lies on: drawn before them, a paper stroke is tinted by the
      *  nation's ink and reads grey-blue. */
     line.renderOrder = 1;
