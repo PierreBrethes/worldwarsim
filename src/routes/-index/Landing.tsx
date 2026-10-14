@@ -64,8 +64,12 @@ export function Landing() {
       page.style.transformOrigin = `${cx}px ${cy}px`;
       page.style.transform = `translate(${(innerWidth / 2 - cx) * e}px, ${(innerHeight / 2 - cy) * e}px) scale(${1 + (scale - 1) * e})`;
       page.style.opacity = p > 0.97 ? '0' : '1';
-      for (const element of page.querySelectorAll<HTMLElement>('[data-fades]'))
+      // What can no longer be seen can no longer be reached either: not by Tab, not by a click.
+      hide(page, p > 0.97);
+      for (const element of page.querySelectorAll<HTMLElement>('[data-fades]')) {
         element.style.opacity = String(1 - clamp01(p / 0.35));
+        hide(element, p >= 0.35);
+      }
       if (invite.current) invite.current.style.opacity = scrollY > 8 ? '0' : '1';
 
       const middle = innerHeight / 2;
@@ -272,6 +276,11 @@ const ENGRAVING_FONTS = [
   '600 20px "Archivo Narrow"',
   '400 20px "IBM Plex Mono"',
 ];
+
+function hide(element: HTMLElement, hidden: boolean): void {
+  element.inert = hidden;
+  element.style.visibility = hidden ? 'hidden' : '';
+}
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => x * x * (3 - 2 * x);
