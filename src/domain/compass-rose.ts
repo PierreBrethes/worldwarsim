@@ -14,7 +14,7 @@ import {
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { aboardAt, bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
-import { theatreById } from './theatres';
+import { playedTheatre } from './theatres';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
@@ -1107,7 +1107,7 @@ function bombardFan(
     roles: column.roles,
     from,
     to: target.point,
-    theatre: view.theatre === null ? null : theatreById(view.theatre),
+    theatre: playedTheatre(view),
     seen:
       target.kind === 'track' ||
       view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),
