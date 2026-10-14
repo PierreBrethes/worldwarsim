@@ -9,10 +9,10 @@
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
-import { NATION_BY_ADM0 } from '../domain/nations';
+import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { DispatchKind, Faced, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
@@ -90,6 +90,24 @@ const combatBeats = (
     riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
   return `${attacking ? 'notre' : 'leur'} frappe en abat ${strike}, ${answer}`;
 };
+
+/**
+ * **Ce qu'on a eu en face au feu** (F1) : la nation, puis chaque rôle, en hommes ou en machines
+ * (ADR 0014) — les marques se fondent, la phrase compte des rôles.
+ */
+const facedWords = (faced: Faced): string => {
+  const roles = [...new Set(faced.forces.map((force) => force.role))].map((role) => {
+    const of = faced.forces.filter((force) => force.role === role);
+    const troops = of.reduce((sum, force) => sum + force.troops, 0);
+    const strength = of.reduce((sum, force) => sum + force.strength, 0);
+    const unit = role === 'infantry' ? 'homme' : 'machine';
+    return `${roleLabel(role, 1)} ×${troops} (${strength} ${unit}${plural(strength, '', 's')})`;
+  });
+  return `${facedNation(faced.nation)} : ${roles.join(', ')}`;
+};
+
+const facedNation = (nation: string | null): string =>
+  nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
 
 export const fr = {
   nations: {
@@ -1321,6 +1339,7 @@ export const fr = {
       theirs,
       outpostDisabled,
       shock = false,
+      faced,
     }: {
       where: string;
       cause: 'arrival' | 'interception' | 'bombardment';
@@ -1330,13 +1349,14 @@ export const fr = {
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
       shock?: boolean;
+      faced?: Faced | undefined;
     }) => {
       /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
       if (cause === 'bombardment') {
         const lost = attacking ? theirs.lost : mine.lost;
         const fell = (attacking ? theirs : mine).destroyed > 0;
         return attacking
-          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          ? `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
           : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
       }
       const opening =
@@ -1347,7 +1367,7 @@ export const fr = {
           : attacking
             ? `engagement ${where}`
             : `attaque reçue ${where}`;
-      const forces = `${mine.troops} contre ${theirs.troops}`;
+      const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
@@ -1357,10 +1377,12 @@ export const fr = {
           : null,
         outpostDisabled ? 'avant-poste désactivé' : null,
       ].filter((piece): piece is string => piece !== null);
-      return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
+      return `${opening} — ${forces} ${toll} · ${after.join(' · ')}`;
     },
     disabledUntil: (time: string) => `désactivé — retour à ${time}`,
     beats: combatBeats,
+    faced: facedWords,
+    facedNation,
   },
 
   /**
@@ -1995,6 +2017,7 @@ export const fr = {
       ]
         .filter((piece): piece is string => piece !== null)
         .join(' · '),
+    faced: 'au feu',
     theirs: 'en face',
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
@@ -2011,7 +2034,8 @@ export const fr = {
 
   /**
    * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
-   * secondes, et un cartouche à la fin — chez nous par rôle, en face des totaux (ADR 0005).
+   * secondes, et un cartouche à la fin — chez nous par rôle, en face par rôle sous sa nation (F1),
+   * ou des totaux sur un compte rendu d'avant le 14/10.
    */
   replay: {
     play: 'rejouer',

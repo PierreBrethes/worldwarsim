@@ -712,7 +712,8 @@ export class MapEngine {
 
   /**
    * **Plays a combat's replay at its point** (surface 4.7, ADR 0026 §7): the camera travels
-   * there, my figurines and the enemy's blocks are set down face to face, and the steps of
+   * there, my figurines and the enemy's — in its nation's figurines, or blocks on an account from
+   * before the fire was seen (F1) — are set down face to face, and the steps of
    * `replayAt` play out — automatically, about ten seconds, unless `setReplayAutoplay(false)`.
    * `onStep` is told each step as it begins, `compte-rendu` included, and once more with `ended`
    * when the replay has played to its end: the account card is the caller's. `below` is the share
@@ -767,6 +768,7 @@ export class MapEngine {
       replayAt(view, 0).pieces,
       onLand ? 'land' : 'sea',
       fire,
+      view.faced?.nation ?? null,
     );
     scene.object.position.copy(center);
     scene.object.rotation.y = yaw;

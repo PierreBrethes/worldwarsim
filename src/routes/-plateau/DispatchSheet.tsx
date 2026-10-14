@@ -100,9 +100,9 @@ export function DispatchSheet({
 
 /**
  * **Ce que le compte rendu dit d'un engagement, en lignes** : les engagées, les pertes de chaque
- * côté, le terrain, l'avant-poste désactivé s'il l'est. La feuille d'arrivée et la manchette du
- * journal sur téléphone les impriment de la même façon — jamais l'assaillant, que le compte rendu
- * ne nomme pas (ADR 0005).
+ * côté, le terrain, l'avant-poste désactivé s'il l'est, et ce qu'on a eu en face au feu (F1) —
+ * absent d'un compte rendu d'avant le 14/10. La feuille d'arrivée et la manchette du journal sur
+ * téléphone les impriment de la même façon.
  */
 export function CombatLines({ combat }: { combat: CombatReport }) {
   const said = fr.dispatchSheet;
@@ -116,6 +116,7 @@ export function CombatLines({ combat }: { combat: CombatReport }) {
         label={said.losses}
         value={said.lossesValue(combat.mine.lost, combat.mine.destroyed, combat.mine.routed)}
       />
+      {combat.faced && <Row label={said.faced} value={fr.combat.faced(combat.faced)} />}
       <Row label={said.theirs} value={said.theirsValue(combat.theirs.lost)} />
       <Row
         label={said.pass}
