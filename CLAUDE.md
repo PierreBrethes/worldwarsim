@@ -702,7 +702,7 @@ plus le dépôt :
 ## Vocabulaire imposé
 
 **mouvement** (pas convoi) · **passe de résolution** (pas tour de combat) · avant-poste **désactivé**
-ou **détruit** (jamais pris) · **journal d'événements** · **slot de mouvement**.
+ou **détruit**, ou **capturé** par l'infanterie (jamais pris) · **journal d'événements** · **slot de mouvement**.
 Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTEXT.md`.
 
 ## Ce qui reste

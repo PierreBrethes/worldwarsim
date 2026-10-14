@@ -60,6 +60,9 @@ import {
  * qu'il est. Une troupe, une station, un avant-poste ne se distinguent en rien ici — ils
  * regardent, et c'est leur disque qui dit le sol qu'ils relèvent (`regionsCoveredBy`).
  */
+/** Un disque qui ne touche que la cellule où il se tient : sa propre région, rien d'autre. */
+const OWN_GROUND_KM = 1;
+
 export type Observer = { readonly point: LonLat; readonly radiusKm: number };
 
 export async function standingObserversOf(
@@ -82,13 +85,12 @@ export async function standingObserversOf(
   for (const building of buildings) {
     /** Un bâtiment capturé voit le sol qu'il tient — sans quoi sa couleur se délaverait chez son
      *  capteur comme un relevé ancien. */
-    const captured = pointOfBuilding(building);
-    if (building.capturedAt !== undefined && captured !== null) {
-      observers.push({ point: captured, radiusKm: 1 });
-    }
-    if (building.key !== 'listening') continue;
     const stand = pointOfBuilding(building);
-    if (stand !== null) {
+    if (stand === null) continue;
+    if (building.capturedAt !== undefined) {
+      observers.push({ point: stand, radiusKm: OWN_GROUND_KM });
+    }
+    if (building.key === 'listening') {
       observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }

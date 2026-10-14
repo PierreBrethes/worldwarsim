@@ -1,6 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import { heldRegions } from '../src/domain/control';
+import { heldRegions, type Occupation } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
 import { outpostReachKm } from './constants';
 import { pointOf, seasonOutposts } from './movement/forces';
@@ -42,7 +42,7 @@ export async function heldOver(
 export async function occupationsOf(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
-): Promise<ReadonlyArray<{ regionId: string; owner: string }>> {
+): Promise<ReadonlyArray<Occupation>> {
   return (
     await ctx.db
       .query('buildings')
@@ -101,7 +101,7 @@ export function soleHoldOf({
   now,
 }: {
   readonly regions: ReadonlyArray<RegionFacts>;
-  readonly occupations?: ReadonlyArray<{ regionId: string; owner: string }>;
+  readonly occupations?: ReadonlyArray<Occupation>;
   readonly outposts: ReadonlyArray<Doc<'outposts'>>;
   readonly outpost: Doc<'outposts'>;
   readonly homeGrounds: ReadonlyArray<{ owner: string; country: string }>;
