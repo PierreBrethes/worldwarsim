@@ -267,10 +267,13 @@ cadres : une fenêtre qu'on ouvre au plateau, et une section posée à demeure a
 que l'écriture acceptée avant le lancement prend son sens, et le salon n'a ni rail ni badge, donc
 il date la lecture en quittant la feuille. Trois bornes,
 d'écran et non d'équilibrage (`src/domain/telegraph.ts`) : 300 caractères, un message par seconde
-et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de canal privé, pas de
-mention, pas de modération. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
-autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail compte depuis
-la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
+et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de mention, pas de modération. **Et des canaux privés à deux** (14/10/2026) : la fenêtre a un
+onglet « Général » et un par autre joueur de la partie (`messages.to` optionnel, servi aux deux
+participants seulement, mêmes bornes **par canal**, un message par seconde tous canaux confondus ;
+lecture datée par canal dans `readMarks.telegraphDirectReadAt`). Le fil est partout la vue en
+bandes groupées par émetteur ; le salon n'a que le général. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
+autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail somme les canaux, chacun depuis
+sa dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 
 **Le compte possède ses places** (ADR 0022, livré le 11/09/2026). Un pseudo unique et un mot de
 passe, sans e-mail : `/connexion` ouvre un dossier ou en reprend un, et l'accueil liste les

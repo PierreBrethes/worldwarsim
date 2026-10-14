@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { ConvexProvider } from 'convex/react';
 import type { ConvexReactClient } from 'convex/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Telegraph } from '@/data/telegraph';
+import type { TelegraphMessage } from '@/data/telegraph';
 import type { Seat } from '@/data/session';
 import { TelegraphThread } from './TelegraphThread';
 
@@ -32,8 +32,8 @@ const mute = (): ConvexReactClient =>
 
 const SEAT: Seat = { token: 'un-jeton', seasonId: 'une-saison' } as unknown as Seat;
 
-const thread = (count: number): Telegraph => ({
-  messages: Array.from({ length: count }, (_, index) => ({
+const thread = (count: number): ReadonlyArray<TelegraphMessage> =>
+  Array.from({ length: count }, (_, index) => ({
     id: `m${index}`,
     at: 1_757_000_000_000 + index * 1_000,
     text: `dépêche ${index}`,
@@ -41,9 +41,7 @@ const thread = (count: number): Telegraph => ({
     nation: 'france',
     ink: '#276893',
     mine: false,
-  })),
-  unread: 0,
-});
+  }));
 
 const HEIGHT = 420;
 
@@ -69,10 +67,10 @@ const atWidth = (pixels: number): void => {
 beforeEach(() => atWidth(1440));
 afterEach(cleanup);
 
-const mount = (telegraph: Telegraph) =>
+const mount = (messages: ReadonlyArray<TelegraphMessage>) =>
   render(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={telegraph} seat={SEAT} height={HEIGHT} />
+      <TelegraphThread messages={messages} seat={SEAT} height={HEIGHT} />
     </ConvexProvider>,
   );
 
@@ -84,7 +82,7 @@ it('porte une hauteur, pas un plafond — la boîte ne bouge pas de dix à cinqu
 
   rerender(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={thread(50)} seat={SEAT} height={HEIGHT} />
+      <TelegraphThread messages={thread(50)} seat={SEAT} height={HEIGHT} />
     </ConvexProvider>,
   );
   expect(box(container).style.height).toBe(`${HEIGHT}px`);
@@ -99,7 +97,7 @@ it('se colle au dernier message à l’ouverture', () => {
 
   rerender(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={thread(50)} seat={SEAT} height={HEIGHT} />
+      <TelegraphThread messages={thread(50)} seat={SEAT} height={HEIGHT} />
     </ConvexProvider>,
   );
   expect(list.scrollTop).toBe(4_000);
@@ -114,7 +112,7 @@ it('laisse la lecture où elle est quand un message arrive alors qu’on a remon
 
   rerender(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={thread(51)} seat={SEAT} height={HEIGHT} />
+      <TelegraphThread messages={thread(51)} seat={SEAT} height={HEIGHT} />
     </ConvexProvider>,
   );
   expect(list.scrollTop).toBe(1_200);
@@ -129,7 +127,7 @@ it('recolle en bas quand un message arrive et qu’on y était', () => {
 
   rerender(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={thread(51)} seat={SEAT} height={HEIGHT} />
+      <TelegraphThread messages={thread(51)} seat={SEAT} height={HEIGHT} />
     </ConvexProvider>,
   );
   expect(list.scrollTop).toBe(4_000);
@@ -137,44 +135,40 @@ it('recolle en bas quand un message arrive et qu’on y était', () => {
 
 /** **Sous le seuil, les messages d'un même joueur se rangent sous un seul nom** (refonte mobile,
  *  1i), et les siens se signent « vous ». */
-it('groups a sender’s run under one name on a phone, and signs one’s own « vous »', () => {
-  atWidth(390);
+it('groups a sender’s run under one name, desktop included, and signs one’s own « vous »', () => {
   const now = Date.now();
-  const messages: Telegraph = {
-    messages: [
-      {
-        id: 'a',
-        at: now - 3_000,
-        text: 'un',
-        nickname: 'Koval',
-        nation: 'ussr',
-        ink: '#9d4638',
-        mine: false,
-      },
-      {
-        id: 'b',
-        at: now - 2_000,
-        text: 'deux',
-        nickname: 'Koval',
-        nation: 'ussr',
-        ink: '#9d4638',
-        mine: false,
-      },
-      {
-        id: 'c',
-        at: now - 1_000,
-        text: 'trois',
-        nickname: 'Théo',
-        nation: 'france',
-        ink: '#276893',
-        mine: true,
-      },
-    ],
-    unread: 0,
-  };
+  const messages: ReadonlyArray<TelegraphMessage> = [
+    {
+      id: 'a',
+      at: now - 3_000,
+      text: 'un',
+      nickname: 'Koval',
+      nation: 'ussr',
+      ink: '#9d4638',
+      mine: false,
+    },
+    {
+      id: 'b',
+      at: now - 2_000,
+      text: 'deux',
+      nickname: 'Koval',
+      nation: 'ussr',
+      ink: '#9d4638',
+      mine: false,
+    },
+    {
+      id: 'c',
+      at: now - 1_000,
+      text: 'trois',
+      nickname: 'Théo',
+      nation: 'france',
+      ink: '#276893',
+      mine: true,
+    },
+  ];
   render(
     <ConvexProvider client={mute()}>
-      <TelegraphThread telegraph={messages} seat={SEAT} height="fill" />
+      <TelegraphThread messages={messages} seat={SEAT} height="fill" />
     </ConvexProvider>,
   );
   expect(screen.getAllByText('Koval')).toHaveLength(1);

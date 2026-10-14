@@ -166,3 +166,115 @@ describe('le télégraphe', () => {
     expect(player.journalReadAt).toBeUndefined();
   });
 });
+
+describe('les canaux privés', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const idOf = async (t: ReturnType<typeof boot>, seat: Parameters<typeof seatDoc>[1]) =>
+    (await seatDoc(t, seat))._id;
+
+  async function trio(t: ReturnType<typeof boot>) {
+    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const lea = await joinSeat(t, code, 'Léa');
+    const marc = await joinSeat(t, code, 'Marc');
+    return { pierre: seat, lea, marc };
+  }
+
+  it('n’est servi qu’à ses deux participants', async () => {
+    const t = boot();
+    const { pierre, lea, marc } = await trio(t);
+    await t.mutation(api.messages.post, { ...pierre, text: 'psst', to: await idOf(t, lea) });
+
+    const toLea = await t.query(api.messages.recent, lea);
+    expect(toLea.messages).toEqual([]);
+    expect(toLea.direct.map((channel) => channel.nickname)).toContain('Pierre');
+    expect(toLea.direct.find((channel) => channel.nickname === 'Pierre')!.messages).toHaveLength(1);
+    const fromPierre = await t.query(api.messages.recent, pierre);
+    expect(fromPierre.direct.find((c) => c.nickname === 'Léa')!.messages[0]!.mine).toBe(true);
+
+    const seenByMarc = await t.query(api.messages.recent, marc);
+    expect(seenByMarc.messages).toEqual([]);
+    expect(seenByMarc.direct.flatMap((channel) => channel.messages)).toEqual([]);
+  });
+
+  it('ne passe jamais par le général', async () => {
+    const t = boot();
+    const { pierre, lea } = await trio(t);
+    await t.mutation(api.messages.post, { ...pierre, text: 'secret', to: await idOf(t, lea) });
+    await t.mutation(api.messages.post, { ...lea, text: 'public' });
+    expect((await t.query(api.messages.recent, pierre)).messages.map((m) => m.text)).toEqual([
+      'public',
+    ]);
+  });
+
+  it('refuse un destinataire inconnu, soi-même, ou le siège d’une autre saison', async () => {
+    const t = boot();
+    const { pierre } = await trio(t);
+    await expect(
+      t.mutation(api.messages.post, { ...pierre, text: 'moi', to: await idOf(t, pierre) }),
+    ).rejects.toThrow('UNKNOWN_RECIPIENT');
+    const elsewhere = await lobby(t, 'Zoé', 'Yann');
+    await expect(
+      t.mutation(api.messages.post, {
+        ...pierre,
+        text: 'ailleurs',
+        to: await idOf(t, elsewhere.guest),
+      }),
+    ).rejects.toThrow('UNKNOWN_RECIPIENT');
+  });
+
+  it('tient les mêmes bornes, et la cadence se partage entre canaux', async () => {
+    const t = boot();
+    const { pierre, lea } = await trio(t);
+    const to = await idOf(t, lea);
+    await expect(
+      t.mutation(api.messages.post, { ...pierre, text: 'a'.repeat(MESSAGE_MAX_CHARS + 1), to }),
+    ).rejects.toThrow('MESSAGE_TOO_LONG');
+    await t.mutation(api.messages.post, { ...pierre, text: 'un', to });
+    await expect(t.mutation(api.messages.post, { ...pierre, text: 'deux' })).rejects.toThrow(
+      'TELEGRAPH_TOO_FAST',
+    );
+  });
+
+  it('sert les deux cents derniers de chaque canal', async () => {
+    const t = boot();
+    const { pierre, lea } = await trio(t);
+    const to = await idOf(t, lea);
+    for (let rank = 0; rank < TELEGRAPH_DEPTH + 3; rank += 1) {
+      vi.setSystemTime(MIDDAY.getTime() + rank * MESSAGE_MIN_INTERVAL_MS);
+      await t.mutation(api.messages.post, { ...pierre, text: `m${rank}`, to });
+    }
+    const channel = (await t.query(api.messages.recent, lea)).direct.find(
+      (c) => c.nickname === 'Pierre',
+    )!;
+    expect(channel.messages).toHaveLength(TELEGRAPH_DEPTH);
+    expect(channel.messages.at(-1)!.text).toBe(`m${TELEGRAPH_DEPTH + 2}`);
+  });
+
+  it('date la lecture par canal', async () => {
+    const t = boot();
+    const { pierre, lea } = await trio(t);
+    const pierreId = await idOf(t, pierre);
+    const before = await t.query(api.messages.recent, lea);
+    expect(before.direct.find((c) => c.nickname === 'Pierre')!.readAt).toBeNull();
+
+    await t.mutation(api.messages.markRead, { ...lea, with: pierreId });
+    const after = await t.query(api.messages.recent, lea);
+    expect(after.direct.find((c) => c.nickname === 'Pierre')!.readAt).toBe(MIDDAY.getTime());
+    expect(after.readAt).toBeNull();
+  });
+
+  it('ignore la lecture d’un canal qui n’existe pas', async () => {
+    const t = boot();
+    const { pierre } = await trio(t);
+    const elsewhere = await lobby(t, 'Zoé', 'Yann');
+    await t.mutation(api.messages.markRead, { ...pierre, with: await idOf(t, pierre) });
+    await t.mutation(api.messages.markRead, { ...pierre, with: await idOf(t, elsewhere.guest) });
+    const marks = await t.run(async (ctx) => ctx.db.query('readMarks').collect());
+    expect(marks.flatMap((row) => Object.keys(row.telegraphDirectReadAt ?? {}))).toEqual([]);
+  });
+});

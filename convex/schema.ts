@@ -902,6 +902,8 @@ export default defineSchema({
     playerId: v.id('players'),
     journalReadAt: v.optional(v.number()),
     telegraphReadAt: v.optional(v.number()),
+    /** The hour each private channel was last closed, keyed by the other player's id. */
+    telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
     telegraphPushedAt: v.optional(v.number()),
   }).index('byPlayer', ['playerId']),
 
@@ -923,8 +925,12 @@ export default defineSchema({
     playerId: v.id('players'),
     text: v.string(),
     at: v.number(),
+    /** Private message: the only other reader. Absent on the general channel. */
+    to: v.optional(v.id('players')),
   })
     .index('bySeason', ['seasonId'])
+    .index('byChannel', ['seasonId', 'to', 'at'])
+    .index('byPair', ['seasonId', 'to', 'playerId', 'at'])
     .index('byPlayer', ['playerId']),
 
   /**

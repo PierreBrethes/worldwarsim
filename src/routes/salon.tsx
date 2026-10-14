@@ -469,7 +469,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
  * ici.
  */
 function LobbyTelegraph({ seat }: { seat: Seat }) {
-  const telegraph = useTelegraph(seat);
+  const telegraph = useTelegraph(seat, { generalOnly: true });
   const markRead = useMutation(api.messages.markRead);
   useEffect(
     () => () => {
@@ -484,7 +484,7 @@ function LobbyTelegraph({ seat }: { seat: Seat }) {
         <span className="eyebrow">{fr.telegraph.header}</span>
         <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.channel}</span>
       </div>
-      <TelegraphThread telegraph={telegraph} seat={seat} height={220} />
+      <TelegraphThread messages={telegraph.general} seat={seat} height={220} />
     </section>
   );
 }

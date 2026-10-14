@@ -5,6 +5,7 @@ type Marks = {
   readonly journalReadAt: number | null;
   readonly telegraphReadAt: number | null;
   readonly telegraphPushedAt: number | null;
+  readonly telegraphDirectReadAt: Readonly<Record<string, number>>;
 };
 
 /**
@@ -25,13 +26,18 @@ export async function readMarksOf(ctx: QueryCtx, player: Doc<'players'>): Promis
     journalReadAt: row?.journalReadAt ?? player.journalReadAt ?? null,
     telegraphReadAt: row?.telegraphReadAt ?? player.telegraphReadAt ?? null,
     telegraphPushedAt: row?.telegraphPushedAt ?? player.telegraphPushedAt ?? null,
+    telegraphDirectReadAt: row?.telegraphDirectReadAt ?? {},
   };
 }
 
 export async function stampReadMark(
   ctx: MutationCtx,
   playerId: Id<'players'>,
-  mark: { journalReadAt: number } | { telegraphReadAt: number } | { telegraphPushedAt: number },
+  mark:
+    | { journalReadAt: number }
+    | { telegraphReadAt: number }
+    | { telegraphPushedAt: number }
+    | { telegraphDirectReadAt: Record<string, number> },
 ): Promise<void> {
   const row = await ctx.db
     .query('readMarks')
