@@ -34,7 +34,7 @@ export function Telegram({
           <small>{fr.table.telegram.service}</small>
         </span>
         <span className="num" style={{ fontSize: 11 }}>
-          n° {code}
+          {fr.table.telegram.number(code)}
         </span>
       </header>
       <div className="tg-grid" aria-hidden>
@@ -58,7 +58,7 @@ export function Telegram({
       <div className="tg-body" aria-hidden>
         {lines.map((line, index) => (
           <p key={`${index}${line}`} className={`tape ${index === fresh ? 'fresh' : ''}`}>
-            {telegraphese(line)} STOP
+            {telegraphese(line)} {fr.table.telegram.stop}
           </p>
         ))}
       </div>

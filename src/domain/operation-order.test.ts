@@ -55,7 +55,7 @@ describe('settingsRefusalOf', () => {
   it('keeps the seats between the seated and what the table holds', () => {
     expect(refusal({ ...blitz, seatCap: 3 }, 3)).toBeNull();
     expect(refusal({ ...blitz, seatCap: 2 }, 3)).toBe('SEATS_OUT_OF_RANGE');
-    expect(refusal({ ...blitz, seatCap: 5 })).toBe('SEATS_OUT_OF_RANGE');
+    expect(refusal({ ...blitz, seatCap: 5 })).toBeNull();
     expect(refusal({ ...blitz, seatCap: 1 })).toBe('SEATS_OUT_OF_RANGE');
     expect(refusal({ ...mondiale, seatCap: 8 })).toBeNull();
   });

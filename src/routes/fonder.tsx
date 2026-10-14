@@ -13,7 +13,7 @@ import { seatRangeOf, type SeasonMode } from '@/domain/season-mode';
 import { THEATRES, type TheatreId } from '@/domain/theatres';
 import { Wordmark } from '@/shell/Masthead';
 import { EngravedMap, WORLD_BOX } from '@/emblems/EngravedMap';
-import { OffSeasonPage, boxOf } from '@/shell/OffSeason';
+import { OffSeasonPage, boxOf, localInput } from '@/shell/OffSeason';
 import { Telegram } from '@/shell/Telegram';
 import { handleError } from '@/data/errors';
 import { keepSeat, useSession } from '@/data/session';
@@ -32,11 +32,6 @@ export const Route = createFileRoute('/fonder')({
 
 type When = 'tonight' | 'tomorrow' | 'custom' | 'full';
 const DAY_MS = 86_400_000;
-
-const localInput = (at: number): string => {
-  const date = new Date(at - new Date(at).getTimezoneOffset() * 60_000);
-  return date.toISOString().slice(0, 16);
-};
 
 /**
  * **L'ordre d'opérations** (choix 1, 5, 10, M15) : un formulaire numéroté, et en face le
@@ -100,10 +95,8 @@ function Found() {
           token,
           compensation: 0.5,
           mode,
-          seatCap: seats,
-          ...(blitz
-            ? { theatre, scheduledAt, remind: scheduledAt !== null && remind }
-            : { hqCaptureHours: capture }),
+          ...(seats < range.max ? { seatCap: seats } : {}),
+          ...(blitz ? { theatre, scheduledAt, remind } : { hqCaptureHours: capture }),
         });
         keepSeat(seasonId);
         void navigate({ to: '/salon' });

@@ -28,7 +28,7 @@ export const DEFAULT_HQ_CAPTURE_HOURS = 12;
 export const REMINDER_MINUTES = 15;
 /** Un battement toutes les 25 s au salon : trois manqués, on a quitté la table. */
 export const LOBBY_BEAT_SECONDS = 25;
-const AT_TABLE_MS = 75_000;
+const AT_TABLE_MS = 3 * LOBBY_BEAT_SECONDS * 1000;
 
 export type SettingsRefusal =
   | CreationRefusal
@@ -75,10 +75,9 @@ export function settingsRefusalOf(
   }
   const range = rangeOf(settings);
   if (context.seated > range.max) return 'THEATRE_TOO_SMALL';
-  if (
-    settings.seatCap !== null &&
-    (settings.seatCap < Math.max(range.min, context.seated) || settings.seatCap > range.max)
-  ) {
+  /** Au-delà du plafond, le plafond tient (`seatCapOf`) : passer à un théâtre plus petit ne
+   *  demande pas de baisser les places d'abord. */
+  if (settings.seatCap !== null && settings.seatCap < Math.max(range.min, context.seated)) {
     return 'SEATS_OUT_OF_RANGE';
   }
   return null;

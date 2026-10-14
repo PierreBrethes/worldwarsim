@@ -81,6 +81,10 @@ export const romanDate = (date: Date): string =>
 export const telegraphese = (line: string): string =>
   line.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/’/g, ' ').toUpperCase();
 
+/** Un instant pour `<input type="datetime-local">`, lu dans l'heure de qui le règle. */
+export const localInput = (at: number): string =>
+  new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
 /** Les cadres de théâtre, en degrés — les mêmes que `THEATRES`, rangés comme la carte les lit. */
 export const boxOf = (box: {
   readonly west: number;

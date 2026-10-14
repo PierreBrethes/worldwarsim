@@ -534,7 +534,7 @@ export const fr = {
     PLAYERS_ABSENT: (d) =>
       `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans eux`,
     SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
-    INVALID_CAPTURE_HOURS: () => 'la prise d’un QG dure 12 ou 24 heures',
+    INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
@@ -937,7 +937,7 @@ export const fr = {
     mondialeOrder: (capture: number): ReadonlyArray<readonly [string, string]> => [
       ['mode', 'Mondiale — 7 jours, deux ou trois visites par jour'],
       ['terrain', 'le monde entier'],
-      ['prise d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
+      ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
       ['vos engagements', 'une plage de repos de 7 h, publique'],
       ['nations', 'une chacune, avec son atout'],
     ],
@@ -1031,7 +1031,7 @@ export const fr = {
     youWereDefeated: 'vous aviez déposé les armes',
     moreMenu: 'plus…',
     addToCalendar: 'ajouter à l’agenda',
-    calendarTitle: (theatre: string) => `La Manchette — Blitz ${ofPlace(theatre)}`,
+    calendarTitle: (theatre: string) => `${fr.masthead.title} — Blitz ${ofPlace(theatre)}`,
     footerLeft: 'entre amis · sur invitation',
     footerRight: (date: string) => `édition ${date}`,
   },
@@ -1105,7 +1105,7 @@ export const fr = {
     customLabel: 'date et heure du rendez-vous',
     localTime: 'votre heure locale',
     remind: 'prévenir chaque joueur quinze minutes avant (notification)',
-    captureTitle: 'La prise d’un QG',
+    captureTitle: 'La capture d’un QG',
     captureNote:
       'Le temps de capturer un quartier général à pleine force. Elle s’arrête pendant le repos du défenseur.',
     hours: (hours: number) => `${num(hours)} heures`,
@@ -1234,7 +1234,7 @@ export const fr = {
       }).format(new Date(at));
     },
     worldClock: 'le monde · sept jours',
-    captureLine: (hours: number) => `prise d’un QG en ${num(hours)} heures`,
+    captureLine: (hours: number) => `capture d’un QG en ${num(hours)} heures`,
     invite: (free: number) => `inviter · ${num(free)} place${plural(free, '', 's')}`,
     inviteLabel: 'inviter',
     full: 'table complète',
@@ -1311,7 +1311,7 @@ export const fr = {
     seatMore: 'une place de plus',
     victory: 'victoire',
     blitzVictory: 'prendre le QG adverse',
-    hqCapture: 'prise d’un QG',
+    hqCapture: 'capture d’un QG',
     captureRest: 'suspendue pendant le repos du défenseur',
     remindShort: 'rappel 15 min avant',
     remindOn: 'Rappel 15 min avant',
@@ -1344,6 +1344,8 @@ export const fr = {
     wireSilent: 'La ligne est muette — personne n’a encore télégraphié.',
     telegram: {
       title: 'TÉLÉGRAMME',
+      number: (code: string) => `n° ${code}`,
+      stop: 'STOP',
       service: 'la manchette · service des dépêches',
       label: (text: string) => `Télégramme : ${text.replace(/ STOP/g, '.')}`,
       origin: 'origine',
@@ -1400,7 +1402,7 @@ export const fr = {
         `${from} vous convie`,
         'Mondiale STOP sept jours STOP le monde entier',
         'Départ quand la table est prête',
-        `Prise d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
+        `Capture d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
         seats.taken === null
           ? `Jusqu’à ${spelled(seats.cap)} places STOP choisissez votre nation`
           : `${spelled(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,

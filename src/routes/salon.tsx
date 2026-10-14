@@ -41,7 +41,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { Wordmark } from '@/shell/Masthead';
 import { notify } from '@/shell/notifications';
 import { CompassRoseMark, EngravedMap, WORLD_BOX, projectOn } from '@/emblems/EngravedMap';
-import { FlagChip, OffSeasonPage, boxOf } from '@/shell/OffSeason';
+import { FlagChip, OffSeasonPage, boxOf, localInput } from '@/shell/OffSeason';
 import { TelegraphPanel, useReadOnUnmount, useTelegraphTabs } from '@/shell/TelegraphPanel';
 
 export const Route = createFileRoute('/salon')({
@@ -686,7 +686,7 @@ function SeatCard({
         <FlagChip nation={player.nation} width={16} />{' '}
         {player.nation !== null ? nationLabel(player.nation) : <i>{fr.table.toChoose(blitz)}</i>}
       </div>
-      {blitz && lobby.status === 'lobby' ? (
+      {blitz && lobby.status === 'lobby' && presence.kind !== 'unknown' ? (
         <div className="state">
           <span className={`lamp ${away ? 'off' : 'on'}`} aria-hidden />{' '}
           {presence.kind === 'away' ? fr.table.awayFor(presence.minutes) : fr.table.atTable}
@@ -908,6 +908,21 @@ function Orders({
                   </button>
                 ))}
               </div>
+              <label className="check">
+                <span>{fr.found.custom}</span>
+                <input
+                  type="datetime-local"
+                  aria-label={fr.found.customLabel}
+                  min={localInput(now)}
+                  {...(scheduledAt === null ? {} : { defaultValue: localInput(scheduledAt) })}
+                  onBlur={(event) => {
+                    const at = new Date(event.target.value).getTime();
+                    if (!Number.isNaN(at) && at !== scheduledAt && offered({ scheduledAt: at })) {
+                      change({ scheduledAt: at }, rendezvousLabel(at, now));
+                    }
+                  }}
+                />
+              </label>
               {scheduledAt !== null && (
                 <label className="check">
                   <input
@@ -927,7 +942,7 @@ function Orders({
           ) : (
             <>
               <b>{scheduledAt === null ? fr.table.whenFull : rendezvousLabel(scheduledAt, now)}</b>
-              {scheduledAt !== null && lobby.orders.remind === true && (
+              {founder && scheduledAt !== null && lobby.orders.remind === true && (
                 <span className="note">{fr.table.remindShort}</span>
               )}
             </>

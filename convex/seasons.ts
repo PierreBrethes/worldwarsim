@@ -976,13 +976,14 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
   for (const doc of owned) await ctx.db.delete(doc._id);
 }
 
+/** La lampe d'une place, servie en Blitz seulement (ADR 0005). */
+const seenAtOf = (entry: Doc<'players'>, season: Doc<'seasons'>): number | null =>
+  modeOf(season.mode) === 'blitz' && season.status === 'lobby' ? (entry.lobbySeenAt ?? null) : null;
+
 /**
  * The nations nobody holds. Read off the seats present rather than off a stored roster: a
  * reservation is released with a click as long as the holder has not entered the war.
  */
-/** La lampe d'une place, servie en Blitz seulement (ADR 0005). */
-const seenAtOf = (entry: Doc<'players'>, season: Doc<'seasons'>): number | null =>
-  modeOf(season.mode) === 'blitz' && season.status === 'lobby' ? (entry.lobbySeenAt ?? null) : null;
 
 export const freeNations = (
   present: ReadonlyArray<Doc<'players'>>,
