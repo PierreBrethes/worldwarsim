@@ -22,7 +22,6 @@ import {
   planBlitzMap,
   type BlitzCandidate,
   type BlitzMeasure,
-  type BlitzSite,
 } from '../src/domain/blitz-placement';
 import type { LonLat } from '../src/domain/geo';
 import { modeOf } from '../src/domain/season-mode';
@@ -109,7 +108,14 @@ export const place = internalAction({
     const input = await ctx.runQuery(internal.blitz.placementInput, { seasonId });
     if (input === null) return;
 
-    const candidates = theatreGround(input.box);
+    /** **Une côte n'est côte que si un quai s'y trouve** : la règle ne pose un port que là, et
+     *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
+    const quays = new Map<string, LonLat>();
+    const candidates = theatreGround(input.box).map((candidate) => {
+      const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
+      if (quay !== null) quays.set(candidate.regionId, quay);
+      return { ...candidate, coastal: quay !== null };
+    });
     const places = candidates.map((candidate) => ({
       id: candidate.regionId,
       point: candidate.point,
@@ -138,19 +144,17 @@ export const place = internalAction({
       await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_UNFAIR' });
       return;
     }
-    type Point = { lon: number; lat: number } | null;
-    const sites = plan.flatMap((site): Array<BlitzSite & { point: Point }> => {
-      if (site.key !== 'port') return [{ ...site, point: null }];
-      const quay = coastPointNear(pointOf.get(site.regionId)!);
-      return quay === null ? [] : [{ ...site, point: { lon: quay[0], lat: quay[1] } }];
-    });
+    const quayOf = (regionId: string) => {
+      const quay = quays.get(regionId)!;
+      return { lon: quay[0], lat: quay[1] };
+    };
     await ctx.runMutation(internal.blitz.commit, {
       seasonId,
-      sites: sites.map((site) => ({
+      sites: plan.map((site) => ({
         key: site.key,
         regionId: site.regionId,
         owner: site.owner as Id<'players'> | null,
-        point: site.point,
+        point: site.key === 'port' ? quayOf(site.regionId) : null,
       })),
     });
   },

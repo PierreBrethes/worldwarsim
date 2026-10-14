@@ -153,6 +153,9 @@ describe('la carte de départ, théâtre par théâtre', () => {
       expect(season.status).toBe('launched');
       const neutral = await neutralOf(t, season._id);
       const neutrals = await buildingsOf(t, neutral._id);
+      const ports = neutrals.filter((building) => building.key === 'port');
+      expect(ports.length).toBeGreaterThanOrEqual(players);
+      for (const port of ports) expect(port.point).toBeDefined();
       for (const who of seats) {
         const me = await playerOf(t, who);
         const held = await buildingsOf(t, me._id);
