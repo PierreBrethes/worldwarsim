@@ -311,8 +311,10 @@ export function ResourceCell({
 export function BlitzClock({ view, now }: { view: PlayerView; now: number }) {
   const { season } = view;
   const ended = season.reduction.concludedAt !== null;
-  const minutesLeft =
-    ((season.durationHours ?? 0) - season.elapsedHours) * 60 - (now - view.loadedAt) / 60_000;
+  const minutesLeft = Math.max(
+    0,
+    ((season.durationHours ?? 0) - season.elapsedHours) * 60 - (now - view.loadedAt) / 60_000,
+  );
   return (
     <span
       role="timer"
