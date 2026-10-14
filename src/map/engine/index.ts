@@ -61,7 +61,7 @@ import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
-import { HELD_OPACITY, lavis, PALETTE } from './palette';
+import { HELD_OPACITY, nationShades, PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
@@ -103,6 +103,10 @@ export type { SurveyedCamp } from './blocks';
  * of the served data, not on a display test (ADR 0005).
  */
 export type { HeldClaim } from './regions';
+
+/** How much of its own colour a country gives off under the pointer, and once selected. */
+const HOVERED_LIFT = 0.35;
+const SELECTED_LIFT = 0.75;
 
 export type BuiltRegions = {
   readonly regionIds: ReadonlyArray<string>;
@@ -1032,17 +1036,15 @@ export class MapEngine {
     this.paintCountries();
   }
 
-  /** A sheet painted whole takes the holder's lavis instead of the nation's, as its region fills
-   *  did: both over the paper, never one over the other (`lavis`). */
+  /** A sheet painted whole takes the holder's lavis — over the paper, never over another ink. */
   private paintCountries(): void {
     const grounds = new Map<string, string>();
     for (const mesh of this.countries) {
       const sheet = this.sheets.get(mesh.userData.adm0);
       const nation = this.nationInks.get(mesh.userData.name);
-      if (sheet === undefined && nation !== undefined)
-        grounds.set(mesh.userData.adm0, lavis(nation));
+      if (sheet === undefined && nation !== undefined) grounds.set(mesh.userData.adm0, nation);
       const ink = sheet ?? nation;
-      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : lavis(ink));
+      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : nationShades(ink).sheet);
       mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
     }
     this.regions.setGrounds(grounds);
@@ -1840,8 +1842,10 @@ export class MapEngine {
     for (const mesh of this.countries) {
       const isHovered = mesh === this.hovered && !this.fingerOnBoard;
       const isSelected = mesh.userData.adm0 === this.selection;
-      const intensity = isSelected ? 0.26 : isHovered ? 0.12 : 0;
-      mesh.material.emissive.setRGB(intensity, intensity * 0.85, intensity * 0.55);
+      /** **Its own ink, lit**: a warm glow added to France's blue turned it grey under the
+       *  pointer, and Japan's purple brown — the lift keeps the family (palette des nations). */
+      const lift = isSelected ? SELECTED_LIFT : isHovered ? HOVERED_LIFT : 0;
+      mesh.material.emissive.copy(mesh.material.color).multiplyScalar(lift);
     }
   }
 

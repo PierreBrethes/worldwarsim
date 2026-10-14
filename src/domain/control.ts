@@ -144,39 +144,6 @@ function nearestHolder(regionId: string, outposts: ReadonlyArray<ControlOutpost>
 }
 
 /**
- * **Les encres de siège.** Une couleur par joueur, attribuée à son entrée dans la saison et
- * stable jusqu'au wipe — jamais dérivée de la nation : deux drapeaux se ressemblent (le
- * Royaume-Uni et la France partagent déjà un bleu), et une nation change de mains d'une saison
- * à l'autre alors que la couleur doit rester celle d'un joueur.
- *
- * Huit encres imprimées, distinctes **à la découpe** : bleu, rouge, vert, ocre, prune, sarcelle,
- * vieux rose, sépia. Rien de fluorescent — le plateau est de l'encre sur papier (fiche 10), et
- * une couleur d'écran posée sur la mer gravée casserait le budget de contraste que la carte
- * tient.
- *
- * **Elles ont été montées d'un cran le 31/08** (contrôle visuel de Pierre) : au premier lavis
- * réel, `#2f5d7c` se lisait gris plutôt que bleu, et sa propre couleur est la seule chose qu'un
- * joueur doit reconnaître sans y penser. Le sépia a été assombri du même coup — il tombait entre
- * le rouge et l'ocre, et c'est le seul écart que la saturation avait resserré au lieu de
- * l'ouvrir. **Le bleu a quitté le sarcelle le 13/10** (`#276893` → `#2457a8`) : posé en lavis
- * sur le sable (`lavis`, `map/engine/palette.ts`), il virait au gris-vert.
- */
-export const SEAT_INKS: ReadonlyArray<string> = [
-  '#2457a8',
-  '#b2432f',
-  '#66833c',
-  '#c09533',
-  '#7e4377',
-  '#37908a',
-  '#b96472',
-  '#77492a',
-];
-
-/** L'encre d'un siège, par son rang d'entrée. Le modulo n'a pas d'usage — le salon plafonne à
- *  huit joueurs — mais une neuvième entrée doit sortir une couleur, pas `undefined`. */
-export const seatInk = (rank: number): string => SEAT_INKS[rank % SEAT_INKS.length]!;
-
-/**
  * **Le relevé, et sa péremption** (ADR 0020 §5). Ce qui précède calcule *la vérité* — qui tient
  * quoi, au moment où on le demande. Ce qui suit calcule *la connaissance* : ce que ce joueur-là
  * a vu la dernière fois qu'il a regardé, avec sa date.

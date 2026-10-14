@@ -443,7 +443,7 @@ toujours la modale du site : une maquette devant la garnison prend le clic (`pie
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
 cuite en texels). Au rapproché (< 65 unités), les **régions admin-1** apparaissent en fondu :
-traits intérieurs seulement, survol avec surbrillance teintée par type de terrain, infobulle
+traits intérieurs seulement, survol au contour de la plume du sol, infobulle
 nom + type, et des **pictogrammes de cartographe tracés à la plume** dans la région — sapins,
 monts hachurés, dunes, palmiers, touffes, blés —, du centre vers les bords, effacés en fondu
 quand on la quitte (`src/map/engine/terrain.ts`, une table `PICTOGRAMS` où chaque dessin se
@@ -458,12 +458,29 @@ porte plus qu'**un jeton par bord et par sorte**, avec son compte, posé à la m
 membres (`cluster`, `src/domain/indicators.ts`) ; un clic recentre sur **le plus proche** du
 groupe (`nearest`) — cadrer tout un bord de gisements renverrait à la vue monde. La bascule
 « gisements » a deux états seulement : masqués, ou partout (couche des régions et bord ; cochée
-par défaut). Les **teintes de possession sont un lavis** : l'encre du siège posée
+par défaut). Les **teintes de possession sont un lavis** : l'encre de la nation posée
 sur le papier à `HELD_OPACITY` (0,65, `map/engine/palette.ts`, fonction `lavis`), pour une région
-comme pour un pays tenu entier — la feuille n'empile plus l'encre du siège sur celle de la nation
-posée pleine, qui écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
+comme pour un pays tenu entier — la feuille n'empile plus deux encres l'une sur l'autre, ce qui
+écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
 nation, et ce qu'on y tient s'y pose par-dessus. Une région bâtie est le même lavis plus chargé (`builtInk`),
-et la plume des dessins lit ce qui est réellement peint dessous (`inkOn`, `setGrounds`).
+et la plume des dessins lit ce qui est réellement peint dessous (`penOn`, `setGrounds`).
+
+**Une nation, une famille de teinte — 14/10/2026** (palette des nations). Le Japon se peignait
+en bleu sur son sol (l'encre du siège, tirée au rang d'entrée), en rose sur ses régions bâties et
+son mât (l'encre de la nation), et en gris sous le pointeur (une lueur chaude ajoutée au bleu).
+Il n'y a plus qu'**une table**, `INK_BY_NATION` (`src/domain/nations.ts`) : `control.held` sert
+l'encre de la nation du siège — une nation n'a qu'une place par saison —, et `nationShades`
+(`palette.ts`) en tire les paliers — sol national et région tenue (le même), bâti, relevé délavé
+(le plancher où la zone suspendue se hachure aussi) ; la plume, elle, se lit sur le sol réellement
+peint (`penOn`). Huit encres d'atlas :
+France bleu, Royaume-Uni rose impérial, URSS vermillon, Allemagne sarcelle feldgrau, Japon pourpre
+impérial, Italie vert olive, Chine ocre jaune, États-Unis viridian. Les tests de `palette.test.ts`
+tiennent les voisins à l'écart (ΔE sur la carte), chaque palier dans sa famille — la famille d'un
+lavis est la **direction** dans laquelle il quitte le sable — et la plume lisible sur chaque sol
+**tel que la lampe le rend** (`lit`). Le survol garde la famille : un pays survolé ou
+sélectionné s'éclaire de sa propre couleur, le contour et les pictogrammes prennent la plume du
+sol — le **fond** de l'encre qui l'a peint, ou le papier là où il se lit mieux. Le type de terrain
+se dit par le dessin, jamais par une teinte. Une nation sans encre (siège irrégulier) reste grise.
 
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
@@ -768,7 +785,7 @@ géantes qu'il touche, Ontario et Québec depuis Gatineau. La règle est pure
 personne), servie par une
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
-d'une colonne. La teinte est **celle du siège**, pas de la nation, et elle reste au loin quand les
+d'une colonne. La teinte est **celle de la nation du siège** (14/10/2026), et elle reste au loin quand les
 frontières de région s'effacent. La production, elle, y est reliée depuis le 07/09 (§6).
 
 **Un joueur voit son dernier relevé, pas la vérité** (ADR 0020 §5). Trois états d'une région :
@@ -808,7 +825,7 @@ désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend 
 qu'il disputait. **Elle ne l'efface plus pour autant, depuis le 15/09** : `control.held` sert à son
 seul propriétaire une quatrième forme, `suspended`, calculée par la même `heldRegions` lue deux
 fois — la carte telle qu'elle est, la carte que ce point debout donnerait, et la différence. La
-zone s'y hachure dans l'encre du siège, au plancher du délavage, la trame posée au fragment en
+zone s'y hachure dans l'encre de sa nation, au plancher du délavage, la trame posée au fragment en
 pixels d'écran pour tenir à toute distance et passant **sous** la couleur pleine du voisin qui a
 repris une région disputée. Ce n'est pas une couleur : ni le classement, ni la production, ni la
 vérité ne la comptent. L'adversaire qui observe la zone la voit décolorée comme avant — l'heure du

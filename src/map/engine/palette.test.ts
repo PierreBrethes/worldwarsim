@@ -1,70 +1,176 @@
 import { describe, expect, it } from 'vitest';
-import { SEAT_INKS } from '@/domain/control';
-import { INK_BY_NATION } from '@/domain/nations';
-import { builtInk, lavis, PALETTE } from './palette';
+import { INK_BY_NATION, typeInk, type Nation } from '@/domain/nations';
+import {
+  builtInk,
+  contrastRatio,
+  HELD_OPACITY,
+  lavis,
+  lit,
+  nationShades,
+  PALETTE,
+  PEN_OPACITY,
+  penOn,
+} from './palette';
 
 const channels = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 };
 
-/** Relative luminance, the only honest way to say "darker" across eight different hues. */
-const luminance = (hex: string): number => {
-  const [red, green, blue] = channels(hex);
-  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
+/** CIELAB under D65: the space where a distance is a difference the eye sees. */
+const lab = (hex: string): readonly [number, number, number] => {
+  const [r, g, b] = channels(hex).map((channel) => {
+    const c = channel / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r! + 0.3576 * g! + 0.1805 * b!) / 0.95047);
+  const y = f(0.2126 * r! + 0.7152 * g! + 0.0722 * b!);
+  const z = f((0.0193 * r! + 0.1192 * g! + 0.9505 * b!) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
 };
 
-const inks = Object.entries(INK_BY_NATION);
+const deltaE = (first: string, second: string): number => {
+  const [a, b] = [lab(first), lab(second)];
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+};
 
-/** The order of the three channels, brightest last: what says blue rather than red. */
-const hueOrder = (hex: string) =>
-  channels(hex)
-    .map((value, index) => [value, index] as const)
-    .sort(([a], [b]) => a - b)
-    .map(([, index]) => index);
+const hue = (hex: string): number => {
+  const [, a, b] = lab(hex);
+  return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+};
 
-describe('the lavis of a held sheet', () => {
-  it.each(SEAT_INKS.map((ink) => [ink]))(
-    'lays %s lighter than the ink, darker than the paper',
-    (ink) => {
-      expect(luminance(lavis(ink))).toBeGreaterThan(luminance(ink));
-      expect(luminance(lavis(ink))).toBeLessThan(luminance(PALETTE.neutralLand));
-    },
-  );
+const hueDrift = (first: string, second: string): number => {
+  const gap = Math.abs(hue(first) - hue(second));
+  return Math.min(gap, 360 - gap);
+};
 
-  /** A wash brings every ink toward the same sand: the eight seats must still read apart. */
-  it('keeps the eight seats apart', () => {
-    const washed = SEAT_INKS.map((ink) => channels(lavis(ink)));
-    for (const [rank, first] of washed.entries())
-      for (const second of washed.slice(rank + 1)) {
-        const gap = Math.hypot(...first.map((channel, index) => channel - second[index]!));
-        expect(gap).toBeGreaterThan(24);
-      }
+const direction = (hex: string): number => {
+  const [, a, b] = lab(hex);
+  const [, landA, landB] = lab(PALETTE.neutralLand);
+  return (Math.atan2(b - landB, a - landA) * 180) / Math.PI;
+};
+
+const angleGap = (first: number, second: number): number => {
+  const gap = Math.abs(first - second) % 360;
+  return Math.min(gap, 360 - gap);
+};
+
+/** The contrast a pen stroke gives on screen: laid at its opacity over the ground as lit. */
+const strokeContrast = (pen: string, ground: string): number =>
+  contrastRatio(lavis(pen, PEN_OPACITY, lit(ground)), lit(ground));
+
+const inks = Object.entries(INK_BY_NATION) as ReadonlyArray<[Nation, string]>;
+
+/** The nations whose grounds touch, or nearly, on the board. */
+const NEIGHBOURS: ReadonlyArray<[Nation, Nation]> = [
+  ['france', 'germany'],
+  ['france', 'italy'],
+  ['france', 'uk'],
+  ['germany', 'italy'],
+  ['germany', 'uk'],
+  ['germany', 'ussr'],
+  ['japan', 'china'],
+  ['japan', 'ussr'],
+  ['china', 'ussr'],
+  ['usa', 'ussr'],
+];
+
+describe('the eight nation inks', () => {
+  it.each(NEIGHBOURS)('keep %s and %s apart once washed on the sheet', (first, second) => {
+    expect(
+      deltaE(nationShades(INK_BY_NATION[first]).sheet, nationShades(INK_BY_NATION[second]).sheet),
+    ).toBeGreaterThan(20);
   });
 
-  /** The strongest channel names the colour; the two weaker may cross toward the sand (the old
-   *  rose's green and blue sit fourteen apart) without France turning red. */
-  it.each(SEAT_INKS.map((ink) => [ink]))('keeps the dominant channel of %s', (ink) => {
-    expect(hueOrder(lavis(ink))[2]).toBe(hueOrder(ink)[2]);
+  it('keep any two nations apart, neighbours or not — a legend reads them all', () => {
+    for (const [rank, [, first]] of inks.entries())
+      for (const [, second] of inks.slice(rank + 1))
+        expect(deltaE(nationShades(first).sheet, nationShades(second).sheet)).toBeGreaterThan(18);
+  });
+
+  it.each(inks)('lays %s clearly off the bare land', (_nation, ink) => {
+    expect(deltaE(nationShades(ink).sheet, PALETTE.neutralLand)).toBeGreaterThan(25);
+  });
+
+  /** The mast, the telegraph's sender: the ink is also read as type on paper. */
+  it.each(inks)('reads %s as type on the paper', (_nation, ink) => {
+    expect(contrastRatio(ink, PALETTE.paper)).toBeGreaterThanOrEqual(3);
+  });
+
+  /** The telegraph sets a sender's name in small capitals: body text, so the body text floor. */
+  it.each(inks)('sets %s as small type on the paper, in its own hue', (_nation, ink) => {
+    expect(contrastRatio(typeInk(ink), PALETTE.paper)).toBeGreaterThanOrEqual(4.5);
+    expect(hueDrift(typeInk(ink), ink)).toBeLessThan(15);
   });
 });
 
-describe('the ink of a built region', () => {
-  it.each(inks)('is denser than the lavis of %s own country', (_nation, ink) => {
-    expect(luminance(builtInk(ink))).toBeLessThan(luminance(lavis(ink)));
+describe('the shades of one nation', () => {
+  /**
+   * A wash pulls every ink toward the sand, so a family is a **direction away from the paper**:
+   * the angle of a shade's offset from the bare land, in the colour plane. Every step of a nation
+   * leaves the paper the way its ink does, and nearer that way than any other nation's.
+   */
+  it.each(inks)('keeps every shade of %s in its own family', (_nation, ink) => {
+    const { sheet, built, surveyed } = nationShades(ink);
+    for (const shade of [sheet, built, surveyed]) {
+      expect(angleGap(direction(shade), direction(ink))).toBeLessThan(20);
+      for (const [, other] of inks.filter(([, candidate]) => candidate !== ink))
+        expect(angleGap(direction(shade), direction(ink))).toBeLessThan(
+          angleGap(direction(shade), direction(other)),
+        );
+    }
   });
 
-  it.each(inks)('stays darker than bare land for %s', (_nation, ink) => {
-    expect(luminance(builtInk(ink))).toBeLessThan(luminance(PALETTE.neutralLand));
+  it.each(inks)('tells the built ground of %s from its held ground', (_nation, ink) => {
+    const { sheet, built } = nationShades(ink);
+    expect(deltaE(sheet, built)).toBeGreaterThan(6);
   });
 
-  it.each(inks)('keeps the hue of %s — the channels keep their order', (_nation, ink) => {
-    expect(hueOrder(builtInk(ink))).toEqual(hueOrder(ink));
+  it.each(inks)('lays the built ground of %s darker than the held', (_nation, ink) => {
+    expect(lab(builtInk(ink))[0]).toBeLessThan(lab(lavis(ink))[0]);
+  });
+
+  it.each(inks)('tells a fresh ground of %s from an old survey', (_nation, ink) => {
+    const { sheet, surveyed } = nationShades(ink);
+    expect(deltaE(sheet, surveyed)).toBeGreaterThan(15);
   });
 
   it('never leaves the byte range, whatever it is handed', () => {
-    for (const hex of ['#000000', '#ffffff', PALETTE.neutralLand, ...inks.map(([, ink]) => ink)]) {
-      expect(builtInk(hex)).toMatch(/^#[0-9a-f]{6}$/);
+    for (const hex of ['#000000', '#ffffff', PALETTE.neutralLand]) {
+      for (const shade of Object.values(nationShades(hex))) expect(shade).toMatch(/^#[0-9a-f]{6}$/);
     }
+  });
+});
+
+describe('the pen over a ground', () => {
+  it.each(inks)('reads on every ground of %s', (_nation, ink) => {
+    const { sheet, built, surveyed } = nationShades(ink);
+    for (const ground of [sheet, built, surveyed])
+      expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('draws in the deep of the nation ink, never a foreign hue, where ink reads', () => {
+    const { surveyed } = nationShades(INK_BY_NATION.japan);
+    const pen = penOn(surveyed, INK_BY_NATION.japan);
+    expect(pen).not.toBe(PALETTE.paper);
+    expect(hueDrift(pen, INK_BY_NATION.japan)).toBeLessThan(35);
+  });
+
+  /** A region held inside an opponent's country: my ink laid over his lavis. */
+  it.each(NEIGHBOURS)('reads where %s holds ground inside %s', (holder, country) => {
+    const ink = INK_BY_NATION[holder];
+    const ground = lavis(ink, HELD_OPACITY, nationShades(INK_BY_NATION[country]).sheet);
+    expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('draws in plain ink on the bare land', () => {
+    expect(penOn(PALETTE.neutralLand, null)).toBe(PALETTE.border);
+  });
+
+  it('turns to paper on a ground too dark for any ink', () => {
+    expect(penOn(nationShades(INK_BY_NATION.france).built, INK_BY_NATION.france)).toBe(
+      PALETTE.paper,
+    );
   });
 });

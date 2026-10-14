@@ -3,8 +3,6 @@ import {
   FADED_WASH,
   heldRegions,
   knownRegions,
-  seatInk,
-  SEAT_INKS,
   surveyStops,
   surveyWash,
   type ControlledRegion,
@@ -207,19 +205,6 @@ describe('a captured building colours its region', () => {
       { regionId: 'paris', owner: 'pierre', state: 'current' },
       { regionId: 'lyon', owner: 'lea', state: 'current' },
     ]);
-  });
-});
-
-describe('the seat inks', () => {
-  it('gives the eight seats eight distinct inks', () => {
-    expect(new Set(SEAT_INKS).size).toBe(8);
-    expect(SEAT_INKS.every((ink) => /^#[0-9a-f]{6}$/.test(ink))).toBe(true);
-  });
-
-  it('answers an ink for every rank, the ninth included', () => {
-    expect(seatInk(0)).toBe(SEAT_INKS[0]);
-    expect(seatInk(7)).toBe(SEAT_INKS[7]);
-    expect(seatInk(8)).toBe(SEAT_INKS[0]);
   });
 });
 
