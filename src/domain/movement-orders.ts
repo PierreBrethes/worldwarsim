@@ -2,6 +2,7 @@ import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal, type CaptureTarget } from './capture';
 import { produces } from './economy';
+import { firesIndirect } from './indirect-fire';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
@@ -222,7 +223,8 @@ export type OrderRefusal =
   | 'OUTSIDE_THEATRE'
   | 'UNIT_TARGET_ONLY'
   | 'RELOADING'
-  | 'BUILDING_OCCUPIED';
+  | 'BUILDING_OCCUPIED'
+  | 'INDIRECT_FIRE_ONLY';
 
 export type PlunderAim = {
   readonly kind: 'building';
@@ -377,6 +379,8 @@ export function refusalOf(
       /** **En Blitz, l'attaque vise une unité, pas un point** (B18). */
       if (column.blitz !== undefined) {
         if (aim.kind !== 'camp' && aim.kind !== 'track') return 'UNIT_TARGET_ONLY';
+        /** **L'artillerie ne charge pas** (B20) : elle se tait au contact, et bombarde. */
+        if (column.roles.some(firesIndirect)) return 'INDIRECT_FIRE_ONLY';
         if (column.blitz.reloading) return 'RELOADING';
         return closedGate(aim, column);
       }

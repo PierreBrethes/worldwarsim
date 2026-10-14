@@ -117,6 +117,7 @@ export const fr = {
     infantry: { one: 'infanterie', many: 'infanterie' },
     armor: { one: 'blindé', many: 'blindés' },
     landTransport: { one: 'transport terrestre', many: 'transports terrestres' },
+    artillery: { one: 'artillerie', many: 'artilleries' },
     fighter: { one: 'chasseur', many: 'chasseurs' },
     bomber: { one: 'bombardier', many: 'bombardiers' },
     airTransport: { one: 'transport aérien', many: 'transports aériens' },
@@ -131,6 +132,7 @@ export const fr = {
     infantry: 'f',
     armor: 'm',
     landTransport: 'm',
+    artillery: 'f',
     fighter: 'm',
     bomber: 'm',
     airTransport: 'm',
@@ -143,6 +145,7 @@ export const fr = {
     infantry: 'INF',
     armor: 'BLD',
     landTransport: 'TPT',
+    artillery: 'ART',
     fighter: 'CHS',
     bomber: 'BMB',
     airTransport: 'TPA',
@@ -664,6 +667,19 @@ export const fr = {
     UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
     RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
+    BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
+    ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
+    INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
+    NOT_EMPLACED: (details) =>
+      typeof details.seconds === 'number' && details.seconds > 0
+        ? `pas encore en batterie : prête dans ${details.seconds} s`
+        : 'pas encore en batterie : elle doit rester immobile un instant',
+    TOO_CLOSE: (details) =>
+      `trop près : ${num(details.km)} km, la zone morte en fait ${num(details.minimum)}`,
+    ON_THE_MOVE: () => 'en route : l’artillerie ne tire qu’à l’arrêt',
+    ABOARD: () => 'à bord d’un transport : une pièce transportée ne tire pas',
+    OUT_OF_RANGE: (details) =>
+      `hors de portée : ${num(details.km)} km pour ${num(details.maximum)}`,
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
@@ -1288,7 +1304,7 @@ export const fr = {
   combat: {
     dispatch: ({
       where,
-      intercepted,
+      cause,
       attacking,
       won,
       mine,
@@ -1297,7 +1313,7 @@ export const fr = {
       shock = false,
     }: {
       where: string;
-      intercepted: boolean;
+      cause: 'arrival' | 'interception' | 'bombardment';
       attacking: boolean;
       won: boolean;
       mine: { troops: number; lost: number; routed: number; destroyed: number };
@@ -1305,13 +1321,22 @@ export const fr = {
       outpostDisabled: boolean;
       shock?: boolean;
     }) => {
-      const opening = intercepted
-        ? attacking
-          ? `interception ${where}`
-          : `colonne interceptée ${where}`
-        : attacking
-          ? `engagement ${where}`
-          : `attaque reçue ${where}`;
+      /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
+      if (cause === 'bombardment') {
+        const lost = attacking ? theirs.lost : mine.lost;
+        const fell = (attacking ? theirs : mine).destroyed > 0;
+        return attacking
+          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
+      }
+      const opening =
+        cause === 'interception'
+          ? attacking
+            ? `interception ${where}`
+            : `colonne interceptée ${where}`
+          : attacking
+            ? `engagement ${where}`
+            : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
@@ -1407,6 +1432,7 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
@@ -1890,6 +1916,11 @@ export const fr = {
     label: 'rechargement',
     prefix: 'rechargement ',
   },
+  /** **La mise en batterie** (B20) : l'artillerie immobile ne tire qu'au bout de son attente. */
+  battery: {
+    label: 'en batterie dans',
+    prefix: 'en batterie dans ',
+  },
 
   sent: {
     stamp: 'transmis',
@@ -1907,14 +1938,22 @@ export const fr = {
    */
   dispatchSheet: {
     kicker: (time: string) => `dépêche · ${time}`,
-    title: (attacking: boolean, intercepted: boolean, where: string) =>
-      intercepted
+    title: (
+      attacking: boolean,
+      cause: 'arrival' | 'interception' | 'bombardment',
+      where: string,
+    ) =>
+      cause === 'bombardment'
         ? attacking
-          ? `Interception — ${where}`
-          : `Colonne interceptée — ${where}`
-        : attacking
-          ? `Engagement — ${where}`
-          : `Attaque subie — ${where}`,
+          ? `Bombardement — ${where}`
+          : `Bombardés — ${where}`
+        : cause === 'interception'
+          ? attacking
+            ? `Interception — ${where}`
+            : `Colonne interceptée — ${where}`
+          : attacking
+            ? `Engagement — ${where}`
+            : `Attaque subie — ${where}`,
     engaged: 'engagées',
     engagedValue: (mine: number, theirs: number) => `${mine} contre ${theirs}`,
     losses: 'nos pertes',
@@ -2550,6 +2589,7 @@ export const fr = {
     infantry: 'soldats',
     armor: 'chars',
     landTransport: 'camions',
+    artillery: 'pièces',
     fighter: 'appareils',
     bomber: 'appareils',
     airTransport: 'appareils',
@@ -2949,6 +2989,10 @@ export const fr = {
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
     enemyColumn: 'colonne ennemie',
+    /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
+    bombard: 'bombarder',
+    bombardConsequence: (km: number) =>
+      `Tir indirect à ${km} km, sur-le-champ : la cible ne peut pas répondre. Puis la pièce recharge.`,
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
@@ -3250,6 +3294,11 @@ export const fr = {
     landTransport: {
       kind: 'support',
       contribution: 'Motorise deux fantassins : projette l’infanterie plus loin.',
+    },
+    artillery: {
+      kind: 'combat',
+      strongAgainst: ['infanterie', 'blindé'],
+      weakAgainst: ['infanterie au contact', 'bombardier'],
     },
     fighter: {
       kind: 'combat',

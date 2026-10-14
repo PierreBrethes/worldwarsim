@@ -121,7 +121,7 @@ export function screenTrame<M extends MeshStandardMaterial>(material: M, body: s
   return material;
 }
 
-const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
+export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
   screenTrame(
     material,
     `float band = mod(trame.x + trame.y, ${HATCH_PERIOD.toFixed(1)});

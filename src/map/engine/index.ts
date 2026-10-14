@@ -570,6 +570,18 @@ export class MapEngine {
 
   inkBurst(burst: InkBurst): void {
     this.invalidate();
+    /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
+     *  levé comme le cercle d'un point — la même plume. */
+    if (burst.from !== undefined) {
+      const [from, to] = [burst.from, burst.at];
+      const shot = Array.from({ length: 25 }, (_, i) =>
+        this.frame.projectLonLat(
+          [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
+          COUNTRY_THICKNESS + 0.04,
+        ),
+      );
+      this.ink.traceReach(shot, performance.now());
+    }
     this.ink.burst(burst, performance.now());
   }
 

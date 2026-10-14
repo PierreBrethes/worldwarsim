@@ -60,6 +60,27 @@ describe('the journal', () => {
     ]);
   });
 
+  it('tells a bombardment on both sides, with no riposte', () => {
+    const shot = {
+      ...battle(NOON),
+      cause: 'bombardment' as const,
+      mine: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+      theirs: { troops: 1, lost: 30, routed: 0, destroyed: 0 },
+    };
+    const struck = {
+      ...shot,
+      side: 'defender' as const,
+      won: false,
+      mine: shot.theirs,
+      theirs: shot.mine,
+    };
+    const [fired] = journalDispatches([shot], null, [], []);
+    const [taken] = journalDispatches([struck], null, [], []);
+    expect(fired!.text).toMatch(/^bombardement .* notre tir en abat 30, sans riposte possible$/);
+    expect(taken!.text).toMatch(/^bombardés .* leur tir en abat 30, aucune riposte possible$/);
+    expect(taken!.kind).toBe('attacked');
+  });
+
   it('merges the two streams by hour, newest first', () => {
     const dispatches = journalDispatches(
       [battle(NOON - 2 * HOUR), battle(NOON)],

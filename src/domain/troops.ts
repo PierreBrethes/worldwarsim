@@ -16,6 +16,7 @@ export const DOMAIN_BY_ROLE: Readonly<Record<UnitRole, UnitDomain>> = {
   infantry: 'land',
   armor: 'land',
   landTransport: 'land',
+  artillery: 'land',
   fighter: 'air',
   bomber: 'air',
   airTransport: 'air',
@@ -54,6 +55,7 @@ export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<Buil
    *  quai, un avion débarque ses passagers sur son terrain. */
   armor: ['barracks', 'hq', 'port', 'airfield'],
   landTransport: ['barracks', 'hq', 'port', 'airfield'],
+  artillery: ['barracks', 'hq', 'port', 'airfield'],
   fighter: ['airfield'],
   bomber: ['airfield'],
   airTransport: ['airfield'],
@@ -97,6 +99,7 @@ export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
   infantry: 1,
   armor: 3,
   landTransport: 2,
+  artillery: 2,
 };
 
 /**
@@ -138,6 +141,7 @@ export const TIERS_BY_ROLE: Readonly<Record<UnitRole, UnitTier>> = {
   infantry: 2,
   armor: 2,
   landTransport: 1,
+  artillery: 1,
   fighter: 1,
   bomber: 1,
   airTransport: 1,
@@ -157,6 +161,7 @@ export const ROLE_ORDER: ReadonlyArray<UnitRole> = [
   'infantry',
   'armor',
   'landTransport',
+  'artillery',
   'fighter',
   'bomber',
   'airTransport',

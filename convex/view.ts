@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { fail } from './errors';
+import { firesIndirect } from '../src/domain/indirect-fire';
+import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
@@ -653,6 +655,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
           ? { reloadUntil: troop.reloadUntil }
           : {}),
+        /** **En route, pas de batterie** (B20) : le compte à rebours part à l'arrêt. */
+        ...(firesIndirect(troop.role) &&
+        !movements.some((movement) => movement.troopIds.includes(troop._id)) &&
+        batteryReadyAt(troop) > now
+          ? { emplacedAt: batteryReadyAt(troop) }
+          : {}),
         mending: mending.has(troop._id),
       })),
       stationedCargo: stationedCargo.map((group) => ({
@@ -736,6 +744,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         id: engagement._id,
         at: engagement.at,
         cause: engagement.cause,
+        ...(side === 'attacker' && engagement.firedFrom !== undefined
+          ? { firedFrom: engagement.firedFrom }
+          : {}),
         side,
         won: engagement.winner === side,
         hostCountry: engagement.hostCountry,

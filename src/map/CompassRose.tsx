@@ -680,6 +680,10 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
+  /** « Bombarder » : l'obus debout sur son culot, la ceinture marquée. */
+  shell: (
+    <path d="M10 1.2 C12.7 3.6 13.6 6.5 13.6 9.2 V11.2 H6.4 V9.2 C6.4 6.5 7.3 3.6 10 1.2 Z M6.4 12.6 H13.6 V16.4 H6.4 Z M5.6 17.2 H14.4 V19.2 H5.6 Z" />
+  ),
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,
   rifles: (
     <>

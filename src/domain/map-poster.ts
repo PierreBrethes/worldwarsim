@@ -90,6 +90,8 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const ids = new Set(held.map((troop) => troop.id));
     /** **Blitz** (B19) : la plus longue attente de la pile, à la seconde. */
     const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
+    /** **En batterie dans** (B20) : l'artillerie posée depuis moins que sa mise en batterie. */
+    const emplacing = Math.max(0, ...held.map((troop) => (troop.emplacedAt ?? 0) - now));
     const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
@@ -103,6 +105,16 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
                 label: fr.reload.label,
                 chip: reloadClock(reload),
                 tone: 'cut' as const,
+              },
+            ]
+          : []),
+        ...(emplacing > 0
+          ? [
+              {
+                kind: 'chip' as const,
+                label: fr.battery.label,
+                chip: reloadClock(emplacing),
+                tone: 'ok' as const,
               },
             ]
           : []),

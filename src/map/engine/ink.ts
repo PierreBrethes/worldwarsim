@@ -198,11 +198,11 @@ export class InkLayer {
     return TRACE_MS;
   }
 
-  /** The circle a point now holds, pen-drawn when motion is full and simply there, briefly,
-   *  when it is reduced. */
-  traceReach(ring: ReadonlyArray<Vector3>, now: number): void {
+  /** The circle a point now holds, or the shot a battery fired (B20): pen-drawn when motion is
+   *  full and simply there, briefly, when it is reduced. */
+  traceReach(stroke: ReadonlyArray<Vector3>, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
-    this.reaches.push(this.penStroke([ring], now, this.motion === 'full' ? TRACE_MS : 0));
+    this.reaches.push(this.penStroke([stroke], now, this.motion === 'full' ? TRACE_MS : 0));
   }
 
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival

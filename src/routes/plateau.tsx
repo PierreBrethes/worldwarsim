@@ -22,6 +22,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
   ARRIVAL_RADIUS_KM,
+  INDIRECT_FIRE,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
@@ -97,9 +98,11 @@ import {
   representativeRole,
   stationAtCombat,
   stationKeyOf,
+  stationPointOf,
   troopsAt,
   type MarchStation,
 } from '@/domain/troops';
+import { firesIndirect } from '@/domain/indirect-fire';
 import { pilePlace, placeLabel, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
@@ -796,6 +799,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         column?.station ?? null,
         freeCapacity,
         column?.troopIds ?? null,
+        Date.now(),
       ),
     [view, column, freeCapacity],
   );
@@ -805,6 +809,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
   const respecialize = useMutation(api.movements.respecialize);
   const boardTransport = useMutation(api.movements.board);
+  const bombard = useMutation(api.movements.bombard);
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
@@ -886,6 +891,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             transport: wireOrigin(action.transport),
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
+        /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
+         *  la pièce reste posée et la main se repose. */
+        case 'bombard':
+          setOrderError(null);
+          bombard({
+            ...seat,
+            troopId: action.troopId as Id<'troops'>,
+            target:
+              action.target.kind === 'camp'
+                ? { kind: 'camp', campId: action.target.campId as Id<'campSightings'> }
+                : { kind: 'track', movementId: action.target.movementId as Id<'movements'> },
+          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          return;
         case 'aim':
         case 'plunder':
         case 'capture':
@@ -920,6 +938,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       raiseOutpost,
       respecialize,
       boardTransport,
+      bombard,
       dropHand,
       column,
       seat,
@@ -936,7 +955,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const orderFrom = useCallback((compass: Compass, at: { x: number; y: number }): boolean => {
     /** Embarquer n'est pas un ordre de la feuille (rien ne part) : la rose, qui le porte à côté
      *  des marches, s'ouvre à sa place. */
-    if (compass.actions.some((action) => action.key === 'board')) return false;
+    if (compass.actions.some((action) => action.key === 'board' || action.key === 'bombard'))
+      return false;
     const choices = compass.actions.filter(isOrder).map(choiceOf);
     const first = choices[0];
     if (first === undefined) return false;
@@ -1569,19 +1589,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
    * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il part avec la main.
    */
-  const handReach = useMemo<Reach | null>(
-    () =>
-      column === null || column.station.kind !== 'point'
-        ? null
-        : {
-            lonLat: column.station.lonLat,
-            detectionKm: detectionRangeOf(column.rule.roles),
-            /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
-             *  une seule constante, celle que l'arrivée lit pour trouver qui se tient là. */
-            contactKm: ARRIVAL_RADIUS_KM,
-          },
-    [column],
-  );
+  const handReach = useMemo<Reach | null>(() => {
+    if (column === null) return null;
+    /** **L'artillerie levée montre où elle tire** (B20) : la portée et la zone morte, de sa
+     *  batterie — un bâtiment compris, d'où elle tire aussi. */
+    const firing = column.rule.roles.some(firesIndirect);
+    if (!firing && column.station.kind !== 'point') return null;
+    const at = stationPointOf(view.me, column.station);
+    if (at === null) return null;
+    return {
+      lonLat: at,
+      detectionKm: detectionRangeOf(column.rule.roles),
+      /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
+       *  une seule constante, celle que l'arrivée lit pour trouver qui se tient là. */
+      contactKm: firing ? null : ARRIVAL_RADIUS_KM,
+      ...(firing
+        ? { fire: { rangeKm: INDIRECT_FIRE.rangeKm, deadZoneKm: INDIRECT_FIRE.deadZoneKm } }
+        : {}),
+    };
+  }, [column, view.me]);
   const movementReach = useMemo<Reach | null>(() => {
     const movement = view.arcs.find(
       (arc): arc is Extract<ArcView, { state: 'mine' }> =>
@@ -2833,8 +2859,15 @@ function postedStacks(
       pieces: pilePieces(held),
       ink: me.ink,
       ...reloadOf(held),
+      ...emplacementOf(held),
     };
   });
+}
+
+/** **L'artillerie** (B20) : la pile est en batterie quand sa dernière pièce posée l'est. */
+function emplacementOf(held: ReadonlyArray<TroopView>): { emplacedAt?: number } {
+  const at = Math.max(0, ...held.map((troop) => troop.emplacedAt ?? 0));
+  return at > Date.now() ? { emplacedAt: at } : {};
 }
 
 /** **Blitz** (B19) : la pile recharge tant que sa dernière troupe à avoir frappé recharge. */

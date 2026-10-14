@@ -7,7 +7,7 @@ import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/dom
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
-import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
+import { blitzOnly, blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
 import { creditFunds, fundsOf, isBlitz, spendFunds } from './blitz';
 import {
@@ -101,24 +101,26 @@ export const workshop = query({
       alloy: snapshotOf(economy, 'alloy'),
       facilities,
       roster: roster(troops),
-      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
-        role,
-        tiers: TIERS_BY_ROLE[role],
-        producedBy: projectionKeyOf(role),
-        /**
-         * What the headquarters must reach before this role is recruitable at all — zero for
-         * the roles their projection building already carries. Served, like the mark-2
-         * threshold above, so the line the screen greys and the recruitment the server refuses
-         * are the same number.
-         */
-        unlockedAtHqLevel: roleHqLevel(role),
-        /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
-         *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
-         *  et la modale de site le compare au niveau de *son* bâtiment. */
-        unlockedAtSiteLevel: roleSiteLevel(role),
-        unit: priced(role, 1, hqLevel),
-        unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
-      })),
+      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>)
+        .filter((role) => blitz || !blitzOnly(role))
+        .map((role) => ({
+          role,
+          tiers: TIERS_BY_ROLE[role],
+          producedBy: projectionKeyOf(role),
+          /**
+           * What the headquarters must reach before this role is recruitable at all — zero for
+           * the roles their projection building already carries. Served, like the mark-2
+           * threshold above, so the line the screen greys and the recruitment the server refuses
+           * are the same number.
+           */
+          unlockedAtHqLevel: roleHqLevel(role),
+          /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
+           *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
+           *  et la modale de site le compare au niveau de *son* bâtiment. */
+          unlockedAtSiteLevel: roleSiteLevel(role),
+          unit: priced(role, 1, hqLevel),
+          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
+        })),
     };
   },
 });
@@ -138,6 +140,7 @@ export const recruit = mutation({
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
+    if (blitzOnly(role)) fail('BLITZ_ONLY');
     const expected = projectionKeyOf(role);
     if (building.key !== expected)
       fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
