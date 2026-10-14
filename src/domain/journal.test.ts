@@ -283,6 +283,23 @@ describe('the sort a dispatch is stamped with', () => {
     expect(isAlarm(closed!.kind)).toBe(false);
   });
 
+  it('names who took the HQ to the two sides only (B10)', () => {
+    const [aside] = journalDispatches(
+      [],
+      null,
+      [],
+      [{ kind: 'playerEliminated', at: NOON, nation: 'ussr' }],
+    );
+    expect(aside!.text).not.toMatch(/France|vainqueur/);
+    const [mine] = journalDispatches(
+      [],
+      null,
+      [],
+      [{ kind: 'playerEliminated', at: NOON, nation: 'ussr', by: 'france' }],
+    );
+    expect(mine!.text).toMatch(/France/);
+  });
+
   it('says why a Blitz ended, a draw included (B10, B11)', () => {
     const board = { target: 1, concludedAt: NOON, winnerNation: null, standings: [] };
     const [draw] = journalDispatches(

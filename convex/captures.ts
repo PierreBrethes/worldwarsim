@@ -483,6 +483,7 @@ export const complete = internalMutation({
         {
           kind: 'playerEliminated',
           by: capturer.nation ?? capturer.nickname,
+          capturerId: capturer._id,
         },
       );
     }

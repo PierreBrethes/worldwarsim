@@ -638,7 +638,16 @@ describe('la chute d’un QG (B10)', () => {
         .withIndex('byPlayer', (q) => q.eq('playerId', watcher._id))
         .collect(),
     );
-    expect(notices).toContainEqual(
+    const eliminated = notices.find((notice) => notice.kind === 'playerEliminated');
+    expect(eliminated).toMatchObject({ nation: 'ussr' });
+    expect(eliminated).not.toHaveProperty('by');
+    const mine = await t.run((ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
+        .collect(),
+    );
+    expect(mine).toContainEqual(
       expect.objectContaining({ kind: 'playerEliminated', nation: 'ussr', by: 'france' }),
     );
     await expect(

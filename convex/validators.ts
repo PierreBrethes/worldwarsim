@@ -522,13 +522,14 @@ export const NOTICE = v.union(
     kind: v.literal('commandTransferred'),
     nation: v.string(),
   }),
-  /** **Un QG tombé en Blitz** (B10) : le joueur est éliminé, ses bâtiments passent à qui l'a
-   *  capturé. Public comme une capitulation, et pour la même raison. */
+  /** **Un QG tombé en Blitz** (B10) : public comme une capitulation, et pour la même raison. Qui
+   *  l'a capturé (`by`) ne se dit qu'au perdant et au capteur : aux autres, ce serait un relevé
+   *  gratuit de qui tient désormais tout ce sol. */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('playerEliminated'),
     nation: v.string(),
-    by: v.string(),
+    by: v.optional(v.string()),
   }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous

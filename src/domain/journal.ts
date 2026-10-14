@@ -481,7 +481,10 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'elimination',
-        text: said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
+        text:
+          notice.by === undefined
+            ? said.playerEliminatedAside(nationName(notice.nation))
+            : said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
       };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':

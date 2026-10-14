@@ -815,7 +815,7 @@ type NoticeBody =
       readonly kind: 'playerEliminated';
       readonly at: number;
       readonly nation: string;
-      readonly by: string;
+      readonly by?: string;
     }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des

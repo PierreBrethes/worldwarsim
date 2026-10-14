@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { mutation, type MutationCtx } from './_generated/server';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { modeOf } from '../src/domain/season-mode';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
@@ -149,7 +149,11 @@ export async function leaveTheWar(
   now: number,
   exit:
     | { readonly kind: 'playerSurrendered' }
-    | { readonly kind: 'playerEliminated'; readonly by: string },
+    | {
+        readonly kind: 'playerEliminated';
+        readonly by: string;
+        readonly capturerId: Id<'players'>;
+      },
 ): Promise<void> {
   await ctx.db.patch(player._id, { defeated: true });
 
@@ -181,7 +185,12 @@ export async function leaveTheWar(
       playerId: seat._id,
       at: now,
       nation: nameOf(player),
-      ...exit,
+      ...(exit.kind === 'playerSurrendered'
+        ? { kind: exit.kind }
+        : {
+            kind: exit.kind,
+            ...(seat._id === player._id || seat._id === exit.capturerId ? { by: exit.by } : {}),
+          }),
     });
     if (successor !== null) {
       await ctx.db.insert('notices', {
