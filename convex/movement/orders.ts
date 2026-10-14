@@ -558,9 +558,7 @@ async function occupiedBuildingIds(
         .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
         .collect()
     ).flatMap((troop) =>
-      typeof troop.stationedAt === 'string' &&
-      !marching.has(troop._id) &&
-      !leaving.has(troop._id)
+      typeof troop.stationedAt === 'string' && !marching.has(troop._id) && !leaving.has(troop._id)
         ? [troop.stationedAt]
         : [],
     ),

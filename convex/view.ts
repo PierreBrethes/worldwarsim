@@ -799,24 +799,24 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           movement.pursuit !== undefined
             ? { kind: 'pursuit' as const }
             : movement.plunder !== undefined
-            ? {
-                kind: 'plunder' as const,
-                phase: movement.plunder.phase,
-                buildingId: movement.plunder.buildingId,
-                presenceEndsAt:
-                  movement.plunder.phase === 'presence' ? movement.plunder.until : null,
-              }
-            : movement.lootCollection !== undefined
               ? {
-                  kind: 'collection' as const,
-                  sightingId: movement.lootCollection.sightingId,
+                  kind: 'plunder' as const,
+                  phase: movement.plunder.phase,
+                  buildingId: movement.plunder.buildingId,
+                  presenceEndsAt:
+                    movement.plunder.phase === 'presence' ? movement.plunder.until : null,
                 }
-              : movement.lootDelivery !== undefined
+              : movement.lootCollection !== undefined
                 ? {
-                    kind: 'cargoReturn' as const,
-                    regionId: movement.lootDelivery.regionId,
+                    kind: 'collection' as const,
+                    sightingId: movement.lootCollection.sightingId,
                   }
-                : null;
+                : movement.lootDelivery !== undefined
+                  ? {
+                      kind: 'cargoReturn' as const,
+                      regionId: movement.lootDelivery.regionId,
+                    }
+                  : null;
         return {
           id: movement._id,
           type: movement.type,

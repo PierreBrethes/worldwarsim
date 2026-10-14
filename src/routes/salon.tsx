@@ -333,11 +333,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                     <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
                       {fr.lobby.restHeader}
                     </div>
-                    <RestWindowForm
-                      seat={seat}
-                      declared={lobby.me.restWindow}
-                      onError={setError}
-                    />
+                    <RestWindowForm seat={seat} declared={lobby.me.restWindow} onError={setError} />
                     <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
                       {fr.lobby.restNote}
                     </p>

@@ -113,17 +113,18 @@ export function GroundPanel({
      part ailleurs en saison, l'avant-poste planté ici se nomme. Un « aucun » ne paraît plus — la
      carte montre déjà qu'il n'y a pas de mât. La progression et le dernier renseignement, toujours
      à zéro et à « — » tant que la part de carte et la surface 4.9 n'existent pas, sont partis. */
-  const countryLines = opponent && view.mode === 'blitz' ? null : opponent ? (
-    <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
-  ) : outpost ? (
-    <>
-      <Line
-        label={fr.selectedCountry.outpost}
-        value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specializations[outpost.specialization]}`}
-      />
-      <Line label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />
-    </>
-  ) : null;
+  const countryLines =
+    opponent && view.mode === 'blitz' ? null : opponent ? (
+      <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
+    ) : outpost ? (
+      <>
+        <Line
+          label={fr.selectedCountry.outpost}
+          value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specializations[outpost.specialization]}`}
+        />
+        <Line label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />
+      </>
+    ) : null;
 
   if (hovered === null) {
     return (

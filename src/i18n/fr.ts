@@ -82,7 +82,8 @@ const combatBeats = (
   shock = false,
 ): string => {
   /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
-  if (shock) return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
+  if (shock)
+    return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
   const [strike, riposte] = attacking ? [theirsLost, mineLost] : [mineLost, theirsLost];
   const answer =
     riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';

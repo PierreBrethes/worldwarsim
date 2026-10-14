@@ -2687,9 +2687,7 @@ function armedColumn(
 function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
   const theatre = view.theatre === null ? null : theatreById(view.theatre);
   if (view.mode !== 'blitz' || theatre === null) return {};
-  const marching = new Set(
-    view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])),
-  );
+  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
   const leaving = new Set(troops.map((troop) => troop.id));
   const now = Date.now();
   return {
@@ -2698,9 +2696,7 @@ function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troop
       reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > now),
       occupiedBuildingIds: new Set(
         view.me.troops.flatMap((troop) =>
-          troop.stationedAt.kind === 'building' &&
-          !marching.has(troop.id) &&
-          !leaving.has(troop.id)
+          troop.stationedAt.kind === 'building' && !marching.has(troop.id) && !leaving.has(troop.id)
             ? [troop.stationedAt.buildingId]
             : [],
         ),
