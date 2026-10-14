@@ -695,7 +695,9 @@
 
 /* **Une destination de la colonne armée** (lot mobile-3, A8) : un cercle au pied du mât, là où
    l'ordre arrivera. Il n'existe que sous le seuil et en visée — le plateau le décide. Un
-   pointillé d'encre comme l'anneau du prototype (P:113), plus le bleu de mer plein. */
+   pointillé d'encre comme l'anneau du prototype (P:113), plus le bleu de mer plein. Posé sur un
+   liseré de papier — le fond, ramené par le masque à une bande sous le trait —, sans quoi l'encre
+   se perdait sur un lavis sombre et sous le voile de la nuit. */
 .label--destination::after {
   content: '';
   position: absolute;
@@ -704,8 +706,11 @@
   width: 34px;
   height: 34px;
   box-sizing: border-box;
-  border: 1px dashed color-mix(in srgb, var(--ink) 65%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 65%, transparent);
   border-radius: 50%;
+  background: var(--paper);
+  background-clip: border-box;
+  mask: radial-gradient(closest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
   pointer-events: none;
 }
 
