@@ -53,6 +53,10 @@ une soirée au lieu d'une semaine.
   neuf, l'**artillerie**, tire de loin (≈ 150 km), a une **zone morte** proche (< 50 km), ne
   riposte pas et ne subit pas de riposte, et doit être **en batterie** (immobile ≈ 30 s). En
   Blitz d'abord ; d'autres rôles indirects (cuirassé) plus tard.
+  Revue du lot 6b : tir immédiat (A1) ; la cible sait qu'elle est bombardée, jamais d'où
+  (A3) ; une unité à bord d'un transport ne tire pas. **Toutes les distances de la Blitz
+  (portée, zone morte, contact, détection) se calent sur l'étendue du théâtre** comme la
+  vitesse (A2), et le placement des QG se retravaille avec elles.
 - **Au feu, on voit l'ennemi** (F1, 14/10). Qui prend part à une passe voit ce qu'il a en face
   — rôles, effectifs, nation —, pendant le combat comme au rejeu, en vraies figurines. Le
   brouillard garde tout ce qu'on n'a pas affronté. Révise l'ADR 0026 (rejeu en blocs et totaux).
@@ -73,7 +77,9 @@ une soirée au lieu d'une semaine.
 - **Terrain** (B1) : un théâtre par partie, et une vitesse calée pour le traverser en 15 à
   20 min (≈ 5 min pour 1 000 km en Europe). **Chaque théâtre déclare son nombre de joueurs**,
   vérifié par les tests de placement (le Pacifique à 2 ou 3) ; la création ne propose pas un
-  théâtre trop petit pour la table (T1).
+  théâtre trop petit pour la table (T1). Mesuré au lot 6a : Europe 2-4 (3 si une graine échoue à 4),
+  Méditerranée et Amériques 2-3, Pacifique 2 (B1) ; la création propose tout, le salon et le
+  lancement bornent (B2).
 - **Recrutement** (U6) : on ne recrute que dans un bâtiment **libre**, et la recrue y entre ;
   occupé, le refus le dit. Au départ, un fantassin au QG, l'autre dans la caserne.
 - **Présence** (B2) : 2 à 4 joueurs présents à heure convenue. Pas de plage de repos, pas de
@@ -101,7 +107,9 @@ une soirée au lieu d'une semaine.
   plus lent que l'infanterie) ; on peut bouger pendant. La riposte ne recharge pas.
 - **Brouillard** (B6) : gardé, à la portée des unités et des bâtiments.
 - **Fin** (B10, B11) : QG capturé = joueur éliminé, ses bâtiments passent au capteur, ses
-  troupes disparaissent. À 2 h, le plus gros revenu gagne.
+  troupes disparaissent. À 2 h, le plus gros revenu gagne. Seul le QG de départ élimine ; le QG d'un joueur qui
+  a capitulé peut encore tomber (B3) ; les Blitz lancées avant ce lot ne sont pas reprises (B4).
+  Aux tiers, la dépêche dit « X est éliminé », jamais par qui.
 
 ## Mondiale
 
