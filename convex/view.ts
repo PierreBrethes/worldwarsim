@@ -1100,6 +1100,13 @@ function named(notice: PlayableNotice) {
         ...notice,
         regionName: notice.regionId === null ? null : nameOf(notice.regionId),
       };
+    case 'captureStarted':
+    case 'captureSucceeded':
+    case 'captureCancelled':
+      return {
+        ...notice,
+        regionName: notice.site.kind === 'building' ? nameOf(notice.site.regionId) : null,
+      };
     case 'recruitmentDelivered':
       return {
         ...notice,
@@ -1120,7 +1127,7 @@ function placed(notice: PlayableNotice) {
   const regionId =
     'regionId' in notice
       ? notice.regionId
-      : 'site' in notice && notice.site !== null
+      : 'site' in notice && notice.site !== null && 'regionId' in notice.site
         ? notice.site.regionId
         : null;
   const centre = regionId === null ? undefined : regionFacts(regionId)?.point;

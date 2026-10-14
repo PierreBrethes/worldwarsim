@@ -245,6 +245,13 @@ export const fr = {
     listening: 'écoute',
   } satisfies Record<Specialization, string>,
 
+  /** **La capture** (décision du 14/10) — jamais « prise ». */
+  capture: {
+    buildingSite: (building: string, region: string) => `${building} de ${region}`,
+    outpostSite: (level: number, country: string) =>
+      `l’avant-poste de niveau ${level} — ${country}`,
+  },
+
   loot: {
     markerCurrent: 'caisse relevée',
     markerStale: 'dernier relevé',
@@ -487,6 +494,8 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
@@ -1266,6 +1275,11 @@ export const fr = {
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
+      captureStarted: 'capture engagée',
+      captureThreat: 'capture en cours',
+      captured: 'capturé',
+      siteLost: 'site perdu',
+      captureCancelled: 'capture levée',
       productionRestored: 'production rétablie',
       lootTaken: 'butin pris',
       sitePlundered: 'site pillé',
@@ -1478,6 +1492,19 @@ export const fr = {
        * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
        * dépêche chez lui lui dirait ce que son renseignement n'a pas payé.
        */
+      /**
+       * **La capture** (14/10). Le défenseur ne lit jamais qui capture : il lit le site, et
+       * l'heure où il le perdra si rien ne change — c'est la décision qu'on lui demande.
+       */
+      captureStarted: (site: string, until: string) =>
+        `Notre infanterie tient ${site} : capture vers ${until}.`,
+      captureThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      captured: (site: string) => `${site} est à nous : capture achevée.`,
+      siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
+      captureAbandoned: (site: string) =>
+        `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureLifted: (site: string) => `La capture de ${site} est levée.`,
       productionCut: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
       productionRestored: (sites: number, country: string) =>

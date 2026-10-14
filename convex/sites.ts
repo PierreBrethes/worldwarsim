@@ -166,7 +166,8 @@ export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Si
   const placed = buildings.map((building) => ({
     key: building.key,
     deposit: depositOfRegion(building.regionId),
-    site: siteOfBuilding(building),
+    /** Un bâtiment capturé n'occupe aucun emplacement : personne ne l'a posé là. */
+    site: building.capturedAt === undefined ? siteOfBuilding(building) : null,
   }));
   const foundation = foundationOf(player.nation);
 

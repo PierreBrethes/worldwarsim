@@ -12,6 +12,7 @@ import type * as accounts from "../accounts.js";
 import type * as auth from "../auth.js";
 import type * as buildingReads from "../buildingReads.js";
 import type * as buildings from "../buildings.js";
+import type * as captures from "../captures.js";
 import type * as cargo from "../cargo.js";
 import type * as combat from "../combat.js";
 import type * as constants from "../constants.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   buildingReads: typeof buildingReads;
   buildings: typeof buildings;
+  captures: typeof captures;
   cargo: typeof cargo;
   combat: typeof combat;
   constants: typeof constants;

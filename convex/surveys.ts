@@ -80,6 +80,12 @@ export async function standingObserversOf(
 
   const buildings = await playerBuildings(ctx, playerId);
   for (const building of buildings) {
+    /** Un bâtiment capturé voit le sol qu'il tient — sans quoi sa couleur se délaverait chez son
+     *  capteur comme un relevé ancien. */
+    const captured = pointOfBuilding(building);
+    if (building.capturedAt !== undefined && captured !== null) {
+      observers.push({ point: captured, radiusKm: 1 });
+    }
     if (building.key !== 'listening') continue;
     const stand = pointOfBuilding(building);
     if (stand !== null) {

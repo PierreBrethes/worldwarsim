@@ -1,3 +1,4 @@
+import { captureRefusalOf, type CaptureRefusal, type CaptureTarget } from './capture';
 import { produces } from './economy';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
@@ -210,6 +211,19 @@ export function plunderRefusalOf(
   if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
+}
+
+/**
+ * **Capturer** (décision du 14/10) : le refus de la capture, puis la porte de départ — la même
+ * lecture pour la branche de la rose et pour `movements.capture`, rien de grisé.
+ */
+export function captureOrderRefusalOf(
+  target: CaptureTarget,
+  aim: MovementAim,
+  column: Column,
+  isMine: boolean,
+): CaptureRefusal | OrderRefusal | null {
+  return captureRefusalOf(target, column.roles, isMine) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */

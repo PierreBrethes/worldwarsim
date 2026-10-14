@@ -47,6 +47,7 @@ import {
 import { asPoint, movementsOf, pointOf, recognises, specializationServed } from './movement/forces';
 import {
   aimOf,
+  captureAimOf,
   columnOf,
   departureOf,
   march,
@@ -65,10 +66,12 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
+  CAPTURE_TARGET,
   CONTACT_FORCE,
   LON_LAT,
   MOVEMENT_ORIGIN,
@@ -493,6 +496,34 @@ export const plunder = mutation({
   },
 });
 
+/**
+ * **Capturer** (décision du 14/10) : un bâtiment adverse relevé, ou un avant-poste adverse. La
+ * colonne y marche comme à une attaque ; l'arrivée engage, puis l'infanterie debout capture
+ * (`captures.ts`). Le refus est celui de la rose (`captureOrderRefusalOf`).
+ */
+export const capture = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'attack',
+      origin,
+      troopIds,
+      aim: await captureAimOf(ctx, player, target),
+      capture: target,
+    });
+  },
+});
+
 /** Public S8 filing: the private sighting is the sole target authority exposed to the client. */
 export const collectLoot = mutation({
   args: {
@@ -762,6 +793,13 @@ export const arrive = internalMutation({
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    if (movement.capture !== undefined) {
+      await surveyAlongRoute(ctx, movement, now);
+      await arriveForCapture(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }

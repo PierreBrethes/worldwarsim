@@ -11,6 +11,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import {
+  captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
   movementSlots,
@@ -221,6 +222,23 @@ export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
     name: region.name,
     host: region.country,
   };
+}
+
+/**
+ * **Ce qu'une capture vise** : un bâtiment adverse que ce joueur a relevé — la même porte que le
+ * pillage, sans la restriction de clé —, ou un avant-poste adverse, visé comme une attaque le vise.
+ */
+export async function captureAimOf(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  target: NonNullable<Doc<'movements'>['capture']>,
+): Promise<Aimed> {
+  if (target.kind === 'building') {
+    return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
+  }
+  const aimed = await aimOf(ctx, player._id, { kind: 'outpost', outpostId: target.outpostId });
+  if ((await ctx.db.get(target.outpostId))?.playerId === player._id) fail('FRIENDLY_TARGET');
+  return aimed;
 }
 
 /** Arrival revalidation is internal state handling: it never returns a reason or a target view. */
@@ -518,6 +536,7 @@ export async function march(
     troopIds,
     aim,
     plunder,
+    capture,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -530,6 +549,7 @@ export async function march(
       readonly buildingId: Id<'buildings'>;
       readonly surveyed: { readonly key: Doc<'buildings'>['key']; readonly regionId: string };
     };
+    capture?: NonNullable<Doc<'movements'>['capture']>;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -560,9 +580,20 @@ export async function march(
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   const column = await columnOf(ctx, playerId, troops, departure);
   const refusal =
-    plunder === undefined
-      ? refusalOf(type, aim.aim, column)
-      : plunderOrderRefusalOf(aim.aim as Extract<MovementAim, { kind: 'building' }>, column, false);
+    capture !== undefined
+      ? captureOrderRefusalOf(
+          aim.aim.kind === 'building' ? aim.aim : { kind: 'outpost' },
+          aim.aim,
+          column,
+          false,
+        )
+      : plunder === undefined
+        ? refusalOf(type, aim.aim, column)
+        : plunderOrderRefusalOf(
+            aim.aim as Extract<MovementAim, { kind: 'building' }>,
+            column,
+            false,
+          );
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
 
   const route = routeBetween(
@@ -613,6 +644,7 @@ export async function march(
     ...(aim.aim.kind === 'objective'
       ? { objectiveId: aim.aim.objectiveId as Id<'objectives'> }
       : {}),
+    ...(capture === undefined ? {} : { capture }),
     ...movementCargoFields(cargo),
   });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

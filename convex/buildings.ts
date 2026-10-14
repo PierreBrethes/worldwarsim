@@ -12,6 +12,7 @@ import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
 import { clipToStorage, credit, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
+import { reportChange, settleBeforeChange } from './production';
 
 export type { BuildingKey };
 
@@ -38,8 +39,8 @@ export type { BuildingKey };
  *   une pile posée au pied du bâtiment, à son propre point s'il en avait un — un port rasé
  *   laisse ses troupes sur le quai.
  *
- * **Aucun événement de couleur** (ADR 0020 §6) : la couleur vient des avant-postes et jamais des
- * bâtiments, donc pas de `settleBeforeChange` — un producteur rasé ne redessine rien.
+ * **Aucun événement de couleur** (ADR 0020 §6), sauf pour un bâtiment capturé : lui seul colore
+ * sa région (décision M8 du 14/10) ; un producteur bâti et rasé ne redessine rien.
  */
 export const demolish = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), buildingId: v.id('buildings') },
@@ -55,7 +56,11 @@ export const demolish = mutation({
     if (refusal !== null || building === null) fail(refusal ?? 'NOT_YOURS');
 
     const now = Date.now();
+    /** Un bâtiment capturé colore sa région (14/10) : le raser est un événement de couleur. */
+    const before =
+      building.capturedAt === undefined ? null : await settleBeforeChange(ctx, season._id, now);
     const { refunded, clipped } = await razeBuilding(ctx, player._id, building, now);
+    if (before !== null) await reportChange(ctx, season._id, before, now);
 
     /** La file repart derrière l'entrée qui vient de disparaître, et la détection se réévalue
      *  parce qu'une garnison qui passe au sol est un détecteur qui a bougé (ADR 0021). */

@@ -10,6 +10,7 @@
  * géométrie de l'interception reste dans le domaine, pour l'intercepteur V1.
  */
 
+import { reassessCaptures } from '../captures';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -92,6 +93,9 @@ export async function reassessDetection(
     await syncCampSightings(ctx, seasonId, board, now);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
+    /** **La capture se relit aux mêmes événements que le brouillard** : un départ, une arrivée,
+     *  une passe — exactement ce qui peut retirer, tuer ou entamer l'infanterie qui capture. */
+    await reassessCaptures(ctx, seasonId, now);
   }
 }
 

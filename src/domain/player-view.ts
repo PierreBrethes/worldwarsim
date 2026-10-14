@@ -605,7 +605,14 @@ export type DispatchKind =
    *  heure, et c'est ce qui les fait converger plutôt que farmer. */
   | 'objectiveRevealed'
   | 'objectiveGap'
-  | 'objectiveTaken';
+  | 'objectiveTaken'
+  /** **La capture** (14/10) : chez le capteur la nouvelle qu'il lit à son heure, chez le
+   *  défenseur la menace puis la perte, à l'encre d'alarme. */
+  | 'captureStarted'
+  | 'captureThreat'
+  | 'captured'
+  | 'siteLost'
+  | 'captureCancelled';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -858,7 +865,22 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly regionName: string;
     }
-  | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> };
+  | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> }
+  | ({
+      readonly at: number;
+      readonly side: 'capturer' | 'defender';
+      readonly site: CaptureSite;
+      readonly regionName: string | null;
+    } & (
+      | { readonly kind: 'captureStarted'; readonly completesAt: number }
+      | { readonly kind: 'captureSucceeded' }
+      | { readonly kind: 'captureCancelled' }
+    ));
+
+/** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */
+export type CaptureSite =
+  | { readonly kind: 'building'; readonly building: BuildingKey; readonly regionId: string }
+  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number };
 
 /** The server serves `place` on every notice; fixtures may leave it out. */
 export type Notice = NoticeBody & { readonly place?: MapPlace | null };
