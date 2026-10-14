@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { nationInk } from '../src/domain/nations';
 import {
@@ -30,10 +31,12 @@ export const post = mutation({
     seasonId: v.id('seasons'),
     text: v.string(),
     to: v.optional(v.id('players')),
+    lobby: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, text, to }) => {
+  handler: async (ctx, { token, seasonId, text, to, lobby }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireOpenChannel(season);
+    if (lobby === true && season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
 
     const seats = await seatsOf(ctx, season._id);
     if (to !== undefined && (to === player._id || !seats.some((seat) => seat._id === to))) {
@@ -68,6 +71,7 @@ export const post = mutation({
       text: trimmed,
       at: now,
       ...(to === undefined ? {} : { to }),
+      ...(lobby === true ? { lobby } : {}),
     });
     for (const seat of seats) {
       if (seat._id === player._id || (to !== undefined && seat._id !== to)) continue;
@@ -92,9 +96,10 @@ export const post = mutation({
  * simply carries `null`, which is what the lobby shows.
  */
 export const recent = query({
-  args: { token: v.string(), seasonId: v.id('seasons') },
-  handler: async (ctx, { token, seasonId }) => {
+  args: { token: v.string(), seasonId: v.id('seasons'), lobby: v.optional(v.boolean()) },
+  handler: async (ctx, { token, seasonId, lobby }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
+    const thread = lobby === true ? true : undefined;
     const seats = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
@@ -117,13 +122,17 @@ export const recent = query({
     const general = () =>
       ctx.db
         .query('messages')
-        .withIndex('byChannel', (q) => q.eq('seasonId', season._id).eq('to', undefined))
+        .withIndex('byChannel', (q) =>
+          q.eq('seasonId', season._id).eq('lobby', thread).eq('to', undefined),
+        )
         .order('desc')
         .take(TELEGRAPH_DEPTH);
     const between = (from: Id<'players'>, to: Id<'players'>) =>
       ctx.db
         .query('messages')
-        .withIndex('byPair', (q) => q.eq('seasonId', season._id).eq('to', to).eq('playerId', from))
+        .withIndex('byPair', (q) =>
+          q.eq('seasonId', season._id).eq('lobby', thread).eq('to', to).eq('playerId', from),
+        )
         .order('desc')
         .take(TELEGRAPH_DEPTH);
 
@@ -177,5 +186,29 @@ export const markRead = mutation({
     await stampReadMark(ctx, player._id, {
       telegraphDirectReadAt: { ...telegraphDirectReadAt, [other]: Date.now() },
     });
+  },
+});
+
+/** Bounded so no single mutation deletes thousands of rows: a full pass queues the next. */
+export const ERASE_BATCH = 500;
+
+/**
+ * **Un fil s'efface en entier, par lots** : le salon au lancement, la partie à la conclusion —
+ * pas d'archive. Les dates de lecture n'ont rien à suivre : celles du salon précèdent le
+ * lancement, celles de la partie la conclusion, aucun message ne peut les dépasser.
+ */
+export const erase = internalMutation({
+  args: { seasonId: v.id('seasons'), lobby: v.boolean() },
+  handler: async (ctx, { seasonId, lobby }) => {
+    const rows = await ctx.db
+      .query('messages')
+      .withIndex('byChannel', (q) =>
+        q.eq('seasonId', seasonId).eq('lobby', lobby ? true : undefined),
+      )
+      .take(ERASE_BATCH);
+    for (const row of rows) await ctx.db.delete(row._id);
+    if (rows.length === ERASE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby });
+    }
   },
 });
