@@ -53,6 +53,10 @@ une soirée au lieu d'une semaine.
   neuf, l'**artillerie**, tire de loin (≈ 150 km), a une **zone morte** proche (< 50 km), ne
   riposte pas et ne subit pas de riposte, et doit être **en batterie** (immobile ≈ 30 s). En
   Blitz d'abord ; d'autres rôles indirects (cuirassé) plus tard.
+- **Au feu, on voit l'ennemi** (F1, 14/10). Qui prend part à une passe voit ce qu'il a en face
+  — rôles, effectifs, nation —, pendant le combat comme au rejeu, en vraies figurines. Le
+  brouillard garde tout ce qu'on n'a pas affronté ; une force seulement relevée reste un bloc,
+  dessiné plus « carte » que la stèle actuelle. Révise l'ADR 0026 (rejeu en blocs et totaux).
 - **Le soin** : sur un bâtiment à soi (B12, R2).
 - **Pas de plafond de troupes affiché** (R10b). Le frein est l'économie ; une borne technique
   invisible (≈ 80) protège le serveur.
@@ -81,7 +85,10 @@ une soirée au lieu d'une semaine.
   ailleurs, placement libre.
 - **Ordres** (B5, B13, B17, B18) : pas de slots. On n'attaque que sur ordre, la riposte est
   automatique. L'ordre d'attaque vise une **unité** : l'attaquant la poursuit et frappe au
-  contact (≈ 25 km), et abandonne si elle sort de sa vue.
+  contact (≈ 25 km), et abandonne si elle sort de sa vue. Revue du lot 5 : pas de déroute, un
+  pion tient ou tombe (U1) ; une frappe oppose l'attaquant à sa seule cible (U2) ; une seule
+  unité entre dans un bâtiment, la seconde se pose devant (U3) ; aucune visée hors du théâtre,
+  région comprise (U4) ; lever prend la première troupe du groupe touché (U5).
 - **Cadence** (B19) : après une frappe, un **rechargement propre à chaque rôle** (l'artillerie
   plus lent que l'infanterie) ; on peut bouger pendant. La riposte ne recharge pas.
 - **Brouillard** (B6) : gardé, à la portée des unités et des bâtiments.
