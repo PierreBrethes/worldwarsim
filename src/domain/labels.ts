@@ -232,7 +232,7 @@ export type Reach = {
   /** Ce que la chose voit passer — le tireté (ADR 0021). */
   readonly detectionKm: number;
   /**
-   * **Ce que la chose touche**, `ARRIVAL_RADIUS_KM` — le plein (décisions 4a et 3a du 16/09).
+   * **Ce que la chose touche**, `contactKm(théâtre)` — le plein (décisions 4a et 3a du 16/09).
    * `null` pour un avant-poste et une station : ils relèvent, ils n'engagent rien, et un second
    * cercle autour d'eux promettrait une allonge qu'aucune règle ne leur donne.
    */

@@ -1066,7 +1066,7 @@ function aim(
   }
   if (target.kind !== 'point') return null;
   /**
-   * The arrival reads what stands within `ARRIVAL_RADIUS_KM` of where the column stopped
+   * The arrival reads what stands within `contactKm(theatre)` of where the column stopped
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed
    * at and nothing rounds it to a centroid.
    */

@@ -361,7 +361,7 @@ export default defineSchema({
    *
    * **`byStation` still answers only the two id forms**, and that is deliberate. A point address
    * cannot be looked up by equality: the question asked of it is never "who hangs from this
-   * coordinate" but "who stands within `ARRIVAL_RADIUS_KM` of it", which no equality index
+   * coordinate" but "who stands within `contactKm(theatre)` of it", which no equality index
    * answers and which a pair of numbers would only answer along one axis. That question is
    * served by a scan bounded by the game's own ceiling — 24 troops per player (ADR 0014), eight
    * players, under two hundred rows — which is the same order of magnitude as the scan of

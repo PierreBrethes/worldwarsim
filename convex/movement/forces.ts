@@ -148,8 +148,8 @@ type Defence = {
 
 /**
  * **Ce qu'un ordre d'attaque trouve au bout de son allonge** (ADR 0024 §4). Elle n'est plus lue
- * que là : une marche ne cherche plus personne (`standAt`), et `ARRIVAL_RADIUS_KM` a changé de
- * sens — de déclencheur il est devenu l'**allonge** de l'ordre.
+ * que là : une marche ne cherche plus personne (`standAt`), et le contact a changé de sens — de
+ * déclencheur il est devenu l'**allonge** de l'ordre, `contactKm(théâtre)`.
  *
  * Si plusieurs nations tiennent du sol au même endroit, celle qui a le plus de troupes répond :
  * ADR 0014, couper la colonne résoudrait deux fois la même passe.
