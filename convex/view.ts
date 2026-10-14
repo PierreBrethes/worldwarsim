@@ -93,19 +93,27 @@ export const playerView = query({
 });
 
 /**
+ * **Où la carte s'ouvre** : le centre du théâtre en Blitz, la capitale de 1940 ailleurs. Distinct
+ * de `capitalPoint`, qui reste la capitale pour le repli « chez soi » — en Blitz le quartier
+ * général sera posé par le générateur, pas sur le sol national.
+ */
+function openingPointOf(season: Doc<'seasons'>, nation: string | null): LonLat | null {
+  const theatre = season.theatre === undefined ? null : theatreById(season.theatre);
+  if (modeOf(season.mode) === 'blitz' && theatre !== null) return theatreCenter(theatre);
+  return capitalPointOf(nation);
+}
+
+function capitalPointOf(nation: string | null): LonLat | null {
+  return isNation(nation) ? (regionFacts(capitalRegionOf(nation))?.point ?? null) : null;
+}
+
+/**
  * **La vue d'un joueur, en fonction.** `playerView` n'est plus qu'une porte : l'export de la
  * saison de référence (`dev.snapshot`) sert exactement ce que le plateau reçoit, et il le sert en
  * appelant ceci plutôt qu'en recopiant une projection. Une copie aurait divergé au premier champ
  * ajouté, et l'état de référence aurait recommencé à décrire un jeu qui n'existe plus — la panne
  * même que l'ancien simulateur laissait derrière lui.
  */
-/** A Blitz opens framed on its theatre; any other season on the nation's 1940 capital. */
-function openingPointOf(season: Doc<'seasons'>, nation: string | null): LonLat | null {
-  const theatre = season.theatre === undefined ? null : theatreById(season.theatre);
-  if (modeOf(season.mode) === 'blitz' && theatre !== null) return theatreCenter(theatre);
-  return isNation(nation) ? (regionFacts(capitalRegionOf(nation))?.point ?? null) : null;
-}
-
 export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
   const { player, season } = await playerOf(ctx, token, seasonId);
   requireStarted(season);
@@ -449,10 +457,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * des régions, côté serveur — et la position du pays ne convient pas : elle tombe au
        * centre des États-Unis, à deux mille kilomètres de Washington.
        *
-       * Servi toujours, lu seulement à `hqLevel === 0` : un cadrage n'est pas un secret, et un
-       * champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
+       * Servi toujours, lu seulement par le repli « chez soi » : un cadrage n'est pas un secret, et
+       * un champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
        */
-      capitalPoint: openingPointOf(season, player.nation),
+      capitalPoint: capitalPointOf(player.nation),
+      /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». */
+      openingPoint: openingPointOf(season, player.nation),
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and
