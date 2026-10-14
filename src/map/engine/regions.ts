@@ -373,6 +373,9 @@ export class RegionLayer {
      *  retriangulait le sol bâti **et toute la couleur tenue**, qui n'avait pas bougé. */
     if (sameIds(regionIds, this.builtIds)) return;
     this.builtIds = regionIds;
+    /** A region that becomes built changes the ground under the pen: the contour and the drawing
+     *  on screen were inked for the old one. */
+    this.forgetSketches();
     this.fill(this.built, this.builtIds, BUILT_LIFT);
   }
 
