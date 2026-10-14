@@ -82,7 +82,7 @@ import {
   MOVEMENT_TYPE,
   SPECIALIZATION,
 } from './validators';
-import { refuseInBlitz } from './blitz';
+import { isBlitz, occupiedBuildingIds, refuseInBlitz } from './blitz';
 
 /**
  * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
@@ -896,7 +896,15 @@ export const arrive = internalMutation({
     if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') {
-      const garrison = await garrisonOf(ctx, movement);
+      const door = await garrisonOf(ctx, movement);
+      /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
+       *  celle-ci se pose à la porte. */
+      const garrison =
+        door !== null &&
+        (await isBlitz(ctx, movement.seasonId)) &&
+        (await occupiedBuildingIds(ctx, movement.playerId, movement.troopIds)).has(door._id)
+          ? null
+          : door;
       /** **Une marche sur un point à soi y entre** (décision du 16/09) : la seule marche que
        *  `refusalOf` laisse viser un avant-poste est celle-là. Démantelé ou perdu entre-temps,
        *  la colonne se pose au point atteint comme n'importe quelle marche (règle 3). */

@@ -146,6 +146,40 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     ).rejects.toThrow(/BUILDING_OCCUPIED/);
   });
 
+  it('lets the second of two marches to the same empty building stand at its door', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const barracks = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        key: 'barracks',
+        regionId: 'FRA-5323',
+        level: 1,
+        outpostId: null,
+      });
+    });
+    const sent = [];
+    for (const point of [PARIS, LYON]) {
+      const walker = await troop(t, seat, point);
+      const { movementId } = await t.mutation(api.movements.enterGarrison, {
+        ...seat,
+        origin: { kind: 'point', point },
+        troopIds: [walker],
+        buildingId: barracks,
+      });
+      sent.push({ walker, movementId });
+    }
+    for (const { movementId } of sent) {
+      const movement = (await t.run((ctx) => ctx.db.get(movementId)))!;
+      vi.setSystemTime(Math.max(Date.now(), movement.arrivesAt));
+      await t.mutation(internal.movements.arrive, { movementId });
+    }
+    const addresses = await Promise.all(sent.map(({ walker }) => troopRow(t, walker)));
+    expect(addresses.filter((row) => row?.stationedAt === barracks)).toHaveLength(1);
+  });
+
   it('enters no building of its own outside the theatre', async () => {
     const t = boot();
     const { seat } = await blitz(t);

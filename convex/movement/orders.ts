@@ -38,6 +38,7 @@ import { reassessDetection } from './detection';
 import { pacedMinutes } from './pace';
 import { blitzTheatreOf } from './theatre';
 import { quarryOf, schedulePursuit } from './pursuit';
+import { occupiedBuildingIds } from '../blitz';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
@@ -545,7 +546,11 @@ export async function columnOf(
           blitz: {
             theatre,
             reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > Date.now()),
-            occupiedBuildingIds: await occupiedBuildingIds(ctx, playerId, troops),
+            occupiedBuildingIds: await occupiedBuildingIds(
+              ctx,
+              playerId,
+              troops.map((troop) => troop._id),
+            ),
           },
         }),
     roles: troops.map((troop) => troop.role),
@@ -559,35 +564,6 @@ export async function columnOf(
     afloat: departure.afloat,
     coastal: departure.coastal,
   };
-}
-
-/**
- * **Mes bâtiments déjà tenus** (B15, une unité par bâtiment) : une de mes troupes y est posée.
- * Les troupes de l'ordre n'en occupent aucun — elles partent. La rose lit la même chose dans la
- * vue (`armedColumn`).
- *
- * ponytail: deux marches parties ensemble vers le même bâtiment vide y entrent toutes les deux ;
- * compter les marches en route demanderait de servir leur cible au client.
- */
-async function occupiedBuildingIds(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  ordered: ReadonlyArray<Doc<'troops'>>,
-): Promise<Set<string>> {
-  const marching = new Set((await movementsOf(ctx, playerId)).flatMap((one) => one.troopIds));
-  const leaving = new Set(ordered.map((troop) => troop._id));
-  return new Set(
-    (
-      await ctx.db
-        .query('troops')
-        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-        .collect()
-    ).flatMap((troop) =>
-      typeof troop.stationedAt === 'string' && !marching.has(troop._id) && !leaving.has(troop._id)
-        ? [troop.stationedAt]
-        : [],
-    ),
-  );
 }
 
 /** Same shape and reason as `capReliefOf`: "montez le QG" is advice, "un quartier général niveau
