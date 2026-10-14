@@ -11,6 +11,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import {
+  captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
   movementSlots,
@@ -22,6 +23,7 @@ import {
   type MovementAim,
 } from '../../src/domain/movement-orders';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
+import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
 import { MAX_HQ_LEVEL, detectionRangeOf } from '../constants';
 import { fail } from '../errors';
@@ -34,6 +36,9 @@ import { surveyFromPoint } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
 import { pacedMinutes } from './pace';
+import { blitzTheatreOf } from './theatre';
+import { quarryOf, schedulePursuit } from './pursuit';
+import { occupiedBuildingIds } from '../blitz';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
@@ -167,6 +172,17 @@ export async function surveyedPlunderTarget(
   player: Doc<'players'>,
   buildingId: Id<'buildings'>,
 ): Promise<SurveyedPlunderTarget> {
+  const target = await surveyedTarget(ctx, player, buildingId);
+  if (!isPlunderTarget(target.key)) fail('UNKNOWN_BUILDING');
+  return target;
+}
+
+/** Any installation of somebody else's that this player has surveyed, whatever it is. */
+export async function surveyedTarget(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<SurveyedPlunderTarget> {
   const surveys = await ctx.db
     .query('regionSightings')
     .withIndex('byPlayerHasInstallations', (q) =>
@@ -181,7 +197,7 @@ export async function surveyedPlunderTarget(
       })),
     )
     .find((installation) => installation.buildingId === buildingId);
-  if (seen === undefined || !isPlunderTarget(seen.key)) fail('UNKNOWN_BUILDING');
+  if (seen === undefined) fail('UNKNOWN_BUILDING');
 
   const building = await ctx.db.get(buildingId);
   if (
@@ -210,6 +226,45 @@ export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
     name: region.name,
     host: region.country,
   };
+}
+
+/**
+ * **Ce qu'une capture vise** : un bâtiment adverse que ce joueur a relevé — la même porte que le
+ * pillage, sans la restriction de clé —, ou un avant-poste adverse, visé comme une attaque le vise.
+ */
+export async function captureAimOf(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  target: NonNullable<Doc<'movements'>['capture']>,
+): Promise<Aimed> {
+  if (target.kind === 'building') {
+    /** **Un neutre de la Blitz est public** : il se vise sans relevé, comme un objectif. */
+    const neutral = await neutralBuilding(ctx, player, target.buildingId);
+    if (neutral !== null) {
+      return plunderAimOf({
+        _id: neutral._id,
+        key: neutral.key,
+        regionId: neutral.regionId,
+        point: pointOfBuilding(neutral),
+      });
+    }
+    return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
+  }
+  const aimed = await aimOf(ctx, player._id, { kind: 'outpost', outpostId: target.outpostId });
+  if ((await ctx.db.get(target.outpostId))?.playerId === player._id) fail('FRIENDLY_TARGET');
+  return aimed;
+}
+
+async function neutralBuilding(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<Doc<'buildings'> | null> {
+  const building = await ctx.db.get(buildingId);
+  if (building === null || building.seasonId !== player.seasonId) return null;
+  /** **Neutre de départ, même pris depuis** : la liste se sert figée (`neutralSitesOf`), et
+   *  refuser l'ordre apprendrait la prise ; l'arrivée lit la vérité. */
+  return building.startedNeutral === true && building.playerId !== player._id ? building : null;
 }
 
 /** Arrival revalidation is internal state handling: it never returns a reason or a target view. */
@@ -274,7 +329,8 @@ async function surveyedIn(
 export type AimTarget =
   | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
-  | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> };
+  | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> }
+  | { readonly kind: 'track'; readonly movementId: Id<'movements'> };
 
 const seasonIdOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<Id<'seasons'> | null> =>
   (await ctx.db.get(playerId))?.seasonId ?? null;
@@ -335,6 +391,27 @@ export async function aimOf(
         coastal: coastAtPoint(point),
       },
       target: { kind: 'point', point: camp.point },
+      point,
+      name: regionNameAt(point) ?? country,
+      host: country,
+    };
+  }
+  /** **Un fil adverse en vue** (Blitz, B18) : sa position à l'instant, telle que le relevé la
+   *  donne ; le refus d'un fil hors Blitz est celui de `refusalOf`, pas d'ici. */
+  if (target.kind === 'track') {
+    const { point } = await quarryOf(ctx, playerId, target, Date.now());
+    const country = hostAtPoint(point);
+    return {
+      aim: {
+        kind: 'track',
+        movementId: target.movementId,
+        lon: point[0],
+        lat: point[1],
+        hostCountry: country,
+        onLand: landAtPoint(point),
+        coastal: coastAtPoint(point),
+      },
+      target: { kind: 'point', point: asPoint(point) },
       point,
       name: regionNameAt(point) ?? country,
       host: country,
@@ -419,6 +496,8 @@ export async function aimOf(
       kind: 'region',
       regionId: region.id,
       country: region.country,
+      lon: region.point[0],
+      lat: region.point[1],
       surveyed: await surveyedIn(ctx, playerId, region.id),
     },
     target: { kind: 'region', regionId: region.id },
@@ -459,7 +538,21 @@ export async function columnOf(
     .query('buildings')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
+  const theatre = await blitzTheatreOf(ctx, playerId);
   return {
+    ...(theatre === null
+      ? {}
+      : {
+          blitz: {
+            theatre,
+            reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > Date.now()),
+            occupiedBuildingIds: await occupiedBuildingIds(
+              ctx,
+              playerId,
+              troops.map((troop) => troop._id),
+            ),
+          },
+        }),
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
@@ -487,6 +580,8 @@ const slotRelief = (hqLevel: number) =>
  * not count**: holding a slot hostage while a beaten column walks back punishes one defeat twice.
  */
 export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+  /** **Pas de slots en Blitz** (B5) : la cadence est le rechargement, pas le QG. */
+  if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
   const flying = (await movementsOf(ctx, playerId)).filter(
@@ -507,6 +602,8 @@ export async function march(
     troopIds,
     aim,
     plunder,
+    capture,
+    pursuit,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -519,6 +616,10 @@ export async function march(
       readonly buildingId: Id<'buildings'>;
       readonly surveyed: { readonly key: Doc<'buildings'>['key']; readonly regionId: string };
     };
+    capture?: NonNullable<Doc<'movements'>['capture']>;
+    /** **La troupe poursuivie** (Blitz, B18) : la colonne n'a alors pas d'arrivée, elle a des
+     *  regards (`schedulePursuit`). */
+    pursuit?: { readonly troopId: Id<'troops'> };
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -549,10 +650,25 @@ export async function march(
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   const column = await columnOf(ctx, playerId, troops, departure);
   const refusal =
-    plunder === undefined
-      ? refusalOf(type, aim.aim, column)
-      : plunderOrderRefusalOf(aim.aim as Extract<MovementAim, { kind: 'building' }>, column, false);
+    capture !== undefined
+      ? captureOrderRefusalOf(
+          aim.aim.kind === 'building' ? aim.aim : { kind: 'outpost' },
+          aim.aim,
+          column,
+          false,
+        )
+      : plunder === undefined
+        ? refusalOf(type, aim.aim, column)
+        : plunderOrderRefusalOf(
+            aim.aim as Extract<MovementAim, { kind: 'building' }>,
+            column,
+            false,
+          );
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
+  /** **Le cadre vaut pour toute visée** (B1) : un mât ou un point d'appui n'a pas de coordonnées
+   *  dans sa visée, mais il en a sur le plateau. */
+  if (column.blitz !== undefined && !withinTheatre(column.blitz.theatre, aim.point))
+    fail('OUTSIDE_THEATRE', { type });
 
   const route = routeBetween(
     departure.point,
@@ -602,12 +718,16 @@ export async function march(
     ...(aim.aim.kind === 'objective'
       ? { objectiveId: aim.aim.objectiveId as Id<'objectives'> }
       : {}),
+    ...(capture === undefined ? {} : { capture }),
+    ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...movementCargoFields(cargo),
   });
-  await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
   const filed = (await ctx.db.get(movementId))!;
+  if (pursuit === undefined)
+    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
+  else await schedulePursuit(ctx, filed, now);
   /** **Une garnison qui part entière emporte le chantier** (révision du 15/09) : un point en
    *  cours de fondation n'est qu'une promesse tenue par la colonne qui la garde. Rien n'est
    *  remboursé, et le point disparaît avant que le brouillard soit réévalué. */

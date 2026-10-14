@@ -1,6 +1,9 @@
 import { fr, stackLabel } from '@/i18n/fr';
+import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
-import { asClockTime, asDuration } from './duration';
+import type { BuildingKey } from './ids';
+import { progressAt } from './capture';
+import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
 import type { MapLabel } from './labels';
@@ -40,15 +43,80 @@ export type Poster = {
 
 const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
 
+/**
+ * **Une capture se lit aussi à l'affiche** (14/10) : sur le site qu'elle vise, chez ses deux
+ * camps, et sur la pile qui le tient chez le capteur — « 63 % · fin vers 14:20 ».
+ */
 export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
+  const capture = captureOn(label, view);
+  const poster = pieceOf(label, view, now);
+  if (capture === null) return poster;
+  const percent = Math.floor(progressAt(capture.clock, now) * 100);
+  const hour = asClockTime(capture.completesAt);
+  const line: PosterLine = {
+    kind: 'chip',
+    label: fr.capture.stamp,
+    chip:
+      capture.side === 'capturer'
+        ? fr.capture.endsAt(percent, hour)
+        : fr.capture.lostAt(percent, hour),
+    tone: capture.side === 'capturer' ? 'ok' : 'cut',
+  };
+  return poster === null
+    ? { ...plain, eyebrow: fr.capture.stamp, title: natureOf(label), lines: [line] }
+    : { ...poster, lines: [...poster.lines, line] };
+}
+
+function captureOn(label: MapLabel, view: PlayerView) {
+  const line = label.lines.find((candidate) => candidate.role === 'capture');
+  if (line !== undefined && line.role === 'capture') return line;
+  const station = label.type === 'stack' ? label.station : null;
+  if (station?.kind !== 'point') return null;
+  return (
+    view.captures.find(
+      (capture) =>
+        capture.side === 'capturer' &&
+        capture.stoppedAt === null &&
+        capture.point[0] === station.lonLat[0] &&
+        capture.point[1] === station.lonLat[1],
+    ) ?? null
+  );
+}
+
+function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
   if (label.type === 'stack' && label.station !== null) {
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
     if (held.length === 0) return null;
     const ids = new Set(held.map((troop) => troop.id));
+    /** **Blitz** (B19) : la plus longue attente de la pile, à la seconde. */
+    const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
+    const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
       eyebrow: fr.troops.sheetKicker,
       title: natureOf(label),
+      lines: [
+        ...(reload > 0
+          ? [
+              {
+                kind: 'chip' as const,
+                label: fr.reload.label,
+                chip: reloadClock(reload),
+                tone: 'cut' as const,
+              },
+            ]
+          : []),
+        ...(mending === 0
+          ? []
+          : [
+              {
+                kind: 'chip' as const,
+                label: fr.blitz.mend,
+                chip: fr.blitz.mending(mending),
+                tone: 'ok' as const,
+              },
+            ]),
+      ],
       pile: {
         lines: pileSheet(held),
         cargo: view.me.stationedCargo
@@ -59,6 +127,15 @@ export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster
   }
   if (label.works !== null && label.works.phase !== 'raising') return worksPoster(label.works, now);
   if (label.building !== null) return buildingPoster(label, label.building, view, now);
+  if (label.installation?.neutral === true) {
+    const { key } = label.installation;
+    return {
+      ...plain,
+      eyebrow: fr.blitz.neutral,
+      title: fr.buildings[key],
+      lines: [...fundsLines(key), { kind: 'text', text: fr.blitz.unguarded }],
+    };
+  }
   if (label.objective !== null) {
     const { name, tier, depot, emptied } = label.objective;
     return {
@@ -160,7 +237,7 @@ function buildingPoster(
   view: PlayerView,
   now: number,
 ): Poster {
-  const lines: PosterLine[] = [];
+  const lines: PosterLine[] = view.mode === 'blitz' ? [...fundsLines(building.key)] : [];
   let bar: number | null = null;
 
   if (produces(building.key)) {
@@ -259,3 +336,11 @@ function rateOf(
 
 const natureOf = (label: MapLabel): string =>
   label.lines.flatMap((line) => (line.role === 'nature' ? [line.text] : []))[0] ?? '';
+
+/** **Ce qu'un site verse en Blitz** : une ville et le QG, chaque minute, à qui les tient. */
+const fundsLines = (key: BuildingKey): ReadonlyArray<PosterLine> => {
+  const income = incomePerMinute([key]);
+  return income === 0
+    ? []
+    : [{ kind: 'row', label: fr.blitz.funds, value: fr.blitz.perMinute(income) }];
+};

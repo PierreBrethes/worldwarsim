@@ -30,16 +30,25 @@ pas d'agent. **Le leurre a été codé puis retiré le 29/08/2026** — décisio
 documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survit dans
 `convex/validators.ts`, en legacy et jamais réécrit, le temps d'un wipe.
 
-**Le combat existe, et les deux camps tirent en même temps** (ADR 0014, révision 1b du
-16/09/2026) : une passe de résolution déterministe, sans aléa, **une salve de chaque camp calculée
-sur l'état d'avant la passe**, les pertes appliquées ensemble et la déroute lue une seule fois
-après — donc **un défenseur détruit dans la passe a tiré quand même** (`src/domain/combat.ts` pour
-la règle, `convex/combat.ts` pour le branchement, table de dégâts et modificateurs dans
-`convex/constants.ts`). Il n'y a plus d'initiative ni de phase « riposte » : `Strike.phase` vaut
-toujours `'strike'`, le littéral `'riposte'` survit au seul validateur, legacy comme `decoy`, et
-c'est `bySide` qui dit qui a tiré. `DEFENDER_BONUS` devient le seul avantage de la défense —
-cinquante fantassins contre cinquante en plaine, le défenseur perd 25 et l'attaquant 29 : l'attaque
-ne vaut qu'en supériorité ou en surprise. **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
+**Le combat existe, et l'attaquant a l'initiative** (ADR 0014, révision du 14/10/2026, B16) :
+une passe de résolution déterministe, sans aléa — **l'attaquant frappe** avec ses PV actuels ×
+`DAMAGE_TABLE`, les pertes s'appliquent, puis **le défenseur riposte avec ce qui lui reste**, s'il
+lui reste quelque chose et si la table le laisse toucher ; la déroute se lit une fois, après —
+donc **un défenseur détruit par la frappe ne riposte pas** (`src/domain/combat.ts` pour la règle,
+`convex/combat.ts` pour le branchement, table et modificateurs dans `convex/constants.ts`).
+`Strike.phase` dit `'strike'` pour l'attaquant, `'riposte'` pour la réponse ; les engagements
+écrits sous la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés. **Le seul
+avantage de la défense est un mur**, une protection à la Advance Wars (C1) : une troupe en
+garnison d'un bâtiment, d'un avant-poste ou d'un objectif **encaisse** `GARRISON_DAMAGE_TAKEN`
+(×0,7) de chaque coup et riposte sans multiplicateur — protection refusée jamais à une pile posée en terrain libre
+ni en mer ni à une troupe en mouvement, ni à la garnison d'un point en chantier ou désactivé
+(`shelteredOf`, `outpostShelters`). On ne paie en munitions que ce qu'on tire : la riposte se
+facture sur ce que la frappe a laissé, un défenseur anéanti ne paie rien ; et le vainqueur se lit
+sur les issues amendées par le large. Cinquante fantassins contre cinquante en
+terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 18 et 16. **Une riposte qui touche abat au moins un** (C2, riposte seulement, ni frappe ni choc) : le char léger que le lourd laisse à 3 / 12 riposte pour .375, que l'arrondi effaçait. La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
+ordonnée nulle part : elle attend la Blitz. L'aperçu d'un ordre d'attaque dit « vous frappez en
+premier » et si la cible encaisse moins ; dépêche, feuille d'arrivée et compte rendu disent
+« notre frappe en abat N, leur riposte en abat M » (`combatBeats`, `fr.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
 une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
 marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —
 de déclencheur il est devenu l'**allonge** d'une attaque (`defenceNear`, lu par `engageAt` et par
@@ -50,7 +59,9 @@ prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches, et **ce compte rendu se rejoue** (surface 4.7, ADR 0026
 §7, 13/10/2026) : « rejouer » sur la dépêche d'un combat à soi — marge du journal, sa manchette
 au téléphone, feuille d'arrivée — et nulle part ailleurs ; une dizaine de secondes sur la carte,
-sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), un bandeau qui coupe
+sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), **en deux temps** —
+la frappe, où ne tire que l'attaquant et ne tombe que le défenseur, puis la riposte, où ne tire
+que ce qui reste debout en face (`replayAt(...).firing`) —, un bandeau qui coupe
 la lecture et avance étape par étape, la carte muette jusqu'à « quitter », qui se confirme et
 rend la caméra. Chez soi des figurines par rôle ; en face **un bloc par troupe et des totaux**,
 jamais un rôle — le brouillard ne se lève pas parce qu'on a tiré.
@@ -377,9 +388,9 @@ affiché tient déjà le rendu continu. **Et un site qui produit fume** : une co
 à 8 pas par seconde (`MaquetteLayer.smoke`) au-dessus des repères `fx_smoke` de la maquette — le
 haut de sa boîte faute de repère —, sur mes seuls producteurs reliés dont le débit servi est
 positif (`producingSites`, `src/domain/producing.ts`), figée en « réduites », absente en
-« coupées ». Au rejeu, chaque pièce envoie **un trait d'encre** vers l'autre ligne pendant les
-salves (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent** à l'impact et la
-fumée des salves s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
+« coupées ». Au rejeu, chaque pièce du camp qui tire envoie **un trait d'encre** vers l'autre ligne, à la
+frappe puis à la riposte (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent**
+à chaque impact et la fumée de la volée s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
 mes bâtiments debout, les installations relevées et les objectifs neutres poussent au rapproché
 en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
@@ -432,7 +443,7 @@ toujours la modale du site : une maquette devant la garnison prend le clic (`pie
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
 cuite en texels). Au rapproché (< 65 unités), les **régions admin-1** apparaissent en fondu :
-traits intérieurs seulement, survol avec surbrillance teintée par type de terrain, infobulle
+traits intérieurs seulement, survol au contour de la plume du sol, infobulle
 nom + type, et des **pictogrammes de cartographe tracés à la plume** dans la région — sapins,
 monts hachurés, dunes, palmiers, touffes, blés —, du centre vers les bords, effacés en fondu
 quand on la quitte (`src/map/engine/terrain.ts`, une table `PICTOGRAMS` où chaque dessin se
@@ -447,12 +458,29 @@ porte plus qu'**un jeton par bord et par sorte**, avec son compte, posé à la m
 membres (`cluster`, `src/domain/indicators.ts`) ; un clic recentre sur **le plus proche** du
 groupe (`nearest`) — cadrer tout un bord de gisements renverrait à la vue monde. La bascule
 « gisements » a deux états seulement : masqués, ou partout (couche des régions et bord ; cochée
-par défaut). Les **teintes de possession sont un lavis** : l'encre du siège posée
+par défaut). Les **teintes de possession sont un lavis** : l'encre de la nation posée
 sur le papier à `HELD_OPACITY` (0,65, `map/engine/palette.ts`, fonction `lavis`), pour une région
-comme pour un pays tenu entier — la feuille n'empile plus l'encre du siège sur celle de la nation
-posée pleine, qui écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
+comme pour un pays tenu entier — la feuille n'empile plus deux encres l'une sur l'autre, ce qui
+écrasait les pièces. Le pays d'un adversaire jamais relevé porte le lavis de sa
 nation, et ce qu'on y tient s'y pose par-dessus. Une région bâtie est le même lavis plus chargé (`builtInk`),
-et la plume des dessins lit ce qui est réellement peint dessous (`inkOn`, `setGrounds`).
+et la plume des dessins lit ce qui est réellement peint dessous (`penOn`, `setGrounds`).
+
+**Une nation, une famille de teinte — 14/10/2026** (palette des nations). Le Japon se peignait
+en bleu sur son sol (l'encre du siège, tirée au rang d'entrée), en rose sur ses régions bâties et
+son mât (l'encre de la nation), et en gris sous le pointeur (une lueur chaude ajoutée au bleu).
+Il n'y a plus qu'**une table**, `INK_BY_NATION` (`src/domain/nations.ts`) : `control.held` sert
+l'encre de la nation du siège — une nation n'a qu'une place par saison —, et `nationShades`
+(`palette.ts`) en tire les paliers — sol national et région tenue (le même), bâti, relevé délavé
+(le plancher où la zone suspendue se hachure aussi) ; la plume, elle, se lit sur le sol réellement
+peint (`penOn`). Huit encres d'atlas :
+France bleu, Royaume-Uni rose impérial, URSS vermillon, Allemagne sarcelle feldgrau, Japon pourpre
+impérial, Italie vert olive, Chine ocre jaune, États-Unis viridian. Les tests de `palette.test.ts`
+tiennent les voisins à l'écart (ΔE sur la carte), chaque palier dans sa famille — la famille d'un
+lavis est la **direction** dans laquelle il quitte le sable — et la plume lisible sur chaque sol
+**tel que la lampe le rend** (`lit`). Le survol garde la famille : un pays survolé ou
+sélectionné s'éclaire de sa propre couleur, le contour et les pictogrammes prennent la plume du
+sol — le **fond** de l'encre qui l'a peint, ou le papier là où il se lit mieux. Le type de terrain
+se dit par le dessin, jamais par une teinte. Une nation sans encre (siège irrégulier) reste grise.
 
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
@@ -654,7 +682,97 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
+
+
+**Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
+`src/domain/capture.ts`). « Capturer » est une branche de la rose sur un bâtiment adverse relevé
+ou un avant-poste adverse, refusée par `captureOrderRefusalOf` — la même fonction que
+`movements.capture` (`CAPTURE_NEEDS_INFANTRY`, `FRIENDLY_TARGET`, `HQ_NOT_CAPTURABLE` : le QG
+attend le lot de l'élimination). La colonne marche comme une attaque ; à l'arrivée une passe a lieu
+s'il reste des défenseurs, et si l'attaquant gagne avec de l'infanterie debout, **les troupes se
+posent au point du site** (pas de présence en mouvement comme le pillage : c'est ce qui laisse
+partir et laisse attaquer) et une ligne `captures` porte l'horloge — fait / instant / rythme,
+`progressAt` et `completesAt`. **Le rythme est la force de la meilleure infanterie présente**
+(`captureRate`, pas la somme), la plage de repos du défenseur ne compte pas en Mondiale, et les
+durées sont `CAPTURE_MINUTES` par mode (`modeOf(seasons.mode)`, `src/domain/season-mode.ts`, aligné sur le lot des modes). **Rien ne la remet à
+zéro** : elle se relit avec la détection (`reassessCaptures`, appelée au bout de
+`reassessDetection`) — plus d'infanterie au point ou site changé de main, elle s'arrête ;
+force changée, l'échéance se reprend du fait. Au bout, **événement de couleur** : régler, donner,
+rapporter. Un bâtiment perd un niveau en Mondiale, passe sans file ni garnison (`releaseBuilding`,
+extrait de la démolition), porte `capturedAt` et **colore sa région pour son capteur, sol national
+compris** (`occupations` de `heldRegions`, index `bySeasonCaptured`) ; il n'occupe aucun
+emplacement, et le raser redevient un événement de couleur. Un avant-poste passe avec son niveau
+et ses bâtiments ancrés, et l'infanterie du capteur y entre en garnison. `control.held` ne montre
+une occupation qu'à son tenant et à qui a perdu ce sol. Au front : l'anneau qui se remplit et le
+tampon « capture » sur l'étiquette du site (`CaptureGauge`), « fin vers » chez le capteur, « perdu
+vers » à l'encre d'alerte chez le défenseur, qui ne voit jamais qui capture ; la ligne en tête de
+« à faire maintenant », l'affiche, la modale du site ; le tampon « capturé » des deux côtés à la
+prise. **Chaque capture abîme** (K7) : repris par son ancien propriétaire, un bâtiment reperd un
+niveau, jamais sous 1. **Un avant-poste désactivé reste capturable**, immunité comprise (K8) :
+l'immunité protège d'un raid, pas d'une capture. Hors lot : QG, points stratégiques, Blitz neutre,
+vivres à sec.
+
+**Et en Blitz, une unité seule, et l'attaque poursuit — 14/10/2026** (lot 5, règles pures
+`src/domain/blitz.ts`, câblage `convex/movement/pursuit.ts`). Tout se lit sur `Column.blitz`
+(théâtre, rechargement, bâtiments tenus), rempli des deux côtés du fil (`columnOf`, `armedColumn`)
+et lu par `refusalOf` : **une troupe part seule** (`ONE_UNIT_ONLY`, et `clickPile`/`composeHand`
+en `single` ne lèvent que la figurine touchée, la pile ne se déploie pas), **une par bâtiment à
+soi** (`BUILDING_OCCUPIED`), **rien hors de la boîte du théâtre** (`OUTSIDE_THEATRE`, cadre et
+délavé dessinés par `TheatreFrame`, `map/engine/theatre.ts`), **l'attaque vise une unité**
+(`UNIT_TARGET_ONLY` : un camp relevé, ou un fil adverse en vue — visée et cible `track`, nommée
+par le mouvement de l'arc, le serveur relisant le relevé du joueur `byMovement`). Le cadre vaut
+pour toute visée côté serveur (`march`, sur `aim.point`), mât et région compris. Ni slots (`claimSlot`), ni plage de repos (`restHold`) ; la vitesse est celle du
+théâtre, qu'on traverse en 18 min (`theatreMinutesPer1000Km`, `pacedMinutes`, en secondes). **La
+poursuite n'a pas d'horloge globale** : le mouvement porte `pursuit.{troopId, checkAt}` et un seul
+rendez-vous, le contact daté entre deux regards (`contactAt`) ou le pas de `PURSUIT_STEP_SECONDS` ;
+à chaque regard elle frappe (≤ `ARRIVAL_RADIUS_KM`), recourbe sa route vers la position de la
+cible si elle a bougé de plus de 25 km, ou **abandonne** — cible hors de sa vue — les relevés du joueur,
+réévalués à chaque regard, règle de milieu comprise, jamais une distance vraie : elle finit en marche vers la dernière position connue, dépêche
+`pursuitLost`. Au contact, passe 1 contre 1, **sans déroute** — aucune passe de Blitz ne déroute,
+`isBlitz` dans `resolveContact` ; **choc** si la
+cible poursuivait le poursuivant (`passModeOf`, `engagements.shock`, « choc » dans la dépêche),
+l'initiative sinon ; chacun se pose où il est. Qui a frappé sur ordre **recharge**
+(`troops.reloadUntil`, `RELOAD_SECONDS_BY_ROLE`, `@a-mesurer`, `RELOADING` à l'attaque, la marche
+reste libre ; la riposte ne recharge pas) — compte à rebours sur l'étiquette et l'affiche de la pile.
+De deux marches vers le même bâtiment vide, la seconde se pose à sa porte (`occupiedBuildingIds`,
+`convex/blitz.ts`, lu au départ et à l'arrivée) ; une route coupée arrête la poursuite sans dépêche.
+
 ## Schéma Convex
+
+**Et la Blitz a son économie et sa carte de départ — 14/10/2026** (lot 4, table `BLITZ` de
+`convex/constants.ts`, toutes `@a-mesurer`). Au lancement, `blitz.place` remplace `objectives.place`
+par la même mécanique en trois temps (`placementInput`, action qui mesure, `commit` idempotent) ; la
+règle pure est `src/domain/blitz-placement.ts` : un QG par joueur sur un cercle du théâtre, une
+caserne à lui, deux fantassins en garnison, un pécule ; des **neutres** — ville, caserne, port (une
+côte n'est côte que si `coastPointNear` y trouve un quai), aérodrome — proches de chaque QG, et
+disputés au milieu de chaque paire de voisins. **Le proche se mesure à pied** (`land`), dans une
+tolérance autour de sa distance cible : un QG d'où l'on ne marche pas jusqu'à sa caserne et ses
+neutres est écarté (jamais sur un îlot). Douze tours du cercle ; l'écart entre QG se juge en combiné
+et, sous `hqEvenness`, **le lancement est défait** (`blitz.abandon`, E6) : la saison revient au salon
+qui le dit (`seasons.launchRefusal`, `BLITZ_MAP_UNFAIR`, ou `BLITZ_MAP_FAILED` quand la pose jette).
+Le Pacifique à quatre est refusé aujourd'hui. Lancée, une Blitz est close aux arrivants
+(`BLITZ_STARTED`, E4). Les neutres sont des `buildings` du **siège irrégulier**, sans garnison,
+marqués `startedNeutral` : la liste se sert **figée** (`playerView.neutralSites`) — un neutre pris
+par un autre reste neutre chez moi tant que mon relevé ne voit pas sa région tenue — et se capture
+par le flux du lot 3 sans relevé (`captureAimOf`). **Le QG de la Blitz ne se capture pas encore**
+(`HQ_NOT_CAPTURABLE`) : sa capture élimine, c'est le lot 6. **Rien n'est bâti en Blitz** : ce que
+tient un joueur porte `capturedAt` et colore sa région, et le sol national ne colore rien
+(`homeGroundsOf`). **Les fonds** sont la seule ressource (`players.funds`/`fundsAt`, réglés
+paresseusement, `convex/blitz.ts`) : la ville et le QG versent par minute, rien d'autre ; régler avant
+qu'un site change de main (`captures.complete`). Les huit lignes de `resources` existent à zéro,
+personne ne mange (`upkeepOf`), le combat ne compte pas les munitions (E1, validé), et une recrue
+non commencée d'un site perdu se rend en fonds. **On recrute** dans un site
+tenu (`rolesFormedBy` : QG → infanterie, caserne/port/aérodrome → leur domaine), payé en fonds, prêt
+en une minute, une marque, borne invisible de 80 (`blitzRecruitRefusalOf`, lu par la modale de site
+Blitz et par `troops.recruit`). **Le soin** est un travail de saison par minute (`blitz.mend`) : une
+troupe entamée sur un bâtiment à soi — garnison ou point même du site — reprend un dixième contre des
+fonds (`mendStep`, `TroopView.mending`). **Bâtir, élever, fonder, démolir, piller, commander un lot**
+sortent par `notInBlitz` (rose, `siteOf`) et `refuseInBlitz` (serveur) (E2, validé). Le soin
+continue sur un site en capture (E5). Au front : les fonds et leur
+débit sur la réglette (`FundsCell`, compteur des réserves), ni Écon. ni lingot à l'abaque, l'affiche
+« +N/min » d'une ville ou du QG et « neutre » d'un neutre, « villes neutres à prendre » à « à faire
+maintenant ». La ville emprunte la planche et la maquette des baraquements en attendant son GLB (E3).
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
 par `??` — ou bien il s'accompagne d'une migration de backfill. Un champ obligatoire posé sans
@@ -678,7 +796,7 @@ plus le dépôt :
 ## Vocabulaire imposé
 
 **mouvement** (pas convoi) · **passe de résolution** (pas tour de combat) · avant-poste **désactivé**
-ou **détruit** (jamais pris) · **journal d'événements** · **slot de mouvement**.
+ou **détruit**, ou **capturé** par l'infanterie (jamais pris) · **journal d'événements** · **slot de mouvement**.
 Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTEXT.md`.
 
 ## Ce qui reste
@@ -686,8 +804,8 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
 grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mouvement en carte a
 remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque
-encore au schéma de jeu : l'occupation et les revenus — le pillage, lui, se joue depuis le
-10/09. Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
+encore au schéma de jeu : les revenus — le pillage se joue depuis le 10/09, l'occupation
+depuis la capture (14/10). Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
 pas tranché.
 
 **Et un bâtiment ne produit que relié** (ADR 0020 §6, `src/domain/economy.ts` pour la règle —
@@ -727,7 +845,7 @@ géantes qu'il touche, Ontario et Québec depuis Gatineau. La règle est pure
 personne), servie par une
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
-d'une colonne. La teinte est **celle du siège**, pas de la nation, et elle reste au loin quand les
+d'une colonne. La teinte est **celle de la nation du siège** (14/10/2026), et elle reste au loin quand les
 frontières de région s'effacent. La production, elle, y est reliée depuis le 07/09 (§6).
 
 **Un joueur voit son dernier relevé, pas la vérité** (ADR 0020 §5). Trois états d'une région :
@@ -761,13 +879,13 @@ passe au sol au point, et la dépêche `outpostDismantled` compte les mâts empo
 perdue s'annonce avant le clic : `outposts.soleHold` lit la **même** différence de deux
 `heldRegions` que la zone hachurée d'un point hors service (`soleHoldOf`, `convex/holding.ts`).
 
-**L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
+**L'avant-poste se conteste par le raid, et il se capture par l'infanterie** (capture, 14/10) : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
 désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
 qu'il disputait. **Elle ne l'efface plus pour autant, depuis le 15/09** : `control.held` sert à son
 seul propriétaire une quatrième forme, `suspended`, calculée par la même `heldRegions` lue deux
 fois — la carte telle qu'elle est, la carte que ce point debout donnerait, et la différence. La
-zone s'y hachure dans l'encre du siège, au plancher du délavage, la trame posée au fragment en
+zone s'y hachure dans l'encre de sa nation, au plancher du délavage, la trame posée au fragment en
 pixels d'écran pour tenir à toute distance et passant **sous** la couleur pleine du voisin qui a
 repris une région disputée. Ce n'est pas une couleur : ni le classement, ni la production, ni la
 vérité ne la comptent. L'adversaire qui observe la zone la voit décolorée comme avant — l'heure du
@@ -805,7 +923,7 @@ est `null` s'acquitte quelle que soit la région (`settlesDebt`, `src/domain/eco
 les deux bouts). `CAPITAL_REGION` survit pour ce qu'elle a toujours été — le seul point qu'on
 connaisse d'une nation qui n'a rien bâti : le repli d'une troupe sans adresse (`surveys.ts`,
 `movement/arrival.ts`, `movement/detection.ts`, lignes historiques seulement) et le **cadrage
-d'ouverture** du plateau d'un joueur sans QG (`me.capitalPoint`).
+d'ouverture** du plateau d'un joueur sans QG (`me.openingPoint`, la capitale hors Blitz).
 
 **Les emplacements suivent le niveau du site** (ADR 0020 §10, `convex/sites.ts`) : le sol
 national en porte `2 × niveau de QG`, un avant-poste en porte **son niveau**, et il n'y a plus
@@ -863,8 +981,8 @@ autres (ADR 0024 §1). C'est **l'exception nommée de l'ADR 0024 §4** : on l'at
 relevé, parce qu'il n'y a rien à percer. Ce qui le tient appartient à un **siège irrégulier** —
 un `players` marqué `irregular`, sans compte et sans vue, que `seatsOf` écarte en une ligne de
 tout ce qui demande « qui joue ici » (salon, accueil, presse, classement, encre, doyen,
-entretien). Ses troupes sont des `troops` ordinaires : elles défendent, tirent dans la même passe
-simultanée et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
+entretien). Ses troupes sont des `troops` ordinaires : elles défendent, ripostent en garnison
+— protégées — et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
 (ADR 0014 : une passe, rien debout en face), borné par ce que la colonne porte, **le reste reste
 au sol** pour le suivant ; le retour chargé est la mécanique du pillage, sans une ligne de plus.
 Pas de capture au seuil tenu, pas de renfort, pas d'objectif mobile : c'est le lot 2.

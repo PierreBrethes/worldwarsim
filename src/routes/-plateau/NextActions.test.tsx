@@ -19,6 +19,7 @@ const viewOf = (lons: ReadonlyArray<number>): PlayerView =>
   ({
     arcs: [],
     loadedAt: 0,
+    captures: [],
     me: {
       homePosition: [2, 47],
       hqLevel: 1,

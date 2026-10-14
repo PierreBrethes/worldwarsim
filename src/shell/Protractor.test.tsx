@@ -31,6 +31,7 @@ vi.stubGlobal('matchMedia', (query: string) => ({
 /** Une saison dont le chantier est libre : `nextActionsOf` en tire une ligne, et une seule. Deux dépêches dont une lue, et la deuxième place à la dernière édition. */
 const view = {
   arcs: [],
+  captures: [],
   loadedAt: 0,
   journal: [{ unread: true }, { unread: false }],
   press: { mine: { rank: 2 } },

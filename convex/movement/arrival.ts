@@ -478,13 +478,14 @@ export async function attachHome(
 async function homeOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<TroopAddress> {
   if (movement.fromBuildingId !== null) {
     const station = await ctx.db.get(movement.fromBuildingId);
-    return station?._id ?? movement.to;
+    /** **Capturé entre-temps, il n'est plus à elle** (14/10) : la colonne se tient au seuil. */
+    return station?.playerId === movement.playerId ? station._id : movement.to;
   }
   /** A rout refluxed to one of its own outposts becomes its garrison (ADR 0019 §3); razed since
    *  — the anchor is read once, at the rout — it stands on the ground it reached. */
   if (movement.target.kind === 'outpost') {
     const outpost = await ctx.db.get(movement.target.outpostId);
-    return outpost?._id ?? movement.to;
+    return outpost?.playerId === movement.playerId ? outpost._id : movement.to;
   }
   /** The point **is** the address and the target carries it (ADR 0019 §3). */
   if (movement.target.kind === 'point') return movement.to;
@@ -555,8 +556,14 @@ async function homeFor(
     const building = await ctx.db.get(buildingId);
     const origin = building === null ? null : regionFacts(building.regionId);
     const back = building === null ? null : pointOfBuilding(building);
-    /** Razed while its column was away: it stays on the ground it fought on (ADR 0019 §1). */
-    if (building === null || origin === null || back === null)
+    /** Razed — or captured — while its column was away: it stays on the ground it fought on
+     *  (ADR 0019 §1). */
+    if (
+      building === null ||
+      building.playerId !== troop.playerId ||
+      origin === null ||
+      back === null
+    )
       return { kind: 'stays', address: asPoint(from) };
     return {
       kind: 'walks',
@@ -605,8 +612,9 @@ async function homeFor(
 
   const outpostId = ctx.db.normalizeId('outposts', address);
   const outpost = outpostId === null ? null : await ctx.db.get(outpostId);
-  /** Razed while its garrison was away: it stands on the ground it fought on (rule 3). */
-  if (outpost === null) return { kind: 'stays', address: asPoint(from) };
+  /** Razed or captured while its garrison was away: it stands on the ground it fought on. */
+  if (outpost === null || outpost.playerId !== troop.playerId)
+    return { kind: 'stays', address: asPoint(from) };
   return {
     kind: 'walks',
     key: `outpost:${troop.playerId}:${outpost._id}`,

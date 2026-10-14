@@ -1,8 +1,12 @@
 import { fr } from '@/i18n/fr';
+import { asClockTime } from './duration';
+import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
-import type { ResourceKey } from './ids';
-import type { LonLat } from './geo';
+import { BLITZ } from '../../convex/constants';
+import { rolesFormedBy } from './blitz';
+import type { BuildingKey, ResourceKey } from './ids';
+import { distanceKm, type LonLat } from './geo';
 import { currentStock, type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
@@ -18,13 +22,18 @@ import { stationNames, type StationNames } from './station-name';
  * ce qui interdit à cette carte de devenir une seconde liste de tâches à tenir à jour.
  */
 export type NextActionKind =
+  /** Un de mes sites se fait capturer : la seule attente qui ait une heure de perte (14/10). */
+  | 'siteUnderCapture'
+  | 'captureStopped'
   | 'foundation'
   | 'idleSite'
   | 'idleProjection'
   | 'unlinkedSites'
   | 'raiseOutpost'
   | 'troopWithoutOrder'
-  | 'unsupplied';
+  | 'unsupplied'
+  /** Une ville neutre à portée, en Blitz : elle verse des fonds à qui la capture. */
+  | 'neutralCity';
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
@@ -94,13 +103,45 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
   const standing = view.me.troops.filter((troop) => !marching.has(troop.id));
 
   return [
+    ...captureLines(view),
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
     ...raiseOutpostLine(view),
-    ...idleSiteLine(view),
+    ...(view.mode === 'blitz' ? [] : idleSiteLine(view)),
     ...idleProjectionLine(view),
+    ...(view.mode === 'blitz' ? neutralCityLine(view) : []),
     ...troopsWithoutOrder(view, standing, names),
     ...unsuppliedTroops(view, standing, names),
+  ];
+}
+
+/**
+ * **Une capture qui m'attend** : en tête, le site que je suis en train de perdre et l'heure où il
+ * part — la ligne recentre sur lui ; plus bas, celle que mon infanterie a lâchée, à relancer.
+ * Celle qui court chez moi n'attend rien de moi : elle se lit sur la carte.
+ */
+function captureLines(view: PlayerView): ReadonlyArray<NextAction> {
+  const threatened = view.captures.filter((capture) => capture.side === 'defender');
+  const stopped = view.captures.filter(
+    (capture) => capture.side === 'capturer' && capture.stoppedAt !== null,
+  );
+  const [one] = threatened;
+  const [dropped] = stopped;
+  return [
+    ...lineOf(
+      'siteUnderCapture',
+      threatened.length === 1 && one !== undefined
+        ? fr.nextActions.siteUnderCapture(captureSiteName(one), asClockTime(one.completesAt))
+        : fr.nextActions.sitesUnderCapture(threatened.length),
+      threatened.map((capture) => ({ kind: 'map', point: capture.point })),
+    ),
+    ...lineOf(
+      'captureStopped',
+      stopped.length === 1 && dropped !== undefined
+        ? fr.nextActions.captureStopped(captureSiteName(dropped))
+        : fr.nextActions.capturesStopped(stopped.length),
+      stopped.map((capture) => ({ kind: 'map', point: capture.point })),
+    ),
   ];
 }
 
@@ -220,8 +261,11 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
  *  chose, un lot. */
 function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
+  /** En Blitz le QG forme aussi — l'infanterie (`rolesFormedBy`). */
+  const forms = (key: BuildingKey) =>
+    view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : PROJECTION_KEYS.has(key);
   const idle = view.me.buildings.filter(
-    (building) => PROJECTION_KEYS.has(building.key) && !view.me.recruiting.includes(building.id),
+    (building) => forms(building.key) && !view.me.recruiting.includes(building.id),
   );
   const [only] = idle;
   if (only === undefined) return [];
@@ -235,6 +279,29 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
         )
       : fr.nextActions.idleProjections(idle.length),
     idle.map((building) => ({ kind: 'site', buildingId: building.id })),
+  );
+}
+
+/**
+ * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ.nearCityKm` d'un de mes bâtiments,
+ * la plus proche d'abord. C'est la première chose qu'une Blitz demande — une ville verse des fonds
+ * à qui la capture, et personne ne la garde.
+ */
+function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
+  /** Le point d'un bâtiment n'est servi que pour un port : les autres se tiennent à leur région. */
+  const regions = new Map(view.me.regions.map((region) => [region.id, region.point]));
+  const mine = view.me.buildings.flatMap((building) => {
+    const point = building.point ?? regions.get(building.regionId);
+    return point === undefined ? [] : [point];
+  });
+  const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
+  const near = view.neutralSites
+    .filter((site) => site.key === 'city' && reach(site.point) <= BLITZ.nearCityKm)
+    .sort((left, right) => reach(left.point) - reach(right.point));
+  return lineOf(
+    'neutralCity',
+    fr.nextActions.neutralCities(near.length),
+    near.map((site) => ({ kind: 'map', point: site.point })),
   );
 }
 

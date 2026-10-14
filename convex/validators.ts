@@ -43,6 +43,7 @@ export const BUILDING_KEY = v.union(
   v.literal('billets'),
   v.literal('warehouse'),
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
+  v.literal('city'),
 );
 
 /**
@@ -176,9 +177,7 @@ export const SEASON_STATUS = v.union(
   v.literal('concluded'),
 );
 
-/** L'horloge d'une saison, `null` quand elle n'en a pas : on la clôt à la main
- *  (`seasons.conclude`). Aucun écran n'affiche alors de compte à rebours. */
-export const SEASON_CLOCK_HOURS = v.union(v.literal(48), v.literal(168), v.null());
+export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
 
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
@@ -218,7 +217,51 @@ const NOTICE_HEAD = { playerId: v.id('players'), at: v.number() };
  *  the troop comes home rather than dying for it (`troops.deliver`), and the dispatch says so. */
 const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.string() }), v.null());
 
+/**
+ * **Le site qu'une capture vise, tel que les deux camps le nomment** : un bâtiment par sa clé et
+ * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
+ * le voit pas, il voit un bloc s'il le relève.
+ */
+export const CAPTURE_SITE = v.union(
+  v.object({ kind: v.literal('building'), building: BUILDING_KEY, regionId: v.string() }),
+  v.object({ kind: v.literal('outpost'), hostCountry: v.string(), level: v.number() }),
+);
+
+export const CAPTURE_TARGET = v.union(
+  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
+  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+);
+
+const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
+
 export const NOTICE = v.union(
+  /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
+   *  chez le capteur. L'heure est celle de la perte si rien ne change. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureStarted'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+    completesAt: v.number(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureSucceeded'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+  }),
+  /** Plus aucune infanterie du capteur sur place, ou le site n'est plus à qui l'on visait. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureCancelled'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre. */
+    reason: v.optional(v.union(v.literal('left'), v.literal('gone'))),
+  }),
   /** L'entrée que le monde a reprise avant son tour, remboursée entière. `BUILD_COST_KEY` parce
    *  qu'une élévation d'avant-poste se rembourse par la même porte (précision du 15/09). */
   v.object({
@@ -342,6 +385,14 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     detector: DETECTOR,
     detectorRegion: v.union(v.string(), v.null()),
+  }),
+  /** **La poursuite abandonnée** (Blitz, B18) : la cible est sortie de notre vue, la colonne
+   *  s'arrête à sa dernière position connue. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pursuitLost'),
+    hostCountry: v.string(),
+    point: LON_LAT,
   }),
   /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
    *  else on the board says it, and it is the difference between a defeat and a supply fault. */
@@ -682,6 +733,9 @@ export const ATTACK_TARGET = v.union(
    *  la colonne marche. Ce qui reste sur le document est `movements.objectiveId`, qui dit
    *  pourquoi elle y va. */
   v.object({ kind: v.literal('objective'), objectiveId: v.id('objectives') }),
+  /** **Une colonne adverse en vue**, que la Blitz seule poursuit (B18) : nommée par l'arc que la
+   *  vue sert, donc par son mouvement ; le serveur relit le relevé que ce joueur en tient. */
+  v.object({ kind: v.literal('track'), movementId: v.id('movements') }),
 );
 
 /**
@@ -722,10 +776,10 @@ export const TROOP_STATE = v.union(
  * detail (`strikes`) and the legacy array still lying in the engagements written before it — one
  * shape, so a row of one is readable as a row of the other for as long as both exist.
  *
- * **`'riposte'` est legacy**, comme `decoy` : depuis la résolution simultanée (ADR 0014,
- * révision 1b du 16/09/2026) une passe est une salve par camp et tout ce qui s'écrit porte
- * `'strike'`. Le littéral reste parce que des engagements enregistrés le portent et qu'aucune
- * migration ne les réécrit — le côté du tireur, lui, se lit dans `bySide`.
+ * **`'riposte'` a repris du service** avec l'initiative (grilling du 14/10, B16) : la frappe de
+ * l'attaquant porte `'strike'`, la réponse du défenseur `'riposte'`. Les engagements écrits sous
+ * la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés ; le côté du tireur se lit
+ * toujours dans `bySide`.
  */
 export const STRIKE = {
   phase: v.union(v.literal('strike'), v.literal('riposte')),
@@ -767,3 +821,6 @@ export const PUSH_PREFERENCES = v.object({
   season: v.boolean(),
   telegraph: v.boolean(),
 });
+
+/** Pourquoi une Blitz lancée est revenue au salon (`blitz.abandon`). */
+export const LAUNCH_REFUSAL = v.union(v.literal('BLITZ_MAP_UNFAIR'), v.literal('BLITZ_MAP_FAILED'));

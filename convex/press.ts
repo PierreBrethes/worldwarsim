@@ -178,7 +178,9 @@ async function writeEdition(
             /** **Le rattachement écrit à la pose, jamais redeviné** (ADR 0020 §10). Une ligne
              *  d'avant le champ n'en porte aucun et compte donc plein : elle est du sol national
              *  dans tous les cas qui existent, et le repli part au prochain wipe. */
+            /** Un bâtiment capturé ne pend plus à l'ancre de son ancien tenant (14/10). */
             disabled:
+              building.capturedAt === undefined &&
               building.outpostId !== undefined &&
               building.outpostId !== null &&
               disabled.has(building.outpostId),

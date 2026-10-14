@@ -14,10 +14,10 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { asDuration } from '@/domain/duration';
+import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
-import { LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
 import {
   URGENCY_MS,
   cartoucheShown,
@@ -400,7 +400,12 @@ export function MapLabels({
       const node = countdowns.current.get(label.id);
       if (countdown === undefined || node === undefined) continue;
       const left = Math.max(0, countdown.dueAt - now);
-      node.textContent = `${countdown.prefix}${asDuration(left / 60_000)}`;
+      node.textContent =
+        countdown.clock === true
+          ? left > 0
+            ? `${countdown.prefix}${reloadClock(left)}`
+            : ''
+          : `${countdown.prefix}${asDuration(left / 60_000)}`;
       roots.current.get(label.id)?.classList.toggle('label--urgent', left < URGENCY_MS);
     }
   }, [labels]);
@@ -831,6 +836,13 @@ export function MapLabels({
                     </Fragment>
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
+                  ) : line.role === 'capture' ? (
+                    <CaptureGauge
+                      key={rank}
+                      side={line.side}
+                      clock={line.clock}
+                      completesAt={line.completesAt}
+                    />
                   ) : (
                     <div key={rank} className={`label-line label-line--${line.role}`}>
                       {line.text}
@@ -1149,6 +1161,7 @@ function classesOf(label: MapLabel, selected: boolean, destination: boolean): st
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
     destination ? 'label--destination' : '',
+    label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',

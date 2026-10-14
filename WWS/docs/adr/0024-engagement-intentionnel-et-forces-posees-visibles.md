@@ -115,6 +115,10 @@ plus riche que repérer.
   `ARRIVAL_RADIUS_KM` du point visé. `defenceNear` devient la lecture de l'allonge d'une attaque,
   jamais d'une marche. La rencontre en route (`firstMobileEncounter`, `contactJobId`) est
   retirée du plateau ; la géométrie reste dans le domaine pour l'intercepteur V1.
+
+  > **Révision du 14/10/2026 (lot 5 des deux modes)** : `firstMobileEncounter` a disparu avec la
+  > poursuite de la Blitz, qui date son contact elle-même (`contactAt`, `src/domain/blitz.ts` ;
+  > `convex/movement/pursuit.ts`). L'intercepteur V1 partira de là.
 - Une table de relevé des forces posées, jumelle de `sightings` (par observateur, écrite aux
   événements : pose, départ, pose ou départ du détecteur, fondation ou désactivation d'un poste
   d'écoute), lue depuis l'index du joueur — le fan-out reste celui de

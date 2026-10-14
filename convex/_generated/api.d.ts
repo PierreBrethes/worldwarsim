@@ -10,8 +10,10 @@
 
 import type * as accounts from "../accounts.js";
 import type * as auth from "../auth.js";
+import type * as blitz from "../blitz.js";
 import type * as buildingReads from "../buildingReads.js";
 import type * as buildings from "../buildings.js";
+import type * as captures from "../captures.js";
 import type * as cargo from "../cargo.js";
 import type * as combat from "../combat.js";
 import type * as constants from "../constants.js";
@@ -33,7 +35,9 @@ import type * as movement_detection from "../movement/detection.js";
 import type * as movement_forces from "../movement/forces.js";
 import type * as movement_orders from "../movement/orders.js";
 import type * as movement_pace from "../movement/pace.js";
+import type * as movement_pursuit from "../movement/pursuit.js";
 import type * as movement_rest from "../movement/rest.js";
+import type * as movement_theatre from "../movement/theatre.js";
 import type * as movements from "../movements.js";
 import type * as notifications from "../notifications.js";
 import type * as objectives from "../objectives.js";
@@ -71,8 +75,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
   auth: typeof auth;
+  blitz: typeof blitz;
   buildingReads: typeof buildingReads;
   buildings: typeof buildings;
+  captures: typeof captures;
   cargo: typeof cargo;
   combat: typeof combat;
   constants: typeof constants;
@@ -94,7 +100,9 @@ declare const fullApi: ApiFromModules<{
   "movement/forces": typeof movement_forces;
   "movement/orders": typeof movement_orders;
   "movement/pace": typeof movement_pace;
+  "movement/pursuit": typeof movement_pursuit;
   "movement/rest": typeof movement_rest;
+  "movement/theatre": typeof movement_theatre;
   movements: typeof movements;
   notifications: typeof notifications;
   objectives: typeof objectives;

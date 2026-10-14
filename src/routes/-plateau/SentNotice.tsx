@@ -18,7 +18,8 @@ export function SentNotice({
   order: string;
   destination: string;
   arrivesAt: number;
-  slots: { readonly used: number; readonly total: number };
+  /** `null` en Blitz : pas de slots (B5). */
+  slots: { readonly used: number; readonly total: number } | null;
   onFollow: () => void;
 }) {
   return (
@@ -32,7 +33,9 @@ export function SentNotice({
           {fr.sent.title(order, destination)}
         </span>
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
-          {fr.sent.line(asClockTime(arrivesAt), slots.used, slots.total)}
+          {slots === null
+            ? fr.sent.arrival(asClockTime(arrivesAt))
+            : fr.sent.line(asClockTime(arrivesAt), slots.used, slots.total)}
         </span>
       </span>
       <button

@@ -43,8 +43,11 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
   ...override,
 });
 
-const viewWith = (arcs: ReadonlyArray<ArcView>): PlayerView =>
-  ({ arcs, loadedAt: LOADED_AT, me: { ink: '#2f4f78' } }) as PlayerView;
+const viewWith = (
+  arcs: ReadonlyArray<ArcView>,
+  captures: PlayerView['captures'] = [],
+): PlayerView =>
+  ({ arcs, captures, loadedAt: LOADED_AT, me: { ink: '#2f4f78' } }) as unknown as PlayerView;
 
 const OUTPOST: MapMarker = {
   kind: 'outpost',
@@ -64,6 +67,45 @@ const texts = (lines: ReadonlyArray<{ readonly role: string }>) =>
   lines.map((line) => ('text' in line ? line.text : `countdown:${line.role}`));
 
 describe('buildLabels', () => {
+  it('rings the site a capture aims at, on the side that reads it', () => {
+    const capture = {
+      id: 'c-1',
+      side: 'defender' as const,
+      target: { kind: 'outpost' as const, id: 'ap-1' },
+      site: { kind: 'outpost' as const, hostCountry: 'NOR', level: 2 },
+      regionName: null,
+      point: [8.5, 61.4] as const,
+      clock: { progress: 0, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+      completesAt: LOADED_AT + 3_600_000,
+      stoppedAt: null,
+    };
+    const [label, ...others] = buildLabels(viewWith([], [capture]), [OUTPOST]);
+    expect(others).toEqual([]);
+    expect(label?.lines.at(-1)).toEqual({
+      role: 'capture',
+      side: 'defender',
+      clock: capture.clock,
+      completesAt: capture.completesAt,
+    });
+  });
+
+  it('stands a capture on its own label when no site of the map carries it', () => {
+    const capture = {
+      id: 'c-2',
+      side: 'capturer' as const,
+      target: { kind: 'building' as const, id: 'b-9' },
+      site: { kind: 'building' as const, building: 'mine' as const, regionId: 'RUS-2335' },
+      regionName: 'Pskov',
+      point: [28, 57] as const,
+      clock: { progress: 0, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+      completesAt: LOADED_AT + 3_600_000,
+      stoppedAt: null,
+    };
+    const [label] = buildLabels(viewWith([], [capture]), []);
+    expect(label).toMatchObject({ anchor: { kind: 'ground', lonLat: [28, 57] } });
+    expect(label?.lines.at(-1)).toMatchObject({ role: 'capture', side: 'capturer' });
+  });
+
   it('prints neither type nor composition of an unidentified enemy movement', () => {
     const [label] = buildLabels(viewWith([detectedArc({})]), []);
     expect(label?.type).toBe('intel');

@@ -23,6 +23,8 @@ import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
 import { produces } from '@/domain/economy';
+import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
+import { BLITZ } from '../../../convex/constants';
 import { HelpMark } from './HelpMark';
 import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl } from './RaiseControl';
@@ -71,15 +73,27 @@ export function SiteModal({
   return (
     <FloatingWindow name="site" onClose={onClose} {...windowProps} alignment="top" width={1180}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <Site
-          key={building.id}
-          view={view}
-          seat={seat}
-          building={building}
-          onOpenGunnery={onOpenGunnery}
-          onPrepare={onPrepare}
-          onClose={onClose}
-        />
+        {view.mode === 'blitz' ? (
+          <BlitzSite
+            key={building.id}
+            view={view}
+            seat={seat}
+            building={building}
+            onOpenGunnery={onOpenGunnery}
+            onPrepare={onPrepare}
+            onClose={onClose}
+          />
+        ) : (
+          <Site
+            key={building.id}
+            view={view}
+            seat={seat}
+            building={building}
+            onOpenGunnery={onOpenGunnery}
+            onPrepare={onPrepare}
+            onClose={onClose}
+          />
+        )}
       </div>
     </FloatingWindow>
   );
@@ -217,6 +231,7 @@ function Site({
           {fr.common.close}
         </button>
       </DragHandle>
+      <UnderCapture view={view} buildingId={building.id} />
 
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
@@ -360,6 +375,204 @@ function Site({
   );
 }
 
+/**
+ * **Le site d'une Blitz** (lot 4) : ce qu'il verse, ce qu'il forme — une marque par rôle, payée
+ * en fonds, prête en une minute —, sa file et sa garnison. Ni niveau, ni élévation, ni plafond
+ * affiché : le frein est le prix, et le refus est celui du serveur (`blitzRecruitRefusalOf`).
+ */
+function BlitzSite({
+  view,
+  seat,
+  building,
+  onOpenGunnery,
+  onPrepare,
+  onClose,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  building: Building;
+  onOpenGunnery: () => void;
+  onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  onClose: () => void;
+}) {
+  const now = useClock();
+  const workshop = useQuery(api.troops.workshop, seat);
+  const recruit = useMutation(api.troops.recruit);
+  const cancel = useMutation(api.troops.cancel);
+  const [error, setError] = useState<string | null>(null);
+  const station = useMemo<TroopStation>(
+    () => ({ kind: 'building', buildingId: building.id }),
+    [building.id],
+  );
+  const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
+  const held = useMemo(
+    () => troopsAt(view.me, stationKeyOf(station), marching),
+    [view.me, station, marching],
+  );
+  const region = view.me.regions.find((candidate) => candidate.id === building.regionId);
+  const observing = view.me.defeated;
+  const onFailure = (failure: unknown) => handleError(failure, setError);
+  const facility = workshop?.facilities.find((candidate) => candidate.id === building.id) ?? null;
+  const funds =
+    view.me.funds === null ? 0 : Math.floor(fundsAt({ ...view.me.funds, at: view.loadedAt }, now));
+  const army = view.me.troops.length + (workshop?.troopsQueued ?? 0);
+  const income = incomePerMinute([building.key]);
+  const mending = held.filter((troop) => troop.mending).length;
+
+  return (
+    <>
+      <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px]">
+        <BuildingPlate building={building.key} height={30} />
+        <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
+          {fr.buildings[building.key]}
+        </span>
+        <span className="text-[12.5px] text-[var(--ink-soft)]">
+          {fr.economy.inRegion(region?.name ?? building.regionId)}
+        </span>
+        {income > 0 && (
+          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+            {fr.blitz.siteIncome(income)}
+          </span>
+        )}
+        <span className="h-px flex-1 bg-(--ink)/20" />
+        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
+          {fr.blitz.fundsHeld(funds)}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          {fr.common.close}
+        </button>
+      </DragHandle>
+      <UnderCapture view={view} buildingId={building.id} />
+      {error && (
+        <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
+          {error}
+        </p>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        {rolesFormedBy(building.key).length > 0 && (
+          <div className="grid grid-cols-1 border-b border-(color:--ink)/35 @xl:grid-cols-3">
+            {rolesFormedBy(building.key).map((role) => {
+              const refusal = blitzRecruitRefusalOf({
+                site: building.key,
+                role,
+                funds,
+                troops: army,
+              });
+              const price = BLITZ.rolePrice[role];
+              return (
+                <div key={role} className="flex flex-col border-r border-b border-(color:--ink)/16">
+                  <div className="flex h-[120px] items-center justify-center border-b border-(color:--ink)/16 bg-(--ink)/5">
+                    <UnitSprite
+                      nation={view.me.nation}
+                      role={role}
+                      tier={1}
+                      height={104}
+                      width={200}
+                    />
+                  </div>
+                  <div className="px-4 pt-[10px]">
+                    <div className="font-(family-name:--font-display) text-[18px] leading-[1.1] font-extrabold text-[var(--ink)]">
+                      {roleLabel(role, 1)}
+                    </div>
+                    <div className="mt-[3px] font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
+                      {fr.blitz.terms(price, BLITZ.recruitMinutes)}
+                    </div>
+                  </div>
+                  <div className="px-4 pt-[9px] pb-[14px]">
+                    {observing ? null : refusal === null ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          void recruit({
+                            ...seat,
+                            buildingId: building.id as Id<'buildings'>,
+                            role,
+                            tier: 1,
+                          }).catch(onFailure);
+                        }}
+                        className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                      >
+                        {fr.blitz.recruit(price)}
+                      </button>
+                    ) : (
+                      <p className="text-[12px] text-[var(--ink-soft)] italic">
+                        {refusal === 'INSUFFICIENT_FUNDS'
+                          ? fr.blitz.short(price - funds)
+                          : fr.errors[refusal]({})}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {facility !== null && facility.queue.length > 0 && (
+          <section className="border-b border-(color:--ink)/35">
+            <div className="border-b border-(color:--ink)/35 px-4 py-[9px]">
+              <span className="eyebrow">{fr.production.queueHeader}</span>
+            </div>
+            {facility.queue.map((batch) => (
+              <QueueRow
+                key={batch.id}
+                batch={batch}
+                nation={view.me.nation}
+                loadedAt={workshop?.loadedAt ?? view.loadedAt}
+                now={now}
+                onCancel={
+                  observing
+                    ? null
+                    : () => {
+                        setError(null);
+                        void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
+                      }
+                }
+              />
+            ))}
+          </section>
+        )}
+
+        <section>
+          <div className="flex items-center gap-3 border-b border-(color:--ink)/35 px-4 py-[9px]">
+            <span className="eyebrow">{fr.garrison.kicker}</span>
+            <span className="h-px flex-1 bg-(--ink)/20" />
+            {mending > 0 && <span className="eyebrow">{fr.blitz.mendingHere(mending)}</span>}
+            <span className="eyebrow">{fr.garrison.troopCount(held.length)}</span>
+          </div>
+          <div className="px-4 py-3">
+            <GarrisonStack
+              view={view}
+              station={station}
+              held={held}
+              preselect={[]}
+              canPrepare
+              observing={observing}
+              onPrepare={onPrepare}
+            />
+            {held.length > 0 && (
+              <p className="mt-2 text-[11.5px] text-[var(--ink-quiet)] italic">
+                {fr.blitz.mendNote}
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-[10px] border-t border-[var(--ink)] px-4 py-[9px]">
+        <GunneryButton onOpen={onOpenGunnery} />
+        <span className="h-px flex-1 bg-(--ink)/20" />
+      </div>
+    </>
+  );
+}
+
 type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
 type Facility = WorkshopView['facilities'][number];
 type GridEntry = WorkshopView['grid'][number];
@@ -392,6 +605,29 @@ const RECRUITED_NOTICE_MS = 8_000;
  * quelques pixels. Ici toute la feuille défile ; l'en-tête, les trois onglets et le plafond restent
  * collés. Un seul gabarit pour la caserne, le port et l'aérodrome : former, la file, la garnison.
  */
+/**
+ * **Le site se fait capturer** (14/10) : le tampon, et pourquoi — une infanterie adverse le tient
+ * et il change de main à l'heure dite si personne ne l'en chasse. Jamais qui : la vue ne le sert
+ * pas. Le remède est sur la carte, comme pour « hors réseau ».
+ */
+function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: string }) {
+  const capture = view.captures.find(
+    (candidate) =>
+      candidate.side === 'defender' &&
+      candidate.target.kind === 'building' &&
+      candidate.target.id === buildingId,
+  );
+  if (capture === undefined) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-(color:--ink)/18 px-4 py-2">
+      <Stamp label={fr.capture.underCapture} tone="critical" size="small" />
+      <span className="text-[12.5px] text-[var(--critical)]">
+        {fr.capture.underCaptureWhy(asClockTime(capture.completesAt))}
+      </span>
+    </div>
+  );
+}
+
 function NarrowSite({
   view,
   seat,
@@ -518,6 +754,7 @@ function NarrowSite({
             <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
           </div>
         )}
+        <UnderCapture view={view} buildingId={building.id} />
         <div role="tablist" className="grid h-[40px] grid-cols-3">
           {(['form', 'queue', 'garrison'] as const).map((id) => (
             <button

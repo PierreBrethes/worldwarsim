@@ -235,35 +235,38 @@ function DeskJournal({
         </button>
       </DragHandle>
 
-      {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. */}
-      <div className="flex shrink-0 flex-col gap-1 border-b border-(color:--ink)/30 px-5 py-[9px]">
-        <div className="flex items-baseline gap-3">
-          <span className="text-[10px] font-bold tracking-[.18em] uppercase">
-            {fr.journal.atWaking}
-          </span>
-          <span className="flex-1" />
-          <span className="text-[12px] text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
-          <span className="font-(family-name:--font-mono) text-[13px]">
-            {view.me.slots.used} / {view.me.slots.total}
-          </span>
-        </div>
-        {stalled.length > 0 ? (
-          stalled.map((entry) => (
-            <p
-              key={`${entry.at}-${entry.text}`}
-              className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] break-words"
-            >
-              {entry.text}
-              {fr.journal.stalledResolution}
-              <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+      {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. Une Blitz
+          n'a ni slots ni plage de repos (B2, B5) : rien à y dire. */}
+      {view.mode !== 'blitz' && (
+        <div className="flex shrink-0 flex-col gap-1 border-b border-(color:--ink)/30 px-5 py-[9px]">
+          <div className="flex items-baseline gap-3">
+            <span className="text-[10px] font-bold tracking-[.18em] uppercase">
+              {fr.journal.atWaking}
+            </span>
+            <span className="flex-1" />
+            <span className="text-[12px] text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
+            <span className="font-(family-name:--font-mono) text-[13px]">
+              {view.me.slots.used} / {view.me.slots.total}
+            </span>
+          </div>
+          {stalled.length > 0 ? (
+            stalled.map((entry) => (
+              <p
+                key={`${entry.at}-${entry.text}`}
+                className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] break-words"
+              >
+                {entry.text}
+                {fr.journal.stalledResolution}
+                <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+              </p>
+            ))
+          ) : (
+            <p className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {fr.journal.noneStalled}
             </p>
-          ))
-        ) : (
-          <p className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] text-[var(--ink-soft)]">
-            {fr.journal.noneStalled}
-          </p>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {sections.map(({ severity, lines }) => {
@@ -549,32 +552,34 @@ function NarrowJournal({
         </section>
       )}
 
-      <section className="mx-4 mt-[14px] border border-[var(--ink)] px-3 py-[10px]">
-        <div className="flex items-baseline justify-between">
-          <span className="text-[10px] font-bold tracking-[.2em] uppercase">
-            {fr.journal.atWaking}
-          </span>
-          <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-quiet)]">
-            {fr.journal.slotsEngaged} {view.me.slots.used} / {view.me.slots.total}
-          </span>
-        </div>
-        {stalled.length > 0 ? (
-          stalled.map((entry) => (
-            <p
-              key={`${entry.at}-${entry.text}`}
-              className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] break-words"
-            >
-              {entry.text}
-              {fr.journal.stalledResolution}
-              <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+      {view.mode !== 'blitz' && (
+        <section className="mx-4 mt-[14px] border border-[var(--ink)] px-3 py-[10px]">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] font-bold tracking-[.2em] uppercase">
+              {fr.journal.atWaking}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-quiet)]">
+              {fr.journal.slotsEngaged} {view.me.slots.used} / {view.me.slots.total}
+            </span>
+          </div>
+          {stalled.length > 0 ? (
+            stalled.map((entry) => (
+              <p
+                key={`${entry.at}-${entry.text}`}
+                className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] break-words"
+              >
+                {entry.text}
+                {fr.journal.stalledResolution}
+                <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+              </p>
+            ))
+          ) : (
+            <p className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] text-[var(--ink-soft)]">
+              {fr.journal.noneStalled}
             </p>
-          ))
-        ) : (
-          <p className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] text-[var(--ink-soft)]">
-            {fr.journal.noneStalled}
-          </p>
-        )}
-      </section>
+          )}
+        </section>
+      )}
 
       {fresh.length > 0 && (
         <DispatchList

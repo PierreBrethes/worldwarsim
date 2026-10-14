@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
 
 describe('LoadingGauge', () => {
   afterEach(() => vi.useRealTimers());
@@ -35,5 +35,27 @@ describe('MarchGauge', () => {
     vi.setSystemTime(1_000);
     expect(renderToStaticMarkup(<MarchGauge since={0} dueAt={4_000} />)).toContain('width:25%');
     expect(renderToStaticMarkup(<MarchGauge since={0} dueAt={500} />)).toContain('width:100%');
+  });
+});
+
+describe('CaptureGauge', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('fills the ring with the capture done, and says when the defender loses the site', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 12, 15));
+    const clock = {
+      progress: 0.5,
+      at: Date.UTC(2026, 9, 14, 12),
+      rate: 1,
+      durationMs: 3_600_000,
+      rest: null,
+    };
+    const markup = renderToStaticMarkup(
+      <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
+    );
+    expect(markup).toContain('stroke-dasharray="0.75 1"');
+    expect(markup).toContain('75 % · perdu vers');
+    expect(markup).toContain('capture-gauge--defender');
   });
 });

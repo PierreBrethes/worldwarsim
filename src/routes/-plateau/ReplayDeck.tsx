@@ -127,7 +127,11 @@ export function ReplayDeck({
               {fr.replay.kicker}
             </span>
             <span className="truncate font-(family-name:--font-display) text-[16px] font-bold">
-              {step === null ? '' : fr.replay.steps[step]}
+              {step === null
+                ? ''
+                : step === 'frappe' || step === 'riposte'
+                  ? `${fr.replay.steps[step]} — ${fr.replay.whose((step === 'frappe') === (view.side === 'attacker'))}`
+                  : fr.replay.steps[step]}
             </span>
           </span>
           <span className={`flex gap-2 ${narrow ? 'w-full' : ''}`}>
@@ -163,6 +167,7 @@ export function ReplayDeck({
 /** **Le décompte final** : chez nous par rôle et marque, en face les seuls totaux — ce que le
  *  compte rendu sert, rien de plus (ADR 0005). */
 export function ReplayAccount({ view, said }: { view: ReplayView; said: string }) {
+  const mineLost = view.mine.reduce((sum, entry) => sum + entry.lost, 0);
   const cell = 'px-2 py-[3px] text-right font-(family-name:--font-mono) text-[12px]';
   const row = (label: string, tally: CombatTally, rule = 'border-t border-(color:--ink)/20') => (
     <tr key={label} className={rule}>
@@ -197,6 +202,9 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
           tone={view.won ? 'ink' : 'critical'}
         />
       </div>
+      <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+        {fr.combat.beats(view.side === 'attacker', mineLost, view.theirs.lost)}
+      </p>
       <table className="w-full border-collapse">
         <thead>
           <tr className="text-[9.5px] tracking-[.14em] text-[var(--ink-soft)] uppercase">

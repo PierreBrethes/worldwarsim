@@ -76,7 +76,7 @@ const PREVIEW = {
   },
 } as unknown as Previewed;
 
-function mount(onChoose = vi.fn(), onSent = vi.fn()) {
+function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK) {
   render(
     <ConvexProvider client={client}>
       <MovementPreview
@@ -90,7 +90,7 @@ function mount(onChoose = vi.fn(), onSent = vi.fn()) {
         }}
         troopIds={['T-1']}
         strength={50}
-        choice={ATTACK}
+        choice={choice}
         choices={[ATTACK, RAID]}
         onChoose={onChoose}
         at={{ x: 0, y: 0 }}
@@ -144,5 +144,42 @@ describe('the order sheet', () => {
       arrivesAt: 1_000,
       destination: 'Flandre-Occidentale',
     });
+  });
+});
+
+/**
+ * **L'initiative, dite avant l'envoi** (B16) : l'attaquant frappe d'abord, et la cible n'encaisse
+ * moins que là où elle tient des murs (C1).
+ */
+describe('what the riposte will carry', () => {
+  it('tells the attacker he strikes first, and that an objective ripostes at the bonus', () => {
+    const objective: OrderChoice = {
+      ...ATTACK,
+      aim: { kind: 'objective', objectiveId: 'B-1', lon: 3, lat: 51, hostCountry: 'BEL' },
+    };
+    mount(vi.fn(), vi.fn(), objective);
+    screen.getByText(fr.aim.initiative);
+    screen.getByText(fr.aim.cover.sheltered(0.7));
+  });
+
+  /** C4 : un point n'a de murs que debout et en service, et l'aperçu ne sait pas lequel. */
+  it("tells him a point's garrison has walls only if it stands and serves", () => {
+    mount();
+    screen.getByText(fr.aim.cover.point(0.7));
+  });
+
+  it('tells him a camp in the open ripostes bare', () => {
+    const camp: OrderChoice = {
+      ...ATTACK,
+      aim: {
+        kind: 'camp',
+        campId: 'C-1',
+        lon: 3,
+        lat: 51,
+        hostCountry: 'BEL',
+      } as OrderChoice['aim'],
+    };
+    mount(vi.fn(), vi.fn(), camp);
+    screen.getByText(fr.aim.cover.open());
   });
 });

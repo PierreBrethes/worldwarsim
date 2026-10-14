@@ -47,6 +47,7 @@ import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
+import { captureRate } from '@/domain/capture';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
@@ -74,6 +75,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
+import { theatreById } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
 import {
@@ -120,6 +122,7 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import {
   MovementPreview,
   wireOrigin,
+  wireCaptureTarget,
   wireTarget,
   type OrderChoice,
   type Previewed,
@@ -261,6 +264,8 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   /** Les baraquements ne forment rien : ils portent le plafond, et leur ligne vit au recensement
    *  de la projection avec les trois autres (fenêtre Économie). */
   billets: 'economy',
+  /** La ville de la Blitz se lit dans sa modale : ce qu'elle verse, et qui s'y tient. */
+  city: 'site',
 };
 
 export const Route = createFileRoute('/plateau')({
@@ -375,6 +380,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * fermer celle du dessus rend la carte, pas la précédente.
    */
   const narrow = useNarrowScreen();
+  const blitz = view.mode === 'blitz';
+  const blitzTheatre = useMemo(
+    () => (blitz && view.theatre !== null ? theatreById(view.theatre) : null),
+    [blitz, view.theatre],
+  );
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
@@ -654,7 +664,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  être visé du doigt. */
       if (narrow && column !== null) return;
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
-      if (PROJECTION_KEYS.includes(standing.key)) {
+      /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
+       *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
+      const siteModal = view.mode === 'blitz' || PROJECTION_KEYS.includes(standing.key);
+      if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
         setOrder(null);
@@ -673,12 +686,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       void navigate({
         search: (previous) => ({
-          ...withWindow(previous, WINDOW_OF_BUILDING[standing.key]),
+          ...withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]),
           building: buildingId,
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, marching, narrow, column],
+    [navigate, openGarrison, boardPoint, view.me, view.mode, marching, narrow, column],
   );
 
   /**
@@ -713,7 +726,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  plateau rend vrai quand la pile cliquée devient la destination. */
   const applyPileClick = useCallback(
     (click: PileClick, clientX: number, clientY: number): boolean => {
-      const move = clickPile(hand, click);
+      const move = clickPile(hand, click, { single: blitz });
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
       else {
@@ -731,7 +744,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint],
+    [hand, liftHand, dropHand, narrow, boardPoint, blitz],
   );
 
   /**
@@ -875,6 +888,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           return;
         case 'aim':
         case 'plunder':
+        case 'capture':
         case 'collect': {
           const choice = choiceOf(action);
           setOrder({ ...choice, choices: [choice], x: at.x, y: at.y });
@@ -956,7 +970,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const compose = useCallback(
     (troopIds: ReadonlyArray<string>) => {
       if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
-      const move = composeHand(hand, troopIds);
+      const move = composeHand(hand, troopIds, { single: blitz });
       if (move.kind !== 'lift') {
         dropHand();
         return;
@@ -964,7 +978,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setHand(move.hand);
       setOrder(null);
     },
-    [hand, dropHand],
+    [hand, dropHand, blitz],
   );
 
   const restAt = useCallback(
@@ -1233,14 +1247,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
      * au dézoom, rien ne pleut sur la carte.
      */
-    const deposits: ReadonlyArray<MapMarker> = toggles.deposits
-      ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
-          kind: 'deposit' as const,
-          id: `deposit-${regionId}`,
-          regionId,
-          deposit,
-        }))
-      : [];
+    /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
+    const deposits: ReadonlyArray<MapMarker> =
+      toggles.deposits && view.mode !== 'blitz'
+        ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+            kind: 'deposit' as const,
+            id: `deposit-${regionId}`,
+            regionId,
+            deposit,
+          }))
+        : [];
 
     /**
      * **A founded outpost has to stand on the board.** Without this the column that planted it
@@ -1340,15 +1356,33 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }),
     );
 
-    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
+    /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
+    const neutralIds = new Set(view.neutralSites.map((site) => site.id));
+    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
+      .filter((installation) => !neutralIds.has(installation.id))
+      .map((installation) => ({
+        kind: 'installation' as const,
+        id: `installation-${installation.id}`,
+        buildingId: installation.id,
+        key: installation.key,
+        regionId: installation.regionId,
+        name: fr.buildings[installation.key],
+        plate: buildingSprite(installation.key),
+        washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+        neutral: null,
+      }));
+    /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
+     *  se capturent comme un site adverse relevé, par la même rose. */
+    const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
       kind: 'installation' as const,
-      id: `installation-${installation.id}`,
-      buildingId: installation.id,
-      key: installation.key,
-      regionId: installation.regionId,
-      name: fr.buildings[installation.key],
-      plate: buildingSprite(installation.key),
-      washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+      id: `installation-${site.id}`,
+      buildingId: site.id,
+      key: site.key,
+      regionId: site.regionId,
+      name: fr.buildings[site.key],
+      plate: buildingSprite(site.key),
+      washed: false,
+      neutral: { lonLat: site.point },
     }));
 
     if (!toggles.buildings)
@@ -1413,6 +1447,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...camps,
       ...objectives,
       ...surveyed,
+      ...neutral,
       ...outposts,
       ...stacks,
       ...standing,
@@ -1428,9 +1463,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.camps,
     view.objectives,
     view.surveyedInstallations,
+    view.neutralSites,
     knownRegionById,
     toggles.buildings,
     toggles.deposits,
+    view.mode,
     toggles.objectives,
   ]);
 
@@ -1457,26 +1494,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : {
               kind: 'pile',
               station,
+              /** En Blitz, la figurine touchée et non la pile (B15) : `clickPile` n'en lève qu'une. */
               troopIds:
-                pile?.pieces.troopIds ??
-                troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id),
+                blitz && hit.troopIds.length > 0
+                  ? hit.troopIds
+                  : (pile?.pieces.troopIds ??
+                    troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
             },
         hit.clientX,
         hit.clientY,
       );
     },
-    [markers, view.me, marching, applyPileClick],
+    [markers, view.me, marching, applyPileClick, blitz],
   );
+  /** **Une pile de Blitz ne se déploie pas** (B15) : on y lève une figurine, pas une pile. */
   const standing = useMemo(
-    (): ReadonlyArray<StandingPile> => [
-      ...markers.flatMap((marker) =>
-        marker.kind === 'stack'
-          ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
-          : [],
-      ),
-      ...garrisonPiles(view.me, marching),
-    ],
-    [markers, view.me, marching],
+    (): ReadonlyArray<StandingPile> =>
+      [
+        ...markers.flatMap((marker) =>
+          marker.kind === 'stack'
+            ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
+            : [],
+        ),
+        ...garrisonPiles(view.me, marching),
+      ].map((pile) => (blitz ? { ...pile, pieces: { ...pile.pieces, spread: [] } } : pile)),
+    [markers, view.me, marching, blitz],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
@@ -1656,8 +1698,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /**
    * **Un joueur sans quartier général n'a rien sur la carte**, et la carte s'ouvre sur le monde
    * entier : il lui faudrait trouver son pays avant de pouvoir poser quoi que ce soit. La caméra
-   * va donc à la capitale de 1940 — le seul point qu'on connaisse de lui tant qu'il n'a rien
-   * bâti (décision 1b du 13/09), servi par `me.capitalPoint` parce que la table vit avec l'index
+   * va donc à `me.openingPoint` — la capitale de 1940, seul point qu'on connaisse de lui tant
+   * qu'il n'a rien bâti (décision 1b du 13/09), ou le centre du théâtre en Blitz —, servi par le
+   * serveur parce que la table vit avec l'index
    * des régions, côté serveur.
    *
    * Une seule fois, et jamais après la pose : un recadrage qui reviendrait à chaque vue reprendrait
@@ -1666,11 +1709,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const framedOnCapital = useRef(false);
   useEffect(() => {
     if (framedOnCapital.current || view.me.hqLevel > 0) return;
-    const capital = view.me.capitalPoint;
-    if (capital === null) return;
+    const opening = view.me.openingPoint;
+    if (opening === null) return;
     framedOnCapital.current = true;
-    setFocus({ ids: [], places: [capital], nonce: Date.now() });
-  }, [view.me.hqLevel, view.me.capitalPoint]);
+    setFocus({ ids: [], places: [opening], nonce: Date.now() });
+  }, [view.me.hqLevel, view.me.openingPoint]);
 
   const editionServed = useRef(false);
   useEffect(() => {
@@ -1811,6 +1854,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? 'skip'
       : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
   );
+  const capturePreview = useQuery(
+    api.movements.previewCapture,
+    dispatch === null || mission?.kind !== 'capture'
+      ? 'skip'
+      : { ...dispatch, target: wireCaptureTarget(mission.target) },
+  );
   const collectPreview = useQuery(
     api.movements.previewLootCollection,
     dispatch === null || mission?.kind !== 'collect'
@@ -1822,9 +1871,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? undefined
       : mission.kind === 'plunder'
         ? plunderPreview
-        : mission.kind === 'collect'
-          ? collectPreview
-          : marchPreview;
+        : mission.kind === 'capture'
+          ? capturePreview
+          : mission.kind === 'collect'
+            ? collectPreview
+            : marchPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -1964,6 +2015,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         <ReplayLaunch.Provider value={launchReplay}>
           <div ref={board} className="relative min-w-0 flex-1">
             <WorldMap
+              blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}
               arcs={arcs}
               troops={view.me.troops}
@@ -2186,7 +2238,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 }
                 at={order}
                 preview={preview}
-                slots={view.me.slots}
+                slots={blitz ? null : view.me.slots}
                 originName={stationNames(view).place(column.station)}
                 onClose={dropHand}
                 onSent={afterSent}
@@ -2251,7 +2303,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   order={sent.order}
                   destination={sent.destination}
                   arrivesAt={sent.arrivesAt}
-                  slots={view.me.slots}
+                  slots={blitz ? null : view.me.slots}
                   onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
                 />
               </div>
@@ -2590,6 +2642,13 @@ function choiceOf(action: OrderAction): OrderChoice {
         type: 'march',
         mission: { kind: 'plunder', buildingId: action.buildingId },
       };
+    case 'capture':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'attack',
+        mission: { kind: 'capture', target: action.target },
+      };
     case 'collect':
       return {
         ...said,
@@ -2612,10 +2671,11 @@ function armedColumn(
   station: MarchStation,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
-  const roles = troopIds.flatMap((troopId) => {
+  const troops = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-    return troop ? [troop.role] : [];
+    return troop ? [troop] : [];
   });
+  const roles = troops.map((troop) => troop.role);
   const departure =
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
@@ -2644,6 +2704,31 @@ function armedColumn(
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,
+      captureRate: captureRate(troops),
+      ...blitzOf(view, troops),
+    },
+  };
+}
+
+/** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
+ *  bâtiments déjà tenus par une troupe posée. */
+function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
+  const theatre = view.theatre === null ? null : theatreById(view.theatre);
+  if (view.mode !== 'blitz' || theatre === null) return {};
+  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
+  const leaving = new Set(troops.map((troop) => troop.id));
+  const now = Date.now();
+  return {
+    blitz: {
+      theatre,
+      reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > now),
+      occupiedBuildingIds: new Set(
+        view.me.troops.flatMap((troop) =>
+          troop.stationedAt.kind === 'building' && !marching.has(troop.id) && !leaving.has(troop.id)
+            ? [troop.stationedAt.buildingId]
+            : [],
+        ),
+      ),
     },
   };
 }
@@ -2747,8 +2832,15 @@ function postedStacks(
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
       pieces: pilePieces(held),
       ink: me.ink,
+      ...reloadOf(held),
     };
   });
+}
+
+/** **Blitz** (B19) : la pile recharge tant que sa dernière troupe à avoir frappé recharge. */
+function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
+  const until = Math.max(0, ...held.map((troop) => troop.reloadUntil ?? 0));
+  return until > Date.now() ? { reloadUntil: until } : {};
 }
 
 /**

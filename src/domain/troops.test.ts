@@ -20,6 +20,7 @@ const troop = (id: string, role: TroopView['role'], stationedAt: TroopStation): 
   nominalStrength: 50,
   stationedAt,
   supplied: true,
+  mending: false,
 });
 
 describe('the exact address of a posted pile', () => {

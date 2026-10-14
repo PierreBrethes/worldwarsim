@@ -1,3 +1,5 @@
+import type { CaptureClock } from './capture';
+import type { SeasonMode } from './season-mode';
 import type { LonLat } from './geo';
 import type {
   BuildCostKey,
@@ -34,6 +36,8 @@ export type OwnMovementMission =
     }
   | { readonly kind: 'collection'; readonly sightingId: string }
   | { readonly kind: 'cargoReturn'; readonly regionId: string }
+  /** Blitz (B18) : la colonne poursuit une unité, et sa route se recourbe sur elle. */
+  | { readonly kind: 'pursuit' }
   | null;
 
 /**
@@ -241,6 +245,10 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
+  readonly reloadUntil?: number;
+  /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
+  readonly mending: boolean;
 };
 
 export type OutpostView = {
@@ -323,6 +331,8 @@ export type CombatReport = {
   /** L'avant-poste visé, quand c'en était un : la garnison qu'une dépêche ouvre est la sienne. */
   readonly outpostId: string | null;
   readonly outpostDisabled: boolean;
+  /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. */
+  readonly shock?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
   /**
@@ -605,7 +615,14 @@ export type DispatchKind =
    *  heure, et c'est ce qui les fait converger plutôt que farmer. */
   | 'objectiveRevealed'
   | 'objectiveGap'
-  | 'objectiveTaken';
+  | 'objectiveTaken'
+  /** **La capture** (14/10) : chez le capteur la nouvelle qu'il lit à son heure, chez le
+   *  défenseur la menace puis la perte, à l'encre d'alarme. */
+  | 'captureStarted'
+  | 'captureThreat'
+  | 'captured'
+  | 'siteLost'
+  | 'captureCancelled';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -767,6 +784,8 @@ type NoticeBody =
       readonly detectorRegion: string | null;
     }
   | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
+  | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }
   /**
    * Les trois dépêches du leurre ont quitté cette union le 29/08/2026, avec le leurre lui-même.
    * Leurs littéraux restent dans le validateur Convex le temps d'un wipe, et `convex/view.ts`
@@ -858,7 +877,40 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly regionName: string;
     }
-  | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> };
+  | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> }
+  | ({
+      readonly at: number;
+      readonly side: 'capturer' | 'defender';
+      readonly site: CaptureSite;
+      readonly regionName: string | null;
+    } & (
+      | { readonly kind: 'captureStarted'; readonly completesAt: number }
+      | { readonly kind: 'captureSucceeded' }
+      | { readonly kind: 'captureCancelled'; readonly reason?: 'left' | 'gone' }
+    ));
+
+/**
+ * **Une capture qui me regarde** (14/10) — que je la mène ou qu'elle vise un de mes sites. Côté
+ * défenseur, il n'y a structurellement aucun champ pour celui qui capture. L'horloge est celle du
+ * serveur (`src/domain/capture.ts`) : la carte l'interpole, elle ne la recalcule pas.
+ */
+export type CaptureView = {
+  readonly id: string;
+  readonly side: 'capturer' | 'defender';
+  readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+  readonly site: CaptureSite;
+  readonly regionName: string | null;
+  readonly point: LonLat;
+  readonly clock: CaptureClock;
+  readonly completesAt: number;
+  /** Arrêtée faute d'infanterie : servie au seul capteur, pour qu'il la relance. */
+  readonly stoppedAt: number | null;
+};
+
+/** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */
+export type CaptureSite =
+  | { readonly kind: 'building'; readonly building: BuildingKey; readonly regionId: string }
+  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number };
 
 /** The server serves `place` on every notice; fixtures may leave it out. */
 export type Notice = NoticeBody & { readonly place?: MapPlace | null };
@@ -1006,11 +1058,16 @@ export type PlayerView = {
      *  n'a pas encore posé son quartier général (décision 1b du 13/09) — sans lui, la carte
      *  s'ouvre sur le monde entier et le joueur va chercher son pays. `null` sans drapeau. */
     readonly capitalPoint: LonLat | null;
+    /** Where the board opens: the theatre's centre in a Blitz, the capital otherwise. Read by the
+     *  opening frame only — the return-home path stays on `capitalPoint`. */
+    readonly openingPoint: LonLat | null;
     readonly ink: string;
     readonly power: string;
     readonly progress: number;
     readonly restWindow: string;
     readonly resources: Readonly<Record<ResourceKey, Resource>>;
+    /** **Les fonds de la Blitz** à `loadedAt`, et leur débit par minute ; `null` en Mondiale. */
+    readonly funds: { readonly stock: number; readonly perMinute: number } | null;
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
@@ -1123,6 +1180,18 @@ export type PlayerView = {
    * tient se relève comme toute force posée (ADR 0024 §1), dans `camps`.
    */
   readonly objectives: ReadonlyArray<ObjectiveView>;
+  /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
+  readonly mode: SeasonMode;
+  /** Le théâtre d'une Blitz, `null` en Mondiale. */
+  readonly theatre: string | null;
+  /** **Les bâtiments neutres d'une Blitz**, publics et sans garnison ; vide en Mondiale. */
+  readonly neutralSites: ReadonlyArray<{
+    readonly id: string;
+    readonly key: Exclude<BuildingKey, 'depot'>;
+    readonly regionId: string;
+    readonly point: LonLat;
+  }>;
+  readonly captures: ReadonlyArray<CaptureView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;

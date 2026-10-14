@@ -27,6 +27,11 @@ suppose une cible qui vaille le trajet, le troisième arrive après que la parti
 
 ### 1. La couleur suit l'avant-poste, elle ne prend pas la région
 
+> **Révision du 14/10/2026 — l'encre est celle de la nation.** La couleur tenue n'est plus tirée
+> du rang d'entrée du siège : une nation n'a qu'une place par saison, et deux encres pour le même
+> joueur peignaient son sol d'une couleur et ses régions bâties, son mât et son survol d'une autre.
+> Une seule table (`INK_BY_NATION`), déclinée en paliers par `nationShades`.
+
 > **Révision du 17/09/2026 — tenu par le disque, plus par le pôle.** Une région est tenue dès
 > qu'**une de ses cellules** (le raster de l'[ADR 0023](0023-geographie-serveur-raster.md)) tombe
 > dans le rayon du point, et non plus quand son *pôle d'inaccessibilité* y tombe. La précision du

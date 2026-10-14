@@ -13,7 +13,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
-import { ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
+import { FundsCell, ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
@@ -79,52 +79,60 @@ export function NarrowBand({
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
         <span className="flex-1" />
-        <span
-          className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
-          title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
-        >
-          <SlotBoxes used={me.slots.used} total={me.slots.total} />
-          <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
-            {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+        {view.mode !== 'blitz' && (
+          <span
+            className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
+            title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+          >
+            <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
+              {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+            </span>
           </span>
-        </span>
-      </div>
-
-      <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
-        {RESOURCES.map((resource) => (
-          <ResourceCell
-            key={resource}
-            resource={resource}
-            view={view}
-            now={now}
-            stacked
-            onClick={(event) => {
-              const left = event.currentTarget.offsetLeft;
-              setShown((open) =>
-                open?.resource === resource
-                  ? null
-                  : {
-                      resource,
-                      left: Math.max(
-                        0,
-                        Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
-                      ),
-                    },
-              );
-            }}
-          />
-        ))}
-        {shown !== null && (
-          <ReserveCard
-            resource={shown.resource}
-            view={view}
-            now={now}
-            mark={marks[shown.resource]}
-            left={shown.left}
-            width={DETAIL_WIDTH}
-          />
         )}
       </div>
+
+      {me.funds !== null ? (
+        <div className="flex h-[38px] items-center px-[12px]">
+          <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
+        </div>
+      ) : (
+        <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
+          {RESOURCES.map((resource) => (
+            <ResourceCell
+              key={resource}
+              resource={resource}
+              view={view}
+              now={now}
+              stacked
+              onClick={(event) => {
+                const left = event.currentTarget.offsetLeft;
+                setShown((open) =>
+                  open?.resource === resource
+                    ? null
+                    : {
+                        resource,
+                        left: Math.max(
+                          0,
+                          Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
+                        ),
+                      },
+                );
+              }}
+            />
+          ))}
+          {shown !== null && (
+            <ReserveCard
+              resource={shown.resource}
+              view={view}
+              now={now}
+              mark={marks[shown.resource]}
+              left={shown.left}
+              width={DETAIL_WIDTH}
+            />
+          )}
+        </div>
+      )}
 
       {surface === 'dossier' && (
         <NationDossier

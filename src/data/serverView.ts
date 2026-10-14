@@ -1,3 +1,4 @@
+import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { TIER_2_HQ_LEVEL } from '../../convex/constants';
@@ -24,6 +25,7 @@ export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
 export type PlunderPreviewed = FunctionReturnType<typeof api.movements.previewPlunder>;
+export type CapturePreviewed = FunctionReturnType<typeof api.movements.previewCapture>;
 export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
@@ -61,6 +63,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       /** Un déploiement d'une version en retard n'en sert aucune : le plateau s'ouvre alors
        *  comme il l'a toujours fait, sur le monde. */
       capitalPoint: (server.me.capitalPoint as LonLat | null | undefined) ?? null,
+      openingPoint: (server.me.openingPoint as LonLat | null | undefined) ?? null,
       ink: server.me.ink,
       power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',
       progress: server.me.progress,
@@ -119,7 +122,12 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       troopCap: server.me.troopCap,
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
-      troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
+      troops: server.me.troops.map((troop) => ({
+        ...troop,
+        supplied: troop.supplied ?? true,
+        mending: troop.mending ?? false,
+      })),
+      funds: server.me.funds ?? null,
       stationedCargo: server.me.stationedCargo ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
        *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
@@ -164,6 +172,11 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     /** Un déploiement d'une version en retard n'en pose aucun : la carte n'a pas de marqueur à
      *  dessiner, et rien d'autre ne les lit. */
     objectives: server.objectives ?? [],
+    /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
+    mode: modeOf(server.mode),
+    theatre: server.theatre ?? null,
+    neutralSites: server.neutralSites ?? [],
+    captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
       server.season.reduction ?? null,

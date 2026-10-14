@@ -37,7 +37,7 @@ const RIYADH: LonLat = [46.72, 24.63]; // Saudi — nobody's home country and no
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });

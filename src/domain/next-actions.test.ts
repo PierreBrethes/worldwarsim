@@ -9,9 +9,11 @@ const HOME: [number, number] = [2, 47];
 const board = (
   over: Partial<PlayerView['me']> = {},
   arcs: ReadonlyArray<ArcView> = [],
+  captures: PlayerView['captures'] = [],
 ): PlayerView =>
   ({
     arcs,
+    captures,
     loadedAt: 0,
     me: {
       homePosition: HOME,
@@ -51,6 +53,39 @@ const posted = (country: string, lonLat: [number, number]): TroopStation => ({
 
 const kinds = (view: PlayerView): ReadonlyArray<NextActionKind> =>
   nextActionsOf(view).map((action) => action.kind);
+
+const capture = (
+  side: 'capturer' | 'defender',
+  stoppedAt: number | null = null,
+): PlayerView['captures'][number] => ({
+  id: `C-${side}`,
+  side,
+  target: { kind: 'building', id: 'B-9' },
+  site: { kind: 'building', building: 'foundry', regionId: 'FRA-69' },
+  regionName: 'Lyon',
+  point: [4.8, 45.7],
+  clock: { progress: 0, at: 0, rate: 1, durationMs: 3_600_000, rest: null },
+  completesAt: Date.UTC(2026, 9, 14, 12, 20),
+  stoppedAt,
+});
+
+describe('a capture', () => {
+  it('puts the defender’s site first, with the hour it is lost, and recentres on it', () => {
+    const [first] = nextActionsOf(board({}, [], [capture('defender')]));
+    expect(first?.kind).toBe('siteUnderCapture');
+    expect(first?.label).toMatch(/^Fonderie de Lyon : capture en cours, perdue vers /);
+    expect(first?.targets).toEqual([{ kind: 'map', point: [4.8, 45.7] }]);
+  });
+
+  it('tells the capturer a capture stopped, and nothing while it runs', () => {
+    expect(kinds(board({}, [], [capture('capturer')]))).toEqual([]);
+    const [stopped] = nextActionsOf(board({}, [], [capture('capturer', 10)]));
+    expect(stopped?.kind).toBe('captureStopped');
+    expect(stopped?.label).toBe(
+      'Capture de Fonderie de Lyon arrêtée : plus d’infanterie sur place',
+    );
+  });
+});
 
 describe('what waits for the player', () => {
   it('says nothing at all when the season is in order', () => {
@@ -269,6 +304,51 @@ describe('what waits for the player', () => {
 
     it('orders the targets the same way from one render to the next', () => {
       expect(nextActionsOf(scattered())).toEqual(nextActionsOf(scattered()));
+    });
+  });
+});
+
+describe('a Blitz', () => {
+  const blitz = (over: Partial<PlayerView['me']>, neutralSites: PlayerView['neutralSites'] = []) =>
+    ({
+      ...board({
+        construction: null,
+        regions: [{ id: 'FRA-1', name: 'Rhône', point: [2, 47], linked: true }],
+        ...over,
+      } as Partial<PlayerView['me']>),
+      mode: 'blitz',
+      neutralSites,
+    }) as PlayerView;
+  const hq = {
+    id: 'B-hq',
+    key: 'hq',
+    name: 'QG',
+    regionId: 'FRA-1',
+    level: 1,
+    point: null,
+  } as unknown as PlayerView['me']['buildings'][number];
+
+  it('asks for a recruit at the HQ as at a barracks, and never for a building site', () => {
+    expect(kinds(blitz({ buildings: [hq], recruiting: [] }))).toEqual(['idleProjection']);
+    expect(kinds(blitz({ buildings: [hq], recruiting: ['B-hq'] }))).toEqual([]);
+  });
+
+  it('points at the neutral cities within reach, the nearest first', () => {
+    const [line] = nextActionsOf(
+      blitz({ buildings: [hq], recruiting: ['B-hq'] }, [
+        { id: 'far', key: 'city', regionId: 'R-far', point: [30, 60] },
+        { id: 'near', key: 'city', regionId: 'R-near', point: [3, 47] },
+        { id: 'port', key: 'port', regionId: 'R-port', point: [2.5, 47] },
+        { id: 'next', key: 'city', regionId: 'R-next', point: [5, 47] },
+      ]),
+    );
+    expect(line).toMatchObject({
+      kind: 'neutralCity',
+      label: '2 villes neutres à prendre',
+      targets: [
+        { kind: 'map', point: [3, 47] },
+        { kind: 'map', point: [5, 47] },
+      ],
     });
   });
 });

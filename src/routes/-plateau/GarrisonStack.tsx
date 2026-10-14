@@ -141,6 +141,7 @@ export function GarrisonStack({
           {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
           <TroopCards
             nation={view.me.nation}
+            blitz={view.mode === 'blitz'}
             rows={rows}
             picked={picked}
             composes={composes}
@@ -221,7 +222,7 @@ export function GarrisonStack({
                   <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
                     {fr.troops.strength(troop.strength, troop.nominalStrength)}
                   </span>
-                  <Upkeep troop={troop} />
+                  <Upkeep troop={troop} blitz={view.mode === 'blitz'} />
                 </span>
               </div>
             );
@@ -243,7 +244,7 @@ export function GarrisonStack({
         </div>
       )}
 
-      {composes && !narrow && (
+      {composes && !narrow && view.mode !== 'blitz' && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.lootCapacity(carryCapacity)}
         </div>
@@ -300,7 +301,9 @@ export function GarrisonStack({
       ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}
+            {picked.size === 0
+              ? fr.garrison.noColumn
+              : fr.garrison.column(picked.size, view.mode !== 'blitz')}
           </span>
           {onPrepare && (
             <button
@@ -331,7 +334,15 @@ export function GarrisonStack({
  * l'entretien est ce qu'elle coûte à l'heure, au taux plein ou au taux relevé — une coque posée en
  * mer paie le second, et c'est ici qu'on l'apprend, pas sur un écran de comptabilité.
  */
-function Upkeep({ troop }: { troop: TroopView }) {
+function Upkeep({ troop, blitz }: { troop: TroopView; blitz: boolean }) {
+  /** **La Blitz ne nourrit personne** : la ligne dit le soin, quand il court, et rien sinon. */
+  if (blitz) {
+    return troop.mending ? (
+      <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+        {fr.blitz.mending(1)}
+      </span>
+    ) : null;
+  }
   return (
     <span
       className="block font-(family-name:--font-mono) text-[10.5px]"
@@ -403,12 +414,14 @@ function RoleShortcuts({
  */
 function TroopCards({
   nation,
+  blitz,
   rows,
   picked,
   composes,
   onToggle,
 }: {
   nation: string;
+  blitz: boolean;
   rows: ReadonlyArray<StackRow<TroopView>>;
   picked: ReadonlySet<string>;
   composes: boolean;
@@ -438,7 +451,7 @@ function TroopCards({
                 {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
               </span>
               {carrier === null ? (
-                <Upkeep troop={troop} />
+                <Upkeep troop={troop} blitz={blitz} />
               ) : (
                 <span className="text-[11.5px] font-semibold text-[var(--ink-soft)]">
                   {fr.garrison.aboard(roleLabel(carrier.role, 1))}

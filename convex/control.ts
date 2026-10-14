@@ -2,11 +2,12 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
+import { knownRegions, type KnownRegion } from '../src/domain/control';
+import { nationInk } from '../src/domain/nations';
 import { isStanding } from '../src/domain/outposts';
-import { soleHoldOf } from './holding';
+import { occupationsOf, soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
-import { allRegions, homeCountryOf, regionsOf } from './regions';
+import { allRegions, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { playerOf, seatsOf } from './seats';
 import { regionsCoveredBy } from './regionGeometry';
 import { standingObserversOf } from './surveys';
@@ -49,18 +50,13 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const { player, season } = await playerOf(ctx, token, seasonId);
   const seats = await seatsOf(ctx, season._id);
 
-  /**
-   * **L'encre suit le siège, dans l'ordre des entrées.** Rien n'est stocké là non plus : un
-   * joueur ne quitte jamais une saison — on la détruit entière (`seasons.destroy`) — donc son
-   * rang d'entrée est aussi stable qu'un champ, et un champ de plus serait une seconde vérité
-   * à tenir d'accord avec la première.
-   */
+  /** L'ordre des entrées ne sert plus qu'à ranger la réponse : stable, il garde la légende en
+   *  place d'un battement à l'autre. */
   const ordered = [...seats].sort((left, right) => left._creationTime - right._creationTime);
   const homeGrounds = seats.flatMap((seat) => {
     const country = homeCountryOf(seat.nation);
     return country === null ? [] : [{ owner: seat._id as string, country }];
   });
-  const inkOf = new Map(ordered.map((seat, rank) => [seat._id, seatInk(rank)]));
 
   /** **Son sol, et le sien seul.** Il n'a pas besoin de s'observer lui-même : une nation n'est
    *  jamais annexée (ADR 0004), donc rien ne peut s'y périmer. Le sol des autres, lui, se
@@ -76,7 +72,19 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
     .collect();
 
+  /** **Une occupation se sait de deux côtés** : chez qui tient le bâtiment, et chez qui a perdu
+   *  ce sol-là. Un tiers ne l'apprend que par son relevé. */
+  const occupied = new Map(
+    (await occupationsOf(ctx, season._id))
+      .filter(
+        ({ regionId, owner }) =>
+          owner === player._id || (home !== null && regionFacts(regionId)?.country === home),
+      )
+      .map(({ regionId, owner }) => [regionId, owner]),
+  );
+
   const known = knownRegions({
+    occupied,
     home: {
       owner: player._id,
       regionIds: home === null ? [] : regionsOf(home).map((region) => region.id),
@@ -93,7 +101,9 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  regroupement, parce qu'il en retire ses propres lignes : un relevé d'hier dit encore que ce
    *  sol est à lui, et le peindre plein pendant la désactivation serait le mensonge que la
    *  hachure existe pour éviter. */
-  const suspended = await suspendedRegionsOf(ctx, player._id, homeGrounds);
+  const suspended = await suspendedRegionsOf(ctx, player._id, homeGrounds, [
+    ...(await occupationsOf(ctx, season._id)),
+  ]);
 
   /** Par tenant, et les mains vides ne voyagent pas : un siège dont ce joueur ne connaît rien
    *  ne tient rien *pour lui*, et une ligne vide serait une couleur de plus dans la légende. */
@@ -117,7 +127,10 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         playerId: seat._id,
         nation: seat.nation,
         nickname: seat.nickname,
-        ink: inkOf.get(seat._id)!,
+        /** **L'encre est celle de la nation** (palette des nations, 14/10/2026) : une nation
+         *  n'a qu'une place par saison, et une seconde encre — celle du rang d'entrée —
+         *  peignait le sol tenu d'une couleur et le sol bâti d'une autre. */
+        ink: nationInk(seat.nation),
         regions: [
           ...regions.map((region) =>
             region.state === 'current'
@@ -152,6 +165,7 @@ async function suspendedRegionsOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   homeGrounds: ReadonlyArray<{ owner: string; country: string }>,
+  occupations: ReadonlyArray<{ regionId: string; owner: string }>,
 ): Promise<ReadonlyMap<string, number>> {
   const now = Date.now();
   const outposts = await outpostsOf(ctx, playerId);
@@ -166,7 +180,14 @@ async function suspendedRegionsOf(
   const regions = allRegions();
   const suspended = new Map<string, number>();
   for (const outpost of halted) {
-    for (const regionId of soleHoldOf({ regions, outposts, outpost, homeGrounds, now })) {
+    for (const regionId of soleHoldOf({
+      regions,
+      outposts,
+      outpost,
+      homeGrounds,
+      occupations,
+      now,
+    })) {
       /** Deux points hors service qui couvrent la même région : la couleur revient au premier
        *  des deux, et c'est la seule date qu'il y ait à promettre. */
       const already = suspended.get(regionId);

@@ -1,5 +1,6 @@
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { fr } from '@/i18n/fr';
+import { countryLabel, fr } from '@/i18n/fr';
+import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
@@ -11,7 +12,7 @@ import {
   type Specialization,
   type UnitRole,
 } from './ids';
-import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
+import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
 import type { WorkSite } from './construction';
 
 /**
@@ -44,6 +45,9 @@ export type MapMarker =
       readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
+      /** **Un neutre de la Blitz** (lot 4) : public, posé à son point — le quai d'un port —, et
+       *  jamais délavé ; `null` hors Blitz, où le relevé ne porte que la région. */
+      readonly neutral: { readonly lonLat: LonLat } | null;
     }
   | {
       /**
@@ -129,6 +133,8 @@ export type MapMarker =
       readonly plate: string | null;
       /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
       readonly pieces: PilePieces;
+      /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
+      readonly reloadUntil?: number;
       readonly ink: string;
     }
   | {
@@ -257,9 +263,19 @@ export type LabelLine =
       readonly prefix: string;
       /** My column's departure, read off the share served: its bar fills from there to `dueAt`. */
       readonly since?: number;
+      /** À la seconde (« 0:42 ») plutôt qu'en durée, et muet une fois échu : un rechargement. */
+      readonly clock?: true;
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
-  | { readonly role: 'loading'; readonly until: number };
+  | { readonly role: 'loading'; readonly until: number }
+  /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
+   *  victoire chez le capteur, de perte chez le défenseur. */
+  | {
+      readonly role: 'capture';
+      readonly side: CaptureView['side'];
+      readonly clock: CaptureClock;
+      readonly completesAt: number;
+    };
 
 /**
  * A mobile anchor carries no position: a movement's head travels along its arc every frame,
@@ -281,6 +297,8 @@ export type InstallationHandle = {
   readonly id: string;
   readonly key: Exclude<BuildingKey, 'depot'>;
   readonly regionId: string;
+  /** Un neutre de la Blitz, qu'on capture sans l'avoir relevé. */
+  readonly neutral: boolean;
 };
 
 /** A standing building, as a label hands it to whoever acts on it. */
@@ -408,7 +426,10 @@ export const cartoucheShown = (
   label: Pick<MapLabel, 'type' | 'lines'>,
   { pointed, selected }: { readonly pointed: boolean; readonly selected: boolean },
 ): boolean =>
-  !NAMED_WHEN_POINTED.has(label.type) || pointed || selected || label.lines.some(isCountdown);
+  !NAMED_WHEN_POINTED.has(label.type) ||
+  pointed ||
+  selected ||
+  label.lines.some((line) => isCountdown(line) || line.role === 'capture');
 
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
@@ -460,11 +481,75 @@ export function buildLabels(
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
   return [
-    ...markers.map(markerLabel),
+    ...withCaptures(markers.map(markerLabel), view.captures),
     ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt)).filter(exists),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
+
+const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
+  target.kind === 'building'
+    ? label.building?.id === target.id || label.installation?.id === target.id
+    : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+
+/**
+ * **Le site visé porte sa capture** — l'anneau pend à son étiquette. Un site que la carte ne
+ * dessine pas (un avant-poste adverse jamais relevé en mât) a la sienne, posée au point où
+ * l'infanterie se tient : on ne perd pas une capture parce que la carte n'a rien sous elle.
+ */
+function withCaptures(
+  labels: ReadonlyArray<MapLabel>,
+  captures: ReadonlyArray<CaptureView>,
+): ReadonlyArray<MapLabel> {
+  const running = captures.filter((capture) => capture.stoppedAt === null);
+  const lineOf = (capture: CaptureView): LabelLine => ({
+    role: 'capture',
+    side: capture.side,
+    clock: capture.clock,
+    completesAt: capture.completesAt,
+  });
+  const carried = labels.map((label) => {
+    const capture = running.find((candidate) => carriesSite(label, candidate.target));
+    return capture === undefined ? label : { ...label, lines: [...label.lines, lineOf(capture)] };
+  });
+  const alone = running.filter(
+    (capture) => !labels.some((label) => carriesSite(label, capture.target)),
+  );
+  return [
+    ...carried,
+    ...alone.map((capture): MapLabel => ({
+      id: `capture-${capture.id}`,
+      type: 'installation',
+      priority: PRIORITY.installation,
+      anchor: { kind: 'ground', lonLat: capture.point },
+      reach: null,
+      ink: null,
+      pictogram: null,
+      plate: null,
+      deposit: null,
+      lootSightingId: null,
+      lootCurrent: true,
+      washed: false,
+      lines: [{ role: 'nature', text: captureSiteName(capture) }, lineOf(capture)],
+      identified: false,
+      offensive: false,
+      idle: false,
+      works: null,
+      hostCountry: null,
+      building: null,
+      installation: null,
+      camp: null,
+      objective: null,
+      station: null,
+      force: null,
+    })),
+  ];
+}
+
+export const captureSiteName = (capture: Pick<CaptureView, 'site' | 'regionName'>): string =>
+  capture.site.kind === 'building'
+    ? fr.capture.buildingSite(fr.buildings[capture.site.building], capture.regionName ?? '')
+    : fr.capture.outpostSite(capture.site.level, countryLabel(capture.site.hostCountry));
 
 /**
  * **Chacun de mes mouvements finit par un drapeau** (carte-lisible, 03/10), planté au bout du
@@ -508,6 +593,9 @@ const exists = <T>(value: T | null): value is T => value !== null;
 /** A port hangs from its quay, a deposit and every other building from their region, and
  *  everything that carries a coordinate from that coordinate. */
 function anchorOf(marker: MapMarker): LabelAnchor {
+  if (marker.kind === 'installation' && marker.neutral !== null) {
+    return { kind: 'ground', lonLat: marker.neutral.lonLat };
+  }
   if (marker.kind === 'deposit' || marker.kind === 'installation') {
     return { kind: 'region', regionId: marker.regionId };
   }
@@ -584,9 +672,19 @@ function markerLabel(marker: MapMarker): MapLabel {
         priority: PRIORITY.installation,
         pictogram: null,
         plate: marker.plate,
-        installation: { id: marker.buildingId, key: marker.key, regionId: marker.regionId },
+        installation: {
+          id: marker.buildingId,
+          key: marker.key,
+          regionId: marker.regionId,
+          neutral: marker.neutral !== null,
+        },
         hostCountry: null,
-        lines: [{ role: 'nature', text: marker.name }],
+        lines: [
+          { role: 'nature', text: marker.name },
+          ...(marker.neutral === null
+            ? []
+            : [{ role: 'mention', text: fr.blitz.neutral } as const]),
+        ],
       };
     /**
      * **Ce qu'on sait d'un camp, et c'est tout** (ADR 0024 §1) : il se tient là, dans ce
@@ -690,6 +788,16 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
+          ...(marker.reloadUntil === undefined
+            ? []
+            : [
+                {
+                  role: 'countdown' as const,
+                  dueAt: marker.reloadUntil,
+                  prefix: fr.reload.prefix,
+                  clock: true as const,
+                },
+              ]),
         ],
       };
     case 'construction':
@@ -758,7 +866,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
     const cargo = arc.cargo;
-    const cargoVisible = cargo !== undefined && (cargo.carried > 0 || mission !== null);
+    // Une poursuite ne porte rien : sa charge vide ne dirait rien de plus que « poursuite ».
+    const cargoVisible =
+      cargo !== undefined &&
+      (cargo.carried > 0 || (mission !== null && mission.kind !== 'pursuit'));
     const loadingUntil = loadingUntilOf(arc);
     return {
       id: arc.id,
@@ -929,5 +1040,7 @@ function missionLabel(
       return fr.loot.missions.collection;
     case 'cargoReturn':
       return fr.loot.missions.cargoReturn;
+    case 'pursuit':
+      return fr.aim.pursuit;
   }
 }

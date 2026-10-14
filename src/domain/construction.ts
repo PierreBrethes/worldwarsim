@@ -25,6 +25,7 @@ import {
   type Resource,
   type SiteRef,
 } from './player-view';
+import { notInBlitz } from './blitz';
 
 /**
  * Why a building is offered here rather than elsewhere. It is the sentence that teaches the
@@ -319,6 +320,8 @@ export const slotsOn = (
  * build there".
  */
 export function siteOf(view: PlayerView, regionId: string, now: number): Site | null {
+  /** La Blitz n'a pas de chantier (`notInBlitz`) : aucune région n'y est un site où bâtir. */
+  if (notInBlitz(view.mode) !== null) return null;
   const region: RegionView | undefined = view.me.regions.find(
     (candidate) => candidate.id === regionId,
   );
@@ -611,7 +614,8 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
   const hqLevel = view.me.hqLevel;
   // Nothing rises above the headquarters, and a level-1 building needs one standing — the same
   // pair of guards `buildableOn` opens on, because it is the same catalogue.
-  const impossible = key === 'hq' ? hqLevel > 0 : hqLevel === 0;
+  const impossible =
+    !BUILDABLE_BUILDINGS.includes(key) || (key === 'hq' ? hqLevel > 0 : hqLevel === 0);
 
   const regionIds: string[] = [];
   const natures = new Set<PlacementRefusal>();

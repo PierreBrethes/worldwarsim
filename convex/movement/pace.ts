@@ -3,8 +3,16 @@ import type { QueryCtx } from '../_generated/server';
 import { isStanding } from '../../src/domain/outposts';
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
-import { RELAY_SPEED_MULTIPLIER, outpostReachKm, routeMinutes } from '../constants';
+import { theatreMinutesPer1000Km } from '../../src/domain/blitz';
+import {
+  MINUTES_PER_1000_KM_ON_LAND,
+  MINUTES_PER_ROUTE_UNIT,
+  RELAY_SPEED_MULTIPLIER,
+  outpostReachKm,
+  routeMinutes,
+} from '../constants';
 import { pointOf } from './forces';
+import { blitzTheatreOf } from './theatre';
 
 /**
  * Design sheet 03, and the one road to a duration in the game: the departure and the preview both
@@ -32,5 +40,13 @@ export async function pacedMinutes(
       reachKm: outpostReachKm(outpost.level),
     }));
 
-  return routeMinutes(relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER }));
+  const costUnits = relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER });
+  /** **Une Blitz court à l'échelle de son théâtre** (B1), en secondes et non en minutes : un saut
+   *  de cent kilomètres y dure une demi-minute, que l'arrondi de la Mondiale portait à une. */
+  const theatre = await blitzTheatreOf(ctx, playerId);
+  if (theatre === null) return routeMinutes(costUnits);
+  const minutes =
+    (costUnits * MINUTES_PER_ROUTE_UNIT * theatreMinutesPer1000Km(theatre)) /
+    MINUTES_PER_1000_KM_ON_LAND;
+  return Math.max(1, Math.round(minutes * 60)) / 60;
 }

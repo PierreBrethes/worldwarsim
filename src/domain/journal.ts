@@ -1,4 +1,4 @@
-import { asLocalTime } from './duration';
+import { asClockTime, asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
@@ -320,6 +320,45 @@ function written(notice: Notice): Written {
         kind: 'productionCut',
         text: said.productionCut(notice.sites, countryLabel(notice.hostCountry)),
       };
+    case 'captureStarted':
+    case 'captureSucceeded':
+    case 'captureCancelled': {
+      const site =
+        notice.site.kind === 'building'
+          ? fr.capture.buildingSite(
+              fr.buildings[canonicalBuildingKey(notice.site.building)],
+              notice.regionName ?? '',
+            )
+          : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
+      const defending = notice.side === 'defender';
+      if (notice.kind === 'captureStarted') {
+        const until = asClockTime(notice.completesAt);
+        return {
+          at: notice.at,
+          severity: defending ? 'critical' : 'notable',
+          kind: defending ? 'captureThreat' : 'captureStarted',
+          text: defending ? said.captureThreat(site, until) : said.captureStarted(site, until),
+        };
+      }
+      if (notice.kind === 'captureSucceeded') {
+        return {
+          at: notice.at,
+          severity: defending ? 'critical' : 'notable',
+          kind: defending ? 'siteLost' : 'captured',
+          text: defending ? said.siteLost(site) : said.captured(site),
+        };
+      }
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'captureCancelled',
+        text: defending
+          ? said.captureLifted(site)
+          : notice.reason === 'gone'
+            ? said.captureVoid(site)
+            : said.captureAbandoned(site),
+      };
+    }
     case 'productionRestored':
       return {
         at: notice.at,
@@ -364,6 +403,13 @@ function written(notice: Notice): Written {
               : said.campSighted(fr.detectors[notice.detector], country),
       };
     }
+    case 'pursuitLost':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.pursuitLost(countryLabel(notice.hostCountry)),
+      };
     case 'firedDry':
       return {
         at: notice.at,
@@ -569,6 +615,7 @@ const fromCombat = (report: CombatReport): Written => ({
     mine: report.mine,
     theirs: report.theirs,
     outpostDisabled: report.outpostDisabled,
+    shock: report.shock === true,
   }),
   combat: report,
   place: report.point,
@@ -598,6 +645,8 @@ const ALARMS: ReadonlyArray<DispatchKind> = [
   'firedDry',
   'sighting',
   'productionCut',
+  'captureThreat',
+  'siteLost',
   'sitePlundered',
   'lootLost',
   /** Une cargaison coulée est une perte sèche, et la seule que la passe ne raconte pas. */

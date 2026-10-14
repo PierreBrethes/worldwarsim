@@ -47,7 +47,7 @@ const me = {
 } as unknown as PlayerView['me'];
 
 const view = (override: Partial<PlayerView> = {}): PlayerView =>
-  ({ arcs: [], camps: [], loadedAt: LOADED_AT, me, ...override }) as PlayerView;
+  ({ arcs: [], camps: [], captures: [], loadedAt: LOADED_AT, me, ...override }) as PlayerView;
 
 const building = (
   id: string,
@@ -81,6 +81,59 @@ const posterFor = (v: PlayerView, markers: ReadonlyArray<MapMarker>, id: string)
 
 const texts = (poster: Poster | null) => JSON.stringify(poster);
 
+const capture = (side: 'capturer' | 'defender', id: string): PlayerView['captures'][number] => ({
+  id: `c-${side}`,
+  side,
+  target: { kind: 'building', id },
+  site: { kind: 'building', building: 'foundry', regionId: 'r-plain' },
+  regionName: 'Marne',
+  point: [0, 0],
+  clock: { progress: 0.5, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+  completesAt: LOADED_AT + 1_800_000,
+  stoppedAt: null,
+});
+
+describe('a capture on the poster', () => {
+  it('tells the defender how far it went and when the site is lost', () => {
+    const poster = posterFor(
+      view({ captures: [capture('defender', 'b-foundry')] }),
+      [building('b-foundry', 'foundry', 'r-plain')],
+      'm-b-foundry',
+    );
+    expect(poster?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'capture',
+      chip: `50 % · perdu vers ${asClockTime(LOADED_AT + 1_800_000)}`,
+      tone: 'cut',
+    });
+  });
+
+  it('tells the capturer on the pile that holds the site', () => {
+    const pile: MapMarker = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'Marne',
+      plate: null,
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      ink: '#2f4f78',
+    };
+    const held = {
+      ...pile,
+      station: { kind: 'point', lonLat: [0, 0], country: 'FRA', afloat: false, coastal: false },
+    } as MapMarker;
+    const troops = [{ ...me.troops[0]!, stationedAt: (held as { station: unknown }).station }];
+    const poster = posterFor(
+      view({ captures: [capture('capturer', 'b-x')], me: { ...me, troops } as PlayerView['me'] }),
+      [held],
+      'pile',
+    );
+    expect(poster?.lines).toContainEqual(expect.objectContaining({ label: 'capture', tone: 'ok' }));
+  });
+});
+
 describe('posterOf', () => {
   it('reads my posted pile off the troops at its address, titled by its place', () => {
     const pile: MapMarker = {
@@ -102,6 +155,31 @@ describe('posterOf', () => {
 
     const empty = { ...pile, station: { kind: 'building', buildingId: 'b-foundry' } } as MapMarker;
     expect(posterFor(view(), [empty], 'pile')).toBeNull();
+  });
+
+  it('counts down the reload of a Blitz troop that struck', () => {
+    const pile: MapMarker = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'Marne',
+      plate: null,
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      ink: '#2f4f78',
+    };
+    const reloading = {
+      ...me,
+      troops: [{ ...me.troops[0]!, reloadUntil: LOADED_AT + 42_000 }],
+    } as PlayerView['me'];
+    expect(posterFor(view({ me: reloading }), [pile], 'pile')?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'rechargement',
+      chip: '0:42',
+      tone: 'cut',
+    });
+    expect(posterFor(view(), [pile], 'pile')?.lines).toEqual([]);
   });
 
   it('dates my movement by its arrival and fills the bar to its progress', () => {
@@ -313,5 +391,61 @@ describe('posterOf', () => {
       loading: null,
       pile: null,
     });
+  });
+});
+
+describe('the Blitz poster', () => {
+  it('says what a neutral city pays and that nobody holds it', () => {
+    const city = {
+      kind: 'installation',
+      id: 'n-city',
+      buildingId: 'city-1',
+      key: 'city',
+      regionId: 'r-plain',
+      name: 'Ville',
+      plate: null,
+      washed: false,
+      neutral: { lonLat: [2, 48] },
+    } as MapMarker;
+    expect(posterFor(view({ mode: 'blitz' }), [city], 'n-city')).toMatchObject({
+      eyebrow: 'neutre',
+      title: 'Ville',
+      lines: [
+        { kind: 'row', label: 'fonds', value: '+15/min' },
+        { kind: 'text', text: 'personne ne la tient — l’infanterie la capture' },
+      ],
+    });
+  });
+
+  it('adds the funds my HQ pays, in a Blitz only', () => {
+    const hq = building('b-hq', 'hq', 'r-plain', null, 1);
+    expect(posterFor(view({ mode: 'blitz' }), [hq], 'm-b-hq')!.lines).toEqual([
+      { kind: 'row', label: 'fonds', value: '+30/min' },
+    ]);
+    expect(posterFor(view({ mode: 'mondiale' }), [hq], 'm-b-hq')!.lines).toEqual([]);
+  });
+});
+
+describe('a mending pile', () => {
+  it('says on its poster that it is mending', () => {
+    const mending = {
+      ...me,
+      troops: me.troops.map((troop) => ({ ...troop, mending: true })),
+    } as PlayerView['me'];
+    const pile = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'garnison',
+      plate: null,
+      pieces: { groups: [], more: 0, spread: [] },
+      ink: '#2f4f78',
+    } as unknown as MapMarker;
+    const poster = posterFor(view({ me: mending }), [pile], 'pile');
+    expect(poster?.lines).toEqual([
+      { kind: 'chip', label: 'soin', chip: 'reprend des forces', tone: 'ok' },
+    ]);
   });
 });

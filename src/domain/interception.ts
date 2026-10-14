@@ -14,14 +14,6 @@ export type MarchingForce = {
   readonly arrivesAt: number;
 };
 
-export type MobileEncounter = {
-  readonly at: number;
-  readonly point: LonLat;
-  readonly withId: string;
-  readonly initiatorId: string;
-  readonly medium: Medium;
-};
-
 /**
  * How finely the two paths are walked. A closed form on two piecewise great-circle paths is a
  * quartic per pair of segments; the sampling is bounded, deterministic, and wrong by at most one
@@ -155,80 +147,6 @@ const legCost = (leg: RouteLeg, landCost = COST_BY_MEDIUM.land): number =>
   leg.medium === 'air'
     ? leg.distanceUnits
     : leg.distanceUnits * (leg.medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
-
-/**
- * The first mobile contact that may become a pass. Seeing is asymmetric; initiating is narrower:
- * the force must carry an order that engages and both columns must occupy the same medium.
- *
- * ⚠️ **Plus aucun appelant de production depuis le 13/09/2026** (ADR 0024 §3) : la rencontre en
- * route a été retirée du plateau — une colonne va où on l'envoie. La géométrie reste ici avec ses
- * tests parce que l'**intercepteur V1** la reprendra : c'est le même calcul, sous un ordre que le
- * joueur donnera. Ne pas la supprimer en croyant ranger du code mort.
- */
-export function firstMobileEncounter({
-  a,
-  b,
-  rangeA,
-  rangeB,
-  engagesA,
-  engagesB,
-  after = Math.max(a.departedAt, b.departedAt),
-  samples = INTERCEPTION_SAMPLES,
-}: {
-  a: MarchingForce;
-  b: MarchingForce;
-  rangeA: number;
-  rangeB: number;
-  engagesA: boolean;
-  engagesB: boolean;
-  after?: number;
-  samples?: number;
-}): MobileEncounter | null {
-  const from = Math.max(after, a.departedAt, b.departedAt);
-  const to = Math.min(a.arrivesAt, b.arrivesAt);
-  if (to < from || (!engagesA && !engagesB)) return null;
-
-  for (let index = 0; index <= samples; index += 1) {
-    const at = from + ((to - from) * index) / samples;
-    const mediumA = mediumAt(a, at);
-    const mediumB = mediumAt(b, at);
-    if (mediumA === null || mediumA !== mediumB) continue;
-    const pointA = positionAt(a, at);
-    const pointB = positionAt(b, at);
-    const km = distanceKm(pointA, pointB);
-    const aCan = engagesA && km <= rangeA;
-    const bCan = engagesB && km <= rangeB;
-    if (!aCan && !bCan) continue;
-
-    const initiator = chooseInitiator(a, b, rangeA, rangeB, aCan, bCan);
-    return {
-      at,
-      point: initiator.id === a.id ? pointA : pointB,
-      withId: initiator.id === a.id ? b.id : a.id,
-      initiatorId: initiator.id,
-      medium: mediumA,
-    };
-  }
-  return null;
-}
-
-const chooseInitiator = (
-  a: MarchingForce,
-  b: MarchingForce,
-  rangeA: number,
-  rangeB: number,
-  aCan: boolean,
-  bCan: boolean,
-): MarchingForce => {
-  if (!bCan) return a;
-  if (!aCan) return b;
-  if (rangeA !== rangeB) return rangeA > rangeB ? a : b;
-  if (a.departedAt !== b.departedAt) return a.departedAt < b.departedAt ? a : b;
-  if (a.createdAt !== undefined && b.createdAt !== undefined && a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? a : b;
-  }
-  return a;
-};
 
 /** The window in which one mobile detector sees another force in a compatible medium. */
 export function mobileSighting({

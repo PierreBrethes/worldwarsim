@@ -21,7 +21,7 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const HOUR = 3_600_000;
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
@@ -261,6 +261,46 @@ describe('what the view serves', () => {
 
     await advance(t, PRESS_EDITION_HOURS);
     expect(await deedsOf(me)).toBe(3);
+  });
+
+  /** Un bâtiment capturé (14/10) ne pend plus à l'ancre de son ancien tenant : que cet
+   *  avant-poste soit désactivé ne doit pas l'annuler chez son capteur. */
+  it('counts a captured building whatever befalls the outpost of its former owner', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const me = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
+    const you = await t.run(async (ctx) => (await seatIn(ctx, guest))._id);
+    const industryOf = async () =>
+      (await editions(t)).filter((row) => row.playerId === me).sort((a, b) => b.at - a.at)[0]!
+        .industry;
+    await advance(t, PRESS_EDITION_HOURS);
+    const before = await industryOf();
+
+    await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(me))!.seasonId;
+      const outpostId = await ctx.db.insert('outposts', {
+        seasonId,
+        playerId: you,
+        point: { lon: 26, lat: 45 },
+        hostCountry: 'ROU',
+        level: 1,
+        specialization: 'relay',
+        foundedAt: Date.now() - HOUR,
+        disabledUntil: Date.now() + 99 * HOUR,
+        immuneUntil: null,
+      });
+      await ctx.db.insert('buildings', {
+        seasonId,
+        playerId: me,
+        key: 'barracks',
+        regionId: 'ROU-310',
+        level: 1,
+        outpostId,
+        capturedAt: Date.now(),
+      });
+    });
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await industryOf()).toBeGreaterThan(before);
   });
 
   /** L'édition finale ne promet pas de suite : « prochaine édition » y serait un rendez-vous

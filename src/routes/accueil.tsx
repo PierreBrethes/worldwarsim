@@ -3,15 +3,18 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel, placeLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
+import { SEASON_MODES, type SeasonMode } from '@/domain/season-mode';
+import { THEATRES, type Theatre, type TheatreId } from '@/domain/theatres';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
 import { TOUCH_TARGET } from '@/shell/EntrySheet';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
+import { WORLD_LAND_PATH } from '@/emblems/world-land';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
@@ -72,23 +75,6 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
   );
 }
 
-/** `null` = sans horloge (révision du 27/08 de l'ADR 0017). Le serveur accepte toujours les
- *  trois valeurs : c'est l'écran qui a cessé d'en proposer une. */
-type Clock = 48 | 168 | null;
-
-/**
- * **Ce que fonder décide à la place du joueur** (décision du 31/08). L'écran ne pose plus la
- * question ; l'horloge optionnelle et les théâtres restent entiers côté serveur — `seasons.create`
- * garde ses arguments et une saison à 48 h reste fondable par l'API. Rouvrir le choix, c'est
- * relire ces deux lignes, pas fouiller.
- */
-const FOUNDED_CLOCK: Clock = null;
-
-/** **`seasons.create` n'en prend pas** : le théâtre tombe de `playableRegion(présents)` au
- *  lancement, et 2–3 joueurs donnent l'Europe. La constante est là pour que la phrase de la
- *  carte et ce qu'on obtient se lisent au même endroit. */
-const FOUNDED_REGION: PlayableRegion = 'europe';
-
 function ConnectedHome() {
   const navigate = useNavigate();
   const { turning, turn } = usePageTurn();
@@ -98,6 +84,8 @@ function ConnectedHome() {
   const logout = useMutation(api.accounts.logout);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<SeasonMode>('mondiale');
+  const [theatre, setTheatre] = useState<TheatreId>('europe');
   const [resuming, setResuming] = useState<Seat | null>(null);
   /** Le compte est déjà garanti par la racine (`__root.tsx`) : sans session valide, cette
    *  feuille n'est pas montée. La chaîne vide n'arme donc rien, elle satisfait le type. */
@@ -139,8 +127,9 @@ function ConnectedHome() {
       try {
         const { seasonId } = await create({
           token,
-          durationHours: FOUNDED_CLOCK,
           compensation: 0.5,
+          mode,
+          ...(mode === 'blitz' ? { theatre } : {}),
         });
         keepSeat(seasonId);
         toLobby();
@@ -195,9 +184,51 @@ function ConnectedHome() {
         <div className="mx-(--sheet-pad) mt-6 flex flex-col items-stretch border-t border-[var(--ink)] @md:flex-row">
           <form onSubmit={submitCreate} className="flex-1 pt-4 pb-1 @md:pr-[26px]">
             <Title numeral="I" title={fr.home.foundTitle} />
-            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">
-              {fr.home.foundNote(regionNameOf(FOUNDED_REGION))}
-            </p>
+            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.foundNote}</p>
+
+            <div
+              role="radiogroup"
+              aria-label={fr.modes.modeLabel}
+              className="mt-3 flex flex-col gap-2"
+            >
+              {SEASON_MODES.map((candidate) => (
+                <ChoiceCard
+                  key={candidate}
+                  selected={mode === candidate}
+                  onSelect={() => setMode(candidate)}
+                  title={fr.modes[candidate].name}
+                  line={fr.modes[candidate].line}
+                />
+              ))}
+            </div>
+
+            {mode === 'blitz' && (
+              <div className="mt-3">
+                <div className="eyebrow">{fr.modes.theatreLabel}</div>
+                <div
+                  role="radiogroup"
+                  aria-label={fr.modes.theatreLabel}
+                  className="mt-[6px] grid grid-cols-2 gap-2"
+                >
+                  {THEATRES.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={theatre === candidate.id}
+                      onClick={() => setTheatre(candidate.id)}
+                      className={`cursor-pointer p-2 text-left ${choiceClass(theatre === candidate.id)}`}
+                    >
+                      <TheatreMap theatre={candidate} />
+                      <span className="mt-1 block text-[11px] tracking-[.14em] uppercase">
+                        {fr.modes.theatres[candidate.id]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10.5px] text-[var(--ink-note)]">{fr.modes.theatreNote}</p>
+              </div>
+            )}
 
             <Commit active={!pending} type="submit">
               {fr.home.foundSubmit}
@@ -280,7 +311,11 @@ function ConnectedHome() {
 
       {resuming && (
         <LaunchSequence
-          region={regionNameOf(resuming.playableRegion)}
+          region={placeLabel(
+            resuming.mode,
+            resuming.theatre,
+            regionNameOf(resuming.playableRegion),
+          )}
           pace={clockLabel(resuming.durationHours)}
           players={resuming.players}
           onEnd={toBoard}
@@ -325,9 +360,15 @@ function GameRow({
           </span>
           <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
             <span>
-              {standingOf(seat)} · {regionNameOf(seat.playableRegion)}
+              {standingOf(seat)} ·{' '}
+              {placeLabel(seat.mode, seat.theatre, regionNameOf(seat.playableRegion))}
+              {seat.mode === 'blitz' && ` · ${clockLabel(seat.durationHours)}`}
             </span>
-            <span className="text-[var(--notable)]">{fr.common.players(seat.players)}</span>
+            <span className="text-[var(--notable)]">
+              {seat.status === 'lobby'
+                ? fr.modes.seats(seat.players, seat.maximum)
+                : fr.common.players(seat.players)}
+            </span>
             {seat.creator && (
               <span className="text-[10px] tracking-[.14em] text-[var(--paper-dim)] uppercase">
                 {fr.lobby.founder}
@@ -391,6 +432,66 @@ function Title({ numeral, title }: { numeral: string; title: string }) {
       </span>
       <h2 className="font-(family-name:--font-display) text-[21px] font-bold">{title}</h2>
     </div>
+  );
+}
+
+const choiceClass = (selected: boolean): string =>
+  `border ${selected ? 'border-[var(--ink)] bg-(--ink)/10' : 'border-(color:--ink)/30'}`;
+
+function ChoiceCard({
+  selected,
+  onSelect,
+  title,
+  line,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  title: string;
+  line: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`cursor-pointer p-[10px] text-left ${choiceClass(selected)}`}
+    >
+      <span className="block text-[12px] tracking-[.2em] uppercase">{title}</span>
+      <span className="mt-[2px] block text-[11px] text-[var(--ink-note)]">{line}</span>
+    </button>
+  );
+}
+
+/** The world's coasts with the theatre's box inked on it; a box past 180° wraps to the west edge. */
+function TheatreMap({ theatre }: { theatre: Theatre }) {
+  const { west, south, east, north } = theatre.box;
+  const y = 90 - north;
+  const height = north - south;
+  const rects =
+    east > 180
+      ? [
+          [west + 180, 360 - (west + 180)],
+          [0, east - 180],
+        ]
+      : [[west + 180, east - west]];
+  return (
+    <svg viewBox="0 0 360 180" aria-hidden className="block w-full border border-(color:--ink)/30">
+      <path d={WORLD_LAND_PATH} fill="currentColor" fillOpacity={0.22} />
+      {rects.map(([x, width]) => (
+        <rect
+          key={x}
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          fill="currentColor"
+          fillOpacity={0.35}
+          stroke="currentColor"
+          strokeWidth={3}
+        />
+      ))}
+    </svg>
   );
 }
 

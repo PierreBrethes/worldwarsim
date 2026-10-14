@@ -6,8 +6,8 @@
  * **Il n'y a pas d'intelligence artificielle, et c'est tout l'intérêt.** Une garnison locale est
  * une force posée qui défend le sol où elle se tient et n'ordonne jamais rien — la définition mot
  * pour mot de l'ADR 0019 §3. Elle appartient à un `players` marqué `irregular`, ses troupes sont
- * des `troops` ordinaires, elle se relève comme toute force posée (ADR 0024 §1), elle tire dans
- * la même passe simultanée (ADR 0014) et elle meurt de la même façon. Rien de tout cela n'est
+ * des `troops` ordinaires, elle se relève comme toute force posée (ADR 0024 §1), elle riposte dans
+ * la même passe à l'initiative (ADR 0014) — protégée, c'est une garnison — et elle meurt de la même façon. Rien de tout cela n'est
  * écrit ici : c'est le moteur qui existait déjà.
  *
  * Ce que ce module ajoute au jeu tient en une phrase : **attaquer rapporte**, avant que le front
@@ -318,7 +318,10 @@ async function raise(
  * *absent* vaut « entré à l'ouverture » (`warEntryOf`), donc le silence en aurait fait un
  * belligérant de plus au classement et à la presse.
  */
-async function irregularSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<Id<'players'>> {
+export async function irregularSeat(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Id<'players'>> {
   const already = (
     await ctx.db
       .query('players')
@@ -348,7 +351,7 @@ async function irregularSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise
  * règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
  * aucune chaîne, aucun entretien (`upkeepOf` l'ignore).
  */
-async function endowIrregular(
+export async function endowIrregular(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   at: number,

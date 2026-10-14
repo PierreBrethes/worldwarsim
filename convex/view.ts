@@ -55,6 +55,7 @@ import { restHold } from './movements';
 import {
   capitalRegionOf,
   foundationOwedBy,
+  pointOfBuilding,
   homeCountryOf,
   regionFacts,
   regionOfOutpost,
@@ -65,11 +66,15 @@ import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { isAtWar, playerOf, requireStarted, seatsOf, warEntryOf } from './seats';
+import { modeOf } from '../src/domain/season-mode';
+import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
+import { asWounded, fundsOf, ownedTroopsOnSite } from './blitz';
+import { fundsAt, mendPlan } from '../src/domain/blitz';
 
 /** La clé d'une ligne de file telle que l'écran la lit : un `depot` historique reprend son nom
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
@@ -89,6 +94,21 @@ export const playerView = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: (ctx, { token, seasonId }) => viewOf(ctx, token, seasonId),
 });
+
+/**
+ * **Où la carte s'ouvre** : le centre du théâtre en Blitz, la capitale de 1940 ailleurs. Distinct
+ * de `capitalPoint`, qui reste la capitale pour le repli « chez soi » — en Blitz le quartier
+ * général sera posé par le générateur, pas sur le sol national.
+ */
+function openingPointOf(season: Doc<'seasons'>, nation: string | null): LonLat | null {
+  const theatre = season.theatre === undefined ? null : theatreById(season.theatre);
+  if (modeOf(season.mode) === 'blitz' && theatre !== null) return theatreCenter(theatre);
+  return capitalPointOf(nation);
+}
+
+function capitalPointOf(nation: string | null): LonLat | null {
+  return isNation(nation) ? (regionFacts(capitalRegionOf(nation))?.point ?? null) : null;
+}
 
 /**
  * **La vue d'un joueur, en fonction.** `playerView` n'est plus qu'une porte : l'export de la
@@ -124,7 +144,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * the map: a barracks needs no deposit, so an empty region is a site now, and the panel
    * cannot offer what it was never told about.
    */
-  const home = homeCountryOf(player.nation);
+  const blitz = modeOf(season.mode) === 'blitz';
+  /** En Blitz personne ne joue chez soi : le sol qu'on lit est celui de ses bâtiments. */
+  const home = blitz ? null : homeCountryOf(player.nation);
   const carrying = new Map(
     (home === null ? [] : regionsOf(home)).map((facts) => [facts.id, facts]),
   );
@@ -200,6 +222,17 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
+  const funds = blitz ? await fundsServed(ctx, player, now) : null;
+  const headquarters = buildings.find((building) => building.key === 'hq');
+  const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
+  /** Le soin de la Blitz se lit sur la même règle que le travail qui l'applique (`blitz.mend`). */
+  const mending = new Set<string>(
+    funds === null
+      ? []
+      : mendPlan((await ownedTroopsOnSite(ctx, player._id)).map(asWounded), funds.stock).map(
+          (step) => step.troop.id,
+        ),
+  );
 
   /**
    * A troop attached to a building that no longer stands **comes home** — it is not lost,
@@ -388,6 +421,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       progress: 0,
       restWindow: player.restWindow,
       resources: snapshotAll(economy),
+      /** **Les fonds de la Blitz**, réglés à `loadedAt` avec leur débit ; `null` en Mondiale. */
+      funds,
       /**
        * The three chains and what each one is doing — the industry window's whole reason to
        * exist. The state comes out of the settlement itself (`settleStocks`), never out of a
@@ -440,12 +475,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * des régions, côté serveur — et la position du pays ne convient pas : elle tombe au
        * centre des États-Unis, à deux mille kilomètres de Washington.
        *
-       * Servi toujours, lu seulement à `hqLevel === 0` : un cadrage n'est pas un secret, et un
-       * champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
+       * Servi toujours, lu seulement par le repli « chez soi » : un cadrage n'est pas un secret, et
+       * un champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
        */
-      capitalPoint: isNation(player.nation)
-        ? (regionFacts(capitalRegionOf(player.nation))?.point ?? null)
-        : null,
+      capitalPoint: capitalPointOf(player.nation),
+      /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». En
+       *  Blitz, le QG que la carte de départ a posé. */
+      openingPoint:
+        (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and
@@ -483,7 +520,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * off the ground, and a season whose foundation is not placed is a state the screen has
        * to be able to say out loud.
        */
-      foundation: foundationOwedBy(player, buildings),
+      foundation: blitz ? [] : foundationOwedBy(player, buildings),
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
@@ -611,6 +648,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
+         *  compte à rebours, que la pièce égrène seule. */
+        ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
+          ? { reloadUntil: troop.reloadUntil }
+          : {}),
+        mending: mending.has(troop._id),
       })),
       stationedCargo: stationedCargo.map((group) => ({
         troopIds: group.troopIds,
@@ -702,6 +745,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         point: engagement.point,
         outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
+        shock: engagement.shock === true,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         /**
@@ -773,25 +817,27 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           return troop === undefined ? [] : [troop];
         });
         const mission =
-          movement.plunder !== undefined
-            ? {
-                kind: 'plunder' as const,
-                phase: movement.plunder.phase,
-                buildingId: movement.plunder.buildingId,
-                presenceEndsAt:
-                  movement.plunder.phase === 'presence' ? movement.plunder.until : null,
-              }
-            : movement.lootCollection !== undefined
+          movement.pursuit !== undefined
+            ? { kind: 'pursuit' as const }
+            : movement.plunder !== undefined
               ? {
-                  kind: 'collection' as const,
-                  sightingId: movement.lootCollection.sightingId,
+                  kind: 'plunder' as const,
+                  phase: movement.plunder.phase,
+                  buildingId: movement.plunder.buildingId,
+                  presenceEndsAt:
+                    movement.plunder.phase === 'presence' ? movement.plunder.until : null,
                 }
-              : movement.lootDelivery !== undefined
+              : movement.lootCollection !== undefined
                 ? {
-                    kind: 'cargoReturn' as const,
-                    regionId: movement.lootDelivery.regionId,
+                    kind: 'collection' as const,
+                    sightingId: movement.lootCollection.sightingId,
                   }
-                : null;
+                : movement.lootDelivery !== undefined
+                  ? {
+                      kind: 'cargoReturn' as const,
+                      regionId: movement.lootDelivery.regionId,
+                    }
+                  : null;
         return {
           id: movement._id,
           type: movement.type,
@@ -898,6 +944,41 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * Public est ce qui fait converger : une réserve que chacun découvrirait dans son coin ferait
      * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
      */
+    mode: modeOf(season.mode),
+    /** Le cadre d'une Blitz, que la carte dessine et que la rose ne franchit pas (B1). */
+    theatre: modeOf(season.mode) === 'blitz' ? (season.theatre ?? null) : null,
+    /**
+     * **Les bâtiments neutres de la Blitz, publics comme les objectifs** : on sait où aller et ce
+     * qu'il y a à prendre, et il n'y a personne à relever — ils ne sont pas gardés (B8).
+     */
+    neutralSites: blitz ? await neutralSitesOf(ctx, season._id, player._id) : [],
+    /**
+     * **Les captures qui me regardent**, des deux côtés (décision du 14/10) : celles que je mène,
+     * arrêtées comprises le temps d'une capture entière — c'est ce que « à faire maintenant »
+     * relance —, et celles qui visent mes sites. Celles-là ne disent jamais qui capture : il n'y
+     * a pas de champ pour lui.
+     */
+    captures: [
+      ...(
+        await ctx.db
+          .query('captures')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      )
+        .filter(
+          (capture) =>
+            capture.stoppedAt === undefined || now - capture.stoppedAt < capture.durationMs,
+        )
+        .map((capture) => captureView(capture, 'capturer')),
+      ...(
+        await ctx.db
+          .query('captures')
+          .withIndex('byDefender', (q) => q.eq('defenderId', player._id))
+          .collect()
+      )
+        .filter((capture) => capture.stoppedAt === undefined)
+        .map((capture) => captureView(capture, 'defender')),
+    ],
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,
@@ -1100,6 +1181,13 @@ function named(notice: PlayableNotice) {
         ...notice,
         regionName: notice.regionId === null ? null : nameOf(notice.regionId),
       };
+    case 'captureStarted':
+    case 'captureSucceeded':
+    case 'captureCancelled':
+      return {
+        ...notice,
+        regionName: notice.site.kind === 'building' ? nameOf(notice.site.regionId) : null,
+      };
     case 'recruitmentDelivered':
       return {
         ...notice,
@@ -1113,6 +1201,28 @@ function named(notice: PlayableNotice) {
   }
 }
 
+const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') => ({
+  id: capture._id as string,
+  side,
+  target:
+    capture.target.kind === 'building'
+      ? { kind: 'building' as const, id: capture.target.buildingId as string }
+      : { kind: 'outpost' as const, id: capture.target.outpostId as string },
+  site: capture.site,
+  regionName:
+    capture.site.kind === 'building' ? (regionFacts(capture.site.regionId)?.name ?? null) : null,
+  point: [capture.point.lon, capture.point.lat] as LonLat,
+  clock: {
+    progress: capture.progress,
+    at: capture.progressAt,
+    rate: capture.rate,
+    durationMs: capture.durationMs,
+    rest: capture.rest,
+  },
+  completesAt: capture.completesAt,
+  stoppedAt: capture.stoppedAt ?? null,
+});
+
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
  *  point of the region it names. One computation for every kind — a kind added to the schema with
  *  either field is located without a line here. */
@@ -1120,7 +1230,7 @@ function placed(notice: PlayableNotice) {
   const regionId =
     'regionId' in notice
       ? notice.regionId
-      : 'site' in notice && notice.site !== null
+      : 'site' in notice && notice.site !== null && 'regionId' in notice.site
         ? notice.site.regionId
         : null;
   const centre = regionId === null ? undefined : regionFacts(regionId)?.point;
@@ -1284,3 +1394,39 @@ async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promi
  */
 const siteRef = (site: Site | null): { readonly outpostId: Id<'outposts'> | null } | null =>
   site === null ? null : { outpostId: site.kind === 'home' ? null : site.outpostId };
+
+async function fundsServed(ctx: QueryCtx, player: Doc<'players'>, now: number) {
+  const funds = await fundsOf(ctx, player, now);
+  return { stock: fundsAt(funds, now), perMinute: funds.perMinute };
+}
+
+/**
+ * **Les neutres de départ, figés** : un neutre pris par un autre reste neutre chez moi tant que je
+ * n'ai pas relevé sa région tenue (`regionSightings.ownerId`) ; le capteur, lui, le lit à lui.
+ */
+async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<'players'>) {
+  const starting = (
+    await ctx.db
+      .query('buildings')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect()
+  ).filter((building) => building.startedNeutral === true && building.playerId !== playerId);
+  const served = [];
+  for (const building of starting) {
+    const survey = await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerRegion', (q) =>
+        q.eq('playerId', playerId).eq('regionId', building.regionId),
+      )
+      .unique();
+    const point = pointOfBuilding(building);
+    if ((survey?.ownerId ?? null) !== null || point === null) continue;
+    served.push({
+      id: building._id,
+      key: canonicalBuildingKey(building.key),
+      regionId: building.regionId,
+      point,
+    });
+  }
+  return served;
+}

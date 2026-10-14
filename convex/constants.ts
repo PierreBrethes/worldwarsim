@@ -12,6 +12,7 @@
  * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
  */
 
+import type { SeasonMode } from '../src/domain/season-mode';
 import type {
   BuildCostKey,
   BuildingKey,
@@ -21,6 +22,7 @@ import type {
 } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
 import type { Conversion, FoundationDebt } from '../src/domain/economy';
+import { MODE_RULES } from '../src/domain/season-mode';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
 
@@ -108,6 +110,8 @@ export const BUILDING_SPEC: Readonly<
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
+  // La ville de la Blitz ne se bâtit pas (`BUILDABLE_BUILDINGS`) : le barème l'exige, rien ne le lit.
+  city: { cost: {}, minutes: 0 },
 };
 
 /**
@@ -139,6 +143,7 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   listening: 2,
   airfield: 2,
   port: 2,
+  city: 1,
 };
 
 /**
@@ -595,15 +600,15 @@ export const DAMAGE_TABLE: DamageTable = {
  * `CLAUDE.md` forbids a rule reading it without its own ADR; and **the pincer** (×1.20),
  * because "two converging movements" is one number and three undecided definitions.
  *
- * **C'est le seul avantage qui reste au défenseur** depuis que les deux camps tirent ensemble
- * (ADR 0014, révision 1b du 16/09/2026) : plus d'initiative, donc ce facteur dit à lui seul ce
- * que coûte une attaque frontale. Il s'applique deux fois dans `resolveEngagement` — divisé chez
- * l'attaquant, multiplié chez le défenseur, ×1,32 d'écart réel — et ce doublon est relu quand on
- * chiffre terrain et retranchement (Registre 29-30).
+ * **Une protection, à la Advance Wars** (décision de Pierre du 14/10/2026, C1) : depuis que
+ * l'attaquant a l'initiative, la défense n'a plus que ses murs. Une troupe en garnison d'un
+ * bâtiment, d'un avant-poste debout et en service ou d'un objectif **encaisse** cette part de
+ * chaque coup, et riposte sans multiplicateur ; une pile posée en terrain libre ou en mer encaisse
+ * tout. Le mur protège ce qu'il abrite : il ne tire pas.
  *
  * @a-mesurer rapport pertes attaquant / défenseur par engagement sur une saison
  */
-export const DEFENDER_BONUS = 1.15;
+export const GARRISON_DAMAGE_TAKEN = 0.7;
 
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
@@ -614,7 +619,7 @@ export const DRY_AMMUNITION_FACTOR = 0.6;
 
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
-  defenderBonus: DEFENDER_BONUS,
+  garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
   strengthPerRound: STRENGTH_PER_ROUND,
   dryFactor: DRY_AMMUNITION_FACTOR,
@@ -658,6 +663,33 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
  * @a-mesurer an assumed starting point; nothing measures how close is close enough on arrival
  */
 export const ARRIVAL_RADIUS_KM = 25;
+
+/**
+ * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
+ * le déclenche pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne.
+ *
+ * @a-mesurer toute la table ; rien n'a encore joué une soirée
+ */
+export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
+  infantry: 40,
+  armor: 60,
+  landTransport: 45,
+  fighter: 50,
+  bomber: 90,
+  airTransport: 60,
+  escort: 60,
+  cargo: 60,
+  carrier: 75,
+};
+
+/**
+ * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
+ * Le contact se date entre deux regards (`contactAt`), donc ce pas ne borne que la réaction à un
+ * changement de cap.
+ *
+ * @a-mesurer à 200 km/min, quinze secondes font cinquante kilomètres
+ */
+export const PURSUIT_STEP_SECONDS = 15;
 
 /**
  * **How far a listening station hears what moves** — design sheet 04's second detector.
@@ -721,6 +753,18 @@ export const OUTPOST_IMMUNITY_HOURS = 3;
  */
 export const PLUNDER_HOURS_PRESENT = 2;
 export const PLUNDER_DISABLED_HOURS = 12;
+
+/**
+ * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du
+ * 14/10). Une troupe entamée va au prorata de sa force (`captureRate`), et en Mondiale la plage de
+ * repos du défenseur ne compte pas. Le QG n'est pas ici : sa capture élimine, c'est un autre lot.
+ *
+ * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, jamais joués
+ */
+export const CAPTURE_MINUTES = {
+  mondiale: { building: 360, outpost: 360 },
+  blitz: { building: 3, outpost: 3 },
+} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>>;
 
 /**
  * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une
@@ -813,8 +857,7 @@ export const MINUTES_PER_ROUTE_UNIT =
 export const routeMinutes = (costUnits: number): number =>
   Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
 
-export const MAX_PLAYERS = 8;
-export const MIN_PLAYERS_TO_LAUNCH = 2;
+export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
 
 /**
  * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
@@ -1036,3 +1079,65 @@ export const OBJECTIVE_HARD_MAX = 4;
  * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
  */
 export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;
+
+/**
+ * **L'économie de la Blitz, en une table** (lot 4 des deux modes, 14/10). Une seule ressource,
+ * les fonds, versée par minute par les villes et le QG tenus ; caserne, port et aérodrome
+ * forment, ils ne rapportent rien. La carte de départ se tire au lancement dans le théâtre
+ * (`src/domain/blitz-placement.ts`) : un QG et une caserne par joueur, le reste neutre.
+ *
+ * @a-mesurer toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule
+ * paie deux fantassins, une ville en paie un toutes les quatre minutes ; rien n'a été joué
+ */
+export const BLITZ = {
+  startingFunds: 200,
+  fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>,
+  rolePrice: {
+    infantry: 60,
+    landTransport: 90,
+    armor: 180,
+    fighter: 200,
+    bomber: 260,
+    airTransport: 150,
+    escort: 200,
+    cargo: 140,
+    carrier: 320,
+  } as Readonly<Record<UnitRole, number>>,
+  recruitMinutes: 1,
+  /** « À faire maintenant » montre les villes neutres à cette distance d'un de mes bâtiments. */
+  nearCityKm: 600,
+  /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
+  troopBound: 80,
+  mend: {
+    stepMinutes: 1,
+    /** La part de la force nominale rendue à chaque pas. */
+    sharePerStep: 0.1,
+    /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */
+    priceShare: 0.5,
+  },
+  map: {
+    /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
+    hqRing: 0.45,
+    /** Combien de tours de table on essaie (E6 : une douzaine) avant de refuser le lancement. */
+    hqTries: 12,
+    /** Combien de régions, des plus proches de la place du cercle, on éprouve pour un QG. */
+    hqScan: 40,
+    /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */
+    hqEvenness: 0.6,
+    /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */
+    tolerance: 0.35,
+    /** La caserne de départ, à soi, à cette distance de route du QG. */
+    starting: [{ key: 'barracks', km: 120 }],
+    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous. */
+    near: [
+      { key: 'city', km: 250 },
+      { key: 'city', km: 450 },
+      { key: 'port', km: 350 },
+      { key: 'airfield', km: 400 },
+    ],
+    /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */
+    disputed: ['city', 'airfield'],
+    spreadKm: 80,
+    fairness: 0.8,
+  } as const,
+} as const;

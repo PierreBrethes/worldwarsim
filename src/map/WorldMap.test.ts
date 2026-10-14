@@ -23,7 +23,7 @@ describe('targetOfLabel', () => {
       reach: null,
       ink: '#000',
     };
-    const view = { arcs: [], loadedAt: 0 } as unknown as PlayerView;
+    const view = { arcs: [], captures: [], loadedAt: 0 } as unknown as PlayerView;
     const labels = buildLabels(view, [marker]);
     expect(labels).toHaveLength(1);
     const label = labels[0]!;

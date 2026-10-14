@@ -2,7 +2,7 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel, placeLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
 import { Wordmark } from '@/shell/Masthead';
 import { NATIONS } from '@/domain/nations';
@@ -96,7 +96,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
     ...(entering ? [] : [{ label: fr.lobby.checkAllReady, done: allReady }]),
   ];
   const missing = checks.filter((check) => !check.done).length;
-  const freeSeats = entering ? 0 : Math.min(2, 8 - lobby.players.length);
+  const freeSeats = entering ? 0 : Math.min(2, lobby.maximum - lobby.players.length);
   const freeNations = NATIONS.filter((nation) => holderOf(nation) === undefined).length;
   const registrationNote =
     lobby.status === 'lobby'
@@ -141,7 +141,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               <span className="eyebrow">
                 {entering ? fr.lobby.enterWarHeader : fr.lobby.header(pace)}
               </span>
-              <span className="eyebrow">{fr.lobby.regionLabel(regionName)}</span>
+              <span className="eyebrow">{placeLabel(lobby.mode, lobby.theatre, regionName)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -181,7 +181,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   {linkCopied ? fr.lobby.linkCopied : fr.lobby.copyLink}
                 </button>
                 <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-note)]">
-                  {fr.lobby.participantCount(lobby.players.length)}
+                  {fr.lobby.participantCount(lobby.players.length, lobby.maximum)}
                 </div>
               </div>
             </div>
@@ -327,13 +327,18 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   ))}
                 </ul>
 
-                <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
-                  {fr.lobby.restHeader}
-                </div>
-                <RestWindowForm seat={seat} declared={lobby.me.restWindow} onError={setError} />
-                <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
-                  {fr.lobby.restNote}
-                </p>
+                {/* Pas de plage de repos en Blitz (B2) : la table est présente, à heure convenue. */}
+                {lobby.mode !== 'blitz' && (
+                  <>
+                    <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
+                      {fr.lobby.restHeader}
+                    </div>
+                    <RestWindowForm seat={seat} declared={lobby.me.restWindow} onError={setError} />
+                    <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
+                      {fr.lobby.restNote}
+                    </p>
+                  </>
+                )}
 
                 <div className="mt-4 flex flex-col gap-1">
                   {checks.map((check) => (
@@ -434,6 +439,11 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                 {error}
               </p>
             )}
+            {lobby.status === 'lobby' && lobby.launchRefusal !== null && (
+              <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+                {fr.errors[lobby.launchRefusal]()}
+              </p>
+            )}
 
             <div className="mx-(--sheet-pad) mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
               <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>
@@ -447,7 +457,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
 
       {launching && (
         <LaunchSequence
-          region={regionName}
+          region={placeLabel(lobby.mode, lobby.theatre, regionName)}
           pace={pace}
           players={lobby.players.length}
           onEnd={toBoard}

@@ -13,6 +13,8 @@ import { NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { SeasonMode } from '../domain/season-mode';
+import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -61,9 +63,32 @@ const startsWithVowel = (word: string): boolean => 'aeiouyâàéèêîôû'.incl
 /** One decimal at most, and never a trailing `.0`: rates come out of a settlement, not a table. */
 const tenths = (value: number): string => String(Math.round(value * 10) / 10);
 
+/** A factor as the table prints it: ×1.15 is not ×1.2, and the bonus is read before it is paid. */
+const factor = (value: number): string => String(Math.round(value * 100) / 100);
+
 /** "a, b et c" — the French list, the last conjunction spelled rather than commaed. */
 const andList = (items: ReadonlyArray<string>): string =>
   items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} et ${items.at(-1)}`;
+
+/**
+ * **La passe en deux temps** (B16) : la frappe de l'attaquant, puis la riposte de ce qui reste en
+ * face. Les pertes d'un camp sont toutes de l'autre temps — c'est l'initiative —, donc le compte
+ * rendu suffit à les répartir sans rien servir de plus.
+ */
+const combatBeats = (
+  attacking: boolean,
+  mineLost: number,
+  theirsLost: number,
+  shock = false,
+): string => {
+  /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
+  if (shock)
+    return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
+  const [strike, riposte] = attacking ? [theirsLost, mineLost] : [mineLost, theirsLost];
+  const answer =
+    riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
+  return `${attacking ? 'notre' : 'leur'} frappe en abat ${strike}, ${answer}`;
+};
 
 export const fr = {
   nations: {
@@ -181,6 +206,7 @@ export const fr = {
     billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
+    city: 'Ville',
   } satisfies Record<BuildingKey, string>,
 
   /**
@@ -205,6 +231,7 @@ export const fr = {
     billets: 'm',
     warehouse: 'm',
     depot: 'm',
+    city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
@@ -223,6 +250,7 @@ export const fr = {
     billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des huit ressources — se pille',
     depot: 'relève le plafond des huit ressources — se pille',
+    city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
@@ -230,6 +258,54 @@ export const fr = {
     'europe-med': 'Europe + Méditerranée + Moyen-Orient',
     world: 'Monde',
   } satisfies Record<PlayableRegion, string>,
+
+  /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
+  blitz: {
+    funds: 'fonds',
+    neutral: 'neutre',
+    neutralSite: (region: string) => `neutre · ${region}`,
+    unguarded: 'personne ne la tient — l’infanterie la capture',
+    perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
+    siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
+    fundsHeld: (funds: number) => `${num(funds)} fonds en caisse`,
+    price: (funds: number) => `${num(funds)} fonds`,
+    terms: (funds: number, minutes: number) => `${num(funds)} fonds · prêt en ${num(minutes)} min`,
+    recruit: (funds: number) => `former — ${num(funds)} fonds`,
+    short: (missing: number) => `il manque ${num(missing)} fonds`,
+    mend: 'soin',
+    formsIn: (sites: ReadonlyArray<string>) =>
+      `se forme dans ${sites.join(' ou dans ')}, contre des fonds`,
+    mending: (count: number) =>
+      count > 1 ? `${num(count)} troupes reprennent des forces` : 'reprend des forces',
+    mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
+    mendNote:
+      'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    fundsLabel: (stock: number, perMinute: number) =>
+      `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
+  },
+
+  modes: {
+    blitz: {
+      name: 'Blitz',
+      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
+    },
+    mondiale: {
+      name: 'Mondiale',
+      line: '7 jours · 2 à 8 joueurs, deux ou trois visites par jour · le monde entier',
+    },
+    modeLabel: 'mode',
+    theatreLabel: 'théâtre',
+    theatreNote: 'La carte s’ouvre cadrée sur ce théâtre.',
+    theatres: {
+      europe: 'Europe',
+      mediterranean: 'Méditerranée',
+      pacific: 'Pacifique',
+      americas: 'Amériques',
+    } satisfies Record<TheatreId, string>,
+    seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
+    summary: (mode: string, theatre: string | null) =>
+      theatre === null ? mode : `${mode} · ${theatre}`,
+  },
 
   regionTypes: {
     plain: 'plaine',
@@ -244,6 +320,20 @@ export const fr = {
     relay: 'relais logistique',
     listening: 'écoute',
   } satisfies Record<Specialization, string>,
+
+  /** **La capture** (décision du 14/10) — jamais « prise ». */
+  capture: {
+    buildingSite: (building: string, region: string) => `${building} de ${region}`,
+    outpostSite: (level: number, country: string) =>
+      `l’avant-poste de niveau ${level} — ${country}`,
+    /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
+    stamp: 'capture',
+    endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
+    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    underCapture: 'en cours de capture',
+    underCaptureWhy: (hour: string) =>
+      `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
+  },
 
   loot: {
     markerCurrent: 'caisse relevée',
@@ -372,6 +462,12 @@ export const fr = {
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
+    BLITZ_STARTED: () => 'la Blitz est lancée — elle se joue entre ceux qui étaient là',
+    BLITZ_FULL: (d) =>
+      `cette Blitz est complète : elle se joue à ${num(d.maximum)} joueurs au plus`,
+    THEATRE_REQUIRED: () => 'une Blitz demande un théâtre',
+    UNKNOWN_THEATRE: () => 'théâtre inconnu',
+    THEATRE_ONLY_IN_BLITZ: () => 'seule une Blitz se joue sur un théâtre',
     NO_FREE_NATION: () => 'plus aucune nation libre dans ce théâtre — la saison est complète',
     NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
@@ -487,6 +583,17 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
+    INSUFFICIENT_FUNDS: (d) =>
+      d.needed === undefined
+        ? 'les fonds ne suffisent pas'
+        : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
+    TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
+    NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
+    BLITZ_MAP_UNFAIR: () =>
+      'aucune carte équitable sur ce théâtre pour ce nombre de joueurs — la partie revient au salon',
+    BLITZ_MAP_FAILED: () => 'la carte de départ n’a pas pu se poser — la partie revient au salon',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
@@ -552,6 +659,11 @@ export const fr = {
      *  sentence before the click, the server answers it after. */
     NOT_A_GARRISON_FOR: (d) => `${aRoleName(d.role)} n’entre pas dans ${aBuildingName(d.building)}`,
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
+    ONE_UNIT_ONLY: () => 'en Blitz, une unité part seule',
+    OUTSIDE_THEATRE: () => 'hors du théâtre : la partie se joue dans son cadre',
+    UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
+    RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
+    BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
@@ -809,13 +921,8 @@ export const fr = {
     open: 'ouvert',
     finished: 'terminée',
     foundTitle: 'Fonder une saison',
-    /**
-     * **Fonder ne demande plus rien** (décision du 31/08) : plus de choix d'horloge ni de
-     * théâtre à l'écran. La phrase dit alors ce qui est décidé à la place du joueur — il doit
-     * savoir ce qu'il obtient sans qu'on le lui ait demandé.
-     */
-    foundNote: (theatre: string) =>
-      `Sans horloge — la partie se clôt à la main. Théâtre : ${theatre}.`,
+    /** Fonder demande le mode ; l'horloge et le plafond de joueurs en découlent (`MODE_RULES`). */
+    foundNote: 'Choisissez le mode : l’horloge et le nombre de joueurs en découlent.',
     noClock: 'sans horloge',
     foundSubmit: 'fonder — obtenir un code',
     joinTitle: 'Rejoindre par code',
@@ -849,8 +956,8 @@ export const fr = {
     codeCopied: 'code copié',
     copyLink: 'copier le lien d’invitation',
     linkCopied: 'lien copié',
-    participantCount: (count: number) =>
-      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur 8`,
+    participantCount: (count: number, maximum: number) =>
+      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur ${maximum}`,
     registrationBeforeLaunch: (hours: number) =>
       `Les inscriptions sont ouvertes avant le lancement, puis pendant les ${hours} premières heures.`,
     registrationUntil: (date: string) => `Clôture des nouvelles inscriptions : ${date}.`,
@@ -907,6 +1014,7 @@ export const fr = {
     footerLeft: 'la partie commence quand le fondateur lance — pas avant',
     footerEnterWar: 'la saison court — votre entrée est immédiate',
     footerCode: (code: string) => `salon ${code}`,
+    pace2: '2 heures',
     pace48: '48 heures',
     pace168: '7 jours',
     paceNone: 'sans horloge',
@@ -1186,6 +1294,7 @@ export const fr = {
       mine,
       theirs,
       outpostDisabled,
+      shock = false,
     }: {
       where: string;
       intercepted: boolean;
@@ -1194,6 +1303,7 @@ export const fr = {
       mine: { troops: number; lost: number; routed: number; destroyed: number };
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
+      shock?: boolean;
     }) => {
       const opening = intercepted
         ? attacking
@@ -1203,7 +1313,7 @@ export const fr = {
           ? `engagement ${where}`
           : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
-      const toll = `j’en perds ${mine.lost}, il en perd ${theirs.lost}`;
+      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
@@ -1215,6 +1325,7 @@ export const fr = {
       return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
     },
     disabledUntil: (time: string) => `désactivé — retour à ${time}`,
+    beats: combatBeats,
   },
 
   /**
@@ -1266,6 +1377,11 @@ export const fr = {
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
+      captureStarted: 'capture engagée',
+      captureThreat: 'capture en cours',
+      captured: 'capturé',
+      siteLost: 'site perdu',
+      captureCancelled: 'capture levée',
       productionRestored: 'production rétablie',
       lootTaken: 'butin pris',
       sitePlundered: 'site pillé',
@@ -1291,6 +1407,8 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    /** Un site qui change de main, chez ses deux tenants (14/10). */
+    captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
@@ -1478,6 +1596,21 @@ export const fr = {
        * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
        * dépêche chez lui lui dirait ce que son renseignement n'a pas payé.
        */
+      /**
+       * **La capture** (14/10). Le défenseur ne lit jamais qui capture : il lit le site, et
+       * l'heure où il le perdra si rien ne change — c'est la décision qu'on lui demande.
+       */
+      captureStarted: (site: string, until: string) =>
+        `Notre infanterie tient ${site} : capture vers ${until}.`,
+      captureThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      captured: (site: string) => `${site} est à nous : capture achevée.`,
+      siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
+      captureAbandoned: (site: string) =>
+        `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureLifted: (site: string) => `La capture de ${site} est levée.`,
+      captureVoid: (site: string) =>
+        `Capture de ${site} sans objet : le site n’est plus à celui qu’on visait.`,
       productionCut: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
       productionRestored: (sites: number, country: string) =>
@@ -1504,6 +1637,8 @@ export const fr = {
       campOnOurSoil: (country: string) => `Un camp inconnu se tient sur notre sol — ${country}.`,
       stationCampSighted: (region: string, country: string) =>
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
+      pursuitLost: (country: string) =>
+        `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
       /**
@@ -1601,9 +1736,16 @@ export const fr = {
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
     idleSite: 'chantier libre — rien en file',
+    siteUnderCapture: (site: string, hour: string) =>
+      `${site} : capture en cours, perdue vers ${hour}`,
+    sitesUnderCapture: (count: number) => `${count} sites en cours de capture`,
+    captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
+    capturesStopped: (count: number) => `${count} captures arrêtées`,
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
+    neutralCities: (count: number) =>
+      count > 1 ? `${count} villes neutres à prendre` : 'une ville neutre à prendre',
     /** **Une ligne par sorte** (décision Pierre, 05/10) : le lieu n'est dit qu'à une seule
      *  adresse, le total seul quand il y en a plusieurs. */
     troopWithoutOrder: (count: number, place: string | null) =>
@@ -1650,7 +1792,8 @@ export const fr = {
     disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
     foundationHeld:
       'La garnison tient le chantier. Elle part entière ou elle tombe, il est perdu — rien n’est remboursé.',
-    column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
+    column: (count: number, slot = true) =>
+      `pile : ${count} troupe${plural(count, '', 's')}${slot ? ' · 1 slot' : ''}`,
     /**
      * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
      * Le joueur voyait « 2 troupes · 1 slot » et composait à l'aveugle : ni ce que ses transports
@@ -1738,14 +1881,22 @@ export const fr = {
     hold: 'tenir pour envoyer',
     holding: 'maintenez…',
     holdNote: 'irréversible · 1 slot',
+    holdNoteBlitz: 'irréversible',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
+  /** Blitz (B19) : après une frappe, une unité bouge mais n'attaque pas encore. */
+  reload: {
+    label: 'rechargement',
+    prefix: 'rechargement ',
+  },
+
   sent: {
     stamp: 'transmis',
     title: (order: string, destination: string) => `${order} — ${destination}`,
     line: (time: string, used: number, total: number) =>
       `arrivée ${time} · mouvements ${used} / ${total}`,
+    arrival: (time: string) => `arrivée ${time}`,
     follow: 'suivre',
   },
 
@@ -1778,6 +1929,7 @@ export const fr = {
     theirs: 'en face',
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
+    pass: 'la passe',
     ground: 'le terrain',
     held: 'tenu',
     lost: 'perdu',
@@ -1798,8 +1950,8 @@ export const fr = {
     steps: {
       voyage: 'en route vers le lieu',
       pose: 'mise en place',
-      salves: 'les salves',
-      pertes: 'les pertes',
+      frappe: 'la frappe',
+      riposte: 'la riposte',
       deroute: 'la déroute',
       'compte-rendu': 'compte rendu',
     } satisfies Record<ReplayStep, string>,
@@ -1816,6 +1968,8 @@ export const fr = {
     mine: 'chez nous',
     theirs: 'en face',
     columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },
+    /** Qui tire, accolé à « la frappe » et « la riposte » : l'étape se lit depuis son camp. */
+    whose: (ours: boolean) => (ours ? 'la nôtre' : 'la leur'),
   },
 
   /** **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7) : la phrase de la
@@ -1839,6 +1993,9 @@ export const fr = {
     duration: (duration: string, count: number) =>
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
+    pursuit: 'poursuite',
+    pursuitNote:
+      'l’heure est celle de sa position actuelle : la route se recourbe si elle bouge, et la poursuite s’abandonne si elle sort de votre vue',
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
      * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
@@ -1849,9 +2006,23 @@ export const fr = {
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
     presence: (duration: string) => `présence sur site — ${duration}`,
+    capture: (duration: string) => `capture — ${duration} à la force de la pile`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     estimatedLoot: 'butin estimé au relevé',
+    /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
+    initiative: 'vous frappez en premier',
+    /** Ce que la cible encaissera, selon ce qu'on vise : le seul avantage de la défense est un
+     *  mur (C1), et il protège sans tirer. */
+    cover: {
+      sheltered: (taken: number) =>
+        `En garnison : elle encaisse moins — ×${factor(taken)} de vos coups — et riposte avec ce qui lui reste.`,
+      open: () => 'À découvert : elle encaisse tout, et riposte avec ce qui lui reste.',
+      point: (taken: number) =>
+        `La garnison riposte avec ce qui lui reste ; elle encaisse ×${factor(taken)} de vos coups si le point est debout et en service.`,
+      either: (taken: number) =>
+        `La cible riposte avec ce qui lui reste ; en garnison d’un bâtiment, elle encaisse ×${factor(taken)} de vos coups.`,
+    } satisfies Record<'sheltered' | 'open' | 'point' | 'either', (taken: number) => string>,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
@@ -1899,8 +2070,8 @@ export const fr = {
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
-    before: (defenderBonus: number, dryFactor: number) =>
-      `Avant modificateurs : la salve du défenseur porte ×${tenths(defenderBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+    before: (garrisonDamageTaken: number, dryFactor: number) =>
+      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
@@ -2620,7 +2791,7 @@ export const fr = {
             'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
             `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
             `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
-            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
+            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
             'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
             `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
           ],
@@ -2776,6 +2947,7 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
+    enemyColumn: 'colonne ennemie',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
@@ -2826,6 +2998,10 @@ export const fr = {
     plunderConsequence: (verb: string) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
     installation: 'installation relevée',
+    /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
+    capture: 'capturer',
+    captureConsequence: (duration: string) =>
+      `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',
@@ -3239,12 +3415,24 @@ export function countryLabel(adm0: string): string {
   return (countryNames as Readonly<Record<string, string>>)[adm0] ?? adm0;
 }
 
+/** « Blitz · Europe » ou « Mondiale » : le mode d'une saison, et son théâtre quand elle en a un. */
+export const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
+  fr.modes.summary(
+    fr.modes[mode].name,
+    theatre === null ? null : ((fr.modes.theatres as Record<string, string>)[theatre] ?? theatre),
+  );
+
+/** Où une saison se joue : le théâtre d'une Blitz, le monde ou sa région pour une Mondiale. */
+export const placeLabel = (mode: SeasonMode, theatre: string | null, region: string): string =>
+  mode === 'blitz' ? modeSummary(mode, theatre) : `${fr.modes[mode].name} · ${region}`;
+
 /**
  * **L'horloge d'une saison, en un mot.** Trois écrans la nomment — l'accueil, le salon, la
  * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
  */
 export function clockLabel(durationHours: number | null): string {
   if (durationHours === null) return fr.lobby.paceNone;
+  if (durationHours === 2) return fr.lobby.pace2;
   return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
 }
 

@@ -12,6 +12,8 @@ import {
   routeModeOf,
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
+import { captureDurationAt, captureRate } from '../src/domain/capture';
+import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { distanceKm } from '../src/domain/geo';
 import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
@@ -47,6 +49,7 @@ import {
 import { asPoint, movementsOf, pointOf, recognises, specializationServed } from './movement/forces';
 import {
   aimOf,
+  captureAimOf,
   columnOf,
   departureOf,
   march,
@@ -65,16 +68,21 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { pursue as pursueStep, quarryOf } from './movement/pursuit';
+import { blitzTheatreOf } from './movement/theatre';
+import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
+  CAPTURE_TARGET,
   CONTACT_FORCE,
   LON_LAT,
   MOVEMENT_ORIGIN,
   MOVEMENT_TYPE,
   SPECIALIZATION,
 } from './validators';
+import { isBlitz, occupiedBuildingIds, refuseInBlitz } from './blitz';
 
 /**
  * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
@@ -105,6 +113,7 @@ export const foundOutpostHere = mutation({
   handler: async (ctx, { token, seasonId, point, regionId, specialization, troopIds }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
 
     /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
@@ -432,6 +441,13 @@ export const attack = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
+    /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
+     *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
+    const hunted =
+      (await blitzTheatreOf(ctx, player._id)) !== null &&
+      (target.kind === 'camp' || target.kind === 'track')
+        ? await quarryOf(ctx, player._id, target, Date.now())
+        : null;
     return march(ctx, {
       playerId: player._id,
       season,
@@ -439,6 +455,7 @@ export const attack = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, target),
+      ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
     });
   },
 });
@@ -480,6 +497,7 @@ export const plunder = mutation({
   handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     return march(ctx, {
       playerId: player._id,
@@ -489,6 +507,34 @@ export const plunder = mutation({
       troopIds,
       aim: plunderAimOf(target),
       plunder: { buildingId, surveyed: { key: target.key, regionId: target.regionId } },
+    });
+  },
+});
+
+/**
+ * **Capturer** (décision du 14/10) : un bâtiment adverse relevé, ou un avant-poste adverse. La
+ * colonne y marche comme à une attaque ; l'arrivée engage, puis l'infanterie debout capture
+ * (`captures.ts`). Le refus est celui de la rose (`captureOrderRefusalOf`).
+ */
+export const capture = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'attack',
+      origin,
+      troopIds,
+      aim: await captureAimOf(ctx, player, target),
+      capture: target,
     });
   },
 });
@@ -551,7 +597,7 @@ export const preview = query({
       arrivesAt,
       /** The card owes the player the reason for an hour he did not expect: an acceleration
        *  nothing on screen accounts for reads as a bug, not as a reward. */
-      relayed: routeMinutes(route.costUnits) - minutes,
+      relayed: column.blitz === undefined ? routeMinutes(route.costUnits) - minutes : 0,
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       recognised: await recognises(ctx, player, point),
       troops: troopIds.length,
@@ -559,6 +605,11 @@ export const preview = query({
       destinationName: name,
       originName: departure.name,
       route: routeFacts(route),
+      /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
+      pursuit:
+        type === 'attack' &&
+        column.blitz !== undefined &&
+        (target.kind === 'camp' || target.kind === 'track'),
     };
   },
 });
@@ -665,6 +716,57 @@ export const previewPlunder = query({
   },
 });
 
+/** L'aperçu d'une capture : la route, l'heure, et la durée à pleine force que le serveur datera.
+ *  Il ne refuse rien — la rose n'a offert la branche que si `captureOrderRefusalOf` l'a permise. */
+export const previewCapture = query({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (troops === null) return null;
+    const column = await columnOf(ctx, player._id, troops, departure);
+    const aimed = await captureAimOf(ctx, player, target);
+    const route = routeBetween(
+      departure.point,
+      aimed.point,
+      routeModeOf(column.roles),
+      landCostOf(column.roles),
+    );
+    if (route === null) return null;
+    const now = Date.now();
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
+      destinationName: aimed.name,
+      originName: departure.name,
+      route: routeFacts(route),
+      captureMinutes:
+        captureDurationAt(
+          modeOf(season.mode),
+          target.kind,
+          captureRate(
+            troops.map((troop) => ({
+              role: troop.role,
+              strength: troop.currentStrength,
+              nominalStrength: troop.nominalStrength,
+            })),
+          ),
+        ) / 60_000,
+    };
+  },
+});
+
 /** The estimate is frozen from the owned sighting. The true crate is deliberately never read. */
 export const previewLootCollection = query({
   args: {
@@ -766,6 +868,13 @@ export const arrive = internalMutation({
       return;
     }
 
+    if (movement.capture !== undefined) {
+      await surveyAlongRoute(ctx, movement, now);
+      await arriveForCapture(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
     if (movement.lootCollection !== undefined) {
       await resolveLootCollectionArrivals(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
@@ -787,7 +896,15 @@ export const arrive = internalMutation({
     if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') {
-      const garrison = await garrisonOf(ctx, movement);
+      const door = await garrisonOf(ctx, movement);
+      /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
+       *  celle-ci se pose à la porte. */
+      const garrison =
+        door !== null &&
+        (await isBlitz(ctx, movement.seasonId)) &&
+        (await occupiedBuildingIds(ctx, movement.playerId, movement.troopIds)).has(door._id)
+          ? null
+          : door;
       /** **Une marche sur un point à soi y entre** (décision du 16/09) : la seule marche que
        *  `refusalOf` laisse viser un avant-poste est celle-là. Démantelé ou perdu entre-temps,
        *  la colonne se pose au point atteint comme n'importe quelle marche (règle 3). */
@@ -836,6 +953,16 @@ export const arrive = internalMutation({
 
     await forgetMovement(ctx, movementId);
     await reassessDetection(ctx, movement.seasonId, now);
+  },
+});
+
+/** **Un regard de poursuite** (Blitz, B18) : frapper, abandonner, ou recourber la route. */
+export const pursue = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: async (ctx, { movementId, expectedAt }) => {
+    const movement = await ctx.db.get(movementId);
+    if (movement === null || !(await seasonStillPlays(ctx, movement.playerId))) return;
+    await pursueStep(ctx, movementId, expectedAt);
   },
 });
 

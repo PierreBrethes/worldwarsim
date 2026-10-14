@@ -5,7 +5,7 @@ import {
   ARRIVAL_RADIUS_KM,
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
-  DEFENDER_BONUS,
+  GARRISON_DAMAGE_TAKEN,
   DRY_AMMUNITION_FACTOR,
   detectionRangeOf,
 } from '../../../convex/constants';
@@ -30,6 +30,8 @@ import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
+import { rolesFormingSites } from '@/domain/blitz';
+import { BLITZ } from '../../../convex/constants';
 
 /**
  * **L'abaque de tir, et le catalogue au pli** (ADR 0018 §4, décisions du 31/08 et 60b du 01/09).
@@ -80,7 +82,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
           <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.gunnery.lead}{' '}
             <HelpMark>
-              {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}{' '}
+              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, DRY_AMMUNITION_FACTOR)}{' '}
               {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
             </HelpMark>
           </div>
@@ -203,7 +205,8 @@ export function GunnerySheet({
   const sheet = fr.unitSheets[role];
   const entry = workshop?.grid.find((candidate) => candidate.role === role) ?? null;
   const nation = workshop?.nation ?? null;
-  const marks: ReadonlyArray<UnitTier> = marked ? [1, 2] : [1];
+  const blitz = workshop?.blitz === true;
+  const marks: ReadonlyArray<UnitTier> = marked && !blitz ? [1, 2] : [1];
   const [rangeHover, setRangeHover] = useState<StatHover | null>(null);
   const movement = movementSheetOf([role]);
 
@@ -274,6 +277,7 @@ export function GunnerySheet({
                 locked={mark === 2 && !(workshop?.tier2Unlocked ?? false)}
                 requiredLevel={workshop?.requiredHqLevel ?? 0}
                 first={rank === 0}
+                blitz={blitz}
               />
             ))}
           </div>
@@ -315,9 +319,11 @@ export function GunnerySheet({
           <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-(color:--ink)/22 pt-[9px]">
             <span aria-hidden className="h-[7px] w-[7px] shrink-0 bg-[var(--ink)]" />
             <span className="text-[13.5px] text-[var(--ink)]">
-              {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+              {blitz
+                ? fr.blitz.formsIn(rolesFormingSites(role).map(aBuilding))
+                : fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
             </span>
-            {entry.unlockedAtHqLevel > 0 && (
+            {entry.unlockedAtHqLevel > 0 && !blitz && (
               <>
                 <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
@@ -350,6 +356,7 @@ function Mark({
   locked,
   requiredLevel,
   first,
+  blitz,
 }: {
   mark: UnitTier;
   marked: boolean;
@@ -359,6 +366,7 @@ function Mark({
   locked: boolean;
   requiredLevel: number;
   first: boolean;
+  blitz: boolean;
 }) {
   const [hovered, setHovered] = useState<StatHover | null>(null);
 
@@ -373,16 +381,23 @@ function Mark({
           {tierLabel(mark)}
         </span>
       )}
-      <span className="flex items-center gap-[7px]">
-        <StatGlyph stat="alloy" onHover={setHovered} />
+      {/* La Blitz paie en fonds et forme en une minute (`BLITZ`) : ni lingot, ni durée du barème. */}
+      {blitz ? (
         <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
-          {cost.alloy}
+          {fr.blitz.price(BLITZ.rolePrice[role])}
         </span>
-      </span>
+      ) : (
+        <span className="flex items-center gap-[7px]">
+          <StatGlyph stat="alloy" onHover={setHovered} />
+          <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
+            {cost.alloy}
+          </span>
+        </span>
+      )}
       <span className="flex items-center gap-[7px]">
         <StatGlyph stat="training" onHover={setHovered} />
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-          {asDuration(cost.minutes)}
+          {asDuration(blitz ? BLITZ.recruitMinutes : cost.minutes)}
         </span>
       </span>
       <span className="flex items-center gap-[7px]">

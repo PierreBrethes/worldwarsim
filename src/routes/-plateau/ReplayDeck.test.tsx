@@ -69,6 +69,8 @@ it('compte chez moi par rôle et en face en totaux', () => {
   };
   render(<ReplayAccount view={view} said={fought!.text} />);
   screen.getByText(fought!.text);
+  // The pass in its two beats: my strike took 90 of theirs, their riposte 40 of mine.
+  screen.getByText('notre frappe en abat 90, leur riposte en abat 40');
   screen.getByText(fr.replay.held);
   const rows = screen.getAllByRole('row').slice(1);
   const lines = rows.map((row) => row.textContent);

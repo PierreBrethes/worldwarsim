@@ -72,7 +72,7 @@ export function NationWindow({
             <p className="text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
           </Entry>
 
-          <NationalGap regions={view.me.regions} />
+          {view.mode !== 'blitz' && <NationalGap regions={view.me.regions} />}
 
           <FounderLine absence={view.me.founderAbsence} />
 
@@ -113,14 +113,16 @@ export function NationWindow({
             )}
           </Entry>
 
-          <Entry header={fr.nationSheet.restHeader}>
-            <div className="flex items-center gap-2 font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
-              {view.me.restWindow}
-              <HelpMark>
-                {fr.nationSheet.restNote} {fr.nationSheet.restFrozen}
-              </HelpMark>
-            </div>
-          </Entry>
+          {view.mode !== 'blitz' && (
+            <Entry header={fr.nationSheet.restHeader}>
+              <div className="flex items-center gap-2 font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
+                {view.me.restWindow}
+                <HelpMark>
+                  {fr.nationSheet.restNote} {fr.nationSheet.restFrozen}
+                </HelpMark>
+              </div>
+            </Entry>
+          )}
         </div>
       </div>
     </FloatingWindow>

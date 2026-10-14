@@ -27,7 +27,7 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const seats = [seat];
   for (let rank = 1; rank < players; rank += 1) {
     seats.push(await joinSeat(t, code, `Joueur ${rank}`));
@@ -143,10 +143,10 @@ async function seasonOf(t: ReturnType<typeof boot>) {
  */
 async function overrun(t: ReturnType<typeof boot>, attacker: Seat, victim: Seat) {
   const barracks = await raise(t, attacker, MARNE);
-  /** Deux colonnes, pas trois : depuis la résolution simultanée la déroute ne se lit qu'une fois
-   *  la passe finie, donc une troisième salve achèverait le défenseur au lieu de le casser — et
-   *  un joueur sans une seule troupe debout ne peut plus rien reconstruire. La seconde part
-   *  entamée pour la même raison : à pleine force les deux salves l'effacent tout juste. */
+  /** Deux colonnes, pas trois : la déroute ne se lit qu'une fois la passe finie, donc une
+   *  troisième frappe achèverait le défenseur au lieu de le casser — et un joueur sans une seule
+   *  troupe debout ne peut plus rien reconstruire. La seconde part entamée pour la même raison :
+   *  à pleine force les deux frappes l'effacent tout juste. */
   const column = [await form(t, attacker, barracks), await form(t, attacker, barracks)];
   await t.run(async (ctx) => ctx.db.patch(column[1]!, { currentStrength: 30 }));
   const outpost = await plant(t, victim, regionFacts(PRAHOVA)!.point);

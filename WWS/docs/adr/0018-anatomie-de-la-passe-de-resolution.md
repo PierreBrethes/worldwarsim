@@ -83,6 +83,11 @@ cet ordre exact :
 
 ### 3. Le bonus du défenseur, les types qui combattent, le contact mobile
 
+> **Révision du 14/10/2026 (ADR 0014, B16 et C1).** Il disparaît : la défense n'a plus de
+> multiplicateur de tir, elle a une **protection** — une garnison de bâtiment, d'objectif ou
+> d'avant-poste debout et en service encaisse ×0,7 des coups (`GARRISON_DAMAGE_TAKEN`), et
+> jamais une pile posée en terrain libre ni en mer. Le paragraphe suivant décrit l'état du 16/09.
+
 **`DEFENDER_BONUS` vaut 1,15** — depuis le 16/09/2026 il n'y a plus d'initiative à contrer, et
 c'est devenu le **seul** avantage de la défense. Il s'applique **une seule fois**, sur la salve du
 défenseur : la salve de l'attaquant ne porte plus rien. Le doublon hérité du séquentiel — divisé
@@ -92,6 +97,10 @@ retiré le 16/09. Le terrain et le retranchement se chiffreront sur cet écart-l
 **Deux types de mouvement déclenchent une passe de résolution : `attack` et `raid`**
 (`convex/movements.ts:245`). Un raid gagné désactive l'avant-poste visé (jamais ne le prend,
 ADR 0004) ; une attaque n'a pas cet effet secondaire, elle ne fait que combattre.
+
+> **Révision du 14/10/2026 (lot 5 des deux modes)** : `firstMobileEncounter` a disparu avec la
+> poursuite de la Blitz, qui date son contact elle-même (`contactAt`, `src/domain/blitz.ts`). Le
+> paragraphe suivant décrit la règle d'avant, retirée du plateau dès l'ADR 0024 §3.
 
 **Le contact à distance ne concerne que deux mouvements compatibles**
 (`src/domain/interception.ts`, `firstMobileEncounter`). Ils doivent occuper le même milieu au même

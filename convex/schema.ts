@@ -3,6 +3,8 @@ import { v } from 'convex/values';
 import {
   BUILDING_KEY,
   BUILD_COST_KEY,
+  CAPTURE_SITE,
+  CAPTURE_TARGET,
   COMBAT_SIDE,
   DETECTOR,
   FOUNDATION_DEBT,
@@ -29,6 +31,8 @@ import {
   TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
+  SEASON_MODE,
+  LAUNCH_REFUSAL,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -131,6 +135,12 @@ export default defineSchema({
      * `dev:backfillSeasonPreview` le pose sur les saisons d'avant.
      */
     playerCount: v.optional(v.number()),
+    /** Absent reads as `'mondiale'` (`modeOf`): seasons older than the modes are Mondiales. */
+    mode: v.optional(SEASON_MODE),
+    /** A `THEATRES` id; set on a Blitz only. */
+    theatre: v.optional(v.string()),
+    /** Why the last launch of a Blitz came back to the lobby; cleared by the next launch. */
+    launchRefusal: v.optional(LAUNCH_REFUSAL),
   }).index('byCode', ['code']),
 
   players: defineTable({
@@ -200,6 +210,10 @@ export default defineSchema({
      * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
      */
     settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
+    /** **Les fonds de la Blitz** à `fundsAt` : le débit se relit sur les villes et le QG tenus
+     *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
+    funds: v.optional(v.number()),
+    fundsAt: v.optional(v.number()),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
@@ -310,9 +324,19 @@ export default defineSchema({
     /** A warehouse or production site can be temporarily put out of service. Absent means the
      * row predates building disruption and is active. */
     disabledUntil: v.optional(v.number()),
+    /** **L'heure où il a été capturé** (décision M8 du 14/10) : un bâtiment capturé colore sa
+     *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
+     *  aucun emplacement. Absent : bâti par celui qui le tient. */
+    capturedAt: v.optional(v.number()),
+    /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
+     *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
+    startedNeutral: v.optional(v.literal(true)),
   })
     .index('byPlayer', ['playerId'])
-    .index('bySeason', ['seasonId']),
+    .index('bySeason', ['seasonId'])
+    /** La couleur relit les bâtiments capturés à chaque lecture : un intervalle sur ce seul champ
+     *  ne se réinvalide pas au moindre niveau gravi ailleurs dans la saison. */
+    .index('bySeasonCaptured', ['seasonId', 'capturedAt']),
 
   /**
    * **One row per troop** (ADR 0014): discrete, unique, never merged with another. Its hit
@@ -356,6 +380,9 @@ export default defineSchema({
     nominalStrength: v.number(),
     currentStrength: v.number(),
     stationedAt: TROOP_ADDRESS,
+    /** **Blitz** (B19) : jusqu'à quand la troupe recharge après une frappe — elle bouge, elle
+     *  n'attaque pas. Absent, elle n'a jamais frappé. */
+    reloadUntil: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -504,6 +531,15 @@ export default defineSchema({
      * n'est venu chercher.
      */
     objectiveId: v.optional(v.id('objectives')),
+    /** **La colonne vient capturer** ce site : à l'arrivée elle engage ce qui le tient, et si son
+     *  infanterie reste debout la capture commence (`convex/captures.ts`). */
+    capture: v.optional(CAPTURE_TARGET),
+    /**
+     * **La poursuite d'une Blitz** (B18) : la troupe adverse visée — jamais servie au client — et
+     * l'échéance du prochain regard, seul rendez-vous de la colonne (`movement/pursuit.ts`). La
+     * cible stockée n'est que sa dernière position connue.
+     */
+    pursuit: v.optional(v.object({ troopId: v.id('troops'), checkAt: v.number() })),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -753,6 +789,9 @@ export default defineSchema({
      * a pass nobody measured cannot have been the one that crossed it.
      */
     reducedDefender: v.optional(v.boolean()),
+    /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
+     *  passe à l'initiative. */
+    shock: v.optional(v.boolean()),
     /**
      * **Legacy, plus jamais écrit ni lu.** Le détail frappe par frappe est passé dans la table
      * `strikes` : gardé dans le document de l'engagement, il se relisait à chaque chargement du
@@ -1110,4 +1149,30 @@ export default defineSchema({
     /** L'écriture relit sa propre ligne avant de décider s'il y a quelque chose à écrire : sans
      *  cet index elle balaierait tout le relevé du joueur par région observée. */
     .index('byPlayerRegion', ['playerId', 'regionId']),
+
+  /**
+   * **Les captures en cours** (décision du 14/10) — une ligne par capteur et par site. L'horloge
+   * est celle de `src/domain/capture.ts` : ce qui était fait (`progress`) à `progressAt`, et le
+   * rythme depuis ; une perte de force relit la ligne au lieu de la remettre à zéro. Arrêtée, la
+   * ligne reste datée (`stoppedAt`) le temps que le capteur le lise à « à faire maintenant ».
+   */
+  captures: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    defenderId: v.id('players'),
+    target: CAPTURE_TARGET,
+    site: CAPTURE_SITE,
+    /** Où l'infanterie du capteur se tient — le point que sa colonne a marché. */
+    point: LON_LAT,
+    progress: v.number(),
+    progressAt: v.number(),
+    rate: v.number(),
+    durationMs: v.number(),
+    rest: v.union(REST_WINDOW, v.null()),
+    completesAt: v.number(),
+    stoppedAt: v.optional(v.number()),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byPlayer', ['playerId'])
+    .index('byDefender', ['defenderId']),
 });

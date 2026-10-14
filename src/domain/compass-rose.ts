@@ -12,6 +12,8 @@ import {
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
+import { notInBlitz } from './blitz';
+import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
@@ -23,6 +25,7 @@ import {
   liftOf,
   lootCollectionOrderRefusalOf,
   ORDERABLE_TYPES,
+  captureOrderRefusalOf,
   plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
@@ -129,6 +132,20 @@ export type CompassTarget =
        */
       readonly onLand?: boolean;
       readonly coastal?: boolean;
+      readonly name: string;
+    }
+  /**
+   * **Une colonne adverse en vue, visée en Blitz** (B18) : le relevé de son fil, et le point où
+   * on l'a désignée — le serveur relit sa position vraie. Ailleurs qu'en Blitz, `refusalOf` dit
+   * qu'il n'y a rien à poursuivre.
+   */
+  | {
+      readonly kind: 'track';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly country: string | null;
+      readonly onLand: boolean;
+      readonly coastal: boolean;
       readonly name: string;
     }
   | {
@@ -347,6 +364,20 @@ export type CompassAction =
       readonly aim: PlunderAim;
     }
   /**
+   * **Capturer** (décision du 14/10) : un bâtiment ou un avant-poste adverse, par l'infanterie.
+   * La branche ne paraît que si `captureOrderRefusalOf` la laisse passer — la fonction même que
+   * `movements.capture` relit — et elle annonce la durée à la force de la pile.
+   */
+  | {
+      readonly key: 'capture';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+      readonly aim: MovementAim;
+    }
+  /**
    * **Raser un bâtiment à soi** (demande du 15/09). Dernière branche de la plate et seule encre
    * rouge du jeu sur un médaillon : rien de ce qu'elle efface ne revient. Elle ne porte aucun
    * chiffre — ce qui est perdu se lit sur la confirmation, qui a la place de le dire en clair.
@@ -451,10 +482,16 @@ export type CompassAction =
 /** **Les branches qui font partir une colonne** : une marche, une expédition, un ramassage. Ce
  *  sont elles qui font d'une étiquette une destination, et elles seules que la feuille d'ordre du
  *  téléphone offre en onglets (refonte mobile, 1c). */
-export type OrderAction = Extract<CompassAction, { readonly key: 'aim' | 'plunder' | 'collect' }>;
+export type OrderAction = Extract<
+  CompassAction,
+  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' }
+>;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
-  action.key === 'aim' || action.key === 'plunder' || action.key === 'collect';
+  action.key === 'aim' ||
+  action.key === 'plunder' ||
+  action.key === 'capture' ||
+  action.key === 'collect';
 
 /** **Ce qui fait d'une étiquette une destination de la colonne armée** : un ordre, ou un
  *  embarquement — les deux se cerclent sur la carte et se listent sous le pouce. */
@@ -494,7 +531,9 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
  * The only cost the game can quantify today. The steel and duration of a founding exist
  * nowhere — displaying them would mean inventing them.
  */
-function slotCost(view: PlayerView): string {
+function slotCost(view: PlayerView): string | null {
+  /** Pas de slots en Blitz (B5) : la branche ne porte pas de prix. */
+  if (view.mode === 'blitz') return null;
   const free = view.me.slots.total - view.me.slots.used;
   return fr.compass.slotsCost(free);
 }
@@ -684,27 +723,75 @@ function plunderFan(
 ): Compass {
   const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
   const isMine = view.me.buildings.some((standing) => standing.id === target.id);
-  const refused = plunderOrderRefusalOf(aimed, column, isMine);
+  const refused = notInBlitz(view.mode) ?? plunderOrderRefusalOf(aimed, column, isMine);
   const label =
     canonicalBuildingKey(target.key) === 'warehouse' ? fr.compass.plunder : fr.compass.sabotage;
+  const capture = captureBranch(
+    { kind: 'building', key: target.key },
+    { kind: 'building', id: target.id },
+    aimed,
+    view,
+    column,
+    isMine,
+  );
+  const actions: Array<CompassAction> = [
+    ...(refused === null
+      ? [
+          {
+            key: 'plunder' as const,
+            pictogram: 'sabotage' as const,
+            label,
+            cost: slotCost(view),
+            consequence: fr.compass.plunderConsequence(label),
+            buildingId: target.id,
+            aim: aimed,
+          },
+        ]
+      : []),
+    ...(capture.action === null ? [] : [capture.action]),
+  ];
   return {
     kicker: fr.compass.installation,
     name: target.name,
-    actions:
-      refused === null
-        ? [
-            {
-              key: 'plunder',
-              pictogram: 'sabotage',
-              label,
-              cost: slotCost(view),
-              consequence: fr.compass.plunderConsequence(label),
-              buildingId: target.id,
-              aim: aimed,
-            },
-          ]
-        : [],
-    refusal: refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)),
+    actions,
+    refusal:
+      actions.length > 0
+        ? null
+        : (capture.refusal ??
+          (refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)))),
+  };
+}
+
+/**
+ * **La branche « capturer »**, ou le motif qui la retient — dans les mots du serveur. La durée est
+ * celle de `captureDurationAt` au rythme de la pile (`Column.captureRate`), la règle que
+ * l'aperçu du serveur lit aussi.
+ */
+function captureBranch(
+  site: Parameters<typeof captureOrderRefusalOf>[0],
+  target: { readonly kind: 'building' | 'outpost'; readonly id: string },
+  aimed: MovementAim,
+  view: PlayerView,
+  column: Column,
+  isMine: boolean,
+): { readonly action: CompassAction | null; readonly refusal: string | null } {
+  const refused = captureOrderRefusalOf(site, aimed, column, isMine);
+  if (refused !== null) {
+    return { action: null, refusal: fr.errors[refused](refusalDetails(aimed, column)) };
+  }
+  return {
+    action: {
+      key: 'capture',
+      pictogram: 'helmet',
+      label: fr.compass.capture,
+      cost: slotCost(view),
+      consequence: fr.compass.captureConsequence(
+        asDuration(captureDurationAt(view.mode, site.kind, column.captureRate ?? 1) / 60_000),
+      ),
+      target,
+      aim: aimed,
+    },
+    refusal: null,
   };
 }
 
@@ -852,14 +939,25 @@ function aim(
   if (target.kind === 'installation') return plunderFan(target, view, column);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
-    return fanOf(target.name, view, column, [
-      {
-        kind: 'outpost',
-        outpostId: target.id,
-        hostCountry: target.hostCountry,
-        coastal: target.coastal,
-      },
-    ]);
+    const aimed: MovementAim = {
+      kind: 'outpost',
+      outpostId: target.id,
+      hostCountry: target.hostCountry,
+      coastal: target.coastal,
+    };
+    const fan = fanOf(target.name, view, column, [aimed]);
+    const isMine = view.me.outposts.some((outpost) => outpost.id === target.id);
+    if (isMine) return fan;
+    const capture = captureBranch(
+      { kind: 'outpost' },
+      { kind: 'outpost', id: target.id },
+      aimed,
+      view,
+      column,
+      false,
+    );
+    if (capture.action === null) return fan;
+    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
   }
   /**
    * **Un camp relevé est une cible, et une seule branche y mène** (ADR 0024 §4) : « attaquer ».
@@ -876,6 +974,19 @@ function aim(
         hostCountry: target.country ?? '',
         onLand: target.onLand ?? true,
         coastal: target.coastal ?? false,
+      },
+    ]);
+  }
+  if (target.kind === 'track') {
+    return fanOf(target.name, view, column, [
+      {
+        kind: 'track',
+        movementId: target.id,
+        lon: target.point[0],
+        lat: target.point[1],
+        hostCountry: target.country ?? '',
+        onLand: target.onLand,
+        coastal: target.coastal,
       },
     ]);
   }
@@ -991,6 +1102,11 @@ function fanOf(
  */
 const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'EMPTY_MOVEMENT',
+  /** Blitz (lot 5) : la main en tient deux, et la carte ne le dit pas. */
+  'ONE_UNIT_ONLY',
+  /** La boîte se lit sur la carte, mais un clic au ras du cadre ne dit pas de quel côté il est. */
+  'OUTSIDE_THEATRE',
+  'RELOADING',
   'NO_AIRFIELD_AT_DEPARTURE',
   'NO_PORT_AT_DEPARTURE',
   /** Juste après les portes de départ, parce que c'en est une : la carte montre une pile sur
@@ -1008,12 +1124,14 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
   'NOT_A_GARRISON_FOR',
+  'BUILDING_OCCUPIED',
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',
   /** Ce que la carte ne dit pas : une réserve se **porte**, et un mât de blindés n'a rien pour
    *  la rapporter. Le motif vient avant le sol vide, qui se lit, lui. */
   'INFANTRY_REQUIRED',
+  'UNIT_TARGET_ONLY',
   /** En dernier : la carte montre un sol vide, et c'est précisément ce que le joueur y lit. */
   'NOTHING_TO_ATTACK',
   'NOT_ORDERABLE',
@@ -1044,6 +1162,17 @@ function build(
   /** La composition en main si la cible est la pile tenue, sinon `null`. */
   composition: ReadonlyArray<string> | null,
 ): Fan {
+  /** **En Blitz on ne bâtit, n'élève, ne fonde ni ne rase rien** (`notInBlitz`) : au repos, ses
+   *  mâts, ses points et ses piles n'ont aucune branche — le clic droit y reste inerte. */
+  if (
+    notInBlitz(view.mode) !== null &&
+    (target.kind === 'region' ||
+      target.kind === 'building' ||
+      target.kind === 'outpost' ||
+      target.kind === 'force')
+  ) {
+    return { kicker: '', name: '', actions: [], refusal: null };
+  }
   switch (target.kind) {
     case 'region': {
       // The country's fan, plus one branch. A region is the same land seen closer: taking
@@ -1187,6 +1316,7 @@ function build(
     case 'installation':
     case 'loot':
     case 'camp':
+    case 'track':
       return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * **L'objectif est la seule cible qui parle au repos**, et c'est la conséquence de sa

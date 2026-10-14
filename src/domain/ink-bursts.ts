@@ -13,7 +13,7 @@ export type StampWords = { readonly word: string; readonly hour: string };
  * stamp waits for the first to lift.
  */
 export type InkBurst = {
-  readonly kind: 'arrival' | 'combat' | 'cut' | 'held' | 'built';
+  readonly kind: 'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
@@ -88,5 +88,18 @@ export function inkBursts(
   const arrivals = paired
     ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
-  return [...combats, ...arrivals];
+  /** **Un site a changé de main** (14/10) : le même tampon chez qui l'a pris et chez qui l'a
+   *  perdu, à la place que sa dépêche porte. */
+  const captures = fresh.flatMap((dispatch): InkBurst[] =>
+    (dispatch.kind === 'captured' || dispatch.kind === 'siteLost') && dispatch.place !== null
+      ? [
+          {
+            kind: 'captured',
+            at: [dispatch.place.lon, dispatch.place.lat],
+            words: stamped(fr.stamps.captured, dispatch.at),
+          },
+        ]
+      : [],
+  );
+  return [...combats, ...arrivals, ...captures];
 }

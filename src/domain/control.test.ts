@@ -3,8 +3,6 @@ import {
   FADED_WASH,
   heldRegions,
   knownRegions,
-  seatInk,
-  SEAT_INKS,
   surveyStops,
   surveyWash,
   type ControlledRegion,
@@ -181,16 +179,32 @@ describe('the home ground outranks any outpost', () => {
   });
 });
 
-describe('the seat inks', () => {
-  it('gives the eight seats eight distinct inks', () => {
-    expect(new Set(SEAT_INKS).size).toBe(8);
-    expect(SEAT_INKS.every((ink) => /^#[0-9a-f]{6}$/.test(ink))).toBe(true);
+describe('a captured building colours its region', () => {
+  it('outranks the home ground and any outpost, for its capturer', () => {
+    const map = heldRegions({
+      regions: [region('lyon', 0, 'FRA'), region('bucarest', 5)],
+      outposts: [{ owner: 'lea', covers: new Map([['bucarest', 0]]), disabled: false }],
+      homeGrounds: [{ owner: 'pierre', country: 'FRA' }],
+      occupations: [
+        { regionId: 'lyon', owner: 'lea' },
+        { regionId: 'bucarest', owner: 'pierre' },
+      ],
+    });
+    expect(map.get('lyon')).toBe('lea');
+    expect(map.get('bucarest')).toBe('pierre');
   });
 
-  it('answers an ink for every rank, the ninth included', () => {
-    expect(seatInk(0)).toBe(SEAT_INKS[0]);
-    expect(seatInk(7)).toBe(SEAT_INKS[7]);
-    expect(seatInk(8)).toBe(SEAT_INKS[0]);
+  it('shows its owner and its loser the occupation as current', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: ['paris', 'lyon'] },
+      covered: new Set(),
+      surveys: [],
+      occupied: new Map([['lyon', 'lea']]),
+    });
+    expect(known).toEqual([
+      { regionId: 'paris', owner: 'pierre', state: 'current' },
+      { regionId: 'lyon', owner: 'lea', state: 'current' },
+    ]);
   });
 });
 

@@ -27,6 +27,7 @@ export const GAME_TABLES = [
   'strikes',
   'engagements',
   'plunderReports',
+  'captures',
   'lootRecoveries',
   'lootCollections',
   'lootCrates',
