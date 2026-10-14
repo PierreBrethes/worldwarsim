@@ -1868,7 +1868,7 @@ export class MapEngine {
         castShadows(root);
       if (this.replay) castShadows(this.replay.scene.object);
     }
-    this.regions.animate(distance, now);
+    this.regions.animate(distance, now, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
