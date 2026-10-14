@@ -38,15 +38,16 @@ donc **un défenseur détruit par la frappe ne riposte pas** (`src/domain/combat
 `convex/combat.ts` pour le branchement, table et modificateurs dans `convex/constants.ts`).
 `Strike.phase` dit `'strike'` pour l'attaquant, `'riposte'` pour la réponse ; les engagements
 écrits sous la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés. **Le seul
-avantage de la défense est un mur** : `GARRISON_BONUS` (×1,15) ne s'applique qu'à une troupe en
-garnison d'un bâtiment, d'un avant-poste ou d'un objectif, jamais à une pile posée en terrain libre
+avantage de la défense est un mur**, une protection à la Advance Wars (C1) : une troupe en
+garnison d'un bâtiment, d'un avant-poste ou d'un objectif **encaisse** `GARRISON_DAMAGE_TAKEN`
+(×0,7) de chaque coup et riposte sans multiplicateur — protection refusée jamais à une pile posée en terrain libre
 ni en mer ni à une troupe en mouvement, ni à la garnison d'un point en chantier ou désactivé
 (`shelteredOf`, `outpostShelters`). On ne paie en munitions que ce qu'on tire : la riposte se
 facture sur ce que la frappe a laissé, un défenseur anéanti ne paie rien ; et le vainqueur se lit
 sur les issues amendées par le large. Cinquante fantassins contre cinquante en
-terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 25 et 14. Le char léger répond au lourd à .13, le quart de ce qu'il fait à son pareil (C2). La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
+terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 18 et 16. Le char léger répond au lourd à .13, le quart de ce qu'il fait à son pareil (C2). La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
 ordonnée nulle part : elle attend la Blitz. L'aperçu d'un ordre d'attaque dit « vous frappez en
-premier » et ce que la riposte portera ; dépêche, feuille d'arrivée et compte rendu disent
+premier » et si la cible encaisse moins ; dépêche, feuille d'arrivée et compte rendu disent
 « notre frappe en abat N, leur riposte en abat M » (`combatBeats`, `fr.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
 une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
 marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —
@@ -874,7 +875,7 @@ relevé, parce qu'il n'y a rien à percer. Ce qui le tient appartient à un **si
 un `players` marqué `irregular`, sans compte et sans vue, que `seatsOf` écarte en une ligne de
 tout ce qui demande « qui joue ici » (salon, accueil, presse, classement, encre, doyen,
 entretien). Ses troupes sont des `troops` ordinaires : elles défendent, ripostent en garnison
-— au bonus de bâtiment — et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
+— protégées — et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
 (ADR 0014 : une passe, rien debout en face), borné par ce que la colonne porte, **le reste reste
 au sol** pour le suivant ; le retour chargé est la mécanique du pillage, sans une ligne de plus.
 Pas de capture au seuil tenu, pas de renfort, pas d'objectif mobile : c'est le lot 2.

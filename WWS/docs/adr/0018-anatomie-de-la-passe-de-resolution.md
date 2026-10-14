@@ -83,9 +83,10 @@ cet ordre exact :
 
 ### 3. Le bonus du défenseur, les types qui combattent, le contact mobile
 
-> **Révision du 14/10/2026 (ADR 0014, B16).** Renommé `GARRISON_BONUS`, il ne porte plus que la
-> **riposte d'une garnison** — bâtiment, objectif, avant-poste debout et en service — et jamais
-> une pile posée en terrain libre ni en mer. Le paragraphe suivant décrit l'état du 16/09.
+> **Révision du 14/10/2026 (ADR 0014, B16 et C1).** Il disparaît : la défense n'a plus de
+> multiplicateur de tir, elle a une **protection** — une garnison de bâtiment, d'objectif ou
+> d'avant-poste debout et en service encaisse ×0,7 des coups (`GARRISON_DAMAGE_TAKEN`), et
+> jamais une pile posée en terrain libre ni en mer. Le paragraphe suivant décrit l'état du 16/09.
 
 **`DEFENDER_BONUS` vaut 1,15** — depuis le 16/09/2026 il n'y a plus d'initiative à contrer, et
 c'est devenu le **seul** avantage de la défense. Il s'applique **une seule fois**, sur la salve du
