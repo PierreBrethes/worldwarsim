@@ -564,7 +564,6 @@ export const launch = mutation({
         id: entry._id,
         nickname: entry.nickname,
         ready: entry.ready,
-        nation: entry.nation !== null,
         seenAt: entry.lobbySeenAt ?? null,
       })),
     });
@@ -584,6 +583,14 @@ export const launch = mutation({
       ...(theatre === undefined ? {} : { theatre }),
     });
     await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
+    /** **L'absent parti sans nation en reçoit une** (J1 b) : en Blitz elles sont identiques. */
+    for (const entry of present) {
+      if (entry.nation !== null) continue;
+      const nation = freeNations(present)[0];
+      if (nation === undefined) fail('NO_FREE_NATION');
+      entry.nation = nation;
+      await ctx.db.patch(entry._id, { nation });
+    }
     for (const entry of present) {
       await endow(ctx, entry, season, now);
       await notifyPlayer(ctx, entry._id, {

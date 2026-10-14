@@ -154,6 +154,21 @@ describe('the operation order', () => {
     expect(lobby.players.every((player) => player.atWar)).toBe(true);
   });
 
+  it('gives an absentee without a nation the first free one once the hour has passed', async () => {
+    const t = boot();
+    const { founder, code } = await blitz(t);
+    const guest = await joinSeat(t, code, 'Bastien');
+    await joinSeat(t, code, 'Lise');
+    await ready(t, founder, 'france');
+    await ready(t, guest, 'uk');
+
+    vi.setSystemTime(RENDEZVOUS + MINUTE);
+    await t.mutation(api.players.beatLobby, guest);
+    await t.mutation(api.seasons.launch, founder);
+    const lobby = await t.query(api.seasons.lobby, founder);
+    expect(lobby.players.map((player) => player.nation)).toEqual(['france', 'uk', 'usa']);
+  });
+
   it('draws a theatre that seats the table at the launch', async () => {
     const t = boot();
     const token = await signIn(t, 'Koval');

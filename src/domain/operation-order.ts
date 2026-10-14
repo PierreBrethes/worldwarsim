@@ -105,8 +105,8 @@ export type LaunchPlan =
 /**
  * **Qui part au lancement** (choix 6, J1 b). En Blitz on joue ensemble : un absent bloque tant
  * que l'heure n'est pas venue ; passée l'heure, on part sans l'attendre mais **il garde sa
- * place** — posé comme les autres, il joue en arrivant en retard. Son « prêt » ne compte plus,
- * sa nation si : sans elle, rien à poser. Sans heure convenue (« table complète »), l'heure ne
+ * place** — posé comme les autres, il joue en arrivant en retard. Ni son « prêt » ni sa nation
+ * ne comptent : sans nation, le lancement lui donne la première libre. Sans heure convenue (« table complète »), l'heure ne
  * vient jamais d'elle-même — le fondateur en fixe une. Celui qui lance est à la table.
  */
 export function launchPlanOf<Id>(input: {
@@ -119,7 +119,6 @@ export function launchPlanOf<Id>(input: {
     readonly id: Id;
     readonly nickname: string;
     readonly ready: boolean;
-    readonly nation: boolean;
     readonly seenAt: number | null;
   }>;
 }): LaunchPlan {
@@ -137,9 +136,7 @@ export function launchPlanOf<Id>(input: {
   if (input.mode === 'blitz' && input.seats.length > input.range.max) {
     return { refusal: 'BLITZ_FULL' };
   }
-  const stragglers = input.seats.filter((seat) =>
-    absent.includes(seat) ? !seat.nation : !seat.ready,
-  );
+  const stragglers = input.seats.filter((seat) => !absent.includes(seat) && !seat.ready);
   if (stragglers.length > 0) {
     return { refusal: 'PLAYERS_NOT_READY', nicknames: stragglers.map((seat) => seat.nickname) };
   }

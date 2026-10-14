@@ -88,7 +88,6 @@ describe('launchPlanOf', () => {
     nickname: id,
     ready,
     seenAt,
-    nation: true,
   });
   const range = { min: 2, max: 4 };
 
@@ -116,7 +115,7 @@ describe('launchPlanOf', () => {
     expect(launchPlanOf({ ...before, scheduledAt: NOW - 60_000 })).toEqual({ refusal: null });
   });
 
-  it('after the hour waives an absentee’s « prêt », never his nation: he is placed like the others', () => {
+  it('after the hour waives an absentee’s « prêt » and nation: he is placed like the others', () => {
     const after = {
       mode: 'blitz' as const,
       range,
@@ -124,14 +123,9 @@ describe('launchPlanOf', () => {
       now: NOW,
       scheduledAt: NOW - 60_000,
     };
-    const late = (nation: boolean) => ({ ...seat('c', false, NOW - 600_000), nation });
-    expect(launchPlanOf({ ...after, seats: [seat('a', true, NOW), late(true)] })).toEqual({
-      refusal: null,
-    });
-    expect(launchPlanOf({ ...after, seats: [seat('a', true, NOW), late(false)] })).toEqual({
-      refusal: 'PLAYERS_NOT_READY',
-      nicknames: ['c'],
-    });
+    expect(
+      launchPlanOf({ ...after, seats: [seat('a', true, NOW), seat('c', false, NOW - 600_000)] }),
+    ).toEqual({ refusal: null });
   });
 
   it('still needs the ones present to be ready, and enough of them', () => {
