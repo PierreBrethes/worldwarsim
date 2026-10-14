@@ -21,6 +21,7 @@ import {
   Raycaster,
   SRGBColorSpace,
   Scene,
+  Texture,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -288,6 +289,19 @@ export class LandingTable {
     removeEventListener('pointerup', this.onUp);
     removeEventListener('keydown', this.onKey);
     cancelAnimationFrame(this.frameId);
+    // Geometries shared with the board's GLB cache only leave this context's memory: the board
+    // uploads them again if it ever draws them.
+    const owned = new Set<{ dispose(): void }>();
+    this.scene.traverse((object) => {
+      const mesh = object as Mesh;
+      if (mesh.geometry) owned.add(mesh.geometry);
+      const materials = mesh.material === undefined ? [] : [mesh.material].flat();
+      for (const material of materials) {
+        owned.add(material);
+        for (const value of Object.values(material)) if (value instanceof Texture) owned.add(value);
+      }
+    });
+    for (const resource of owned) resource.dispose();
     this.renderer.dispose();
     // The page can be left and reopened: a context per visit would pile up to the browser's cap.
     this.renderer.forceContextLoss();
@@ -352,6 +366,7 @@ export class LandingTable {
     const url = BUILDING_MAQUETTES[key];
     if (url !== null)
       void sceneOf(url).then((scene) => {
+        if (!this.running) return;
         const model = scene.clone(true);
         const size = new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.setScalar(span / Math.max(size.x, size.z));
@@ -370,7 +385,7 @@ export class LandingTable {
     const figurine = figurineFor(nation, role, marks);
     if (figurine !== null)
       void figurine.ready.then(
-        () => castShadows(figurine.object),
+        () => this.running && castShadows(figurine.object),
         () => undefined,
       );
     return figurine;
