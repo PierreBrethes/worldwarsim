@@ -7,6 +7,10 @@ export const PASSWORD_MAX_BYTES = 72;
  *  serait une arme. Trois secondes ramènent une recherche de mot de passe à vingt essais par
  *  minute, et ne coûtent rien à celui qui s'est trompé d'une lettre. */
 export const LOGIN_MIN_INTERVAL_MS = 3_000;
+/** Ce qui sépare deux inscriptions, tous pseudos confondus : chacune dérive un PBKDF2 de 600 000
+ *  itérations dans le pool d'actions du backend, qu'un script saturerait en quelques dizaines
+ *  d'appels. Quatre par seconde au plus. */
+export const REGISTER_MIN_INTERVAL_MS = 250;
 
 export function normalizeNickname(nickname: string): string {
   return nickname.trim().normalize('NFC');

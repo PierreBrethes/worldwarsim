@@ -4,10 +4,12 @@ import { v } from 'convex/values';
 import { action, internalAction } from './_generated/server';
 import { internal } from './_generated/api';
 import {
+  LOGIN_MIN_INTERVAL_MS,
   nicknameKey,
   nicknameRefusal,
   normalizeNickname,
   passwordRefusal,
+  REGISTER_MIN_INTERVAL_MS,
 } from '../src/domain/account';
 import { fail } from './errors';
 import { hashPassword, PBKDF2_ITERATIONS, verifyPassword, type PasswordDigest } from './passwords';
@@ -34,6 +36,14 @@ export const register = action({
   args: { nickname: v.string(), password: v.string() },
   handler: async (ctx, { nickname, password }) => {
     validateRegistration(nickname, password);
+    if (
+      !(await ctx.runMutation(internal.accounts.claimAuthSlot, {
+        key: 'register',
+        intervalMs: REGISTER_MIN_INTERVAL_MS,
+      }))
+    ) {
+      fail('REGISTER_TOO_FAST');
+    }
     const digest = await hashPassword(password);
     const token = sessionToken();
     await ctx.runMutation(internal.accounts.register, {
@@ -51,17 +61,16 @@ export const login = action({
   handler: async (ctx, { nickname, password }) => {
     if (nicknameRefusal(nickname) || passwordRefusal(password)) fail('BAD_CREDENTIALS');
 
-    const snapshot = await ctx.runQuery(internal.accounts.passwordDigest, {
-      nicknameKey: nicknameKey(nickname),
-    });
+    const key = nicknameKey(nickname);
     if (
-      snapshot !== null &&
-      !(await ctx.runMutation(internal.accounts.claimLoginAttempt, {
-        accountId: snapshot.accountId,
+      !(await ctx.runMutation(internal.accounts.claimAuthSlot, {
+        key: `login:${key}`,
+        intervalMs: LOGIN_MIN_INTERVAL_MS,
       }))
     ) {
       fail('LOGIN_TOO_FAST');
     }
+    const snapshot = await ctx.runQuery(internal.accounts.passwordDigest, { nicknameKey: key });
     const verified = await verifyPassword(password, snapshot ?? DUMMY_DIGEST);
     if (!snapshot || !verified) fail('BAD_CREDENTIALS');
 

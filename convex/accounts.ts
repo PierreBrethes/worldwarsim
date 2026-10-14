@@ -73,23 +73,30 @@ export const register = internalMutation({
 });
 
 /**
- * **Une tentative à la fois sur un pseudo**, prise avant de dériver quoi que ce soit : `false`
- * et le mot de passe n'est même pas examiné. Une tentative refusée ici **ne repousse pas** la
- * suivante — sinon marteler un pseudo suffirait à en fermer la porte à son propriétaire.
+ * **Un passage à la fois sur une porte**, pris avant de dériver quoi que ce soit : `false` et le
+ * mot de passe n'est même pas examiné. Un passage refusé ici **ne repousse pas** le suivant —
+ * sinon marteler un pseudo suffirait à en fermer la porte à son propriétaire. Les lignes échues
+ * sont balayées au passage, pour que des pseudos inventés ne fassent pas grossir la table.
  */
-export const claimLoginAttempt = internalMutation({
-  args: { accountId: v.id('accounts') },
-  handler: async (ctx, { accountId }) => {
-    const account = await ctx.db.get(accountId);
-    if (account === null) return true;
+export const claimAuthSlot = internalMutation({
+  args: { key: v.string(), intervalMs: v.number() },
+  handler: async (ctx, { key, intervalMs }) => {
     const now = Date.now();
-    if (
-      account.loginAttemptAt !== undefined &&
-      now - account.loginAttemptAt < LOGIN_MIN_INTERVAL_MS
-    ) {
-      return false;
+    const expired = await ctx.db
+      .query('authThrottle')
+      .withIndex('byAt', (q) => q.lte('at', now - LOGIN_MIN_INTERVAL_MS))
+      .take(20);
+    for (const row of expired) {
+      if (row.key !== key) await ctx.db.delete(row._id);
     }
-    await ctx.db.patch(accountId, { loginAttemptAt: now });
+
+    const row = await ctx.db
+      .query('authThrottle')
+      .withIndex('byKey', (q) => q.eq('key', key))
+      .unique();
+    if (row !== null && now - row.at < intervalMs) return false;
+    if (row === null) await ctx.db.insert('authThrottle', { key, at: now });
+    else await ctx.db.patch(row._id, { at: now });
     return true;
   },
 });
@@ -135,6 +142,12 @@ export const resetPassword = internalMutation({
       .withIndex('byAccount', (q) => q.eq('accountId', account._id))
       .collect();
     for (const session of sessions) await ctx.db.delete(session._id);
+
+    const devices = await ctx.db
+      .query('pushSubscriptions')
+      .withIndex('byAccount', (q) => q.eq('accountId', account._id))
+      .collect();
+    for (const device of devices) await ctx.db.delete(device._id);
   },
 });
 

@@ -1,9 +1,9 @@
 // @vitest-environment node
 
 import { convexTest } from 'convex-test';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
-import { LOGIN_MIN_INTERVAL_MS } from '../src/domain/account';
+import { LOGIN_MIN_INTERVAL_MS, REGISTER_MIN_INTERVAL_MS } from '../src/domain/account';
 import { hashPassword } from './passwords';
 import {
   refreshSession,
@@ -18,6 +18,14 @@ import { modules } from './test.setup';
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
+beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
+
+/** Registration is throttled globally: each call lets the clock pass the interval first. */
+const signUp = (t: ReturnType<typeof boot>, args: { nickname: string; password: string }) => {
+  vi.setSystemTime(Date.now() + REGISTER_MIN_INTERVAL_MS);
+  return t.action(api.auth.register, args);
+};
+
 describe('account registration', () => {
   afterEach(() => vi.useRealTimers());
 
@@ -26,7 +34,7 @@ describe('account registration', () => {
     vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
     const t = boot();
 
-    const result = await t.action(api.auth.register, {
+    const result = await signUp(t, {
       nickname: '  Le\u0301a  ',
       password: 'mot de passe solide',
     });
@@ -78,47 +86,81 @@ describe('account registration', () => {
     ['Pierre', 'é'.repeat(36) + 'a', 'PASSWORD_TOO_LONG'],
   ])('rejects invalid C1 input (%s)', async (nickname, password, code) => {
     const t = boot();
-    await expect(t.action(api.auth.register, { nickname, password })).rejects.toThrow(code);
+    await expect(signUp(t, { nickname, password })).rejects.toThrow(code);
     expect(await t.run(async (ctx) => ctx.db.query('accounts').collect())).toEqual([]);
     expect(await t.run(async (ctx) => ctx.db.query('sessions').collect())).toEqual([]);
   });
 
   it('enforces accent-insensitive nickname uniqueness inside the transaction', async () => {
     const t = boot();
-    await t.action(api.auth.register, { nickname: 'Léa', password: 'premier secret' });
+    await signUp(t, { nickname: 'Léa', password: 'premier secret' });
 
-    await expect(
-      t.action(api.auth.register, { nickname: '  LEA  ', password: 'second secret' }),
-    ).rejects.toThrow('NICKNAME_TAKEN');
+    await expect(signUp(t, { nickname: '  LEA  ', password: 'second secret' })).rejects.toThrow(
+      'NICKNAME_TAKEN',
+    );
     expect(await t.run(async (ctx) => ctx.db.query('accounts').collect())).toHaveLength(1);
     expect(await t.run(async (ctx) => ctx.db.query('sessions').collect())).toHaveLength(1);
   });
 
   it('lets only one of two concurrent registrations claim a nickname', async () => {
     const t = boot();
-    const attempts = await Promise.allSettled([
-      t.action(api.auth.register, { nickname: 'Pièrre', password: 'premier secret' }),
-      t.action(api.auth.register, { nickname: 'PIERRE', password: 'second secret' }),
-    ]);
+    const digest = await hashPassword('premier secret');
+    const attempts = await Promise.allSettled(
+      ['Pièrre', 'PIERRE'].map((nickname, index) =>
+        t.mutation(internal.accounts.register, {
+          nickname,
+          nicknameKey: 'pierre',
+          ...digest,
+          token: `token-${index}`,
+        }),
+      ),
+    );
 
     expect(attempts.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
-    expect(attempts.filter(({ status }) => status === 'rejected')).toHaveLength(1);
     expect(
       String(
         (attempts.find(({ status }) => status === 'rejected') as PromiseRejectedResult).reason,
       ),
     ).toContain('NICKNAME_TAKEN');
-    expect(await t.run(async (ctx) => ctx.db.query('accounts').collect())).toHaveLength(1);
-    expect(await t.run(async (ctx) => ctx.db.query('sessions').collect())).toHaveLength(1);
+  });
+
+  it('lets one registration through per interval, whatever the nickname', async () => {
+    const t = boot();
+    await signUp(t, { nickname: 'Pierre', password: 'mot de passe solide' });
+    await expect(
+      t.action(api.auth.register, { nickname: 'Camille', password: 'mot de passe solide' }),
+    ).rejects.toThrow('REGISTER_TOO_FAST');
+    vi.setSystemTime(Date.now() + REGISTER_MIN_INTERVAL_MS);
+    await t.action(api.auth.register, { nickname: 'Camille', password: 'mot de passe solide' });
   });
 });
 
 describe('account login and sessions', () => {
+  it('examines one login attempt per nickname even when it names nobody', async () => {
+    const t = boot();
+    const ghost = { nickname: 'Fantome', password: 'mot de passe solide' };
+    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('BAD_CREDENTIALS');
+    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('LOGIN_TOO_FAST');
+    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
+    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('BAD_CREDENTIALS');
+  });
+
+  it('keeps the throttle table bounded however many nicknames are tried', async () => {
+    const t = boot();
+    for (let i = 0; i < 40; i++) {
+      vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
+      await expect(
+        t.action(api.auth.login, { nickname: `Fantome${i}`, password: 'mot de passe solide' }),
+      ).rejects.toThrow('BAD_CREDENTIALS');
+    }
+    expect(await t.run((ctx) => ctx.db.query('authThrottle').collect())).toHaveLength(1);
+  });
+
   afterEach(() => vi.useRealTimers());
 
   it('logs in with the normalized nickname and returns no digest fields', async () => {
     const t = boot();
-    const registered = await t.action(api.auth.register, {
+    const registered = await signUp(t, {
       nickname: 'Pièrre',
       password: 'mot de passe solide',
     });
@@ -142,7 +184,7 @@ describe('account login and sessions', () => {
     ['Pierre', 'é'.repeat(36) + 'a'],
   ])('uses BAD_CREDENTIALS for every refused login (%s)', async (nickname, password) => {
     const t = boot();
-    await t.action(api.auth.register, { nickname: 'Pierre', password: 'mot de passe solide' });
+    await signUp(t, { nickname: 'Pierre', password: 'mot de passe solide' });
     await expect(t.action(api.auth.login, { nickname, password })).rejects.toThrow(
       'BAD_CREDENTIALS',
     );
@@ -156,7 +198,7 @@ describe('account login and sessions', () => {
   it('examines one login attempt per nickname every three seconds', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const t = boot();
-    await t.action(api.auth.register, { nickname: 'Pierre', password: 'mot de passe solide' });
+    await signUp(t, { nickname: 'Pierre', password: 'mot de passe solide' });
     const wrong = { nickname: 'Pierre', password: 'mauvais secret' };
     const right = { nickname: 'pierre', password: 'mot de passe solide' };
 
@@ -172,7 +214,7 @@ describe('account login and sessions', () => {
     });
 
     /** Another nickname is another door: one account under fire slows nobody else down. */
-    await t.action(api.auth.register, { nickname: 'Camille', password: 'mot de passe solide' });
+    await signUp(t, { nickname: 'Camille', password: 'mot de passe solide' });
     expect(
       await t.action(api.auth.login, { nickname: 'Camille', password: 'mot de passe solide' }),
     ).toEqual({ token: expect.stringMatching(tokenPattern) });
@@ -180,7 +222,7 @@ describe('account login and sessions', () => {
 
   it('keeps sessions independent and makes logout idempotent', async () => {
     const t = boot();
-    const first = await t.action(api.auth.register, {
+    const first = await signUp(t, {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
@@ -199,7 +241,7 @@ describe('account login and sessions', () => {
   it('returns null for unknown and orphaned sessions', async () => {
     const t = boot();
     expect(await t.query(api.accounts.me, { token: 'unknown' })).toBeNull();
-    const { token } = await t.action(api.auth.register, {
+    const { token } = await signUp(t, {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
@@ -212,7 +254,7 @@ describe('account login and sessions', () => {
 
   it('rejects forced token collisions without overwriting the existing session', async () => {
     const t = boot();
-    const first = await t.action(api.auth.register, {
+    const first = await signUp(t, {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
@@ -229,7 +271,7 @@ describe('account login and sessions', () => {
 
   it('rolls back a registration whose token collides with an existing session', async () => {
     const t = boot();
-    const first = await t.action(api.auth.register, {
+    const first = await signUp(t, {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
@@ -259,7 +301,7 @@ describe('what a session is worth, and for how long', () => {
 
   it('does not open on the digest the table keeps', async () => {
     const t = boot();
-    const { token } = await t.action(api.auth.register, account);
+    const { token } = await signUp(t, account);
     const kept = await t.run(async (ctx) => (await ctx.db.query('sessions').first())!);
 
     expect(kept.token).not.toBe(token);
@@ -270,7 +312,7 @@ describe('what a session is worth, and for how long', () => {
 
   it('still reads a session written before the digest, and converts it on its first write', async () => {
     const t = boot();
-    await t.action(api.auth.register, account);
+    await signUp(t, account);
     await t.run(async (ctx) => {
       const session = (await ctx.db.query('sessions').first())!;
       await ctx.db.insert('sessions', {
@@ -293,7 +335,7 @@ describe('what a session is worth, and for how long', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
     const t = boot();
-    const idle = await t.action(api.auth.register, account);
+    const idle = await signUp(t, account);
     vi.setSystemTime(Date.now() + 5_000);
     const used = await t.action(api.auth.login, account);
 
@@ -318,16 +360,16 @@ describe('what a session is worth, and for how long', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
     const t = boot();
-    const here = await t.action(api.auth.register, account);
+    const here = await signUp(t, account);
     vi.setSystemTime(Date.now() + 5_000);
     const elsewhere = await t.action(api.auth.login, account);
-    const other = await t.action(api.auth.register, { ...account, nickname: 'Camille' });
+    const other = await signUp(t, { ...account, nickname: 'Camille' });
 
     const device = { p256dh: 'clef', auth: 'secret', userAgent: 'Firefox' };
     for (const [session, endpoint] of [
-      [here, 'https://push.example/ici'],
-      [elsewhere, 'https://push.example/ailleurs'],
-      [other, 'https://push.example/camille'],
+      [here, 'https://fcm.googleapis.com/ici'],
+      [elsewhere, 'https://fcm.googleapis.com/ailleurs'],
+      [other, 'https://fcm.googleapis.com/camille'],
     ] as const) {
       await t.mutation(api.notifications.subscribe, { ...session, ...device, endpoint });
     }
@@ -335,7 +377,7 @@ describe('what a session is worth, and for how long', () => {
     expect(
       await t.mutation(api.accounts.logoutOthers, {
         ...here,
-        endpoint: 'https://push.example/ici',
+        endpoint: 'https://fcm.googleapis.com/ici',
       }),
     ).toEqual({ closed: 1 });
 
@@ -343,7 +385,7 @@ describe('what a session is worth, and for how long', () => {
     expect(await t.query(api.accounts.me, elsewhere)).toBeNull();
     expect(await t.query(api.accounts.me, other)).toEqual({ nickname: 'Camille' });
     expect((await t.query(api.notifications.devices, here)).map((kept) => kept.endpoint)).toEqual([
-      'https://push.example/ici',
+      'https://fcm.googleapis.com/ici',
     ]);
     expect(await t.query(api.notifications.devices, other)).toHaveLength(1);
     await expect(t.mutation(api.accounts.logoutOthers, elsewhere)).rejects.toThrow(
@@ -358,7 +400,7 @@ describe('password recovery and login races', () => {
   it('revokes every session and accepts only the replacement password', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const t = boot();
-    const first = await t.action(api.auth.register, {
+    const first = await signUp(t, {
       nickname: 'Pierre',
       password: 'ancien secret',
     });
@@ -387,6 +429,26 @@ describe('password recovery and login races', () => {
     expect(await t.query(api.accounts.me, replacement)).toEqual({ nickname: 'Pierre' });
   });
 
+  it('drops the notification subscriptions of the account on recovery', async () => {
+    const t = boot();
+    await signUp(t, { nickname: 'Pierre', password: 'ancien secret' });
+    await t.run(async (ctx) => {
+      const account = (await ctx.db.query('accounts').collect())[0]!;
+      await ctx.db.insert('pushSubscriptions', {
+        accountId: account._id,
+        endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+        p256dh: 'k',
+        auth: 'a',
+        deviceLabel: 'test',
+        createdAt: Date.now(),
+      });
+    });
+
+    await t.action(internal.auth.resetPassword, { nickname: 'Pierre', password: 'nouveau secret' });
+
+    expect(await t.run((ctx) => ctx.db.query('pushSubscriptions').collect())).toHaveLength(0);
+  });
+
   it('refuses invalid recovery input and an unknown account without creating one', async () => {
     const t = boot();
     await expect(
@@ -406,7 +468,7 @@ describe('password recovery and login races', () => {
 
   it('rejects a login transaction whose verified digest predates a reset', async () => {
     const t = boot();
-    await t.action(api.auth.register, { nickname: 'Pierre', password: 'ancien secret' });
+    await signUp(t, { nickname: 'Pierre', password: 'ancien secret' });
     const stale = (await t.query(internal.accounts.passwordDigest, {
       nicknameKey: 'pierre',
     }))!;
@@ -428,7 +490,7 @@ describe('password recovery and login races', () => {
 
   it('revokes a session created just before the reset transaction', async () => {
     const t = boot();
-    await t.action(api.auth.register, { nickname: 'Pierre', password: 'ancien secret' });
+    await signUp(t, { nickname: 'Pierre', password: 'ancien secret' });
     const stale = (await t.query(internal.accounts.passwordDigest, {
       nicknameKey: 'pierre',
     }))!;
@@ -449,7 +511,7 @@ describe('password recovery and login races', () => {
 describe('identity persistence across game purges', () => {
   it('keeps the account and session after season destruction and the development reset', async () => {
     const t = boot();
-    const session = await t.action(api.auth.register, {
+    const session = await signUp(t, {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
