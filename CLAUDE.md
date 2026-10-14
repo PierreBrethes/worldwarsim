@@ -686,8 +686,8 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
 grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mouvement en carte a
 remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque
-encore au schéma de jeu : l'occupation et les revenus — le pillage, lui, se joue depuis le
-10/09. Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
+encore au schéma de jeu : les revenus — le pillage se joue depuis le 10/09, l'occupation
+depuis la capture (14/10). Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
 pas tranché.
 
 **Et un bâtiment ne produit que relié** (ADR 0020 §6, `src/domain/economy.ts` pour la règle —
@@ -761,7 +761,7 @@ passe au sol au point, et la dépêche `outpostDismantled` compte les mâts empo
 perdue s'annonce avant le clic : `outposts.soleHold` lit la **même** différence de deux
 `heldRegions` que la zone hachurée d'un point hors service (`soleHoldOf`, `convex/holding.ts`).
 
-**L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
+**L'avant-poste se conteste par le raid, et il se capture par l'infanterie** (capture, 14/10) : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
 désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
 qu'il disputait. **Elle ne l'efface plus pour autant, depuis le 15/09** : `control.held` sert à son
