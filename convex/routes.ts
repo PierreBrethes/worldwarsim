@@ -136,6 +136,24 @@ export function coastAtPoint(point: LonLat): boolean {
   return isCoastCell(grid, point);
 }
 
+/**
+ * **Le quai le plus proche d'un point**, cherché par anneaux d'un dixième de degré : la carte de
+ * départ d'une Blitz pose ses ports sans joueur pour choisir la côte (`blitz.place`).
+ */
+export function coastPointNear(point: LonLat, maxDegrees = 2): LonLat | null {
+  const step = 0.1;
+  for (let ring = 0; ring * step <= maxDegrees; ring += 1) {
+    for (let dx = -ring; dx <= ring; dx += 1) {
+      for (let dy = -ring; dy <= ring; dy += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const candidate: LonLat = [point[0] + dx * step, point[1] + dy * step];
+        if (coastAtPoint(candidate)) return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 export function landAtPoint(point: LonLat): boolean {
   grid ??= decodeGrid(gridAsset, world);
   return isLandCell(grid, point);

@@ -11,6 +11,7 @@ import {
 import { landAtPoint } from './routes';
 import { movementsOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
+import { modeOf } from '../src/domain/season-mode';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -122,12 +123,17 @@ export async function resolveContact(
    * engagement is never declined for want of matter.
    */
   const sheltered = await shelteredOf(ctx, defender, at);
+  /** **La Blitz ne tient pas de magasin** : sa seule ressource est les fonds, et l'on y tire
+   *  sans compter les coups. */
+  const blitz = modeOf((await ctx.db.get(seasonId))?.mode) === 'blitz';
+  const magazineOf = async (playerId: Id<'players'>) =>
+    blitz ? Infinity : (await economyOf(ctx, playerId, at)).stocks.ammunition;
   const engagement = resolveEngagement({
     attackers: attacker.troops.map((troop) => combatantOf(troop)),
     defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
     ammunition: {
-      attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
-      defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,
+      attacker: await magazineOf(attacker.playerId),
+      defender: await magazineOf(defender.playerId),
     },
     rules: COMBAT_RULES,
   });
@@ -135,7 +141,7 @@ export async function resolveContact(
   for (const side of ['attacker', 'defender'] as const) {
     const { spent, dry } = engagement.magazine[side];
     const who = side === 'attacker' ? attacker.playerId : defender.playerId;
-    if (spent > 0) await debit(ctx, who, { ammunition: spent }, at);
+    if (spent > 0 && !blitz) await debit(ctx, who, { ammunition: spent }, at);
     /**
      * **A side that could not pay struck at `DRY_AMMUNITION_FACTOR`**, and nothing else on the
      * board says it: the account of the pass shows losses, never the reason for them, so a

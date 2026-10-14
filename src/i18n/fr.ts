@@ -551,6 +551,12 @@ export const fr = {
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
+    INSUFFICIENT_FUNDS: (d) =>
+      d.needed === undefined
+        ? 'les fonds ne suffisent pas'
+        : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
+    TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
+    NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',

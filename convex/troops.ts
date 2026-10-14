@@ -7,7 +7,11 @@ import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/dom
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
+import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
+import { modeOf } from '../src/domain/season-mode';
+import { fundsOf, isBlitz, settleFunds, spendFunds } from './blitz';
 import {
+  BLITZ,
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
   TIER_2_HQ_LEVEL,
@@ -55,18 +59,21 @@ export const workshop = query({
     const waiting = await recruitmentsOf(ctx, player._id);
     const economy = await economyOf(ctx, player._id, now);
 
+    const blitz = modeOf(season.mode) === 'blitz';
     const facilities = buildings
-      .filter((building) => DOMAIN_OF_PROJECTION.has(building.key))
+      .filter(
+        (building) => DOMAIN_OF_PROJECTION.has(building.key) || (blitz && building.key === 'hq'),
+      )
       .map((building) => ({
         id: building._id,
         key: building.key,
-        domain: DOMAIN_OF_PROJECTION.get(building.key)!,
+        domain: DOMAIN_OF_PROJECTION.get(building.key) ?? 'land',
         level: building.level,
         regionId: building.regionId,
         regionName: regionFacts(building.regionId)?.name ?? building.regionId,
         queue: dateQueue(
           waiting.filter((batch) => batch.buildingId === building._id).sort(byRank),
-          hqLevel,
+          blitz ? null : hqLevel,
           now,
         ),
       }));
@@ -128,6 +135,7 @@ export const recruit = mutation({
 
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
+    if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
     const expected = projectionKeyOf(role);
     if (building.key !== expected)
       fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
@@ -184,6 +192,40 @@ export const recruit = mutation({
 });
 
 /**
+ * **Recruter en Blitz** : dans un bâtiment de production qu'on tient, payé en fonds, une marque
+ * par rôle, sans palier ni plafond affiché. Le refus est celui que la modale lit
+ * (`blitzRecruitRefusalOf`).
+ */
+async function recruitInBlitz(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  building: Doc<'buildings'>,
+  role: UnitRole,
+) {
+  const now = Date.now();
+  const troops =
+    (await troopsOf(ctx, player._id)).length + (await recruitmentsOf(ctx, player._id)).length;
+  const funds = fundsAt(await fundsOf(ctx, player, now), now);
+  const refusal = blitzRecruitRefusalOf({ site: building.key, role, funds, troops });
+  if (refusal !== null) {
+    fail(refusal, { needed: BLITZ.rolePrice[role], held: Math.floor(funds), found: building.key });
+  }
+  await spendFunds(ctx, player._id, BLITZ.rolePrice[role], now);
+  const queue = await queueOf(ctx, building._id);
+  const rank = (queue[queue.length - 1]?.rank ?? -1) + 1;
+  const recruitmentId = await ctx.db.insert('recruitments', {
+    playerId: player._id,
+    buildingId: building._id,
+    role,
+    tier: 1,
+    rank,
+    finishesAt: null,
+  });
+  await startHead(ctx, building._id, now);
+  return { cost: { alloy: 0, minutes: BLITZ.recruitMinutes }, rank, recruitmentId };
+}
+
+/**
  * Only what has not started gets refunded. A running batch has already consumed the line's
  * time, and cancelling it midway would open a free round trip between matter and time.
  */
@@ -196,6 +238,13 @@ export const cancel = mutation({
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
+    if (modeOf(season.mode) === 'blitz') {
+      const price = BLITZ.rolePrice[batch.role];
+      const stock = await settleFunds(ctx, player._id, Date.now());
+      await ctx.db.patch(player._id, { funds: stock + price });
+      await ctx.db.delete(recruitmentId);
+      return { refunded: { alloy: 0, minutes: BLITZ.recruitMinutes } };
+    }
     const hqLevel = await hqLevelOf(ctx, player._id);
     const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
     await credit(ctx, player._id, { alloy: cost.alloy }, Date.now());
@@ -304,10 +353,13 @@ async function startHead(
    * A batch **already** dated runs to its end: its time was bought before the reserve ran out,
    * and taking it back would be an attrition on the queue by another name.
    */
-  if ((await economyOf(ctx, head.playerId, now)).starving) return;
+  const player = await ctx.db.get(head.playerId);
+  const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
+  if (!blitz && (await economyOf(ctx, head.playerId, now)).starving) return;
 
-  const hqLevel = await hqLevelOf(ctx, head.playerId);
-  const { minutes } = recruitmentCost(head.role, head.tier, hqLevel);
+  const minutes = blitz
+    ? BLITZ.recruitMinutes
+    : recruitmentCost(head.role, head.tier, await hqLevelOf(ctx, head.playerId)).minutes;
   const finishesAt = now + minutes * 60_000;
   await ctx.db.patch(head._id, { finishesAt });
   await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: head._id });
@@ -349,13 +401,19 @@ const priced = (role: UnitRole, tier: 1 | 2, hqLevel: number) => ({
  * nothing is dated in the database until a batch has started, otherwise every cancellation
  * would re-date everything behind it.
  */
-function dateQueue(queue: ReadonlyArray<Doc<'recruitments'>>, hqLevel: number, now: number) {
+function dateQueue(
+  queue: ReadonlyArray<Doc<'recruitments'>>,
+  /** `null` en Blitz : une recrue y sort en `BLITZ.recruitMinutes`, sans QG ni marque. */
+  hqLevel: number | null,
+  now: number,
+) {
   let cursor = now;
   return queue.map((batch) => {
-    const duration =
-      batch.finishesAt === null
-        ? recruitmentCost(batch.role, batch.tier, hqLevel).minutes * 60_000
-        : 0;
+    const minutes =
+      hqLevel === null
+        ? BLITZ.recruitMinutes
+        : recruitmentCost(batch.role, batch.tier, hqLevel).minutes;
+    const duration = batch.finishesAt === null ? minutes * 60_000 : 0;
     const finishesAt = batch.finishesAt ?? cursor + duration;
     cursor = finishesAt;
     return {

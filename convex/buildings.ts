@@ -13,6 +13,7 @@ import { foundationOwedBy, pointOfBuilding } from './regions';
 import { clipToStorage, credit, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
+import { refuseInBlitz } from './blitz';
 
 export type { BuildingKey };
 
@@ -47,6 +48,7 @@ export const demolish = mutation({
   handler: async (ctx, { token, seasonId, buildingId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
 
     const building = await ctx.db.get(buildingId);
     const refusal = demolitionRefusalOf({

@@ -10,6 +10,7 @@
 
 import type * as accounts from "../accounts.js";
 import type * as auth from "../auth.js";
+import type * as blitz from "../blitz.js";
 import type * as buildingReads from "../buildingReads.js";
 import type * as buildings from "../buildings.js";
 import type * as captures from "../captures.js";
@@ -72,6 +73,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
   auth: typeof auth;
+  blitz: typeof blitz;
   buildingReads: typeof buildingReads;
   buildings: typeof buildings;
   captures: typeof captures;

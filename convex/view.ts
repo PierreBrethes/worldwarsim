@@ -55,6 +55,7 @@ import { restHold } from './movements';
 import {
   capitalRegionOf,
   foundationOwedBy,
+  pointOfBuilding,
   homeCountryOf,
   regionFacts,
   regionOfOutpost,
@@ -72,6 +73,8 @@ import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
+import { fundsOf, ownedTroopsOnSite } from './blitz';
+import { fundsAt, isMending } from '../src/domain/blitz';
 
 /** La clé d'une ligne de file telle que l'écran la lit : un `depot` historique reprend son nom
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
@@ -141,7 +144,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * the map: a barracks needs no deposit, so an empty region is a site now, and the panel
    * cannot offer what it was never told about.
    */
-  const home = homeCountryOf(player.nation);
+  const blitz = modeOf(season.mode) === 'blitz';
+  /** En Blitz personne ne joue chez soi : le sol qu'on lit est celui de ses bâtiments. */
+  const home = blitz ? null : homeCountryOf(player.nation);
   const carrying = new Map(
     (home === null ? [] : regionsOf(home)).map((facts) => [facts.id, facts]),
   );
@@ -217,6 +222,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
+  const funds = blitz ? await fundsServed(ctx, player, now) : null;
+  /** Le soin de la Blitz se lit sur la même règle que le travail qui l'applique (`blitz.mend`). */
+  const onSite = new Set<string>(
+    blitz ? (await ownedTroopsOnSite(ctx, player._id)).map((troop) => troop._id) : [],
+  );
 
   /**
    * A troop attached to a building that no longer stands **comes home** — it is not lost,
@@ -405,6 +415,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       progress: 0,
       restWindow: player.restWindow,
       resources: snapshotAll(economy),
+      /** **Les fonds de la Blitz**, réglés à `loadedAt` avec leur débit ; `null` en Mondiale. */
+      funds,
       /**
        * The three chains and what each one is doing — the industry window's whole reason to
        * exist. The state comes out of the settlement itself (`settleStocks`), never out of a
@@ -500,7 +512,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * off the ground, and a season whose foundation is not placed is a state the screen has
        * to be able to say out loud.
        */
-      foundation: foundationOwedBy(player, buildings),
+      foundation: blitz ? [] : foundationOwedBy(player, buildings),
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
@@ -628,6 +640,17 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        mending:
+          funds !== null &&
+          isMending(
+            {
+              role: troop.role,
+              strength: troop.currentStrength,
+              nominalStrength: troop.nominalStrength,
+            },
+            onSite.has(troop._id),
+            funds.stock,
+          ),
       })),
       stationedCargo: stationedCargo.map((group) => ({
         troopIds: group.troopIds,
@@ -916,6 +939,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
      */
     mode: modeOf(season.mode),
+    /**
+     * **Les bâtiments neutres de la Blitz, publics comme les objectifs** : on sait où aller et ce
+     * qu'il y a à prendre, et il n'y a personne à relever — ils ne sont pas gardés (B8).
+     */
+    neutralSites: blitz ? await neutralSitesOf(ctx, season._id) : [],
     /**
      * **Les captures qui me regardent**, des deux côtés (décision du 14/10) : celles que je mène,
      * arrêtées comprises le temps d'une capture entière — c'est ce que « à faire maintenant »
@@ -1358,3 +1386,31 @@ async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promi
  */
 const siteRef = (site: Site | null): { readonly outpostId: Id<'outposts'> | null } | null =>
   site === null ? null : { outpostId: site.kind === 'home' ? null : site.outpostId };
+
+async function fundsServed(ctx: QueryCtx, player: Doc<'players'>, now: number) {
+  const funds = await fundsOf(ctx, player, now);
+  return { stock: fundsAt(funds, now), perMinute: funds.perMinute };
+}
+
+async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>) {
+  const neutral = (
+    await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect()
+  ).find((seat) => seat.irregular === true);
+  if (neutral === undefined) return [];
+  return (await playerBuildings(ctx, neutral._id)).flatMap((building) => {
+    const point = pointOfBuilding(building);
+    return point === null
+      ? []
+      : [
+          {
+            id: building._id,
+            key: canonicalBuildingKey(building.key),
+            regionId: building.regionId,
+            point,
+          },
+        ];
+  });
+}

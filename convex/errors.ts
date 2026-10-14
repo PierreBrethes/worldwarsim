@@ -93,6 +93,10 @@ export type ErrorCode =
   /** La capture (14/10) : seule l'infanterie capture, et le QG attend son lot. */
   | 'CAPTURE_NEEDS_INFANTRY'
   | 'HQ_NOT_CAPTURABLE'
+  /** L'économie de la Blitz (14/10) : on y paie en fonds, et on n'y bâtit rien. */
+  | 'INSUFFICIENT_FUNDS'
+  | 'TROOP_BOUND_REACHED'
+  | 'NOT_IN_BLITZ'
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'

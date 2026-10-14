@@ -12,6 +12,7 @@ import {
 } from '../src/domain/capture';
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { modeOf } from '../src/domain/season-mode';
+import { settleFunds } from './blitz';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
@@ -395,6 +396,11 @@ export const complete = internalMutation({
     const mode = await seasonModeOf(ctx, capture.seasonId);
 
     const before = await settleBeforeChange(ctx, capture.seasonId, now);
+    /** Le débit des fonds change avec la main qui tient le site : régler les deux avant. */
+    if (mode === 'blitz') {
+      await settleFunds(ctx, capture.playerId, now);
+      await settleFunds(ctx, loser._id, now);
+    }
     const taken: Array<Doc<'buildings'>> = [];
     if ('key' in site) {
       await releaseBuilding(ctx, loser, site, now);

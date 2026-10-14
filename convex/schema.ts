@@ -207,6 +207,10 @@ export default defineSchema({
      * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
      */
     settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
+    /** **Les fonds de la Blitz** à `fundsAt` : le débit se relit sur les villes et le QG tenus
+     *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
+    funds: v.optional(v.number()),
+    fundsAt: v.optional(v.number()),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour

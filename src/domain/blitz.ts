@@ -1,5 +1,6 @@
 import { BLITZ } from '../../convex/constants';
 import type { BuildingKey, UnitRole } from './ids';
+import type { SeasonMode } from './season-mode';
 
 /**
  * **L'économie de la Blitz** (lot 4 des deux modes, 14/10) : une ressource, les fonds, et des
@@ -74,3 +75,11 @@ export function mendStep(
 
 export const isMending = (troop: Wounded, onOwnBuilding: boolean, funds: number): boolean =>
   onOwnBuilding && mendStep(troop, funds) !== null;
+
+/**
+ * **Ni construction, ni élévation, ni fondation en Blitz** (B4) : la rose ne propose pas ces
+ * ordres et le serveur les refuse, par cette seule lecture. On n'y pille pas non plus — il n'y a
+ * rien à rapporter d'une économie qui n'a qu'une ressource.
+ */
+export const notInBlitz = (mode: SeasonMode): 'NOT_IN_BLITZ' | null =>
+  mode === 'blitz' ? 'NOT_IN_BLITZ' : null;
