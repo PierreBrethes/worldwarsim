@@ -1360,9 +1360,9 @@ export const fr = {
         : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
-        ? 'il a capturé le dernier quartier général adverse'
+        ? 'son infanterie a capturé le dernier quartier général adverse'
         : reason === 'lastStanding'
-          ? 'il reste seul debout'
+          ? 'seul belligérant encore debout'
           : reason === 'income'
             ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
             : 'revenu et caisse se valent',
@@ -1513,7 +1513,7 @@ export const fr = {
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
       playerEliminated: (nation: string, by: string) =>
-        `${nation.toUpperCase()} EST ÉLIMINÉ — ${by} a capturé son quartier général. Ses bâtiments passent à ${by}, ses troupes sont dissoutes.`,
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>

@@ -15,6 +15,7 @@ const board = (
     arcs,
     captures,
     loadedAt: 0,
+    season: { reduction: { concludedAt: null } },
     me: {
       homePosition: HOME,
       hqLevel: 1,
@@ -230,6 +231,18 @@ describe('what waits for the player', () => {
     };
     expect(kinds(board(owing)).length).toBeGreaterThan(0);
     expect(kinds(board({ ...owing, defeated: true }))).toEqual([]);
+  });
+
+  it('waits on nobody once the season is concluded', () => {
+    const view = board({ troops: [troop({ stationedAt: posted('ITA', [7.7, 45]) })] });
+    const over = {
+      ...view,
+      season: {
+        ...view.season,
+        reduction: { target: 1, concludedAt: 1, winnerNation: null, standings: [] },
+      },
+    } as PlayerView;
+    expect(kinds(over)).toEqual([]);
   });
 
   it('holds the reading order: what is owed, then what produces, then what stands', () => {
