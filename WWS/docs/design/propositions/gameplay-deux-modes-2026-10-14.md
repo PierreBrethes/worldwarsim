@@ -199,6 +199,21 @@ un lieu du tirage suivant.
 - **Aviation** : allonge ≈ 1 500 km depuis un aérodrome ou un avant-poste de niveau 2, et du
   carburant (revue #18).
 
+### Nations (N1-N3)
+- **En Blitz, les nations sont identiques** : drapeau et figurines seulement (N1).
+- **En Mondiale, les atouts restent, les troupes signature sont gelées en V1** (N2).
+- Trois atouts refaits (N3) : **États-Unis** — vos envois de ressources ne sont jamais relevés ;
+  **Japon** « Banzaï » — son infanterie capture toujours à pleine vitesse, même entamée (la
+  réorientation en vol est passée à Suez) ; **Chine** « Terre brûlée » — un bâtiment chinois
+  capturé est détruit au lieu d'être pris. France, Royaume-Uni, URSS, Allemagne et Italie
+  gardent leur atout de la fiche 06.
+
+### Reconnaissance aérienne (N4)
+Un ordre de chasseur ou de bombardier, depuis un aérodrome et dans son allonge, pour une sortie
+de pétrole. À son passage, elle relève dans ≈ 200 km tout ce qui est posé ou en mouvement :
+domaine et **taille approximative** (petite, moyenne, grande force), jamais la composition ni
+la nation. Le relevé vieillit comme les autres.
+
 ### Récit et social (reprises de la revue, M18)
 - Événements de la une, un par jour, tirés d'une table (#8).
 - Traités déclaratifs publiés à la une ; la trahison fait la une (#10).
@@ -228,13 +243,12 @@ un lieu du tirage suivant.
 | Huit ressources, quinze bâtiments | six ressources, huit bâtiments (Mondiale) ; fonds (Blitz) |
 | `DRY_AMMUNITION_FACTOR` 0,6 | à sec, ni attaque ni riposte |
 | Plafond de 24 troupes | pas de plafond affiché |
+| Atouts Prêt-bail, réorientation en vol (Japon), Masse (Chine) ; troupes signature | envois jamais relevés, Banzaï, Terre brûlée ; troupes signature gelées |
 | Un seul canal public (29/08) | canaux privés à deux |
 | Vocabulaire banni : temps réel, rush, micro | à revoir pour la Blitz |
 
 ## Encore ouvert
 
-- Les atouts nationaux, à refaire contre les points stratégiques.
-- La reconnaissance aérienne : forme de l'ordre et de ce qu'il révèle.
 - Toutes les valeurs (vitesses, rechargements, portées, durées, coûts) sont `@a-mesurer`.
 - Le dernier 🔴 (avantage d'isolement géographique) : les points stratégiques hors du sol
   national lui donnent un levier, rien ne l'a encore mesuré.
