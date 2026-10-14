@@ -36,6 +36,8 @@ export function Landing() {
   const [progress, setProgress] = useState(0);
   const [engraved, setEngraved] = useState(false);
   const [age, setAge] = useState(0);
+  const focusing = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(focusing.current), []);
   useEffect(() => table?.setSurveyAge(age), [table, age]);
 
   useEffect(() => {
@@ -216,7 +218,8 @@ export function Landing() {
                             href={`#${BUREAU_ID}`}
                             onClick={(event) => {
                               event.preventDefault();
-                              focusCode(still);
+                              clearTimeout(focusing.current);
+                              focusing.current = focusCode(still);
                             }}
                           >
                             {fr.front.haveCode}

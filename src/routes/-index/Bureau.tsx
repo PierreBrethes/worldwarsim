@@ -9,10 +9,11 @@ const HINT_ID = 'front-code-hint';
 const CODE_LENGTH = 6;
 const CELL_EM = 2.5;
 
-/** « J'ai un code » : on descend au bureau et la main est déjà dans le champ. */
-export function focusCode(still: boolean): void {
+/** « J'ai un code » : on descend au bureau et la main est déjà dans le champ. The timer is
+ *  returned so a page left mid-scroll can drop it. */
+export function focusCode(still: boolean): ReturnType<typeof setTimeout> {
   document.getElementById(BUREAU_ID)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
-  setTimeout(
+  return setTimeout(
     () => document.getElementById(CODE_ID)?.focus({ preventScroll: true }),
     still ? 0 : 700,
   );
