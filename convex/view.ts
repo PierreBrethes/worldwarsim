@@ -65,6 +65,8 @@ import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { isAtWar, playerOf, requireStarted, seatsOf, warEntryOf } from './seats';
+import { modeOf } from '../src/domain/season-mode';
+import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
@@ -97,6 +99,13 @@ export const playerView = query({
  * ajouté, et l'état de référence aurait recommencé à décrire un jeu qui n'existe plus — la panne
  * même que l'ancien simulateur laissait derrière lui.
  */
+/** A Blitz opens framed on its theatre; any other season on the nation's 1940 capital. */
+function openingPointOf(season: Doc<'seasons'>, nation: string | null): LonLat | null {
+  const theatre = season.theatre === undefined ? null : theatreById(season.theatre);
+  if (modeOf(season.mode) === 'blitz' && theatre !== null) return theatreCenter(theatre);
+  return isNation(nation) ? (regionFacts(capitalRegionOf(nation))?.point ?? null) : null;
+}
+
 export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
   const { player, season } = await playerOf(ctx, token, seasonId);
   requireStarted(season);
@@ -443,9 +452,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * Servi toujours, lu seulement à `hqLevel === 0` : un cadrage n'est pas un secret, et un
        * champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
        */
-      capitalPoint: isNation(player.nation)
-        ? (regionFacts(capitalRegionOf(player.nation))?.point ?? null)
-        : null,
+      capitalPoint: openingPointOf(season, player.nation),
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and

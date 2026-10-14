@@ -25,12 +25,12 @@ import {
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
-import { SEASON_CLOCK_HOURS } from './validators';
+import { SEASON_CLOCK_HOURS, SEASON_MODE } from './validators';
+import { creationRefusalOf, MODE_RULES, modeOf } from '../src/domain/season-mode';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
   PRESS_EDITION_HOURS,
-  MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
   STARTING_KIT,
 } from './constants';
@@ -72,17 +72,26 @@ async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Prom
 export const create = mutation({
   args: {
     token: v.string(),
-    durationHours: SEASON_CLOCK_HOURS,
+    /** Ignored once a `mode` is given: the mode fixes the clock. */
+    durationHours: v.optional(SEASON_CLOCK_HOURS),
     compensation: v.number(),
+    mode: v.optional(SEASON_MODE),
+    theatre: v.optional(v.string()),
   },
-  handler: async (ctx, { token, durationHours, compensation }) => {
+  handler: async (ctx, { token, durationHours, compensation, mode, theatre }) => {
     const account = await accountOf(ctx, token);
     if (!account) fail('UNKNOWN_SESSION');
+    if (mode !== undefined) {
+      const refusal = creationRefusalOf(mode, theatre);
+      if (refusal !== null) fail(refusal);
+    }
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
       code,
       status: 'lobby',
-      durationHours,
+      durationHours: mode === undefined ? (durationHours ?? null) : MODE_RULES[mode].clockHours,
+      ...(mode === undefined ? {} : { mode }),
+      ...(mode === 'blitz' ? { theatre } : {}),
       compensation: Math.max(0, Math.min(1, compensation)),
       seed: Math.floor(Math.random() * 2 ** 31),
       playableRegion: null,
@@ -172,6 +181,7 @@ export const join = mutation({
      * is where it is read.
      */
     const present = await seatsOf(ctx, season._id);
+    const maximum = MODE_RULES[modeOf(season.mode)].maxPlayers;
     const refusal = joinRefusalOf({
       seated: (await seatOf(ctx, account, season._id)) !== null,
       status: season.status,
@@ -179,9 +189,10 @@ export const join = mutation({
       now: Date.now(),
       seats: present.length,
       freeNations: freeNations(present).length,
-      maximum: MAX_PLAYERS,
+      maximum,
+      mode: modeOf(season.mode),
     });
-    if (refusal === 'LOBBY_FULL') fail(refusal, { maximum: MAX_PLAYERS });
+    if (refusal === 'LOBBY_FULL' || refusal === 'BLITZ_FULL') fail(refusal, { maximum });
     if (refusal !== null) fail(refusal);
     await seat(ctx, account, season._id, false);
     return { seasonId: season._id };
@@ -217,7 +228,9 @@ export const invitation = query({
         refusal: 'UNKNOWN_GAME_CODE' as const,
         founder: null,
         players: 0,
-        maximum: MAX_PLAYERS,
+        maximum: MODE_RULES.mondiale.maxPlayers,
+        mode: null,
+        theatre: null,
         status: null,
         durationHours: null,
         registrationClosesAt: null,
@@ -227,7 +240,10 @@ export const invitation = query({
     const account = token === undefined ? null : await accountOf(ctx, token);
     const mine = account === null ? null : await seatOf(ctx, account, season._id);
     const present = await seatsOf(ctx, season._id);
+    const maximum = MODE_RULES[modeOf(season.mode)].maxPlayers;
     return {
+      mode: modeOf(season.mode),
+      theatre: season.theatre ?? null,
       refusal: joinRefusalOf({
         seated: mine !== null,
         status: season.status,
@@ -235,11 +251,12 @@ export const invitation = query({
         now: Date.now(),
         seats: present.length,
         freeNations: freeNations(present).length,
-        maximum: MAX_PLAYERS,
+        maximum,
+        mode: modeOf(season.mode),
       }),
       founder: founderOf(present)?.nickname ?? null,
       players: present.length,
-      maximum: MAX_PLAYERS,
+      maximum,
       status: season.status,
       durationHours: season.durationHours,
       registrationClosesAt: registrationDeadline(season.launchedAt),
@@ -272,6 +289,9 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
     seasonId: season._id,
     code: season.code,
     status: season.status,
+    mode: modeOf(season.mode),
+    theatre: season.theatre ?? null,
+    maximum: MODE_RULES[modeOf(season.mode)].maxPlayers,
     durationHours: season.durationHours,
     launchedAt: season.launchedAt,
     createdAt: season._creationTime,
@@ -310,6 +330,9 @@ export const lobby = query({
     return {
       code: season.code,
       status: season.status,
+      mode: modeOf(season.mode),
+      theatre: season.theatre ?? null,
+      maximum: MODE_RULES[modeOf(season.mode)].maxPlayers,
       registrationClosesAt:
         season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
       durationHours: season.durationHours,

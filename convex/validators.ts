@@ -180,6 +180,8 @@ export const SEASON_STATUS = v.union(
  *  (`seasons.conclude`). Aucun écran n'affiche alors de compte à rebours. */
 export const SEASON_CLOCK_HOURS = v.union(v.literal(48), v.literal(168), v.null());
 
+export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
+
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 

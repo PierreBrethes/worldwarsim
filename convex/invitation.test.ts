@@ -67,6 +67,8 @@ describe('seasons.invitation', () => {
       founder: 'Pierre',
       players: 1,
       maximum: MAX_PLAYERS,
+      mode: 'mondiale',
+      theatre: null,
       status: 'lobby',
       durationHours: 48,
       registrationClosesAt: null,
