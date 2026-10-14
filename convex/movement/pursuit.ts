@@ -12,12 +12,7 @@ import { contactAt, passModeOf, pursuitVerdict } from '../../src/domain/blitz';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { positionAt, type MarchingForce } from '../../src/domain/interception';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
-import {
-  ARRIVAL_RADIUS_KM,
-  PURSUIT_STEP_SECONDS,
-  RELOAD_SECONDS_BY_ROLE,
-  detectionRangeOf,
-} from '../constants';
+import { ARRIVAL_RADIUS_KM, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
@@ -186,10 +181,10 @@ export async function pursue(
   const at = positionAt(marchingForce(movement), now);
   const quarry = await quarryNow(ctx, movement.pursuit.troopId, now);
   const gapKm = quarry === null ? Infinity : distanceKm(at, quarry.point);
-  const seen =
-    quarry !== null &&
-    (gapKm <= detectionRangeOf(hunters.map((troop) => troop.role)) ||
-      (await inSight(ctx, movement.playerId, quarry, now)));
+  /** **La vue du joueur et rien d'autre** : ses relevés, refaits à l'instant — la règle de milieu
+   *  de `mobileSighting` comprise —, jamais une distance entre deux positions vraies. */
+  await reassessDetection(ctx, movement.seasonId, now);
+  const seen = quarry !== null && (await inSight(ctx, movement.playerId, quarry, now));
   const verdict =
     quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm: ARRIVAL_RADIUS_KM });
 

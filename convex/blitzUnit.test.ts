@@ -241,6 +241,60 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(engagement?.shock).toBe(true);
   });
 
+  it('does not see through the sea: a land column loses a target that has embarked', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const hunter = await troop(t, seat, { lon: 2.2, lat: 50.9 });
+    const quarry = await troop(t, guest, { lon: 1.7, lat: 51.0 }, 'cargo');
+    const insert = (who: Seat, doc: Record<string, unknown>) =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, who);
+        return ctx.db.insert('movements', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          fromBuildingId: null,
+          hostCountry: '',
+          legs: [{ medium: 'sea', distanceUnits: 1 }],
+          distanceUnits: 1,
+          costUnits: 1,
+          ...doc,
+        } as never);
+      });
+    const sea = [
+      { lon: 1.7, lat: 51.0 },
+      { lon: 1.2, lat: 51.3 },
+    ];
+    await insert(guest, {
+      type: 'march',
+      target: { kind: 'point', point: sea[1] },
+      from: sea[0],
+      to: sea[1],
+      points: sea,
+      troopIds: [quarry],
+      departedAt: MIDDAY,
+      arrivesAt: MIDDAY + 3_600_000,
+    });
+    const chase = await insert(seat, {
+      type: 'attack',
+      target: { kind: 'point', point: sea[0] },
+      from: { lon: 2.2, lat: 50.9 },
+      to: { lon: 2.0, lat: 50.95 },
+      hostCountry: 'FRA',
+      points: [
+        { lon: 2.2, lat: 50.9 },
+        { lon: 2.0, lat: 50.95 },
+      ],
+      legs: [{ medium: 'land', distanceUnits: 1 }],
+      troopIds: [hunter],
+      departedAt: MIDDAY,
+      arrivesAt: MIDDAY + 3_600_000,
+      pursuit: { troopId: quarry, checkAt: MIDDAY + 1_000 },
+    });
+    vi.setSystemTime(MIDDAY + 1_000);
+    await t.mutation(internal.movements.pursue, { movementId: chase, expectedAt: MIDDAY + 1_000 });
+    expect(await t.run((ctx) => ctx.db.get(chase))).toMatchObject({ type: 'march' });
+  });
+
   it('gives up on a target out of sight and stops at its last known position', async () => {
     const t = boot();
     const { seat, guest } = await blitz(t);
