@@ -29,6 +29,12 @@ const FORMED_BY: Readonly<Partial<Record<BuildingKey, ReadonlyArray<UnitRole>>>>
 
 export const rolesFormedBy = (key: BuildingKey): ReadonlyArray<UnitRole> => FORMED_BY[key] ?? [];
 
+/** Les bâtiments qui forment ce rôle, pour le dire en toutes lettres à l'abaque. */
+export const rolesFormingSites = (role: UnitRole): ReadonlyArray<BuildingKey> =>
+  (Object.keys(FORMED_BY) as ReadonlyArray<BuildingKey>).filter((key) =>
+    rolesFormedBy(key).includes(role),
+  );
+
 export type BlitzRecruitRefusal =
   'WRONG_PROJECTION_BUILDING' | 'TROOP_BOUND_REACHED' | 'INSUFFICIENT_FUNDS';
 

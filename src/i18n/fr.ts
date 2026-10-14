@@ -265,6 +265,8 @@ export const fr = {
     recruit: (funds: number) => `former — ${num(funds)} fonds`,
     short: (missing: number) => `il manque ${num(missing)} fonds`,
     mend: 'soin',
+    formsIn: (sites: ReadonlyArray<string>) =>
+      `se forme dans ${sites.join(' ou dans ')}, contre des fonds`,
     mending: (count: number) =>
       count > 1 ? `${num(count)} troupes reprennent des forces` : 'reprend des forces',
     mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),

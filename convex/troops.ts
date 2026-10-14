@@ -83,6 +83,8 @@ export const workshop = query({
       // from a countdown: `minutesLeft` is relative to this reading, and re-reading it as
       // "now" on every beat froze the queue's clock at its served value.
       loadedAt: now,
+      /** La Blitz paie en fonds, une marque par rôle, sans palier : l'abaque le lit ici. */
+      blitz,
       nation: player.nation ?? '?',
       hqLevel,
       speed: chainSpeed(hqLevel),
