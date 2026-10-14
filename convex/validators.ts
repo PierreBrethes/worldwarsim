@@ -385,8 +385,6 @@ export const NOTICE = v.union(
     detector: DETECTOR,
     detectorRegion: v.union(v.string(), v.null()),
   }),
-  /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
-   *  else on the board says it, and it is the difference between a defeat and a supply fault. */
   /** **La poursuite abandonnée** (Blitz, B18) : la cible est sortie de notre vue, la colonne
    *  s'arrête à sa dernière position connue. */
   v.object({
@@ -395,6 +393,8 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     point: LON_LAT,
   }),
+  /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
+   *  else on the board says it, and it is the difference between a defeat and a supply fault. */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('firedDry'),

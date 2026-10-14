@@ -1023,6 +1023,6 @@ function missionLabel(
     case 'cargoReturn':
       return fr.loot.missions.cargoReturn;
     case 'pursuit':
-      return fr.loot.missions.pursuit;
+      return fr.aim.pursuit;
   }
 }

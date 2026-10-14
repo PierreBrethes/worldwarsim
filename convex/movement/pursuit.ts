@@ -47,7 +47,7 @@ async function quarryNow(
     const force = marchingForce(movement);
     return { troop, point: positionAt(force, now), force, movement };
   }
-  const stance = await stanceOf(ctx as MutationCtx, troop.stationedAt);
+  const stance = await stanceOf(ctx, troop.stationedAt);
   if (stance === null) return null;
   return {
     troop,
@@ -129,7 +129,7 @@ export async function quarryOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', camp.ownerId))
     .collect()) {
     if (marching.has(troop._id)) continue;
-    const stance = await stanceOf(ctx as MutationCtx, troop.stationedAt);
+    const stance = await stanceOf(ctx, troop.stationedAt);
     if (stance !== null && distanceKm(stance.point, pointOf(camp.point)) <= 1)
       return { troopId: troop._id, point: stance.point };
   }

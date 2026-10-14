@@ -976,11 +976,6 @@ function aim(
       },
     ]);
   }
-  /**
-   * **Un objectif neutre est une cible, et une seule branche y mène** : « attaquer ». Le refus
-   * vient de `refusalOf`, la fonction que la mutation relit — une colonne sans infanterie s'y
-   * voit dire pourquoi, jamais une branche grisée (ADR 0015).
-   */
   if (target.kind === 'track') {
     return fanOf(target.name, view, column, [
       {
@@ -994,6 +989,11 @@ function aim(
       },
     ]);
   }
+  /**
+   * **Un objectif neutre est une cible, et une seule branche y mène** : « attaquer ». Le refus
+   * vient de `refusalOf`, la fonction que la mutation relit — une colonne sans infanterie s'y
+   * voit dire pourquoi, jamais une branche grisée (ADR 0015).
+   */
   if (target.kind === 'objective') {
     return fanOf(target.name, view, column, [
       {

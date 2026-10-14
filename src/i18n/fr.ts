@@ -330,7 +330,6 @@ export const fr = {
       plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,
       collection: 'vers le dernier relevé',
       cargoReturn: 'retour chargé',
-      pursuit: 'poursuite',
     },
   },
 

@@ -17,7 +17,6 @@ export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   return [lon, lon + 360].some((candidate) => candidate >= west && candidate <= east);
 }
 
-/** The theatre's longer side, east-west read at its middle latitude. */
 function spanKm(theatre: Theatre): number {
   const { west, south, east, north } = theatre.box;
   const middle = (south + north) / 2;

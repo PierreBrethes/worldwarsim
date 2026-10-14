@@ -1451,13 +1451,13 @@ export class MapEngine {
     this.dayCycle = cycle;
   }
 
-  /** Percentages from the settings; the pieces re-measure on the next frame. */
   /** **Le cadre d'une Blitz** (B1) : la boîte du théâtre, et le reste délavé ; `null` l'ôte. */
   setTheatre(theatre: Theatre | null): void {
     this.invalidate();
     this.theatreFrame.show(theatre);
   }
 
+  /** Percentages from the settings; the pieces re-measure on the next frame. */
   setPieceScale(scale: PieceScale): void {
     this.invalidate();
     pieceScale.troops = scale.troops / 100;

@@ -372,15 +372,6 @@ export async function aimOf(
       host: country,
     };
   }
-  /**
-   * **Un objectif neutre se résout en sa position, et il n'y a rien à relever** (exception de
-   * l'ADR 0024 §4). C'est la vérité du plateau qui répond ici, et c'est légitime : l'objectif est
-   * public — annoncé à tous au lancement, servi à tous par `playerView.objectives` — donc le lire
-   * ne perce aucun brouillard. Ce que le brouillard garde est la garnison, et elle n'est pas ici.
-   *
-   * Un objectif déjà vidé reste une cible : sa garnison peut tenir encore, et rien n'oblige une
-   * colonne à venir pour le dépôt.
-   */
   /** **Un fil adverse en vue** (Blitz, B18) : sa position à l'instant, telle que le relevé la
    *  donne ; le refus d'un fil hors Blitz est celui de `refusalOf`, pas d'ici. */
   if (target.kind === 'sighting') {
@@ -402,6 +393,15 @@ export async function aimOf(
       host: country,
     };
   }
+  /**
+   * **Un objectif neutre se résout en sa position, et il n'y a rien à relever** (exception de
+   * l'ADR 0024 §4). C'est la vérité du plateau qui répond ici, et c'est légitime : l'objectif est
+   * public — annoncé à tous au lancement, servi à tous par `playerView.objectives` — donc le lire
+   * ne perce aucun brouillard. Ce que le brouillard garde est la garnison, et elle n'est pas ici.
+   *
+   * Un objectif déjà vidé reste une cible : sa garnison peut tenir encore, et rien n'oblige une
+   * colonne à venir pour le dépôt.
+   */
   if (target.kind === 'objective') {
     const objective = await ctx.db.get(target.objectiveId);
     if (objective === null || objective.seasonId !== (await seasonIdOf(ctx, playerId))) {
