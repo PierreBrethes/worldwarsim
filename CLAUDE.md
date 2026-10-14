@@ -344,6 +344,26 @@ sans place — la page le dit, sans retour en arrière. Le salon copie
 `${origin}/rejoindre/${code}` ; reprendre une place passe par `resumeSeat` depuis l'accueil comme
 depuis l'invitation. Pas d'aperçu de lien : il porterait un nom qui va changer.
 
+**Et le hors-saison est la une pour lire, la table pour jouer — 14/10/2026** (prototype validé
+`WWS/prototypes/connexion-salon.html`, note `CONNEXION-SALON-2026-10-14.md`, 19 choix adoptés).
+Connexion en **carte d'accréditation** (`AccountForm`, règles écrites pendant la frappe), accueil
+en **une de mon édition** triée par urgence (`frontPageOrder`, `src/domain/front-page.ts` ;
+« supprimer » n'y est plus : au salon, et au pli d'une partie conclue), `/fonder` en **ordre
+d'opérations** avec le télégramme qui s'écrit en face, salon en **table d'état-major** (carte
+gravée `public/engraved-map.json` dessinée par `emblems/EngravedMap.tsx`, un carton par place,
+l'ordre replié sous « tout l'ordre », le télégraphe du jeu dans sa fenêtre), invitation et refus
+en **télégramme** (`shell/Telegram.tsx`), chaque refus avec son issue. Styles du prototype dans
+`styles/off-season.css`, sous `.os` et dans la couche `components`. **L'ordre se reprend au salon**
+(`seasons.configure`, fondateur seul, avant le lancement ; refus partagé `settingsRefusalOf`,
+`src/domain/operation-order.ts`) et **toute modification lève les « prêt »** : théâtre (ou au sort,
+tiré par la graine au lancement), rendez-vous d'une Blitz (`scheduledAt`, `null` = table complète)
+et son rappel push quinze minutes avant (`seasons.remind`), places (`seatCap`, borné par le
+plafond), capture d'un QG en Mondiale (`hqCaptureHours`, 12 ou 24 h — **stocké et affiché, aucune
+règle ne le lit**). **La présence est servie en Blitz seulement** (`players.beatLobby`,
+`lobbySeenAt`, ADR 0005) : avant l'heure un absent bloque le lancement (`launchPlanOf`,
+`PLAYERS_ABSENT`), après elle on part sans l'attendre et **il garde sa place** (J1 b) : posé
+comme les autres, il joue en arrivant en retard ; le rendez-vous ne lance rien seul. Les points stratégiques ne sont pas affichés : ils n'existent pas encore.
+
 **Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.

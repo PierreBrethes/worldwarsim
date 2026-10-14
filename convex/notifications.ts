@@ -21,6 +21,7 @@ import { fail } from './errors';
 import { readMarksOf, stampReadMark } from './readMarks';
 import { accountOf, playerOf } from './seats';
 import { PUSH_TYPE } from './validators';
+import { modeOf } from '../src/domain/season-mode';
 
 const PRESENCE_BEAT_MIN_MS = 30_000;
 const ENDPOINT_MAX_LENGTH = 2048;
@@ -141,7 +142,8 @@ export const flush = internalMutation({
         },
         now,
       );
-      if (reading.restUntil !== null) {
+      /** Une Blitz n'a pas de plage de repos (B2) : son rappel tombe à l'heure. */
+      if (reading.restUntil !== null && modeOf(season.mode) !== 'blitz') {
         retryNoLaterThan(reading.restUntil);
         continue;
       }

@@ -1,70 +1,57 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import type { ReactNode } from 'react';
+import type { FunctionReturnType } from 'convex/server';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, modeSummary } from '@/i18n/fr';
+import { fr, nationLabel, rendezvousLabel } from '@/i18n/fr';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
-import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Wordmark } from '@/shell/Masthead';
-import { ThickRule, ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
+import { EngravedMap, WORLD_BOX } from '@/emblems/EngravedMap';
+import { FlagChip, OffSeasonPage, boxOf } from '@/shell/OffSeason';
+import { Telegram } from '@/shell/Telegram';
 import { convexClient } from '@/data/convexClient';
-import { errorMessage } from '@/data/errors';
+import { errorCode, errorMessage } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
-import { keepSeat, useSession } from '@/data/session';
+import { downloadRendezvous } from '@/data/rendezvous';
+import { forgetSession, keepSeat, useSession } from '@/data/session';
 import { useSingleFlight } from '@/data/useSingleFlight';
-import { asDayAndTime } from '@/domain/duration';
-import { normalizeGameCode } from '@/domain/off-season';
+import { isNation } from '@/domain/nations';
+import { normalizeGameCode, type JoinRefusal } from '@/domain/off-season';
+import { DEFAULT_HQ_CAPTURE_HOURS, THEATRE_DRAW, presenceOf } from '@/domain/operation-order';
+import { theatreById, type TheatreId } from '@/domain/theatres';
 
 export const Route = createFileRoute('/rejoindre/$code')({ component: Invitation });
 
-const WIDTH = 520;
-
 function Invitation() {
   const { code } = Route.useParams();
-  return convexClient ? <InvitationPage code={code} /> : <NoBackend />;
-}
-
-function NoBackend() {
-  const { turning } = usePageTurn();
-  return (
-    <Sheet turning={turning}>
-      <p className="mx-(--sheet-pad) py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
-    </Sheet>
+  return convexClient ? (
+    <InvitationPage code={code} />
+  ) : (
+    <OffSeasonPage>
+      <p className="note" style={{ padding: 40, color: 'var(--paper)' }}>
+        {fr.auth.noBackend}
+      </p>
+    </OffSeasonPage>
   );
 }
 
-/** Une feuille réduite, comme le salon : la manchette en une ligne, puis ce que la page a à dire. */
-function Sheet({ turning, children }: { turning: Turning; children: ReactNode }) {
-  return (
-    <EntrySheet width={WIDTH} turning={turning}>
-      <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-(--sheet-pad) pt-3 pb-[10px]">
-        <Wordmark size={17} />
-        <span className="flex-1" />
-        <span className="eyebrow">{fr.invitation.tagline}</span>
-      </div>
-      <ThickRule margin="var(--sheet-pad)" />
-      {children}
-      <SheetExit />
-    </EntrySheet>
-  );
-}
+type Answer = FunctionReturnType<typeof api.seasons.invitation>;
+type Refusal = Exclude<JoinRefusal, 'SEAT_TAKEN'> | 'UNKNOWN_GAME_CODE';
+
+const theatreName = (theatre: string | null): string | null =>
+  theatre === null || theatre === THEATRE_DRAW
+    ? null
+    : ((fr.modes.theatres as Record<string, string>)[theatre] ?? null);
 
 /**
- * **Un lien, un compte, le salon.** La page lit l'invitation avant tout (`seasons.invitation`,
- * sans session obligatoire) et ne demande rien d'autre que ce qu'il faut pour entrer : le
- * formulaire de compte si personne n'est connecté, un bouton sinon — et si la place existe déjà,
- * elle se reprend comme à l'accueil.
- *
- * Un refus est une phrase et une sortie (ADR 0015) — la sortie est au pied de la feuille, dans
- * tous ses états (`SheetExit`), pas seulement sous un refus. **Le compte peut naître sans place** : si
- * `join` refuse après l'inscription — le salon s'est rempli entre-temps —, la session reste, la
- * page le dit et mène à l'accueil.
+ * **Le télégramme** (choix 17) : qui invite, quoi, quand, la table et l'ordre — puis la réponse,
+ * un dossier de deux champs ou « répondre présent ». La page lit l'invitation avant tout
+ * (`seasons.invitation`, sans session obligatoire) ; ses refus sont ceux de `join`, par la même
+ * fonction (`joinRefusalOf`), et chacun a une issue utile (choix 19). **Le compte peut naître sans
+ * place** : si `join` refuse après l'inscription, la session reste et la page le dit.
  */
 export function InvitationPage({ code: raw }: { code: string }) {
   const navigate = useNavigate();
-  const { turning, turn } = usePageTurn();
   const token = useSession();
   const code = normalizeGameCode(raw);
   const me = useQuery(api.accounts.me, token === null ? 'skip' : { token });
@@ -74,12 +61,13 @@ export function InvitationPage({ code: raw }: { code: string }) {
   );
   const join = useMutation(api.seasons.join);
   const { run, pending } = useSingleFlight();
-  const [late, setLate] = useState<{ message: string; accountCreated: boolean } | null>(null);
+  const [late, setLate] = useState<{
+    refusal: Refusal | null;
+    message: string;
+    accountCreated: boolean;
+  } | null>(null);
+  const toSalon = () => void navigate({ to: '/salon' });
 
-  const toSalon = () => turn(() => void navigate({ to: '/salon' }));
-
-  /** Entrer avec une session donnée. Un refus du serveur n'est pas une erreur de formulaire :
-   *  il se dit sur la page, le compte — s'il vient de naître — est gardé. */
   const enter = async (session: string, accountCreated: boolean) => {
     if (code === null) return;
     try {
@@ -88,132 +76,352 @@ export function InvitationPage({ code: raw }: { code: string }) {
       toSalon();
     } catch (problem) {
       if (errorMessage(problem) === null) console.error(problem);
-      setLate({ message: errorMessage(problem) ?? fr.unexpectedError, accountCreated });
+      const refusal = errorCode(problem);
+      setLate({
+        refusal: refusal !== null && refusal in fr.table.refusals ? (refusal as Refusal) : null,
+        message: errorMessage(problem) ?? fr.unexpectedError,
+        accountCreated,
+      });
     }
   };
 
-  const sentence = (message: string, extra?: string) => (
-    <div className="mx-(--sheet-pad) pt-6 pb-4">
-      <p role="alert" className="border border-[var(--critical)] px-3 py-2 text-[13px]">
-        {message}
-      </p>
-      {extra !== undefined && <p className="mt-3 text-[12px] text-[var(--ink-note)]">{extra}</p>}
-    </div>
-  );
-
-  /** Dit avant d'attendre quoi que ce soit : la session vient de naître, la relire (`me`) prend un
-   *  aller-retour, et pendant ce temps le refus ne doit pas disparaître sous « ouverture ». */
   if (late !== null) {
     return (
-      <Sheet turning={turning}>
-        {sentence(late.message, late.accountCreated ? fr.invitation.accountKept : undefined)}
-      </Sheet>
+      <RefusalPage
+        refusal={late.refusal ?? 'REGISTRATION_CLOSED'}
+        invitation={invitation ?? null}
+        message={late.refusal === null ? late.message : null}
+        accountKept={late.accountCreated}
+      />
     );
   }
-  const loading =
-    code !== null && (invitation === undefined || (token !== null && me === undefined));
-  if (loading) {
+  if (code !== null && (invitation === undefined || (token !== null && me === undefined))) {
     return (
-      <Sheet turning={turning}>
-        <p className="mx-(--sheet-pad) py-6 text-[13.5px]">{fr.invitation.opening}</p>
-      </Sheet>
+      <OffSeasonPage>
+        <p className="eyebrow dark" style={{ padding: 40 }}>
+          {fr.invitation.opening}
+        </p>
+      </OffSeasonPage>
     );
   }
-
-  if (invitation === undefined || invitation === null) {
-    return <Sheet turning={turning}>{sentence(fr.errors.UNKNOWN_GAME_CODE())}</Sheet>;
-  }
-
-  const facts = (
-    <div className="mx-(--sheet-pad) pt-[18px]">
-      <h1 className="font-(family-name:--font-display) text-[26px] leading-none font-extrabold tracking-[.02em] break-words uppercase max-md:text-[22px]">
-        {fr.invitation.invitedBy(invitation.founder)}
-      </h1>
-      <p className="mt-3 text-[12px] text-[var(--ink-note)]">
-        {invitation.mode ? `${modeSummary(invitation.mode, invitation.theatre)} — ` : ''}
-        {fr.invitation.duration(clockLabel(invitation.durationHours))}
-        {' — '}
-        {fr.modes.seats(invitation.players, invitation.maximum)}
-        {' — '}
-        {fr.invitation.placesLeft(Math.max(0, invitation.maximum - invitation.players))}
-      </p>
-      <FilmTrailer className="mt-2 mb-[14px]" />
-    </div>
-  );
-
-  if (invitation.seated !== null) {
-    const seat = invitation.seated;
+  if (invitation === undefined || invitation.refusal === 'UNKNOWN_GAME_CODE') {
     return (
-      <Sheet turning={turning}>
-        {facts}
-        <ThickRuleInverse margin="var(--sheet-pad)" />
-        <div className="mx-(--sheet-pad) py-5">
-          <Primary
-            onClick={() =>
-              resumeSeat(seat, {
-                salon: toSalon,
-                plateau: () => turn(() => void navigate({ to: '/plateau' })),
-              })
-            }
-          >
-            {fr.invitation.resume}
-          </Primary>
-        </div>
-      </Sheet>
+      <RefusalPage
+        refusal="UNKNOWN_GAME_CODE"
+        invitation={null}
+        message={null}
+        accountKept={false}
+      />
+    );
+  }
+  if (
+    invitation.seated === null &&
+    invitation.refusal !== null &&
+    invitation.refusal !== 'SEAT_TAKEN'
+  ) {
+    return (
+      <RefusalPage
+        refusal={invitation.refusal}
+        invitation={invitation}
+        message={null}
+        accountKept={false}
+      />
     );
   }
 
-  if (invitation.refusal !== null) {
-    const closedAt = invitation.registrationClosesAt;
-    const message =
-      invitation.refusal === 'REGISTRATION_CLOSED' && closedAt !== null
-        ? fr.invitation.closedSince(asDayAndTime(closedAt))
-        : fr.errors[invitation.refusal]({ maximum: invitation.maximum });
-    return (
-      <Sheet turning={turning}>
-        {facts}
-        {sentence(message)}
-      </Sheet>
-    );
-  }
+  const blitz = invitation.mode === 'blitz';
+  const founder = invitation.founder ?? '';
+  const taken = invitation.seats.length;
+  const theatre = theatreById(invitation.theatre ?? '');
+  const scheduledAt = invitation.orders?.scheduledAt ?? null;
+  const now = Date.now();
+  const when = scheduledAt === null ? null : rendezvousLabel(scheduledAt, now);
+  const lines = blitz
+    ? fr.table.telegram.blitzLines({
+        from: founder,
+        theatre: theatreName(invitation.theatre),
+        when,
+        seats: { taken, cap: invitation.maximum },
+      })
+    : fr.table.telegram.mondialeLines({
+        from: founder,
+        capture: invitation.orders?.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
+        seats: { taken, cap: invitation.maximum },
+      });
+  const others = Math.max(0, invitation.maximum - taken - 1);
+  const seated = invitation.seated;
 
   return (
-    <Sheet turning={turning}>
-      {facts}
-      <ThickRuleInverse margin="var(--sheet-pad)" />
-      {me !== undefined && me !== null && token !== null ? (
-        <div className="mx-(--sheet-pad) py-5">
-          <p className="mb-3 text-[12px] text-[var(--ink-note)]">
-            {fr.invitation.signedIn(me.nickname)}
-          </p>
-          <Primary disabled={pending} onClick={() => void run(() => enter(token, false))}>
-            {fr.invitation.join}
-          </Primary>
+    <OffSeasonPage>
+      <div className="invit-wrap">
+        <div className="invit">
+          <div className="masthin">
+            <Wordmark size={26} />
+            <span className="eyebrow">{fr.invitation.tagline}</span>
+            <span style={{ flex: 1 }} />
+            <Link className="link dark" to={token === null ? '/' : '/accueil'}>
+              {token === null ? fr.front.back : fr.invitation.toHome}
+            </Link>
+          </div>
+          <div className="g-tg">
+            <Telegram
+              lines={lines}
+              code={code ?? ''}
+              origin={fr.table.telegram.tableOf(founder)}
+              filed={fr.table.telegram.filedAt(now)}
+            />
+          </div>
+          <details className="sheet orderslip">
+            <summary>
+              <span className="eyebrow">{fr.invitation.readOrder}</span>
+              <span className="note">{fr.invitation.setBy(founder)}</span>
+            </summary>
+            <dl>
+              {(blitz
+                ? fr.invitation.blitzOrder(theatreName(invitation.theatre), when)
+                : fr.invitation.mondialeOrder(
+                    invitation.orders?.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
+                  )
+              ).map(([term, value]) => (
+                <Row key={term} term={term} value={value} />
+              ))}
+            </dl>
+          </details>
+          <section className="sheet reply" aria-labelledby="t-reply">
+            <div className="eyebrow">{fr.invitation.reply}</div>
+            <h2 id="t-reply">{fr.invitation.takeSeat(founder)}</h2>
+            <div
+              className="mapbox"
+              style={{ height: blitz ? 170 : 150, border: '1px solid var(--ink)' }}
+            >
+              {theatre !== null ? (
+                <EngravedMap
+                  box={boxOf(theatre.box)}
+                  px={460}
+                  frame={boxOf(theatre.box)}
+                  veil={0.3}
+                  pad={0.03}
+                  rings={[9, 5.5, 2.4]}
+                  labels={fr.table.sheets[theatre.id as TheatreId].seas.slice(0, 2)}
+                  labelPx={13}
+                />
+              ) : (
+                <EngravedMap
+                  box={WORLD_BOX}
+                  px={460}
+                  flat
+                  gratStep={30}
+                  pad={0.01}
+                  rings={[5, 2.4]}
+                  nations={Object.fromEntries(
+                    invitation.seats
+                      .filter((entry) => entry.nation !== null)
+                      .map((entry) => [entry.nation!, {}]),
+                  )}
+                />
+              )}
+              <div
+                className="cartouche"
+                style={{ right: 8, top: 8, transform: 'scale(.7)', transformOrigin: 'top right' }}
+              >
+                <div className="eyebrow">
+                  {theatre === null ? fr.table.generalMap : fr.table.theatreSheet}
+                </div>
+                <h4>
+                  {theatre === null
+                    ? blitz
+                      ? fr.table.draw
+                      : fr.table.world1940
+                    : fr.modes.theatres[theatre.id as TheatreId]}
+                </h4>
+              </div>
+            </div>
+            <div className="atable" aria-label={fr.invitation.alreadySeated}>
+              {invitation.seats.map((entry, rank) => {
+                const presence = presenceOf(entry.seenAt, now);
+                return (
+                  <div className="r" key={`${entry.nickname}${rank}`}>
+                    <FlagChip nation={entry.nation} width={33} />
+                    <b>{entry.nickname}</b>
+                    <span className="note">
+                      {entry.nation === null ? fr.table.toChoose(blitz) : nationLabel(entry.nation)}
+                      {blitz
+                        ? presence.kind === 'unknown'
+                          ? ''
+                          : ` · ${presence.kind === 'present' ? fr.table.atTable : fr.table.away}`
+                        : isNation(entry.nation)
+                          ? ` · ${fr.nationAssets[entry.nation].name}`
+                          : ''}
+                    </span>
+                  </div>
+                );
+              })}
+              {seated === null && (
+                <div className="r free">
+                  <i />
+                  {fr.invitation.yourSeat(others)}
+                </div>
+              )}
+            </div>
+            {seated !== null ? (
+              <button
+                type="button"
+                className="btn primary wide"
+                onClick={() =>
+                  resumeSeat(seated, {
+                    salon: toSalon,
+                    plateau: () => void navigate({ to: '/plateau' }),
+                  })
+                }
+              >
+                {fr.invitation.resume}
+              </button>
+            ) : me !== undefined && me !== null && token !== null ? (
+              <>
+                <p className="note" style={{ margin: 0 }}>
+                  {fr.invitation.signedIn(me.nickname)}{' '}
+                  <button type="button" className="link" onClick={forgetSession}>
+                    {fr.invitation.notYou}
+                  </button>
+                </p>
+                <button
+                  type="button"
+                  className="btn primary wide"
+                  aria-disabled={pending || undefined}
+                  onClick={() => void run(() => enter(token, false))}
+                >
+                  {fr.invitation.join}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="note" style={{ margin: 0 }}>
+                  {fr.invitation.oneFile}
+                </p>
+                <AccountForm
+                  invited
+                  portrait={blitz ? 'uk' : 'italy'}
+                  onSignedIn={(session) => enter(session, true)}
+                />
+              </>
+            )}
+            {blitz && scheduledAt !== null ? (
+              <button
+                type="button"
+                className="link"
+                onClick={() =>
+                  downloadRendezvous({
+                    at: scheduledAt,
+                    title: fr.home.calendarTitle(theatreName(invitation.theatre) ?? fr.table.draw),
+                    code: code ?? '',
+                  })
+                }
+              >
+                {fr.invitation.addRendezvous}
+              </button>
+            ) : !blitz && seated === null ? (
+              <p className="note" style={{ margin: 0 }}>
+                {fr.invitation.chooseAtLobby}
+              </p>
+            ) : null}
+          </section>
         </div>
-      ) : (
-        <AccountForm onSignedIn={(session) => enter(session, true)} />
-      )}
-    </Sheet>
+      </div>
+    </OffSeasonPage>
   );
 }
 
-function Primary({
-  children,
-  onClick,
-  disabled = false,
-}: {
-  children: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+function Row({ term, value }: { term: string; value: string }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="min-h-11 w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </button>
+    <>
+      <dt>{term}</dt>
+      <dd>{value}</dd>
+    </>
+  );
+}
+
+/** **Le refus est un télégramme « regrettons »**, et une issue utile : fonder sa propre partie,
+ *  avec les mêmes réglages, plutôt qu'un simple retour (choix 19). */
+function RefusalPage({
+  refusal,
+  invitation,
+  message,
+  accountKept,
+}: {
+  refusal: Refusal;
+  invitation: Answer | null;
+  message: string | null;
+  accountKept: boolean;
+}) {
+  const told = fr.table.refusals[refusal]({
+    founder: invitation?.founder ?? null,
+    maximum: invitation?.maximum ?? 0,
+    theatre: theatreName(invitation?.theatre ?? null),
+  });
+  const now = Date.now();
+  const theatre = invitation?.theatre ?? undefined;
+  return (
+    <OffSeasonPage>
+      <div className="invit-wrap refus">
+        <div className="invit">
+          <div className="masthin">
+            <Wordmark size={26} />
+            <span className="eyebrow">{fr.invitation.bureauAnswer}</span>
+          </div>
+          <div className="g-tg">
+            <Telegram
+              lines={told.lines}
+              code="······"
+              origin={fr.invitation.bureau}
+              filed={fr.table.telegram.filedAt(now)}
+              refusal
+              stamp={
+                <span
+                  className="stamp"
+                  style={{ right: 22, bottom: -14, background: 'rgba(233,220,185,.6)' }}
+                  aria-hidden
+                >
+                  {told.title}
+                </span>
+              }
+            />
+          </div>
+          <section className="sheet reply" aria-labelledby="t-refus">
+            <div className="eyebrow">{fr.invitation.doorClosed}</div>
+            <h2 id="t-refus" role="alert">
+              {told.title}
+            </h2>
+            <p className="italic" style={{ margin: 0 }}>
+              {message ?? told.paragraph}
+            </p>
+            {accountKept && (
+              <p className="note" style={{ margin: 0 }}>
+                {fr.invitation.accountKept}
+              </p>
+            )}
+            {told.found !== null && (
+              <Link
+                className="btn primary wide"
+                to="/fonder"
+                search={{
+                  mode: invitation?.mode ?? 'blitz',
+                  ...(invitation?.mode === 'blitz' && theatre !== undefined ? { theatre } : {}),
+                }}
+              >
+                {told.found}
+              </Link>
+            )}
+            {refusal === 'UNKNOWN_GAME_CODE' && (
+              <Link className="btn primary wide" to="/accueil">
+                {fr.invitation.retype}
+              </Link>
+            )}
+            <Link className="btn wide" to="/accueil">
+              {fr.invitation.myGames}
+            </Link>
+          </section>
+        </div>
+      </div>
+    </OffSeasonPage>
   );
 }

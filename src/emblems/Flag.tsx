@@ -82,25 +82,6 @@ export function FlagWatermark({
 }
 
 /**
- * Banner — the flag full-frame, at 3:2. This is the pick screen's treatment: the card is
- * drawn around the flag, not the other way.
- */
-export function FlagBanner({ nation }: { nation: string | null }) {
-  const image = nationImage(nation);
-  return (
-    <span
-      aria-hidden
-      className="block aspect-[3/2] w-full"
-      style={
-        image === null
-          ? { background: 'var(--routine)' }
-          : { backgroundImage: image, backgroundSize: '100% 100%', filter: CARTOUCHE_FILTER }
-      }
-    />
-  );
-}
-
-/**
  * Cartouche — the treatment for lists and paper surfaces.
  * The flag identifies; it must not compete with the counters.
  */

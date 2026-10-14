@@ -5,8 +5,8 @@ import { useSession } from '@/data/session';
 import { Newspaper, type Turning } from './Newspaper';
 
 /**
- * **La feuille d'entrée : la une, la connexion, l'invitation.** Trois pages qu'un visiteur voit
- * avant d'avoir un compte, et une seule mesure. Sous 768 px la marge intérieure n'est plus les
+ * **La feuille d'entrée : la une et les crédits**, deux pages qu'un visiteur voit avant d'avoir
+ * un compte, et une seule mesure. Sous 768 px la marge intérieure n'est plus les
  * 30 px du bureau : la feuille zoomée à l'échelle d'interface (`.hud`) ne laissait que 300 px
  * à une enseigne qui en demandait 400, d'où la manchette rognée du relevé mobile (C3). La marge
  * est une variable, `--sheet-pad`, que tout ce qui se pose sur la feuille lit au lieu d'écrire

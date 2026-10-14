@@ -1,9 +1,10 @@
 import { v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import {
+  canJoinRegistration,
   gameCode,
   joinRefusalOf,
   normalizeGameCode,
@@ -26,7 +27,16 @@ import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
 import { SEASON_MODE, VERDICT } from './validators';
-import { creationRefusalOf, MODE_RULES, modeOf, seatRangeOf } from '../src/domain/season-mode';
+import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
+import {
+  REMINDER_MINUTES,
+  THEATRE_DRAW,
+  drawTheatre,
+  launchPlanOf,
+  seatCapOf,
+  settingsRefusalOf,
+  type Settings,
+} from '../src/domain/operation-order';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
@@ -70,8 +80,72 @@ async function endow(
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
-const maximumOf = (season: Doc<'seasons'>): number =>
-  seatRangeOf(modeOf(season.mode), season.theatre).max;
+const settingsOf = (season: Doc<'seasons'>): Settings => ({
+  mode: modeOf(season.mode),
+  theatre: season.theatre ?? null,
+  scheduledAt: season.scheduledAt ?? null,
+  remind: season.remind ?? null,
+  hqCaptureHours: season.hqCaptureHours ?? null,
+  seatCap: season.seatCap ?? null,
+});
+
+const maximumOf = (season: Doc<'seasons'>): number => seatCapOf(settingsOf(season));
+
+/** Ce que l'ordre d'opérations sert aux écrans, défauts compris. */
+const ordersOf = (season: Doc<'seasons'>) => ({
+  scheduledAt: season.scheduledAt ?? null,
+  remind: season.remind ?? null,
+  hqCaptureHours: season.hqCaptureHours ?? null,
+  seatCap: season.seatCap ?? null,
+});
+
+const SETTINGS_ARGS = {
+  theatre: v.optional(v.string()),
+  scheduledAt: v.optional(v.union(v.number(), v.null())),
+  remind: v.optional(v.boolean()),
+  hqCaptureHours: v.optional(v.number()),
+  seatCap: v.optional(v.number()),
+};
+
+/** **Le rappel quinze minutes avant le rendez-vous** : un seul travail par saison. Tout
+ *  changement de l'ordre annule le précédent et replanifie ; `remind` se relit encore à
+ *  l'échéance, au cas où. */
+async function planReminder(ctx: MutationCtx, season: Doc<'seasons'>): Promise<void> {
+  if (season.reminderJobId !== undefined) {
+    const job = await ctx.db.system.get(season.reminderJobId);
+    if (job !== null && job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+  }
+  const settings = settingsOf(season);
+  const at =
+    settings.mode === 'blitz' && settings.scheduledAt !== null && settings.remind === true
+      ? settings.scheduledAt - REMINDER_MINUTES * 60_000
+      : null;
+  const reminderJobId =
+    at === null || at <= Date.now()
+      ? undefined
+      : await ctx.scheduler.runAt(at, internal.seasons.remind, {
+          seasonId: season._id,
+          expectedAt: settings.scheduledAt!,
+        });
+  await ctx.db.patch(season._id, { reminderJobId });
+}
+
+export const remind = internalMutation({
+  args: { seasonId: v.id('seasons'), expectedAt: v.number() },
+  handler: async (ctx, { seasonId, expectedAt }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season === null || season.status !== 'lobby') return;
+    if (season.scheduledAt !== expectedAt || season.remind !== true) return;
+    for (const entry of await seatsOf(ctx, seasonId)) {
+      await notifyPlayer(ctx, entry._id, {
+        type: 'season',
+        phrase: push.rendezvousSoon(REMINDER_MINUTES),
+        url: '/accueil',
+        at: Date.now(),
+      });
+    }
+  },
+});
 
 /**
  * **Un seul choix : le mode** (lot 1 de la Blitz, 14/10/2026). Il fixe l'horloge, le plafond de
@@ -83,12 +157,17 @@ export const create = mutation({
     token: v.string(),
     compensation: v.number(),
     mode: SEASON_MODE,
-    theatre: v.optional(v.string()),
+    ...SETTINGS_ARGS,
   },
-  handler: async (ctx, { token, compensation, mode, theatre }) => {
+  handler: async (ctx, { token, compensation, mode, theatre, ...orders }) => {
     const account = await accountOf(ctx, token);
     if (!account) fail('UNKNOWN_SESSION');
-    const refusal = creationRefusalOf(mode, theatre);
+    const settings = settingsFrom(mode, theatre, orders);
+    const refusal = settingsRefusalOf(settings, {
+      seated: 1,
+      now: Date.now(),
+      rendezvousChanged: true,
+    });
     if (refusal !== null) fail(refusal);
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
@@ -97,6 +176,7 @@ export const create = mutation({
       durationHours: MODE_RULES[mode].clockHours,
       mode,
       ...(mode === 'blitz' ? { theatre } : {}),
+      ...stored(settings),
       compensation: Math.max(0, Math.min(1, compensation)),
       seed: Math.floor(Math.random() * 2 ** 31),
       playableRegion: null,
@@ -107,7 +187,72 @@ export const create = mutation({
       playerCount: 0,
     });
     await seat(ctx, account, seasonId, true);
+    const season = await ctx.db.get(seasonId);
+    if (season !== null) await planReminder(ctx, season);
     return { code, seasonId };
+  },
+});
+
+type Orders = {
+  readonly scheduledAt?: number | null | undefined;
+  readonly remind?: boolean | undefined;
+  readonly hqCaptureHours?: number | undefined;
+  readonly seatCap?: number | undefined;
+};
+
+const settingsFrom = (mode: SeasonMode, theatre: string | undefined, orders: Orders): Settings => ({
+  mode,
+  theatre: theatre ?? null,
+  scheduledAt: orders.scheduledAt ?? null,
+  remind: orders.remind ?? null,
+  hqCaptureHours: orders.hqCaptureHours ?? null,
+  seatCap: orders.seatCap ?? null,
+});
+
+const stored = (settings: Settings) => ({
+  ...(settings.scheduledAt === null ? {} : { scheduledAt: settings.scheduledAt }),
+  ...(settings.remind === null ? {} : { remind: settings.remind }),
+  ...(settings.hqCaptureHours === null ? {} : { hqCaptureHours: settings.hqCaptureHours }),
+  ...(settings.seatCap === null ? {} : { seatCap: settings.seatCap }),
+});
+
+/**
+ * **Le fondateur reprend l'ordre au salon** (choix 8, 9, 10, M15), jusqu'au lancement. Ne change
+ * que ce qui est nommé ; `scheduledAt: null` dit « dès que la table est complète ». **Toute
+ * modification lève les « prêt »** : on ne tamponne pas un ordre qui a changé depuis.
+ */
+export const configure = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), ...SETTINGS_ARGS },
+  handler: async (ctx, { token, seasonId, ...changes }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    if (!player.creator) fail('CREATOR_ONLY');
+    if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
+    const current = settingsOf(season);
+    const next: Settings = {
+      ...current,
+      ...(changes.theatre === undefined ? {} : { theatre: changes.theatre }),
+      ...(changes.scheduledAt === undefined ? {} : { scheduledAt: changes.scheduledAt }),
+      ...(changes.remind === undefined ? {} : { remind: changes.remind }),
+      ...(changes.hqCaptureHours === undefined ? {} : { hqCaptureHours: changes.hqCaptureHours }),
+      ...(changes.seatCap === undefined ? {} : { seatCap: changes.seatCap }),
+    };
+    const present = await seatsOf(ctx, season._id);
+    const refusal = settingsRefusalOf(next, {
+      seated: present.length,
+      now: Date.now(),
+      rendezvousChanged: changes.scheduledAt !== undefined,
+    });
+    if (refusal !== null) fail(refusal);
+    await ctx.db.patch(season._id, {
+      ...(next.theatre === null ? {} : { theatre: next.theatre }),
+      scheduledAt: next.scheduledAt,
+      remind: next.remind ?? undefined,
+      hqCaptureHours: next.hqCaptureHours ?? undefined,
+      seatCap: next.seatCap ?? undefined,
+    });
+    for (const entry of present) if (entry.ready) await ctx.db.patch(entry._id, { ready: false });
+    const patched = await ctx.db.get(season._id);
+    if (patched !== null) await planReminder(ctx, patched);
   },
 });
 
@@ -119,7 +264,9 @@ async function seat(
   seasonId: Id<'seasons'>,
   creator: boolean,
 ): Promise<void> {
+  const season = await ctx.db.get(seasonId);
   await ctx.db.insert('players', {
+    ...(season !== null && modeOf(season.mode) === 'blitz' ? { lobbySeenAt: Date.now() } : {}),
     seasonId,
     accountId: account._id,
     nickname: account.nickname,
@@ -220,9 +367,10 @@ async function seasonByCode(ctx: QueryCtx, code: string): Promise<Doc<'seasons'>
  * session obligatoire, qui dit ce que `join` ferait sans rien changer : la même fonction de
  * refus, et **jamais une exception** — un code inconnu est une réponse, que la page sait dire.
  *
- * Le code est le seul secret du salon, donc la réponse n'en dit pas plus que ce qu'il faut pour
- * décider d'entrer : ni le `seasonId`, ni les autres pseudos, ni les nations prises. Le
- * `seasonId` ne sort que dans `seated`, pour un jeton valide qui tient déjà une place ici.
+ * Le code est le seul secret du salon, et ce qu'il ouvre est déjà public au salon : la table
+ * (pseudos, nations, lampe en Blitz) et l'ordre d'opérations, qui font décider d'entrer (note du
+ * 14/10, serveur 5). Le `seasonId` ne sort que dans `seated`, pour un jeton valide qui tient déjà
+ * une place ici.
  */
 export const invitation = query({
   args: { code: v.string(), token: v.optional(v.string()) },
@@ -236,6 +384,8 @@ export const invitation = query({
         maximum: MODE_RULES.mondiale.maxPlayers,
         mode: null,
         theatre: null,
+        orders: null,
+        seats: [],
         status: null,
         durationHours: null,
         registrationClosesAt: null,
@@ -246,9 +396,23 @@ export const invitation = query({
     const mine = account === null ? null : await seatOf(ctx, account, season._id);
     const present = await seatsOf(ctx, season._id);
     const maximum = maximumOf(season);
+    /** La table ne se montre à un inconnu que tant qu'on peut s'y asseoir : au salon, ou dans la
+     *  fenêtre d'inscription d'une Mondiale. Après, ce n'est plus public. */
+    const doorOpen =
+      season.status === 'lobby' ||
+      (modeOf(season.mode) === 'mondiale' &&
+        canJoinRegistration(season.status, season.launchedAt, Date.now()));
     return {
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
+      orders: ordersOf(season),
+      /** **Qui est déjà à table** : ce que le code ouvre est public au salon, et c'est ce qui fait
+       *  décider d'entrer. La lampe en Blitz seulement. */
+      seats: (doorOpen || mine !== null ? present : []).map((entry) => ({
+        nickname: entry.nickname,
+        nation: entry.nation,
+        seenAt: seenAtOf(entry, season),
+      })),
       refusal: joinRefusalOf({
         seated: mine !== null,
         status: season.status,
@@ -288,7 +452,24 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
   if (!season) return null;
   const players = season.playerCount ?? (await seatsOf(ctx, season._id)).length;
   const winnerNation = await winnerNationOf(ctx, season);
+  /** **La table d'un salon, et d'un salon seulement** : la une dit qui attend qui. Une saison
+   *  lancée garde sa ligne légère (le délai d'une seconde du 12/09). */
+  const table =
+    season.status === 'lobby'
+      ? (await seatsOf(ctx, season._id)).map((entry) => ({
+          nickname: entry.nickname,
+          nation: entry.nation,
+          ready: entry.ready,
+          creator: entry.creator,
+          mine: entry._id === player._id,
+          seenAt: seenAtOf(entry, season),
+        }))
+      : [];
   return {
+    orders: ordersOf(season),
+    table,
+    verdict: season.verdict?.reason ?? null,
+    concludedAt: season.concludedAt ?? null,
     /** La saison que la ligne ouvre : c'est elle que le client retient comme place active, et
      *  elle voyage avec chaque ordre ensuite (`playerOf`). */
     seasonId: season._id,
@@ -342,7 +523,7 @@ export const lobby = query({
       registrationClosesAt:
         season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
       durationHours: season.durationHours,
-      compensation: season.compensation,
+      orders: ordersOf(season),
       /** Frozen at launch, and only widening while the lobby is still open: a latecomer joins a
        *  theatre, he does not redraw it. */
       playableRegion: season.playableRegion ?? playableRegion(present.length),
@@ -365,6 +546,9 @@ export const lobby = query({
         creator: entry.creator,
         nation: entry.nation,
         ready: entry.ready,
+        mine: entry._id === player._id,
+        restWindow: entry.restWindow,
+        seenAt: seenAtOf(entry, season),
         /** On a running season "prêt" means nothing any more: what a row says is whether that
          *  seat is a nation in the field or somebody still at the door. */
         atWar: isAtWar(entry, season),
@@ -379,26 +563,47 @@ export const launch = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
+    const now = Date.now();
     const present = await seatsOf(ctx, season._id);
     const range = seatRangeOf(modeOf(season.mode), season.theatre);
-    if (present.length < range.min) fail('NOT_ENOUGH_PLAYERS', { minimum: range.min });
+    const plan = launchPlanOf({
+      mode: modeOf(season.mode),
+      scheduledAt: season.scheduledAt ?? null,
+      range,
+      now,
+      caller: player._id,
+      seats: present.map((entry) => ({
+        id: entry._id,
+        nickname: entry.nickname,
+        ready: entry.ready,
+        seenAt: entry.lobbySeenAt ?? null,
+      })),
+    });
+    if (plan.refusal === 'NOT_ENOUGH_PLAYERS') fail(plan.refusal, { minimum: range.min });
     /** Un plafond revu à la baisse après que le salon s'est rempli : la carte ne se poserait pas. */
-    if (modeOf(season.mode) === 'blitz' && present.length > range.max) {
-      fail('BLITZ_FULL', { maximum: range.max });
-    }
-    const stragglers = present.filter((entry) => !entry.ready);
-    if (stragglers.length > 0) {
-      fail('PLAYERS_NOT_READY', { nicknames: stragglers.map((entry) => entry.nickname) });
-    }
+    if (plan.refusal === 'BLITZ_FULL') fail(plan.refusal, { maximum: range.max });
+    if (plan.refusal !== null) fail(plan.refusal, { nicknames: plan.nicknames });
 
-    const now = Date.now();
+    const theatre =
+      season.theatre === THEATRE_DRAW ? drawTheatre(season.seed, present.length) : season.theatre;
     await ctx.db.patch(season._id, {
       status: 'launched',
       launchedAt: now,
       launchRefusal: undefined,
       playableRegion: playableRegion(present.length),
+      playerCount: present.length,
+      ...(theatre === undefined ? {} : { theatre }),
+      ...(season.theatre === THEATRE_DRAW ? { theatreDrawn: true } : {}),
     });
     await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
+    /** **L'absent parti sans nation en reçoit une** (J1 b) : en Blitz elles sont identiques. */
+    for (const entry of present) {
+      if (entry.nation !== null) continue;
+      const nation = freeNations(present)[0];
+      if (nation === undefined) fail('NO_FREE_NATION');
+      entry.nation = nation;
+      await ctx.db.patch(entry._id, { nation });
+    }
     for (const entry of present) {
       await endow(ctx, entry, season, now);
       await notifyPlayer(ctx, entry._id, {
@@ -786,10 +991,15 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
   for (const doc of owned) await ctx.db.delete(doc._id);
 }
 
+/** La lampe d'une place, servie en Blitz seulement (ADR 0005). */
+const seenAtOf = (entry: Doc<'players'>, season: Doc<'seasons'>): number | null =>
+  modeOf(season.mode) === 'blitz' && season.status === 'lobby' ? (entry.lobbySeenAt ?? null) : null;
+
 /**
  * The nations nobody holds. Read off the seats present rather than off a stored roster: a
  * reservation is released with a click as long as the holder has not entered the war.
  */
+
 export const freeNations = (
   present: ReadonlyArray<Doc<'players'>>,
 ): ReadonlyArray<(typeof NATIONS)[number]> =>

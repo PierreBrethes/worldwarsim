@@ -42,6 +42,10 @@ describe('pushPreferencesOf', () => {
 });
 
 describe('groupAlarms', () => {
+  it('opens the address of a lone alarm, the Blitz reminder going home', () => {
+    expect(groupAlarms([{ ...row('season', 1), url: '/accueil' }], 's1')?.url).toBe('/accueil');
+  });
+
   it('ne dit rien quand il n’y a que du télégraphe', () => {
     expect(groupAlarms([row('telegraph', 1)], 's1')).toBeNull();
   });

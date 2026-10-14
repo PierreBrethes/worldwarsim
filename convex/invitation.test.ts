@@ -15,7 +15,7 @@ type Bench = ReturnType<typeof boot>;
  * **L'invitation dit ce que `join` fera, sans rien changer.** Elle se lit sans session — c'est la
  * page qu'un ami ouvre avant d'avoir un compte — et ne rend jamais une exception : un code
  * inconnu est une réponse, que la page sait dire. Le code est le seul secret du salon : sans
- * place, ni `seasonId`, ni pseudos, ni nations prises ne sortent.
+ * place, pas de `seasonId` ; la table, elle, est servie — ce que le code ouvre est public au salon.
  */
 const NOON = Date.UTC(2040, 0, 1, 12);
 
@@ -69,6 +69,8 @@ describe('seasons.invitation', () => {
       maximum: MAX_PLAYERS,
       mode: 'mondiale',
       theatre: null,
+      orders: { scheduledAt: null, remind: null, hqCaptureHours: null, seatCap: null },
+      seats: [{ nickname: 'Pierre', nation: null, seenAt: null }],
       status: 'lobby',
       durationHours: 168,
       registrationClosesAt: null,
@@ -115,6 +117,16 @@ describe('seasons.invitation', () => {
     const answer = await t.query(api.seasons.invitation, { code });
     expect(answer.status).toBe('launched');
     expect(answer.registrationClosesAt).toBe(NOON + REGISTRATION_WINDOW_HOURS * 3_600_000);
+  });
+
+  it('shows the table to a stranger only while a seat can still be taken', async () => {
+    const t = boot();
+    const { creator, code } = await lobbyOf(t, 2);
+    await t.mutation(api.seasons.launch, creator);
+    expect((await t.query(api.seasons.invitation, { code })).seats).toHaveLength(2);
+
+    vi.setSystemTime(NOON + (REGISTRATION_WINDOW_HOURS + 1) * 3_600_000);
+    expect((await t.query(api.seasons.invitation, { code })).seats).toEqual([]);
   });
 });
 
