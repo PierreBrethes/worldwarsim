@@ -273,6 +273,7 @@ export type LabelLine =
   | {
       readonly role: 'capture';
       readonly side: CaptureView['side'];
+      readonly site: CaptureView['site'];
       readonly clock: CaptureClock;
       readonly completesAt: number;
     };
@@ -505,6 +506,7 @@ function withCaptures(
   const lineOf = (capture: CaptureView): LabelLine => ({
     role: 'capture',
     side: capture.side,
+    site: capture.site,
     clock: capture.clock,
     completesAt: capture.completesAt,
   });

@@ -84,6 +84,7 @@ describe('buildLabels', () => {
     expect(label?.lines.at(-1)).toEqual({
       role: 'capture',
       side: 'defender',
+      site: capture.site,
       clock: capture.clock,
       completesAt: capture.completesAt,
     });

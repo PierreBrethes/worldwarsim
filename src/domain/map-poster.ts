@@ -2,7 +2,7 @@ import { fr, stackLabel } from '@/i18n/fr';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
-import { progressAt } from './capture';
+import { isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
@@ -59,7 +59,7 @@ export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster
     chip:
       capture.side === 'capturer'
         ? fr.capture.endsAt(percent, hour)
-        : fr.capture.lostAt(percent, hour),
+        : fr.capture.lostAt(percent, hour, isHqSite(capture.site)),
     tone: capture.side === 'capturer' ? 'ok' : 'cut',
   };
   return poster === null

@@ -283,6 +283,26 @@ describe('the sort a dispatch is stamped with', () => {
     expect(isAlarm(closed!.kind)).toBe(false);
   });
 
+  it('says why a Blitz ended, a draw included (B10, B11)', () => {
+    const board = { target: 1, concludedAt: NOON, winnerNation: null, standings: [] };
+    const [draw] = journalDispatches(
+      [],
+      { ...board, verdict: { reason: 'draw', winnerNation: null, perMinute: 40 } },
+      [],
+    );
+    expect(draw!.text).toMatch(/égalité/);
+    const [income] = journalDispatches(
+      [],
+      {
+        ...board,
+        winnerNation: 'france',
+        verdict: { reason: 'income', winnerNation: 'france', perMinute: 40 },
+      },
+      [],
+    );
+    expect(income!.text).toMatch(/40 fonds par minute/);
+  });
+
   /** Chaque sorte a son mot : un tampon sans libellé serait un cadre vide dans la marge. */
   it('gives every sort a label of its own', () => {
     const labels = Object.values(fr.stamps.dispatches);

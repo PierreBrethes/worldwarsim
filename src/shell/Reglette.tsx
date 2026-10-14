@@ -95,6 +95,12 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       {me.construction !== null && <SiteCell view={view} now={now} />}
 
+      {view.mode === 'blitz' && (
+        <div className={`${CELL} whitespace-nowrap`}>
+          <BlitzClock view={view} now={now} />
+        </div>
+      )}
+
       {/* Pas de slots en Blitz (B5) : la cadence est le rechargement. */}
       {view.mode !== 'blitz' && (
         <div
@@ -295,6 +301,31 @@ export function ResourceCell({
         />
       )}
     </button>
+  );
+}
+
+/**
+ * **Le compte à rebours de la Blitz** (B11) : à zéro, le plus gros revenu gagne. Il se lit à la
+ * seconde parce que la soirée se joue à la minute ; conclue, la case le dit en un mot.
+ */
+export function BlitzClock({ view, now }: { view: PlayerView; now: number }) {
+  const { season } = view;
+  const ended = season.reduction.concludedAt !== null;
+  const minutesLeft =
+    ((season.durationHours ?? 0) - season.elapsedHours) * 60 - (now - view.loadedAt) / 60_000;
+  return (
+    <span
+      role="timer"
+      aria-label={ended ? fr.blitz.clockEnded : fr.blitz.clockLabel(asDuration(minutesLeft))}
+      className="flex items-baseline gap-[8px]"
+    >
+      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+        {fr.blitz.clock}
+      </span>
+      <span className="font-(family-name:--font-mono) text-[15px] leading-none font-medium tabular-nums">
+        {ended ? fr.blitz.clockEnded : asDuration(minutesLeft)}
+      </span>
+    </span>
   );
 }
 

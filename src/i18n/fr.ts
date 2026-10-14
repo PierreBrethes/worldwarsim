@@ -14,6 +14,7 @@ import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
+import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
@@ -280,6 +281,9 @@ export const fr = {
     mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
     mendNote:
       'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    clock: 'fin',
+    clockLabel: (left: string) => `fin de la Blitz dans ${left} — le plus gros revenu l’emporte`,
+    clockEnded: 'terminée',
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },
@@ -333,7 +337,8 @@ export const fr = {
     /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
     stamp: 'capture',
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
-    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    lostAt: (percent: number, hour: string, hq = false) =>
+      `${percent} % · ${hq ? 'QG perdu' : 'perdu'} vers ${hour}`,
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -1349,6 +1354,19 @@ export const fr = {
     reducedMark: 'réduit',
     standingMark: 'debout',
     homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
+    /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
+    blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
+      reason === 'draw'
+        ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+        : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+    verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
+      reason === 'hqTaken'
+        ? 'il a capturé le dernier quartier général adverse'
+        : reason === 'lastStanding'
+          ? 'il reste seul debout'
+          : reason === 'income'
+            ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
+            : 'revenu et caisse se valent',
   },
 
   /**
@@ -1613,6 +1631,8 @@ export const fr = {
         `Notre infanterie tient ${site} : capture vers ${until}.`,
       captureThreat: (site: string, until: string) =>
         `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      hqThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : QG perdu vers ${until}, et sa chute nous élimine. Chassez l’infanterie qui le tient.`,
       captured: (site: string) => `${site} est à nous : capture achevée.`,
       siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>

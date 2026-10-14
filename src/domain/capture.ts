@@ -40,6 +40,12 @@ export const captureDurationMs = (mode: SeasonMode, target: CaptureTarget): numb
 export const captureDurationAt = (mode: SeasonMode, target: CaptureTarget, rate: number): number =>
   captureDurationMs(mode, target) / rate;
 
+/** Le site d'une capture est-il un QG — en Blitz, celui dont la chute élimine (B10). */
+export const isHqSite = (site: {
+  readonly kind: 'building' | 'outpost';
+  readonly building?: BuildingKey;
+}): boolean => site.kind === 'building' && site.building === 'hq';
+
 /**
  * **La vitesse est la force de la meilleure infanterie présente** — pleine, la vitesse de base ;
  * à moitié, la moitié. La meilleure et non la somme : deux compagnies entamées ne capturent pas

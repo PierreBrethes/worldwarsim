@@ -14,6 +14,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
@@ -840,6 +841,7 @@ export function MapLabels({
                     <CaptureGauge
                       key={rank}
                       side={line.side}
+                      hq={isHqSite(line.site)}
                       clock={line.clock}
                       completesAt={line.completesAt}
                     />

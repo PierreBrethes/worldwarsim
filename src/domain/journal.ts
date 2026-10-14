@@ -1,3 +1,4 @@
+import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
@@ -13,6 +14,7 @@ import type {
   MapPlace,
   Notice,
   ReductionBoard,
+  SeasonVerdict,
   WarEntry,
 } from './player-view';
 
@@ -51,20 +53,31 @@ const reachableSite = (
  */
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
-  reduction: ReductionBoard | null,
+  /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
+  reduction: (ReductionBoard & { readonly verdict?: SeasonVerdict | null }) | null,
   entries: ReadonlyArray<WarEntry>,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
+  const verdict = reduction?.verdict ?? null;
   const concluded: ReadonlyArray<Written> =
-    reduction === null || reduction.concludedAt === null || reduction.winnerNation === null
+    reduction === null ||
+    reduction.concludedAt === null ||
+    (reduction.winnerNation === null && verdict === null)
       ? []
       : [
           {
             at: reduction.concludedAt,
             severity: 'critical',
             kind: 'seasonConcluded',
-            text: fr.victory.concluded(nationName(reduction.winnerNation)),
+            text:
+              verdict === null
+                ? fr.victory.concluded(nationName(reduction.winnerNation!))
+                : fr.victory.blitzConcluded(
+                    verdict.reason,
+                    verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
+                    verdict.perMinute,
+                  ),
           },
         ];
 
@@ -337,7 +350,12 @@ function written(notice: Notice): Written {
           at: notice.at,
           severity: defending ? 'critical' : 'notable',
           kind: defending ? 'captureThreat' : 'captureStarted',
-          text: defending ? said.captureThreat(site, until) : said.captureStarted(site, until),
+          /** Seul un QG de Blitz se capture, et sa chute élimine (B10) : la dépêche le dit. */
+          text: defending
+            ? isHqSite(notice.site)
+              ? said.hqThreat(site, until)
+              : said.captureThreat(site, until)
+            : said.captureStarted(site, until),
         };
       }
       if (notice.kind === 'captureSucceeded') {

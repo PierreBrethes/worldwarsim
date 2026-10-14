@@ -2454,7 +2454,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 case 'gunnery':
                   return <GunneryWindow key={name} seat={seat} {...windowProps} />;
                 case 'press':
-                  return <PressWindow key={name} press={view.press} {...windowProps} />;
+                  return (
+                    <PressWindow
+                      key={name}
+                      press={view.press}
+                      verdict={view.season.verdict}
+                      {...windowProps}
+                    />
+                  );
                 case 'settings':
                   return (
                     <SettingsWindow
