@@ -88,6 +88,7 @@ describe('launchPlanOf', () => {
     nickname: id,
     ready,
     seenAt,
+    nation: true,
   });
   const range = { min: 2, max: 4 };
 
@@ -101,21 +102,35 @@ describe('launchPlanOf', () => {
         caller: 'a',
         seats: [seat('a', true, null), seat('b', true, NOW - 3_600_000)],
       }),
-    ).toEqual({ refusal: null, released: [] });
+    ).toEqual({ refusal: null });
   });
 
-  it('waits for a Blitz absentee before the hour, and releases him after it', () => {
+  it('waits for a Blitz absentee before the hour, and leaves without him after it — seat kept', () => {
     const seats = [seat('a', true, null), seat('b', true, NOW), seat('c', true, NOW - 600_000)];
     const before = { mode: 'blitz' as const, range, caller: 'a', seats, now: NOW };
     expect(launchPlanOf({ ...before, scheduledAt: NOW + 60_000 })).toEqual({
       refusal: 'PLAYERS_ABSENT',
       nicknames: ['c'],
-      released: [],
     });
     expect(launchPlanOf({ ...before, scheduledAt: null }).refusal).toBe('PLAYERS_ABSENT');
-    expect(launchPlanOf({ ...before, scheduledAt: NOW - 60_000 })).toEqual({
+    expect(launchPlanOf({ ...before, scheduledAt: NOW - 60_000 })).toEqual({ refusal: null });
+  });
+
+  it('after the hour waives an absentee’s « prêt », never his nation: he is placed like the others', () => {
+    const after = {
+      mode: 'blitz' as const,
+      range,
+      caller: 'a',
+      now: NOW,
+      scheduledAt: NOW - 60_000,
+    };
+    const late = (nation: boolean) => ({ ...seat('c', false, NOW - 600_000), nation });
+    expect(launchPlanOf({ ...after, seats: [seat('a', true, NOW), late(true)] })).toEqual({
       refusal: null,
-      released: ['c'],
+    });
+    expect(launchPlanOf({ ...after, seats: [seat('a', true, NOW), late(false)] })).toEqual({
+      refusal: 'PLAYERS_NOT_READY',
+      nicknames: ['c'],
     });
   });
 
@@ -125,12 +140,8 @@ describe('launchPlanOf', () => {
     expect(plan([seat('a', true, NOW), seat('b', false, NOW)])).toEqual({
       refusal: 'PLAYERS_NOT_READY',
       nicknames: ['b'],
-      released: [],
     });
-    expect(plan([seat('a', true, NOW), seat('b', true, NOW - 600_000)])).toEqual({
-      refusal: 'NOT_ENOUGH_PLAYERS',
-      released: [],
-    });
+    expect(plan([seat('a', true, NOW)])).toEqual({ refusal: 'NOT_ENOUGH_PLAYERS' });
   });
 
   it('counts a seat never measured as present, like a row from before the lamp', () => {

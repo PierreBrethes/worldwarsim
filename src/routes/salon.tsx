@@ -219,6 +219,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
       id: player.id,
       nickname: player.nickname,
       ready: player.ready,
+      nation: player.nation !== null,
       seenAt: player.seenAt,
     })),
   });

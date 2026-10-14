@@ -349,8 +349,8 @@ et son rappel push quinze minutes avant (`seasons.remind`), places (`seatCap`, b
 plafond), capture d'un QG en Mondiale (`hqCaptureHours`, 12 ou 24 h — **stocké et affiché, aucune
 règle ne le lit**). **La présence est servie en Blitz seulement** (`players.beatLobby`,
 `lobbySeenAt`, ADR 0005) : avant l'heure un absent bloque le lancement (`launchPlanOf`,
-`PLAYERS_ABSENT`), après elle sa place est rendue et le fondateur lance sans lui ; le rendez-vous
-ne lance rien seul. Les points stratégiques ne sont pas affichés : ils n'existent pas encore.
+`PLAYERS_ABSENT`), après elle on part sans l'attendre et **il garde sa place** (J1 b) : posé
+comme les autres, il joue en arrivant en retard ; le rendez-vous ne lance rien seul. Les points stratégiques ne sont pas affichés : ils n'existent pas encore.
 
 **Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes

@@ -98,19 +98,16 @@ export function presenceOf(seenAt: number | null, now: number): Presence {
 export type LaunchRefusal =
   'NOT_ENOUGH_PLAYERS' | 'BLITZ_FULL' | 'PLAYERS_NOT_READY' | 'PLAYERS_ABSENT';
 
-export type LaunchPlan<Id> =
-  | { readonly refusal: null; readonly released: ReadonlyArray<Id> }
-  | {
-      readonly refusal: LaunchRefusal;
-      readonly nicknames?: ReadonlyArray<string>;
-      readonly released: ReadonlyArray<Id>;
-    };
+export type LaunchPlan =
+  | { readonly refusal: null }
+  | { readonly refusal: LaunchRefusal; readonly nicknames?: ReadonlyArray<string> };
 
 /**
- * **Qui part au lancement** (choix 6). En Blitz on joue ensemble : un absent bloque tant que
- * l'heure n'est pas venue, puis sa place est rendue et le fondateur lance sans lui. Sans heure
- * convenue (« table complète »), l'heure ne vient jamais d'elle-même — le fondateur en fixe une.
- * Celui qui lance est à la table par définition.
+ * **Qui part au lancement** (choix 6, J1 b). En Blitz on joue ensemble : un absent bloque tant
+ * que l'heure n'est pas venue ; passée l'heure, on part sans l'attendre mais **il garde sa
+ * place** — posé comme les autres, il joue en arrivant en retard. Son « prêt » ne compte plus,
+ * sa nation si : sans elle, rien à poser. Sans heure convenue (« table complète »), l'heure ne
+ * vient jamais d'elle-même — le fondateur en fixe une. Celui qui lance est à la table.
  */
 export function launchPlanOf<Id>(input: {
   readonly mode: SeasonMode;
@@ -122,9 +119,10 @@ export function launchPlanOf<Id>(input: {
     readonly id: Id;
     readonly nickname: string;
     readonly ready: boolean;
+    readonly nation: boolean;
     readonly seenAt: number | null;
   }>;
-}): LaunchPlan<Id> {
+}): LaunchPlan {
   const absent =
     input.mode === 'blitz'
       ? input.seats.filter(
@@ -133,26 +131,19 @@ export function launchPlanOf<Id>(input: {
       : [];
   const hourCome = input.scheduledAt !== null && input.now >= input.scheduledAt;
   if (absent.length > 0 && !hourCome) {
-    return {
-      refusal: 'PLAYERS_ABSENT',
-      nicknames: absent.map((seat) => seat.nickname),
-      released: [],
-    };
+    return { refusal: 'PLAYERS_ABSENT', nicknames: absent.map((seat) => seat.nickname) };
   }
-  const kept = input.seats.filter((seat) => !absent.includes(seat));
-  if (kept.length < input.range.min) return { refusal: 'NOT_ENOUGH_PLAYERS', released: [] };
-  if (input.mode === 'blitz' && kept.length > input.range.max) {
-    return { refusal: 'BLITZ_FULL', released: [] };
+  if (input.seats.length < input.range.min) return { refusal: 'NOT_ENOUGH_PLAYERS' };
+  if (input.mode === 'blitz' && input.seats.length > input.range.max) {
+    return { refusal: 'BLITZ_FULL' };
   }
-  const stragglers = kept.filter((seat) => !seat.ready);
+  const stragglers = input.seats.filter((seat) =>
+    absent.includes(seat) ? !seat.nation : !seat.ready,
+  );
   if (stragglers.length > 0) {
-    return {
-      refusal: 'PLAYERS_NOT_READY',
-      nicknames: stragglers.map((seat) => seat.nickname),
-      released: [],
-    };
+    return { refusal: 'PLAYERS_NOT_READY', nicknames: stragglers.map((seat) => seat.nickname) };
   }
-  return { refusal: null, released: absent.map((seat) => seat.id) };
+  return { refusal: null };
 }
 
 /** Le théâtre « au sort » : parmi ceux qui assoient la table, par la graine de la saison. */

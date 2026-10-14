@@ -132,7 +132,7 @@ describe('the operation order', () => {
     ]);
   });
 
-  it('waits for an absentee until the rendezvous, then launches without him and frees his seat', async () => {
+  it('waits for an absentee until the rendezvous, then launches with his seat kept', async () => {
     const t = boot();
     const { founder, code } = await blitz(t);
     const guest = await joinSeat(t, code, 'Bastien');
@@ -150,7 +150,8 @@ describe('the operation order', () => {
     await t.mutation(api.seasons.launch, founder);
     const lobby = await t.query(api.seasons.lobby, founder);
     expect(lobby.status).toBe('launched');
-    expect(lobby.players.map((player) => player.nickname)).toEqual(['Koval', 'Bastien']);
+    expect(lobby.players.map((player) => player.nickname)).toEqual(['Koval', 'Bastien', 'Lise']);
+    expect(lobby.players.every((player) => player.atWar)).toBe(true);
   });
 
   it('draws a theatre that seats the table at the launch', async () => {

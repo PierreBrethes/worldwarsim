@@ -552,7 +552,7 @@ export const launch = mutation({
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const now = Date.now();
-    const seated = await seatsOf(ctx, season._id);
+    const present = await seatsOf(ctx, season._id);
     const range = seatRangeOf(modeOf(season.mode), season.theatre);
     const plan = launchPlanOf({
       mode: modeOf(season.mode),
@@ -560,10 +560,11 @@ export const launch = mutation({
       range,
       now,
       caller: player._id,
-      seats: seated.map((entry) => ({
+      seats: present.map((entry) => ({
         id: entry._id,
         nickname: entry.nickname,
         ready: entry.ready,
+        nation: entry.nation !== null,
         seenAt: entry.lobbySeenAt ?? null,
       })),
     });
@@ -572,12 +573,6 @@ export const launch = mutation({
     if (plan.refusal === 'BLITZ_FULL') fail(plan.refusal, { maximum: range.max });
     if (plan.refusal !== null) fail(plan.refusal, { nicknames: plan.nicknames });
 
-    /** **L'absent à l'heure dite rend sa place** (choix 6) : la Blitz part sans lui. */
-    for (const id of plan.released) {
-      await erasePlayer(ctx, id);
-      await ctx.db.delete(id);
-    }
-    const present = seated.filter((entry) => !plan.released.includes(entry._id));
     const theatre =
       season.theatre === THEATRE_DRAW ? drawTheatre(season.seed, present.length) : season.theatre;
     await ctx.db.patch(season._id, {

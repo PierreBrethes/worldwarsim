@@ -532,7 +532,7 @@ export const fr = {
     PLAYERS_NOT_READY: (d) =>
       `pas prêts : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'}`,
     PLAYERS_ABSENT: (d) =>
-      `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans eux`,
+      `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans les attendre`,
     SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
     INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
@@ -1297,9 +1297,10 @@ export const fr = {
     waitSecond: 'un deuxième joueur',
     waitingFor: (parts: ReadonlyArray<string>) =>
       parts.length === 0 ? '' : `On attend ${parts.join(', ')}.`,
-    withoutAbsents: (hour: string) => ` À ${hour}, vous pourrez lancer sans les absents.`,
-    hourCome: ' L’heure est passée : lancer rend leur place aux absents.',
-    setAnHour: ' Fixez une heure : passée, vous lancerez sans les absents.',
+    withoutAbsents: (hour: string) =>
+      ` À ${hour}, vous pourrez lancer sans attendre les absents : ils vous rejoindront en route.`,
+    hourCome: ' L’heure est passée : lancez, les absents vous rejoindront en route.',
+    setAnHour: ' Fixez une heure : passée, vous lancerez sans attendre les absents.',
     orderChanged: (what: string) => `${what} : l’ordre a changé, les « prêt » sont levés.`,
     edit: 'modifier',
     done: 'terminer',
@@ -1324,7 +1325,10 @@ export const fr = {
       ['nations', 'identiques : drapeau et figurines'],
       ['départ', 'un QG, une caserne, un fantassin chacun ; postes tirés au lancement'],
       ['à 2 h', 'le plus gros revenu l’emporte'],
-      ['absent à l’heure', 'le fondateur peut lancer sans lui ; sa place est rendue'],
+      [
+        'absent à l’heure',
+        'le fondateur peut lancer sans l’attendre ; il garde sa place et rejoint en route',
+      ],
       ['après le lancement', 'la table se ferme'],
     ] as ReadonlyArray<readonly [string, string]>,
     mondialeMore: (founder: string | null): ReadonlyArray<readonly [string, string]> => [
