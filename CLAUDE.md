@@ -665,7 +665,7 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). **Pour l'instant une Blitz se joue comme une Mondiale**, capture comprise : ni économie, ni refus hors théâtre.
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). Son économie et sa carte de départ sont le lot 4 (ci-dessous) ; le refus hors théâtre attend le lot 5.
 
 
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
@@ -696,6 +696,30 @@ niveau, jamais sous 1. **Un avant-poste désactivé reste capturable**, immunit�
 l'immunité protège d'un raid, pas d'une capture. Hors lot : QG, points stratégiques, Blitz neutre,
 vivres à sec.
 ## Schéma Convex
+
+**Et la Blitz a son économie et sa carte de départ — 14/10/2026** (lot 4, table `BLITZ` de
+`convex/constants.ts`, toutes `@a-mesurer`). Au lancement, `blitz.place` remplace `objectives.place`
+par la même mécanique en trois temps (`placementInput`, action qui mesure, `commit` idempotent) ; la
+règle pure est `src/domain/blitz-placement.ts` : un QG par joueur sur un cercle du théâtre, tourné
+jusqu'aux distances de route les plus égales, une caserne à lui, deux fantassins en garnison, un
+pécule ; des **neutres** — ville, caserne, port (quai par `coastPointNear`), aérodrome — proches de
+chaque QG à la même distance de route, et disputés au milieu de chaque paire de voisins. Les neutres
+sont des `buildings` du **siège irrégulier**, sans garnison, servis à tous (`playerView.neutralSites`)
+et capturés par le flux du lot 3 sans relevé (`captureAimOf`). **Rien n'est bâti en Blitz** : ce que
+tient un joueur porte `capturedAt` et colore sa région, et le sol national ne colore rien
+(`homeGroundsOf`). **Les fonds** sont la seule ressource (`players.funds`/`fundsAt`, réglés
+paresseusement, `convex/blitz.ts`) : la ville et le QG versent par minute, rien d'autre ; régler avant
+qu'un site change de main (`captures.complete`). Les huit lignes de `resources` existent à zéro,
+personne ne mange (`upkeepOf`), le combat ne compte pas les munitions. **On recrute** dans un site
+tenu (`rolesFormedBy` : QG → infanterie, caserne/port/aérodrome → leur domaine), payé en fonds, prêt
+en une minute, une marque, borne invisible de 80 (`blitzRecruitRefusalOf`, lu par la modale de site
+Blitz et par `troops.recruit`). **Le soin** est un travail de saison par minute (`blitz.mend`) : une
+troupe entamée sur un bâtiment à soi — garnison ou point même du site — reprend un dixième contre des
+fonds (`mendStep`, `TroopView.mending`). **Bâtir, élever, fonder, démolir, piller, commander un lot**
+sortent par `notInBlitz` (rose, `siteOf`) et `refuseInBlitz` (serveur). Au front : les fonds et leur
+débit sur la réglette (`FundsCell`, compteur des réserves), ni Écon. ni lingot à l'abaque, l'affiche
+« +N/min » d'une ville ou du QG et « neutre » d'un neutre, « villes neutres à prendre » à « à faire
+maintenant ». La ville emprunte la planche et la maquette des baraquements en attendant les siennes.
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
 par `??` — ou bien il s'accompagne d'une migration de backfill. Un champ obligatoire posé sans
