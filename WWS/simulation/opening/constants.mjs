@@ -40,6 +40,8 @@ export const BUILDING_SPEC = {
   billets: { cost: { alloy: 25, food: 40 }, minutes: 30 },
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
+  // The Blitz city is never built; the game's table carries it for exhaustiveness only.
+  city: { cost: {}, minutes: 0 },
 };
 
 /**
@@ -51,7 +53,7 @@ export const UNLOCKED_AT = {
   hq: 1, farm: 1, mill: 1, mine: 1, oilWell: 1, foundry: 1, quartermaster: 1,
   warehouse: 1, depot: 1,
   barracks: 2, billets: 2, arsenal: 2, listening: 2,
-  airfield: 2, port: 2,
+  airfield: 2, port: 2, city: 1,
 };
 
 /** Which deposit an exploitation building works. The mine works two. */
