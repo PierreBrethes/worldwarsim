@@ -1294,8 +1294,9 @@ describe('the bombardment on the rose', () => {
     name: 'camp relevé',
   });
   const ROUEN = [1.1, 49.44] as const;
+  const NOW = 1_000_000;
   const fire = (target: CompassTarget, extra?: Record<string, unknown>) =>
-    compassOf(target, gunner(extra), rule, battery as never, 0, ['G-1']);
+    compassOf(target, gunner(extra), rule, battery as never, 0, ['G-1'], NOW);
 
   it('offers « bombarder » alone on a seen unit within range', () => {
     const compass = fire(camp(ROUEN))!;
@@ -1309,13 +1310,23 @@ describe('the bombardment on the rose', () => {
   it('names why it holds its fire', () => {
     expect(fire(camp([2.13, 48.8]))?.refusal).toMatch(/^trop près : 17 km/);
     expect(fire(camp([4.85, 45.75]))?.refusal).toMatch(/^hors de portée/);
-    expect(fire(camp(ROUEN), { emplacedAt: Date.now() + 12_000 })?.refusal).toMatch(
-      /prête dans 1[12] s/,
-    );
-    expect(fire(camp(ROUEN), { reloadUntil: Date.now() + 5_000 })?.refusal).toBe(
-      fr.errors.RELOADING(),
-    );
+    expect(fire(camp(ROUEN), { emplacedAt: NOW + 12_000 })?.refusal).toMatch(/prête dans 12 s/);
+    expect(fire(camp(ROUEN), { reloadUntil: NOW + 5_000 })?.refusal).toBe(fr.errors.RELOADING());
     expect(fire(camp(ROUEN, 'camp-old'))?.refusal).toBe(fr.errors.NOTHING_TO_ATTACK());
     expect(fire(camp(ROUEN))?.actions.every((action) => action.key === 'bombard')).toBe(true);
+  });
+
+  it('holds its fire aboard a transport', () => {
+    const afloat = { ...battery, afloat: true };
+    const aboard = {
+      ...gunner(),
+      me: {
+        ...gunner().me,
+        troops: [{ id: 'G-1', role: 'artillery', tier: 1, stationedAt: afloat }],
+      },
+    } as unknown as PlayerView;
+    expect(compassOf(camp(ROUEN), aboard, rule, afloat as never, 0, ['G-1'], NOW)?.refusal).toBe(
+      fr.errors.ABOARD(),
+    );
   });
 });

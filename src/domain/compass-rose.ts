@@ -13,7 +13,7 @@ import {
 } from './construction';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
-import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
+import { aboardAt, bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
 import { theatreById } from './theatres';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
@@ -886,6 +886,8 @@ export function compassOf(
   freeCapacity = 0,
   /** La composition tenue en main : c'est elle qui fonderait, pas toute la pile posée là. */
   heldTroopIds: ReadonlyArray<string> | null = null,
+  /** L'heure du clic : batterie et rechargement s'égrènent entre deux vues servies. */
+  now: number = view.loadedAt,
 ): Compass | null {
   /**
    * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08) : le clic droit ne
@@ -911,7 +913,7 @@ export function compassOf(
     }
   }
   if (column !== null && target.kind !== 'force') {
-    return aim(target, view, column, freeCapacity, origin, heldTroopIds);
+    return aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
   }
   const fan = build(
     target,
@@ -956,10 +958,11 @@ function aim(
   freeCapacity: number,
   origin: TroopStation | null,
   heldTroopIds: ReadonlyArray<string> | null,
+  now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
   if ((target.kind === 'camp' || target.kind === 'track') && column.roles.some(firesIndirect))
-    return bombardFan(target, view, column, origin, heldTroopIds);
+    return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
     const aimed: MovementAim = {
@@ -1092,13 +1095,14 @@ function bombardFan(
   column: Column,
   origin: TroopStation | null,
   heldTroopIds: ReadonlyArray<string> | null,
+  now: number,
 ): Compass | null {
   const from = origin === null ? null : stationPointOf(view.me, origin);
   const troop = view.me.troops.find(
     (candidate) => heldTroopIds?.includes(candidate.id) === true && firesIndirect(candidate.role),
   );
-  if (from === null || troop === undefined) return null;
-  const now = Date.now();
+  if (origin === null || from === null || troop === undefined) return null;
+  const marching = marchingTroopIds(view.arcs);
   const order = {
     roles: column.roles,
     from,
@@ -1109,6 +1113,14 @@ function bombardFan(
       view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),
     emplacedAt: troop.emplacedAt ?? 0,
     reloadUntil: troop.reloadUntil ?? null,
+    moving: marching.has(troop.id),
+    aboard: aboardAt({
+      onPoint: origin.kind === 'point',
+      afloat: origin.kind === 'point' && origin.afloat,
+      roles: troopsAt(view.me, stationKeyOf(origin), marching)
+        .filter((one) => one.id !== troop.id)
+        .map((one) => one.role),
+    }),
     now,
   };
   const refused = bombardRefusalOf(order);

@@ -655,7 +655,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
           ? { reloadUntil: troop.reloadUntil }
           : {}),
-        ...(firesIndirect(troop.role) && batteryReadyAt(troop) > now
+        /** **En route, pas de batterie** (B20) : le compte à rebours part à l'arrêt. */
+        ...(firesIndirect(troop.role) &&
+        !movements.some((movement) => movement.troopIds.includes(troop._id)) &&
+        batteryReadyAt(troop) > now
           ? { emplacedAt: batteryReadyAt(troop) }
           : {}),
         mending: mending.has(troop._id),

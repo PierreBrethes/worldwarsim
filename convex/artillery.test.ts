@@ -181,6 +181,34 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     await expect(fire(rifle, ROUEN)).rejects.toThrow(/ARTILLERY_ONLY/);
   });
 
+  it('fires neither on the road nor from aboard, and counts no emplacement on the road', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t);
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    const shipped = await troop(t, seat, CHANNEL, 'artillery');
+    await troop(t, seat, CHANNEL, 'cargo');
+    await troop(t, guest, ROUEN);
+    emplaced();
+    /** Posée à l'instant : sans la règle, la vue lui donnerait un compte à rebours en route. */
+    await t.run((ctx) => ctx.db.patch(gun, { settledAt: Date.now() }));
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: PARIS },
+      troopIds: [gun],
+      point: LYON,
+    });
+    const fire = async (troopId: Id<'troops'>) =>
+      t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId,
+        target: { kind: 'camp', campId: await surveyCamp(t, seat, ROUEN) },
+      });
+    await expect(fire(gun)).rejects.toThrow(/ON_THE_MOVE/);
+    await expect(fire(shipped)).rejects.toThrow(/ABOARD/);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.troops.find((one) => one.id === gun)).not.toHaveProperty('emplacedAt');
+  });
+
   it('counts its emplacement from the end of the march that carried it', async () => {
     const t = boot();
     const { seat } = await season(t);

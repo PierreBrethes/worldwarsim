@@ -6,6 +6,7 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import {
+  aboardAt,
   bombardRefusalDetails,
   bombardRefusalOf,
   emplacedAt,
@@ -13,7 +14,7 @@ import {
 import { RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
-import { hostAtPoint } from '../routes';
+import { hostAtPoint, landAtPoint } from '../routes';
 import { forgetMovement } from './arrival';
 import { reassessDetection } from './detection';
 import { asPoint, movementsOf, stanceOf } from './forces';
@@ -28,7 +29,7 @@ export type BombardTarget =
 export const batteryReadyAt = (troop: Doc<'troops'>): number =>
   emplacedAt(troop.settledAt ?? troop._creationTime);
 
-/** **Ce qui se tient avec la cible** : sa colonne, ou les siens à la même adresse. */
+/** **Ce qui se tient avec cette troupe** : sa colonne, ou les siens à la même adresse. */
 async function pileOf(ctx: MutationCtx, victim: Doc<'troops'>): Promise<Array<Doc<'troops'>>> {
   const carrying = (await movementsOf(ctx, victim.playerId)).find((movement) =>
     movement.troopIds.includes(victim._id),
@@ -64,20 +65,29 @@ export async function bombard(
    *  n'est pas une cible. */
   await reassessDetection(ctx, troop.seasonId, now);
   const quarry = await quarryOf(ctx, player._id, target, now);
-  /** Une pièce en route n'est pas en batterie : elle se compte immobile depuis maintenant. */
+  const address = troop.stationedAt;
+  const onPoint = address !== null && typeof address !== 'string';
   const order = {
     roles: [troop.role],
     from: stance?.point ?? quarry.point,
     to: quarry.point,
     theatre,
     seen: true,
-    emplacedAt: stance === null ? emplacedAt(now) : batteryReadyAt(troop),
+    emplacedAt: batteryReadyAt(troop),
     reloadUntil: troop.reloadUntil ?? null,
+    moving,
+    aboard:
+      !moving &&
+      aboardAt({
+        onPoint,
+        afloat: onPoint && !landAtPoint([address.lon, address.lat]),
+        roles: (await pileOf(ctx, troop)).map((one) => one.role),
+      }),
     now,
   };
   const refusal = bombardRefusalOf(order);
   if (refusal !== null || stance === null)
-    fail(refusal ?? 'NOT_EMPLACED', bombardRefusalDetails(order));
+    fail(refusal ?? 'UNKNOWN_TROOP', bombardRefusalDetails(order));
 
   const victim = (await ctx.db.get(quarry.troopId))!;
   const { engagementId, engagement } = await resolveContact(ctx, {

@@ -142,6 +142,8 @@ export type ErrorCode =
   | 'NOT_EMPLACED'
   | 'TOO_CLOSE'
   | 'OUT_OF_RANGE'
+  | 'ON_THE_MOVE'
+  | 'ABOARD'
   | 'EMPTY_MESSAGE'
   | 'MESSAGE_TOO_LONG'
   | 'TELEGRAPH_TOO_FAST'

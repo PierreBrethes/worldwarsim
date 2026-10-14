@@ -799,6 +799,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         column?.station ?? null,
         freeCapacity,
         column?.troopIds ?? null,
+        Date.now(),
       ),
     [view, column, freeCapacity],
   );

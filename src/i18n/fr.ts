@@ -676,6 +676,8 @@ export const fr = {
         : 'pas encore en batterie : elle doit rester immobile un instant',
     TOO_CLOSE: (details) =>
       `trop près : ${num(details.km)} km, la zone morte en fait ${num(details.minimum)}`,
+    ON_THE_MOVE: () => 'en route : l’artillerie ne tire qu’à l’arrêt',
+    ABOARD: () => 'à bord d’un transport : une pièce transportée ne tire pas',
     OUT_OF_RANGE: (details) =>
       `hors de portée : ${num(details.km)} km pour ${num(details.maximum)}`,
     EMPTY_MESSAGE: () => 'un message vide ne part pas',

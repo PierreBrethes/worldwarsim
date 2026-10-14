@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INDIRECT_FIRE } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import { bombardRefusalOf, emplacedAt } from './indirect-fire';
+import { aboardAt, bombardRefusalOf, emplacedAt } from './indirect-fire';
 import { THEATRES } from './theatres';
 
 const europe = THEATRES.find((theatre) => theatre.id === 'europe')!;
@@ -18,6 +18,8 @@ const ready = {
   seen: true,
   emplacedAt: NOW - 30_000,
   reloadUntil: null,
+  moving: false,
+  aboard: false,
   now: NOW,
 };
 
@@ -43,6 +45,20 @@ describe('a bombardment', () => {
     const settledAt = NOW - 10_000;
     expect(emplacedAt(settledAt)).toBe(settledAt + INDIRECT_FIRE.emplaceSeconds * 1000);
     expect(bombardRefusalOf({ ...ready, emplacedAt: emplacedAt(settledAt) })).toBe('NOT_EMPLACED');
+  });
+
+  it('fires at a halt, never on the road nor from aboard a transport', () => {
+    expect(bombardRefusalOf({ ...ready, moving: true })).toBe('ON_THE_MOVE');
+    expect(bombardRefusalOf({ ...ready, aboard: true })).toBe('ABOARD');
+  });
+
+  it('is aboard on a point where a hull of its own stands, or at sea', () => {
+    expect(aboardAt({ onPoint: true, afloat: true, roles: ['artillery'] })).toBe(true);
+    expect(aboardAt({ onPoint: true, afloat: false, roles: ['artillery', 'cargo'] })).toBe(true);
+    expect(aboardAt({ onPoint: true, afloat: false, roles: ['artillery', 'infantry'] })).toBe(
+      false,
+    );
+    expect(aboardAt({ onPoint: false, afloat: false, roles: ['artillery', 'cargo'] })).toBe(false);
   });
 
   it('waits for its reload', () => {
