@@ -723,6 +723,18 @@ export const PLUNDER_HOURS_PRESENT = 2;
 export const PLUNDER_DISABLED_HOURS = 12;
 
 /**
+ * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du
+ * 14/10). Une troupe entamée va au prorata de sa force (`captureRate`), et en Mondiale la plage de
+ * repos du défenseur ne compte pas. Le QG n'est pas ici : sa capture élimine, c'est un autre lot.
+ *
+ * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, jamais joués
+ */
+export const CAPTURE_MINUTES = {
+  mondiale: { building: 360, outpost: 360 },
+  blitz: { building: 3, outpost: 3 },
+} as const;
+
+/**
  * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une
  * fenêtre de relevé qui s'est ouverte laisse une trace quoi qu'il arrive à la colonne — arrivée,
  * retour, déroute, destruction, sortie de portée — et cette trace vieillit : le brouillard rend

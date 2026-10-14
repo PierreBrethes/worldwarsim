@@ -181,6 +181,35 @@ describe('the home ground outranks any outpost', () => {
   });
 });
 
+describe('a captured building colours its region', () => {
+  it('outranks the home ground and any outpost, for its capturer', () => {
+    const map = heldRegions({
+      regions: [region('lyon', 0, 'FRA'), region('bucarest', 5)],
+      outposts: [{ owner: 'lea', covers: new Map([['bucarest', 0]]), disabled: false }],
+      homeGrounds: [{ owner: 'pierre', country: 'FRA' }],
+      occupations: [
+        { regionId: 'lyon', owner: 'lea' },
+        { regionId: 'bucarest', owner: 'pierre' },
+      ],
+    });
+    expect(map.get('lyon')).toBe('lea');
+    expect(map.get('bucarest')).toBe('pierre');
+  });
+
+  it('shows its owner and its loser the occupation as current', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: ['paris', 'lyon'] },
+      covered: new Set(),
+      surveys: [],
+      occupied: new Map([['lyon', 'lea']]),
+    });
+    expect(known).toEqual([
+      { regionId: 'paris', owner: 'pierre', state: 'current' },
+      { regionId: 'lyon', owner: 'lea', state: 'current' },
+    ]);
+  });
+});
+
 describe('the seat inks', () => {
   it('gives the eight seats eight distinct inks', () => {
     expect(new Set(SEAT_INKS).size).toBe(8);
