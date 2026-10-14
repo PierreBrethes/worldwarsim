@@ -8,6 +8,7 @@ import {
   lit,
   nationShades,
   PALETTE,
+  PEN_OPACITY,
   penOn,
 } from './palette';
 
@@ -54,6 +55,10 @@ const angleGap = (first: number, second: number): number => {
   const gap = Math.abs(first - second) % 360;
   return Math.min(gap, 360 - gap);
 };
+
+/** The contrast a pen stroke gives on screen: laid at its opacity over the ground as lit. */
+const strokeContrast = (pen: string, ground: string): number =>
+  contrastRatio(lavis(pen, PEN_OPACITY, lit(ground)), lit(ground));
 
 const inks = Object.entries(INK_BY_NATION) as ReadonlyArray<[Nation, string]>;
 
@@ -136,7 +141,7 @@ describe('the pen over a ground', () => {
   it.each(inks)('reads on every ground of %s', (_nation, ink) => {
     const { sheet, built, surveyed } = nationShades(ink);
     for (const ground of [sheet, built, surveyed])
-      expect(contrastRatio(penOn(ground, ink), lit(ground))).toBeGreaterThanOrEqual(3);
+      expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
   });
 
   it('draws in the deep of the nation ink, never a foreign hue, where ink reads', () => {
@@ -150,7 +155,7 @@ describe('the pen over a ground', () => {
   it.each(NEIGHBOURS)('reads where %s holds ground inside %s', (holder, country) => {
     const ink = INK_BY_NATION[holder];
     const ground = lavis(ink, HELD_OPACITY, nationShades(INK_BY_NATION[country]).sheet);
-    expect(contrastRatio(penOn(ground, ink), lit(ground))).toBeGreaterThanOrEqual(3);
+    expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
   });
 
   it('draws in plain ink on the bare land', () => {

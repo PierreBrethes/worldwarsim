@@ -109,7 +109,11 @@ export function contrastRatio(first: string, second: string): number {
 
 /** How far the pen's ink goes toward the black: dark enough to read on the nation's own wash,
  *  enough of the nation left that the drawing stays in its family. */
-const PEN_DEPTH = 0.6;
+const PEN_DEPTH = 0.75;
+
+/** The hover's contour is laid at this, thin enough to read as a pen stroke and not as a second
+ *  border; the pictograms land fuller. The pen is chosen for its contrast as it lands. */
+export const PEN_OPACITY = 0.85;
 
 /** What the warm lamp leaves of a lit ground's light, measured on screenshots of the board (the
  *  sand and France's sheet both render at about this share of their luminance) — to measure
@@ -138,7 +142,8 @@ export function lit(ground: string): string {
 export function penOn(ground: string, ink: string | null): string {
   const deep = ink === null ? PALETTE.border : lavis('#000000', PEN_DEPTH, ink);
   const seen = lit(ground);
-  return contrastRatio(deep, seen) >= contrastRatio(PALETTE.paper, seen) ? deep : PALETTE.paper;
+  const stroke = (pen: string) => contrastRatio(lavis(pen, PEN_OPACITY, seen), seen);
+  return stroke(deep) >= stroke(PALETTE.paper) ? deep : PALETTE.paper;
 }
 
 /**

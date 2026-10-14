@@ -13,7 +13,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { HELD_OPACITY, lavis, nationShades, PALETTE, penOn } from './palette';
+import { HELD_OPACITY, lavis, nationShades, PALETTE, PEN_OPACITY, penOn } from './palette';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import {
   mulberry,
@@ -56,9 +56,6 @@ const HOVER_LIFT = 0.0035;
 const ANCHOR_LIFT = 0.001;
 /** Over the fills, under the hover contour that frames them. */
 const SKETCH_LIFT = 0.003;
-
-/** Thin enough that the contour reads as a pen stroke and not as a second border. */
-const HOVER_OPACITY = 0.85;
 
 /** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
 const DESIGNATED_OPACITY = 0.62;
@@ -579,7 +576,7 @@ export class RegionLayer {
     this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
     this.designatedMaterial.opacity = this.share * DESIGNATED_OPACITY;
     this.designated.visible = this.share > VISIBLE_SHARE && this.designatedIds.size > 0;
-    this.hoverMaterial.opacity = zoomFade(this.share) * HOVER_OPACITY;
+    this.hoverMaterial.opacity = zoomFade(this.share) * PEN_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
     this.terrain.animate(now, this.share);
