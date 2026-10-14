@@ -13,6 +13,7 @@ import {
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
+import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { distanceKm } from '../src/domain/geo';
 import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
@@ -734,7 +735,7 @@ export const previewCapture = query({
       route: routeFacts(route),
       captureMinutes:
         captureDurationAt(
-          season.mode ?? 'mondiale',
+          modeOf(season.mode),
           target.kind,
           captureRate(
             troops.map((troop) => ({

@@ -664,7 +664,7 @@ posent au point du site** (pas de présence en mouvement comme le pillage : c'es
 partir et laisse attaquer) et une ligne `captures` porte l'horloge — fait / instant / rythme,
 `progressAt` et `completesAt`. **Le rythme est la force de la meilleure infanterie présente**
 (`captureRate`, pas la somme), la plage de repos du défenseur ne compte pas en Mondiale, et les
-durées sont `CAPTURE_MINUTES` par mode (`seasons.mode ?? 'mondiale'`). **Rien ne la remet à
+durées sont `CAPTURE_MINUTES` par mode (`modeOf(seasons.mode)`, `src/domain/season-mode.ts`, aligné sur le lot des modes). **Rien ne la remet à
 zéro** : elle se relit avec la détection (`reassessCaptures`, appelée au bout de
 `reassessDetection`) — plus d'infanterie au point ou site changé de main, elle s'arrête ;
 force changée, l'échéance se reprend du fait. Au bout, **événement de couleur** : régler, donner,

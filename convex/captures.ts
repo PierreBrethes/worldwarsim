@@ -11,6 +11,7 @@ import {
   type CaptureClock,
 } from '../src/domain/capture';
 import { canonicalBuildingKey } from '../src/domain/ids';
+import { modeOf } from '../src/domain/season-mode';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
@@ -47,8 +48,8 @@ import {
 type Capture = Doc<'captures'>;
 type Target = Doc<'buildings'> | Doc<'outposts'>;
 
-const modeOf = async (ctx: QueryCtx, seasonId: Id<'seasons'>) =>
-  (await ctx.db.get(seasonId))?.mode ?? 'mondiale';
+const seasonModeOf = async (ctx: QueryCtx, seasonId: Id<'seasons'>) =>
+  modeOf((await ctx.db.get(seasonId))?.mode);
 
 const clockOf = (capture: Capture): CaptureClock => ({
   progress: capture.progress,
@@ -151,7 +152,7 @@ async function notifyBoth(
       : notice.kind === 'captureSucceeded'
         ? push.siteLost
         : null;
-  if (phrase !== null && (await modeOf(ctx, capture.seasonId)) === 'mondiale') {
+  if (phrase !== null && (await seasonModeOf(ctx, capture.seasonId)) === 'mondiale') {
     await notifyPlayer(ctx, capture.defenderId, { type: 'attack', phrase, url: journalUrl, at });
   }
 }
@@ -262,7 +263,7 @@ async function startCapture(
   for (const stopped of sameSite) await ctx.db.delete(stopped._id);
 
   const defender = await ctx.db.get(site.playerId);
-  const mode = await modeOf(ctx, movement.seasonId);
+  const mode = await seasonModeOf(ctx, movement.seasonId);
   const clock: CaptureClock = {
     progress: 0,
     at: now,
@@ -391,7 +392,7 @@ export const complete = internalMutation({
       return;
     }
     const loser = (await ctx.db.get(site.playerId))!;
-    const mode = await modeOf(ctx, capture.seasonId);
+    const mode = await seasonModeOf(ctx, capture.seasonId);
 
     const before = await settleBeforeChange(ctx, capture.seasonId, now);
     const taken: Array<Doc<'buildings'>> = [];

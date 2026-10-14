@@ -1,3 +1,4 @@
+import { modeOf } from '../src/domain/season-mode';
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { fail } from './errors';
@@ -898,7 +899,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * Public est ce qui fait converger : une réserve que chacun découvrirait dans son coin ferait
      * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
      */
-    mode: season.mode ?? 'mondiale',
+    mode: modeOf(season.mode),
     /**
      * **Les captures qui me regardent**, des deux côtés (décision du 14/10) : celles que je mène,
      * arrêtées comprises le temps d'une capture entière — c'est ce que « à faire maintenant »

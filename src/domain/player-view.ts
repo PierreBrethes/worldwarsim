@@ -1,4 +1,5 @@
-import type { CaptureClock, GameMode } from './capture';
+import type { CaptureClock } from './capture';
+import type { SeasonMode } from './season-mode';
 import type { LonLat } from './geo';
 import type {
   BuildCostKey,
@@ -1165,7 +1166,7 @@ export type PlayerView = {
    */
   readonly objectives: ReadonlyArray<ObjectiveView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
-  readonly mode: GameMode;
+  readonly mode: SeasonMode;
   readonly captures: ReadonlyArray<CaptureView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */

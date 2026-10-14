@@ -12,6 +12,7 @@
  * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
  */
 
+import type { SeasonMode } from '../src/domain/season-mode';
 import type {
   BuildCostKey,
   BuildingKey,
@@ -732,7 +733,7 @@ export const PLUNDER_DISABLED_HOURS = 12;
 export const CAPTURE_MINUTES = {
   mondiale: { building: 360, outpost: 360 },
   blitz: { building: 3, outpost: 3 },
-} as const;
+} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>>;
 
 /**
  * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une

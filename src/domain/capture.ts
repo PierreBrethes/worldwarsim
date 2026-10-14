@@ -1,6 +1,7 @@
 import { CAPTURE_MINUTES } from '../../convex/constants';
 import type { BuildingKey, UnitRole } from './ids';
 import type { TimeWindow } from './rest-window';
+import type { SeasonMode } from './season-mode';
 
 /**
  * **La capture** (décision du 14/10, `WWS/CONTEXT.md`) : une infanterie tient un bâtiment ou un
@@ -8,7 +9,6 @@ import type { TimeWindow } from './rest-window';
  * rose, par la mutation et par la carte — le serveur date, le client interpole, et c'est la même
  * horloge des deux côtés.
  */
-export type GameMode = keyof typeof CAPTURE_MINUTES;
 export type CaptureKind = 'building' | 'outpost';
 
 export type CaptureTarget =
@@ -29,11 +29,11 @@ export function captureRefusalOf(
   return roles.includes('infantry') ? null : 'CAPTURE_NEEDS_INFANTRY';
 }
 
-export const captureDurationMs = (mode: GameMode, kind: CaptureKind): number =>
+export const captureDurationMs = (mode: SeasonMode, kind: CaptureKind): number =>
   CAPTURE_MINUTES[mode][kind] * 60_000;
 
 /** La durée qu'une infanterie à ce rythme mettrait, hors plage de repos. */
-export const captureDurationAt = (mode: GameMode, kind: CaptureKind, rate: number): number =>
+export const captureDurationAt = (mode: SeasonMode, kind: CaptureKind, rate: number): number =>
   captureDurationMs(mode, kind) / rate;
 
 /**

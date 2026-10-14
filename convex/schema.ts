@@ -31,6 +31,7 @@ import {
   TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
+  SEASON_MODE,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -133,9 +134,8 @@ export default defineSchema({
      * `dev:backfillSeasonPreview` le pose sur les saisons d'avant.
      */
     playerCount: v.optional(v.number()),
-    /** Blitz ou Mondiale (décision du 14/10). Absent vaut Mondiale : toute saison d'avant l'est.
-     *  Le lot des deux modes l'écrit ; la capture ne fait que le lire. */
-    mode: v.optional(v.union(v.literal('blitz'), v.literal('mondiale'))),
+    /** Absent reads as `'mondiale'` (`modeOf`): seasons older than the modes are Mondiales. */
+    mode: v.optional(SEASON_MODE),
   }).index('byCode', ['code']),
 
   players: defineTable({

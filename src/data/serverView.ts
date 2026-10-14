@@ -1,3 +1,4 @@
+import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { TIER_2_HQ_LEVEL } from '../../convex/constants';
@@ -166,7 +167,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
      *  dessiner, et rien d'autre ne les lit. */
     objectives: server.objectives ?? [],
     /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
-    mode: server.mode ?? 'mondiale',
+    mode: modeOf(server.mode),
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
