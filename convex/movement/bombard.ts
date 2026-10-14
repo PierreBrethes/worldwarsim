@@ -28,6 +28,24 @@ export type BombardTarget =
 export const batteryReadyAt = (troop: Doc<'troops'>): number =>
   emplacedAt(troop.settledAt ?? troop._creationTime);
 
+/** **Ce qui se tient avec la cible** : sa colonne, ou les siens à la même adresse. */
+async function pileOf(ctx: MutationCtx, victim: Doc<'troops'>): Promise<Array<Doc<'troops'>>> {
+  const carrying = (await movementsOf(ctx, victim.playerId)).find((movement) =>
+    movement.troopIds.includes(victim._id),
+  );
+  const ids = carrying?.troopIds ?? [];
+  const together =
+    carrying === undefined
+      ? await ctx.db
+          .query('troops')
+          .withIndex('byStation', (q) => q.eq('stationedAt', victim.stationedAt))
+          .collect()
+      : (await Promise.all(ids.map((id) => ctx.db.get(id)))).flatMap((one) =>
+          one === null ? [] : [one],
+        );
+  return together.filter((one) => one._id !== victim._id && one.playerId === victim.playerId);
+}
+
 export async function bombard(
   ctx: MutationCtx,
   player: Doc<'players'>,
@@ -71,6 +89,7 @@ export async function bombard(
     at: now,
     mode: 'indirect',
     firedFrom: asPoint(stance.point),
+    aboard: await pileOf(ctx, victim),
   });
   await ctx.db.patch(troop._id, { reloadUntil: now + RELOAD_SECONDS_BY_ROLE[troop.role] * 1000 });
 

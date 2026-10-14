@@ -17,6 +17,10 @@ const ROUEN = { lon: 1.1, lat: 49.44 };
 /** À 17 km : dans la zone morte. */
 const VERSAILLES = { lon: 2.13, lat: 48.8 };
 const LYON = { lon: 4.85, lat: 45.75 };
+/** La Manche, à une centaine de kilomètres de Rouen ; une infanterie sur la côte la voit. */
+const CHANNEL = { lon: 0.0, lat: 50.2 };
+const CHANNEL_EAST = { lon: 0.4, lat: 50.3 };
+const COAST = { lon: 0.6, lat: 49.85 };
 
 async function season(t: Bench, mode: 'blitz' | 'mondiale' = 'blitz') {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
@@ -95,6 +99,27 @@ describe('the artillery and indirect fire (lot 6b)', () => {
         target: { kind: 'camp', campId: await surveyCamp(t, seat, ROUEN) },
       }),
     ).rejects.toThrow(/RELOADING/);
+  });
+
+  it('shells a hull at sea without drowning the battery or the hull’s passengers', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t);
+    const gun = await troop(t, seat, ROUEN, 'artillery');
+    await troop(t, seat, COAST);
+    const escort = await troop(t, guest, CHANNEL, 'escort');
+    /** Formé avant sa coque : c'est lui que le relevé désigne, seul dans la passe. */
+    const rider = await troop(t, guest, CHANNEL_EAST);
+    const cargo = await troop(t, guest, CHANNEL_EAST, 'cargo');
+    emplaced();
+    for (const place of [CHANNEL, CHANNEL_EAST]) {
+      await t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId: gun,
+        target: { kind: 'camp', campId: await surveyCamp(t, seat, place) },
+      });
+      await t.run((ctx) => ctx.db.patch(gun, { reloadUntil: undefined }));
+    }
+    for (const id of [gun, escort, cargo, rider]) expect(await row(t, id)).not.toBeNull();
   });
 
   it('says why it holds its fire', async () => {
