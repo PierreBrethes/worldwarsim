@@ -38,6 +38,7 @@ import type { HoveredRegion, RegionIdentity, RegionsData, World } from '@/domain
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
+import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import {
@@ -1929,6 +1930,7 @@ export class MapEngine {
       this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
       distance,
     );
+    setNearFloor(distance);
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear

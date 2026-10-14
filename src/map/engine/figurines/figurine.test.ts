@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Group } from 'three';
-import { figurineFor, nearWeight } from './figurine';
+import { figurineFor, nearWeight, setNearFloor } from './figurine';
 import { squadOf } from './infantry';
 
 describe('nearWeight', () => {
@@ -10,6 +10,15 @@ describe('nearWeight', () => {
     expect(nearWeight(65)).toBe(0);
     expect(nearWeight(300)).toBe(0);
     expect(nearWeight(40)).toBeGreaterThan(nearWeight(55));
+  });
+
+  it('ignores a piece nearer than the target distance, so a tilted far view stays plates', () => {
+    setNearFloor(80);
+    expect(nearWeight(48)).toBe(0);
+    setNearFloor(20);
+    expect(nearWeight(10)).toBe(1);
+    expect(nearWeight(48)).toBeGreaterThan(0);
+    setNearFloor(0);
   });
 });
 
