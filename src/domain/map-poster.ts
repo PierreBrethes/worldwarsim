@@ -1,5 +1,6 @@
 import { fr, stackLabel } from '@/i18n/fr';
 import { riseOf, type WorkSite } from './construction';
+import { progressAt } from './capture';
 import { asClockTime, asDuration } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
@@ -40,7 +41,47 @@ export type Poster = {
 
 const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
 
+/**
+ * **Une capture se lit aussi à l'affiche** (14/10) : sur le site qu'elle vise, chez ses deux
+ * camps, et sur la pile qui le tient chez le capteur — « 63 % · fin vers 14:20 ».
+ */
 export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
+  const capture = captureOn(label, view);
+  const poster = pieceOf(label, view, now);
+  if (capture === null) return poster;
+  const percent = Math.floor(progressAt(capture.clock, now) * 100);
+  const hour = asClockTime(capture.completesAt);
+  const line: PosterLine = {
+    kind: 'chip',
+    label: fr.capture.stamp,
+    chip:
+      capture.side === 'capturer'
+        ? fr.capture.endsAt(percent, hour)
+        : fr.capture.lostAt(percent, hour),
+    tone: capture.side === 'capturer' ? 'ok' : 'cut',
+  };
+  return poster === null
+    ? { ...plain, eyebrow: fr.capture.stamp, title: natureOf(label), lines: [line] }
+    : { ...poster, lines: [...poster.lines, line] };
+}
+
+function captureOn(label: MapLabel, view: PlayerView) {
+  const line = label.lines.find((candidate) => candidate.role === 'capture');
+  if (line !== undefined && line.role === 'capture') return line;
+  const station = label.type === 'stack' ? label.station : null;
+  if (station?.kind !== 'point') return null;
+  return (
+    view.captures.find(
+      (capture) =>
+        capture.side === 'capturer' &&
+        capture.stoppedAt === null &&
+        capture.point[0] === station.lonLat[0] &&
+        capture.point[1] === station.lonLat[1],
+    ) ?? null
+  );
+}
+
+function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
   if (label.type === 'stack' && label.station !== null) {
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
     if (held.length === 0) return null;
