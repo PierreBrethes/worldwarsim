@@ -651,3 +651,63 @@ describe('la chute d’un QG (B10)', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('la fin à deux heures (B11)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const END = MIDDAY + 2 * 60 * MINUTE;
+
+  it('se planifie au lancement, sans édition toutes les trois heures', async () => {
+    const t = boot();
+    await blitzLaunched(t);
+    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(jobs.filter((job) => job.name.includes('closeAtClock'))).toEqual([
+      expect.objectContaining({ scheduledTime: END }),
+    ]);
+    expect(jobs.filter((job) => job.name.includes('press'))).toEqual([]);
+  });
+
+  it('donne la saison au plus gros revenu, une seule fois', async () => {
+    const t = boot();
+    const { seat, guest } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const city = (await buildingsOf(t, (await neutralOf(t, seat.seasonId))._id)).find(
+      (building) => building.key === 'city',
+    )!;
+    await t.run((ctx) => ctx.db.patch(city._id, { playerId: me._id, capturedAt: MIDDAY }));
+    vi.setSystemTime(END);
+    await t.mutation(internal.blitz.closeAtClock, { seasonId: seat.seasonId, expectedAt: END });
+    expect(await t.run((ctx) => ctx.db.get(seat.seasonId))).toMatchObject({
+      status: 'concluded',
+      winnerId: me._id,
+      verdict: {
+        reason: 'income',
+        perMinute: BLITZ.fundsPerMinute.hq! + BLITZ.fundsPerMinute.city!,
+      },
+    });
+    const editions = await t.run((ctx) => ctx.db.query('editions').collect());
+    expect(editions.every((line) => line.final)).toBe(true);
+    await t.mutation(internal.blitz.closeAtClock, { seasonId: seat.seasonId, expectedAt: END });
+    expect(await t.run((ctx) => ctx.db.query('editions').collect())).toHaveLength(editions.length);
+    expect((await t.query(api.view.playerView, guest)).season.verdict).toMatchObject({
+      reason: 'income',
+      winnerNation: 'france',
+    });
+  });
+
+  it('déclare l’égalité à revenu et caisse égaux', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    vi.setSystemTime(END);
+    await t.mutation(internal.blitz.closeAtClock, { seasonId: seat.seasonId, expectedAt: END });
+    expect(await t.run((ctx) => ctx.db.get(seat.seasonId))).toMatchObject({
+      status: 'concluded',
+      winnerId: null,
+      verdict: { reason: 'draw' },
+    });
+  });
+});

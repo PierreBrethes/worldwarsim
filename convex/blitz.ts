@@ -17,7 +17,14 @@ import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { fundsAt, incomePerMinute, mendPlan, notInBlitz, type Funds } from '../src/domain/blitz';
+import {
+  clockVerdict,
+  fundsAt,
+  incomePerMinute,
+  mendPlan,
+  notInBlitz,
+  type Funds,
+} from '../src/domain/blitz';
 import {
   planBlitzMap,
   type BlitzCandidate,
@@ -34,6 +41,7 @@ import { endowIrregular, irregularSeat } from './objectives';
 import { allRegions, pointOfBuilding, regionFacts } from './regions';
 import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
+import { concludeSeason } from './seasons';
 import { surveyFromPoint } from './surveys';
 import { reassessCaptures } from './captures';
 import { movementsOf } from './movement/forces';
@@ -401,6 +409,38 @@ export async function occupiedBuildingIds(
 }
 
 const pointKey = (point: LonLat) => `${point[0]},${point[1]}`;
+
+/**
+ * **À deux heures, la Blitz se conclut** (B11) : le plus gros revenu tenu à l'instant gagne, la
+ * caisse départage, puis l'égalité (`clockVerdict`). Planifié au lancement à l'échéance de
+ * l'horloge ; une saison déjà conclue, relancée depuis ou revenue au salon n'en fait rien.
+ */
+export const closeAtClock = internalMutation({
+  args: { seasonId: v.id('seasons'), expectedAt: v.number() },
+  handler: async (ctx, { seasonId, expectedAt }) => {
+    const season = await ctx.db.get(seasonId);
+    if (
+      season === null ||
+      season.status !== 'launched' ||
+      season.launchedAt === null ||
+      season.durationHours === null ||
+      season.launchedAt + season.durationHours * 3_600_000 !== expectedAt
+    ) {
+      return;
+    }
+    const lines = [];
+    for (const seat of await seatsOf(ctx, seasonId)) {
+      if (seat.defeated === true) continue;
+      const funds = await fundsOf(ctx, seat, expectedAt);
+      lines.push({ id: seat._id, perMinute: funds.perMinute, funds: fundsAt(funds, expectedAt) });
+    }
+    const { winnerId, reason, perMinute } = clockVerdict(lines);
+    await concludeSeason(ctx, seasonId, winnerId as Id<'players'> | null, expectedAt, {
+      reason,
+      ...(perMinute === null ? {} : { perMinute }),
+    });
+  },
+});
 
 /** La porte serveur de `notInBlitz` : bâtir, élever, fonder, démolir, piller, commander un lot. */
 export function refuseInBlitz(season: Doc<'seasons'>): void {

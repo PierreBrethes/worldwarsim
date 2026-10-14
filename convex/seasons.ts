@@ -411,9 +411,20 @@ export const launch = mutation({
      * minute avant : au lancement tout le monde a la même dotation, il n'y a rien à raconter.
      * Le travail se replanifie ensuite lui-même (`convex/press.ts`), comme les files.
      */
-    await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
-      playerId: present[0]!._id,
-    });
+    /** **Une Blitz n'a pas d'édition en cours de partie** : deux heures n'en laisseraient pas
+     *  paraître une seule. Son horloge, elle, la conclut (B11), et la conclusion écrit
+     *  l'édition finale. */
+    if (modeOf(season.mode) === 'blitz' && season.durationHours !== null) {
+      const endsAt = now + season.durationHours * 3_600_000;
+      await ctx.scheduler.runAt(endsAt, internal.blitz.closeAtClock, {
+        seasonId: season._id,
+        expectedAt: endsAt,
+      });
+    } else {
+      await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
+        playerId: present[0]!._id,
+      });
+    }
 
     /**
      * **Les objectifs neutres se posent dans leur propre travail, et ce travail est une action**
