@@ -223,6 +223,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   const funds = blitz ? await fundsServed(ctx, player, now) : null;
+  const headquarters = buildings.find((building) => building.key === 'hq');
+  const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
   /** Le soin de la Blitz se lit sur la même règle que le travail qui l'applique (`blitz.mend`). */
   const onSite = new Set<string>(
     blitz ? (await ownedTroopsOnSite(ctx, player._id)).map((troop) => troop._id) : [],
@@ -474,7 +476,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        */
       capitalPoint: capitalPointOf(player.nation),
       /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». */
-      openingPoint: openingPointOf(season, player.nation),
+      /** En Blitz le plateau s'ouvre sur son QG, posé par la carte de départ. */
+      openingPoint:
+        (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and

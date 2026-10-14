@@ -190,6 +190,33 @@ describe('les fonds de la Blitz', () => {
   });
 });
 
+describe('la capture d’un neutre', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('part de la rose sans relevé, et la vue s’ouvre sur le QG', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    const neutral = await neutralOf(t, seat.seasonId);
+    const city = (await buildingsOf(t, neutral._id)).find((building) => building.key === 'city')!;
+    const [infantry] = await troopsOf(t, me._id);
+    await expect(
+      t.mutation(api.movements.capture, {
+        ...seat,
+        origin: { kind: 'building', buildingId: hq._id },
+        troopIds: [infantry!._id],
+        target: { kind: 'building', buildingId: city._id },
+      }),
+    ).resolves.toMatchObject({ movementId: expect.any(String) });
+    expect((await t.query(api.view.playerView, seat)).me.openingPoint).toEqual(pointOfBuilding(hq));
+  });
+});
+
 describe('le recrutement de la Blitz', () => {
   beforeEach(() => {
     vi.useFakeTimers();
