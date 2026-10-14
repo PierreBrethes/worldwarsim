@@ -4,6 +4,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import {
+  canJoinRegistration,
   gameCode,
   joinRefusalOf,
   normalizeGameCode,
@@ -395,13 +396,19 @@ export const invitation = query({
     const mine = account === null ? null : await seatOf(ctx, account, season._id);
     const present = await seatsOf(ctx, season._id);
     const maximum = maximumOf(season);
+    /** La table ne se montre à un inconnu que tant qu'on peut s'y asseoir : au salon, ou dans la
+     *  fenêtre d'inscription d'une Mondiale. Après, ce n'est plus public. */
+    const doorOpen =
+      season.status === 'lobby' ||
+      (modeOf(season.mode) === 'mondiale' &&
+        canJoinRegistration(season.status, season.launchedAt, Date.now()));
     return {
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
       orders: ordersOf(season),
       /** **Qui est déjà à table** : ce que le code ouvre est public au salon, et c'est ce qui fait
        *  décider d'entrer. La lampe en Blitz seulement. */
-      seats: present.map((entry) => ({
+      seats: (doorOpen || mine !== null ? present : []).map((entry) => ({
         nickname: entry.nickname,
         nation: entry.nation,
         seenAt: seenAtOf(entry, season),
