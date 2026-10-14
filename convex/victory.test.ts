@@ -183,9 +183,11 @@ describe('the simplified Domination', () => {
     expect(season.concludedAt).toBe(engagement!.at);
 
     // Public and named — the departure from design sheet 05 the scaffold makes on purpose.
-    const board = (await t.query(api.view.playerView, victim!)).season.reduction;
+    expect((await t.query(api.view.playerView, victim!)).season.reduction.winnerNation).toBe(
+      'france',
+    );
+    const board = await t.query(api.victory.board, victim!);
     expect(board.target).toBe(1);
-    expect(board.winnerNation).toBe('france');
     expect(board.standings.find((seat) => seat.nation === 'france')!.reduced).toBe(1);
     expect(board.standings.find((seat) => seat.nation === 'ussr')!.isReduced).toBe(true);
   });
@@ -199,8 +201,7 @@ describe('the simplified Domination', () => {
   it('recounts the threshold when a nation enters the war after the launch', async () => {
     const t = boot();
     const [creator] = await launchedSeason(t, 3);
-    const targetNow = async () =>
-      (await t.query(api.view.playerView, creator!)).season.reduction.target;
+    const targetNow = async () => (await t.query(api.victory.board, creator!)).target;
     expect(await targetNow()).toBe(1);
 
     const { code } = await seasonOf(t);
@@ -278,7 +279,7 @@ describe('the simplified Domination', () => {
     await overrun(t, attacker!, victim!);
 
     const tallyOf = async () => {
-      const board = (await t.query(api.view.playerView, attacker!)).season.reduction;
+      const board = await t.query(api.victory.board, attacker!);
       return board.standings.find((seat) => seat.nation === 'france')!.reduced;
     };
 
@@ -297,7 +298,7 @@ describe('the simplified Domination', () => {
     });
 
     expect(await tallyOf()).toBe(0);
-    const board = (await t.query(api.view.playerView, attacker!)).season.reduction;
+    const board = await t.query(api.victory.board, attacker!);
     expect(board.target).toBe(2);
     expect(board.standings.find((seat) => seat.nation === 'ussr')!.isReduced).toBe(false);
   });
@@ -327,7 +328,7 @@ describe('the simplified Domination', () => {
     });
 
     const reducedBy = async (nation: string) => {
-      const board = (await t.query(api.view.playerView, first!)).season.reduction;
+      const board = await t.query(api.victory.board, first!);
       return board.standings.find((seat) => seat.nation === nation)!.reduced;
     };
     expect(await reducedBy('germany')).toBe(1);

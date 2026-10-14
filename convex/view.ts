@@ -79,7 +79,6 @@ import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
-import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
 import { asWounded, fundsOf, ownedTroopsOnSite } from './blitz';
 import { fundsAt, mendPlan } from '../src/domain/blitz';
@@ -354,24 +353,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const others = seats.filter((entry) => entry._id !== player._id && isAtWar(entry, season));
 
   /**
-   * **The board of the test victory, public and named** (`convex/victory.ts`). It is the one
-   * place `PlayerView` deliberately hands over something about everybody rather than about
-   * me, and that is the point: the condition is unique, so it is read out loud (ADR 0020 §4),
-   * and a first skirmish between friends wants the ribbing. It leaks nothing the fog is for:
-   * a capacity is neither a position, nor a composition, nor a heading.
-   *
-   * Read at the instant, every time: a player who rebuilds over the bar leaves the count of
-   * the man who put him under it.
-   *
-   * **Et il reste dans la vue, sciemment** (enquête sur les bornes, 05/09) : le tableau lit les
-   * troupes de chaque belligérant et, par `executionerOf`, les passes qu'il a subies — c'est la
-   * seule lecture de `playerView` qui grandisse avec le nombre de joueurs et qu'aucune fenêtre
-   * ne borne. Le sortir dans une query à part le rendrait moins cher au chargement du plateau,
-   * et ce serait du travail sur un échafaudage condamné : la Domination simplifiée part entière
-   * avec la part de carte (ADR 0020), elle ne s'amende pas. Le jour où elle part, ce coût part
-   * avec elle ; d'ici là il est connu, et c'est tout ce qu'on lui demande.
-   */
-  /**
    * **La seule sortie de `lastSeenAt`, et elle ne parle que du fondateur.** Une « dernière
    * connexion » servie pour un autre siège serait un canal sur les plages de repos (ADR 0005) :
    * on saurait quand frapper. Ce qui sort ici est une durée d'absence, d'un seul joueur, dont
@@ -393,18 +374,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const press = await lastEdition(ctx, season._id, player._id);
 
-  const standings = await standingsOf(ctx, season._id);
-  const nationOf = new Map(
-    standings.map((standing) => [
-      standing.player._id,
-      standing.player.nation ?? standing.player.nickname,
-    ]),
-  );
-  const winnerId = season.winnerId ?? null;
-  const winner =
-    winnerId === null
-      ? null
-      : (standings.find((standing) => standing.player._id === winnerId) ?? null);
+  const belligerents = seats.filter((seat) => isAtWar(seat, season));
+  const nationOf = new Map(belligerents.map((seat) => [seat._id, seat.nation ?? seat.nickname]));
+  const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
   // schema slice that is not written (see `CLAUDE.md`, "ce qui reste"):
@@ -423,18 +395,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       playableRegion: season.playableRegion ?? 'world',
       travelMinutesPer1000km: 14,
       /** Test scaffolding — it goes whole the day the share of the map replaces it
-       *  (ADR 0020). */
+       *  (ADR 0020). Le tableau, qui lit les troupes de tous, est servi à part (`victory.board`). */
       reduction: {
-        target: reductionTarget(standings.length),
         concludedAt: season.concludedAt ?? null,
-        winnerNation: winner?.player.nation ?? null,
-        standings: standings.map((standing) => ({
-          nation: standing.player.nation,
-          nickname: standing.player.nickname,
-          isMine: standing.player._id === player._id,
-          isReduced: standing.isReduced,
-          reduced: standing.reduced,
-        })),
+        winnerNation: winner?.nation ?? null,
       },
       verdict:
         season.verdict === undefined

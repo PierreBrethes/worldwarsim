@@ -1,9 +1,11 @@
+import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
+import { query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
 import { concludeSeason } from './seasons';
-import { isAtWar, seatsOf } from './seats';
+import { isAtWar, playerOf, seatsOf } from './seats';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
@@ -111,6 +113,30 @@ export async function standingsOf(
 }
 
 export const reductionTarget = (players: number): number => playersToReduce(players);
+
+/**
+ * **Le tableau, dans une query à part et jamais dans `playerView`.** Il lit les troupes de chaque
+ * belligérant : cousu à la vue, la moindre troupe patchée chez n'importe qui relançait la vue de
+ * tout le monde (`technique/brouillard-et-fanout.md`). Seul ce petit tableau se relance
+ * maintenant, et il part entier avec la Domination simplifiée.
+ */
+export const board = query({
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const standings = await standingsOf(ctx, season._id);
+    return {
+      target: reductionTarget(standings.length),
+      standings: standings.map((standing) => ({
+        nation: standing.player.nation,
+        nickname: standing.player.nickname,
+        isMine: standing.player._id === player._id,
+        isReduced: standing.isReduced,
+        reduced: standing.reduced,
+      })),
+    };
+  },
+});
 
 /**
  * **The claim, made by the attacker of the pass that just crossed the threshold** — and by

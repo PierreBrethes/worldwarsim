@@ -355,7 +355,7 @@ describe('joining a running season', () => {
     const view = await t.query(api.view.playerView, creator);
     expect(view.opponents).toHaveLength(1);
     expect(view.season.players).toBe(2);
-    expect(view.season.reduction.standings).toHaveLength(2);
+    expect((await t.query(api.victory.board, creator)).standings).toHaveLength(2);
   });
 });
 
