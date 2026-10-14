@@ -460,7 +460,12 @@ export function MovementPreview({
           </button>
           {/* Changer d'ordre remonte le bouton : une tenue commencée sur l'ancien s'arrête là, au
               lieu de l'envoyer 700 ms plus tard. */}
-          <HoldButton key={choice.label} disabled={blocked} onConfirm={send} />
+          <HoldButton
+            key={choice.label}
+            disabled={blocked}
+            onConfirm={send}
+            note={slots === null ? fr.orderSheet.holdNoteBlitz : fr.orderSheet.holdNote}
+          />
         </div>
       </BottomSheet>
     );
@@ -485,7 +490,9 @@ export function MovementPreview({
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             <span>{fr.aim.previewKicker}</span>
-            <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
+            {slots !== null && (
+              <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
+            )}
           </div>
           <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), choice.label)}
@@ -578,7 +585,15 @@ const RELEASE_MS = 240;
  * s'en sert pas : un toucher et « annuler ». La barre d'espace et Entrée le tiennent comme le
  * doigt, pour qui n'a pas d'écran tactile.
  */
-function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () => void }) {
+function HoldButton({
+  disabled,
+  onConfirm,
+  note,
+}: {
+  disabled: boolean;
+  onConfirm: () => void;
+  note: string;
+}) {
   const [progress, setProgress] = useState(0);
   const frame = useRef(0);
   const reached = useRef(0);
@@ -664,7 +679,7 @@ function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
           {progress > 0 ? fr.orderSheet.holding : fr.orderSheet.hold}
         </span>
         <span className="text-[9.5px] leading-none tracking-[.14em] text-[var(--paper-dim-2)] uppercase">
-          {fr.orderSheet.holdNote}
+          {note}
         </span>
       </span>
     </button>

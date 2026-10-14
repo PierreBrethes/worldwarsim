@@ -1753,7 +1753,8 @@ export const fr = {
     disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
     foundationHeld:
       'La garnison tient le chantier. Elle part entière ou elle tombe, il est perdu — rien n’est remboursé.',
-    column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
+    column: (count: number, slot = true) =>
+      `pile : ${count} troupe${plural(count, '', 's')}${slot ? ' · 1 slot' : ''}`,
     /**
      * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
      * Le joueur voyait « 2 troupes · 1 slot » et composait à l'aveugle : ni ce que ses transports
@@ -1841,6 +1842,7 @@ export const fr = {
     hold: 'tenir pour envoyer',
     holding: 'maintenez…',
     holdNote: 'irréversible · 1 slot',
+    holdNoteBlitz: 'irréversible',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */

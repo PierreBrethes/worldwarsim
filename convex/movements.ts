@@ -594,7 +594,7 @@ export const preview = query({
       arrivesAt,
       /** The card owes the player the reason for an hour he did not expect: an acceleration
        *  nothing on screen accounts for reads as a bug, not as a reward. */
-      relayed: routeMinutes(route.costUnits) - minutes,
+      relayed: column.blitz === undefined ? routeMinutes(route.costUnits) - minutes : 0,
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       recognised: await recognises(ctx, player, point),
       troops: troopIds.length,

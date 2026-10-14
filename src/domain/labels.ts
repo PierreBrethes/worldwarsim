@@ -848,7 +848,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
     const cargo = arc.cargo;
-    const cargoVisible = cargo !== undefined && (cargo.carried > 0 || mission !== null);
+    // Une poursuite ne porte rien : sa charge vide ne dirait rien de plus que « poursuite ».
+    const cargoVisible =
+      cargo !== undefined &&
+      (cargo.carried > 0 || (mission !== null && mission.kind !== 'pursuit'));
     const loadingUntil = loadingUntilOf(arc);
     return {
       id: arc.id,
