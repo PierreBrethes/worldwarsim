@@ -61,7 +61,7 @@ const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
 });
 
 /**
- * **Le bonus de défense est un bonus de bâtiment** (grilling du 14/10, B16) : une troupe en
+ * **La défense n'a que ses murs** (grilling du 14/10, B16 et C1) : elle encaisse moins, une troupe en
  * garnison d'un bâtiment ou d'un avant-poste, ou la garnison d'un objectif — que le siège
  * irrégulier tient sur un point —, et jamais une pile posée en terrain libre ni en mer. Une
  * troupe garde son adresse quand elle marche, donc une troupe d'un mouvement n'est à l'abri de

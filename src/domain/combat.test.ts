@@ -133,10 +133,12 @@ describe('the reference case of the initiative', () => {
     expect(fight.lostByAttacker).toBe(13);
   });
 
-  it('has the same fifty in garrison cost the attacker fourteen', () => {
+  /** C1, décision de Pierre du 14/10 : la garnison encaisse ×0,7 et riposte sans multiplicateur.
+   *  .5 × 50 × .7 = 17,5, arrondi à 18 ; les 32 restants ripostent pour 16. */
+  it('has the same fifty in garrison take eighteen and cost the attacker sixteen', () => {
     const fight = duel('infantry1', 'infantry1', { sheltered: true });
-    expect(fight.lostByDefender).toBe(25);
-    expect(fight.lostByAttacker).toBe(14);
+    expect(fight.lostByDefender).toBe(18);
+    expect(fight.lostByAttacker).toBe(16);
   });
 
   it('makes the attacker of an even fight the one that comes out ahead', () => {
@@ -292,10 +294,9 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     ]);
   });
 
-  it('keeps the garrison bonus off a pile posted in the open', () => {
-    expect(duel('infantry1', 'infantry1').lostByAttacker).toBeLessThan(
-      duel('infantry1', 'infantry1', { sheltered: true }).lostByAttacker,
-    );
+  it('protects a garrison and never a pile posted in the open', () => {
+    expect(duel('infantry1', 'infantry1').lostByDefender).toBe(25);
+    expect(duel('infantry1', 'infantry1', { sheltered: true }).lostByDefender).toBe(18);
   });
 });
 
@@ -325,10 +326,10 @@ describe('the shock', () => {
     expect(firedBy(engagement, rifles)).toHaveLength(1);
   });
 
-  it('still carries the garrison bonus of a sheltered defender', () => {
-    expect(duel('infantry1', 'infantry1', { mode: 'shock', sheltered: true }).lostByAttacker).toBe(
-      29,
-    );
+  it('still protects a garrison, and its salvo carries nothing more', () => {
+    const fight = duel('infantry1', 'infantry1', { mode: 'shock', sheltered: true });
+    expect(fight.lostByDefender).toBe(18);
+    expect(fight.lostByAttacker).toBe(25);
   });
 });
 

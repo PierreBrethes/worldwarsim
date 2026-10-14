@@ -7,7 +7,7 @@
  * une force posée qui défend le sol où elle se tient et n'ordonne jamais rien — la définition mot
  * pour mot de l'ADR 0019 §3. Elle appartient à un `players` marqué `irregular`, ses troupes sont
  * des `troops` ordinaires, elle se relève comme toute force posée (ADR 0024 §1), elle riposte dans
- * la même passe à l'initiative (ADR 0014) — au bonus de bâtiment, c'est une garnison — et elle meurt de la même façon. Rien de tout cela n'est
+ * la même passe à l'initiative (ADR 0014) — protégée, c'est une garnison — et elle meurt de la même façon. Rien de tout cela n'est
  * écrit ici : c'est le moteur qui existait déjà.
  *
  * Ce que ce module ajoute au jeu tient en une phrase : **attaquer rapporte**, avant que le front

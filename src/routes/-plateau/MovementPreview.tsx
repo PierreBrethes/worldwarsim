@@ -25,7 +25,7 @@ import type {
   MovementPreviewed,
   PlunderPreviewed,
 } from '@/data/serverView';
-import { GARRISON_BONUS } from '../../../convex/constants';
+import { GARRISON_DAMAGE_TAKEN } from '../../../convex/constants';
 import { ResourceAmounts } from './CargoReadout';
 import type { Seat } from '@/data/session';
 
@@ -245,7 +245,7 @@ export function MovementPreview({
             {fr.aim.initiative}
           </div>
           <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-            {fr.aim.cover[cover](GARRISON_BONUS)}
+            {fr.aim.cover[cover](GARRISON_DAMAGE_TAKEN)}
           </p>
         </div>
       )}
@@ -485,7 +485,7 @@ export function MovementPreview({
 }
 
 /**
- * **Ce que la cible rendra, lu sur ce qu'on vise et rien d'autre** : le bonus de bâtiment tient
+ * **Ce que la cible rendra, lu sur ce qu'on vise et rien d'autre** : la protection tient
  * à une garnison (`convex/combat.ts`, `shelteredOf`). Un objectif est une garnison ; un point
  * n'en est une que debout et en service (`outpostShelters`), ce que le brouillard ne dit pas d'un
  * point adverse ; un camp relevé est une pile posée ; une région ou un site peuvent tenir l'un et

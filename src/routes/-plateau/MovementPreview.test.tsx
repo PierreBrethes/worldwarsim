@@ -148,8 +148,8 @@ describe('the order sheet', () => {
 });
 
 /**
- * **L'initiative, dite avant l'envoi** (B16) : l'attaquant frappe d'abord, et la riposte porte le
- * bonus de bâtiment seulement là où la cible tient des murs.
+ * **L'initiative, dite avant l'envoi** (B16) : l'attaquant frappe d'abord, et la cible n'encaisse
+ * moins que là où elle tient des murs (C1).
  */
 describe('what the riposte will carry', () => {
   it('tells the attacker he strikes first, and that an objective ripostes at the bonus', () => {
@@ -159,13 +159,13 @@ describe('what the riposte will carry', () => {
     };
     mount(vi.fn(), vi.fn(), objective);
     screen.getByText(fr.aim.initiative);
-    screen.getByText(fr.aim.cover.sheltered(1.15));
+    screen.getByText(fr.aim.cover.sheltered(0.7));
   });
 
   /** C4 : un point n'a de murs que debout et en service, et l'aperçu ne sait pas lequel. */
   it("tells him a point's garrison has walls only if it stands and serves", () => {
     mount();
-    screen.getByText(fr.aim.cover.point(1.15));
+    screen.getByText(fr.aim.cover.point(0.7));
   });
 
   it('tells him a camp in the open ripostes bare', () => {

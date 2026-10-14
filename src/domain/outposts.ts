@@ -87,8 +87,8 @@ export const isStanding = (outpost: OutpostStanding, now: number): boolean =>
   (outpost.standsAt ?? outpost.foundedAt) <= now;
 
 /**
- * **Un point n'a de murs que debout et en service** (décision du 14/10, C4) : sa garnison riposte
- * au bonus de bâtiment, celle d'un chantier ou d'un point désactivé riposte nue. Lue par la passe
+ * **Un point n'a de murs que debout et en service** (décision du 14/10, C4) : sa garnison encaisse
+ * moins (C1), celle d'un chantier ou d'un point désactivé encaisse tout. Lue par la passe
  * (`convex/combat.ts`) et par l'aperçu de l'ordre, pour qu'ils ne divergent pas.
  */
 export const outpostShelters = (

@@ -11,8 +11,9 @@ import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from '
  * **The shock is the other reading of the same pass** (B17): two forces charging each other fire
  * together, on the state the pass opened with. Nothing on the server orders it yet.
  *
- * The defence's only advantage is the **garrison bonus**: a defender sheltered in a building, an
- * outpost or an objective ripostes at `garrisonBonus`. A pile posted in the open has nothing.
+ * The defence's only advantage is **cover**, as in Advance Wars (decision of 14/10, C1): a troop
+ * in garrison of a building, a standing outpost or an objective takes `garrisonDamageTaken` of
+ * every blow, and ripostes like anyone else. A pile posted in the open takes them whole.
  *
  * Deterministic, without a die: in an asynchronous game nobody is there to react to a roll.
  *
@@ -70,8 +71,8 @@ export const TRANSPORT_PROFILES: ReadonlyArray<CombatProfile> = [
 
 export type CombatRules = {
   readonly damage: DamageTable;
-  /** What a sheltered defender ripostes at — never a pile in the open, never the attacker. */
-  readonly garrisonBonus: number;
+  /** The share of a blow a garrison takes — its walls, never a multiplier on its own fire. */
+  readonly garrisonDamageTaken: number;
   readonly routThreshold: number;
   /**
    * One round per this many points of engaged strength, per pass (chiffrage §5). A full
@@ -108,7 +109,7 @@ export type Combatant = {
   readonly nominalStrength: number;
   /** Breaks a tie between two troops of the same role: the older one fires first. */
   readonly formedAt: number;
-  /** In garrison of a building, an outpost or an objective: it defends at `garrisonBonus`. */
+  /** In garrison of a building, a standing outpost or an objective: it takes less of each blow. */
   readonly sheltered?: boolean;
 };
 
@@ -202,9 +203,8 @@ export function resolveEngagement({
       if (strength <= 0) return [];
       const target = pick(shooter, at, rules);
       if (target === null) return [];
-      const shelter =
-        shooter.side === 'defender' && shooter.combatant.sheltered ? rules.garrisonBonus : 1;
-      return [hit(shooter, strength, target, supply * shelter, phase, rules)];
+      const cover = target.combatant.sheltered ? rules.garrisonDamageTaken : 1;
+      return [hit(shooter, strength, target, supply * cover, phase, rules)];
     });
 
   const attackerMagazine = bill('attacker', striking);

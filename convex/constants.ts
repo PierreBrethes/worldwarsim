@@ -600,14 +600,15 @@ export const DAMAGE_TABLE: DamageTable = {
  * `CLAUDE.md` forbids a rule reading it without its own ADR; and **the pincer** (×1.20),
  * because "two converging movements" is one number and three undecided definitions.
  *
- * **Un bonus de bâtiment, et lui seul** (grilling du 14/10/2026, B16) : depuis que l'attaquant a
- * l'initiative, la défense n'a plus que ses murs. Une troupe en garnison d'un bâtiment, d'un
- * avant-poste ou d'un objectif riposte à ce facteur ; une pile posée en terrain libre ou en mer
- * riposte nue. Il s'applique une fois, sur la riposte, dans `resolveEngagement`.
+ * **Une protection, à la Advance Wars** (décision de Pierre du 14/10/2026, C1) : depuis que
+ * l'attaquant a l'initiative, la défense n'a plus que ses murs. Une troupe en garnison d'un
+ * bâtiment, d'un avant-poste debout et en service ou d'un objectif **encaisse** cette part de
+ * chaque coup, et riposte sans multiplicateur ; une pile posée en terrain libre ou en mer encaisse
+ * tout. Le mur protège ce qu'il abrite : il ne tire pas.
  *
  * @a-mesurer rapport pertes attaquant / défenseur par engagement sur une saison
  */
-export const GARRISON_BONUS = 1.15;
+export const GARRISON_DAMAGE_TAKEN = 0.7;
 
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
@@ -618,7 +619,7 @@ export const DRY_AMMUNITION_FACTOR = 0.6;
 
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
-  garrisonBonus: GARRISON_BONUS,
+  garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
   strengthPerRound: STRENGTH_PER_ROUND,
   dryFactor: DRY_AMMUNITION_FACTOR,

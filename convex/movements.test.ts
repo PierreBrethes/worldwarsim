@@ -1014,23 +1014,23 @@ describe('an attack marches at somebody', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    // Fifty soldiers against fifty in his barracks: my strike takes 25, his riposte answers
-    // from the 25 left at the garrison bonus — 14. Le cas de référence de `CLAUDE.md`.
+    // Fifty soldiers against fifty in his barracks: the garrison takes .7 of my strike — 18 —
+    // and its 32 left riposte for 16. Le cas de référence de `CLAUDE.md`.
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
     expect(await strikesIn(t, account!._id)).toHaveLength(2);
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(25);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(36);
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(32);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(34);
 
     // And both sides read it, each from its own side of the field.
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.reports[0]!.side).toBe('attacker');
-    expect(mine.reports[0]!.mine.lost).toBe(14);
-    expect(mine.reports[0]!.theirs.lost).toBe(25);
+    expect(mine.reports[0]!.mine.lost).toBe(16);
+    expect(mine.reports[0]!.theirs.lost).toBe(18);
     const theirsView = await t.query(api.view.playerView, guest);
     expect(theirsView.reports[0]!.side).toBe('defender');
-    expect(theirsView.reports[0]!.mine.lost).toBe(25);
+    expect(theirsView.reports[0]!.mine.lost).toBe(18);
   });
 
   it('refuses to march on one of my own regions', async () => {
@@ -1085,10 +1085,10 @@ describe('the pass is what ammunition is spent on', () => {
 
     await fight(t, seat, guest);
 
-    // One round per five points: fifty soldiers strike for ten, the twenty-five the strike left
-    // riposte for five — one pays only for what one fires (C3, 14/10).
+    // One round per five points: fifty soldiers strike for ten, the thirty-two the strike left
+    // in the barracks riposte for seven — one pays only for what one fires (C3, 14/10).
     expect(await ammunitionOf(t, seat)).toBe(490);
-    expect(await ammunitionOf(t, guest)).toBe(495);
+    expect(await ammunitionOf(t, guest)).toBe(493);
   });
 
   it('bills nothing to a garrison the strike wiped out, and never tells it it ran dry', async () => {
@@ -1099,7 +1099,7 @@ describe('the pass is what ammunition is spent on', () => {
     const troop = await form(t, seat, 'infantry', barracks);
     const theirs = await raise(t, guest, 'barracks', PRAHOVA);
     const defender = await form(t, guest, 'infantry', theirs);
-    await t.run(async (ctx) => ctx.db.patch(defender, { currentStrength: 20 }));
+    await t.run(async (ctx) => ctx.db.patch(defender, { currentStrength: 15 }));
 
     await attacking(t, {
       ...seat,
@@ -1127,10 +1127,10 @@ describe('the pass is what ammunition is spent on', () => {
 
     const { troop, defender } = await fight(t, seat, guest);
 
-    // Supplied, the reference case takes 25 off the defender and 14 off the attacker. Dry, the
-    // attacker's strike is worth .60 of itself — and the defender, keeping more to riposte with,
-    // bites harder.
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 15);
+    // Supplied, the reference case takes 18 off the garrison and 16 off the attacker. Dry, the
+    // attacker's strike is worth .60 of itself — .5 × .6 × .7 × 50, eleven — and the defender,
+    // keeping more to riposte with, bites harder.
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 11);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
     // The four rounds it had went into the pass; it did not fight for free.
     expect(await ammunitionOf(t, seat)).toBe(0);
@@ -1400,6 +1400,8 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
     const held = await garrison(t, guest, outpostId);
+    /** La garnison encaisse ×0,7 (C1) : entière, elle tiendrait — à trente, la frappe la casse. */
+    await t.run(async (ctx) => ctx.db.patch(held, { currentStrength: 30 }));
 
     await t.mutation(api.movements.raid, {
       ...seat,
@@ -1417,10 +1419,14 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     expect(outpost!.disabledUntil).toBe(account!.at + OUTPOST_DISABLED_HOURS * 3_600_000);
     expect(outpost!.immuneUntil).toBeGreaterThan(outpost!.disabledUntil!);
 
-    // Taken to 10 by the strike, the garrison ripostes from its point at the garrison bonus:
-    // .5 × 10/50 × 1.15 × 50 rounds to six, where the open ground would give five.
-    const riposte = (await strikesIn(t, account!._id)).filter((one) => one.phase === 'riposte');
-    expect(riposte.map((one) => one.losses)).toEqual([6]);
+    // Behind its walls the garrison takes .7 of each blow — 18, then 11 — where the open ground
+    // would have taken 25 and 5; one man is left, and he ripostes for one.
+    const strikes = await strikesIn(t, account!._id);
+    expect(strikes.map((one) => [one.phase, one.losses])).toEqual([
+      ['strike', 18],
+      ['strike', 11],
+      ['riposte', 1],
+    ]);
 
     // The garrison broke contact rather than dying, and it is still standing on its point.
     const broken = await t.run(async (ctx) => ctx.db.get(held));
@@ -1443,7 +1449,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
   it.each([
     ['under construction', { standsAt: MIDDAY.getTime() + 30 * 86_400_000 }],
     ['out of service', { disabledUntil: MIDDAY.getTime() + 30 * 86_400_000 }],
-  ] as const)('gives a garrison no bonus on a point %s', async (_, state) => {
+  ] as const)('gives a garrison no walls on a point %s', async (_, state) => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1462,10 +1468,15 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    // The same ten left as on a standing point, answering bare: five, where the walls gave six.
+    // Bare, it takes the blows whole — 25 and 15, where walls would let through 18 and 11 — and
+    // its ten left riposte for five.
     const [account] = await engagementsIn(t);
-    const riposte = (await strikesIn(t, account!._id)).filter((one) => one.phase === 'riposte');
-    expect(riposte.map((one) => one.losses)).toEqual([5]);
+    const strikes = await strikesIn(t, account!._id);
+    expect(strikes.map((one) => [one.phase, one.losses])).toEqual([
+      ['strike', 25],
+      ['strike', 15],
+      ['riposte', 5],
+    ]);
   });
 
   it('walks up to an ungarrisoned point and puts it out without a battle', async () => {
@@ -2009,7 +2020,7 @@ describe('a march goes to a point and the column stays there', () => {
   /**
    * **L'assaut sur un camp relevé** (ADR 0024 §4) : c'est désormais le seul chemin vers cette
    * passe-là. L'attaquant frappe d'abord, le camp visé riposte avec ce qui lui reste sans que
-   * personne l'ordonne — et, posé en terrain libre, sans bonus de bâtiment.
+   * personne l'ordonne — et, posé en terrain libre, il encaisse tout.
    */
   it('opens the pass on a surveyed camp: the strike, then the riposte', async () => {
     const t = boot();

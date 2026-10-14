@@ -1873,17 +1873,17 @@ export const fr = {
     estimatedLoot: 'butin estimé au relevé',
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
     initiative: 'vous frappez en premier',
-    /** Ce que la riposte porte, selon ce qu'on vise : le seul avantage de la défense est un mur. */
+    /** Ce que la cible encaissera, selon ce qu'on vise : le seul avantage de la défense est un
+     *  mur (C1), et il protège sans tirer. */
     cover: {
-      sheltered: (bonus: number) =>
-        `La cible est en garnison : elle riposte avec ce qui lui reste, à ×${factor(bonus)}.`,
-      open: () =>
-        'La cible est à découvert : elle riposte avec ce qui lui reste, sans bonus de bâtiment.',
-      point: (bonus: number) =>
-        `La garnison riposte avec ce qui lui reste — à ×${factor(bonus)} si le point est debout et en service.`,
-      either: (bonus: number) =>
-        `La cible riposte avec ce qui lui reste — à ×${factor(bonus)} si elle tient un bâtiment.`,
-    } satisfies Record<'sheltered' | 'open' | 'point' | 'either', (bonus: number) => string>,
+      sheltered: (taken: number) =>
+        `En garnison : elle encaisse moins — ×${factor(taken)} de vos coups — et riposte avec ce qui lui reste.`,
+      open: () => 'À découvert : elle encaisse tout, et riposte avec ce qui lui reste.',
+      point: (taken: number) =>
+        `La garnison riposte avec ce qui lui reste ; elle encaisse ×${factor(taken)} de vos coups si le point est debout et en service.`,
+      either: (taken: number) =>
+        `La cible riposte avec ce qui lui reste ; en garnison d’un bâtiment, elle encaisse ×${factor(taken)} de vos coups.`,
+    } satisfies Record<'sheltered' | 'open' | 'point' | 'either', (taken: number) => string>,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
@@ -1931,8 +1931,8 @@ export const fr = {
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
-    before: (garrisonBonus: number, dryFactor: number) =>
-      `L’attaquant frappe en premier ; le défenseur riposte avec ce qui lui reste — à ×${factor(garrisonBonus)} s’il tient un bâtiment. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
+    before: (garrisonDamageTaken: number, dryFactor: number) =>
+      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
