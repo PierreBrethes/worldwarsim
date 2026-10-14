@@ -126,7 +126,7 @@ export type MovementAim =
    */
   | {
       readonly kind: 'track';
-      readonly sightingId: string;
+      readonly movementId: string;
       readonly lon: number;
       readonly lat: number;
       readonly hostCountry: string;

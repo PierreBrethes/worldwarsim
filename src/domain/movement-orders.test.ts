@@ -818,7 +818,7 @@ describe('a Blitz order (lot 5)', () => {
   const newYork: MovementAim = { ...point, lon: -74, lat: 40.7 };
   const track: MovementAim = {
     kind: 'track',
-    sightingId: 's1',
+    movementId: 'm1',
     lon: 4,
     lat: 50,
     hostCountry: 'BEL',

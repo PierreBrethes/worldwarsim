@@ -213,6 +213,34 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
   });
 
+  it('chases a column it sees on the board, and two chases that cross meet in a shock', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const west = { lon: 4.0, lat: 50.0 };
+    const east = { lon: 4.7, lat: 50.0 };
+    const ours = await troop(t, seat, west);
+    const theirs = await troop(t, guest, east);
+    const campId = await surveyCamp(t, seat, east);
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'point', point: west },
+      troopIds: [ours],
+      target: { kind: 'camp', campId },
+    });
+    const board = await t.query(api.view.playerView, guest);
+    const arc = board.detected?.find((seen) => seen.seenTo >= Date.now());
+    expect(arc).toBeDefined();
+    await t.mutation(api.movements.attack, {
+      ...guest,
+      origin: { kind: 'point', point: east },
+      troopIds: [theirs],
+      target: { kind: 'track', movementId: arc!.id as Id<'movements'> },
+    });
+    await runPursuits(t);
+    const [engagement] = await t.run((ctx) => ctx.db.query('engagements').collect());
+    expect(engagement?.shock).toBe(true);
+  });
+
   it('gives up on a target out of sight and stops at its last known position', async () => {
     const t = boot();
     const { seat, guest } = await blitz(t);

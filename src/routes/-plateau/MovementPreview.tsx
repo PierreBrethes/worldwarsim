@@ -87,7 +87,7 @@ export const wireTarget = (aim: MovementAim) =>
           ? ({ kind: 'camp', campId: aim.campId as Id<'campSightings'> } as const)
           : /** **Une colonne en vue** (Blitz) voyage par son relevé : le serveur la poursuit. */
             aim.kind === 'track'
-            ? ({ kind: 'sighting', sightingId: aim.sightingId as Id<'sightings'> } as const)
+            ? ({ kind: 'track', movementId: aim.movementId as Id<'movements'> } as const)
             : /** **L'objectif voyage par son identité** : il est public, donc le serveur le lit dans
                *  la vérité du plateau — et c'est ce qui grave `movements.objectiveId`, sans quoi la
                *  colonne arriverait sans que rien dise ce qu'elle est venue prendre. */

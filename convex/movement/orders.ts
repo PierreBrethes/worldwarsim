@@ -328,7 +328,7 @@ export type AimTarget =
   | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
   | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> }
-  | { readonly kind: 'sighting'; readonly sightingId: Id<'sightings'> };
+  | { readonly kind: 'track'; readonly movementId: Id<'movements'> };
 
 const seasonIdOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<Id<'seasons'> | null> =>
   (await ctx.db.get(playerId))?.seasonId ?? null;
@@ -396,13 +396,13 @@ export async function aimOf(
   }
   /** **Un fil adverse en vue** (Blitz, B18) : sa position à l'instant, telle que le relevé la
    *  donne ; le refus d'un fil hors Blitz est celui de `refusalOf`, pas d'ici. */
-  if (target.kind === 'sighting') {
+  if (target.kind === 'track') {
     const { point } = await quarryOf(ctx, playerId, target, Date.now());
     const country = hostAtPoint(point);
     return {
       aim: {
         kind: 'track',
-        sightingId: target.sightingId,
+        movementId: target.movementId,
         lon: point[0],
         lat: point[1],
         hostCountry: country,

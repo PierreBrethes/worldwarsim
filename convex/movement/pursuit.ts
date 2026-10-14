@@ -100,16 +100,22 @@ export async function quarryOf(
   playerId: Id<'players'>,
   target:
     | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
-    | { readonly kind: 'sighting'; readonly sightingId: Id<'sightings'> },
+    | { readonly kind: 'track'; readonly movementId: Id<'movements'> },
   now: number,
 ): Promise<{ readonly troopId: Id<'troops'>; readonly point: LonLat }> {
-  if (target.kind === 'sighting') {
-    const row = await ctx.db.get(target.sightingId);
-    const movement = row === null ? null : await ctx.db.get(row.movementId);
+  if (target.kind === 'track') {
+    const movementId = target.movementId;
+    const row =
+      (
+        await ctx.db
+          .query('sightings')
+          .withIndex('byMovement', (q) => q.eq('movementId', movementId))
+          .collect()
+      ).find((one) => one.playerId === playerId) ?? null;
+    const movement = row === null ? null : await ctx.db.get(movementId);
     const troopId = movement?.troopIds[0];
     if (
       row === null ||
-      row.playerId !== playerId ||
       row.frozen !== undefined ||
       row.from > now ||
       row.to < now ||

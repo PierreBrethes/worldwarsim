@@ -445,7 +445,7 @@ export const attack = mutation({
      *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
     const hunted =
       (await blitzTheatreOf(ctx, player._id)) !== null &&
-      (target.kind === 'camp' || target.kind === 'sighting')
+      (target.kind === 'camp' || target.kind === 'track')
         ? await quarryOf(ctx, player._id, target, Date.now())
         : null;
     return march(ctx, {
@@ -609,7 +609,7 @@ export const preview = query({
       pursuit:
         type === 'attack' &&
         column.blitz !== undefined &&
-        (target.kind === 'camp' || target.kind === 'sighting'),
+        (target.kind === 'camp' || target.kind === 'track'),
     };
   },
 });

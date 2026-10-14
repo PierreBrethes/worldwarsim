@@ -981,7 +981,7 @@ function aim(
     return fanOf(target.name, view, column, [
       {
         kind: 'track',
-        sightingId: target.id,
+        movementId: target.id,
         lon: target.point[0],
         lat: target.point[1],
         hostCountry: target.country ?? '',

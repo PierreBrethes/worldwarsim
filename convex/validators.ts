@@ -733,8 +733,9 @@ export const ATTACK_TARGET = v.union(
    *  la colonne marche. Ce qui reste sur le document est `movements.objectiveId`, qui dit
    *  pourquoi elle y va. */
   v.object({ kind: v.literal('objective'), objectiveId: v.id('objectives') }),
-  /** **Une colonne adverse en vue**, que la Blitz seule poursuit (B18). */
-  v.object({ kind: v.literal('sighting'), sightingId: v.id('sightings') }),
+  /** **Une colonne adverse en vue**, que la Blitz seule poursuit (B18) : nommée par l'arc que la
+   *  vue sert, donc par son mouvement ; le serveur relit le relevé que ce joueur en tient. */
+  v.object({ kind: v.literal('track'), movementId: v.id('movements') }),
 );
 
 /**
