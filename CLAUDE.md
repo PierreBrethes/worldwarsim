@@ -690,7 +690,7 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). **Chaque théâtre déclare son nombre de joueurs** (T1, `Theatre.players`, lu par `seatRangeOf`) : Europe, Méditerranée et Amériques 2-3, Pacifique 2 — un plafond tient sur six graines ou il descend d'un cran (`convex/blitz.test.ts`, `SIX_SEEDS` ; l'Europe à 4 échouait sur une). Le salon refuse au-delà (`joinRefusalOf`, `BLITZ_FULL`), le lancement en deçà comme au-delà, et la vignette de création affiche la fourchette. Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). **Chaque théâtre déclare son nombre de joueurs** (T1, `Theatre.players`, lu par `seatRangeOf`) : Europe, Méditerranée et Amériques 2-4, Pacifique 2-3 — un plafond tient sur six graines ou il descend d'un cran (`convex/blitz.test.ts`, `SIX_SEEDS` ; mesuré après A2, le Pacifique à 4 échoue sur les six). Le salon refuse au-delà (`joinRefusalOf`, `BLITZ_FULL`), le lancement en deçà comme au-delà, et la vignette de création affiche la fourchette. Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
 
 
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
@@ -734,8 +734,8 @@ pour toute visée côté serveur (`march`, sur `aim.point`), mât et région com
 théâtre, qu'on traverse en 18 min (`theatreMinutesPer1000Km`, `pacedMinutes`, en secondes). **La
 poursuite n'a pas d'horloge globale** : le mouvement porte `pursuit.{troopId, checkAt}` et un seul
 rendez-vous, le contact daté entre deux regards (`contactAt`) ou le pas de `PURSUIT_STEP_SECONDS` ;
-à chaque regard elle frappe (≤ `ARRIVAL_RADIUS_KM`), recourbe sa route vers la position de la
-cible si elle a bougé de plus de 25 km, ou **abandonne** — cible hors de sa vue — les relevés du joueur,
+à chaque regard elle frappe (≤ `contactKm(théâtre)`), recourbe sa route vers la position de la
+cible si elle a bougé de plus que ce contact, ou **abandonne** — cible hors de sa vue — les relevés du joueur,
 réévalués à chaque regard, règle de milieu comprise, jamais une distance vraie : elle finit en marche vers la dernière position connue, dépêche
 `pursuitLost`. Au contact, passe 1 contre 1, **sans déroute** — aucune passe de Blitz ne déroute,
 `isBlitz` dans `resolveContact` ; **choc** si la
@@ -754,8 +754,9 @@ formée à la caserne, 160 de fonds, encombrement 2, rechargement 120 s, une lig
 tue), quatre-vingt-treize couples. **« Bombarder »** est une branche de la rose sur un camp ou un fil
 adverse en vue, et **la branche est l'ordre** : `movements.bombard` tire sur-le-champ, sans
 mouvement ni poursuite — le tir immédiat règle d'avance la cible qui sortirait de portée. Une seule
-règle pour la rose et le serveur (`bombardRefusalOf`) : `INDIRECT_FIRE` (`@a-mesurer`) — portée
-150 km, **zone morte** sous 50 km (`TOO_CLOSE`, `OUT_OF_RANGE`), **en batterie** 30 s après
+règle pour la rose et le serveur (`bombardRefusalOf`) : `fireReachOf(théâtre)` — portée
+150 km, **zone morte** sous 50 km en Europe, parts du théâtre ailleurs (A2, `BLITZ_SHARE`,
+`@a-mesurer` ; `TOO_CLOSE`, `OUT_OF_RANGE`), **en batterie** 30 s (`INDIRECT_FIRE`) après
 l'arrêt (`NOT_EMPLACED`, `troops.settledAt` écrit par `forgetMovement` à la fin de tout mouvement
 qui la portait et à l'embarquement, `_creationTime` sinon), `RELOADING`, hors de vue — la vue
 refaite avant d'être lue (`reassessDetection`, comme la charge de Blitz), hors théâtre, **en route**
@@ -766,24 +767,47 @@ refaite avant d'être lue (`reassessDetection`, comme la charge de Blitz), hors 
 passe l'artillerie **se tait**, des deux côtés (`firesIndirect`) — `refusalOf('attack')` lui refuse
 la charge (`INDIRECT_FIRE_ONLY`). L'engagement porte `cause: 'bombardment'` et `firedFrom`, servi à
 l'attaquant seul : la cible ne sait pas d'où le coup part. Au front : levée, la pièce montre sa
-portée en plein et sa zone morte hachurée (`Reach.fire`, `ReachRing`) ; « en batterie dans 0:12 »
-sur l'étiquette et l'affiche (`TroopView.emplacedAt`) ; le coup tracé à l'encre de ma batterie au
-tampon « bombardé » (`InkBurst.from`) ; « bombardement » / « bombardés » dans la dépêche. Sans GLB
+portée en plein et sa zone morte **à l'encre du plateau**, hachurée — l'ambre est à la détection,
+qui la frôle en Europe (60 contre 50 km) (`Reach.fire`, `ReachRing`, `DEAD_INK`) ; « en batterie
+dans 0:12 » sur l'étiquette et l'affiche, posée **ou en garnison** — le mât et l'affiche d'un
+bâtiment lisent leur garnison (`TroopView.emplacedAt`, `countdownsOf`, `waitingChips`) ; le coup
+tracé à l'encre de ma batterie au tampon « bombardé » (`InkBurst.from`) ; « bombardement » /
+« bombardés » dans la dépêche. **Le rejeu d'un bombardement** (A4, `ReplayView.bombardment`) : chez
+le tireur la batterie reste où elle a tiré (`from`, servi à lui seul) et un trait d'encre part
+d'elle jusqu'à la cible ; chez la cible aucune batterie, l'obus tombe du ciel (`ReplayFire`
+`unseen`) ; personne ne riposte. Sans GLB
 ni planche (`artillery: null` dans le manifeste des planches, absente de celui des figurines) : le
-repli en cadre pointillé, en attendant `uk/artillery.glb` (`PROMPTS-3D`, n° 2). À l'échelle : en
-Europe la portée vaut quarante secondes de marche adverse ; au Pacifique et aux Amériques, quinze.
+repli en cadre pointillé, en attendant `uk/artillery.glb` (`PROMPTS-3D`, n° 2). À l'échelle : la
+portée vaut partout quarante secondes de marche adverse — elle est une part du théâtre, comme la
+vitesse.
+
+**Et toutes les distances de la Blitz sont des parts de son théâtre — 14/10/2026** (A2,
+`theatreKm`, `src/domain/theatres.ts`, parts dans `BLITZ_SHARE` et `BLITZ.map`, `@a-mesurer`).
+Comme la vitesse : le contact, la détection par rôle, la portée et la zone morte, les villes
+« à faire maintenant » et les distances de la carte de départ se taillent dans l'étendue du
+théâtre (`spanKm`), coupées pour que l'Europe (4 225 km) garde ses kilomètres — le Pacifique les
+multiplie par 3,8. Trois lecteurs et aucun autre : `contactKm(théâtre)`,
+`detectionRangeOf(rôles, théâtre)` et `fireReachOf(théâtre)`, `null` valant la Mondiale, qui ne
+change pas d'un kilomètre ; le serveur tire le théâtre de la saison (`seasonTheatre`,
+`blitzTheatreOf`), le client de la vue (`playedTheatre`). Les textes disent les km réels du
+théâtre. **Les QG se tirent sur la terre** (`headquartersTries`, `blitz-placement.ts`) : un
+cercle de `hqRadius` du théâtre centré sur une région au hasard, resserré au hasard jusqu'à
+moitié, chaque place prise à la région la plus proche qui pose **toute sa dotation à pied, seule à
+table** (`aroundHeadquarters` pour un siège) ; jusqu'à `hqDraws` tablées, les `hqTries` premières
+régulières à vol d'oiseau éprouvées en entier. Le cercle d'avant tournait autour du centre de la
+boîte, qui tombait en mer au Pacifique.
 
 ## Schéma Convex
 
 **Et la Blitz a son économie et sa carte de départ — 14/10/2026** (lot 4, table `BLITZ` de
 `convex/constants.ts`, toutes `@a-mesurer`). Au lancement, `blitz.place` remplace `objectives.place`
 par la même mécanique en trois temps (`placementInput`, action qui mesure, `commit` idempotent) ; la
-règle pure est `src/domain/blitz-placement.ts` : un QG par joueur sur un cercle du théâtre, une
+règle pure est `src/domain/blitz-placement.ts` : un QG par joueur sur un cercle posé sur sa terre (A2, ci-dessus), une
 caserne à lui, un fantassin dans chacun (U6), un pécule ; des **neutres** — ville, caserne, port (une
 côte n'est côte que si `coastPointNear` y trouve un quai), aérodrome — proches de chaque QG, et
 disputés au milieu de chaque paire de voisins. **Le proche se mesure à pied** (`land`), dans une
 tolérance autour de sa distance cible : un QG d'où l'on ne marche pas jusqu'à sa caserne et ses
-neutres est écarté (jamais sur un îlot). Douze tours du cercle ; l'écart entre QG se juge en combiné
+neutres est écarté (jamais sur un îlot). Douze tablées régulières ; l'écart entre QG se juge en combiné
 et, sous `hqEvenness`, **le lancement est défait** (`blitz.abandon`, E6) : la saison revient au salon
 qui le dit (`seasons.launchRefusal`, `BLITZ_MAP_UNFAIR`, ou `BLITZ_MAP_FAILED` quand la pose jette).
 Lancée, une Blitz est close aux arrivants
