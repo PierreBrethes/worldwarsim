@@ -40,10 +40,11 @@ donc **un défenseur détruit par la frappe ne riposte pas** (`src/domain/combat
 écrits sous la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés. **Le seul
 avantage de la défense est un mur** : `GARRISON_BONUS` (×1,15) ne s'applique qu'à une troupe en
 garnison d'un bâtiment, d'un avant-poste ou d'un objectif, jamais à une pile posée en terrain libre
-ni en mer ni à une troupe en mouvement (`shelteredOf`). Cinquante fantassins contre cinquante en
-terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 25 et 14. Seul coup gratuit
-mesuré : le char lourd sur le char léger (3 / 12 restants, riposte nulle), nommé dans le garde-fou
-de `combat.test.ts`. La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
+ni en mer ni à une troupe en mouvement, ni à la garnison d'un point en chantier ou désactivé
+(`shelteredOf`, `outpostShelters`). On ne paie en munitions que ce qu'on tire : la riposte se
+facture sur ce que la frappe a laissé, un défenseur anéanti ne paie rien ; et le vainqueur se lit
+sur les issues amendées par le large. Cinquante fantassins contre cinquante en
+terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 25 et 14. Le char léger répond au lourd à .13, le quart de ce qu'il fait à son pareil (C2). La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
 ordonnée nulle part : elle attend la Blitz. L'aperçu d'un ordre d'attaque dit « vous frappez en
 premier » et ce que la riposte portera ; dépêche, feuille d'arrivée et compte rendu disent
 « notre frappe en abat N, leur riposte en abat M » (`combatBeats`, `fr.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :

@@ -13,8 +13,8 @@ retour de l'initiative, bonus de bâtiment (B16, B17)**
 > **choc** (`mode: 'shock'`), réservé à deux unités qui s'attaquent l'une l'autre — la Blitz,
 > lot 5 ; le serveur ne l'ordonne nulle part encore. Cas de référence : cinquante fantassins
 > contre cinquante en terrain libre, le défenseur perd 25 et l'attaquant 13 ; en garnison, 25
-> et 14. Seul coup gratuit mesuré : le char lourd sur le char léger (3 / 12 restants, riposte
-> nulle). Source : `../design/propositions/gameplay-deux-modes-2026-10-14.md`.
+> et 14. Le char léger répond au lourd à .13 (C2) ; la riposte se paie sur ce que
+> la frappe a laissé (C3) ; un point en chantier ou désactivé n'a pas de murs (C4). Source : `../design/propositions/gameplay-deux-modes-2026-10-14.md`.
 
 > **Révision du 16/09/2026 — résolution simultanée (décision 1b).** L'initiative à l'attaquant
 > est abandonnée : les deux camps tirent sur l'état d'avant la passe et les pertes s'appliquent

@@ -287,12 +287,9 @@ export async function resolveContact(
    * written: the condition of the test victory is "be the attacker of the pass that crosses the
    * threshold" (`convex/victory.ts`), and there is no other moment at which that is true.
    *
-   * **The attacker of a camp's pass is the camp, and that counts** (ADR 0019 §3, ratified
-   * 18/08). A player therefore advances his victory during a pass he ordered nothing in — which
-   * is a decision, not an oversight: posting the camp *was* the order. It cost a slot, one troop
-   * out of twenty-four and, once the upkeep lands, a raised one. An investment that pays nothing
-   * when its bet comes off is not an investment; this is the yield of the intelligence, not a
-   * win in one's sleep.
+   * **The attacker is whoever's order aimed at the other** (ADR 0024 §3): nothing fights
+   * without an order since 13/09, so a camp that answers an assault is its defender and never
+   * advances a victory by riposting.
    */
   const season = await ctx.db.get(seasonId);
   if (season) await claimVictory(ctx, season, attacker.playerId, at);

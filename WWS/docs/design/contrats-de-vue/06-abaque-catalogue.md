@@ -14,7 +14,7 @@ ne se débloque* — tout le matériel du jeu se lit ici, avec sa condition.
 | Donnée | Source |
 |---|---|
 | La grille de tir : part détruite par passe, bandes | `gunneryRows(DAMAGE_TABLE)` (`src/domain/gunnery.ts` — la table arrive de `constants.ts`, jamais recopiée) |
-| Garantie et modificateurs (salve du défenseur ×1,15, à sec ×0,6) | `fr.gunnery.guarantee`, `.before` (`DEFENDER_BONUS`, `DRY_AMMUNITION_FACTOR`) |
+| Garantie et modificateurs (initiative ; riposte d'une garnison ×1,15, à sec ×0,6 — révision du 14/10) | `fr.gunnery.guarantee`, `.before` (`GARRISON_BONUS`, `DRY_AMMUNITION_FACTOR`) |
 | Par rôle : coût alliage + minutes (MK1/MK2), effectif, bâtiment qui forme, QG requis | `workshop.grid[]` (`unit`, `unitTier2`, `producedBy`, `unlockedAtHqLevel`) — servi même sans aucun bâtiment |
 | En service par rôle et par marque — toutes adresses confondues, file exclue | `workshop.roster[]` (`{role, tier, count}`) |
 | MK2 ouvert / seuil | `workshop.tier2Unlocked`, `requiredHqLevel` |
