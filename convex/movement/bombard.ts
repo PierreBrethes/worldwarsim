@@ -24,6 +24,10 @@ export type BombardTarget =
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
   | { readonly kind: 'track'; readonly movementId: Id<'movements'> };
 
+/** L'instant où cette pièce est en batterie : depuis son dernier arrêt, ou sa formation. */
+export const batteryReadyAt = (troop: Doc<'troops'>): number =>
+  emplacedAt(troop.settledAt ?? troop._creationTime);
+
 export async function bombard(
   ctx: MutationCtx,
   player: Doc<'players'>,
@@ -46,7 +50,7 @@ export async function bombard(
     to: quarry.point,
     theatre,
     seen: true,
-    emplacedAt: emplacedAt(stance === null ? now : (troop.settledAt ?? troop._creationTime)),
+    emplacedAt: stance === null ? emplacedAt(now) : batteryReadyAt(troop),
     reloadUntil: troop.reloadUntil ?? null,
     now,
   };

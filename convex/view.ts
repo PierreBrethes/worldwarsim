@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { fail } from './errors';
-import { emplacedAt, firesIndirect } from '../src/domain/indirect-fire';
+import { firesIndirect } from '../src/domain/indirect-fire';
+import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
@@ -654,8 +655,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
           ? { reloadUntil: troop.reloadUntil }
           : {}),
-        ...(firesIndirect(troop.role) && emplacedAt(troop.settledAt ?? troop._creationTime) > now
-          ? { emplacedAt: emplacedAt(troop.settledAt ?? troop._creationTime) }
+        ...(firesIndirect(troop.role) && batteryReadyAt(troop) > now
+          ? { emplacedAt: batteryReadyAt(troop) }
           : {}),
         mending: mending.has(troop._id),
       })),

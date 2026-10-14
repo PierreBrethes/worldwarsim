@@ -71,6 +71,7 @@ import { restHold } from './movement/rest';
 import { pursue as pursueStep, quarryOf } from './movement/pursuit';
 import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
+import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
@@ -348,7 +349,12 @@ export const board = mutation({
       stationedAt: from.stationId,
       troops: passengers,
     });
-    for (const troop of passengers) await ctx.db.patch(troop._id, { stationedAt: to.stationId });
+    /** Monter à bord déplace la pièce : sa mise en batterie repart (B20). */
+    for (const troop of passengers)
+      await ctx.db.patch(troop._id, {
+        stationedAt: to.stationId,
+        ...(firesIndirect(troop.role) ? { settledAt: Date.now() } : {}),
+      });
     await stationCargoLoads(ctx, {
       seasonId: season._id,
       playerId: player._id,
