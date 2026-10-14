@@ -28,6 +28,9 @@ export type MovementAim =
       readonly kind: 'region';
       readonly regionId: string;
       readonly country: string;
+      /** Son centroïde : le cadre d'une Blitz se lit sur lui (`OUTSIDE_THEATRE`). */
+      readonly lon: number;
+      readonly lat: number;
       /** @see the note on the point's own `surveyed`. */
       readonly surveyed: boolean;
     }

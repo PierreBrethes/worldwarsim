@@ -35,6 +35,8 @@ const region: MovementAim = {
   kind: 'region',
   regionId: 'TUN-1',
   country: 'Tunisia',
+  lon: 9.5,
+  lat: 34,
   surveyed: true,
 };
 const outpost: MovementAim = {

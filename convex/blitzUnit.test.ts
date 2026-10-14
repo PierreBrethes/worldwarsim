@@ -146,6 +146,31 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     ).rejects.toThrow(/BUILDING_OCCUPIED/);
   });
 
+  it('enters no building of its own outside the theatre', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const walker = await troop(t, seat, PARIS);
+    const abroad = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        key: 'barracks',
+        regionId: 'MAR-3457',
+        level: 1,
+        outpostId: null,
+      });
+    });
+    await expect(
+      t.mutation(api.movements.enterGarrison, {
+        ...seat,
+        origin: { kind: 'point', point: PARIS },
+        troopIds: [walker],
+        buildingId: abroad,
+      }),
+    ).rejects.toThrow(/OUTSIDE_THEATRE/);
+  });
+
   it('chases a camp in sight and strikes it at contact, then reloads', async () => {
     const t = boot();
     const { seat, guest } = await blitz(t);

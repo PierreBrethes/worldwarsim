@@ -23,6 +23,7 @@ import {
   type MovementAim,
 } from '../../src/domain/movement-orders';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
+import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
 import { MAX_HQ_LEVEL, detectionRangeOf } from '../constants';
 import { fail } from '../errors';
@@ -494,6 +495,8 @@ export async function aimOf(
       kind: 'region',
       regionId: region.id,
       country: region.country,
+      lon: region.point[0],
+      lat: region.point[1],
       surveyed: await surveyedIn(ctx, playerId, region.id),
     },
     target: { kind: 'region', regionId: region.id },
@@ -686,6 +689,10 @@ export async function march(
             false,
           );
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
+  /** **Le cadre vaut pour toute visée** (B1) : un mât ou un point d'appui n'a pas de coordonnées
+   *  dans sa visée, mais il en a sur le plateau. */
+  if (column.blitz !== undefined && !withinTheatre(column.blitz.theatre, aim.point))
+    fail('OUTSIDE_THEATRE', { type });
 
   const route = routeBetween(
     departure.point,
