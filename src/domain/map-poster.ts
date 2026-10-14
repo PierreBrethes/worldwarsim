@@ -8,7 +8,7 @@ import { produces } from './economy';
 import { loadingUntilOf } from './loading';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
-import type { CargoView, PlayerView } from './player-view';
+import type { CargoView, PlayerView, TroopView } from './player-view';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 
 export type PosterLine =
@@ -88,36 +88,13 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
     if (held.length === 0) return null;
     const ids = new Set(held.map((troop) => troop.id));
-    /** **Blitz** (B19) : la plus longue attente de la pile, à la seconde. */
-    const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
-    /** **En batterie dans** (B20) : l'artillerie posée depuis moins que sa mise en batterie. */
-    const emplacing = Math.max(0, ...held.map((troop) => (troop.emplacedAt ?? 0) - now));
     const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
       eyebrow: fr.troops.sheetKicker,
       title: natureOf(label),
       lines: [
-        ...(reload > 0
-          ? [
-              {
-                kind: 'chip' as const,
-                label: fr.reload.label,
-                chip: reloadClock(reload),
-                tone: 'cut' as const,
-              },
-            ]
-          : []),
-        ...(emplacing > 0
-          ? [
-              {
-                kind: 'chip' as const,
-                label: fr.battery.label,
-                chip: reloadClock(emplacing),
-                tone: 'ok' as const,
-              },
-            ]
-          : []),
+        ...waitingChips(held, now),
         ...(mending === 0
           ? []
           : [
@@ -243,13 +220,50 @@ function sighting(eyebrow: string, title: string, lines: ReadonlyArray<PosterLin
   return { ...plain, eyebrow, title, washed: true, lines: said };
 }
 
+/** Ce que la pile attend, posée ou en garnison, à la seconde : la plus longue recharge (B19), et
+ *  l'artillerie posée depuis moins que sa mise en batterie (B20). */
+function waitingChips(held: ReadonlyArray<TroopView>, now: number): PosterLine[] {
+  const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
+  const emplacing = Math.max(0, ...held.map((troop) => (troop.emplacedAt ?? 0) - now));
+  return [
+    ...(reload > 0
+      ? [
+          {
+            kind: 'chip' as const,
+            label: fr.reload.label,
+            chip: reloadClock(reload),
+            tone: 'cut' as const,
+          },
+        ]
+      : []),
+    ...(emplacing > 0
+      ? [
+          {
+            kind: 'chip' as const,
+            label: fr.battery.label,
+            chip: reloadClock(emplacing),
+            tone: 'ok' as const,
+          },
+        ]
+      : []),
+  ];
+}
+
 function buildingPoster(
   label: MapLabel,
   building: NonNullable<MapLabel['building']>,
   view: PlayerView,
   now: number,
 ): Poster {
-  const lines: PosterLine[] = view.mode === 'blitz' ? [...fundsLines(building.key)] : [];
+  const garrison = troopsAt(
+    view.me,
+    stationKeyOf({ kind: 'building', buildingId: building.id }),
+    marchingTroopIds(view.arcs),
+  );
+  const lines: PosterLine[] = [
+    ...(view.mode === 'blitz' ? fundsLines(building.key) : []),
+    ...waitingChips(garrison, now),
+  ];
   let bar: number | null = null;
 
   if (produces(building.key)) {

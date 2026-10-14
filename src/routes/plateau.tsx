@@ -1409,6 +1409,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       works.find((site) => site.regionId === regionId && site.key === key) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
+    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât. */
+    const garrisonCountdowns = (buildingId: string) => {
+      const held = troopsAt(view.me, stationKeyOf({ kind: 'building', buildingId }), marching);
+      return { ...reloadOf(held), ...emplacementOf(held) };
+    };
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: buildingLabelId(building),
@@ -1428,6 +1433,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
+      ...garrisonCountdowns(building.id),
       ink: view.me.ink,
     }));
 
