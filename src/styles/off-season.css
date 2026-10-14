@@ -144,42 +144,6 @@
     .rule.soft {
       background: color-mix(in srgb, var(--ink) 22%, transparent);
     }
-    .rule.dash {
-      height: 0;
-      border-top: 1px dashed color-mix(in srgb, var(--ink) 50%, transparent);
-      background: none;
-    }
-
-    .wordmark {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: stretch;
-      white-space: nowrap;
-      color: currentColor;
-      line-height: 0.98;
-    }
-    .wordmark .w {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 0.12em;
-      font-family: var(--display);
-    }
-    .wordmark .a {
-      font-style: italic;
-      font-weight: 500;
-      font-size: max(9px, 0.5em);
-    }
-    .wordmark .b {
-      font-weight: 800;
-      letter-spacing: 0.01em;
-      text-transform: uppercase;
-    }
-    .wordmark .r {
-      margin-top: 0.06em;
-      height: max(2px, 0.09em);
-      background: var(--critical);
-      transform: rotate(-0.6deg);
-    }
 
     .btn {
       display: inline-flex;
@@ -288,9 +252,6 @@
     }
     .stamp.ink {
       color: var(--ink);
-    }
-    .stamp.blue {
-      color: var(--interaction);
     }
     .stamp.pop {
       animation: os-stamp 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
@@ -416,23 +377,6 @@
       color: var(--sea-ink);
       opacity: 0.85;
       pointer-events: none;
-    }
-
-    .toast {
-      position: fixed;
-      z-index: 80;
-      left: 50%;
-      top: 18px;
-      transform: translateX(-50%);
-      background: var(--paper);
-      color: var(--ink);
-      border: 1px solid var(--ink);
-      border-left: 4px solid var(--notable);
-      padding: 9px 14px;
-      box-shadow: var(--float-hi);
-      font: 500 13px var(--ui);
-      animation: os-toast 4.2s ease both;
-      max-width: calc(100vw - 32px);
     }
 
     /* =========================================================
@@ -864,24 +808,6 @@
       background: var(--critical);
       color: var(--paper);
       font: 600 10px var(--num);
-    }
-    .pts {
-      display: inline-flex;
-      gap: 3px;
-      vertical-align: middle;
-    }
-    .pts i {
-      width: 9px;
-      height: 9px;
-      border: 1px solid var(--ink);
-      transform: rotate(45deg);
-    }
-    .pts i.on {
-      background: var(--ink);
-    }
-    .pts i.foe {
-      background: var(--critical);
-      border-color: var(--critical);
     }
     .front .colophon {
       display: flex;
@@ -1340,9 +1266,6 @@
       display: flex;
       gap: 8px;
     }
-    .reglette.noclock .tail {
-      margin-left: auto;
-    }
 
     .col {
       display: grid;
@@ -1406,20 +1329,6 @@
       padding: 6px 8px;
       min-height: 32px;
       font-size: 10px;
-    }
-    .orders .sealed {
-      display: inline-flex;
-      gap: 3px;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-    .orders .sealed i {
-      width: 11px;
-      height: 8px;
-      border: 1px solid var(--ink);
-      background:
-        linear-gradient(160deg, transparent 46%, var(--ink) 47% 53%, transparent 54%),
-        linear-gradient(20deg, transparent 46%, var(--ink) 47% 53%, transparent 54%);
     }
     .invite .codebig {
       font: 800 40px/1 var(--display);
@@ -1554,9 +1463,6 @@
       color: var(--paper-dim-2);
       font-size: 11px;
     }
-    .seat.arrive {
-      animation: os-arrive 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
-    }
     .fig {
       position: absolute;
       z-index: 4;
@@ -1589,9 +1495,6 @@
       border-radius: 50%;
       background: radial-gradient(closest-side, rgba(26, 18, 10, 0.45), transparent);
       pointer-events: none;
-    }
-    .seat.arrive .fig {
-      animation: os-figdrop 0.5s 0.1s cubic-bezier(0.3, 1.5, 0.5, 1) both;
     }
 
     .tablemap {
@@ -1682,9 +1585,6 @@
     }
     .capital.mine .flag {
       box-shadow: 0 0 0 2px var(--notable);
-    }
-    .capital.drop {
-      animation: os-drop 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) both;
     }
 
     .myplace {
@@ -1797,24 +1697,6 @@
       align-content: center;
       width: 204px;
     }
-    .myplace .cond {
-      display: grid;
-      gap: 2px;
-      font: 11px var(--ui);
-      color: var(--ink-note);
-    }
-    .myplace .cond span::before {
-      content: '·';
-      display: inline-block;
-      width: 12px;
-      font-family: var(--num);
-    }
-    .myplace .cond span.ok {
-      color: var(--ink);
-    }
-    .myplace .cond span.ok::before {
-      content: '×';
-    }
     .rest {
       display: inline-flex;
       align-items: center;
@@ -1834,176 +1716,12 @@
       grid-template-rows: minmax(0, 1fr);
       align-content: stretch;
     }
-    .wire {
-      display: grid;
-      grid-template-rows: auto auto 1fr auto;
-      padding: 0;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .wire .ph {
-      margin: 0;
-      padding: 10px 13px 8px;
-    }
-    .wire .wtabs {
-      display: flex;
-      border-bottom: 1px solid var(--ink);
-      overflow-x: auto;
-    }
-    .wire .wtabs button {
-      background: transparent;
-      border: 0;
-      border-right: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-      padding: 8px 11px;
-      font: 600 11px var(--ui);
-      letter-spacing: 0.06em;
-      white-space: nowrap;
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .wire .wtabs button[aria-selected='true'] {
-      background: var(--ink);
-      color: var(--paper);
-    }
-    .wire .wtabs .badge {
-      height: 15px;
-      min-width: 15px;
-      font-size: 9px;
-    }
-    .wire .msgs {
-      overflow-y: auto;
-      padding: 8px 13px;
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
-      min-height: 0;
-    }
-    .msg .h {
-      display: flex;
-      gap: 8px;
-      align-items: baseline;
-      font: 700 10px var(--ui);
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-    .msg .h .num {
-      font-size: 10px;
-      letter-spacing: 0;
-      color: var(--ink-note);
-      font-weight: 400;
-    }
-    .msg p {
-      margin: 3px 0 0;
-      justify-self: start;
-      display: inline-block;
-      border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
-      padding: 5px 8px;
-      font: 14px/1.3 var(--ui);
-      background: var(--paper-3);
-    }
-    .msg.sys p {
-      border: 0;
-      background: none;
-      padding: 0;
-      font: italic 12.5px var(--text);
-      color: var(--ink-soft);
-    }
-    .wire form {
-      display: flex;
-      gap: 6px;
-      padding: 8px 13px 11px;
-      border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-    }
-    .wire form input {
-      flex: 1;
-      min-width: 0;
-      border: 1px solid var(--ink);
-      background: var(--paper-3);
-      padding: 8px 9px;
-      min-height: 40px;
-      font: 14px var(--ui);
-      color: var(--ink);
-      outline: none;
-    }
 
     .mtabs {
       display: none;
     }
-    .launchbar {
-      display: none;
-    }
 
     /* ---------- launch overlay ---------- */
-    .launch {
-      position: fixed;
-      inset: 0;
-      z-index: 70;
-      display: grid;
-      place-items: center;
-      background: rgba(15, 10, 4, 0.86);
-      animation: os-fadein 0.4s ease both;
-      padding: 20px;
-    }
-    .launch .card {
-      position: relative;
-      width: min(620px, 100%);
-      background: var(--paper);
-      border: 1px solid var(--ink);
-      box-shadow: var(--float-hi);
-      padding: 22px 26px 20px;
-      text-align: center;
-      animation: os-rise 0.6s 0.15s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-    }
-    .launch .card h2 {
-      margin: 6px 0 4px;
-      font: 800 38px/1 var(--display);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .launch .seal {
-      width: 112px;
-      height: 112px;
-      margin: 6px auto 4px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 38% 34%, #b75a49, #8a3a2e 60%, #6b2a21);
-      box-shadow:
-        0 6px 14px rgba(0, 0, 0, 0.4),
-        inset 0 -4px 8px rgba(0, 0, 0, 0.3);
-      display: grid;
-      place-items: center;
-      color: #f0d9c4;
-      font: 800 13px/1.1 var(--display);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      animation: os-sealin 0.55s 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
-    }
-    .launch ol {
-      list-style: none;
-      margin: 12px 0 0;
-      padding: 0;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 5px 14px;
-      text-align: left;
-    }
-    .launch ol li {
-      display: grid;
-      grid-template-columns: 18px 1fr;
-      gap: 0 6px;
-      font: 12px/1.3 var(--ui);
-      padding: 5px 0;
-      border-top: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
-      animation: os-unseal 0.35s ease both;
-    }
-    .launch ol li b {
-      font: 700 14px var(--display);
-    }
-    .launch ol li i {
-      font-style: normal;
-      font: 600 11px var(--num);
-      color: var(--notable-paper);
-    }
 
     /* =========================================================
    5. INVITATION / REFUS — le télégramme
@@ -2297,10 +2015,12 @@
         top: 6px;
         z-index: 30;
       }
-      .reglette > [role='img'],
-      .reglette .sep,
-      .reglette .tail .copy {
+      .reglette .sep {
         display: none;
+      }
+      /* La manchette porte `inline-flex` en utilitaire, qui passe devant la couche `components`. */
+      .reglette > [role='img'] {
+        display: none !important;
       }
       .reglette .rdv {
         order: 5;
@@ -2323,10 +2043,6 @@
         z-index: 29;
         background: var(--paper);
         border: 1px solid var(--ink);
-      }
-      .noclock + .mtabs,
-      .salon:has(.reglette.noclock) .mtabs {
-        top: 62px;
       }
       .mtabs button {
         flex: 1;
@@ -2362,9 +2078,6 @@
       }
       .salon[data-view='wire'] .col.right {
         display: grid;
-      }
-      .wire {
-        height: 62vh;
       }
       .desk-table {
         grid-template-rows: auto;
@@ -2473,9 +2186,6 @@
         width: auto;
         grid-template-columns: 1fr 1fr;
       }
-      .myplace .acts .cond {
-        display: none;
-      }
       .myplace .acts .btn:only-of-type {
         grid-column: 1 / -1;
       }
@@ -2493,9 +2203,6 @@
       }
       .nfiche .rule-broken {
         font-size: 11.5px;
-      }
-      .myplace .restline {
-        display: none;
       }
 
       .invit-wrap {
@@ -2519,12 +2226,6 @@
       .tape {
         font-size: 12px;
       }
-      .launch ol {
-        grid-template-columns: 1fr;
-      }
-      .launch .card h2 {
-        font-size: 28px;
-      }
     }
     @media (prefers-reduced-motion: reduce) {
       *,
@@ -2539,24 +2240,6 @@
    V2 — la table trie : ordre replié, invitation au bandeau,
    télégraphe en fenêtre à part, une phrase au lieu d'une liste.
    ========================================================= */
-    .sealed {
-      display: inline-flex;
-      gap: 3px;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-    .sealed i {
-      width: 11px;
-      height: 8px;
-      border: 1px solid var(--ink);
-      background:
-        linear-gradient(160deg, transparent 46%, var(--ink) 47% 53%, transparent 54%),
-        linear-gradient(20deg, transparent 46%, var(--ink) 47% 53%, transparent 54%);
-    }
-    .sealed.big i {
-      width: 15px;
-      height: 11px;
-    }
     .salon.v2 {
       grid-template-columns: 262px minmax(0, 1fr) 312px;
       column-gap: 28px;
@@ -2645,11 +2328,6 @@
     }
     .orders dl {
       grid-template-columns: 86px 1fr;
-    }
-    .link.danger {
-      display: inline-block;
-      margin-top: 10px;
-      color: var(--critical);
     }
     .segm.compact button {
       padding: 5px 7px;
@@ -2788,111 +2466,6 @@
       border-bottom: 1px dashed color-mix(in srgb, var(--ink) 35%, transparent);
       font: italic 11.5px var(--text);
       color: var(--ink-note);
-    }
-    .wirewin .wtabs {
-      display: flex;
-      border-bottom: 1px solid var(--ink);
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-    .wirewin .wtabs button {
-      background: transparent;
-      border: 0;
-      padding: 7px 11px;
-      font: 600 10px var(--ui);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-      color: inherit;
-    }
-    .wirewin .wtabs button + button {
-      border-left: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-    }
-    .wirewin .wtabs button[aria-selected='true'] {
-      background: var(--ink);
-      color: var(--paper);
-    }
-    .wirewin .wtabs .badge {
-      height: 16px;
-      min-width: 16px;
-      font-size: 9px;
-    }
-    .wirewin .msgs {
-      overflow-y: auto;
-      padding: 4px 14px 10px;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .wirewin .day {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 10px 0 2px;
-      font: 600 9.5px var(--ui);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--ink-note);
-    }
-    .wirewin .day::before,
-    .wirewin .day::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: color-mix(in srgb, var(--ink) 30%, transparent);
-    }
-    .wirewin .sysline {
-      margin: 8px 0 0;
-      font: italic 12.5px var(--text);
-      color: var(--ink-soft);
-      text-align: center;
-    }
-    .band {
-      display: flex;
-      flex-direction: column;
-      max-width: 86%;
-      margin-top: 8px;
-    }
-    .band.mine {
-      align-self: flex-end;
-      align-items: flex-end;
-    }
-    .band:not(.mine) {
-      align-self: flex-start;
-      align-items: flex-start;
-    }
-    .band .who {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      margin: 0 2px 2px;
-      font: 700 9.5px var(--ui);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-    .band.mine .who {
-      color: var(--ink-soft);
-    }
-    .band .who .num {
-      font: 400 9.5px var(--num);
-      letter-spacing: 0;
-      color: var(--ink-note);
-    }
-    .band p {
-      margin: 0 0 3px;
-      border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
-      background: rgba(239, 230, 207, 0.45);
-      padding: 4px 8px 5px;
-      font: 14.5px/1.3 var(--ui);
-      overflow-wrap: anywhere;
-    }
-    .band.mine p {
-      border-color: var(--ink);
-      background: var(--ink);
-      color: var(--paper);
     }
     .wirewin form {
       display: flex;
@@ -3081,6 +2654,20 @@
         width: 100%;
       }
     }
+    .orders .custom {
+      display: grid;
+      gap: 3px;
+      font: 11px var(--ui);
+      color: var(--ink-note);
+    }
+    .orders .custom input {
+      border: 1px solid var(--ink);
+      background: var(--paper-3);
+      padding: 4px 6px;
+      min-height: 30px;
+      font: 500 12px var(--num);
+      color: var(--ink);
+    }
     .more-menu {
       margin-top: 2px;
     }
@@ -3126,20 +2713,6 @@
     transform: rotate(-8deg) scale(1);
   }
 }
-@keyframes os-toast {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -8px);
-  }
-  8%,
-  86% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-  100% {
-    opacity: 0;
-  }
-}
 @keyframes os-tapein {
   from {
     opacity: 0;
@@ -3148,50 +2721,5 @@
   to {
     opacity: 1;
     clip-path: inset(0 0 0 0);
-  }
-}
-@keyframes os-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(-14px) rotate(-2deg);
-  }
-}
-@keyframes os-figdrop {
-  from {
-    opacity: 0;
-    transform: translateY(-26px);
-  }
-}
-@keyframes os-drop {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -160%);
-  }
-}
-@keyframes os-fadein {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes os-rise {
-  from {
-    opacity: 0;
-    transform: translateY(18px) rotate(-1deg);
-  }
-}
-@keyframes os-sealin {
-  from {
-    opacity: 0;
-    transform: scale(1.8) rotate(-30deg);
-  }
-}
-@keyframes os-unseal {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }

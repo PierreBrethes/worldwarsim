@@ -908,7 +908,7 @@ function Orders({
                   </button>
                 ))}
               </div>
-              <label className="check">
+              <label className="custom">
                 <span>{fr.found.custom}</span>
                 <input
                   type="datetime-local"
