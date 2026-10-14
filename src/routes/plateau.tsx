@@ -1555,7 +1555,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 id: marker.id,
                 lonLat: marker.lonLat,
                 medium: marker.medium,
-                washed: marker.lastKnown,
+                seenAt:
+                  marker.seenMinutesAgo === null
+                    ? marker.since
+                    : Date.now() - marker.seenMinutesAgo * 60_000,
+                seenMinutesAgo: marker.seenMinutesAgo,
               },
             ]
           : [],

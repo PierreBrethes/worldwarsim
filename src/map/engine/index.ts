@@ -80,7 +80,7 @@ import {
 import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
-import { CampLayer, type SurveyedCamp } from './blocks';
+import { CampLayer, type SurveyedCamp } from './annotations';
 import { TheatreFrame } from './theatre';
 import type { Theatre } from '@/domain/theatres';
 import { batteryAt, ReplayScene, replayReach, type ReplayFire } from './replay';
@@ -97,7 +97,7 @@ import type { ReplayView } from '@/domain/player-view';
 export type { SearchArea } from './search-area';
 export type { CounterTexts, PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
-export type { SurveyedCamp } from './blocks';
+export type { SurveyedCamp } from './annotations';
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -665,10 +665,10 @@ export class MapEngine {
     if (ground !== undefined) this.standing.setDown(ground);
   }
 
-  /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
+  /** The enemy's surveyed camps, annotated in ink up close (F2, ADR 0026 §4 révisé). */
   displayCamps(camps: ReadonlyArray<SurveyedCamp>): void {
     this.invalidate();
-    this.camps.display(camps, performance.now());
+    this.camps.display(camps);
   }
 
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -1502,7 +1502,6 @@ export class MapEngine {
     this.invalidate();
     this.ambience.motion = motion;
     this.arcs.motion = motion;
-    this.camps.motion = motion;
     this.standing.motion = motion;
     this.ink.motion = motion;
     this.maquettes.motion = motion;
@@ -1943,7 +1942,7 @@ export class MapEngine {
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
-    this.camps.orient(this.camera.position, yaw, now);
+    this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();
     if (this.lamp.follow(this.controls.target, distance)) {
       for (const root of [
