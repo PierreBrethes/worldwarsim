@@ -2,7 +2,8 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
+import { knownRegions, type KnownRegion } from '../src/domain/control';
+import { nationInk } from '../src/domain/nations';
 import { isStanding } from '../src/domain/outposts';
 import { occupationsOf, soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
@@ -49,18 +50,13 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const { player, season } = await playerOf(ctx, token, seasonId);
   const seats = await seatsOf(ctx, season._id);
 
-  /**
-   * **L'encre suit le siège, dans l'ordre des entrées.** Rien n'est stocké là non plus : un
-   * joueur ne quitte jamais une saison — on la détruit entière (`seasons.destroy`) — donc son
-   * rang d'entrée est aussi stable qu'un champ, et un champ de plus serait une seconde vérité
-   * à tenir d'accord avec la première.
-   */
+  /** L'ordre des entrées ne sert plus qu'à ranger la réponse : stable, il garde la légende en
+   *  place d'un battement à l'autre. */
   const ordered = [...seats].sort((left, right) => left._creationTime - right._creationTime);
   const homeGrounds = seats.flatMap((seat) => {
     const country = homeCountryOf(seat.nation);
     return country === null ? [] : [{ owner: seat._id as string, country }];
   });
-  const inkOf = new Map(ordered.map((seat, rank) => [seat._id, seatInk(rank)]));
 
   /** **Son sol, et le sien seul.** Il n'a pas besoin de s'observer lui-même : une nation n'est
    *  jamais annexée (ADR 0004), donc rien ne peut s'y périmer. Le sol des autres, lui, se
@@ -131,7 +127,10 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         playerId: seat._id,
         nation: seat.nation,
         nickname: seat.nickname,
-        ink: inkOf.get(seat._id)!,
+        /** **L'encre est celle de la nation** (palette des nations, 14/10/2026) : une nation
+         *  n'a qu'une place par saison, et une seconde encre — celle du rang d'entrée —
+         *  peignait le sol tenu d'une couleur et le sol bâti d'une autre. */
+        ink: nationInk(seat.nation),
         regions: [
           ...regions.map((region) =>
             region.state === 'current'
