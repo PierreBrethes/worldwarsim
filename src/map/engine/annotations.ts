@@ -20,7 +20,7 @@ import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 
-/** The annotation's side in model units: the width of the washed block's ring it replaces. */
+/** The annotation's side in model units — the landing's mark against a figurine. */
 const SIDE = 3.2;
 const PLANE = new PlaneGeometry(SIDE, SIDE).rotateX(-Math.PI / 2).translate(0, 0.03, 0);
 
@@ -120,6 +120,14 @@ export function inkAnnotation(
   return { object, piece };
 }
 
+/** Its material is its own — the ink of each age — and goes with it. */
+export function eraseAnnotation(object: Group): void {
+  object.removeFromParent();
+  object.traverse((part) => {
+    if (part instanceof Mesh) (part.material as MeshBasicMaterial).dispose();
+  });
+}
+
 /** An enemy movement's « figurine »: its annotation slides along the stretch, upright to the eye. */
 export const annotationFigurine = (medium: Medium, seenAt: number): Figurine => ({
   object: inkAnnotation(medium, seenAt, null).object,
@@ -161,11 +169,13 @@ export class CampLayer {
   display(camps: ReadonlyArray<SurveyedCamp>): void {
     const next = new Map<string, Placed>();
     for (const camp of camps) {
-      const key = `${camp.medium}|${camp.seenAt}|${camp.seenMinutesAgo}`;
+      // By what the ink shows, not by the instants: a last known position's hour is re-derived
+      // from its age at every view, and would otherwise redraw the mark each time.
+      const key = `${camp.medium}|${asClockTime(camp.seenAt)}|${surveyInk(camp.seenMinutesAgo).toFixed(2)}`;
       let entry = this.placed.get(camp.id);
       this.placed.delete(camp.id);
       if (entry?.key !== key) {
-        entry?.object.removeFromParent();
+        if (entry) eraseAnnotation(entry.object);
         entry = {
           key,
           medium: camp.medium,
@@ -177,7 +187,7 @@ export class CampLayer {
       entry.lonLat = camp.lonLat;
       next.set(camp.id, entry);
     }
-    for (const gone of this.placed.values()) gone.object.removeFromParent();
+    for (const gone of this.placed.values()) eraseAnnotation(gone.object);
     this.placed = next;
     this.rebuild();
   }

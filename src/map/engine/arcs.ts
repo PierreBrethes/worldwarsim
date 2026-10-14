@@ -10,7 +10,7 @@ import type { UnitRole } from '@/domain/ids';
 import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
-import { annotationFigurine, inkAnnotation } from './annotations';
+import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
 import { nearWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
@@ -159,6 +159,7 @@ export class ArcLayer {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
     const now = performance.now();
+    const clock = Date.now();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
       const thread = buildThread(
@@ -186,12 +187,12 @@ export class ArcLayer {
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
         // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
-        // its stretch (F2, ADR 0026 §4 révisé).
+        // its stretch (F2, ADR 0026 §4 révisé). In sight, its hour is the last look: now.
         arc.state === 'enemyDetected'
           ? {
-              land: annotationFigurine('land', Date.now()),
-              sea: annotationFigurine('sea', Date.now()),
-              air: annotationFigurine('air', Date.now()),
+              land: annotationFigurine('land', clock),
+              sea: annotationFigurine('sea', clock),
+              air: annotationFigurine('air', clock),
             }
           : roles && {
               land: figurineOf(roles.land),
@@ -219,7 +220,7 @@ export class ArcLayer {
       if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
         relic = inkAnnotation(
           relicMedium,
-          Date.now() - arc.seenMinutesAgo * 60_000,
+          clock - arc.seenMinutesAgo * 60_000,
           arc.seenMinutesAgo,
         ).object;
         pointOnLeg(lastLeg, 1, relic.position);
@@ -421,7 +422,7 @@ export class ArcLayer {
     for (const rendered of this.rendered) {
       rendered.thread.dispose();
       rendered.pawn.dispose();
-      rendered.relic?.removeFromParent();
+      if (rendered.relic) eraseAnnotation(rendered.relic);
     }
     this.rendered = [];
     this.targets = [];

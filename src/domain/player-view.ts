@@ -392,8 +392,8 @@ export type Faced = {
 
 /**
  * **One engagement as its replay reads it, served to a party only** (`convex/replay.ts`, ADR 0026
- * §7). My side by role and mark; the other side the totals `CombatReport` already serves — the
- * strikes carry both sides' roles, and the replay does not lift the fog the account kept down.
+ * §7). My side by role and mark; the other side as it was faced at the fire (`faced`, F1), or —
+ * an account from before 14/10, or the target of a bombardment — only the totals.
  */
 export type ReplayView = {
   readonly combatId: string;
@@ -403,6 +403,7 @@ export type ReplayView = {
   readonly won: boolean;
   readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
   readonly theirs: CombatTally;
+  /** Ce qu'on a eu en face au feu (F1), aux mêmes conditions que `CombatReport.faced`. */
   readonly faced?: Faced;
   /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
    *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */

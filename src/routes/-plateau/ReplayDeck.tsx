@@ -180,6 +180,10 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
       <td className={cell}>{tally.destroyed}</td>
     </tr>
   );
+  const kinds = (entries: ReplayView['mine']) =>
+    entries.map((entry) =>
+      row(`${roleLabel(entry.role, entry.troops)} ${tierLabel(entry.tier)}`, entry),
+    );
   const heading = (label: string) => (
     <tr>
       <th
@@ -217,15 +221,11 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
         </thead>
         <tbody>
           {heading(fr.replay.mine)}
-          {view.mine.map((entry) =>
-            row(`${roleLabel(entry.role, entry.troops)} ${tierLabel(entry.tier)}`, entry),
-          )}
+          {kinds(view.mine)}
           {view.faced ? (
             <>
               {heading(fr.combat.facedNation(view.faced.nation))}
-              {view.faced.forces.map((entry) =>
-                row(`${roleLabel(entry.role, entry.troops)} ${tierLabel(entry.tier)}`, entry),
-              )}
+              {kinds(view.faced.forces)}
             </>
           ) : (
             row(fr.replay.theirs, view.theirs, 'border-t-2 border-[var(--ink)]')

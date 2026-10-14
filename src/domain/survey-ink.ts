@@ -1,6 +1,6 @@
 import { LAST_KNOWN_HOURS } from '../../convex/constants';
 
-/** What is left of the ink of a survey nobody has renewed, the day it is wiped. */
+/** What is left of the ink of a survey nobody has renewed, the day it is wiped. @a-mesurer */
 const FADED = 0.2;
 
 /**
