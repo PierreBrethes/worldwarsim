@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, type ReplayStep } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
-import { ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
+import { BATTERY_REACH, batteryAt, ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
 
 // The scene draws its pictograms and flashes on a canvas: a node run has none, a stub does.
 beforeAll(() => {
@@ -163,5 +163,14 @@ describe('the replay of a bombardment (A4)', () => {
     scene.show(replayAt(target, inVolley('frappe')), 0, false);
     expect(shell.visible).toBe(true);
     expect(shell.position.y).toBeGreaterThan(scene.object.children[0]!.position.y + 0.12);
+  });
+});
+
+describe('the battery on a wide theatre (A2)', () => {
+  it('keeps its bearing and holds within reach of the scene', () => {
+    expect(batteryAt([1, -1])).toEqual([1, -1]);
+    const [x, z] = batteryAt([-24, 18]);
+    expect(Math.hypot(x, z)).toBeCloseTo(BATTERY_REACH);
+    expect(Math.atan2(z, x)).toBeCloseTo(Math.atan2(18, -24));
   });
 });

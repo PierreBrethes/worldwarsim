@@ -83,7 +83,7 @@ import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { TheatreFrame } from './theatre';
 import type { Theatre } from '@/domain/theatres';
-import { ReplayScene, replayReach, type ReplayFire } from './replay';
+import { batteryAt, ReplayScene, replayReach, type ReplayFire } from './replay';
 import {
   REPLAY_MS,
   REPLAY_STEPS,
@@ -797,7 +797,7 @@ export class MapEngine {
       .projectLonLat([from.lon, from.lat], center.y)
       .sub(center)
       .applyAxisAngle(new Vector3(0, 1, 0), -yaw);
-    return { battery: [battery.x, battery.z] };
+    return { battery: batteryAt([battery.x, battery.z]) };
   }
 
   /** Off, the step under way plays to its end and the replay holds there; on, it reads on to the end. */

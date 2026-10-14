@@ -55,6 +55,17 @@ export function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[num
  */
 export type ReplayFire = { readonly battery: readonly [number, number] } | 'unseen' | null;
 
+/**
+ * **La batterie se pose à sa place, à l'échelle de la scène** : sa direction est vraie, sa distance
+ * bornée. Au Pacifique, 570 km de portée reculaient la caméra trois à huit fois, et le combat
+ * n'était plus qu'un point.
+ */
+export const BATTERY_REACH = 2;
+export function batteryAt([x, z]: readonly [number, number]): readonly [number, number] {
+  const far = Math.hypot(x, z);
+  return far <= BATTERY_REACH ? [x, z] : [(x / far) * BATTERY_REACH, (z / far) * BATTERY_REACH];
+}
+
 const batteryOf = (fire: ReplayFire): readonly [number, number] | null =>
   fire !== null && fire !== 'unseen' ? fire.battery : null;
 
