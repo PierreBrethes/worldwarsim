@@ -152,10 +152,20 @@ describe('the order sheet', () => {
  * bonus de bâtiment seulement là où la cible tient des murs.
  */
 describe('what the riposte will carry', () => {
-  it('tells the attacker he strikes first, and that a garrison ripostes at the bonus', () => {
-    mount();
+  it('tells the attacker he strikes first, and that an objective ripostes at the bonus', () => {
+    const objective: OrderChoice = {
+      ...ATTACK,
+      aim: { kind: 'objective', objectiveId: 'B-1', lon: 3, lat: 51, hostCountry: 'BEL' },
+    };
+    mount(vi.fn(), vi.fn(), objective);
     screen.getByText(fr.aim.initiative);
     screen.getByText(fr.aim.cover.sheltered(1.15));
+  });
+
+  /** C4 : un point n'a de murs que debout et en service, et l'aperçu ne sait pas lequel. */
+  it("tells him a point's garrison has walls only if it stands and serves", () => {
+    mount();
+    screen.getByText(fr.aim.cover.point(1.15));
   });
 
   it('tells him a camp in the open ripostes bare', () => {

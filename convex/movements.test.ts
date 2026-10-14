@@ -1439,6 +1439,35 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     expect(left).toBeLessThanOrEqual(OUTPOST_DISABLED_HOURS * 60);
   });
 
+  /** Décision de Pierre du 14/10 (C4) : un point en chantier ou désactivé n'a pas de murs. */
+  it.each([
+    ['under construction', { standsAt: MIDDAY.getTime() + 30 * 86_400_000 }],
+    ['out of service', { disabledUntil: MIDDAY.getTime() + 30 * 86_400_000 }],
+  ] as const)('gives a garrison no bonus on a point %s', async (_, state) => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
+    const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
+    await garrison(t, guest, outpostId);
+    await t.run(async (ctx) => ctx.db.patch(outpostId, state));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [first, second],
+      target: { kind: 'outpost', outpostId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    // The same ten left as on a standing point, answering bare: five, where the walls gave six.
+    const [account] = await engagementsIn(t);
+    const riposte = (await strikesIn(t, account!._id)).filter((one) => one.phase === 'riposte');
+    expect(riposte.map((one) => one.losses)).toEqual([5]);
+  });
+
   it('walks up to an ungarrisoned point and puts it out without a battle', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);

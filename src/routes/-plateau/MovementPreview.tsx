@@ -486,18 +486,20 @@ export function MovementPreview({
 
 /**
  * **Ce que la cible rendra, lu sur ce qu'on vise et rien d'autre** : le bonus de bâtiment tient
- * à une garnison (`convex/combat.ts`, `shelteredOf`). Un avant-poste et un objectif sont des
- * garnisons ; un camp relevé est une pile posée ; une région ou un site peuvent tenir l'une et
- * l'autre, et la carte ne dit pas lesquelles. `null` hors d'un ordre qui engage.
+ * à une garnison (`convex/combat.ts`, `shelteredOf`). Un objectif est une garnison ; un point
+ * n'en est une que debout et en service (`outpostShelters`), ce que le brouillard ne dit pas d'un
+ * point adverse ; un camp relevé est une pile posée ; une région ou un site peuvent tenir l'un et
+ * l'autre. `null` hors d'un ordre qui engage.
  */
 function riposteCoverOf({
   aim,
   type,
   mission,
-}: OrderChoice): 'sheltered' | 'open' | 'either' | null {
+}: OrderChoice): 'sheltered' | 'open' | 'point' | 'either' | null {
   if (mission.kind === 'plunder') return 'either';
   if (type !== 'attack' && type !== 'raid') return null;
-  if (aim.kind === 'outpost' || aim.kind === 'objective') return 'sheltered';
+  if (aim.kind === 'objective') return 'sheltered';
+  if (aim.kind === 'outpost') return 'point';
   if (aim.kind === 'camp') return 'open';
   return 'either';
 }

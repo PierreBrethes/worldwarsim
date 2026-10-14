@@ -1879,9 +1879,11 @@ export const fr = {
         `La cible est en garnison : elle riposte avec ce qui lui reste, à ×${factor(bonus)}.`,
       open: () =>
         'La cible est à découvert : elle riposte avec ce qui lui reste, sans bonus de bâtiment.',
+      point: (bonus: number) =>
+        `La garnison riposte avec ce qui lui reste — à ×${factor(bonus)} si le point est debout et en service.`,
       either: (bonus: number) =>
         `La cible riposte avec ce qui lui reste — à ×${factor(bonus)} si elle tient un bâtiment.`,
-    } satisfies Record<'sheltered' | 'open' | 'either', (bonus: number) => string>,
+    } satisfies Record<'sheltered' | 'open' | 'point' | 'either', (bonus: number) => string>,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est

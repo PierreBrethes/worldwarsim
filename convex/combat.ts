@@ -9,6 +9,7 @@ import {
 } from '../src/domain/combat';
 import { landAtPoint } from './routes';
 import { movementsOf } from './movement/forces';
+import { outpostShelters } from '../src/domain/outposts';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -63,18 +64,27 @@ const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
  * garnison d'un bâtiment ou d'un avant-poste, ou la garnison d'un objectif — que le siège
  * irrégulier tient sur un point —, et jamais une pile posée en terrain libre ni en mer. Une
  * troupe garde son adresse quand elle marche, donc une troupe d'un mouvement n'est à l'abri de
- * rien, même si son adresse nomme encore un bâtiment.
+ * rien, même si son adresse nomme encore un bâtiment. **Un point en chantier ou désactivé n'a
+ * pas de murs** (décision du 14/10, C4, `outpostShelters`), et l'aperçu de l'ordre le lit aussi.
  */
 async function shelteredOf(
   ctx: MutationCtx,
   defender: Engaged,
+  at: number,
 ): Promise<(troop: Doc<'troops'>) => boolean> {
   const irregular = (await ctx.db.get(defender.playerId))?.irregular === true;
   const marching = new Set(
     (await movementsOf(ctx, defender.playerId)).flatMap((movement) => movement.troopIds),
   );
+  const bare = new Set<string>();
+  for (const address of new Set(defender.troops.map((troop) => troop.stationedAt))) {
+    const outpostId = typeof address === 'string' ? ctx.db.normalizeId('outposts', address) : null;
+    const outpost = outpostId === null ? null : await ctx.db.get(outpostId);
+    if (outpost !== null && !outpostShelters(outpost, at)) bare.add(outpost._id);
+  }
   return (troop) =>
-    !marching.has(troop._id) && (irregular || typeof troop.stationedAt === 'string');
+    !marching.has(troop._id) &&
+    (irregular || (typeof troop.stationedAt === 'string' && !bare.has(troop.stationedAt)));
 }
 
 export async function resolveContact(
@@ -110,7 +120,7 @@ export async function resolveContact(
    * holds, and a camp that could not pay has already fired at `DRY_AMMUNITION_FACTOR`. An
    * engagement is never declined for want of matter.
    */
-  const sheltered = await shelteredOf(ctx, defender);
+  const sheltered = await shelteredOf(ctx, defender, at);
   const engagement = resolveEngagement({
     attackers: attacker.troops.map((troop) => combatantOf(troop)),
     defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
