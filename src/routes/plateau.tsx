@@ -120,6 +120,7 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import {
   MovementPreview,
   wireOrigin,
+  wireCaptureTarget,
   wireTarget,
   type OrderChoice,
   type Previewed,
@@ -875,6 +876,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           return;
         case 'aim':
         case 'plunder':
+        case 'capture':
         case 'collect': {
           const choice = choiceOf(action);
           setOrder({ ...choice, choices: [choice], x: at.x, y: at.y });
@@ -1811,6 +1813,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? 'skip'
       : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
   );
+  const capturePreview = useQuery(
+    api.movements.previewCapture,
+    dispatch === null || mission?.kind !== 'capture'
+      ? 'skip'
+      : { ...dispatch, target: wireCaptureTarget(mission.target) },
+  );
   const collectPreview = useQuery(
     api.movements.previewLootCollection,
     dispatch === null || mission?.kind !== 'collect'
@@ -1822,9 +1830,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? undefined
       : mission.kind === 'plunder'
         ? plunderPreview
-        : mission.kind === 'collect'
-          ? collectPreview
-          : marchPreview;
+        : mission.kind === 'capture'
+          ? capturePreview
+          : mission.kind === 'collect'
+            ? collectPreview
+            : marchPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -2589,6 +2599,13 @@ function choiceOf(action: OrderAction): OrderChoice {
         aim: action.aim,
         type: 'march',
         mission: { kind: 'plunder', buildingId: action.buildingId },
+      };
+    case 'capture':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'attack',
+        mission: { kind: 'capture', target: action.target },
       };
     case 'collect':
       return {

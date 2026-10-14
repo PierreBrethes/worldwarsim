@@ -12,6 +12,7 @@ import {
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
+import { captureDurationMs } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
@@ -23,6 +24,7 @@ import {
   liftOf,
   lootCollectionOrderRefusalOf,
   ORDERABLE_TYPES,
+  captureOrderRefusalOf,
   plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
@@ -347,6 +349,20 @@ export type CompassAction =
       readonly aim: PlunderAim;
     }
   /**
+   * **Capturer** (décision du 14/10) : un bâtiment ou un avant-poste adverse, par l'infanterie.
+   * La branche ne paraît que si `captureOrderRefusalOf` la laisse passer — la fonction même que
+   * `movements.capture` relit — et elle annonce la durée à pleine force.
+   */
+  | {
+      readonly key: 'capture';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+      readonly aim: MovementAim;
+    }
+  /**
    * **Raser un bâtiment à soi** (demande du 15/09). Dernière branche de la plate et seule encre
    * rouge du jeu sur un médaillon : rien de ce qu'elle efface ne revient. Elle ne porte aucun
    * chiffre — ce qui est perdu se lit sur la confirmation, qui a la place de le dire en clair.
@@ -451,10 +467,16 @@ export type CompassAction =
 /** **Les branches qui font partir une colonne** : une marche, une expédition, un ramassage. Ce
  *  sont elles qui font d'une étiquette une destination, et elles seules que la feuille d'ordre du
  *  téléphone offre en onglets (refonte mobile, 1c). */
-export type OrderAction = Extract<CompassAction, { readonly key: 'aim' | 'plunder' | 'collect' }>;
+export type OrderAction = Extract<
+  CompassAction,
+  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' }
+>;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
-  action.key === 'aim' || action.key === 'plunder' || action.key === 'collect';
+  action.key === 'aim' ||
+  action.key === 'plunder' ||
+  action.key === 'capture' ||
+  action.key === 'collect';
 
 /** **Ce qui fait d'une étiquette une destination de la colonne armée** : un ordre, ou un
  *  embarquement — les deux se cerclent sur la carte et se listent sous le pouce. */
@@ -687,24 +709,72 @@ function plunderFan(
   const refused = plunderOrderRefusalOf(aimed, column, isMine);
   const label =
     canonicalBuildingKey(target.key) === 'warehouse' ? fr.compass.plunder : fr.compass.sabotage;
+  const capture = captureBranch(
+    { kind: 'building', key: target.key },
+    { kind: 'building', id: target.id },
+    aimed,
+    view,
+    column,
+    isMine,
+  );
+  const actions: Array<CompassAction> = [
+    ...(refused === null
+      ? [
+          {
+            key: 'plunder' as const,
+            pictogram: 'sabotage' as const,
+            label,
+            cost: slotCost(view),
+            consequence: fr.compass.plunderConsequence(label),
+            buildingId: target.id,
+            aim: aimed,
+          },
+        ]
+      : []),
+    ...(capture.action === null ? [] : [capture.action]),
+  ];
   return {
     kicker: fr.compass.installation,
     name: target.name,
-    actions:
-      refused === null
-        ? [
-            {
-              key: 'plunder',
-              pictogram: 'sabotage',
-              label,
-              cost: slotCost(view),
-              consequence: fr.compass.plunderConsequence(label),
-              buildingId: target.id,
-              aim: aimed,
-            },
-          ]
-        : [],
-    refusal: refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)),
+    actions,
+    refusal:
+      actions.length > 0
+        ? null
+        : (capture.refusal ??
+          (refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)))),
+  };
+}
+
+/**
+ * **La branche « capturer »**, ou le motif qui la retient — dans les mots du serveur. La durée est
+ * celle de `captureDurationMs`, que le serveur date aussi : à pleine force, parce que la rose ne
+ * tient que les rôles de la pile.
+ */
+function captureBranch(
+  site: Parameters<typeof captureOrderRefusalOf>[0],
+  target: { readonly kind: 'building' | 'outpost'; readonly id: string },
+  aimed: MovementAim,
+  view: PlayerView,
+  column: Column,
+  isMine: boolean,
+): { readonly action: CompassAction | null; readonly refusal: string | null } {
+  const refused = captureOrderRefusalOf(site, aimed, column, isMine);
+  if (refused !== null) {
+    return { action: null, refusal: fr.errors[refused](refusalDetails(aimed, column)) };
+  }
+  return {
+    action: {
+      key: 'capture',
+      pictogram: 'helmet',
+      label: fr.compass.capture,
+      cost: slotCost(view),
+      consequence: fr.compass.captureConsequence(
+        asDuration(captureDurationMs(view.mode, site.kind) / 60_000),
+      ),
+      target,
+      aim: aimed,
+    },
+    refusal: null,
   };
 }
 
@@ -852,14 +922,25 @@ function aim(
   if (target.kind === 'installation') return plunderFan(target, view, column);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
-    return fanOf(target.name, view, column, [
-      {
-        kind: 'outpost',
-        outpostId: target.id,
-        hostCountry: target.hostCountry,
-        coastal: target.coastal,
-      },
-    ]);
+    const aimed: MovementAim = {
+      kind: 'outpost',
+      outpostId: target.id,
+      hostCountry: target.hostCountry,
+      coastal: target.coastal,
+    };
+    const fan = fanOf(target.name, view, column, [aimed]);
+    const isMine = view.me.outposts.some((outpost) => outpost.id === target.id);
+    if (isMine) return fan;
+    const capture = captureBranch(
+      { kind: 'outpost' },
+      { kind: 'outpost', id: target.id },
+      aimed,
+      view,
+      column,
+      false,
+    );
+    if (capture.action === null) return fan;
+    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
   }
   /**
    * **Un camp relevé est une cible, et une seule branche y mène** (ADR 0024 §4) : « attaquer ».

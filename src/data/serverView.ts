@@ -24,6 +24,7 @@ export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
 export type PlunderPreviewed = FunctionReturnType<typeof api.movements.previewPlunder>;
+export type CapturePreviewed = FunctionReturnType<typeof api.movements.previewCapture>;
 export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
@@ -164,6 +165,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     /** Un déploiement d'une version en retard n'en pose aucun : la carte n'a pas de marqueur à
      *  dessiner, et rien d'autre ne les lit. */
     objectives: server.objectives ?? [],
+    /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
+    mode: server.mode ?? 'mondiale',
+    captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
       server.season.reduction ?? null,

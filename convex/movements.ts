@@ -12,6 +12,7 @@ import {
   routeModeOf,
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
+import { captureDurationMs } from '../src/domain/capture';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { distanceKm } from '../src/domain/geo';
 import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
@@ -692,6 +693,46 @@ export const previewPlunder = query({
           : ('sabotage' as const),
       presenceHours: PLUNDER_HOURS_PRESENT,
       disabledHours: PLUNDER_DISABLED_HOURS,
+    };
+  },
+});
+
+/** L'aperçu d'une capture : la route, l'heure, et la durée à pleine force que le serveur datera.
+ *  Il ne refuse rien — la rose n'a offert la branche que si `captureOrderRefusalOf` l'a permise. */
+export const previewCapture = query({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (troops === null) return null;
+    const column = await columnOf(ctx, player._id, troops, departure);
+    const aimed = await captureAimOf(ctx, player, target);
+    const route = routeBetween(
+      departure.point,
+      aimed.point,
+      routeModeOf(column.roles),
+      landCostOf(column.roles),
+    );
+    if (route === null) return null;
+    const now = Date.now();
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
+      destinationName: aimed.name,
+      originName: departure.name,
+      route: routeFacts(route),
+      captureMinutes: captureDurationMs(season.mode ?? 'mondiale', target.kind) / 60_000,
     };
   },
 });
