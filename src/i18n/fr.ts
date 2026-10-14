@@ -291,7 +291,7 @@ export const fr = {
   modes: {
     blitz: {
       name: 'Blitz',
-      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
+      line: '2 h · 2 ou 3 joueurs présents ensemble · un théâtre, on prend le QG adverse',
     },
     mondiale: {
       name: 'Mondiale',

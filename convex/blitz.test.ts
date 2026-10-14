@@ -20,8 +20,15 @@ const MIDDAY = Date.UTC(2026, 9, 14, 12);
 const MINUTE = 60_000;
 
 const NATIONS = ['france', 'ussr', 'japan', 'usa'] as const;
+/** Les graines du plafond de chaque théâtre (T1) : un plafond tient sur les six, ou il descend. */
+const SIX_SEEDS = [7919, 15838, 23757, 31676, 39595, 47514];
 
-async function blitzLaunchedOn(t: Bench, theatre: string, players: number) {
+async function blitzLaunchedOn(
+  t: Bench,
+  theatre: string,
+  players: number,
+  seed = TEST_SEASON_SEED,
+) {
   const token = await signIn(t, 'Pierre');
   const { code, seasonId } = await t.mutation(api.seasons.create, {
     token,
@@ -29,7 +36,7 @@ async function blitzLaunchedOn(t: Bench, theatre: string, players: number) {
     mode: 'blitz',
     theatre,
   });
-  await t.run((ctx) => ctx.db.patch(seasonId, { seed: TEST_SEASON_SEED }));
+  await t.run((ctx) => ctx.db.patch(seasonId, { seed }));
   const seat: Seat = { token, seasonId };
   const seats = [seat];
   for (let rank = 1; rank < players; rank += 1) {
@@ -175,6 +182,25 @@ describe('la carte de départ de la Blitz', () => {
     );
   });
 
+  it('ne se lance pas au-delà de son théâtre, même si le salon s’est rempli avant (T1)', async () => {
+    const t = boot();
+    const token = await signIn(t, 'Pierre');
+    const { code, seasonId } = await t.mutation(api.seasons.create, {
+      token,
+      compensation: 0.5,
+      mode: 'blitz',
+      theatre: 'europe',
+    });
+    const seat: Seat = { token, seasonId };
+    const seats = [seat, await joinSeat(t, code, 'Léa'), await joinSeat(t, code, 'Marc')];
+    for (const [rank, who] of seats.entries()) {
+      await t.mutation(api.players.reserveNation, { ...who, nation: NATIONS[rank]! });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.run((ctx) => ctx.db.patch(seasonId, { theatre: 'pacific' }));
+    await expect(t.mutation(api.seasons.launch, seat)).rejects.toThrow(/BLITZ_FULL/);
+  });
+
   it('ne se pose qu’une fois', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);
@@ -200,10 +226,21 @@ describe('la carte de départ, théâtre par théâtre', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  /** **Chaque théâtre se pose à son plafond** (T1) ; un de plus échouait sur six graines sur six
-   *  le 14/10 (Pacifique à 3, Amériques et Méditerranée à 4), d'où les fourchettes de
-   *  `THEATRES`. */
+  /** **Chaque théâtre se pose à son plafond, sur six graines** (T1) ; un de plus échouait le
+   *  14/10 (Pacifique à 3, Amériques et Méditerranée à 4 sur les six, Europe à 4 sur une), d'où
+   *  les fourchettes de `THEATRES`. */
   for (const { id: theatre, players: range } of THEATRES) {
+    it(`se pose sur six graines à son plafond — ${theatre} à ${String(range.max)}`, async () => {
+      const refused = [];
+      for (const seed of SIX_SEEDS) {
+        const t = boot();
+        const [seat] = await blitzLaunchedOn(t, theatre, range.max, seed);
+        const season = (await t.run((ctx) => ctx.db.get(seat!.seasonId)))!;
+        if (season.status !== 'launched') refused.push(seed);
+      }
+      expect(refused).toEqual([]);
+    }, 180_000);
+
     const players = range.max;
     it(`pose à pied dans la tolérance — ${theatre} à ${String(players)}`, async () => {
       const t = boot();

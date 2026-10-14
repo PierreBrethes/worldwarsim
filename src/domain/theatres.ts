@@ -9,8 +9,8 @@ export interface Theatre {
     readonly east: number;
     readonly north: number;
   };
-  /** How many players its starting map seats fairly (T1): the placement tests fix it, six seeds
-   *  each (`convex/blitz.test.ts`). Europe at four failed one seed in six (14/10). */
+  /** How many players its starting map seats fairly (T1): the ceiling holds on six seeds in the
+   *  placement tests (`convex/blitz.test.ts`), or it comes down a step. */
   readonly players: { readonly min: number; readonly max: number };
 }
 
@@ -18,7 +18,7 @@ export const THEATRES = [
   {
     id: 'europe',
     box: { west: -12, south: 34, east: 45, north: 72 },
-    players: { min: 2, max: 4 },
+    players: { min: 2, max: 3 },
   },
   {
     id: 'mediterranean',

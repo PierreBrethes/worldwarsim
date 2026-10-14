@@ -380,9 +380,11 @@ export const launch = mutation({
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const present = await seatsOf(ctx, season._id);
-    const minPlayers = seatRangeOf(modeOf(season.mode), season.theatre).min;
-    if (present.length < minPlayers) {
-      fail('NOT_ENOUGH_PLAYERS', { minimum: minPlayers });
+    const range = seatRangeOf(modeOf(season.mode), season.theatre);
+    if (present.length < range.min) fail('NOT_ENOUGH_PLAYERS', { minimum: range.min });
+    /** Un plafond revu à la baisse après que le salon s'est rempli : la carte ne se poserait pas. */
+    if (modeOf(season.mode) === 'blitz' && present.length > range.max) {
+      fail('BLITZ_FULL', { maximum: range.max });
     }
     const stragglers = present.filter((entry) => !entry.ready);
     if (stragglers.length > 0) {
