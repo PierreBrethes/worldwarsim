@@ -1037,6 +1037,7 @@ export const fr = {
   },
 
   lobby: {
+    preparingMap: 'L’état-major prépare la carte…',
     opening: 'Ouverture du salon…',
     quit: 'quitter',
     founder: 'fondateur',
