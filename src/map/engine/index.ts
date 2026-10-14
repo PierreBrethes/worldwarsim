@@ -19,6 +19,7 @@ import {
   type Object3D,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { isTyping } from '@/map/typing';
 import {
   DEFAULT_MOUSE_MAPPING,
@@ -53,7 +54,7 @@ import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { HELD_OPACITY, lavis, PALETTE } from './palette';
-import { buildCountries, type CountryMesh } from './countries';
+import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
@@ -242,6 +243,7 @@ export class MapEngine {
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  private readonly coast: LineSegments2;
   /** Land and water in one list, allocated once: it is walked on every hover of a placement,
    *  and a fresh array per frame is the kind of garbage a render loop must not make. */
   private readonly aimable: Object3D[];
@@ -442,14 +444,16 @@ export class MapEngine {
 
     this.scene.add(buildCoastalWash(world, this.frame));
 
-    const { meshes, borders } = buildCountries(world, this.frame);
+    const { meshes, borders, coast } = buildCountries(world, this.frame);
     this.countries = meshes;
     this.borders = borders;
+    this.coast = coast;
     for (const mesh of meshes) {
       mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
     this.scene.add(borders);
+    this.scene.add(coast);
 
     this.aimable = [...this.countries, this.surface];
 
@@ -1070,6 +1074,7 @@ export class MapEngine {
     this.camera.aspect = clientWidth / clientHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
+    this.coast.material.resolution.set(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
@@ -1841,7 +1846,7 @@ export class MapEngine {
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
-    // beneath — WebGL only knows one pixel of width.
+    // beneath. The coast is the one fat stroke, a ribbon with a pixel floor.
     const yaw = cameraYaw(this.camera.position, this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
@@ -1869,6 +1874,7 @@ export class MapEngine {
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
         : 0.62;
+    this.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
 
     this.renderer.render(this.scene, this.camera);
     const projections = this.labels.project(
