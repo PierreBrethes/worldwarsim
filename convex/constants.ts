@@ -1091,9 +1091,14 @@ export const BLITZ = {
   map: {
     /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
     hqRing: 0.45,
-    /** Combien de tours de table on essaie avant de garder le plus équitable : chacun coûte un
-     *  champ de route par joueur. */
-    hqTries: 3,
+    /** Combien de tours de table on essaie (E6 : une douzaine) avant de refuser le lancement. */
+    hqTries: 12,
+    /** Combien de régions, des plus proches de la place du cercle, on éprouve pour un QG. */
+    hqScan: 40,
+    /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */
+    hqEvenness: 0.6,
+    /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */
+    tolerance: 0.35,
     /** La caserne de départ, à soi, à cette distance de route du QG. */
     starting: [{ key: 'barracks', km: 120 }],
     /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous. */

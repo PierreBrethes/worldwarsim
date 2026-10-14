@@ -4,7 +4,8 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { BLITZ } from './constants';
 import { captureAimOf } from './movement/orders';
-import { pointOfBuilding } from './regions';
+import { pointOfBuilding, regionFacts } from './regions';
+import { routeKmFrom } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 import { joinSeat, seatIn, signIn, TEST_SEASON_SEED, type Seat } from './seats.fixture';
@@ -16,27 +17,34 @@ type Bench = ReturnType<typeof boot>;
 const MIDDAY = Date.UTC(2026, 9, 14, 12);
 const MINUTE = 60_000;
 
-async function blitzLaunched(t: Bench) {
+const NATIONS = ['france', 'ussr', 'japan', 'usa'] as const;
+
+async function blitzLaunchedOn(t: Bench, theatre: string, players: number) {
   const token = await signIn(t, 'Pierre');
   const { code, seasonId } = await t.mutation(api.seasons.create, {
     token,
     compensation: 0.5,
     mode: 'blitz',
-    theatre: 'europe',
+    theatre,
   });
   await t.run((ctx) => ctx.db.patch(seasonId, { seed: TEST_SEASON_SEED }));
   const seat: Seat = { token, seasonId };
-  const guest = await joinSeat(t, code, 'Léa');
-  for (const [who, nation] of [
-    [seat, 'france'],
-    [guest, 'ussr'],
-  ] as const) {
-    await t.mutation(api.players.reserveNation, { ...who, nation });
+  const seats = [seat];
+  for (let rank = 1; rank < players; rank += 1) {
+    seats.push(await joinSeat(t, code, `Joueur ${String(rank)}`));
+  }
+  for (const [rank, who] of seats.entries()) {
+    await t.mutation(api.players.reserveNation, { ...who, nation: NATIONS[rank]! });
     await t.mutation(api.players.declareReady, { ...who, ready: true });
   }
   await t.mutation(api.seasons.launch, seat);
   await t.action(internal.blitz.place, { seasonId });
-  return { seat, guest };
+  return seats;
+}
+
+async function blitzLaunched(t: Bench) {
+  const [seat, guest] = await blitzLaunchedOn(t, 'europe', 2);
+  return { seat: seat!, guest: guest! };
 }
 
 const playerOf = (t: Bench, seat: Seat) => t.run((ctx) => seatIn(ctx, seat));
@@ -115,6 +123,63 @@ describe('la carte de départ de la Blitz', () => {
     expect(view.me.foundation).toEqual([]);
     expect(Object.values(view.me.resources).every((resource) => resource.stock === 0)).toBe(true);
   });
+});
+
+describe('la carte de départ, théâtre par théâtre', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** **Le Pacifique à quatre est refusé** : le cercle passe sur l'océan, et les QG d'où l'on
+   *  marche (Japon, Philippines, Papouasie, Nouvelle-Zélande) sont à 0,31 d'équité. */
+  for (const [theatre, players, fair] of [
+    ['europe', 4, true],
+    ['pacific', 2, true],
+    ['pacific', 4, false],
+    ['americas', 3, true],
+    ['mediterranean', 3, true],
+  ] as const) {
+    it(`pose à pied dans la tolérance, ou revient au salon — ${theatre} à ${String(players)}`, async () => {
+      const t = boot();
+      const seats = await blitzLaunchedOn(t, theatre, players);
+      const season = (await t.run((ctx) => ctx.db.get(seats[0]!.seasonId)))!;
+      if (!fair) {
+        expect(season).toMatchObject({ status: 'lobby', launchRefusal: 'BLITZ_MAP_UNFAIR' });
+        expect(await t.run((ctx) => ctx.db.query('resources').collect())).toEqual([]);
+        return;
+      }
+      expect(season.status).toBe('launched');
+      const neutral = await neutralOf(t, season._id);
+      const neutrals = await buildingsOf(t, neutral._id);
+      for (const who of seats) {
+        const me = await playerOf(t, who);
+        const held = await buildingsOf(t, me._id);
+        const hq = held.find((building) => building.key === 'hq')!;
+        const others = [...held.filter((building) => building.key !== 'hq'), ...neutrals];
+        const onFoot = routeKmFrom(
+          pointOfBuilding(hq)!,
+          others.map((building) => ({
+            id: building._id as string,
+            point: regionFacts(building.regionId)!.point,
+          })),
+          'land',
+        );
+        const barracks = held.find((building) => building.key === 'barracks')!;
+        const target = BLITZ.map.starting[0]!.km;
+        expect(Math.abs(onFoot.get(barracks._id)! - target)).toBeLessThanOrEqual(
+          target * BLITZ.map.tolerance,
+        );
+        const cities = neutrals.filter(
+          (building) =>
+            building.key === 'city' &&
+            Math.abs((onFoot.get(building._id) ?? Infinity) - 250) <= 250 * BLITZ.map.tolerance,
+        );
+        expect(cities.length).toBeGreaterThan(0);
+      }
+    });
+  }
 });
 
 describe('les fonds de la Blitz', () => {

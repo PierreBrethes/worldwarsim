@@ -582,6 +582,9 @@ export const fr = {
         : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
     TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
     NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
+    BLITZ_MAP_UNFAIR: () =>
+      'aucune carte équitable sur ce théâtre pour ce nombre de joueurs — la partie revient au salon',
+    BLITZ_MAP_FAILED: () => 'la carte de départ n’a pas pu se poser — la partie revient au salon',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',

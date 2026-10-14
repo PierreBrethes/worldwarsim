@@ -336,6 +336,7 @@ export const lobby = query({
       status: season.status,
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
+      launchRefusal: season.launchRefusal ?? null,
       maximum: maximumOf(season),
       registrationClosesAt:
         season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
@@ -391,6 +392,7 @@ export const launch = mutation({
     await ctx.db.patch(season._id, {
       status: 'launched',
       launchedAt: now,
+      launchRefusal: undefined,
       playableRegion: playableRegion(present.length),
     });
     for (const entry of present) {

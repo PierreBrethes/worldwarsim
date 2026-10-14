@@ -18,8 +18,13 @@ import { internalAction, internalMutation, internalQuery } from './_generated/se
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { fundsAt, incomePerMinute, mendPlan, notInBlitz, type Funds } from '../src/domain/blitz';
-import { planBlitzMap, type BlitzCandidate, type BlitzSite } from '../src/domain/blitz-placement';
-import { distanceKm, type LonLat } from '../src/domain/geo';
+import {
+  planBlitzMap,
+  type BlitzCandidate,
+  type BlitzMeasure,
+  type BlitzSite,
+} from '../src/domain/blitz-placement';
+import type { LonLat } from '../src/domain/geo';
 import { modeOf } from '../src/domain/season-mode';
 import { theatreById } from '../src/domain/theatres';
 import { playerBuildings } from './buildingReads';
@@ -31,7 +36,7 @@ import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
 import { surveyFromPoint } from './surveys';
 import { reassessCaptures } from './captures';
-import { BUILDING_KEY } from './validators';
+import { BUILDING_KEY, LAUNCH_REFUSAL } from './validators';
 
 export const isBlitz = async (ctx: QueryCtx, seasonId: Id<'seasons'>): Promise<boolean> =>
   modeOf((await ctx.db.get(seasonId))?.mode) === 'blitz';
@@ -110,17 +115,13 @@ export const place = internalAction({
       point: candidate.point,
     }));
     const pointOf = new Map(places.map((place) => [place.id, place.point]));
-    /** Le combiné, l'eau comprise : un théâtre d'îles (le Pacifique) n'a pas de route à pied. */
-    /** **Borné à la diagonale du théâtre** : rien de ce qu'on y pose n'est plus loin, et un champ
-     *  sans borne coûte vingt fois plus en Europe (650 ms contre 30, mesurés sous `convex-test`). */
-    const { west, south, east, north } = input.box;
-    const reach = distanceKm([west, south], [east, north]);
     const fields = new Map<string, ReadonlyMap<string, number>>();
-    const measure = (regionId: string) => {
-      let field = fields.get(regionId);
+    const measure: BlitzMeasure = (regionId, mode, maxKm) => {
+      const key = `${regionId}|${mode}|${String(Math.round(maxKm))}`;
+      let field = fields.get(key);
       if (field === undefined) {
-        field = routeKmFrom(pointOf.get(regionId)!, places, 'combined', reach);
-        fields.set(regionId, field);
+        field = routeKmFrom(pointOf.get(regionId)!, places, mode, maxKm);
+        fields.set(key, field);
       }
       return field;
     };
@@ -133,6 +134,10 @@ export const place = internalAction({
       seed: input.seed,
       measure,
     });
+    if (plan === null) {
+      await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_UNFAIR' });
+      return;
+    }
     type Point = { lon: number; lat: number } | null;
     const sites = plan.flatMap((site): Array<BlitzSite & { point: Point }> => {
       if (site.key !== 'port') return [{ ...site, point: null }];
@@ -147,6 +152,45 @@ export const place = internalAction({
         owner: site.owner as Id<'players'> | null,
         point: site.point,
       })),
+    });
+  },
+});
+
+/**
+ * **La carte n'a pas pu se poser : la saison revient au salon**, plutôt que de servir une partie
+ * déséquilibrée ou sans carte. Tout ce que le lancement avait écrit s'efface — dotations, entrée
+ * en guerre, prêts — et le salon dit pourquoi (`seasons.launchRefusal`). Rien n'est encore joué :
+ * la pose suit le lancement d'une seconde.
+ */
+export const abandon = internalMutation({
+  args: { seasonId: v.id('seasons'), refusal: LAUNCH_REFUSAL },
+  handler: async (ctx, { seasonId, refusal }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season === null || season.status !== 'launched') return;
+    const built = await ctx.db
+      .query('buildings')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .first();
+    if (built !== null) return;
+    const seats = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    for (const seat of seats) {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', seat._id))
+        .collect()) {
+        await ctx.db.delete(row._id);
+      }
+      if (seat.irregular === true) await ctx.db.delete(seat._id);
+      else await ctx.db.patch(seat._id, { enteredWarAt: null, ready: false });
+    }
+    await ctx.db.patch(seasonId, {
+      status: 'lobby',
+      launchedAt: null,
+      playableRegion: null,
+      launchRefusal: refusal,
     });
   },
 });

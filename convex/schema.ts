@@ -32,6 +32,7 @@ import {
   UNIT_ROLE,
   UNIT_TIER,
   SEASON_MODE,
+  LAUNCH_REFUSAL,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -138,6 +139,8 @@ export default defineSchema({
     mode: v.optional(SEASON_MODE),
     /** A `THEATRES` id; set on a Blitz only. */
     theatre: v.optional(v.string()),
+    /** Why the last launch of a Blitz came back to the lobby; cleared by the next launch. */
+    launchRefusal: v.optional(LAUNCH_REFUSAL),
   }).index('byCode', ['code']),
 
   players: defineTable({
