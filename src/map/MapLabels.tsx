@@ -1156,6 +1156,7 @@ function classesOf(label: MapLabel, selected: boolean, destination: boolean): st
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
     destination ? 'label--destination' : '',
+    label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',

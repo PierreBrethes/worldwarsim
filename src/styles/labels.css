@@ -893,3 +893,9 @@
   text-transform: uppercase;
   transform: rotate(-4deg);
 }
+
+/* Un site qu'on capture garde ses mots à tous les niveaux de détail : l'anneau est ce qui se lit
+   de loin, et le repli des étiquettes ne doit pas le taire. */
+.label--capturing.label--glyph .label-lines {
+  display: block;
+}
