@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, modeSummary, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel, placeLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 import { SEASON_MODES, type SeasonMode } from '@/domain/season-mode';
@@ -14,6 +14,7 @@ import { TOUCH_TARGET } from '@/shell/EntrySheet';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
+import { WORLD_LAND_PATH } from '@/emblems/world-land';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
@@ -216,11 +217,7 @@ function ConnectedHome() {
                       role="radio"
                       aria-checked={theatre === candidate.id}
                       onClick={() => setTheatre(candidate.id)}
-                      className={`cursor-pointer border p-2 text-left ${
-                        theatre === candidate.id
-                          ? 'border-[var(--ink)] bg-(--ink)/10'
-                          : 'border-(color:--ink)/30'
-                      }`}
+                      className={`cursor-pointer p-2 text-left ${choiceClass(theatre === candidate.id)}`}
                     >
                       <TheatreMap theatre={candidate} />
                       <span className="mt-1 block text-[11px] tracking-[.14em] uppercase">
@@ -314,7 +311,11 @@ function ConnectedHome() {
 
       {resuming && (
         <LaunchSequence
-          region={regionNameOf(resuming.playableRegion)}
+          region={placeLabel(
+            resuming.mode,
+            resuming.theatre,
+            regionNameOf(resuming.playableRegion),
+          )}
           pace={clockLabel(resuming.durationHours)}
           players={resuming.players}
           onEnd={toBoard}
@@ -360,9 +361,8 @@ function GameRow({
           <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
             <span>
               {standingOf(seat)} ·{' '}
-              {seat.mode === 'blitz'
-                ? `${modeSummary(seat.mode, seat.theatre)} · ${clockLabel(seat.durationHours)}`
-                : `${modeSummary(seat.mode, null)} · ${regionNameOf(seat.playableRegion)}`}
+              {placeLabel(seat.mode, seat.theatre, regionNameOf(seat.playableRegion))}
+              {seat.mode === 'blitz' && ` · ${clockLabel(seat.durationHours)}`}
             </span>
             <span className="text-[var(--notable)]">
               {seat.status === 'lobby'
@@ -435,6 +435,9 @@ function Title({ numeral, title }: { numeral: string; title: string }) {
   );
 }
 
+const choiceClass = (selected: boolean): string =>
+  `border ${selected ? 'border-[var(--ink)] bg-(--ink)/10' : 'border-(color:--ink)/30'}`;
+
 function ChoiceCard({
   selected,
   onSelect,
@@ -452,9 +455,7 @@ function ChoiceCard({
       role="radio"
       aria-checked={selected}
       onClick={onSelect}
-      className={`cursor-pointer border p-[10px] text-left ${
-        selected ? 'border-[var(--ink)] bg-(--ink)/10' : 'border-(color:--ink)/30'
-      }`}
+      className={`cursor-pointer p-[10px] text-left ${choiceClass(selected)}`}
     >
       <span className="block text-[12px] tracking-[.2em] uppercase">{title}</span>
       <span className="mt-[2px] block text-[11px] text-[var(--ink-note)]">{line}</span>
@@ -462,7 +463,7 @@ function ChoiceCard({
   );
 }
 
-/** A flat world with the theatre's box inked on it; a box past 180° wraps to the west edge. */
+/** The world's coasts with the theatre's box inked on it; a box past 180° wraps to the west edge. */
 function TheatreMap({ theatre }: { theatre: Theatre }) {
   const { west, south, east, north } = theatre.box;
   const y = 90 - north;
@@ -476,10 +477,7 @@ function TheatreMap({ theatre }: { theatre: Theatre }) {
       : [[west + 180, east - west]];
   return (
     <svg viewBox="0 0 360 180" aria-hidden className="block w-full border border-(color:--ink)/30">
-      {[60, 120, 180, 240, 300].map((x) => (
-        <line key={x} x1={x} x2={x} y1={0} y2={180} stroke="currentColor" strokeOpacity={0.15} />
-      ))}
-      <line x1={0} x2={360} y1={90} y2={90} stroke="currentColor" strokeOpacity={0.15} />
+      <path d={WORLD_LAND_PATH} fill="currentColor" fillOpacity={0.22} />
       {rects.map(([x, width]) => (
         <rect
           key={x}

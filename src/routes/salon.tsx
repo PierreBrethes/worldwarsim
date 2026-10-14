@@ -2,7 +2,7 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, modeSummary, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel, placeLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
 import { Wordmark } from '@/shell/Masthead';
 import { NATIONS } from '@/domain/nations';
@@ -141,11 +141,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               <span className="eyebrow">
                 {entering ? fr.lobby.enterWarHeader : fr.lobby.header(pace)}
               </span>
-              <span className="eyebrow">
-                {lobby.mode === 'blitz'
-                  ? modeSummary(lobby.mode, lobby.theatre)
-                  : fr.lobby.regionLabel(regionName)}
-              </span>
+              <span className="eyebrow">{placeLabel(lobby.mode, lobby.theatre, regionName)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -451,7 +447,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
 
       {launching && (
         <LaunchSequence
-          region={regionName}
+          region={placeLabel(lobby.mode, lobby.theatre, regionName)}
           pace={pace}
           players={lobby.players.length}
           onEnd={toBoard}

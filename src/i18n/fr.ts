@@ -13,6 +13,8 @@ import { NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { SeasonMode } from '../domain/season-mode';
+import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -248,7 +250,7 @@ export const fr = {
       mediterranean: 'Méditerranée',
       pacific: 'Pacifique',
       americas: 'Amériques',
-    } as Record<string, string>,
+    } satisfies Record<TheatreId, string>,
     seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
     summary: (mode: string, theatre: string | null) =>
       theatre === null ? mode : `${mode} · ${theatre}`,
@@ -837,11 +839,7 @@ export const fr = {
     open: 'ouvert',
     finished: 'terminée',
     foundTitle: 'Fonder une saison',
-    /**
-     * **Fonder ne demande plus rien** (décision du 31/08) : plus de choix d'horloge ni de
-     * théâtre à l'écran. La phrase dit alors ce qui est décidé à la place du joueur — il doit
-     * savoir ce qu'il obtient sans qu'on le lui ait demandé.
-     */
+    /** Fonder demande le mode ; l'horloge et le plafond de joueurs en découlent (`MODE_RULES`). */
     foundNote: 'Choisissez le mode : l’horloge et le nombre de joueurs en découlent.',
     noClock: 'sans horloge',
     foundSubmit: 'fonder — obtenir un code',
@@ -3267,16 +3265,21 @@ export function countryLabel(adm0: string): string {
   return (countryNames as Readonly<Record<string, string>>)[adm0] ?? adm0;
 }
 
+/** « Blitz · Europe » ou « Mondiale » : le mode d'une saison, et son théâtre quand elle en a un. */
+export const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
+  fr.modes.summary(
+    fr.modes[mode].name,
+    theatre === null ? null : ((fr.modes.theatres as Record<string, string>)[theatre] ?? theatre),
+  );
+
+/** Où une saison se joue : le théâtre d'une Blitz, le monde ou sa région pour une Mondiale. */
+export const placeLabel = (mode: SeasonMode, theatre: string | null, region: string): string =>
+  mode === 'blitz' ? modeSummary(mode, theatre) : `${fr.modes[mode].name} · ${region}`;
+
 /**
  * **L'horloge d'une saison, en un mot.** Trois écrans la nomment — l'accueil, le salon, la
  * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
  */
-export const modeSummary = (mode: 'blitz' | 'mondiale', theatre: string | null): string =>
-  fr.modes.summary(
-    fr.modes[mode].name,
-    theatre === null ? null : (fr.modes.theatres[theatre] ?? theatre),
-  );
-
 export function clockLabel(durationHours: number | null): string {
   if (durationHours === null) return fr.lobby.paceNone;
   if (durationHours === 2) return fr.lobby.pace2;
