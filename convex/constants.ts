@@ -1077,6 +1077,8 @@ export const BLITZ = {
     carrier: 320,
   } as Readonly<Record<UnitRole, number>>,
   recruitMinutes: 1,
+  /** « À faire maintenant » montre les villes neutres à cette distance d'un de mes bâtiments. */
+  nearCityKm: 600,
   /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
   troopBound: 80,
   mend: {

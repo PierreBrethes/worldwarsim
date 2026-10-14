@@ -307,3 +307,44 @@ describe('what waits for the player', () => {
     });
   });
 });
+
+describe('a Blitz', () => {
+  const blitz = (over: Partial<PlayerView['me']>, neutralSites: PlayerView['neutralSites'] = []) =>
+    ({
+      ...board({ construction: null, ...over }),
+      mode: 'blitz',
+      neutralSites,
+    }) as PlayerView;
+  const hq = {
+    id: 'B-hq',
+    key: 'hq',
+    name: 'QG',
+    regionId: 'FRA-1',
+    level: 1,
+    point: [2, 47],
+  } as unknown as PlayerView['me']['buildings'][number];
+
+  it('asks for a recruit at the HQ as at a barracks, and never for a building site', () => {
+    expect(kinds(blitz({ buildings: [hq], recruiting: [] }))).toEqual(['idleProjection']);
+    expect(kinds(blitz({ buildings: [hq], recruiting: ['B-hq'] }))).toEqual([]);
+  });
+
+  it('points at the neutral cities within reach, the nearest first', () => {
+    const [line] = nextActionsOf(
+      blitz({ buildings: [hq], recruiting: ['B-hq'] }, [
+        { id: 'far', key: 'city', regionId: 'R-far', point: [30, 60] },
+        { id: 'near', key: 'city', regionId: 'R-near', point: [3, 47] },
+        { id: 'port', key: 'port', regionId: 'R-port', point: [2.5, 47] },
+        { id: 'next', key: 'city', regionId: 'R-next', point: [5, 47] },
+      ]),
+    );
+    expect(line).toMatchObject({
+      kind: 'neutralCity',
+      label: '2 villes neutres à prendre',
+      targets: [
+        { kind: 'map', point: [3, 47] },
+        { kind: 'map', point: [5, 47] },
+      ],
+    });
+  });
+});

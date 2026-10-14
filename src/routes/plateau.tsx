@@ -658,7 +658,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  être visé du doigt. */
       if (narrow && column !== null) return;
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
-      if (PROJECTION_KEYS.includes(standing.key)) {
+      /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
+       *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
+      const siteModal = view.mode === 'blitz' || PROJECTION_KEYS.includes(standing.key);
+      if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
         setOrder(null);
@@ -677,7 +680,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       void navigate({
         search: (previous) => ({
-          ...withWindow(previous, WINDOW_OF_BUILDING[standing.key]),
+          ...withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]),
           building: buildingId,
         }),
       });

@@ -88,10 +88,15 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
     if (held.length === 0) return null;
     const ids = new Set(held.map((troop) => troop.id));
+    const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
       eyebrow: fr.troops.sheetKicker,
       title: natureOf(label),
+      lines:
+        mending === 0
+          ? []
+          : [{ kind: 'chip', label: fr.blitz.mend, chip: fr.blitz.mending(mending), tone: 'ok' }],
       pile: {
         lines: pileSheet(held),
         cargo: view.me.stationedCargo

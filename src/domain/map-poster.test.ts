@@ -400,3 +400,27 @@ describe('the Blitz poster', () => {
     expect(posterFor(view({ mode: 'mondiale' }), [hq], 'm-b-hq')!.lines).toEqual([]);
   });
 });
+
+describe('a mending pile', () => {
+  it('says on its poster that it is mending', () => {
+    const mending = {
+      ...me,
+      troops: me.troops.map((troop) => ({ ...troop, mending: true })),
+    } as PlayerView['me'];
+    const pile = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'garnison',
+      plate: null,
+      pieces: { groups: [], more: 0, spread: [] },
+      ink: '#2f4f78',
+    } as unknown as MapMarker;
+    const poster = posterFor(view({ me: mending }), [pile], 'pile');
+    expect(poster?.lines).toEqual([
+      { kind: 'chip', label: 'soin', chip: 'reprend des forces', tone: 'ok' },
+    ]);
+  });
+});

@@ -258,6 +258,18 @@ export const fr = {
     neutralSite: (region: string) => `neutre · ${region}`,
     unguarded: 'personne ne la tient — l’infanterie la capture',
     perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
+    siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
+    fundsHeld: (funds: number) => `${num(funds)} fonds en caisse`,
+    price: (funds: number) => `${num(funds)} fonds`,
+    ready: (minutes: number) => `prêt en ${num(minutes)} min`,
+    recruit: (funds: number) => `former — ${num(funds)} fonds`,
+    short: (missing: number) => `il manque ${num(missing)} fonds`,
+    mend: 'soin',
+    mending: (count: number) =>
+      count > 1 ? `${num(count)} troupes reprennent des forces` : 'reprend des forces',
+    mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
+    mendNote:
+      'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },
@@ -1709,6 +1721,8 @@ export const fr = {
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
+    neutralCities: (count: number) =>
+      count > 1 ? `${count} villes neutres à prendre` : 'une ville neutre à prendre',
     /** **Une ligne par sorte** (décision Pierre, 05/10) : le lieu n'est dit qu'à une seule
      *  adresse, le total seul quand il y en a plusieurs. */
     troopWithoutOrder: (count: number, place: string | null) =>

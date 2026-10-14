@@ -3,8 +3,10 @@ import { asClockTime } from './duration';
 import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
-import type { ResourceKey } from './ids';
-import type { LonLat } from './geo';
+import { BLITZ } from '../../convex/constants';
+import { rolesFormedBy } from './blitz';
+import type { BuildingKey, ResourceKey } from './ids';
+import { distanceKm, type LonLat } from './geo';
 import { currentStock, type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
@@ -29,7 +31,9 @@ export type NextActionKind =
   | 'unlinkedSites'
   | 'raiseOutpost'
   | 'troopWithoutOrder'
-  | 'unsupplied';
+  | 'unsupplied'
+  /** Une ville neutre à portée, en Blitz : elle verse des fonds à qui la capture. */
+  | 'neutralCity';
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
@@ -103,8 +107,9 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
     ...raiseOutpostLine(view),
-    ...idleSiteLine(view),
+    ...(view.mode === 'blitz' ? [] : idleSiteLine(view)),
     ...idleProjectionLine(view),
+    ...(view.mode === 'blitz' ? neutralCityLine(view) : []),
     ...troopsWithoutOrder(view, standing, names),
     ...unsuppliedTroops(view, standing, names),
   ];
@@ -256,8 +261,11 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
  *  chose, un lot. */
 function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
+  /** En Blitz le QG forme aussi — l'infanterie (`rolesFormedBy`). */
+  const forms = (key: BuildingKey) =>
+    view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : PROJECTION_KEYS.has(key);
   const idle = view.me.buildings.filter(
-    (building) => PROJECTION_KEYS.has(building.key) && !view.me.recruiting.includes(building.id),
+    (building) => forms(building.key) && !view.me.recruiting.includes(building.id),
   );
   const [only] = idle;
   if (only === undefined) return [];
@@ -271,6 +279,26 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
         )
       : fr.nextActions.idleProjections(idle.length),
     idle.map((building) => ({ kind: 'site', buildingId: building.id })),
+  );
+}
+
+/**
+ * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ.nearCityKm` d'un de mes bâtiments,
+ * la plus proche d'abord. C'est la première chose qu'une Blitz demande — une ville verse des fonds
+ * à qui la capture, et personne ne la garde.
+ */
+function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
+  const mine = view.me.buildings.flatMap((building) =>
+    building.point === null ? [] : [building.point],
+  );
+  const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
+  const near = view.neutralSites
+    .filter((site) => site.key === 'city' && reach(site.point) <= BLITZ.nearCityKm)
+    .sort((left, right) => reach(left.point) - reach(right.point));
+  return lineOf(
+    'neutralCity',
+    fr.nextActions.neutralCities(near.length),
+    near.map((site) => ({ kind: 'map', point: site.point })),
   );
 }
 
