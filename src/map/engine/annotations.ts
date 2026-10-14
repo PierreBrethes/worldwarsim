@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
+  type Object3D,
   type Raycaster,
   SRGBColorSpace,
   type Texture,
@@ -30,15 +31,50 @@ const PX = 256;
 /** Silhouettes are drawn around ±10 (`silhouettes.ts`); the domain takes the middle of the ring. */
 const DOMAIN_SCALE = 6.4;
 
-/** One canvas per medium and hour: an hour is a minute's worth of annotations, and the stale
- *  ones go first past the bound. */
-const textures = new Map<string, Texture>();
-const TEXTURES_KEPT = 64;
+/**
+ * **One material per medium, hour and ink, counted** (`acquire`, `releaseInk`): annotations of the
+ * same survey share it, and the last one to go frees it and its canvas — never one still shown.
+ */
+const inks = new Map<string, { material: MeshBasicMaterial; users: number }>();
+
+function acquire(
+  medium: Medium,
+  hour: string,
+  ink: number,
+): { key: string; material: MeshBasicMaterial } {
+  const key = `${medium}|${hour}|${ink.toFixed(2)}`;
+  let held = inks.get(key);
+  if (held === undefined) {
+    held = {
+      material: new MeshBasicMaterial({
+        map: textureOf(medium, hour),
+        transparent: true,
+        depthWrite: false,
+        opacity: ink,
+      }),
+      users: 0,
+    };
+    inks.set(key, held);
+  }
+  held.users += 1;
+  return { key, material: held.material };
+}
+
+/** Lets go of the ink `object` was drawn with; anything else in it is left alone. */
+export function releaseInk(object: Object3D): void {
+  object.traverse((part) => {
+    const key = part.userData.ink as string | undefined;
+    if (key === undefined) return;
+    delete part.userData.ink;
+    const held = inks.get(key);
+    if (held === undefined || --held.users > 0) return;
+    held.material.map?.dispose();
+    held.material.dispose();
+    inks.delete(key);
+  });
+}
 
 function textureOf(medium: Medium, hour: string): Texture {
-  const key = `${medium}|${hour}`;
-  const kept = textures.get(key);
-  if (kept) return kept;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = PX;
   const ctx = canvas.getContext('2d')!;
@@ -84,12 +120,6 @@ function textureOf(medium: Medium, hour: string): Texture {
 
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  textures.set(key, texture);
-  if (textures.size > TEXTURES_KEPT) {
-    const [oldest] = textures.keys();
-    textures.get(oldest!)!.dispose();
-    textures.delete(oldest!);
-  }
   return texture;
 }
 
@@ -104,13 +134,9 @@ export function inkAnnotation(
   seenAt: number,
   seenMinutesAgo: number | null,
 ): { object: Group; piece: Group } {
-  const material = new MeshBasicMaterial({
-    map: textureOf(medium, asClockTime(seenAt)),
-    transparent: true,
-    depthWrite: false,
-    opacity: surveyInk(seenMinutesAgo),
-  });
+  const { key, material } = acquire(medium, asClockTime(seenAt), surveyInk(seenMinutesAgo));
   const mesh = new Mesh(PLANE, material);
+  mesh.userData.ink = key;
   mesh.renderOrder = 4;
   const object = new Group();
   const piece = new Group();
@@ -120,12 +146,9 @@ export function inkAnnotation(
   return { object, piece };
 }
 
-/** Its material is its own — the ink of each age — and goes with it. */
 export function eraseAnnotation(object: Group): void {
   object.removeFromParent();
-  object.traverse((part) => {
-    if (part instanceof Mesh) (part.material as MeshBasicMaterial).dispose();
-  });
+  releaseInk(object);
 }
 
 /** An enemy movement's « figurine »: its annotation slides along the stretch, upright to the eye. */
