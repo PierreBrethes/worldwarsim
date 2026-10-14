@@ -342,25 +342,14 @@ export const fr = {
   },
 
   modes: {
-    blitz: {
-      name: 'Blitz',
-      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
-    },
-    mondiale: {
-      name: 'Mondiale',
-      line: '7 jours · 2 à 8 joueurs, deux ou trois visites par jour · le monde entier',
-    },
-    modeLabel: 'mode',
-    theatreLabel: 'théâtre',
-    theatreNote:
-      'La carte s’ouvre cadrée sur ce théâtre, et le salon n’y assoit pas plus de joueurs qu’il n’en tient.',
+    blitz: { name: 'Blitz' },
+    mondiale: { name: 'Mondiale' },
     theatres: {
       europe: 'Europe',
       mediterranean: 'Méditerranée',
       pacific: 'Pacifique',
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
-    seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
     theatrePlayers: (min: number, max: number) =>
       min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>
