@@ -5,7 +5,7 @@ import type { MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { demolitionRefusalOf } from '../src/domain/construction';
-import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
+import { BLITZ, buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
 import { levelOf, playerBuildings } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
@@ -13,7 +13,7 @@ import { foundationOwedBy, pointOfBuilding } from './regions';
 import { clipToStorage, credit, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
-import { refuseInBlitz } from './blitz';
+import { creditFunds, isBlitz, refuseInBlitz } from './blitz';
 
 export type { BuildingKey };
 
@@ -178,13 +178,16 @@ async function cancelWorkOn(
   }
 
   const hqLevel = levelOf(await playerBuildings(ctx, player._id), 'hq');
+  /** En Blitz une recrue se paie en fonds : c'est en fonds qu'elle se rend. */
+  const blitz = await isBlitz(ctx, building.seasonId);
   const batches = await ctx.db
     .query('recruitments')
     .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      add({ alloy: recruitmentCost(batch.role, batch.tier, hqLevel).alloy });
+      if (blitz) await creditFunds(ctx, player._id, BLITZ.rolePrice[batch.role], now);
+      else add({ alloy: recruitmentCost(batch.role, batch.tier, hqLevel).alloy });
     }
     await ctx.db.delete(batch._id);
   }

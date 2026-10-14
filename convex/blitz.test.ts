@@ -285,6 +285,76 @@ describe('la capture d’un neutre', () => {
   });
 });
 
+describe('un site capturé avec sa file', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('rend au perdant les fonds d’une recrue qui n’a pas commencé, jamais de l’alliage', async () => {
+    const t = boot();
+    const { seat, guest } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const loser = await playerOf(t, guest);
+    const barracks = (await buildingsOf(t, loser._id)).find((b) => b.key === 'barracks')!;
+    for (let rank = 0; rank < 2; rank += 1) {
+      await t.mutation(api.troops.recruit, {
+        ...guest,
+        buildingId: barracks._id,
+        role: 'infantry',
+        tier: 1,
+      });
+    }
+    const [infantry] = await troopsOf(t, me._id);
+    const [lon, lat] = pointOfBuilding(barracks)!;
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: seat.seasonId,
+        playerId: me._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'building', buildingId: barracks._id },
+        from: { lon: lon - 1, lat },
+        to: { lon, lat },
+        hostCountry: '',
+        points: [
+          { lon: lon - 1, lat },
+          { lon, lat },
+        ],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry!._id],
+        departedAt: MIDDAY,
+        arrivesAt: MIDDAY,
+        capture: { kind: 'building', buildingId: barracks._id },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+    const before = (await playerOf(t, guest)).funds!;
+    vi.setSystemTime(capture!.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: capture!._id,
+      expectedAt: capture!.completesAt,
+    });
+    const minutes = (capture!.completesAt - MIDDAY) / MINUTE;
+    expect((await playerOf(t, guest)).funds).toBe(
+      before + BLITZ.rolePrice.infantry + minutes * BLITZ.fundsPerMinute.hq!,
+    );
+    const alloy = await t.run(async (ctx) =>
+      (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+          .collect()
+      ).find((row) => row.key === 'alloy'),
+    );
+    expect(alloy!.stock).toBe(0);
+  });
+});
+
 describe('le recrutement de la Blitz', () => {
   beforeEach(() => {
     vi.useFakeTimers();
