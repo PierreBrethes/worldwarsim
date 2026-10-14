@@ -25,6 +25,13 @@ vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }
 
 const OPEN = {
   refusal: null,
+  mode: 'mondiale',
+  theatre: null,
+  orders: { scheduledAt: null, remind: null, hqCaptureHours: 12, seatCap: null },
+  seats: [
+    { nickname: 'Pierre', nation: 'france', seenAt: null },
+    { nickname: 'Léa', nation: null, seenAt: null },
+  ],
   founder: 'Pierre',
   players: 2,
   maximum: 8,
@@ -88,8 +95,8 @@ function mount(options: {
 it('says who invites and what is left, and offers the account form to a stranger', async () => {
   mount({ invitation: OPEN });
 
-  expect(await screen.findByText(fr.invitation.invitedBy('Pierre'))).toBeTruthy();
-  expect(screen.getByText(new RegExp(fr.invitation.placesLeft(6)))).toBeTruthy();
+  expect(await screen.findByText(fr.invitation.takeSeat('Pierre'))).toBeTruthy();
+  expect(screen.getByText(fr.invitation.yourSeat(5))).toBeTruthy();
   expect(screen.getByLabelText(fr.auth.nicknameLabel)).toBeTruthy();
 });
 
@@ -140,37 +147,39 @@ it('resumes the seat of an account that already holds one, instead of joining tw
   expect(join).not.toHaveBeenCalled();
 });
 
+const context = { founder: 'Pierre', maximum: 8, theatre: null };
+
 it.each([
-  ['UNKNOWN_GAME_CODE', fr.errors.UNKNOWN_GAME_CODE()],
-  ['SEASON_CONCLUDED', fr.errors.SEASON_CONCLUDED()],
-  ['NO_FREE_NATION', fr.errors.NO_FREE_NATION()],
-  ['LOBBY_FULL', fr.errors.LOBBY_FULL({ maximum: 8 })],
-])('says a %s refusal in a sentence and leads out', async (refusal, sentence) => {
+  'UNKNOWN_GAME_CODE',
+  'SEASON_CONCLUDED',
+  'NO_FREE_NATION',
+  'LOBBY_FULL',
+  'REGISTRATION_CLOSED',
+  'BLITZ_STARTED',
+] as const)('answers a %s refusal with a telegram of regrets and a way out', async (refusal) => {
   mount({ invitation: { ...OPEN, refusal } });
 
-  expect(await screen.findByText(sentence)).toBeTruthy();
-  expect(screen.getByRole('link', { name: fr.front.back })).toBeTruthy();
+  const title = fr.table.refusals[refusal](context).title;
+  expect((await screen.findByRole('alert')).textContent).toBe(title);
+  expect(screen.getByRole('link', { name: fr.invitation.myGames })).toBeTruthy();
   expect(screen.queryByLabelText(fr.auth.nicknameLabel)).toBeNull();
 });
 
-it('gives the hour a closed registration closed at, when the server names it', async () => {
-  const closedAt = Date.UTC(2040, 0, 1, 14);
-  mount({
-    invitation: {
-      ...OPEN,
-      status: 'launched',
-      refusal: 'REGISTRATION_CLOSED',
-      registrationClosesAt: closedAt,
-    },
-  });
+it('offers to found the same kind of game from a full table', async () => {
+  mount({ invitation: { ...OPEN, refusal: 'LOBBY_FULL' } });
 
-  expect(await screen.findByText(/inscriptions ont été closes/)).toBeTruthy();
+  const found = await screen.findByRole('link', {
+    name: fr.table.refusals.LOBBY_FULL(context).found!,
+  });
+  expect(found.getAttribute('href')).toBe('/fonder?mode=mondiale');
 });
 
 it('answers a code that cannot be one without asking the server anything', async () => {
   mount({ invitation: undefined, code: 'K7Q2P0' });
 
-  expect(await screen.findByText(fr.errors.UNKNOWN_GAME_CODE())).toBeTruthy();
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    fr.table.refusals.UNKNOWN_GAME_CODE().title,
+  );
 });
 
 /**
@@ -184,30 +193,32 @@ it('keeps the account when the lobby filled up between the sign-up and the join'
     join: () => Promise.reject(new ConvexError({ code: 'LOBBY_FULL', maximum: 8 })),
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: fr.auth.toRegister }));
+  fireEvent.click(await screen.findByRole('tab', { name: fr.auth.openFile }));
   fireEvent.change(screen.getByLabelText(fr.auth.nicknameLabel), { target: { value: 'Nouveau' } });
   fireEvent.change(screen.getByLabelText(fr.auth.passwordLabel), {
     target: { value: 'un-mot-de-passe' },
   });
-  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerSubmit }));
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerAndJoin }));
 
-  expect(await screen.findByText(fr.errors.LOBBY_FULL({ maximum: 8 }))).toBeTruthy();
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    fr.table.refusals.LOBBY_FULL(context).title,
+  );
   expect(action).toHaveBeenCalledOnce();
   expect(join.mock.calls[0]?.[1]).toEqual({ token: 'jeton-neuf', code: 'K7Q2PX' });
   expect(localStorage.getItem('wws-session')).toBe('jeton-neuf');
   expect(screen.getByText(fr.invitation.accountKept)).toBeTruthy();
-  expect(screen.getByRole('link', { name: fr.invitation.toHome })).toBeTruthy();
+  expect(screen.getByRole('link', { name: fr.invitation.myGames })).toBeTruthy();
 });
 
 it('chains the sign-up, the join and the lobby in one send', async () => {
   const { action, join } = mount({ invitation: OPEN });
 
-  fireEvent.click(await screen.findByRole('button', { name: fr.auth.toRegister }));
+  fireEvent.click(await screen.findByRole('tab', { name: fr.auth.openFile }));
   fireEvent.change(screen.getByLabelText(fr.auth.nicknameLabel), { target: { value: 'Nouveau' } });
   fireEvent.change(screen.getByLabelText(fr.auth.passwordLabel), {
     target: { value: 'un-mot-de-passe' },
   });
-  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerSubmit }));
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerAndJoin }));
 
   await waitFor(() => expect(readSeat()).toEqual({ token: 'jeton-neuf', seasonId: 'season-1' }));
   expect(action).toHaveBeenCalledOnce();

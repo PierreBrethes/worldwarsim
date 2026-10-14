@@ -66,7 +66,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       capitalPoint: (server.me.capitalPoint as LonLat | null | undefined) ?? null,
       openingPoint: (server.me.openingPoint as LonLat | null | undefined) ?? null,
       ink: server.me.ink,
-      power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',
+      power: isNation(server.me.nation)
+        ? `${fr.nationAssets[server.me.nation].name} — ${fr.nationAssets[server.me.nation].rule}`
+        : '',
       progress: server.me.progress,
       restWindow: formatWindow(asLocalWindow(server.me.restWindow)),
       resources: server.me.resources,
@@ -192,7 +194,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,
-      power: isNation(opponent.nation) ? fr.nationPowers[opponent.nation] : '',
+      power: isNation(opponent.nation)
+        ? `${fr.nationAssets[opponent.nation].name} — ${fr.nationAssets[opponent.nation].rule}`
+        : '',
       restWindow: formatWindow(asLocalWindow(opponent.restWindow)),
     })),
     coverage: { visible: 0, total: 0 },

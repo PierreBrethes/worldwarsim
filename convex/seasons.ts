@@ -448,6 +448,7 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
           nickname: entry.nickname,
           nation: entry.nation,
           ready: entry.ready,
+          creator: entry.creator,
           mine: entry._id === player._id,
           seenAt: seenAtOf(entry, season),
         }))
@@ -533,6 +534,7 @@ export const lobby = query({
         creator: entry.creator,
         nation: entry.nation,
         ready: entry.ready,
+        mine: entry._id === player._id,
         restWindow: entry.restWindow,
         seenAt: seenAtOf(entry, season),
         /** On a running season "prêt" means nothing any more: what a row says is whether that

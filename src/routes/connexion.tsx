@@ -1,83 +1,75 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
-import { Masthead } from '@/shell/Masthead';
-import { ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
+import { Wordmark } from '@/shell/Masthead';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet, SheetExit, TOUCH_TARGET } from '@/shell/EntrySheet';
-import { FilmTrailer } from '@/shell/FilmTrailer';
+import { OffSeasonPage, romanDate } from '@/shell/OffSeason';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
 
-const WIDTH = 520;
-
 function SignIn() {
-  return convexClient ? <ConnectedSignIn /> : <NoBackend />;
-}
-
-/** Sans backend, il n'y a pas de compte à créer : la feuille dit ce qui manque et s'arrête là
- *  — un formulaire qui ne peut rien envoyer n'est pas une porte, c'est une impasse. */
-function NoBackend() {
-  const { turning } = usePageTurn();
-  return (
-    <Sheet turning={turning} tagline={fr.auth.loginTagline}>
-      <p className="mx-(--sheet-pad) py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
-    </Sheet>
+  return convexClient ? (
+    <ConnectedSignIn />
+  ) : (
+    <Card>{<p className="note">{fr.auth.noBackend}</p>}</Card>
   );
 }
 
-function Sheet({
-  turning,
-  tagline,
-  children,
-}: {
-  turning: Turning;
-  tagline: string;
-  children: ReactNode;
-}) {
+/** **La carte d'accréditation** : la manchette, le formulaire partagé, puis la une du joueur. */
+function Card({ children }: { children: ReactNode }) {
   return (
-    <EntrySheet width={WIDTH} turning={turning}>
-      <div className="px-(--sheet-pad) pt-[18px] pb-[16px] text-center">
-        <Masthead date={fr.auth.dateline} wordmarkMax={54} />
-        <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
-          {tagline}
-        </p>
+    <OffSeasonPage>
+      <div className="center">
+        <article className="sheet pile entry" aria-labelledby="t-cx">
+          <header className="mast">
+            <div className="top" />
+            <div className="top2" />
+            <div className="wm" id="t-cx">
+              <Wordmark size={52} />
+            </div>
+            <div className="rule" />
+            <div className="dl">
+              <span>{fr.auth.dateline}</span>
+              <span>{romanDate(new Date())}</span>
+            </div>
+          </header>
+          {children}
+          <div className="foot">
+            <Link className="link" to="/">
+              {fr.front.back}
+            </Link>
+            <Link className="link" to="/credits">
+              {fr.credits.open}
+            </Link>
+          </div>
+        </article>
       </div>
-
-      <ThickRuleInverse margin="var(--sheet-pad)" />
-
-      {children}
-      <SheetExit />
-      <div className="mx-(--sheet-pad) pb-3 text-center">
-        <Link
-          to="/credits"
-          className={`text-[10.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
-        >
-          {fr.credits.open}
-        </Link>
-      </div>
-    </EntrySheet>
+    </OffSeasonPage>
   );
 }
 
-/** La feuille de connexion : le formulaire partagé, puis l'accueil. */
 export function ConnectedSignIn() {
   const navigate = useNavigate();
-  const { turning, turn } = usePageTurn();
-  const [registering, setRegistering] = useState(false);
-
   return (
-    <Sheet turning={turning} tagline={registering ? fr.auth.registerTagline : fr.auth.loginTagline}>
+    <Card>
       <AccountForm
-        onModeChange={setRegistering}
-        /** L'accueil prend la place du formulaire : le retour du navigateur ne ramène pas un
-         *  joueur connecté devant ses deux champs. */
-        onSignedIn={() => turn(() => void navigate({ to: '/accueil', replace: true }))}
+        /** La une prend la place du formulaire : le retour du navigateur ne ramène pas un
+         *  joueur connecté devant ses deux champs. Le tampon a le temps de tomber. */
+        onSignedIn={() =>
+          new Promise<void>((done) =>
+            setTimeout(() => {
+              void navigate({ to: '/accueil', replace: true });
+              done();
+            }, 700),
+          )
+        }
       />
-      <div className="mx-(--sheet-pad) text-center">
-        <FilmTrailer />
+      <div className="after">
+        <p className="note" style={{ margin: 0 }}>
+          {fr.auth.after}
+        </p>
       </div>
-    </Sheet>
+    </Card>
   );
 }
