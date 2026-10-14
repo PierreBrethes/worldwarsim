@@ -74,7 +74,11 @@ export function TelegraphThread({
     // Le champ se vide tout de suite : le fil est optimiste, et un refus le rend intact.
     setDraft('');
     setRefusal(null);
-    void post({ ...seat, text, ...(to === undefined ? {} : { to }) }).catch((error: unknown) => {
+    void post({
+      ...seat,
+      text,
+      ...(to === undefined ? {} : { to }),
+    }).catch((error: unknown) => {
       setDraft(text);
       handleError(error, setRefusal);
     });

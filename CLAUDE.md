@@ -282,7 +282,15 @@ et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de
 onglet « Général » et un par autre joueur de la partie (`messages.to` optionnel, servi aux deux
 participants seulement, mêmes bornes **par canal**, un message par seconde tous canaux confondus ;
 lecture datée par canal dans `readMarks.telegraphDirectReadAt`). Le fil est partout la vue en
-bandes groupées par émetteur ; le salon n'a que le général. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
+bandes groupées par émetteur. **Et le salon a son propre fil** (14/10/2026) : `messages.lobby`
+(`true` au salon, absent en partie et sur les lignes d'avant) cloisonne les deux, privés compris —
+le **serveur** déduit le fil de la saison (au salon : le salon ; lancée : la partie), `recent` et
+`post` n'ont aucun paramètre pour cela — un onglet périmé ne peut pas écrire dans le mauvais fil. Le salon pose **le même widget**
+que la fenêtre (`src/shell/TelegraphPanel.tsx` : onglets, fil groupé), seulement tant que la saison
+est au salon. Pas
+d'archive : `messages.erase` vide le salon au lancement et la partie à la conclusion, par lots de
+`ERASE_BATCH` qui se replanifient — les dates de lecture n'ont rien à suivre, aucun message ne les
+dépasse. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
 autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail somme les canaux, chacun depuis
 sa dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 

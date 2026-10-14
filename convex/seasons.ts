@@ -395,6 +395,7 @@ export const launch = mutation({
       launchRefusal: undefined,
       playableRegion: playableRegion(present.length),
     });
+    await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
     for (const entry of present) {
       await endow(ctx, entry, season, now);
       await notifyPlayer(ctx, entry._id, {
@@ -494,6 +495,7 @@ export async function concludeSeason(
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
     concludedAt: at,
   });
+  await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
   for (const entry of await seatsOf(ctx, seasonId)) {
     await notifyPlayer(ctx, entry._id, {
       type: 'season',

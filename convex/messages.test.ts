@@ -6,6 +6,8 @@ import {
   MESSAGE_MIN_INTERVAL_MS,
   TELEGRAPH_DEPTH,
 } from '../src/domain/telegraph';
+import { ERASE_BATCH } from './messages';
+import type { Seat } from '../src/data/session';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
@@ -57,7 +59,7 @@ describe('le télégraphe', () => {
     const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
     await t.mutation(api.messages.post, { ...seat, text: 'alors, on se décide ?' });
 
-    const seen = await t.query(api.messages.recent, guest);
+    const seen = await t.query(api.messages.recent, { ...guest });
     expect(seen.messages.map((message) => message.text)).toEqual(['alors, on se décide ?']);
     expect(seen.messages[0]!.nickname).toBe('Pierre');
     expect(seen.messages[0]!.mine).toBe(false);
@@ -276,5 +278,84 @@ describe('les canaux privés', () => {
     await t.mutation(api.messages.markRead, { ...pierre, with: await idOf(t, elsewhere.guest) });
     const marks = await t.run(async (ctx) => ctx.db.query('readMarks').collect());
     expect(marks.flatMap((row) => Object.keys(row.telegraphDirectReadAt ?? {}))).toEqual([]);
+  });
+});
+
+/** One tick, not `runAllTimers`: the press reschedules itself forever. Each erase pass queues the next. */
+async function flush(t: ReturnType<typeof boot>) {
+  for (let pass = 0; pass < 5; pass += 1) {
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+  }
+}
+
+describe('le salon et la partie', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const texts = async (t: ReturnType<typeof boot>, seat: Parameters<typeof seatDoc>[1]) => {
+    const seen = await t.query(api.messages.recent, seat);
+    return {
+      general: seen.messages.map((m) => m.text),
+      direct: seen.direct.flatMap((c) => c.messages.map((m) => m.text)),
+    };
+  };
+
+  async function launchNow(t: ReturnType<typeof boot>, seat: Seat, guest: Seat) {
+    await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+    await t.mutation(api.players.declareReady, { ...seat, ready: true });
+    await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+    await t.mutation(api.players.declareReady, { ...guest, ready: true });
+    await t.mutation(api.seasons.launch, seat);
+    await flush(t);
+  }
+
+  it('range sans paramètre un message d’avant le lancement au salon, effacé au lancement', async () => {
+    const t = boot();
+    const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
+    const guestId = (await seatDoc(t, guest))._id;
+    await t.mutation(api.messages.post, { ...seat, text: 'au salon' });
+    vi.setSystemTime(MIDDAY.getTime() + MESSAGE_MIN_INTERVAL_MS);
+    await t.mutation(api.messages.post, { ...seat, text: 'psst salon', to: guestId });
+    expect(await texts(t, guest)).toEqual({ general: ['au salon'], direct: ['psst salon'] });
+    const rows = await t.run(async (ctx) => ctx.db.query('messages').collect());
+    expect(rows.every((row) => row.lobby === true)).toBe(true);
+
+    await launchNow(t, seat, guest);
+    expect(await texts(t, guest)).toEqual({ general: [], direct: [] });
+    expect(await t.run(async (ctx) => ctx.db.query('messages').collect())).toEqual([]);
+
+    vi.setSystemTime(MIDDAY.getTime() + 2 * MESSAGE_MIN_INTERVAL_MS);
+    await t.mutation(api.messages.post, { ...seat, text: 'à la partie' });
+    expect(await texts(t, guest)).toEqual({ general: ['à la partie'], direct: [] });
+  });
+
+  it('efface la partie à la conclusion, par lots', async () => {
+    const t = boot();
+    const { seat } = await launched(t, 'Pierre', 'Léa');
+    await t.run(async (ctx) => {
+      const season = (await ctx.db.query('seasons').first())!;
+      const player = (await ctx.db.query('players').first())!;
+      for (let rank = 0; rank < ERASE_BATCH * 2 + 1; rank += 1) {
+        await ctx.db.insert('messages', {
+          seasonId: season._id,
+          playerId: player._id,
+          text: `m${rank}`,
+          at: rank,
+        });
+      }
+    });
+    await t.run(async (ctx) => {
+      const { concludeSeason } = await import('./seasons');
+      const season = (await ctx.db.query('seasons').first())!;
+      await concludeSeason(ctx, season._id, null, Date.now());
+    });
+    await flush(t);
+    const left = await t.run(async (ctx) => ctx.db.query('messages').collect());
+    expect(left).toEqual([]);
+    expect(await texts(t, seat)).toEqual({ general: [], direct: [] });
   });
 });
