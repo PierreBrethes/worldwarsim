@@ -2,14 +2,14 @@ import type { UnitRole, UnitTier } from './ids';
 import type { ReplayView } from './player-view';
 import type { MapMotion } from './map-motion';
 
-export type ReplayStep = 'voyage' | 'pose' | 'salves' | 'pertes' | 'deroute' | 'compte-rendu';
+export type ReplayStep = 'voyage' | 'pose' | 'frappe' | 'riposte' | 'deroute' | 'compte-rendu';
 
 /** @a-mesurer — a short replay, read through in about ten seconds (grilling of 13/10). */
 export const STEP_MS: Readonly<Record<ReplayStep, number>> = {
   voyage: 1500,
   pose: 1200,
-  salves: 900,
-  pertes: 3000,
+  frappe: 1950,
+  riposte: 1950,
   deroute: 1400,
   'compte-rendu': 2000,
 };
@@ -17,11 +17,21 @@ export const STEP_MS: Readonly<Record<ReplayStep, number>> = {
 export const REPLAY_STEPS: ReadonlyArray<ReplayStep> = [
   'voyage',
   'pose',
-  'salves',
-  'pertes',
+  'frappe',
+  'riposte',
   'deroute',
   'compte-rendu',
 ];
+
+/** The share of a fire step the shots take; the struck side falls over the rest of it. */
+export const VOLLEY_SHARE = 0.4;
+
+/** **The initiative, played in two beats** (B16): the attacker fires in the strike, the defender
+ *  in the riposte, and each beat fells only the side it was aimed at. */
+const FIRING_SIDE: Partial<Record<ReplayStep, ReplayView['side']>> = {
+  frappe: 'attacker',
+  riposte: 'defender',
+};
 
 export const REPLAY_MS = REPLAY_STEPS.reduce((sum, step) => sum + STEP_MS[step], 0);
 
@@ -53,6 +63,8 @@ export type ReplayPiece =
 export type ReplayFrame = {
   readonly step: ReplayStep;
   readonly progress: number;
+  /** Who fires in this step — `null` outside the strike and the riposte. */
+  readonly firing: 'mine' | 'theirs' | null;
   /** Mine first, in the view's order and one per troop; then the enemy's blocks. */
   readonly pieces: ReadonlyArray<ReplayPiece>;
 };
@@ -91,40 +103,36 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
   );
   const theirs = destinies(view.theirs.troops, view.theirs.destroyed, view.theirs.routed);
 
-  // Losses fall one at a time, the two sides spread evenly across the step: a regular
-  // alternation when they lost as many, the larger side falling more often otherwise.
-  const fallsOf = (fates: ReadonlyArray<PieceFate>, side: 'mine' | 'theirs') => {
-    const of = fates.filter((fate) => fate === 'fallen').length;
-    return Array.from({ length: of }, (_, rank) => ({ side, key: (rank + 0.5) / of }));
+  // Each side falls in the beat aimed at it, one piece at a time across what the shots leave of it.
+  const struckIn = (side: 'mine' | 'theirs') => {
+    const firedAt = (view.side === 'attacker') === (side === 'theirs') ? 'frappe' : 'riposte';
+    const { start, end } = stepBounds(firedAt);
+    const from = start + VOLLEY_SHARE * (end - start);
+    return { from, length: end - from };
   };
-  const falls = [
-    ...fallsOf(
-      mine.map((piece) => piece.fate),
-      'mine',
-    ),
-    ...fallsOf(theirs, 'theirs'),
-  ].sort((a, b) => a.key - b.key || (a.side === 'mine' ? -1 : 1));
-
-  // The n-th fallen piece of a side takes the n-th slot of that side.
-  const slots = { mine: [] as number[], theirs: [] as number[] };
-  falls.forEach((fall, order) => slots[fall.side].push(order));
-  const losses = stepBounds('pertes');
-  const slot = (losses.end - losses.start) / Math.max(1, falls.length);
+  const ranks = { mine: 0, theirs: 0 };
+  const fallCount = {
+    mine: mine.filter((piece) => piece.fate === 'fallen').length,
+    theirs: theirs.filter((fate) => fate === 'fallen').length,
+  };
   const rout = stepBounds('deroute');
   const share = (from: number, length: number) => Math.min(1, Math.max(0, (at - from) / length));
   const playOut = (fate: PieceFate, side: 'mine' | 'theirs') => {
+    const fall = () => {
+      const { from, length } = struckIn(side);
+      const slot = length / fallCount[side];
+      return share(from + ranks[side]++ * slot, slot);
+    };
     const progress =
-      fate === 'routed'
-        ? share(rout.start, rout.end - rout.start)
-        : fate === 'fallen'
-          ? share(losses.start + slots[side].shift()! * slot, slot)
-          : 0;
+      fate === 'routed' ? share(rout.start, rout.end - rout.start) : fate === 'fallen' ? fall() : 0;
     return progress > 0 ? { fate, progress } : { fate: 'standing' as const, progress: 0 };
   };
 
+  const firing = FIRING_SIDE[step];
   return {
     step,
     progress,
+    firing: firing === undefined ? null : firing === view.side ? 'mine' : 'theirs',
     pieces: [
       ...mine.map((piece): ReplayPiece => ({
         side: 'mine',
