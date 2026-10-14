@@ -25,6 +25,7 @@ import type {
   MovementPreviewed,
   PlunderPreviewed,
 } from '@/data/serverView';
+import { GARRISON_BONUS } from '../../../convex/constants';
 import { ResourceAmounts } from './CargoReadout';
 import type { Seat } from '@/data/session';
 
@@ -230,10 +231,24 @@ export function MovementPreview({
     );
   };
 
+  const cover = riposteCoverOf(choice);
+
   /** Ce qui explique une durée plutôt que de l'annoncer, et ce que le joueur ne sait pas : les
    *  deux cadres l'impriment sous leurs heures. */
   const notes = preview && (
     <>
+      {/* **L'initiative, dite avant de payer** (B16) : qui frappe d'abord, et ce que les murs
+          d'en face rendront — la seule chose que l'attaquant puisse savoir de la riposte. */}
+      {cover !== null && (
+        <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
+          <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+            {fr.aim.initiative}
+          </div>
+          <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.aim.cover[cover](GARRISON_BONUS)}
+          </p>
+        </div>
+      )}
       {/* La seule ligne qui explique une durée plutôt que de l'annoncer : sans elle, le relais
           est un cadeau anonyme. */}
       {'relayed' in preview && preview.relayed > 0 && (
@@ -467,6 +482,24 @@ export function MovementPreview({
       </div>
     </div>
   );
+}
+
+/**
+ * **Ce que la cible rendra, lu sur ce qu'on vise et rien d'autre** : le bonus de bâtiment tient
+ * à une garnison (`convex/combat.ts`, `shelteredOf`). Un avant-poste et un objectif sont des
+ * garnisons ; un camp relevé est une pile posée ; une région ou un site peuvent tenir l'une et
+ * l'autre, et la carte ne dit pas lesquelles. `null` hors d'un ordre qui engage.
+ */
+function riposteCoverOf({
+  aim,
+  type,
+  mission,
+}: OrderChoice): 'sheltered' | 'open' | 'either' | null {
+  if (mission.kind === 'plunder') return 'either';
+  if (type !== 'attack' && type !== 'raid') return null;
+  if (aim.kind === 'outpost' || aim.kind === 'objective') return 'sheltered';
+  if (aim.kind === 'camp') return 'open';
+  return 'either';
 }
 
 function Timing({

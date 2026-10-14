@@ -76,7 +76,7 @@ const PREVIEW = {
   },
 } as unknown as Previewed;
 
-function mount(onChoose = vi.fn(), onSent = vi.fn()) {
+function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK) {
   render(
     <ConvexProvider client={client}>
       <MovementPreview
@@ -90,7 +90,7 @@ function mount(onChoose = vi.fn(), onSent = vi.fn()) {
         }}
         troopIds={['T-1']}
         strength={50}
-        choice={ATTACK}
+        choice={choice}
         choices={[ATTACK, RAID]}
         onChoose={onChoose}
         at={{ x: 0, y: 0 }}
@@ -144,5 +144,32 @@ describe('the order sheet', () => {
       arrivesAt: 1_000,
       destination: 'Flandre-Occidentale',
     });
+  });
+});
+
+/**
+ * **L'initiative, dite avant l'envoi** (B16) : l'attaquant frappe d'abord, et la riposte porte le
+ * bonus de bâtiment seulement là où la cible tient des murs.
+ */
+describe('what the riposte will carry', () => {
+  it('tells the attacker he strikes first, and that a garrison ripostes at the bonus', () => {
+    mount();
+    screen.getByText(fr.aim.initiative);
+    screen.getByText(fr.aim.cover.sheltered(1.15));
+  });
+
+  it('tells him a camp in the open ripostes bare', () => {
+    const camp: OrderChoice = {
+      ...ATTACK,
+      aim: {
+        kind: 'camp',
+        campId: 'C-1',
+        lon: 3,
+        lat: 51,
+        hostCountry: 'BEL',
+      } as OrderChoice['aim'],
+    };
+    mount(vi.fn(), vi.fn(), camp);
+    screen.getByText(fr.aim.cover.open());
   });
 });

@@ -65,6 +65,18 @@ const tenths = (value: number): string => String(Math.round(value * 10) / 10);
 const andList = (items: ReadonlyArray<string>): string =>
   items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} et ${items.at(-1)}`;
 
+/**
+ * **La passe en deux temps** (B16) : la frappe de l'attaquant, puis la riposte de ce qui reste en
+ * face. Les pertes d'un camp sont toutes de l'autre temps — c'est l'initiative —, donc le compte
+ * rendu suffit à les répartir sans rien servir de plus.
+ */
+const combatBeats = (attacking: boolean, mineLost: number, theirsLost: number): string => {
+  const [strike, riposte] = attacking ? [theirsLost, mineLost] : [mineLost, theirsLost];
+  const answer =
+    riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
+  return `${attacking ? 'notre' : 'leur'} frappe en abat ${strike}, ${answer}`;
+};
+
 export const fr = {
   nations: {
     france: 'France',
@@ -1203,7 +1215,7 @@ export const fr = {
           ? `engagement ${where}`
           : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
-      const toll = `j’en perds ${mine.lost}, il en perd ${theirs.lost}`;
+      const toll = combatBeats(attacking, mine.lost, theirs.lost);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
@@ -1215,6 +1227,7 @@ export const fr = {
       return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
     },
     disabledUntil: (time: string) => `désactivé — retour à ${time}`,
+    beats: combatBeats,
   },
 
   /**
@@ -1778,6 +1791,7 @@ export const fr = {
     theirs: 'en face',
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
+    pass: 'la passe',
     ground: 'le terrain',
     held: 'tenu',
     lost: 'perdu',
@@ -1798,8 +1812,8 @@ export const fr = {
     steps: {
       voyage: 'en route vers le lieu',
       pose: 'mise en place',
-      salves: 'les salves',
-      pertes: 'les pertes',
+      frappe: 'la frappe',
+      riposte: 'la riposte',
       deroute: 'la déroute',
       'compte-rendu': 'compte rendu',
     } satisfies Record<ReplayStep, string>,
@@ -1816,6 +1830,8 @@ export const fr = {
     mine: 'chez nous',
     theirs: 'en face',
     columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },
+    /** Qui tire, accolé à « la frappe » et « la riposte » : l'étape se lit depuis son camp. */
+    whose: (ours: boolean) => (ours ? 'la nôtre' : 'la leur'),
   },
 
   /** **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7) : la phrase de la
@@ -1852,6 +1868,17 @@ export const fr = {
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     estimatedLoot: 'butin estimé au relevé',
+    /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
+    initiative: 'vous frappez en premier',
+    /** Ce que la riposte porte, selon ce qu'on vise : le seul avantage de la défense est un mur. */
+    cover: {
+      sheltered: (bonus: number) =>
+        `La cible est en garnison : elle riposte avec ce qui lui reste, à ×${tenths(bonus)}.`,
+      open: () =>
+        'La cible est à découvert : elle riposte avec ce qui lui reste, sans bonus de bâtiment.',
+      either: (bonus: number) =>
+        `La cible riposte avec ce qui lui reste — à ×${tenths(bonus)} si elle tient un bâtiment.`,
+    } satisfies Record<'sheltered' | 'open' | 'either', (bonus: number) => string>,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
@@ -1900,7 +1927,7 @@ export const fr = {
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
     before: (garrisonBonus: number, dryFactor: number) =>
-      `Avant modificateurs : la salve du défenseur porte ×${tenths(garrisonBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+      `L’attaquant frappe en premier ; le défenseur riposte avec ce qui lui reste — à ×${tenths(garrisonBonus)} s’il tient un bâtiment. Un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
