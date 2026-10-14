@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { fr } from '@/i18n/fr';
 import {
   CLASSIC_MAPPING,
-  DEFAULT_MOUSE_MAPPING,
   MOUSE_BUTTONS,
   WHEEL_ACTS_MAPPING,
   buttonAt,
@@ -52,7 +51,7 @@ describe('le mappage de la souris', () => {
     expect(buttonAt(1)).toBe('middle');
     expect(buttonAt(2)).toBe('right');
     expect(buttonAt(3)).toBeNull();
-    expect(roleAt(DEFAULT_MOUSE_MAPPING, 2)).toBe('act');
+    expect(roleAt(CLASSIC_MAPPING, 2)).toBe('act');
     expect(roleAt(WHEEL_ACTS_MAPPING, 1)).toBe('act');
     expect(roleAt(WHEEL_ACTS_MAPPING, 4)).toBeNull();
   });

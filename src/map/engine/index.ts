@@ -24,7 +24,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { isTyping } from '@/map/typing';
 import {
-  DEFAULT_MOUSE_MAPPING,
+  CLASSIC_MAPPING,
   buttonAt,
   cleanPressAt,
   type CleanPress,
@@ -277,7 +277,7 @@ export class MapEngine {
   private selection: string | null = null;
   private animation = 0;
   private gesture: Gesture | null = null;
-  private mapping: MouseMapping = DEFAULT_MOUSE_MAPPING;
+  private mapping: MouseMapping = CLASSIC_MAPPING;
   private spaceHeld = false;
   private building = false;
   private aiming = false;

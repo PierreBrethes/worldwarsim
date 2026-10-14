@@ -56,41 +56,6 @@ export type RegionRaster = {
   readonly outline: World['outline'];
 };
 
-/** Les plages, comme la grille de routage : la carte est faite d'aplats, et 1,33 M de cellules
- *  se disent en quelques dizaines de milliers de couples. */
-export function encodeRegionRaster(raster: RegionRaster): RegionRasterAsset {
-  return {
-    step: raster.step,
-    width: raster.width,
-    height: raster.height,
-    ids: raster.ids,
-    hosts: raster.hosts,
-    regionRuns: runsOf(raster.regions),
-    hostRuns: runsOf(raster.countries),
-    anchors: [...raster.anchorOfRegion].flatMap(([id, cell]) => [
-      cell,
-      raster.codeOfRegion.get(id)!,
-    ]),
-  };
-}
-
-function runsOf(cells: Uint16Array): number[] {
-  const runs: number[] = [];
-  let value = cells[0]!;
-  let length = 0;
-  for (const cell of cells) {
-    if (cell === value) {
-      length += 1;
-      continue;
-    }
-    runs.push(value, length);
-    value = cell;
-    length = 1;
-  }
-  runs.push(value, length);
-  return runs;
-}
-
 /**
  * La sphère et l'outline viennent de la projection plutôt que de l'asset, comme pour la grille :
  * ils sont déjà dans le bundle pour projeter un point, et deux copies du même cadre pourraient
