@@ -1899,8 +1899,8 @@ export const fr = {
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
-    before: (defenderBonus: number, dryFactor: number) =>
-      `Avant modificateurs : la salve du défenseur porte ×${tenths(defenderBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+    before: (garrisonBonus: number, dryFactor: number) =>
+      `Avant modificateurs : la salve du défenseur porte ×${tenths(garrisonBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le

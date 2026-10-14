@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ef99cf8 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 63424f8 -->
 
 # Les constantes à mesurer
 
@@ -20,7 +20,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | --- | --- | --- | --- |
 | `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:291` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
 | `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:372` | every role; no season simulation models plunder cargo yet |
-| `DEFENDER_BONUS` | `1.15` | `convex/constants.ts:606` | rapport pertes attaquant / défenseur par engagement sur une saison |
+| `GARRISON_BONUS` | `1.15` | `convex/constants.ts:606` | rapport pertes attaquant / défenseur par engagement sur une saison |
 | `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:629` | every value; no season simulation models detection |
 | `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:660` | an assumed starting point; nothing measures how close is close enough on arrival |
 | `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:674` | a rank in the ordering the design asks for, and nothing more |

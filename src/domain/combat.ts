@@ -8,7 +8,7 @@ import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from '
  * measured, not supposed.
  *
  * **There is no initiative any more.** Attacking an equal force costs more than holding it: the
- * defender carries `defenderBonus` and the attacker carries nothing, so an attack is worth
+ * defender carries `garrisonBonus` and the attacker carries nothing, so an attack is worth
  * something only in superiority or in surprise.
  *
  * Deterministic, without a die: in an asynchronous game nobody is there to react to a roll.
@@ -67,7 +67,7 @@ export const TRANSPORT_PROFILES: ReadonlyArray<CombatProfile> = [
 
 export type CombatRules = {
   readonly damage: DamageTable;
-  readonly defenderBonus: number;
+  readonly garrisonBonus: number;
   readonly routThreshold: number;
   /**
    * One round per this many points of engaged strength, per pass (chiffrage §5). A full
@@ -195,7 +195,7 @@ export function resolveEngagement({
    * and spends only the opposing `remaining` — so running one before the other in the source is
    * an order of writing, never an order of battle.
    *
-   * `defenderBonus` is applied **once**, on the defender's salvo, and nowhere else. Dividing the
+   * `garrisonBonus` is applied **once**, on the defender's salvo, and nowhere else. Dividing the
    * attacker's as well — what the sequential rule did — stacked the advantage to ×1.32 of real
    * spread where the constant says ×1.15, so the figure read in `convex/constants.ts` was not the
    * figure the pass applied.
@@ -208,7 +208,7 @@ export function resolveEngagement({
 
   const strikes = [
     ...salvo(striking, holding, supply('attacker')),
-    ...salvo(holding, striking, supply('defender') * rules.defenderBonus),
+    ...salvo(holding, striking, supply('defender') * rules.garrisonBonus),
   ];
 
   /**

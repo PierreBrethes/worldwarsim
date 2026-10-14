@@ -5,7 +5,7 @@ import {
   ARRIVAL_RADIUS_KM,
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
-  DEFENDER_BONUS,
+  GARRISON_BONUS,
   DRY_AMMUNITION_FACTOR,
   detectionRangeOf,
 } from '../../../convex/constants';
@@ -80,7 +80,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
           <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.gunnery.lead}{' '}
             <HelpMark>
-              {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}{' '}
+              {fr.gunnery.before(GARRISON_BONUS, DRY_AMMUNITION_FACTOR)}{' '}
               {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
             </HelpMark>
           </div>

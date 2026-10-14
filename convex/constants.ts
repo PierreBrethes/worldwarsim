@@ -603,7 +603,7 @@ export const DAMAGE_TABLE: DamageTable = {
  *
  * @a-mesurer rapport pertes attaquant / défenseur par engagement sur une saison
  */
-export const DEFENDER_BONUS = 1.15;
+export const GARRISON_BONUS = 1.15;
 
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
@@ -614,7 +614,7 @@ export const DRY_AMMUNITION_FACTOR = 0.6;
 
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
-  defenderBonus: DEFENDER_BONUS,
+  garrisonBonus: GARRISON_BONUS,
   routThreshold: ROUT_THRESHOLD,
   strengthPerRound: STRENGTH_PER_ROUND,
   dryFactor: DRY_AMMUNITION_FACTOR,
