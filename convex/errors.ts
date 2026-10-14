@@ -28,6 +28,7 @@ export type ErrorCode =
   | 'NO_FREE_GAME_CODE'
   | 'LOBBY_FULL'
   | 'BLITZ_FULL'
+  | 'BLITZ_STARTED'
   | 'THEATRE_REQUIRED'
   | 'UNKNOWN_THEATRE'
   | 'THEATRE_ONLY_IN_BLITZ'

@@ -108,6 +108,16 @@ describe('la carte de départ de la Blitz', () => {
     expect(await troopsOf(t, (await neutralOf(t, seat.seasonId))._id)).toEqual([]);
   });
 
+  it('ferme la porte au lancement : ni place, ni entrée en guerre (E4)', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const { code } = (await t.run((ctx) => ctx.db.get(seat.seasonId)))!;
+    const late = await signIn(t, 'Retard');
+    await expect(t.mutation(api.seasons.join, { token: late, code })).rejects.toThrow(
+      /BLITZ_STARTED/,
+    );
+  });
+
   it('ne se pose qu’une fois', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);

@@ -452,6 +452,7 @@ export const enterWar = mutation({
     /** Twice-clicked is not an error: the second call finds a belligerent and hands out
      *  nothing. Answering with a refusal would be telling him his own entry failed. */
     if (isAtWar(player, season)) return;
+    if (modeOf(season.mode) === 'blitz') fail('BLITZ_STARTED');
     if (player.nation === null) fail('NATION_REQUIRED');
 
     const present = await seatsOf(ctx, season._id);

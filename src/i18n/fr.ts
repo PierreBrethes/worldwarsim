@@ -454,6 +454,7 @@ export const fr = {
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
+    BLITZ_STARTED: () => 'la Blitz est lancée — elle se joue entre ceux qui étaient là',
     BLITZ_FULL: (d) =>
       `cette Blitz est complète : elle se joue à ${num(d.maximum)} joueurs au plus`,
     THEATRE_REQUIRED: () => 'une Blitz demande un théâtre',
