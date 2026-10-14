@@ -3,15 +3,23 @@ import { NATIONS, type Nation } from './ids';
 export { NATIONS } from './ids';
 export type { Nation } from './ids';
 
+/**
+ * **The one table of nation inks** (palette des nations, 14/10/2026): the board's grounds, the
+ * masts, the telegraph — every colour a nation takes comes from here, stepped by `nationShades`
+ * (`map/engine/palette.ts`). Printed inks of a 1940 atlas, eight families apart: France's blue,
+ * the Empire's rose, the Soviet vermilion, a field-grey teal for Germany, the imperial purple of
+ * Japan, Italy's olive green, China's ochre-yellow, America's viridian. Neighbours on the board are held
+ * apart by test (`palette.test.ts`).
+ */
 export const INK_BY_NATION: Readonly<Record<Nation, string>> = {
-  france: '#3f5a7d',
-  uk: '#4a4f7a',
-  usa: '#4a7060',
-  ussr: '#9d4638',
-  germany: '#6e6a5e',
-  japan: '#a44a5e',
-  italy: '#a86c4a',
-  china: '#b07434',
+  france: '#2a5ba8',
+  uk: '#a83f68',
+  usa: '#2d7a52',
+  ussr: '#a8352a',
+  germany: '#2b6974',
+  japan: '#6a4796',
+  italy: '#5a8224',
+  china: '#937311',
 };
 
 /**

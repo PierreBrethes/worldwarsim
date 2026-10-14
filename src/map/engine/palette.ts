@@ -1,3 +1,5 @@
+import { FADED_WASH } from '@/domain/control';
+
 /** Literals, because the engine cannot read CSS. `src/styles/tokens.css` is the source and
  *  `src/styles/colors.test.ts` fails when the two drift. */
 export const PALETTE = {
@@ -72,6 +74,54 @@ export function lavis(
  * a black patch that would compete with the building standing on it.
  */
 export const builtInk = (countryInk: string): string => lavis(countryInk, BUILT_LOAD);
+
+/**
+ * **One nation, one family** (palette des nations, 14/10/2026). Every ground a nation colours
+ * on the board is its ink at a load over the paper — never a second ink. The table is
+ * `INK_BY_NATION`; these are its steps, and the engine paints them and nothing else. A held
+ * region and the home sheet are the same step: possession is possession, the cut says where.
+ * A suspended zone is the survey's floor, hatched (`regions.ts`).
+ */
+export function nationShades(ink: string) {
+  const sheet = lavis(ink);
+  return {
+    sheet,
+    built: builtInk(ink),
+    surveyed: lavis(ink, HELD_OPACITY * FADED_WASH),
+    pen: penOn(sheet, ink),
+  };
+}
+
+const linear = (channel: number): number => {
+  const c = channel / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+
+const luminance = (hex: string): number => {
+  const [red, green, blue] = channelsOf(hex).map(linear);
+  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
+};
+
+/** WCAG's ratio: the one measure of "does it read" that holds across hues. */
+export function contrastRatio(first: string, second: string): number {
+  const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (light! + 0.05) / (dark! + 0.05);
+}
+
+/** How far the pen's ink goes toward the black: dark enough to read on the nation's own wash,
+ *  enough of the nation left that the drawing stays in its family. */
+const PEN_DEPTH = 0.75;
+
+/**
+ * The pen that draws over a painted ground — terrain pictograms and the hover's contour. It
+ * takes the **deep** of the ink that painted the ground (plain ink on bare land), or the paper
+ * when the paper reads better: the hover says the terrain with the drawing, never by changing
+ * the nation's colour.
+ */
+export function penOn(ground: string, ink: string | null): string {
+  const deep = ink === null ? PALETTE.border : lavis(PALETTE.border, PEN_DEPTH, ink);
+  return contrastRatio(deep, ground) >= contrastRatio(PALETTE.paper, ground) ? deep : PALETTE.paper;
+}
 
 /**
  * The inks of the "taut thread" plates, verbatim. Ink on paper: a calm ochre for what I
