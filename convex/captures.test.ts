@@ -7,7 +7,7 @@ import { nominalStrength } from './constants';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
-import { regionFacts } from './regions';
+import { foundationOwedBy, regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
@@ -476,6 +476,16 @@ describe('capturing a foundation still under way', () => {
     expect(await t.run((ctx) => ctx.db.get(outpostId))).toBeNull();
     expect(await capturesOf(t)).toEqual([]);
     expect(await noticesOf(t, guest, 'foundationLost')).toHaveLength(1);
+  });
+});
+
+describe('the foundation and a captured building', () => {
+  it('settles no debt of its capturer', () => {
+    const owed = foundationOwedBy({ nation: 'france' }, []);
+    const first = owed[0]!;
+    expect(
+      foundationOwedBy({ nation: 'france' }, [{ key: first.key, regionId: MARNE, capturedAt: 1 }]),
+    ).toEqual(owed);
   });
 });
 
