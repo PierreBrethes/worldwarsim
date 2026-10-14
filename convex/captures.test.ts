@@ -339,6 +339,53 @@ describe('capturing an outpost', () => {
   });
 });
 
+describe('taking a site back', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('lets the loser see and order the capture of a building lost on its own ground', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await finish(t);
+
+    const loser = await playerOf(t, guest);
+    const surveyed = await t.run(
+      async (ctx) =>
+        (
+          await ctx.db
+            .query('regionSightings')
+            .withIndex('byPlayerRegion', (q) => q.eq('playerId', loser._id).eq('regionId', PSKOV))
+            .unique()
+        )?.installations,
+    );
+    expect(surveyed).toEqual([{ buildingId: barracks, key: 'barracks' }]);
+
+    const home = await building(t, guest, 'RUS-2336', 1);
+    const mine = await troop(t, guest, 'infantry', home);
+    await expect(
+      t.mutation(api.movements.capture, {
+        ...guest,
+        origin: { kind: 'building', buildingId: home },
+        troopIds: [mine],
+        target: { kind: 'building', buildingId: barracks },
+      }),
+    ).resolves.toMatchObject({ movementId: expect.any(String) });
+  });
+});
+
 describe('ordering a capture', () => {
   it('is refused to a column without infantry, and on a headquarters', async () => {
     const t = boot();
