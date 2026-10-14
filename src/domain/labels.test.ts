@@ -40,6 +40,7 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
   identification: { pierced: false },
   estimatedMinutesLeft: 100,
   watchMinutesLeft: 12,
+  since: 0,
   progress: 0.34,
   ...override,
 });

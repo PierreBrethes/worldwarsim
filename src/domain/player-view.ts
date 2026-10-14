@@ -130,6 +130,8 @@ export type ArcView =
       /** How long the watch still runs. **It is what paces the pawn**: the pion must reach the
        *  end of the watched stretch when the window closes, not when the column lands. */
       readonly watchMinutesLeft: number;
+      /** L'instant de sa première observation, l'heure qu'il porte tant qu'il est en vue (H3). */
+      readonly since: number;
       readonly progress: number;
     }
   | {

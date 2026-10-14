@@ -176,7 +176,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
       ]);
     case 'enemyDetected': {
       const known = arc.identification;
-      return sighting(fr.posters.inSight, fr.posters.moving, [
+      return sighting(fr.posters.surveyed(asClockTime(arc.since)), fr.posters.moving, [
         {
           kind: 'text',
           text: known.pierced

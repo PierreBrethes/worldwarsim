@@ -347,11 +347,13 @@ describe('posterOf', () => {
       identification: { pierced: false },
       estimatedMinutesLeft: 30,
       watchMinutesLeft: 10,
+      since: LOADED_AT - 40 * 60_000,
       progress: 0.5,
     };
     const poster = posterFor(view({ arcs: [arc] }), [], 'foe');
+    // In sight, the hour of its first observation — the camp's rule, and the annotation's (H3).
     expect(poster).toMatchObject({
-      eyebrow: 'relevé · en vue',
+      eyebrow: `relevé · ${asClockTime(LOADED_AT - 40 * 60_000)}`,
       washed: true,
       pile: null,
       bar: null,

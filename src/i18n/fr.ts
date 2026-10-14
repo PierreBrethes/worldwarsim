@@ -3296,7 +3296,6 @@ export const fr = {
     lot: 'lot',
     lotProgress: (produced: number, ordered: number) => `${produced} / ${ordered}`,
     surveyed: (time: string) => `relevé · ${time}`,
-    inSight: 'relevé · en vue',
     standing: 'force posée',
     moving: 'force en mouvement',
     unknown: 'composition inconnue, nation inconnue',

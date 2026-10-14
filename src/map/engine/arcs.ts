@@ -159,7 +159,6 @@ export class ArcLayer {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
     const now = performance.now();
-    const clock = Date.now();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
       const thread = buildThread(
@@ -187,12 +186,12 @@ export class ArcLayer {
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
         // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
-        // its stretch (F2, ADR 0026 §4 révisé). In sight, its hour is the last look: now.
+        // its stretch (F2, ADR 0026 §4 révisé), dated by its first observation (H3).
         arc.state === 'enemyDetected'
           ? {
-              land: annotationFigurine('land', clock),
-              sea: annotationFigurine('sea', clock),
-              air: annotationFigurine('air', clock),
+              land: annotationFigurine('land', arc.since),
+              sea: annotationFigurine('sea', arc.since),
+              air: annotationFigurine('air', arc.since),
             }
           : roles && {
               land: figurineOf(roles.land),
