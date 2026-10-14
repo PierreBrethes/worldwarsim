@@ -511,6 +511,11 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
  * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
+ *
+ * A fourth since the initiative (decision of 14/10, C2): the light tank answers the heavy one at
+ * a quarter of what it does to its own kind (.50 → .13). At .25 the heavy tank's strike left it
+ * three of twelve and a riposte that rounded to nothing — a free hit dressed as a weak one; under
+ * .15 the guard rail no longer asks it to cost, and the table says so instead of an exception.
  */
 export const DAMAGE_TABLE: DamageTable = {
   infantry1: { infantry1: 0.5, infantry2: 0.55, armor1: 0.15, armor2: 0.05, landTransport: 0.7 },
@@ -524,7 +529,7 @@ export const DAMAGE_TABLE: DamageTable = {
     bomber: 0.1,
     airTransport: 0.12,
   },
-  armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.25, landTransport: 0.85 },
+  armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.13, landTransport: 0.85 },
   armor2: { infantry1: 0.75, infantry2: 0.7, armor1: 0.75, armor2: 0.5, landTransport: 0.9 },
   landTransport: {
     infantry1: 0.1,

@@ -89,14 +89,6 @@ const reaches = (from: CombatProfile, to: CombatProfile) => DAMAGE_TABLE[from][t
  * the day it drifted the check would have been passing on numbers the game no longer plays. It
  * replays the same seventy-five couples through `resolveEngagement` itself.
  */
-/**
- * **Le seul coup gratuit de l'initiative**, mesuré et non supposé : un char lourd qui attaque un
- * char léger le laisse à 3 / 12, et ce qui reste riposte pour zéro. La table n'a pas bougé
- * (`DAMAGE_TABLE`, inchangée par le grilling du 14/10) ; c'est la règle qui le fait, et il est
- * nommé ici pour qu'un second ne s'y glisse pas en silence. En choc, il coûte comme avant.
- */
-const FREE_UNDER_INITIATIVE = new Set(['armor2>armor1']);
-
 describe('the damage table holds no absolute counter', () => {
   const couples = COMBAT_PROFILES.flatMap((attacker) =>
     COMBAT_PROFILES.filter((defender) => reaches(attacker, defender)).map(
@@ -120,11 +112,7 @@ describe('the damage table holds no absolute counter', () => {
         `${attacker} → ${defender} wipes for nothing`,
       ).toBe(false);
     }
-    if (
-      reaches(defender, attacker) &&
-      DAMAGE_TABLE[defender][attacker]! >= 0.15 &&
-      !FREE_UNDER_INITIATIVE.has(`${attacker}>${defender}`)
-    ) {
+    if (reaches(defender, attacker) && DAMAGE_TABLE[defender][attacker]! >= 0.15) {
       expect(
         fight.lostByAttacker,
         `${defender} can reach ${attacker} and still costs it nothing`,
@@ -154,6 +142,13 @@ describe('the reference case of the initiative', () => {
   it('makes the attacker of an even fight the one that comes out ahead', () => {
     const fight = duel('infantry1', 'infantry1', { sheltered: true });
     expect(fight.lostByAttacker).toBeLessThan(fight.lostByDefender);
+  });
+
+  /** Décision de Pierre du 14/10 (C2) : le char léger répond au lourd, mais faiblement — le
+   *  quart de ce qu'il fait à un char léger, au centième de la table. */
+  it('has the light tank answer the heavy one at a quarter of what it does to its own kind', () => {
+    expect(DAMAGE_TABLE.armor1.armor2).toBe(0.13);
+    expect(DAMAGE_TABLE.armor1.armor1).toBe(0.5);
   });
 
   it('gives mark-2 infantry the answer to a heavy tank that mark 1 does not have', () => {
@@ -328,11 +323,6 @@ describe('the shock', () => {
     });
     expect(engagement.outcomes.find((one) => one.id === rifles.id)!.state).toBe('destroyed');
     expect(firedBy(engagement, rifles)).toHaveLength(1);
-  });
-
-  it('makes the one free hit of the initiative cost again', () => {
-    expect(duel('armor2', 'armor1').lostByAttacker).toBe(0);
-    expect(duel('armor2', 'armor1', { mode: 'shock' }).lostByAttacker).toBeGreaterThan(0);
   });
 
   it('still carries the garrison bonus of a sheltered defender', () => {
