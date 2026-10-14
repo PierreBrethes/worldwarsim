@@ -32,6 +32,10 @@ export function captureRefusalOf(
 export const captureDurationMs = (mode: GameMode, kind: CaptureKind): number =>
   CAPTURE_MINUTES[mode][kind] * 60_000;
 
+/** La durée qu'une infanterie à ce rythme mettrait, hors plage de repos. */
+export const captureDurationAt = (mode: GameMode, kind: CaptureKind, rate: number): number =>
+  captureDurationMs(mode, kind) / rate;
+
 /**
  * **La vitesse est la force de la meilleure infanterie présente** — pleine, la vitesse de base ;
  * à moitié, la moitié. La meilleure et non la somme : deux compagnies entamées ne capturent pas

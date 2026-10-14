@@ -47,6 +47,7 @@ import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
+import { captureRate } from '@/domain/capture';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
@@ -2629,10 +2630,11 @@ function armedColumn(
   station: MarchStation,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
-  const roles = troopIds.flatMap((troopId) => {
+  const troops = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-    return troop ? [troop.role] : [];
+    return troop ? [troop] : [];
   });
+  const roles = troops.map((troop) => troop.role);
   const departure =
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
@@ -2661,6 +2663,7 @@ function armedColumn(
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,
+      captureRate: captureRate(troops),
     },
   };
 }

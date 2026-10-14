@@ -1892,7 +1892,7 @@ export const fr = {
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
     presence: (duration: string) => `présence sur site — ${duration}`,
-    capture: (duration: string) => `capture à pleine force — ${duration}`,
+    capture: (duration: string) => `capture — ${duration} à la force de la pile`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     estimatedLoot: 'butin estimé au relevé',
@@ -2870,10 +2870,10 @@ export const fr = {
     plunderConsequence: (verb: string) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
     installation: 'installation relevée',
-    /** **Capturer** (14/10) : la durée à pleine force, lue sur la fonction que le serveur date. */
+    /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
     captureConsequence: (duration: string) =>
-      `L’infanterie tient le site ${duration} à pleine force — moins vite entamée — puis il change de main.`,
+      `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',

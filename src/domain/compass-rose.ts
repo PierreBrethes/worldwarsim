@@ -12,7 +12,7 @@ import {
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
-import { captureDurationMs } from './capture';
+import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
@@ -351,7 +351,7 @@ export type CompassAction =
   /**
    * **Capturer** (décision du 14/10) : un bâtiment ou un avant-poste adverse, par l'infanterie.
    * La branche ne paraît que si `captureOrderRefusalOf` la laisse passer — la fonction même que
-   * `movements.capture` relit — et elle annonce la durée à pleine force.
+   * `movements.capture` relit — et elle annonce la durée à la force de la pile.
    */
   | {
       readonly key: 'capture';
@@ -747,8 +747,8 @@ function plunderFan(
 
 /**
  * **La branche « capturer »**, ou le motif qui la retient — dans les mots du serveur. La durée est
- * celle de `captureDurationMs`, que le serveur date aussi : à pleine force, parce que la rose ne
- * tient que les rôles de la pile.
+ * celle de `captureDurationAt` au rythme de la pile (`Column.captureRate`), la règle que
+ * l'aperçu du serveur lit aussi.
  */
 function captureBranch(
   site: Parameters<typeof captureOrderRefusalOf>[0],
@@ -769,7 +769,7 @@ function captureBranch(
       label: fr.compass.capture,
       cost: slotCost(view),
       consequence: fr.compass.captureConsequence(
-        asDuration(captureDurationMs(view.mode, site.kind) / 60_000),
+        asDuration(captureDurationAt(view.mode, site.kind, column.captureRate ?? 1) / 60_000),
       ),
       target,
       aim: aimed,

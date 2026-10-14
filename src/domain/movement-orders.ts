@@ -153,6 +153,11 @@ export type Column = {
    * the routing grid, never stored, like `afloat` beside it.
    */
   readonly coastal: boolean;
+  /**
+   * **Le rythme auquel cette pile capturerait** (`captureRate`) : la force de sa meilleure
+   * infanterie. Absent, la pleine force — ce que la rose annonçait avant d'avoir les troupes.
+   */
+  readonly captureRate?: number;
 };
 
 export type OrderRefusal =

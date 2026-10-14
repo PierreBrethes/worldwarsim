@@ -12,7 +12,7 @@ import {
   routeModeOf,
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
-import { captureDurationMs } from '../src/domain/capture';
+import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { distanceKm } from '../src/domain/geo';
 import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
@@ -732,7 +732,18 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      captureMinutes: captureDurationMs(season.mode ?? 'mondiale', target.kind) / 60_000,
+      captureMinutes:
+        captureDurationAt(
+          season.mode ?? 'mondiale',
+          target.kind,
+          captureRate(
+            troops.map((troop) => ({
+              role: troop.role,
+              strength: troop.currentStrength,
+              nominalStrength: troop.nominalStrength,
+            })),
+          ),
+        ) / 60_000,
     };
   },
 });

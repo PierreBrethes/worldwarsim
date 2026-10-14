@@ -543,6 +543,24 @@ describe('in aim', () => {
     ]);
   });
 
+  it('announces the duration at the strength the column really has', () => {
+    const worn = compassOf(
+      {
+        kind: 'installation',
+        id: 'barracks-enemy',
+        key: 'barracks',
+        regionId: 'ROU-310',
+        name: 'Caserne',
+      },
+      view,
+      { ...column, captureRate: 0.5 },
+    );
+    expect(worn?.actions[0]).toMatchObject({
+      key: 'capture',
+      consequence: expect.stringContaining('12:00:00'),
+    });
+  });
+
   it('says why a headquarters is not captured', () => {
     const hq = compassOf(
       { kind: 'installation', id: 'hq-enemy', key: 'hq', regionId: 'ROU-310', name: 'QG' },
