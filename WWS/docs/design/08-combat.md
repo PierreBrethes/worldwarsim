@@ -64,7 +64,7 @@ Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §12.
 > **protection** (C1) : une garnison de bâtiment, d'objectif ou d'avant-poste debout et en service
 > encaisse ×0,7 des coups (`GARRISON_DAMAGE_TAKEN`) et riposte sans multiplicateur. Cinquante
 > contre cinquante : 25 / 13 en terrain libre, 18 / 16 en garnison. La salve simultanée décrite ci-dessous ne survit que comme **choc** (B17).
-> Le char léger répond au lourd à .13 (C2). Les deux paragraphes suivants sont historiques.
+> Une riposte qui touche abat au moins un (C2). Les deux paragraphes suivants sont historiques.
 
 **Un engagement = une passe de résolution**, et une passe = **une salve de chaque camp, tirée sur
 l'état d'avant la passe**. Chacun vise la meilleure cible que la table lui donne, et seulement

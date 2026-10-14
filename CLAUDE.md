@@ -45,7 +45,7 @@ ni en mer ni à une troupe en mouvement, ni à la garnison d'un point en chantie
 (`shelteredOf`, `outpostShelters`). On ne paie en munitions que ce qu'on tire : la riposte se
 facture sur ce que la frappe a laissé, un défenseur anéanti ne paie rien ; et le vainqueur se lit
 sur les issues amendées par le large. Cinquante fantassins contre cinquante en
-terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 18 et 16. Le char léger répond au lourd à .13, le quart de ce qu'il fait à son pareil (C2). La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
+terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 18 et 16. **Une riposte qui touche abat au moins un** (C2, riposte seulement, ni frappe ni choc) : le char léger que le lourd laisse à 3 / 12 riposte pour .375, que l'arrondi effaçait. La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
 ordonnée nulle part : elle attend la Blitz. L'aperçu d'un ordre d'attaque dit « vous frappez en
 premier » et si la cible encaisse moins ; dépêche, feuille d'arrivée et compte rendu disent
 « notre frappe en abat N, leur riposte en abat M » (`combatBeats`, `fr.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
