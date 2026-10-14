@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { INK_BY_NATION, type Nation } from '@/domain/nations';
-import { builtInk, contrastRatio, lavis, lit, nationShades, PALETTE, penOn } from './palette';
+import {
+  builtInk,
+  contrastRatio,
+  HELD_OPACITY,
+  lavis,
+  lit,
+  nationShades,
+  PALETTE,
+  penOn,
+} from './palette';
 
 const channels = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -135,6 +144,13 @@ describe('the pen over a ground', () => {
     const pen = penOn(surveyed, INK_BY_NATION.japan);
     expect(pen).not.toBe(PALETTE.paper);
     expect(hueDrift(pen, INK_BY_NATION.japan)).toBeLessThan(35);
+  });
+
+  /** A region held inside an opponent's country: my ink laid over his lavis. */
+  it.each(NEIGHBOURS)('reads where %s holds ground inside %s', (holder, country) => {
+    const ink = INK_BY_NATION[holder];
+    const ground = lavis(ink, HELD_OPACITY, nationShades(INK_BY_NATION[country]).sheet);
+    expect(contrastRatio(penOn(ground, ink), lit(ground))).toBeGreaterThanOrEqual(3);
   });
 
   it('draws in plain ink on the bare land', () => {

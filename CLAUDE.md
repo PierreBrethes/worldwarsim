@@ -471,7 +471,8 @@ son mât (l'encre de la nation), et en gris sous le pointeur (une lueur chaude a
 Il n'y a plus qu'**une table**, `INK_BY_NATION` (`src/domain/nations.ts`) : `control.held` sert
 l'encre de la nation du siège — une nation n'a qu'une place par saison —, et `nationShades`
 (`palette.ts`) en tire les paliers — sol national et région tenue (le même), bâti, relevé délavé
-(le plancher où la zone suspendue se hachure aussi) et la plume. Huit encres d'atlas :
+(le plancher où la zone suspendue se hachure aussi) ; la plume, elle, se lit sur le sol réellement
+peint (`penOn`). Huit encres d'atlas :
 France bleu, Royaume-Uni rose impérial, URSS vermillon, Allemagne sarcelle feldgrau, Japon pourpre
 impérial, Italie vert olive, Chine ocre jaune, États-Unis viridian. Les tests de `palette.test.ts`
 tiennent les voisins à l'écart (ΔE sur la carte), chaque palier dans sa famille — la famille d'un

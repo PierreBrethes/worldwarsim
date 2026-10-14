@@ -61,7 +61,7 @@ import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
-import { HELD_OPACITY, lavis, PALETTE } from './palette';
+import { HELD_OPACITY, nationShades, PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
@@ -1036,8 +1036,7 @@ export class MapEngine {
     this.paintCountries();
   }
 
-  /** A sheet painted whole takes the holder's lavis instead of the nation's, as its region fills
-   *  did: both over the paper, never one over the other (`lavis`). */
+  /** A sheet painted whole takes the holder's lavis — over the paper, never over another ink. */
   private paintCountries(): void {
     const grounds = new Map<string, string>();
     for (const mesh of this.countries) {
@@ -1045,7 +1044,7 @@ export class MapEngine {
       const nation = this.nationInks.get(mesh.userData.name);
       if (sheet === undefined && nation !== undefined) grounds.set(mesh.userData.adm0, nation);
       const ink = sheet ?? nation;
-      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : lavis(ink));
+      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : nationShades(ink).sheet);
       mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
     }
     this.regions.setGrounds(grounds);

@@ -13,7 +13,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { builtInk, HELD_OPACITY, lavis, PALETTE, penOn } from './palette';
+import { HELD_OPACITY, lavis, nationShades, PALETTE, penOn } from './palette';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import {
   mulberry,
@@ -343,7 +343,7 @@ export class RegionLayer {
   /** The countries not laid on the bare paper, by `adm0`, with the nation ink their lavis is
    *  made of: the pen reads its ground from there. */
   private grounds: ReadonlyMap<string, string> = new Map();
-  private builtInk: string = PALETTE.neutralLand;
+  private builtNationInk: string | null = null;
 
   setGrounds(grounds: ReadonlyMap<string, string>): void {
     this.grounds = grounds;
@@ -370,8 +370,8 @@ export class RegionLayer {
    * (ADR 0005).
    */
   showBuilt(regionIds: ReadonlySet<string>, ink: string): void {
-    this.builtMaterial.color.set(builtInk(ink));
-    this.builtInk = ink;
+    this.builtMaterial.color.set(nationShades(ink).built);
+    this.builtNationInk = ink;
     /** La liste est refaite à chaque battement de la vue : sans ce garde, un pas de colonne
      *  retriangulait le sol bâti **et toute la couleur tenue**, qui n'avait pas bougé. */
     if (sameIds(regionIds, this.builtIds)) return;
@@ -625,13 +625,14 @@ export class RegionLayer {
     const painted = held === undefined || held.state === 'suspended' ? null : held;
     const underInk = (region && this.grounds.get(region.country)) ?? null;
     const under = underInk === null ? PALETTE.neutralLand : lavis(underInk);
-    const built = region !== null && this.builtIds.has(region.id) ? this.builtInk : null;
-    const pen =
+    const built = region !== null && this.builtIds.has(region.id) ? this.builtNationInk : null;
+    const [ground, groundInk] =
       built !== null
-        ? penOn(builtInk(built), built)
+        ? [nationShades(built).built, built]
         : painted !== null
-          ? penOn(lavis(painted.ink, HELD_OPACITY * painted.wash, under), painted.ink)
-          : penOn(under, underInk);
+          ? [lavis(painted.ink, HELD_OPACITY * painted.wash, under), painted.ink]
+          : [under, underInk];
+    const pen = penOn(ground, groundInk);
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),

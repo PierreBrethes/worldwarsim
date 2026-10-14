@@ -78,17 +78,16 @@ export const builtInk = (countryInk: string): string => lavis(countryInk, BUILT_
 /**
  * **One nation, one family** (palette des nations, 14/10/2026). Every ground a nation colours
  * on the board is its ink at a load over the paper — never a second ink. The table is
- * `INK_BY_NATION`; these are its steps, and the engine paints them and nothing else. A held
+ * `INK_BY_NATION`; these are its steps. The engine paints `sheet` and `built`; a region fill
+ * is the ink laid at `HELD_OPACITY × wash` by the blend, which lands on `sheet` when fresh and
+ * on `surveyed` at the floor — where a suspended zone is hatched too (`regions.ts`). A held
  * region and the home sheet are the same step: possession is possession, the cut says where.
- * A suspended zone is the survey's floor, hatched (`regions.ts`).
  */
 export function nationShades(ink: string) {
-  const sheet = lavis(ink);
   return {
-    sheet,
+    sheet: lavis(ink),
     built: builtInk(ink),
     surveyed: lavis(ink, HELD_OPACITY * FADED_WASH),
-    pen: penOn(sheet, ink),
   };
 }
 
@@ -112,8 +111,9 @@ export function contrastRatio(first: string, second: string): number {
  *  enough of the nation left that the drawing stays in its family. */
 const PEN_DEPTH = 0.6;
 
-/** What the warm lamp leaves of a lit ground's light, measured on the board (the sand and
- *  France's sheet both render at about this share of their luminance). The pen is a line, unlit. */
+/** What the warm lamp leaves of a lit ground's light, measured on screenshots of the board (the
+ *  sand and France's sheet both render at about this share of their luminance) — to measure
+ *  again when `lamp.ts` changes. The pen is a line, unlit. */
 const LAMP_SHARE = 0.45;
 
 /** A ground as the board renders it under the lamp, in sRGB. */
