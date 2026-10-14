@@ -105,6 +105,35 @@ export function mendPlan<T extends Wounded & { readonly id: string }>(
   });
 }
 
+/** Pourquoi une Blitz s'est conclue : le dernier debout — QG pris ou capitulation —, ou
+ *  l'horloge, au revenu ou à égalité (B10, B11). */
+export type VerdictReason = 'hqTaken' | 'lastStanding' | 'income' | 'draw';
+
+/**
+ * **À deux heures, le plus gros revenu gagne** (B11) : les fonds par minute tenus à l'instant,
+ * départagés par la caisse à l'unité près, puis l'égalité déclarée — personne ne gagne.
+ */
+export function clockVerdict(
+  lines: ReadonlyArray<{ readonly id: string; readonly perMinute: number; readonly funds: number }>,
+): {
+  readonly winnerId: string | null;
+  readonly reason: 'income' | 'draw';
+  readonly perMinute: number | null;
+} {
+  const ranked = [...lines].sort(
+    (a, b) => b.perMinute - a.perMinute || Math.floor(b.funds) - Math.floor(a.funds),
+  );
+  const [first, second] = ranked;
+  if (first === undefined) return { winnerId: null, reason: 'draw', perMinute: null };
+  const tied =
+    second !== undefined &&
+    second.perMinute === first.perMinute &&
+    Math.floor(second.funds) === Math.floor(first.funds);
+  return tied
+    ? { winnerId: null, reason: 'draw', perMinute: first.perMinute }
+    : { winnerId: first.id, reason: 'income', perMinute: first.perMinute };
+}
+
 /**
  * **Ni construction, ni élévation, ni fondation en Blitz** (B4) : la rose ne propose pas ces
  * ordres et le serveur les refuse, par cette seule lecture. On n'y pille pas non plus — il n'y a

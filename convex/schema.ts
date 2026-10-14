@@ -33,6 +33,7 @@ import {
   UNIT_TIER,
   SEASON_MODE,
   LAUNCH_REFUSAL,
+  VERDICT,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -124,6 +125,12 @@ export default defineSchema({
      * une saison conclue ne se rejoue pas.
      */
     winnerNation: v.optional(v.union(v.string(), v.null())),
+    /**
+     * **Pourquoi la Blitz s'est conclue** (B10, B11) : le dernier debout après une chute de QG
+     * ou une capitulation, le plus gros revenu à l'horloge, ou l'égalité. Absent en Mondiale et
+     * sur toute saison d'avant le lot 6 : l'édition finale ne dit alors que le vainqueur.
+     */
+    verdict: v.optional(VERDICT),
     /**
      * **Combien de places la saison porte**, tenu à l'écriture. C'est la dénormalisation qui a
      * sorti la liste des parties du compte de son délai d'une seconde (12/09) : l'accueil lit

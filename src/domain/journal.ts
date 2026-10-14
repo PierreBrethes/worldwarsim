@@ -457,6 +457,13 @@ function written(notice: Notice): Written {
         kind: 'surrender',
         text: said.playerSurrendered(nationName(notice.nation)),
       };
+    case 'playerEliminated':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'elimination',
+        text: said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
+      };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':
       return {

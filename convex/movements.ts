@@ -754,7 +754,7 @@ export const previewCapture = query({
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
-          target.kind,
+          aimed.aim.kind === 'building' ? aimed.aim : { kind: 'outpost' },
           captureRate(
             troops.map((troop) => ({
               role: troop.role,

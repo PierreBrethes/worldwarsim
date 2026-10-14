@@ -522,6 +522,14 @@ export const NOTICE = v.union(
     kind: v.literal('commandTransferred'),
     nation: v.string(),
   }),
+  /** **Un QG tombé en Blitz** (B10) : le joueur est éliminé, ses bâtiments passent à qui l'a
+   *  capturé. Public comme une capitulation, et pour la même raison. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('playerEliminated'),
+    nation: v.string(),
+    by: v.string(),
+  }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous
    * collectif que l'audit du 25/08 réclamait, à coût nul : tout le monde la reçoit à la même
@@ -824,3 +832,14 @@ export const PUSH_PREFERENCES = v.object({
 
 /** Pourquoi une Blitz lancée est revenue au salon (`blitz.abandon`). */
 export const LAUNCH_REFUSAL = v.union(v.literal('BLITZ_MAP_UNFAIR'), v.literal('BLITZ_MAP_FAILED'));
+
+/** `VerdictReason` (`src/domain/blitz.ts`), et le revenu du vainqueur quand l'horloge a tranché. */
+export const VERDICT = v.object({
+  reason: v.union(
+    v.literal('hqTaken'),
+    v.literal('lastStanding'),
+    v.literal('income'),
+    v.literal('draw'),
+  ),
+  perMinute: v.optional(v.number()),
+});

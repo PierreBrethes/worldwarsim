@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, type MutationCtx } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
+import { modeOf } from '../src/domain/season-mode';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
@@ -132,19 +133,23 @@ export const surrender = mutation({
      *  drapeau n'a pas d'armes à déposer, et il ne compte dans aucune fin de saison. */
     if (!isAtWar(player, season)) fail('NOT_AT_WAR');
 
-    await leaveTheWar(ctx, season, player, Date.now());
+    await leaveTheWar(ctx, season, player, Date.now(), { kind: 'playerSurrendered' });
   },
 });
 
 /**
- * **Sortir de la guerre** : défait, commandement transmis, saison conclue s'il ne reste qu'un
- * belligérant. Extrait de `surrender` pour que la chute d'un QG de Blitz sorte par la même porte.
+ * **Sortir de la guerre, par la capitulation ou par la chute de son QG** (B10) : la même sortie,
+ * parce qu'elle a les mêmes conséquences pour la table — défait, commandement transmis, saison
+ * conclue s'il ne reste qu'un belligérant. Seule la dépêche dit laquelle.
  */
 export async function leaveTheWar(
   ctx: MutationCtx,
   season: Doc<'seasons'>,
   player: Doc<'players'>,
   now: number,
+  exit:
+    | { readonly kind: 'playerSurrendered' }
+    | { readonly kind: 'playerEliminated'; readonly by: string },
 ): Promise<void> {
   await ctx.db.patch(player._id, { defeated: true });
 
@@ -175,8 +180,8 @@ export async function leaveTheWar(
     await ctx.db.insert('notices', {
       playerId: seat._id,
       at: now,
-      kind: 'playerSurrendered',
       nation: nameOf(player),
+      ...exit,
     });
     if (successor !== null) {
       await ctx.db.insert('notices', {
@@ -199,5 +204,15 @@ export async function leaveTheWar(
    */
   const belligerents = standing.filter((seat) => isAtWar(seat, season));
   const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
-  if (survivor !== undefined) await concludeSeason(ctx, season._id, survivor._id, now);
+  if (survivor === undefined) return;
+  /** **En Blitz, l'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé ou
+   *  par la capitulation des autres. */
+  const verdict =
+    modeOf(season.mode) === 'blitz'
+      ? {
+          reason:
+            exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
+        }
+      : undefined;
+  await concludeSeason(ctx, season._id, survivor._id, now, verdict);
 }

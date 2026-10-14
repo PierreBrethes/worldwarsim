@@ -107,9 +107,9 @@ describe('la carte de départ de la Blitz', () => {
       const me = await playerOf(t, who);
       const held = await buildingsOf(t, me._id);
       expect(held.map((building) => building.key).sort()).toEqual(['barracks', 'hq']);
-      expect(
-        (await troopsOf(t, me._id)).map((troop) => troop.stationedAt).sort(),
-      ).toEqual(held.map((building) => building._id).sort());
+      expect((await troopsOf(t, me._id)).map((troop) => troop.stationedAt).sort()).toEqual(
+        held.map((building) => building._id).sort(),
+      );
       expect(me.funds).toBe(BLITZ.startingFunds);
     }
     const neutral = await buildingsOf(t, (await neutralOf(t, seat.seasonId))._id);
@@ -480,7 +480,9 @@ describe('le recrutement de la Blitz', () => {
     await t.mutation(internal.troops.deliver, { recruitmentId });
     const [lon, lat] = pointOfBuilding(hq)!;
     expect(
-      (await troopsOf(t, me._id)).filter((troop) => troop._id !== guard!._id).map((troop) => troop.stationedAt),
+      (await troopsOf(t, me._id))
+        .filter((troop) => troop._id !== guard!._id)
+        .map((troop) => troop.stationedAt),
     ).toContainEqual({ lon, lat });
   });
 
@@ -534,5 +536,118 @@ describe('le soin et l’absence de chantier', () => {
     await expect(
       t.mutation(api.buildings.demolish, { ...seat, buildingId: first!._id }),
     ).rejects.toThrow(/NOT_IN_BLITZ/);
+  });
+});
+
+/** Une infanterie de `by` arrive sur `site` pour le capturer, et la capture va à son terme. */
+async function captureToTheEnd(
+  t: Bench,
+  by: Id<'players'>,
+  seasonId: Id<'seasons'>,
+  site: { _id: Id<'buildings'>; regionId: string },
+) {
+  const [infantry] = (await troopsOf(t, by)).filter((troop) => troop.role === 'infantry');
+  const [lon, lat] = pointOfBuilding(site as never)!;
+  const movementId = await t.run((ctx) =>
+    ctx.db.insert('movements', {
+      seasonId,
+      playerId: by,
+      type: 'attack',
+      fromBuildingId: null,
+      target: { kind: 'building', buildingId: site._id },
+      from: { lon: lon - 1, lat },
+      to: { lon, lat },
+      hostCountry: '',
+      points: [
+        { lon: lon - 1, lat },
+        { lon, lat },
+      ],
+      legs: [{ medium: 'land', distanceUnits: 1 }],
+      distanceUnits: 1,
+      costUnits: 1,
+      troopIds: [infantry!._id],
+      departedAt: Date.now(),
+      arrivesAt: Date.now(),
+      capture: { kind: 'building', buildingId: site._id },
+    }),
+  );
+  await t.mutation(internal.movements.arrive, { movementId });
+  const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+  vi.setSystemTime(capture!.completesAt);
+  await t.mutation(internal.captures.complete, {
+    captureId: capture!._id,
+    expectedAt: capture!.completesAt,
+  });
+  return capture!;
+}
+
+describe('la chute d’un QG (B10)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('se capture en six minutes, élimine le perdant et conclut la Blitz à deux', async () => {
+    const t = boot();
+    const { seat, guest } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const loser = await playerOf(t, guest);
+    const held = await buildingsOf(t, loser._id);
+    const hq = held.find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
+
+    const capture = await captureToTheEnd(t, me._id, seat.seasonId, hq);
+    expect(capture.completesAt - MIDDAY).toBe(6 * MINUTE);
+
+    expect(await buildingsOf(t, loser._id)).toEqual([]);
+    expect((await buildingsOf(t, me._id)).map((building) => building._id)).toEqual(
+      expect.arrayContaining(held.map((building) => building._id)),
+    );
+    expect(await troopsOf(t, loser._id)).toEqual([]);
+    expect((await playerOf(t, guest)).defeated).toBe(true);
+    const season = (await t.run((ctx) => ctx.db.get(seat.seasonId)))!;
+    expect(season).toMatchObject({
+      status: 'concluded',
+      winnerId: me._id,
+      verdict: { reason: 'hqTaken' },
+    });
+    const view = await t.query(api.view.playerView, guest);
+    expect(view.press).toMatchObject({ final: true });
+    expect(view.season.verdict).toEqual({
+      reason: 'hqTaken',
+      winnerNation: 'france',
+      perMinute: null,
+    });
+  });
+
+  it('à trois, élimine sans conclure, et le dit à toute la table', async () => {
+    const t = boot();
+    const [first, second, third] = await blitzLaunchedOn(t, 'europe', 3);
+    const me = await playerOf(t, first!);
+    const loser = await playerOf(t, second!);
+    const hq = (await buildingsOf(t, loser._id)).find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
+    await captureToTheEnd(t, me._id, first!.seasonId, hq);
+
+    expect((await t.run((ctx) => ctx.db.get(first!.seasonId)))!.status).toBe('launched');
+    const watcher = await playerOf(t, third!);
+    const notices = await t.run((ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', watcher._id))
+        .collect(),
+    );
+    expect(notices).toContainEqual(
+      expect.objectContaining({ kind: 'playerEliminated', nation: 'ussr', by: 'france' }),
+    );
+    await expect(
+      t.mutation(api.troops.recruit, {
+        ...second!,
+        buildingId: hq._id,
+        role: 'infantry',
+        tier: 1,
+      }),
+    ).rejects.toThrow();
   });
 });

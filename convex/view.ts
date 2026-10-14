@@ -397,6 +397,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           reduced: standing.reduced,
         })),
       },
+      verdict:
+        season.verdict === undefined
+          ? null
+          : {
+              reason: season.verdict.reason,
+              winnerNation: season.winnerNation ?? null,
+              perMinute: season.verdict.perMinute ?? null,
+            },
     },
     me: {
       nation: player.nation ?? '?',

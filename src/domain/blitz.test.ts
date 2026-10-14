@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   blitzRecruitRefusalOf,
+  clockVerdict,
   contactAt,
   fundsAt,
   incomePerMinute,
@@ -185,5 +186,35 @@ describe('charge against charge (B17)', () => {
   it('leaves the initiative to whoever strikes a target busy elsewhere', () => {
     expect(passModeOf(['a1'], 'c9')).toBe('initiative');
     expect(passModeOf(['a1'], null)).toBe('initiative');
+  });
+});
+
+describe('la fin à l’horloge (B11)', () => {
+  it('donne la saison au plus gros revenu', () => {
+    expect(
+      clockVerdict([
+        { id: 'a', perMinute: 30, funds: 900 },
+        { id: 'b', perMinute: 50, funds: 10 },
+      ]),
+    ).toEqual({ winnerId: 'b', reason: 'income', perMinute: 50 });
+  });
+
+  it('départage par les fonds en caisse, à l’unité', () => {
+    expect(
+      clockVerdict([
+        { id: 'a', perMinute: 50, funds: 120.9 },
+        { id: 'b', perMinute: 50, funds: 121.2 },
+      ]),
+    ).toEqual({ winnerId: 'b', reason: 'income', perMinute: 50 });
+  });
+
+  it('déclare l’égalité quand revenu et caisse se valent', () => {
+    expect(
+      clockVerdict([
+        { id: 'a', perMinute: 50, funds: 120.2 },
+        { id: 'b', perMinute: 50, funds: 120.9 },
+        { id: 'c', perMinute: 10, funds: 999 },
+      ]),
+    ).toEqual({ winnerId: null, reason: 'draw', perMinute: 50 });
   });
 });

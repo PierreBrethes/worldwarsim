@@ -25,8 +25,11 @@ import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { reassessDetection } from './movement/detection';
+import { playerBuildings } from './buildingReads';
+import { leaveTheWar } from './players';
 import {
   defenceOf,
+  movementsOf,
   pointOf,
   seasonMovements,
   seasonTroops,
@@ -72,7 +75,6 @@ async function targetOf(
       ? await ctx.db.get(target.buildingId)
       : await ctx.db.get(target.outpostId);
   if (site === null || site.seasonId !== seasonId || site.playerId === capturerId) return null;
-  if ('key' in site && site.key === 'hq') return null;
   return site;
 }
 
@@ -269,7 +271,10 @@ async function startCapture(
     progress: 0,
     at: now,
     rate: rateOf(troops),
-    durationMs: captureDurationMs(mode, target.kind),
+    durationMs: captureDurationMs(
+      mode,
+      'key' in site ? { kind: 'building', key: site.key } : { kind: 'outpost' },
+    ),
     rest: mode === 'mondiale' && defender !== null ? defender.restWindow : null,
   };
   const capture = {
@@ -402,14 +407,20 @@ export const complete = internalMutation({
       await settleFunds(ctx, loser._id, now);
     }
     const taken: Array<Doc<'buildings'>> = [];
+    /** **En Blitz, un QG tombé emporte tout** (B10) : ses bâtiments passent au capteur, ses
+     *  troupes disparaissent, et le joueur sort de la guerre (`leaveTheWar`, plus bas). */
+    const falls = mode === 'blitz' && 'key' in site && site.key === 'hq';
     if ('key' in site) {
-      await releaseBuilding(ctx, loser, site, now);
-      await ctx.db.patch(site._id, {
-        playerId: capture.playerId,
-        capturedAt: now,
-        level: mode === 'mondiale' ? Math.max(1, site.level - 1) : site.level,
-      });
-      taken.push(site);
+      for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
+        await releaseBuilding(ctx, loser, building, now);
+        await ctx.db.patch(building._id, {
+          playerId: capture.playerId,
+          capturedAt: now,
+          level: mode === 'mondiale' ? Math.max(1, building.level - 1) : building.level,
+        });
+        taken.push(building);
+      }
+      if (falls) await disband(ctx, loser._id, now);
     } else {
       const anchored = (
         await ctx.db
@@ -446,5 +457,37 @@ export const complete = internalMutation({
     await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
     await reassessDetection(ctx, capture.seasonId, now);
+    if (falls) {
+      const capturer = (await ctx.db.get(capture.playerId))!;
+      await leaveTheWar(
+        ctx,
+        (await ctx.db.get(capture.seasonId))!,
+        (await ctx.db.get(loser._id))!,
+        now,
+        {
+          kind: 'playerEliminated',
+          by: capturer.nation ?? capturer.nickname,
+        },
+      );
+    }
   },
 });
+
+/** **Ses troupes disparaissent** (B10), en marche comme posées, et ses captures avec elles. */
+async function disband(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {
+  for (const movement of await movementsOf(ctx, playerId)) {
+    await forgetMovement(ctx, movement._id, now);
+  }
+  for (const troop of await ctx.db
+    .query('troops')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect()) {
+    await ctx.db.delete(troop._id);
+  }
+  for (const capture of await ctx.db
+    .query('captures')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect()) {
+    await ctx.db.delete(capture._id);
+  }
+}

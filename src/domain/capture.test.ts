@@ -25,8 +25,12 @@ describe('captureRate', () => {
 
 describe('captureDurationMs', () => {
   it('takes six hours in the long mode and three minutes in the short one', () => {
-    expect(captureDurationMs('mondiale', 'building')).toBe(6 * HOUR);
-    expect(captureDurationMs('blitz', 'outpost')).toBe(3 * 60_000);
+    expect(captureDurationMs('mondiale', { kind: 'building', key: 'barracks' })).toBe(6 * HOUR);
+    expect(captureDurationMs('blitz', { kind: 'outpost' })).toBe(3 * 60_000);
+  });
+
+  it('holds a Blitz headquarters twice as long as a building', () => {
+    expect(captureDurationMs('blitz', { kind: 'building', key: 'hq' })).toBe(6 * 60_000);
   });
 });
 
@@ -65,18 +69,22 @@ describe('the capture clock', () => {
 
 describe('captureRefusalOf', () => {
   const site = { kind: 'building', key: 'barracks' } as const;
+  const hq = { kind: 'building', key: 'hq' } as const;
 
   it('lets an infantry column capture somebody else’s building or outpost', () => {
-    expect(captureRefusalOf(site, ['infantry', 'armor'], false)).toBeNull();
-    expect(captureRefusalOf({ kind: 'outpost' }, ['infantry'], false)).toBeNull();
+    expect(captureRefusalOf(site, ['infantry', 'armor'], false, 'mondiale')).toBeNull();
+    expect(captureRefusalOf({ kind: 'outpost' }, ['infantry'], false, 'mondiale')).toBeNull();
   });
 
   it('names why it will not', () => {
-    expect(captureRefusalOf(site, [], false)).toBe('EMPTY_MOVEMENT');
-    expect(captureRefusalOf(site, ['armor'], false)).toBe('CAPTURE_NEEDS_INFANTRY');
-    expect(captureRefusalOf(site, ['infantry'], true)).toBe('FRIENDLY_TARGET');
-    expect(captureRefusalOf({ kind: 'building', key: 'hq' }, ['infantry'], false)).toBe(
-      'HQ_NOT_CAPTURABLE',
-    );
+    expect(captureRefusalOf(site, [], false, 'mondiale')).toBe('EMPTY_MOVEMENT');
+    expect(captureRefusalOf(site, ['armor'], false, 'mondiale')).toBe('CAPTURE_NEEDS_INFANTRY');
+    expect(captureRefusalOf(site, ['infantry'], true, 'mondiale')).toBe('FRIENDLY_TARGET');
+    expect(captureRefusalOf(hq, ['infantry'], false, 'mondiale')).toBe('HQ_NOT_CAPTURABLE');
+  });
+
+  it('takes a headquarters in a Blitz, where its fall eliminates (B10)', () => {
+    expect(captureRefusalOf(hq, ['infantry'], false, 'blitz')).toBeNull();
+    expect(captureRefusalOf(hq, ['armor'], false, 'blitz')).toBe('CAPTURE_NEEDS_INFANTRY');
   });
 });

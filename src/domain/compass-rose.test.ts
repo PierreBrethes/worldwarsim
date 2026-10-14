@@ -1,3 +1,4 @@
+import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
 import { compassOf, soleOrderOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
@@ -528,6 +529,24 @@ describe('in aim', () => {
       column,
     );
     expect(city?.actions.map((action) => action.key)).toEqual(['capture']);
+  });
+
+  it('offers capture of a Blitz headquarters, twice as long as a building (B10)', () => {
+    const hq = compassOf(
+      { kind: 'installation', id: 'hq-enemy', key: 'hq', regionId: 'ROU-310', name: 'QG' },
+      { ...view, mode: 'blitz' },
+      {
+        ...column,
+        blitz: {
+          theatre: theatreById('europe')!,
+          reloading: false,
+          occupiedBuildingIds: new Set<string>(),
+        },
+      },
+    );
+    expect(hq?.actions).toEqual([
+      expect.objectContaining({ key: 'capture', consequence: expect.stringContaining('00:06:00') }),
+    ]);
   });
 
   it('offers capture on a surveyed installation, with its duration at full strength', () => {

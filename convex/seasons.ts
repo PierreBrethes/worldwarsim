@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -25,7 +25,7 @@ import {
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
-import { SEASON_MODE } from './validators';
+import { SEASON_MODE, VERDICT } from './validators';
 import { creationRefusalOf, MODE_RULES, modeOf, seatRangeOf } from '../src/domain/season-mode';
 import {
   DEFAULT_REST_WINDOW,
@@ -478,6 +478,7 @@ export async function concludeSeason(
   seasonId: Id<'seasons'>,
   winnerId: Id<'players'> | null,
   at: number,
+  verdict?: Infer<typeof VERDICT>,
 ): Promise<void> {
   /**
    * **L'édition finale s'écrit d'abord** (`classement-bareme.md` §5) : après le `patch`, le
@@ -494,6 +495,7 @@ export async function concludeSeason(
     winnerId,
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
     concludedAt: at,
+    ...(verdict === undefined ? {} : { verdict }),
   });
   for (const entry of await seatsOf(ctx, seasonId)) {
     await notifyPlayer(ctx, entry._id, {

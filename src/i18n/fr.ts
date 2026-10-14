@@ -1380,6 +1380,7 @@ export const fr = {
       firedDry: 'tir à sec',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
+      elimination: 'QG tombé',
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
@@ -1494,6 +1495,8 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
+      playerEliminated: (nation: string, by: string) =>
+        `${nation.toUpperCase()} EST ÉLIMINÉ — ${by} a capturé son quartier général. Ses bâtiments passent à ${by}, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
