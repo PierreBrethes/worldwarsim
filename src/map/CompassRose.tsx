@@ -37,6 +37,7 @@ export function CompassRose({
   onClose,
   onAction,
   finger = null,
+  shown = -1,
 }: {
   compass: Compass;
   x: number;
@@ -51,11 +52,13 @@ export function CompassRose({
     readonly floor: number;
     readonly onFit: (dx: number, dy: number) => void;
   } | null;
+  /** La branche dont la bulle est ouverte à l'ouverture — la page publique joue la rose seule. */
+  shown?: number;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const radius = finger === null ? MEDALLION_RADIUS : FINGER_RADIUS;
   const bubble = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState(-1);
+  const [hovered, setHovered] = useState(shown);
   /** The medallion a finger has read, waiting for the touch that acts. */
   const [read, setRead] = useState(-1);
   const pressedWith = useRef('mouse');
