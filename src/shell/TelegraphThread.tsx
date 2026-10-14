@@ -39,12 +39,14 @@ export function TelegraphThread({
   messages,
   to,
   seat,
+  lobby = false,
   height,
   autoFocus = false,
 }: {
   messages: ReadonlyArray<TelegraphMessage>;
   to?: Id<'players'>;
   seat: Seat;
+  lobby?: boolean;
   height: number | 'fill';
   autoFocus?: boolean;
 }) {
@@ -74,11 +76,16 @@ export function TelegraphThread({
     // Le champ se vide tout de suite : le fil est optimiste, et un refus le rend intact.
     setDraft('');
     setRefusal(null);
-    void post({ ...seat, text, ...(to === undefined ? {} : { to }) }).catch((error: unknown) => {
+    void post({
+      ...seat,
+      text,
+      ...(to === undefined ? {} : { to }),
+      ...(lobby ? { lobby } : {}),
+    }).catch((error: unknown) => {
       setDraft(text);
       handleError(error, setRefusal);
     });
-  }, [draft, post, seat, to]);
+  }, [draft, post, seat, to, lobby]);
 
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {

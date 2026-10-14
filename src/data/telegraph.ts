@@ -42,8 +42,8 @@ const QUIET: Telegraph = { general: [], generalUnread: 0, direct: [], unread: 0 
  * qu'un afficheur. Au salon il n'y a ni rail ni badge, mais le même abonnement et le même
  * tic-tac — d'où la remontée hors de `-plateau/`.
  */
-export function useTelegraph(seat: Seat, { generalOnly = false } = {}): Telegraph {
-  const served = useQuery(api.messages.recent, seat);
+export function useTelegraph(seat: Seat, { lobby = false } = {}): Telegraph {
+  const served = useQuery(api.messages.recent, lobby ? { ...seat, lobby } : seat);
   const telegraph = useMemo<Telegraph>(() => {
     if (served === undefined) return QUIET;
     const generalUnread = unreadCount(served.messages, served.readAt);
@@ -63,18 +63,17 @@ export function useTelegraph(seat: Seat, { generalOnly = false } = {}): Telegrap
    * **The tick only rings for what arrives after the player is there.** The first server answer
    * is the backlog of every thread, and ringing for it would greet the player with hundreds of
    * clicks: the first pass only learns which messages already exist. After that, any message from
-   * another player on any channel that was not there rings. The lobby shows the general channel
-   * alone, so it must not ring for a private message it cannot display (`generalOnly`).
+   * another player on any channel that was not there rings.
    */
   const heard = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (served === undefined) return;
-    const channels = generalOnly ? [] : telegraph.direct.flatMap((c) => c.messages);
+    const channels = telegraph.direct.flatMap((c) => c.messages);
     const others = [...telegraph.general, ...channels].filter((message) => !message.mine);
     const before = heard.current;
     heard.current = new Set(others.map((message) => message.id));
     if (before !== null && others.some((message) => !before.has(message.id))) tick();
-  }, [served, telegraph, generalOnly]);
+  }, [served, telegraph]);
 
   return telegraph;
 }

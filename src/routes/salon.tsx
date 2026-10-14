@@ -16,7 +16,7 @@ import { DestroyButton } from '@/shell/DestroyButton';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { LaunchSequence } from '@/shell/LaunchSequence';
-import { TelegraphThread } from '@/shell/TelegraphThread';
+import { TelegraphPanel, useReadOnUnmount, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import { useTelegraph } from '@/data/telegraph';
 import { asDayAndTime } from '@/domain/duration';
 import { toLocalMinutes, toUtcMinutes } from '@/domain/rest-window';
@@ -432,7 +432,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
 
             <ThickRuleInverse margin="var(--sheet-pad)" />
 
-            <LobbyTelegraph seat={seat} />
+            {lobby.status === 'lobby' && <LobbyTelegraph seat={seat} />}
 
             {error && (
               <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
@@ -479,22 +479,17 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
  * ici.
  */
 function LobbyTelegraph({ seat }: { seat: Seat }) {
-  const telegraph = useTelegraph(seat, { generalOnly: true });
-  const markRead = useMutation(api.messages.markRead);
-  useEffect(
-    () => () => {
-      void markRead(seat).catch(() => undefined);
-    },
-    [markRead, seat],
-  );
+  const telegraph = useTelegraph(seat, { lobby: true });
+  const tabs = useTelegraphTabs(telegraph, seat);
+  useReadOnUnmount(tabs.leave);
 
   return (
     <section className="mx-(--sheet-pad) mt-4 flex flex-col">
       <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
         <span className="eyebrow">{fr.telegraph.header}</span>
-        <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.channel}</span>
+        <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.lobbyChannel}</span>
       </div>
-      <TelegraphThread messages={telegraph.general} seat={seat} height={220} />
+      <TelegraphPanel telegraph={telegraph} tabs={tabs} seat={seat} lobby height={220} />
     </section>
   );
 }
