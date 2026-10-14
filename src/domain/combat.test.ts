@@ -146,11 +146,14 @@ describe('the reference case of the initiative', () => {
     expect(fight.lostByAttacker).toBeLessThan(fight.lostByDefender);
   });
 
-  /** Décision de Pierre du 14/10 (C2) : le char léger répond au lourd, mais faiblement — le
-   *  quart de ce qu'il fait à un char léger, au centième de la table. */
-  it('has the light tank answer the heavy one at a quarter of what it does to its own kind', () => {
-    expect(DAMAGE_TABLE.armor1.armor2).toBe(0.13);
-    expect(DAMAGE_TABLE.armor1.armor1).toBe(0.5);
+  /** Décision de Pierre du 14/10 (C2) : le char léger répond au lourd à .25, et **une riposte
+   *  qui touche fait au moins une perte** — laissé à 3 / 12, il riposte pour .375, qui
+   *  s'arrondissait à rien. */
+  it('has the light tank the heavy one leaves standing answer for at least one', () => {
+    const fight = duel('armor2', 'armor1');
+    expect(fight.lostByDefender).toBe(9);
+    expect(fight.lostByAttacker).toBe(1);
+    expect(fight.engagement.strikes.at(-1)).toMatchObject({ phase: 'riposte', losses: 1 });
   });
 
   it('gives mark-2 infantry the answer to a heavy tank that mark 1 does not have', () => {

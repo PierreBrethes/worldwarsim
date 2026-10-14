@@ -295,6 +295,11 @@ function pick(
  * `share × (strength / nominal) × modifier × nominal(target)`, rounded, and **capped at what the
  * target has left**: the excess is lost rather than spilling onto the next troop. That single
  * rule is what bounds stacking — six columns on one target waste five of them.
+ *
+ * **A riposte that reaches takes at least one** (decision of 14/10, C2): a light tank the heavy
+ * one leaves at three of twelve answers for .375, and the rounding made that a free hit no table
+ * value would cure. The floor is the riposte's alone — a strike and a shock are fired whole, and
+ * nothing in them rounds a survivor's answer away.
  */
 function hit(
   shooter: Fighter,
@@ -310,7 +315,8 @@ function hit(
     (strength / shooter.combatant.nominalStrength) *
     modifier *
     target.combatant.nominalStrength;
-  const losses = Math.min(target.remaining, Math.round(raw));
+  const floor = phase === 'riposte' && share > 0 ? 1 : 0;
+  const losses = Math.min(target.remaining, Math.max(floor, Math.round(raw)));
 
   target.remaining -= losses;
 
