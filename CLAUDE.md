@@ -775,7 +775,7 @@ débit sur la réglette (`FundsCell`, compteur des réserves), ni Écon. ni ling
 maintenant ». La ville emprunte la planche et la maquette des baraquements en attendant son GLB (E3).
 
 **Et une Blitz finit — 14/10/2026** (lot 6, B10, B11, U6). **Le QG se capture** en Blitz seulement
-(`captureRefusalOf` lit le mode ; `CAPTURE_MINUTES.blitz.hq`, 6 min, `@a-mesurer`). À la prise, le
+(`captureRefusalOf` lit le mode ; `CAPTURE_MINUTES.blitz.hq`, 6 min, `@a-mesurer`). À la prise de son QG de départ (`buildings.homeOf`, posé par `blitz.commit` — perdre un QG qu'on avait pris n'élimine pas), le
 joueur est **éliminé** (`captures.complete`, `falls`) : tous ses bâtiments passent au capteur, ses
 troupes, ses mouvements et ses captures disparaissent (`disband`), et il sort de la guerre par la
 même porte que la capitulation (`leaveTheWar`, `convex/players.ts` : `defeated`, commandement
@@ -789,7 +789,8 @@ n'a pas d'édition toutes les trois heures** — seule la finale paraît. La ré
 rebours (`BlitzClock`), l'anneau d'un QG dit « QG perdu vers » et la dépêche que sa chute élimine.
 **On ne recrute que dans un bâtiment libre** (U6, `SITE_OCCUPIED` dans `blitzRecruitRefusalOf`, lu
 par la modale et par `troops.recruit`) : aucune troupe à soi dedans, aucune recrue en formation ;
-une des miennes entrée pendant la formation, la recrue se pose à la porte (`troops.deliver`).
+une des miennes entrée pendant la formation, la recrue se pose à la porte (`troops.deliver`). Un
+joueur qui a capitulé n'achève plus aucune capture.
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
 par `??` — ou bien il s'accompagne d'une migration de backfill. Un champ obligatoire posé sans
