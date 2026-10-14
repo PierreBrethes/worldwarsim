@@ -884,6 +884,11 @@ describe('founding from the map', () => {
     expect(soleOrderOf({ kicker: '', name: '', actions: [board], refusal: null })).toBeNull();
   });
 
+  it('founds nothing in a Blitz, so the sheet in hand has no founding to offer', () => {
+    const blitz = { ...posted(['infantry']), mode: 'blitz' } as PlayerView;
+    expect(compassOf(camp, blitz, null, null, 0, ['T-0'])?.actions ?? []).toEqual([]);
+  });
+
   it('offers the founding on a posted column, carrying its point and its manifest', () => {
     const compass = compassOf(camp, posted(['infantry', 'infantry']));
     expect(compass?.actions.map((action) => action.key)).toEqual(['found']);
