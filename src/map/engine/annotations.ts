@@ -21,7 +21,7 @@ import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 
 /** The annotation's side in model units: the width of the washed block's ring it replaces. */
-const SIDE = 3.8;
+const SIDE = 3.2;
 const PLANE = new PlaneGeometry(SIDE, SIDE).rotateX(-Math.PI / 2).translate(0, 0.03, 0);
 
 const INK = '#2a2118';
@@ -75,7 +75,7 @@ function textureOf(medium: Medium, hour: string): Texture {
   ctx.stroke(domain);
 
   ctx.textAlign = 'center';
-  ctx.font = 'italic 700 74px "Bodoni Moda", Georgia, serif';
+  ctx.font = '700 78px "Bodoni Moda", Georgia, serif';
   ctx.fillStyle = RED;
   ctx.fillText('?', 62, -40);
   ctx.font = '500 26px "IBM Plex Mono", monospace';
