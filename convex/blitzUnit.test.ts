@@ -8,6 +8,7 @@ import { nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 import { reassessDetection } from './movement/detection';
+import { resolveContact } from './combat';
 import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp, type Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -393,6 +394,30 @@ describe('a Blitz unit and its orders (lot 5)', () => {
         .collect(),
     );
     expect(notices.map((notice) => notice.kind)).not.toContain('pursuitLost');
+  });
+
+  it('routs nobody in a Blitz, whatever order brought the pass', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const strong = await troop(t, seat, PARIS);
+    const weak = await troop(t, guest, PARIS);
+    await t.run((ctx) => ctx.db.patch(weak, { currentStrength: 30 }));
+    const states = await t.run(async (ctx) => {
+      const [attacker, defender] = [(await ctx.db.get(strong))!, (await ctx.db.get(weak))!];
+      const { engagement } = await resolveContact(ctx, {
+        seasonId: seat.seasonId,
+        attacker: { playerId: attacker.playerId, troops: [attacker] },
+        defender: { playerId: defender.playerId, troops: [defender] },
+        cause: 'arrival',
+        point: PARIS,
+        hostCountry: 'FRA',
+        outpostId: null,
+        disabledUntil: null,
+        at: Date.now(),
+      });
+      return engagement.outcomes.map((outcome) => outcome.state);
+    });
+    expect(states).not.toContain('routed');
   });
 
   it('gives up on a target out of sight and stops at its last known position', async () => {
