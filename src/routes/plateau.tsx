@@ -1241,14 +1241,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
      * au dézoom, rien ne pleut sur la carte.
      */
-    const deposits: ReadonlyArray<MapMarker> = toggles.deposits
-      ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
-          kind: 'deposit' as const,
-          id: `deposit-${regionId}`,
-          regionId,
-          deposit,
-        }))
-      : [];
+    /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
+    const deposits: ReadonlyArray<MapMarker> =
+      toggles.deposits && view.mode !== 'blitz'
+        ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+            kind: 'deposit' as const,
+            id: `deposit-${regionId}`,
+            regionId,
+            deposit,
+          }))
+        : [];
 
     /**
      * **A founded outpost has to stand on the board.** Without this the column that planted it
@@ -1455,6 +1457,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     knownRegionById,
     toggles.buildings,
     toggles.deposits,
+    view.mode,
     toggles.objectives,
   ]);
 
