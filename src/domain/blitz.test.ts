@@ -3,7 +3,7 @@ import {
   blitzRecruitRefusalOf,
   fundsAt,
   incomePerMinute,
-  isMending,
+  mendPlan,
   mendStep,
   rolesFormedBy,
 } from './blitz';
@@ -56,9 +56,14 @@ describe('le soin de la Blitz', () => {
     expect(mendStep(infantry, 2)).toBeNull();
   });
 
-  it('ne court que sur un bâtiment à soi, entamé, et payable', () => {
-    expect(isMending(infantry, true, 100)).toBe(true);
-    expect(isMending(infantry, false, 100)).toBe(false);
-    expect(isMending(infantry, true, 0)).toBe(false);
+  it('paie les troupes une à une, et laisse celle que les fonds ne couvrent plus', () => {
+    const plan = mendPlan(
+      [
+        { ...infantry, id: 'a' },
+        { ...infantry, id: 'b' },
+      ],
+      4,
+    );
+    expect(plan.map((step) => [step.troop.id, step.cost])).toEqual([['a', 3]]);
   });
 });

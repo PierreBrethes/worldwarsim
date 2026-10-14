@@ -9,7 +9,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
 import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
-import { fundsOf, isBlitz, settleFunds, spendFunds } from './blitz';
+import { creditFunds, fundsOf, isBlitz, spendFunds } from './blitz';
 import {
   BLITZ,
   COST_BY_ROLE,
@@ -241,9 +241,7 @@ export const cancel = mutation({
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
     if (modeOf(season.mode) === 'blitz') {
-      const price = BLITZ.rolePrice[batch.role];
-      const stock = await settleFunds(ctx, player._id, Date.now());
-      await ctx.db.patch(player._id, { funds: stock + price });
+      await creditFunds(ctx, player._id, BLITZ.rolePrice[batch.role], Date.now());
       await ctx.db.delete(recruitmentId);
       return { refunded: { alloy: 0, minutes: BLITZ.recruitMinutes } };
     }

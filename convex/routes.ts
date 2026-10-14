@@ -140,9 +140,9 @@ export function coastAtPoint(point: LonLat): boolean {
  * **Le quai le plus proche d'un point**, cherché par anneaux d'un dixième de degré : la carte de
  * départ d'une Blitz pose ses ports sans joueur pour choisir la côte (`blitz.place`).
  */
-export function coastPointNear(point: LonLat, maxDegrees = 2): LonLat | null {
+export function coastPointNear(point: LonLat): LonLat | null {
   const step = 0.1;
-  for (let ring = 0; ring * step <= maxDegrees; ring += 1) {
+  for (let ring = 0; ring * step <= 2; ring += 1) {
     for (let dx = -ring; dx <= ring; dx += 1) {
       for (let dy = -ring; dy <= ring; dy += 1) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;

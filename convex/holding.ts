@@ -6,7 +6,7 @@ import { outpostReachKm } from './constants';
 import { pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, type RegionFacts } from './regions';
-import { modeOf } from '../src/domain/season-mode';
+import { isBlitz } from './blitz';
 
 /**
  * **La vérité de la couleur, en un seul endroit.** Qui tient quoi se calcule depuis les
@@ -132,7 +132,7 @@ export async function homeGroundsOf(
 ): Promise<ReadonlyArray<{ owner: string; country: string }>> {
   /** **En Blitz personne ne joue chez soi** : un Français joue le Pacifique, et ce qu'il tient
    *  est ce qu'il a reçu ou capturé (`occupationsOf`), jamais son sol national. */
-  if (modeOf((await ctx.db.get(seasonId))?.mode) === 'blitz') return [];
+  if (await isBlitz(ctx, seasonId)) return [];
   const seats = await ctx.db
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))

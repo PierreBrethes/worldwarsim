@@ -11,7 +11,7 @@ import {
 import { landAtPoint } from './routes';
 import { movementsOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
-import { modeOf } from '../src/domain/season-mode';
+import { isBlitz } from './blitz';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -125,7 +125,7 @@ export async function resolveContact(
   const sheltered = await shelteredOf(ctx, defender, at);
   /** **La Blitz ne tient pas de magasin** : sa seule ressource est les fonds, et l'on y tire
    *  sans compter les coups. */
-  const blitz = modeOf((await ctx.db.get(seasonId))?.mode) === 'blitz';
+  const blitz = await isBlitz(ctx, seasonId);
   const magazineOf = async (playerId: Id<'players'>) =>
     blitz ? Infinity : (await economyOf(ctx, playerId, at)).stocks.ammunition;
   const engagement = resolveEngagement({

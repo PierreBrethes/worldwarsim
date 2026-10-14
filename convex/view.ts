@@ -73,8 +73,8 @@ import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
-import { fundsOf, ownedTroopsOnSite } from './blitz';
-import { fundsAt, isMending } from '../src/domain/blitz';
+import { asWounded, fundsOf, ownedTroopsOnSite } from './blitz';
+import { fundsAt, mendPlan } from '../src/domain/blitz';
 
 /** La clé d'une ligne de file telle que l'écran la lit : un `depot` historique reprend son nom
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
@@ -226,8 +226,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const headquarters = buildings.find((building) => building.key === 'hq');
   const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
   /** Le soin de la Blitz se lit sur la même règle que le travail qui l'applique (`blitz.mend`). */
-  const onSite = new Set<string>(
-    blitz ? (await ownedTroopsOnSite(ctx, player._id)).map((troop) => troop._id) : [],
+  const mending = new Set<string>(
+    funds === null
+      ? []
+      : mendPlan((await ownedTroopsOnSite(ctx, player._id)).map(asWounded), funds.stock).map(
+          (step) => step.troop.id,
+        ),
   );
 
   /**
@@ -475,8 +479,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * un champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
        */
       capitalPoint: capitalPointOf(player.nation),
-      /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». */
-      /** En Blitz le plateau s'ouvre sur son QG, posé par la carte de départ. */
+      /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». En
+       *  Blitz, le QG que la carte de départ a posé. */
       openingPoint:
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
       /**
@@ -644,17 +648,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
-        mending:
-          funds !== null &&
-          isMending(
-            {
-              role: troop.role,
-              strength: troop.currentStrength,
-              nominalStrength: troop.nominalStrength,
-            },
-            onSite.has(troop._id),
-            funds.stock,
-          ),
+        mending: mending.has(troop._id),
       })),
       stationedCargo: stationedCargo.map((group) => ({
         troopIds: group.troopIds,

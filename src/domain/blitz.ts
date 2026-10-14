@@ -79,8 +79,22 @@ export function mendStep(
   return cost > funds ? null : { strength: troop.strength + gained, cost };
 }
 
-export const isMending = (troop: Wounded, onOwnBuilding: boolean, funds: number): boolean =>
-  onOwnBuilding && mendStep(troop, funds) !== null;
+/**
+ * **Le pas de soin d'un joueur entier**, troupe après troupe, les fonds payés au fur et à mesure :
+ * ce que le travail applique (`blitz.mend`) et ce que la vue annonce sont la même liste.
+ */
+export function mendPlan<T extends Wounded & { readonly id: string }>(
+  wounded: ReadonlyArray<T>,
+  funds: number,
+): ReadonlyArray<{ readonly troop: T; readonly strength: number; readonly cost: number }> {
+  let left = funds;
+  return wounded.flatMap((troop) => {
+    const step = mendStep(troop, left);
+    if (step === null) return [];
+    left -= step.cost;
+    return [{ troop, ...step }];
+  });
+}
 
 /**
  * **Ni construction, ni élévation, ni fondation en Blitz** (B4) : la rose ne propose pas ces

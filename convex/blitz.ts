@@ -17,7 +17,7 @@ import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { fundsAt, incomePerMinute, mendStep, notInBlitz, type Funds } from '../src/domain/blitz';
+import { fundsAt, incomePerMinute, mendPlan, notInBlitz, type Funds } from '../src/domain/blitz';
 import { planBlitzMap, type BlitzCandidate, type BlitzSite } from '../src/domain/blitz-placement';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import { modeOf } from '../src/domain/season-mode';
@@ -71,6 +71,16 @@ export async function spendFunds(
   const stock = await settleFunds(ctx, playerId, now);
   if (stock < amount) fail('INSUFFICIENT_FUNDS', { needed: amount, held: Math.floor(stock) });
   await ctx.db.patch(playerId, { funds: stock - amount });
+}
+
+export async function creditFunds(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  amount: number,
+  now: number,
+): Promise<void> {
+  const stock = await settleFunds(ctx, playerId, now);
+  await ctx.db.patch(playerId, { funds: stock + amount });
 }
 
 export const placementInput = internalQuery({
@@ -141,7 +151,7 @@ export const place = internalAction({
   },
 });
 
-/** Le sol du théâtre : toute région dont le point tombe dans la boîte, chez qui que ce soit. */
+/** **Chez qui que ce soit** : la Blitz ne joue pas sur le sol national (B7). */
 function theatreGround(box: {
   readonly west: number;
   readonly south: number;
@@ -238,28 +248,28 @@ export const mend = internalMutation({
         (troop) => troop.currentStrength < troop.nominalStrength,
       );
       if (wounded.length === 0) continue;
-      let funds = await settleFunds(ctx, seat._id, now);
-      for (const troop of wounded) {
-        const step = mendStep(
-          {
-            role: troop.role,
-            strength: troop.currentStrength,
-            nominalStrength: troop.nominalStrength,
-          },
-          funds,
-        );
-        if (step === null) continue;
-        funds -= step.cost;
+      const funds = await settleFunds(ctx, seat._id, now);
+      const plan = mendPlan(wounded.map(asWounded), funds);
+      for (const { troop, strength } of plan) {
         healed = true;
-        await ctx.db.patch(troop._id, { currentStrength: step.strength });
+        await ctx.db.patch(troop.doc._id, { currentStrength: strength });
       }
-      await ctx.db.patch(seat._id, { funds });
+      const spent = plan.reduce((sum, step) => sum + step.cost, 0);
+      await ctx.db.patch(seat._id, { funds: funds - spent });
     }
     if (healed) await reassessCaptures(ctx, seasonId, now);
     await ctx.scheduler.runAfter(BLITZ.mend.stepMinutes * 60_000, internal.blitz.mend, {
       seasonId,
     });
   },
+});
+
+export const asWounded = (doc: Doc<'troops'>) => ({
+  id: doc._id as string,
+  role: doc.role,
+  strength: doc.currentStrength,
+  nominalStrength: doc.nominalStrength,
+  doc,
 });
 
 /** Ses troupes posées sur l'un de ses bâtiments : en garnison, ou à son point exact. */
