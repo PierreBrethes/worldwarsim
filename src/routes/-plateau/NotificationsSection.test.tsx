@@ -10,7 +10,7 @@ import { NotificationsSection } from './NotificationsSection';
 
 const words = fr.settingsWindow.notifications;
 const seat = { token: 'jeton', seasonId: 'season-1' } as unknown as Seat;
-const ENDPOINT = 'https://push.example/appareil';
+const ENDPOINT = 'https://fcm.googleapis.com/appareil';
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Safari/604.1';
 
 type Environment = {
