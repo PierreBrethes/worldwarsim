@@ -40,7 +40,8 @@ export type JoinRefusal =
   | 'REGISTRATION_CLOSED'
   | 'NO_FREE_NATION'
   | 'LOBBY_FULL'
-  | 'BLITZ_FULL';
+  | 'BLITZ_FULL'
+  | 'BLITZ_STARTED';
 
 export function joinRefusalOf(input: {
   readonly seated: boolean;
@@ -54,6 +55,8 @@ export function joinRefusalOf(input: {
 }): JoinRefusal | null {
   if (input.seated) return 'SEAT_TAKEN';
   if (input.status === 'concluded') return 'SEASON_CONCLUDED';
+  /** Une Blitz se joue à heure convenue, tous présents (B2, E4) : lancée, elle est close. */
+  if (input.status === 'launched' && input.mode === 'blitz') return 'BLITZ_STARTED';
   if (!canJoinRegistration(input.status, input.launchedAt, input.now)) return 'REGISTRATION_CLOSED';
   if (input.status === 'launched' && input.freeNations === 0) return 'NO_FREE_NATION';
   if (input.seats >= input.maximum) return input.mode === 'blitz' ? 'BLITZ_FULL' : 'LOBBY_FULL';

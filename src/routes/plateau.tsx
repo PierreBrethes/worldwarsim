@@ -263,6 +263,8 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   /** Les baraquements ne forment rien : ils portent le plafond, et leur ligne vit au recensement
    *  de la projection avec les trois autres (fenêtre Économie). */
   billets: 'economy',
+  /** La ville de la Blitz se lit dans sa modale : ce qu'elle verse, et qui s'y tient. */
+  city: 'site',
 };
 
 export const Route = createFileRoute('/plateau')({
@@ -656,7 +658,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  être visé du doigt. */
       if (narrow && column !== null) return;
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
-      if (PROJECTION_KEYS.includes(standing.key)) {
+      /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
+       *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
+      const siteModal = view.mode === 'blitz' || PROJECTION_KEYS.includes(standing.key);
+      if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
         setOrder(null);
@@ -675,12 +680,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       void navigate({
         search: (previous) => ({
-          ...withWindow(previous, WINDOW_OF_BUILDING[standing.key]),
+          ...withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]),
           building: buildingId,
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, marching, narrow, column],
+    [navigate, openGarrison, boardPoint, view.me, view.mode, marching, narrow, column],
   );
 
   /**
@@ -1236,14 +1241,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
      * au dézoom, rien ne pleut sur la carte.
      */
-    const deposits: ReadonlyArray<MapMarker> = toggles.deposits
-      ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
-          kind: 'deposit' as const,
-          id: `deposit-${regionId}`,
-          regionId,
-          deposit,
-        }))
-      : [];
+    /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
+    const deposits: ReadonlyArray<MapMarker> =
+      toggles.deposits && view.mode !== 'blitz'
+        ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+            kind: 'deposit' as const,
+            id: `deposit-${regionId}`,
+            regionId,
+            deposit,
+          }))
+        : [];
 
     /**
      * **A founded outpost has to stand on the board.** Without this the column that planted it
@@ -1343,15 +1350,33 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }),
     );
 
-    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
+    /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
+    const neutralIds = new Set(view.neutralSites.map((site) => site.id));
+    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
+      .filter((installation) => !neutralIds.has(installation.id))
+      .map((installation) => ({
+        kind: 'installation' as const,
+        id: `installation-${installation.id}`,
+        buildingId: installation.id,
+        key: installation.key,
+        regionId: installation.regionId,
+        name: fr.buildings[installation.key],
+        plate: buildingSprite(installation.key),
+        washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+        neutral: null,
+      }));
+    /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
+     *  se capturent comme un site adverse relevé, par la même rose. */
+    const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
       kind: 'installation' as const,
-      id: `installation-${installation.id}`,
-      buildingId: installation.id,
-      key: installation.key,
-      regionId: installation.regionId,
-      name: fr.buildings[installation.key],
-      plate: buildingSprite(installation.key),
-      washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+      id: `installation-${site.id}`,
+      buildingId: site.id,
+      key: site.key,
+      regionId: site.regionId,
+      name: fr.buildings[site.key],
+      plate: buildingSprite(site.key),
+      washed: false,
+      neutral: { lonLat: site.point },
     }));
 
     if (!toggles.buildings)
@@ -1416,6 +1441,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...camps,
       ...objectives,
       ...surveyed,
+      ...neutral,
       ...outposts,
       ...stacks,
       ...standing,
@@ -1431,9 +1457,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.camps,
     view.objectives,
     view.surveyedInstallations,
+    view.neutralSites,
     knownRegionById,
     toggles.buildings,
     toggles.deposits,
+    view.mode,
     toggles.objectives,
   ]);
 

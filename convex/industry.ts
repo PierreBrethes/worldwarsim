@@ -6,6 +6,7 @@ import { fail } from './errors';
 import { maxOrderOf, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { BUILDING_KEY } from './validators';
+import { refuseInBlitz } from './blitz';
 
 /**
  * **The arsenal is commanded, the foundry is not** — the rule and its reason live in
@@ -20,6 +21,7 @@ export const order = mutation({
   handler: async (ctx, { token, seasonId, chain, quantity }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     if (!isCommanded(chain)) fail('CHAIN_NOT_COMMANDED', { chain });
 
     const buildings = await playerBuildings(ctx, player._id);

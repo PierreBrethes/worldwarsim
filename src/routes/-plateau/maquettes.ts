@@ -64,7 +64,9 @@ export function maquettesOf(
         );
       case 'installation':
         return standing(
-          { regionId: marker.regionId },
+          marker.neutral === null
+            ? { regionId: marker.regionId }
+            : { lonLat: marker.neutral.lonLat },
           buildingMaquette(marker.key, depositOfRegion(marker.regionId)),
           marker.washed,
         );

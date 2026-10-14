@@ -32,6 +32,7 @@ import {
   UNIT_ROLE,
   UNIT_TIER,
   SEASON_MODE,
+  LAUNCH_REFUSAL,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -138,6 +139,8 @@ export default defineSchema({
     mode: v.optional(SEASON_MODE),
     /** A `THEATRES` id; set on a Blitz only. */
     theatre: v.optional(v.string()),
+    /** Why the last launch of a Blitz came back to the lobby; cleared by the next launch. */
+    launchRefusal: v.optional(LAUNCH_REFUSAL),
   }).index('byCode', ['code']),
 
   players: defineTable({
@@ -207,6 +210,10 @@ export default defineSchema({
      * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
      */
     settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
+    /** **Les fonds de la Blitz** à `fundsAt` : le débit se relit sur les villes et le QG tenus
+     *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
+    funds: v.optional(v.number()),
+    fundsAt: v.optional(v.number()),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
@@ -321,6 +328,9 @@ export default defineSchema({
      *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
      *  aucun emplacement. Absent : bâti par celui qui le tient. */
     capturedAt: v.optional(v.number()),
+    /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
+     *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
+    startedNeutral: v.optional(v.literal(true)),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

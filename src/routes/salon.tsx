@@ -434,6 +434,11 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                 {error}
               </p>
             )}
+            {lobby.status === 'lobby' && lobby.launchRefusal !== null && (
+              <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+                {fr.errors[lobby.launchRefusal]()}
+              </p>
+            )}
 
             <div className="mx-(--sheet-pad) mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
               <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>

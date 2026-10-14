@@ -37,6 +37,7 @@ const troop = (id: string, role: TroopView['role']): TroopView => ({
   nominalStrength: 50,
   stationedAt: station,
   supplied: true,
+  mending: false,
 });
 
 /** **Cocher, c'est composer la main** (ADR 0026 §6) : la fiche rend la composition, sans lâcher. */

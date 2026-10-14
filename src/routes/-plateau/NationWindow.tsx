@@ -72,7 +72,7 @@ export function NationWindow({
             <p className="text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
           </Entry>
 
-          <NationalGap regions={view.me.regions} />
+          {view.mode !== 'blitz' && <NationalGap regions={view.me.regions} />}
 
           <FounderLine absence={view.me.founderAbsence} />
 

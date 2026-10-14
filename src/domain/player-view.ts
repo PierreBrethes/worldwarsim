@@ -243,6 +243,8 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
+  readonly mending: boolean;
 };
 
 export type OutpostView = {
@@ -1056,6 +1058,8 @@ export type PlayerView = {
     readonly progress: number;
     readonly restWindow: string;
     readonly resources: Readonly<Record<ResourceKey, Resource>>;
+    /** **Les fonds de la Blitz** à `loadedAt`, et leur débit par minute ; `null` en Mondiale. */
+    readonly funds: { readonly stock: number; readonly perMinute: number } | null;
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
@@ -1170,6 +1174,13 @@ export type PlayerView = {
   readonly objectives: ReadonlyArray<ObjectiveView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
   readonly mode: SeasonMode;
+  /** **Les bâtiments neutres d'une Blitz**, publics et sans garnison ; vide en Mondiale. */
+  readonly neutralSites: ReadonlyArray<{
+    readonly id: string;
+    readonly key: Exclude<BuildingKey, 'depot'>;
+    readonly regionId: string;
+    readonly point: LonLat;
+  }>;
   readonly captures: ReadonlyArray<CaptureView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */

@@ -521,6 +521,15 @@ describe('in aim', () => {
     expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
   });
 
+  it('offers capture but no plunder on a Blitz neutral', () => {
+    const city = compassOf(
+      { kind: 'installation', id: 'city-1', key: 'city', regionId: 'ROU-310', name: 'Ville' },
+      { ...view, mode: 'blitz' },
+      column,
+    );
+    expect(city?.actions.map((action) => action.key)).toEqual(['capture']);
+  });
+
   it('offers capture on a surveyed installation, with its duration at full strength', () => {
     const barracks = compassOf(
       {
@@ -1033,6 +1042,10 @@ describe('raising a level from the map', () => {
       hold: null,
     });
     expect(compass?.refusal).toBeNull();
+  });
+
+  it('offers nothing on a mast in a Blitz, where nothing is built or raised', () => {
+    expect(compassOf(mast, { ...standing({}), mode: 'blitz' })).toBeNull();
   });
 
   /** Le sol ne disparaît pas sous le mât : la région garde la branche qu'elle offrirait seule. */

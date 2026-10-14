@@ -33,6 +33,7 @@ import { BUILDING_KEY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
+import { refuseInBlitz } from './blitz';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -107,6 +108,7 @@ export const start = mutation({
   handler: async (ctx, { token, seasonId, building, regionId, point }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
 
     /**
      * **The queue is unbounded and paid in advance** (decision of 25/08). The objection the
@@ -199,6 +201,7 @@ export const raiseOutpost = mutation({
   handler: async (ctx, { token, seasonId, outpostId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     const outpost = await ctx.db.get(outpostId);
     if (outpost === null || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST');
 

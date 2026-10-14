@@ -234,11 +234,33 @@ export async function captureAimOf(
   target: NonNullable<Doc<'movements'>['capture']>,
 ): Promise<Aimed> {
   if (target.kind === 'building') {
+    /** **Un neutre de la Blitz est public** : il se vise sans relevé, comme un objectif. */
+    const neutral = await neutralBuilding(ctx, player, target.buildingId);
+    if (neutral !== null) {
+      return plunderAimOf({
+        _id: neutral._id,
+        key: neutral.key,
+        regionId: neutral.regionId,
+        point: pointOfBuilding(neutral),
+      });
+    }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
   }
   const aimed = await aimOf(ctx, player._id, { kind: 'outpost', outpostId: target.outpostId });
   if ((await ctx.db.get(target.outpostId))?.playerId === player._id) fail('FRIENDLY_TARGET');
   return aimed;
+}
+
+async function neutralBuilding(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<Doc<'buildings'> | null> {
+  const building = await ctx.db.get(buildingId);
+  if (building === null || building.seasonId !== player.seasonId) return null;
+  /** **Neutre de départ, même pris depuis** : la liste se sert figée (`neutralSitesOf`), et
+   *  refuser l'ordre apprendrait la prise ; l'arrivée lit la vérité. */
+  return building.startedNeutral === true && building.playerId !== player._id ? building : null;
 }
 
 /** Arrival revalidation is internal state handling: it never returns a reason or a target view. */
