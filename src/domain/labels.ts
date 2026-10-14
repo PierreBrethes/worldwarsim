@@ -133,6 +133,8 @@ export type MapMarker =
       readonly plate: string | null;
       /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
       readonly pieces: PilePieces;
+      /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
+      readonly reloadUntil?: number;
       readonly ink: string;
     }
   | {
@@ -261,6 +263,8 @@ export type LabelLine =
       readonly prefix: string;
       /** My column's departure, read off the share served: its bar fills from there to `dueAt`. */
       readonly since?: number;
+      /** À la seconde (« 0:42 ») plutôt qu'en durée, et muet une fois échu : un rechargement. */
+      readonly clock?: true;
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
@@ -784,6 +788,16 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
+          ...(marker.reloadUntil === undefined
+            ? []
+            : [
+                {
+                  role: 'countdown' as const,
+                  dueAt: marker.reloadUntil,
+                  prefix: fr.reload.prefix,
+                  clock: true as const,
+                },
+              ]),
         ],
       };
     case 'construction':
@@ -852,7 +866,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
     const cargo = arc.cargo;
-    const cargoVisible = cargo !== undefined && (cargo.carried > 0 || mission !== null);
+    // Une poursuite ne porte rien : sa charge vide ne dirait rien de plus que « poursuite ».
+    const cargoVisible =
+      cargo !== undefined &&
+      (cargo.carried > 0 || (mission !== null && mission.kind !== 'pursuit'));
     const loadingUntil = loadingUntilOf(arc);
     return {
       id: arc.id,
@@ -1023,5 +1040,7 @@ function missionLabel(
       return fr.loot.missions.collection;
     case 'cargoReturn':
       return fr.loot.missions.cargoReturn;
+    case 'pursuit':
+      return fr.aim.pursuit;
   }
 }

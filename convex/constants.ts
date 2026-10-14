@@ -665,6 +665,33 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
 export const ARRIVAL_RADIUS_KM = 25;
 
 /**
+ * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
+ * le déclenche pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne.
+ *
+ * @a-mesurer toute la table ; rien n'a encore joué une soirée
+ */
+export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
+  infantry: 40,
+  armor: 60,
+  landTransport: 45,
+  fighter: 50,
+  bomber: 90,
+  airTransport: 60,
+  escort: 60,
+  cargo: 60,
+  carrier: 75,
+};
+
+/**
+ * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
+ * Le contact se date entre deux regards (`contactAt`), donc ce pas ne borne que la réaction à un
+ * changement de cap.
+ *
+ * @a-mesurer à 200 km/min, quinze secondes font cinquante kilomètres
+ */
+export const PURSUIT_STEP_SECONDS = 15;
+
+/**
  * **How far a listening station hears what moves** — design sheet 04's second detector.
  *
  * A hundred and twenty kilometres is a placement in the ordering the design asks for and nothing

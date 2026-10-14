@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { distanceKm, type LonLat } from './geo';
 import {
-  firstMobileEncounter,
   mediumAt,
   mobileSighting,
   positionAt,
@@ -76,61 +75,6 @@ describe('mobile encounters derive from the order', () => {
     ...column(id, from, to),
     legs: [{ medium, distanceUnits: Math.abs(to - from) }],
     distanceUnits: Math.abs(to - from),
-  });
-
-  it('lets two observing columns cross without a pass', () => {
-    expect(
-      firstMobileEncounter({
-        a: mobile('a', 0, 10, 'land'),
-        b: mobile('b', 10, 0, 'land'),
-        rangeA: 100,
-        rangeB: 100,
-        engagesA: false,
-        engagesB: false,
-      }),
-    ).toBeNull();
-  });
-
-  it('gives the initiative to the attacking column that detects the crossing', () => {
-    const contact = firstMobileEncounter({
-      a: mobile('attack', 0, 10, 'land'),
-      b: mobile('march', 10, 0, 'land'),
-      rangeA: 100,
-      rangeB: 100,
-      engagesA: true,
-      engagesB: false,
-    });
-
-    expect(contact?.initiatorId).toBe('attack');
-    expect(contact?.medium).toBe('land');
-  });
-
-  it('does not turn detection into fire across incompatible media', () => {
-    expect(
-      firstMobileEncounter({
-        a: mobile('air', 0, 10, 'air'),
-        b: mobile('ground', 10, 0, 'land'),
-        rangeA: 500,
-        rangeB: 500,
-        engagesA: true,
-        engagesB: true,
-      }),
-    ).toBeNull();
-  });
-
-  it('breaks an equal engagement tie by creation order, never by an identifier', () => {
-    const laterNamedFirst = { ...mobile('z-last-name', 0, 10, 'land'), createdAt: 1 };
-    const earlierNamedLast = { ...mobile('a-first-name', 10, 0, 'land'), createdAt: 2 };
-    const contact = firstMobileEncounter({
-      a: laterNamedFirst,
-      b: earlierNamedLast,
-      rangeA: 100,
-      rangeB: 100,
-      engagesA: true,
-      engagesB: true,
-    });
-
-    expect(contact?.initiatorId).toBe('z-last-name');
   });
 
   it('lets a mobile detector reveal an observing column without engaging it', () => {

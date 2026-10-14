@@ -68,6 +68,8 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { pursue as pursueStep, quarryOf } from './movement/pursuit';
+import { blitzTheatreOf } from './movement/theatre';
 import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
@@ -80,7 +82,7 @@ import {
   MOVEMENT_TYPE,
   SPECIALIZATION,
 } from './validators';
-import { refuseInBlitz } from './blitz';
+import { isBlitz, occupiedBuildingIds, refuseInBlitz } from './blitz';
 
 /**
  * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
@@ -439,6 +441,13 @@ export const attack = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
+    /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
+     *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
+    const hunted =
+      (await blitzTheatreOf(ctx, player._id)) !== null &&
+      (target.kind === 'camp' || target.kind === 'track')
+        ? await quarryOf(ctx, player._id, target, Date.now())
+        : null;
     return march(ctx, {
       playerId: player._id,
       season,
@@ -446,6 +455,7 @@ export const attack = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, target),
+      ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
     });
   },
 });
@@ -587,7 +597,7 @@ export const preview = query({
       arrivesAt,
       /** The card owes the player the reason for an hour he did not expect: an acceleration
        *  nothing on screen accounts for reads as a bug, not as a reward. */
-      relayed: routeMinutes(route.costUnits) - minutes,
+      relayed: column.blitz === undefined ? routeMinutes(route.costUnits) - minutes : 0,
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       recognised: await recognises(ctx, player, point),
       troops: troopIds.length,
@@ -595,6 +605,11 @@ export const preview = query({
       destinationName: name,
       originName: departure.name,
       route: routeFacts(route),
+      /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
+      pursuit:
+        type === 'attack' &&
+        column.blitz !== undefined &&
+        (target.kind === 'camp' || target.kind === 'track'),
     };
   },
 });
@@ -881,7 +896,15 @@ export const arrive = internalMutation({
     if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') {
-      const garrison = await garrisonOf(ctx, movement);
+      const door = await garrisonOf(ctx, movement);
+      /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
+       *  celle-ci se pose à la porte. */
+      const garrison =
+        door !== null &&
+        (await isBlitz(ctx, movement.seasonId)) &&
+        (await occupiedBuildingIds(ctx, movement.playerId, movement.troopIds)).has(door._id)
+          ? null
+          : door;
       /** **Une marche sur un point à soi y entre** (décision du 16/09) : la seule marche que
        *  `refusalOf` laisse viser un avant-poste est celle-là. Démantelé ou perdu entre-temps,
        *  la colonne se pose au point atteint comme n'importe quelle marche (règle 3). */
@@ -930,6 +953,16 @@ export const arrive = internalMutation({
 
     await forgetMovement(ctx, movementId);
     await reassessDetection(ctx, movement.seasonId, now);
+  },
+});
+
+/** **Un regard de poursuite** (Blitz, B18) : frapper, abandonner, ou recourber la route. */
+export const pursue = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: async (ctx, { movementId, expectedAt }) => {
+    const movement = await ctx.db.get(movementId);
+    if (movement === null || !(await seasonStillPlays(ctx, movement.playerId))) return;
+    await pursueStep(ctx, movementId, expectedAt);
   },
 });
 

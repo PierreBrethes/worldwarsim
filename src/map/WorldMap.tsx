@@ -15,6 +15,7 @@ import {
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type HoveredRegion, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
@@ -158,6 +159,9 @@ type Props = {
   poster?: (label: MapLabel) => ReactNode;
   /** What the target allows. The map asks the question; it does not know the view. */
   compassOf: (target: CompassTarget) => Compass | null;
+  /** **Blitz** (B18) : en visée, une colonne adverse en vue est une cible qu'on poursuit, pas le
+   *  sol sous elle. Le théâtre est le cadre que la carte dessine. */
+  blitz?: { readonly theatre: Theatre } | null;
   /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
   onCompassAction: (action: CompassAction, at: { x: number; y: number }) => void;
   /** The board wears the trowel while a construction panel is open. */
@@ -310,6 +314,7 @@ export function WorldMap({
   onLabelHover,
   poster,
   compassOf,
+  blitz = null,
   onCompassAction,
   building = false,
   placing = null,
@@ -560,6 +565,21 @@ export function WorldMap({
        */
       if (!aiming || map === null || (target !== null && target.kind !== 'country')) return target;
       const ground = map.pointAt(clientX, clientY);
+      const chased =
+        blitz !== null && label.anchor.kind === 'movementHead'
+          ? arcs.find((arc) => arc.id === (label.anchor as { arc: string }).arc)
+          : undefined;
+      if (chased?.state === 'enemyDetected' && ground !== null) {
+        return {
+          kind: 'track',
+          id: chased.id,
+          point: ground,
+          country,
+          onLand: landAt(ground),
+          coastal: coastAt(ground),
+          name: fr.compass.enemyColumn,
+        };
+      }
       return pointTarget(
         country,
         region,
@@ -568,7 +588,7 @@ export function WorldMap({
         ground !== null && landAt(ground),
       );
     },
-    [aiming, coastAt, landAt],
+    [aiming, coastAt, landAt, blitz, arcs],
   );
 
   const onLabelAct = useCallback(
@@ -828,6 +848,11 @@ export function WorldMap({
 
   // The segmented scale rides the same highlight bridge as the thread's accent: the
   // timeline and the map designate the same movement, there is one source to read.
+  const theatre = blitz?.theatre ?? null;
+  useEffect(() => {
+    readyEngine?.setTheatre(theatre);
+  }, [readyEngine, theatre]);
+
   const designatedArc = arcs.find((arc) => arc.id === accentedMovement) ?? null;
 
   useEffect(() => {

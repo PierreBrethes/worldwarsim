@@ -81,6 +81,8 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './blocks';
+import { TheatreFrame } from './theatre';
+import type { Theatre } from '@/domain/theatres';
 import { ReplayScene, replayReach } from './replay';
 import {
   REPLAY_MS,
@@ -244,6 +246,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly theatreFrame: TheatreFrame;
   private readonly forcedInstant = forcedInstant(location.search);
   private dayCycle: DayCycle = 'real';
   private readonly sea: SeaLayer | null;
@@ -457,6 +460,7 @@ export class MapEngine {
     }
     this.surface = board.surface;
     this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.lamp, this.sea);
+    this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -1447,6 +1451,12 @@ export class MapEngine {
   setDayCycle(cycle: DayCycle): void {
     this.invalidate();
     this.dayCycle = cycle;
+  }
+
+  /** **Le cadre d'une Blitz** (B1) : la boîte du théâtre, et le reste délavé ; `null` l'ôte. */
+  setTheatre(theatre: Theatre | null): void {
+    this.invalidate();
+    this.theatreFrame.show(theatre);
   }
 
   /** Percentages from the settings; the pieces re-measure on the next frame. */

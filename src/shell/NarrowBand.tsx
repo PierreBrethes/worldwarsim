@@ -79,15 +79,17 @@ export function NarrowBand({
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
         <span className="flex-1" />
-        <span
-          className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
-          title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
-        >
-          <SlotBoxes used={me.slots.used} total={me.slots.total} />
-          <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
-            {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+        {view.mode !== 'blitz' && (
+          <span
+            className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
+            title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+          >
+            <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
+              {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+            </span>
           </span>
-        </span>
+        )}
       </div>
 
       {me.funds !== null ? (

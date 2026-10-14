@@ -1356,7 +1356,7 @@ describe('a column whose infantry rides goes faster', () => {
     // mutation takes it, and the duration below is the one the card was showing.
     expect(
       legalMovementTypes(
-        { kind: 'region', regionId: RUHR, country: 'Germany', surveyed: true },
+        { kind: 'region', regionId: RUHR, country: 'Germany', lon: 7.5, lat: 51.5, surveyed: true },
         {
           roles,
           myRegionIds: new Set(),
@@ -2540,7 +2540,7 @@ describe('the door of the sea, read on the pile', () => {
     expect(
       refusalOf(
         'attack',
-        { kind: 'region', regionId: RUHR, country: 'DEU', surveyed: true },
+        { kind: 'region', regionId: RUHR, country: 'DEU', lon: 7.5, lat: 51.5, surveyed: true },
         landing,
       ),
     ).toBe('LANDING_NEEDS_A_COAST');

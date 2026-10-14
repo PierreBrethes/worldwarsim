@@ -60,3 +60,8 @@ export const asDayAndTime = (instant: number) =>
  */
 export const asPressDate = (instant: number) =>
   new Date(instant).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
+export const reloadClock = (ms: number): string => {
+  const seconds = Math.ceil(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};

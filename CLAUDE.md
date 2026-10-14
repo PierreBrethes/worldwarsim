@@ -682,7 +682,7 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). Son économie et sa carte de départ sont le lot 4 (ci-dessous) ; le refus hors théâtre attend le lot 5.
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
 
 
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
@@ -712,6 +712,32 @@ prise. **Chaque capture abîme** (K7) : repris par son ancien propriétaire, un 
 niveau, jamais sous 1. **Un avant-poste désactivé reste capturable**, immunité comprise (K8) :
 l'immunité protège d'un raid, pas d'une capture. Hors lot : QG, points stratégiques, Blitz neutre,
 vivres à sec.
+
+**Et en Blitz, une unité seule, et l'attaque poursuit — 14/10/2026** (lot 5, règles pures
+`src/domain/blitz.ts`, câblage `convex/movement/pursuit.ts`). Tout se lit sur `Column.blitz`
+(théâtre, rechargement, bâtiments tenus), rempli des deux côtés du fil (`columnOf`, `armedColumn`)
+et lu par `refusalOf` : **une troupe part seule** (`ONE_UNIT_ONLY`, et `clickPile`/`composeHand`
+en `single` ne lèvent que la figurine touchée, la pile ne se déploie pas), **une par bâtiment à
+soi** (`BUILDING_OCCUPIED`), **rien hors de la boîte du théâtre** (`OUTSIDE_THEATRE`, cadre et
+délavé dessinés par `TheatreFrame`, `map/engine/theatre.ts`), **l'attaque vise une unité**
+(`UNIT_TARGET_ONLY` : un camp relevé, ou un fil adverse en vue — visée et cible `track`, nommée
+par le mouvement de l'arc, le serveur relisant le relevé du joueur `byMovement`). Le cadre vaut
+pour toute visée côté serveur (`march`, sur `aim.point`), mât et région compris. Ni slots (`claimSlot`), ni plage de repos (`restHold`) ; la vitesse est celle du
+théâtre, qu'on traverse en 18 min (`theatreMinutesPer1000Km`, `pacedMinutes`, en secondes). **La
+poursuite n'a pas d'horloge globale** : le mouvement porte `pursuit.{troopId, checkAt}` et un seul
+rendez-vous, le contact daté entre deux regards (`contactAt`) ou le pas de `PURSUIT_STEP_SECONDS` ;
+à chaque regard elle frappe (≤ `ARRIVAL_RADIUS_KM`), recourbe sa route vers la position de la
+cible si elle a bougé de plus de 25 km, ou **abandonne** — cible hors de sa vue — les relevés du joueur,
+réévalués à chaque regard, règle de milieu comprise, jamais une distance vraie : elle finit en marche vers la dernière position connue, dépêche
+`pursuitLost`. Au contact, passe 1 contre 1, **sans déroute** — aucune passe de Blitz ne déroute,
+`isBlitz` dans `resolveContact` ; **choc** si la
+cible poursuivait le poursuivant (`passModeOf`, `engagements.shock`, « choc » dans la dépêche),
+l'initiative sinon ; chacun se pose où il est. Qui a frappé sur ordre **recharge**
+(`troops.reloadUntil`, `RELOAD_SECONDS_BY_ROLE`, `@a-mesurer`, `RELOADING` à l'attaque, la marche
+reste libre ; la riposte ne recharge pas) — compte à rebours sur l'étiquette et l'affiche de la pile.
+De deux marches vers le même bâtiment vide, la seconde se pose à sa porte (`occupiedBuildingIds`,
+`convex/blitz.ts`, lu au départ et à l'arrivée) ; une route coupée arrête la poursuite sans dépêche.
+
 ## Schéma Convex
 
 **Et la Blitz a son économie et sa carte de départ — 14/10/2026** (lot 4, table `BLITZ` de

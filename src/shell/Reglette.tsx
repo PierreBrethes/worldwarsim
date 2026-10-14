@@ -95,18 +95,21 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       {me.construction !== null && <SiteCell view={view} now={now} />}
 
-      <div
-        className={`${CELL} gap-[9px] whitespace-nowrap`}
-        title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
-      >
-        <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1400px]:hidden">
-          {fr.resourceBand.slots}
-        </span>
-        <SlotBoxes used={me.slots.used} total={me.slots.total} />
-        <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums">
-          {fr.banner.slotsCount(me.slots.used, me.slots.total)}
-        </span>
-      </div>
+      {/* Pas de slots en Blitz (B5) : la cadence est le rechargement. */}
+      {view.mode !== 'blitz' && (
+        <div
+          className={`${CELL} gap-[9px] whitespace-nowrap`}
+          title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+        >
+          <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1400px]:hidden">
+            {fr.resourceBand.slots}
+          </span>
+          <SlotBoxes used={me.slots.used} total={me.slots.total} />
+          <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums">
+            {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+          </span>
+        </div>
+      )}
 
       <div
         ref={reserves}

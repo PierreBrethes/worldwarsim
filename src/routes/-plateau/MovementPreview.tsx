@@ -85,12 +85,15 @@ export const wireTarget = (aim: MovementAim) =>
            *  serveur qui le résout en position, sur la ligne que ce joueur-là possède. */
           aim.kind === 'camp'
           ? ({ kind: 'camp', campId: aim.campId as Id<'campSightings'> } as const)
-          : /** **L'objectif voyage par son identité** : il est public, donc le serveur le lit dans
-             *  la vérité du plateau — et c'est ce qui grave `movements.objectiveId`, sans quoi la
-             *  colonne arriverait sans que rien dise ce qu'elle est venue prendre. */
-            aim.kind === 'objective'
-            ? ({ kind: 'objective', objectiveId: aim.objectiveId as Id<'objectives'> } as const)
-            : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+          : /** **Une colonne en vue** (Blitz) voyage par son relevé : le serveur la poursuit. */
+            aim.kind === 'track'
+            ? ({ kind: 'track', movementId: aim.movementId as Id<'movements'> } as const)
+            : /** **L'objectif voyage par son identité** : il est public, donc le serveur le lit dans
+               *  la vérité du plateau — et c'est ce qui grave `movements.objectiveId`, sans quoi la
+               *  colonne arriverait sans que rien dise ce qu'elle est venue prendre. */
+              aim.kind === 'objective'
+              ? ({ kind: 'objective', objectiveId: aim.objectiveId as Id<'objectives'> } as const)
+              : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 export const wireCaptureTarget = (target: {
   readonly kind: 'building' | 'outpost';
@@ -152,14 +155,15 @@ export function MovementPreview({
   at: { x: number; y: number };
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
   preview: Previewed | undefined;
-  slots: { readonly used: number; readonly total: number };
+  /** `null` en Blitz : il n'y a pas de slots (B5). */
+  slots: { readonly used: number; readonly total: number } | null;
   /** Le lieu d'où la pile part, en toutes lettres — l'en-tête de la feuille d'ordre. */
   originName: string;
   onClose: () => void;
   onSent: (sent: Sent) => void;
 }) {
   const narrow = useNarrowScreen();
-  const freeSlots = slots.total - slots.used;
+  const freeSlots = slots === null ? Infinity : slots.total - slots.used;
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const marchTo = useMutation(api.movements.marchTo);
@@ -271,6 +275,17 @@ export function MovementPreview({
           </p>
         </div>
       )}
+      {/* **Une poursuite** (Blitz, B18) : l'heure est celle d'une position, pas d'une prise. */}
+      {'pursuit' in preview && preview.pursuit && (
+        <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
+          <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+            {fr.aim.pursuit}
+          </div>
+          <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.aim.pursuitNote}
+          </p>
+        </div>
+      )}
       {/* La seule ligne qui explique une durée plutôt que de l'annoncer : sans elle, le relais
           est un cadeau anonyme. */}
       {'relayed' in preview && preview.relayed > 0 && (
@@ -359,9 +374,11 @@ export function MovementPreview({
       <BottomSheet
         title={fr.orderSheet.kicker}
         aside={
-          <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink-quiet)]">
-            {fr.compass.slotsCost(freeSlots)}
-          </span>
+          slots !== null && (
+            <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink-quiet)]">
+              {fr.compass.slotsCost(freeSlots)}
+            </span>
+          )
         }
         onClose={onClose}
         initial="peek"
@@ -426,7 +443,7 @@ export function MovementPreview({
           <div className="mt-[6px]">
             {status}
             {notes}
-            {freeSlots <= 0 && (
+            {slots !== null && freeSlots <= 0 && (
               <p className="mt-[6px] text-[12px] leading-[1.4] text-[var(--critical)]">
                 {fr.errors.MOVEMENT_IN_FLIGHT({ maximum: slots.total })}
               </p>
@@ -443,7 +460,12 @@ export function MovementPreview({
           </button>
           {/* Changer d'ordre remonte le bouton : une tenue commencée sur l'ancien s'arrête là, au
               lieu de l'envoyer 700 ms plus tard. */}
-          <HoldButton key={choice.label} disabled={blocked} onConfirm={send} />
+          <HoldButton
+            key={choice.label}
+            disabled={blocked}
+            onConfirm={send}
+            note={slots === null ? fr.orderSheet.holdNoteBlitz : fr.orderSheet.holdNote}
+          />
         </div>
       </BottomSheet>
     );
@@ -468,7 +490,9 @@ export function MovementPreview({
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             <span>{fr.aim.previewKicker}</span>
-            <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
+            {slots !== null && (
+              <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
+            )}
           </div>
           <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), choice.label)}
@@ -561,7 +585,15 @@ const RELEASE_MS = 240;
  * s'en sert pas : un toucher et « annuler ». La barre d'espace et Entrée le tiennent comme le
  * doigt, pour qui n'a pas d'écran tactile.
  */
-function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () => void }) {
+function HoldButton({
+  disabled,
+  onConfirm,
+  note,
+}: {
+  disabled: boolean;
+  onConfirm: () => void;
+  note: string;
+}) {
   const [progress, setProgress] = useState(0);
   const frame = useRef(0);
   const reached = useRef(0);
@@ -647,7 +679,7 @@ function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
           {progress > 0 ? fr.orderSheet.holding : fr.orderSheet.hold}
         </span>
         <span className="text-[9.5px] leading-none tracking-[.14em] text-[var(--paper-dim-2)] uppercase">
-          {fr.orderSheet.holdNote}
+          {note}
         </span>
       </span>
     </button>

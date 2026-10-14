@@ -301,7 +301,9 @@ export function GarrisonStack({
       ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}
+            {picked.size === 0
+              ? fr.garrison.noColumn
+              : fr.garrison.column(picked.size, view.mode !== 'blitz')}
           </span>
           {onPrepare && (
             <button

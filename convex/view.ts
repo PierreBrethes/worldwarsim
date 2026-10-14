@@ -648,6 +648,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
+         *  compte à rebours, que la pièce égrène seule. */
+        ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
+          ? { reloadUntil: troop.reloadUntil }
+          : {}),
         mending: mending.has(troop._id),
       })),
       stationedCargo: stationedCargo.map((group) => ({
@@ -740,6 +745,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         point: engagement.point,
         outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
+        shock: engagement.shock === true,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         /**
@@ -811,25 +817,27 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           return troop === undefined ? [] : [troop];
         });
         const mission =
-          movement.plunder !== undefined
-            ? {
-                kind: 'plunder' as const,
-                phase: movement.plunder.phase,
-                buildingId: movement.plunder.buildingId,
-                presenceEndsAt:
-                  movement.plunder.phase === 'presence' ? movement.plunder.until : null,
-              }
-            : movement.lootCollection !== undefined
+          movement.pursuit !== undefined
+            ? { kind: 'pursuit' as const }
+            : movement.plunder !== undefined
               ? {
-                  kind: 'collection' as const,
-                  sightingId: movement.lootCollection.sightingId,
+                  kind: 'plunder' as const,
+                  phase: movement.plunder.phase,
+                  buildingId: movement.plunder.buildingId,
+                  presenceEndsAt:
+                    movement.plunder.phase === 'presence' ? movement.plunder.until : null,
                 }
-              : movement.lootDelivery !== undefined
+              : movement.lootCollection !== undefined
                 ? {
-                    kind: 'cargoReturn' as const,
-                    regionId: movement.lootDelivery.regionId,
+                    kind: 'collection' as const,
+                    sightingId: movement.lootCollection.sightingId,
                   }
-                : null;
+                : movement.lootDelivery !== undefined
+                  ? {
+                      kind: 'cargoReturn' as const,
+                      regionId: movement.lootDelivery.regionId,
+                    }
+                  : null;
         return {
           id: movement._id,
           type: movement.type,
@@ -937,6 +945,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
      */
     mode: modeOf(season.mode),
+    /** Le cadre d'une Blitz, que la carte dessine et que la rose ne franchit pas (B1). */
+    theatre: modeOf(season.mode) === 'blitz' ? (season.theatre ?? null) : null,
     /**
      * **Les bâtiments neutres de la Blitz, publics comme les objectifs** : on sait où aller et ce
      * qu'il y a à prendre, et il n'y a personne à relever — ils ne sont pas gardés (B8).

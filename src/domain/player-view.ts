@@ -36,6 +36,8 @@ export type OwnMovementMission =
     }
   | { readonly kind: 'collection'; readonly sightingId: string }
   | { readonly kind: 'cargoReturn'; readonly regionId: string }
+  /** Blitz (B18) : la colonne poursuit une unité, et sa route se recourbe sur elle. */
+  | { readonly kind: 'pursuit' }
   | null;
 
 /**
@@ -243,6 +245,8 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
+  readonly reloadUntil?: number;
   /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
   readonly mending: boolean;
 };
@@ -327,6 +331,8 @@ export type CombatReport = {
   /** L'avant-poste visé, quand c'en était un : la garnison qu'une dépêche ouvre est la sienne. */
   readonly outpostId: string | null;
   readonly outpostDisabled: boolean;
+  /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. */
+  readonly shock?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
   /**
@@ -778,6 +784,8 @@ type NoticeBody =
       readonly detectorRegion: string | null;
     }
   | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
+  | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }
   /**
    * Les trois dépêches du leurre ont quitté cette union le 29/08/2026, avec le leurre lui-même.
    * Leurs littéraux restent dans le validateur Convex le temps d'un wipe, et `convex/view.ts`
@@ -1174,6 +1182,8 @@ export type PlayerView = {
   readonly objectives: ReadonlyArray<ObjectiveView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
   readonly mode: SeasonMode;
+  /** Le théâtre d'une Blitz, `null` en Mondiale. */
+  readonly theatre: string | null;
   /** **Les bâtiments neutres d'une Blitz**, publics et sans garnison ; vide en Mondiale. */
   readonly neutralSites: ReadonlyArray<{
     readonly id: string;

@@ -380,6 +380,9 @@ export default defineSchema({
     nominalStrength: v.number(),
     currentStrength: v.number(),
     stationedAt: TROOP_ADDRESS,
+    /** **Blitz** (B19) : jusqu'à quand la troupe recharge après une frappe — elle bouge, elle
+     *  n'attaque pas. Absent, elle n'a jamais frappé. */
+    reloadUntil: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -531,6 +534,12 @@ export default defineSchema({
     /** **La colonne vient capturer** ce site : à l'arrivée elle engage ce qui le tient, et si son
      *  infanterie reste debout la capture commence (`convex/captures.ts`). */
     capture: v.optional(CAPTURE_TARGET),
+    /**
+     * **La poursuite d'une Blitz** (B18) : la troupe adverse visée — jamais servie au client — et
+     * l'échéance du prochain regard, seul rendez-vous de la colonne (`movement/pursuit.ts`). La
+     * cible stockée n'est que sa dernière position connue.
+     */
+    pursuit: v.optional(v.object({ troopId: v.id('troops'), checkAt: v.number() })),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -780,6 +789,9 @@ export default defineSchema({
      * a pass nobody measured cannot have been the one that crossed it.
      */
     reducedDefender: v.optional(v.boolean()),
+    /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
+     *  passe à l'initiative. */
+    shock: v.optional(v.boolean()),
     /**
      * **Legacy, plus jamais écrit ni lu.** Le détail frappe par frappe est passé dans la table
      * `strikes` : gardé dans le document de l'engagement, il se relisait à chaque chargement du

@@ -5,9 +5,9 @@
  * it opens.
  *
  * **Rien ne s'y engage** (ADR 0024 §3, révision du 13/09/2026) : la rencontre en route a été
- * retirée d'ici — plus de `firstMobileEncounter`, plus de rendez-vous de contact. Détecter est
+ * retirée d'ici — plus de rendez-vous de contact. Détecter est
  * voir ; se battre demande un ordre, et l'ordre est résolu à l'arrivée (`engageAt`). La
- * géométrie de l'interception reste dans le domaine, pour l'intercepteur V1.
+ * poursuite d'une Blitz date son contact elle-même (`contactAt`, `movement/pursuit.ts`).
  */
 
 import { reassessCaptures } from '../captures';

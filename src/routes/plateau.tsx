@@ -75,6 +75,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
+import { theatreById } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
 import {
@@ -379,6 +380,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * fermer celle du dessus rend la carte, pas la précédente.
    */
   const narrow = useNarrowScreen();
+  const blitz = view.mode === 'blitz';
+  const blitzTheatre = useMemo(
+    () => (blitz && view.theatre !== null ? theatreById(view.theatre) : null),
+    [blitz, view.theatre],
+  );
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
@@ -720,7 +726,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  plateau rend vrai quand la pile cliquée devient la destination. */
   const applyPileClick = useCallback(
     (click: PileClick, clientX: number, clientY: number): boolean => {
-      const move = clickPile(hand, click);
+      const move = clickPile(hand, click, { single: blitz });
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
       else {
@@ -738,7 +744,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint],
+    [hand, liftHand, dropHand, narrow, boardPoint, blitz],
   );
 
   /**
@@ -964,7 +970,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const compose = useCallback(
     (troopIds: ReadonlyArray<string>) => {
       if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
-      const move = composeHand(hand, troopIds);
+      const move = composeHand(hand, troopIds, { single: blitz });
       if (move.kind !== 'lift') {
         dropHand();
         return;
@@ -972,7 +978,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setHand(move.hand);
       setOrder(null);
     },
-    [hand, dropHand],
+    [hand, dropHand, blitz],
   );
 
   const restAt = useCallback(
@@ -1488,26 +1494,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : {
               kind: 'pile',
               station,
+              /** En Blitz, la figurine touchée et non la pile (B15) : `clickPile` n'en lève qu'une. */
               troopIds:
-                pile?.pieces.troopIds ??
-                troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id),
+                blitz && hit.troopIds.length > 0
+                  ? hit.troopIds
+                  : (pile?.pieces.troopIds ??
+                    troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
             },
         hit.clientX,
         hit.clientY,
       );
     },
-    [markers, view.me, marching, applyPileClick],
+    [markers, view.me, marching, applyPileClick, blitz],
   );
+  /** **Une pile de Blitz ne se déploie pas** (B15) : on y lève une figurine, pas une pile. */
   const standing = useMemo(
-    (): ReadonlyArray<StandingPile> => [
-      ...markers.flatMap((marker) =>
-        marker.kind === 'stack'
-          ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
-          : [],
-      ),
-      ...garrisonPiles(view.me, marching),
-    ],
-    [markers, view.me, marching],
+    (): ReadonlyArray<StandingPile> =>
+      [
+        ...markers.flatMap((marker) =>
+          marker.kind === 'stack'
+            ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
+            : [],
+        ),
+        ...garrisonPiles(view.me, marching),
+      ].map((pile) => (blitz ? { ...pile, pieces: { ...pile.pieces, spread: [] } } : pile)),
+    [markers, view.me, marching, blitz],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
@@ -2004,6 +2015,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         <ReplayLaunch.Provider value={launchReplay}>
           <div ref={board} className="relative min-w-0 flex-1">
             <WorldMap
+              blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}
               arcs={arcs}
               troops={view.me.troops}
@@ -2226,7 +2238,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 }
                 at={order}
                 preview={preview}
-                slots={view.me.slots}
+                slots={blitz ? null : view.me.slots}
                 originName={stationNames(view).place(column.station)}
                 onClose={dropHand}
                 onSent={afterSent}
@@ -2291,7 +2303,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   order={sent.order}
                   destination={sent.destination}
                   arrivesAt={sent.arrivesAt}
-                  slots={view.me.slots}
+                  slots={blitz ? null : view.me.slots}
                   onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
                 />
               </div>
@@ -2693,6 +2705,30 @@ function armedColumn(
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,
       captureRate: captureRate(troops),
+      ...blitzOf(view, troops),
+    },
+  };
+}
+
+/** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
+ *  bâtiments déjà tenus par une troupe posée. */
+function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
+  const theatre = view.theatre === null ? null : theatreById(view.theatre);
+  if (view.mode !== 'blitz' || theatre === null) return {};
+  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
+  const leaving = new Set(troops.map((troop) => troop.id));
+  const now = Date.now();
+  return {
+    blitz: {
+      theatre,
+      reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > now),
+      occupiedBuildingIds: new Set(
+        view.me.troops.flatMap((troop) =>
+          troop.stationedAt.kind === 'building' && !marching.has(troop.id) && !leaving.has(troop.id)
+            ? [troop.stationedAt.buildingId]
+            : [],
+        ),
+      ),
     },
   };
 }
@@ -2796,8 +2832,15 @@ function postedStacks(
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
       pieces: pilePieces(held),
       ink: me.ink,
+      ...reloadOf(held),
     };
   });
+}
+
+/** **Blitz** (B19) : la pile recharge tant que sa dernière troupe à avoir frappé recharge. */
+function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
+  const until = Math.max(0, ...held.map((troop) => troop.reloadUntil ?? 0));
+  return until > Date.now() ? { reloadUntil: until } : {};
 }
 
 /**

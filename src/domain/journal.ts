@@ -403,6 +403,13 @@ function written(notice: Notice): Written {
               : said.campSighted(fr.detectors[notice.detector], country),
       };
     }
+    case 'pursuitLost':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.pursuitLost(countryLabel(notice.hostCountry)),
+      };
     case 'firedDry':
       return {
         at: notice.at,
@@ -608,6 +615,7 @@ const fromCombat = (report: CombatReport): Written => ({
     mine: report.mine,
     theirs: report.theirs,
     outpostDisabled: report.outpostDisabled,
+    shock: report.shock === true,
   }),
   combat: report,
   place: report.point,

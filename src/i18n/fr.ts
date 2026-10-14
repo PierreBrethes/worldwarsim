@@ -75,7 +75,15 @@ const andList = (items: ReadonlyArray<string>): string =>
  * face. Les pertes d'un camp sont toutes de l'autre temps — c'est l'initiative —, donc le compte
  * rendu suffit à les répartir sans rien servir de plus.
  */
-const combatBeats = (attacking: boolean, mineLost: number, theirsLost: number): string => {
+const combatBeats = (
+  attacking: boolean,
+  mineLost: number,
+  theirsLost: number,
+  shock = false,
+): string => {
+  /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
+  if (shock)
+    return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
   const [strike, riposte] = attacking ? [theirsLost, mineLost] : [mineLost, theirsLost];
   const answer =
     riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
@@ -651,6 +659,11 @@ export const fr = {
      *  sentence before the click, the server answers it after. */
     NOT_A_GARRISON_FOR: (d) => `${aRoleName(d.role)} n’entre pas dans ${aBuildingName(d.building)}`,
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
+    ONE_UNIT_ONLY: () => 'en Blitz, une unité part seule',
+    OUTSIDE_THEATRE: () => 'hors du théâtre : la partie se joue dans son cadre',
+    UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
+    RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
+    BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
@@ -1281,6 +1294,7 @@ export const fr = {
       mine,
       theirs,
       outpostDisabled,
+      shock = false,
     }: {
       where: string;
       intercepted: boolean;
@@ -1289,6 +1303,7 @@ export const fr = {
       mine: { troops: number; lost: number; routed: number; destroyed: number };
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
+      shock?: boolean;
     }) => {
       const opening = intercepted
         ? attacking
@@ -1298,7 +1313,7 @@ export const fr = {
           ? `engagement ${where}`
           : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
-      const toll = combatBeats(attacking, mine.lost, theirs.lost);
+      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
@@ -1622,6 +1637,8 @@ export const fr = {
       campOnOurSoil: (country: string) => `Un camp inconnu se tient sur notre sol — ${country}.`,
       stationCampSighted: (region: string, country: string) =>
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
+      pursuitLost: (country: string) =>
+        `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
       /**
@@ -1775,7 +1792,8 @@ export const fr = {
     disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
     foundationHeld:
       'La garnison tient le chantier. Elle part entière ou elle tombe, il est perdu — rien n’est remboursé.',
-    column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
+    column: (count: number, slot = true) =>
+      `pile : ${count} troupe${plural(count, '', 's')}${slot ? ' · 1 slot' : ''}`,
     /**
      * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
      * Le joueur voyait « 2 troupes · 1 slot » et composait à l'aveugle : ni ce que ses transports
@@ -1863,14 +1881,22 @@ export const fr = {
     hold: 'tenir pour envoyer',
     holding: 'maintenez…',
     holdNote: 'irréversible · 1 slot',
+    holdNoteBlitz: 'irréversible',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
+  /** Blitz (B19) : après une frappe, une unité bouge mais n'attaque pas encore. */
+  reload: {
+    label: 'rechargement',
+    prefix: 'rechargement ',
+  },
+
   sent: {
     stamp: 'transmis',
     title: (order: string, destination: string) => `${order} — ${destination}`,
     line: (time: string, used: number, total: number) =>
       `arrivée ${time} · mouvements ${used} / ${total}`,
+    arrival: (time: string) => `arrivée ${time}`,
     follow: 'suivre',
   },
 
@@ -1967,6 +1993,9 @@ export const fr = {
     duration: (duration: string, count: number) =>
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
+    pursuit: 'poursuite',
+    pursuitNote:
+      'l’heure est celle de sa position actuelle : la route se recourbe si elle bouge, et la poursuite s’abandonne si elle sort de votre vue',
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
      * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
@@ -2918,6 +2947,7 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
+    enemyColumn: 'colonne ennemie',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :

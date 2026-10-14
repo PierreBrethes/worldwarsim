@@ -36,6 +36,7 @@ import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
 import { surveyFromPoint } from './surveys';
 import { reassessCaptures } from './captures';
+import { movementsOf } from './movement/forces';
 import { BUILDING_KEY, LAUNCH_REFUSAL } from './validators';
 
 export const isBlitz = async (ctx: QueryCtx, seasonId: Id<'seasons'>): Promise<boolean> =>
@@ -366,6 +367,34 @@ export async function ownedTroopsOnSite(
     if (typeof address === 'string') return ids.has(address);
     return address !== null && points.has(pointKey([address.lon, address.lat]));
   });
+}
+
+/**
+ * **Mes bâtiments déjà tenus** (B15, une unité par bâtiment) : une de mes troupes y est posée.
+ * Les troupes de l'ordre n'en occupent aucun — elles partent. La rose lit la même chose dans la
+ * vue (`armedColumn`).
+ * L'arrivée le relit aussi : de deux marches parties vers le même bâtiment vide, la seconde se
+ * pose à sa porte (`movements.arrive`).
+ */
+export async function occupiedBuildingIds(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  leavingIds: ReadonlyArray<Id<'troops'>>,
+): Promise<Set<string>> {
+  const marching = new Set((await movementsOf(ctx, playerId)).flatMap((one) => one.troopIds));
+  const leaving = new Set(leavingIds);
+  return new Set(
+    (
+      await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).flatMap((troop) =>
+      typeof troop.stationedAt === 'string' && !marching.has(troop._id) && !leaving.has(troop._id)
+        ? [troop.stationedAt]
+        : [],
+    ),
+  );
 }
 
 const pointKey = (point: LonLat) => `${point[0]},${point[1]}`;
