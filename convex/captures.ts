@@ -300,11 +300,13 @@ async function reassessOne(
   now: number,
   byPoint: ReadonlyMap<string, ReadonlyArray<Doc<'troops'>>>,
 ): Promise<void> {
+  /** **Échue, elle est faite** : le rendez-vous de `complete` peut se réveiller après l'heure,
+   *  et ce qui arrive entre-temps à l'infanterie n'efface pas une capture déjà achevée. */
+  if (capture.completesAt <= now) return;
   const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
   const troops = capturersOf(byPoint, capture);
   if (site === null || site.playerId !== capture.defenderId || troops.length === 0) {
-    await ctx.db.patch(capture._id, { stoppedAt: now });
-    await notifyBoth(ctx, capture, now, { kind: 'captureCancelled' });
+    await stop(ctx, capture, now);
     return;
   }
   const rate = rateOf(troops);
@@ -313,6 +315,11 @@ async function reassessOne(
   const due = completesAt({ ...clockOf(capture), progress, at: now, rate });
   await ctx.db.patch(capture._id, { progress, progressAt: now, rate, completesAt: due });
   await schedule(ctx, capture._id, due);
+}
+
+async function stop(ctx: MutationCtx, capture: Capture, now: number): Promise<void> {
+  await ctx.db.patch(capture._id, { stoppedAt: now });
+  await notifyBoth(ctx, capture, now, { kind: 'captureCancelled' });
 }
 
 export async function reassessCaptures(
@@ -350,10 +357,11 @@ export const complete = internalMutation({
     }
     const now = expectedAt;
     const byPoint = await infantryByPoint(ctx, capture.seasonId);
-    await reassessOne(ctx, capture, now, byPoint);
-    const fresh = await ctx.db.get(captureId);
-    if (fresh === null || fresh.stoppedAt !== undefined || fresh.completesAt !== expectedAt) return;
-    const site = (await targetOf(ctx, capture.target, capture.playerId, capture.seasonId))!;
+    const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
+    if (site === null || site.playerId !== capture.defenderId) {
+      await stop(ctx, capture, now);
+      return;
+    }
     const loser = (await ctx.db.get(site.playerId))!;
     const mode = await modeOf(ctx, capture.seasonId);
 

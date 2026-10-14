@@ -227,6 +227,27 @@ describe('capturing a building', () => {
     expect(await noticesOf(t, guest, 'captureCancelled')).toHaveLength(1);
   });
 
+  it('is not cancelled once due, even if the infantry leaves before the rendezvous runs', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    const [due] = await capturesOf(t);
+    vi.setSystemTime(due!.completesAt + 1000);
+    await t.run((ctx) => ctx.db.patch(infantry, { stationedAt: pointOfRegion(PRAHOVA) }));
+    await reassess(t, seat.seasonId);
+    expect(await capturesOf(t)).toMatchObject([{ completesAt: due!.completesAt }]);
+    expect((await capturesOf(t))[0]!.stoppedAt).toBeUndefined();
+  });
+
   it('slows the rest when the infantry loses strength, without starting over', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
