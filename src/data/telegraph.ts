@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
 import { telegraphSoundOn } from './settings';
 import type { Seat } from './session';
+import { unreadCount } from '@/domain/telegraph';
+import type { Id } from '../../convex/_generated/dataModel';
 
 export type TelegraphMessage = {
   readonly id: string;
@@ -14,14 +16,27 @@ export type TelegraphMessage = {
   readonly mine: boolean;
 };
 
-export type Telegraph = {
+export type DirectChannel = {
+  readonly with: Id<'players'>;
+  readonly nickname: string;
+  readonly nation: string | null;
+  readonly ink: string;
   readonly messages: ReadonlyArray<TelegraphMessage>;
-  /** Depuis la dernière fermeture, et des autres seulement : s'annoncer à soi-même ses propres
-   *  messages ferait du badge un compteur d'envois. */
+  /** From the others only, since the channel was last closed. */
   readonly unread: number;
 };
 
-const QUIET: Telegraph = { messages: [], unread: 0 };
+export type Telegraph = {
+  /** The general channel. */
+  readonly messages: ReadonlyArray<TelegraphMessage>;
+  readonly generalUnread: number;
+  readonly direct: ReadonlyArray<DirectChannel>;
+  /** Every channel together: the rail's badge. Announcing his own messages to a player would
+   *  make the badge a counter of sendings. */
+  readonly unread: number;
+};
+
+const QUIET: Telegraph = { messages: [], generalUnread: 0, direct: [], unread: 0 };
 
 /**
  * **Le fil vit dans l'écran, pas dans la fenêtre.** Au plateau, le badge du rail compte quand la
@@ -32,42 +47,36 @@ const QUIET: Telegraph = { messages: [], unread: 0 };
  */
 export function useTelegraph(seat: Seat): Telegraph {
   const served = useQuery(api.messages.recent, seat);
-  const telegraph = useMemo<Telegraph>(
-    () =>
-      served === undefined
-        ? QUIET
-        : {
-            messages: served.messages,
-            unread: served.messages.filter(
-              (message) => !message.mine && (served.readAt === null || message.at > served.readAt),
-            ).length,
-          },
-    [served],
-  );
+  const telegraph = useMemo<Telegraph>(() => {
+    if (served === undefined) return QUIET;
+    const generalUnread = unreadCount(served.messages, served.readAt);
+    const direct = served.direct.map((channel) => ({
+      ...channel,
+      unread: unreadCount(channel.messages, channel.readAt),
+    }));
+    return {
+      messages: served.messages,
+      generalUnread,
+      direct,
+      unread: direct.reduce((total, channel) => total + channel.unread, generalUnread),
+    };
+  }, [served]);
 
   /**
    * **Le tic-tac ne sonne que pour ce qui arrive après qu'on est là.** La première réponse du
-   * serveur est l'arriéré du fil — la faire sonner accueillerait le joueur par deux cents clics.
-   * D'où l'amorçage : le premier passage n'apprend qu'une chose, l'identité du dernier message.
+   * serveur est l'arriéré des fils — la faire sonner accueillerait le joueur par des centaines de
+   * clics. D'où l'amorçage : le premier passage n'apprend que les messages déjà là, et tout canal
+   * confondu un message des autres qu'on n'a pas vu fait sonner.
    */
-  const primed = useRef(false);
-  const lastSeen = useRef<string | null>(null);
+  const heard = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (served === undefined) return;
-    const previous = lastSeen.current;
-    const last = telegraph.messages.at(-1)?.id ?? null;
-    lastSeen.current = last;
-    if (!primed.current) {
-      primed.current = true;
-      return;
-    }
-    if (last === null || last === previous) return;
-    // Un message tombé hors des deux cents derniers ne se retrouve plus : tout ce qui est là
-    // est alors nouveau, ce qui est la lecture prudente.
-    const fresh = telegraph.messages.slice(
-      telegraph.messages.findIndex((message) => message.id === previous) + 1,
+    const others = [...telegraph.messages, ...telegraph.direct.flatMap((c) => c.messages)].filter(
+      (message) => !message.mine,
     );
-    if (fresh.some((message) => !message.mine)) tick();
+    const before = heard.current;
+    heard.current = new Set(others.map((message) => message.id));
+    if (before !== null && others.some((message) => !before.has(message.id))) tick();
   }, [served, telegraph]);
 
   return telegraph;

@@ -1,9 +1,10 @@
 import { useMutation } from 'convex/react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { fr, nationLabel } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
-import type { Telegraph, TelegraphMessage } from '@/data/telegraph';
+import type { TelegraphMessage } from '@/data/telegraph';
 import { asPressDate } from '@/domain/duration';
 import { MESSAGE_MAX_CHARS, threadLayout } from '@/domain/telegraph';
 import type { Seat } from '@/data/session';
@@ -34,12 +35,15 @@ const NEAR_BOTTOM_PX = 24;
  * stable qui défile est le comportement d'un fil ; une boîte qui grandit est un document.
  */
 export function TelegraphThread({
-  telegraph,
+  messages,
+  to,
   seat,
   height,
   autoFocus = false,
 }: {
-  telegraph: Telegraph;
+  messages: ReadonlyArray<TelegraphMessage>;
+  /** The player a private channel writes to; absent on the general channel. */
+  to?: Id<'players'>;
   seat: Seat;
   height: number | 'fill';
   autoFocus?: boolean;
@@ -56,7 +60,7 @@ export function TelegraphThread({
    */
   const thread = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
-  const last = telegraph.messages.at(-1)?.id ?? null;
+  const last = messages.at(-1)?.id ?? null;
   useLayoutEffect(() => {
     const box = thread.current;
     if (box && pinned.current) box.scrollTop = box.scrollHeight;
@@ -70,11 +74,11 @@ export function TelegraphThread({
     // Le champ se vide tout de suite : le fil est optimiste, et un refus le rend intact.
     setDraft('');
     setRefusal(null);
-    void post({ ...seat, text }).catch((error: unknown) => {
+    void post({ ...seat, text, ...(to === undefined ? {} : { to }) }).catch((error: unknown) => {
       setDraft(text);
       handleError(error, setRefusal);
     });
-  }, [draft, post, seat]);
+  }, [draft, post, seat, to]);
 
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -95,18 +99,16 @@ export function TelegraphThread({
           pinned.current = box.scrollHeight - box.scrollTop - box.clientHeight <= NEAR_BOTTOM_PX;
         }}
         className={`min-h-0 overflow-y-auto overscroll-contain ${height === 'fill' ? 'flex-1' : ''} ${
-          narrow ? 'flex flex-col px-3 py-[10px]' : ''
-        }`}
+          narrow ? 'px-3 py-[10px]' : ''
+        } flex flex-col`}
         style={height === 'fill' ? undefined : { height }}
       >
-        {telegraph.messages.length === 0 ? (
+        {messages.length === 0 ? (
           <p className="py-6 text-center text-[12.5px] text-[var(--ink-soft)] italic">
             {fr.telegraph.empty}
           </p>
-        ) : narrow ? (
-          <Bands messages={telegraph.messages} />
         ) : (
-          telegraph.messages.map((message) => <Line key={message.id} message={message} />)
+          <Bands messages={messages} />
         )}
       </div>
 
@@ -160,40 +162,15 @@ export function TelegraphThread({
 }
 
 /**
+ * **Le fil, au bureau comme au téléphone** (refonte mobile, 1i, étendue au bureau le 14/10) : les
+ * messages qui se suivent d'un même joueur se rangent sous un seul nom, en bandes serrées ; les
+ * siens à droite, à l'encre ; ceux des autres à gauche, le nom teinté de leur nation. Une date
+ * traverse le fil à chaque jour nouveau.
+ *
  * **Le texte est du texte.** React échappe ce qu'il rend et rien ici n'ajoute d'interprétation :
  * pas de markdown, pas de lien cliquable, pas de `dangerouslySetInnerHTML`. C'est la seule
  * défense dont ce canal ait besoin, et elle tient parce qu'on n'écrit pas la ligne qui la
  * contournerait.
- */
-function Line({ message }: { message: TelegraphMessage }) {
-  return (
-    <div className="border-b border-(color:--ink)/16 py-[7px] last:border-b-0">
-      <div className="flex items-baseline gap-2">
-        <span
-          title={nationLabel(message.nation)}
-          className="text-[10px] font-bold tracking-[.16em] uppercase"
-          style={{ color: message.ink }}
-        >
-          {message.nickname}
-        </span>
-        <span className="flex-1" />
-        <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-note)]">
-          {timeOf(message.at)}
-        </span>
-      </div>
-      <p className="mt-[2px] text-[13.5px] leading-[1.45] break-words text-[var(--ink)]">
-        {message.text}
-      </p>
-    </div>
-  );
-}
-
-/**
- * **Le fil du téléphone** (refonte mobile, 1i) : les messages qui se suivent d'un même joueur se
- * rangent sous un seul nom, en bandes serrées ; les siens à droite, à l'encre ; ceux des autres à
- * gauche, le nom teinté de leur nation. Une date traverse le fil à chaque jour nouveau. Le bureau
- * garde ses lignes justifiées — c'est la largeur d'un téléphone qui demande qu'on voie d'un coup
- * d'œil qui parle.
  */
 function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
   return threadLayout(messages).map(({ entry: message, opensDay, opensRun }, index) => (

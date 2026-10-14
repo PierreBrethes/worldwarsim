@@ -484,7 +484,7 @@ function LobbyTelegraph({ seat }: { seat: Seat }) {
         <span className="eyebrow">{fr.telegraph.header}</span>
         <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.channel}</span>
       </div>
-      <TelegraphThread telegraph={telegraph} seat={seat} height={220} />
+      <TelegraphThread messages={telegraph.messages} seat={seat} height={220} />
     </section>
   );
 }
