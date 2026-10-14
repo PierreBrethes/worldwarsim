@@ -60,6 +60,9 @@ export async function bombard(
     movement.troopIds.includes(troopId),
   );
   const stance = moving ? null : await stanceOf(ctx, troop.stationedAt);
+  /** **La vue du joueur à l'instant**, comme la poursuite : un relevé que plus rien ne tient
+   *  n'est pas une cible. */
+  await reassessDetection(ctx, troop.seasonId, now);
   const quarry = await quarryOf(ctx, player._id, target, now);
   /** Une pièce en route n'est pas en batterie : elle se compte immobile depuis maintenant. */
   const order = {

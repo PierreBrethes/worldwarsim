@@ -12,7 +12,8 @@ const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
 const MIDDAY = Date.UTC(2026, 9, 14, 12);
 const PARIS = { lon: 2.35, lat: 48.85 };
-/** À 112 km de Paris : entre la zone morte et la portée. */
+/** À 112 km de Paris : entre la zone morte et la portée, sur le sol français, que le détecteur
+ *  `territory` du joueur couvre. */
 const ROUEN = { lon: 1.1, lat: 49.44 };
 /** À 17 km : dans la zone morte. */
 const VERSAILLES = { lon: 2.13, lat: 48.8 };
@@ -21,6 +22,10 @@ const LYON = { lon: 4.85, lat: 45.75 };
 const CHANNEL = { lon: 0.0, lat: 50.2 };
 const CHANNEL_EAST = { lon: 0.4, lat: 50.3 };
 const COAST = { lon: 0.6, lat: 49.85 };
+/** Lille et Bruxelles, à 95 km : la Belgique n'est le sol de personne, rien n'y voit d'office. */
+const LILLE = { lon: 3.06, lat: 50.63 };
+const BRUSSELS = { lon: 4.35, lat: 50.85 };
+const MECHELEN = { lon: 4.48, lat: 51.03 };
 
 async function season(t: Bench, mode: 'blitz' | 'mondiale' = 'blitz') {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
@@ -120,6 +125,40 @@ describe('the artillery and indirect fire (lot 6b)', () => {
       await t.run((ctx) => ctx.db.patch(gun, { reloadUntil: undefined }));
     }
     for (const id of [gun, escort, cargo, rider]) expect(await row(t, id)).not.toBeNull();
+  });
+
+  it('fires only on what a detector still sees, never on a stale survey', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t);
+    const gun = await troop(t, seat, LILLE, 'artillery');
+    await troop(t, guest, BRUSSELS);
+    const campId = await surveyCamp(t, seat, BRUSSELS);
+    emplaced();
+    const fire = (id: Id<'campSightings'>) =>
+      t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId: gun,
+        target: { kind: 'camp', campId: id },
+      });
+    await expect(fire(campId)).rejects.toThrow(/NOTHING_TO_ATTACK/);
+
+    await troop(t, seat, MECHELEN);
+    await fire(await surveyCamp(t, seat, BRUSSELS));
+  });
+
+  it('charges in a Blitz only what a detector still sees', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t);
+    const rifle = await troop(t, seat, LILLE);
+    await troop(t, guest, BRUSSELS);
+    await expect(
+      t.mutation(api.movements.attack, {
+        ...seat,
+        origin: { kind: 'point', point: LILLE },
+        troopIds: [rifle],
+        target: { kind: 'camp', campId: await surveyCamp(t, seat, BRUSSELS) },
+      }),
+    ).rejects.toThrow(/NOTHING_TO_ATTACK/);
   });
 
   it('says why it holds its fire', async () => {

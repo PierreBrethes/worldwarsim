@@ -450,11 +450,13 @@ export const attack = mutation({
 
     /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
      *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
-    const hunted =
+    const chasing =
       (await blitzTheatreOf(ctx, player._id)) !== null &&
-      (target.kind === 'camp' || target.kind === 'track')
-        ? await quarryOf(ctx, player._id, target, Date.now())
-        : null;
+      (target.kind === 'camp' || target.kind === 'track');
+    /** **On poursuit ce qu'on voit à l'instant** : la vue refaite avant de la lire, comme à
+     *  chaque regard de la poursuite. */
+    if (chasing) await reassessDetection(ctx, seasonId, Date.now());
+    const hunted = chasing ? await quarryOf(ctx, player._id, target, Date.now()) : null;
     return march(ctx, {
       playerId: player._id,
       season,
