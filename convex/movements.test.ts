@@ -1014,19 +1014,19 @@ describe('an attack marches at somebody', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    // Fifty soldiers against fifty, both salvoes fired on the state the pass opened with: he
-    // loses 25, I lose 29 — attaquer à forces égales coûte plus cher (ADR 0014, révision 1b).
+    // Fifty soldiers against fifty in his barracks: my strike takes 25, his riposte answers
+    // from the 25 left at the garrison bonus — 14. Le cas de référence de `CLAUDE.md`.
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
     expect(await strikesIn(t, account!._id)).toHaveLength(2);
     expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(25);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(21);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(36);
 
     // And both sides read it, each from its own side of the field.
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.reports[0]!.side).toBe('attacker');
-    expect(mine.reports[0]!.mine.lost).toBe(29);
+    expect(mine.reports[0]!.mine.lost).toBe(14);
     expect(mine.reports[0]!.theirs.lost).toBe(25);
     const theirsView = await t.query(api.view.playerView, guest);
     expect(theirsView.reports[0]!.side).toBe('defender');
@@ -1387,6 +1387,11 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     expect(outpost!.playerId).toBe(await playerOf(t, guest));
     expect(outpost!.disabledUntil).toBe(account!.at + OUTPOST_DISABLED_HOURS * 3_600_000);
     expect(outpost!.immuneUntil).toBeGreaterThan(outpost!.disabledUntil!);
+
+    // Taken to 10 by the strike, the garrison ripostes from its point at the garrison bonus:
+    // .5 × 10/50 × 1.15 × 50 rounds to six, where the open ground would give five.
+    const riposte = (await strikesIn(t, account!._id)).filter((one) => one.phase === 'riposte');
+    expect(riposte.map((one) => one.losses)).toEqual([6]);
 
     // The garrison broke contact rather than dying, and it is still standing on its point.
     const broken = await t.run(async (ctx) => ctx.db.get(held));
@@ -1945,11 +1950,10 @@ describe('a march goes to a point and the column stays there', () => {
 
   /**
    * **L'assaut sur un camp relevé** (ADR 0024 §4) : c'est désormais le seul chemin vers cette
-   * passe-là. Les deux camps tirent ensemble (ADR 0014, révision 1b du 16/09) — le camp visé
-   * rend les coups sans que personne l'ordonne — et le battu reflue par le retour que nul n'a
-   * demandé.
+   * passe-là. L'attaquant frappe d'abord, le camp visé riposte avec ce qui lui reste sans que
+   * personne l'ordonne — et, posé en terrain libre, sans bonus de bâtiment.
    */
-  it('opens the pass on a surveyed camp, with a salvo from each side', async () => {
+  it('opens the pass on a surveyed camp: the strike, then the riposte', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1976,12 +1980,17 @@ describe('a march goes to a point and the column stays there', () => {
     expect(account!.attackerId).toBe(await playerOf(t, seat));
     expect(account!.defenderId).toBe(await playerOf(t, guest));
     expect(account!.cause).toBe('arrival');
-    /** Le camp rend les coups sans que personne l'ordonne (ADR 0024 §3), et il les rend dans la
-     *  même salve — c'est le côté qui les sépare désormais, plus la phase. */
+    /** Le camp rend les coups sans que personne l'ordonne (ADR 0024 §3), mais après la frappe. */
     const strikes = await strikesIn(t, account!._id);
-    expect(strikes.some((strike) => strike.bySide === 'attacker')).toBe(true);
-    expect(strikes.some((strike) => strike.bySide === 'defender')).toBe(true);
-    expect(strikes.every((strike) => strike.phase === 'strike')).toBe(true);
+    expect(strikes.map((strike) => [strike.bySide, strike.phase])).toEqual([
+      ['attacker', 'strike'],
+      ['attacker', 'strike'],
+      ['defender', 'riposte'],
+      ['defender', 'riposte'],
+    ]);
+    /** 25 + 15 sur la première compagnie du camp, qui riposte de ses 10 hommes restants (5) ;
+     *  la seconde, intacte, de ses 50 (25) — trente en tout, sans bonus en terrain libre. */
+    expect((await t.run(async (ctx) => ctx.db.get(first)))!.currentStrength).toBe(20);
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.currentStrength).toBeLessThan(
       nominalStrength('infantry', 1),
     );

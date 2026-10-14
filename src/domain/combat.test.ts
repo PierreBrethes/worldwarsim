@@ -9,6 +9,7 @@ import {
   type Combatant,
   type CombatProfile,
   type Engagement,
+  type PassMode,
 } from './combat';
 import type { UnitRole, UnitTier } from './ids';
 
@@ -35,7 +36,7 @@ const UNIT_OF: Readonly<Record<CombatProfile, { role: UnitRole; tier: UnitTier }
 const SUPPLIED = { attacker: 10_000, defender: 10_000 };
 
 let formed = 0;
-function troop(profile: CombatProfile, strength?: number): Combatant {
+function troop(profile: CombatProfile, strength?: number, sheltered = false): Combatant {
   const { role, tier } = UNIT_OF[profile];
   const nominal = nominalStrength(role, tier);
   formed += 1;
@@ -46,21 +47,27 @@ function troop(profile: CombatProfile, strength?: number): Combatant {
     strength: strength ?? nominal,
     nominalStrength: nominal,
     formedAt: formed,
+    sheltered,
   };
 }
 
-/** The salvo of one troop, since a pass no longer has two phases to tell the sides apart. */
+/** What one troop fired in the pass: its strike, or its riposte. */
 const firedBy = (engagement: Engagement, shooter: Combatant) =>
   engagement.strikes.filter((strike) => strike.by === shooter.id);
 
-const duel = (attacker: CombatProfile, defender: CombatProfile) => {
+const duel = (
+  attacker: CombatProfile,
+  defender: CombatProfile,
+  { sheltered = false, mode = 'initiative' }: { sheltered?: boolean; mode?: PassMode } = {},
+) => {
   const a = troop(attacker);
-  const d = troop(defender);
+  const d = troop(defender, undefined, sheltered);
   const engagement = resolveEngagement({
     attackers: [a],
     defenders: [d],
     ammunition: SUPPLIED,
     rules: COMBAT_RULES,
+    mode,
   });
   const outcome = (id: string) => engagement.outcomes.find((one) => one.id === id)!;
   return {
@@ -82,6 +89,14 @@ const reaches = (from: CombatProfile, to: CombatProfile) => DAMAGE_TABLE[from][t
  * the day it drifted the check would have been passing on numbers the game no longer plays. It
  * replays the same seventy-five couples through `resolveEngagement` itself.
  */
+/**
+ * **Le seul coup gratuit de l'initiative**, mesuré et non supposé : un char lourd qui attaque un
+ * char léger le laisse à 3 / 12, et ce qui reste riposte pour zéro. La table n'a pas bougé
+ * (`DAMAGE_TABLE`, inchangée par le grilling du 14/10) ; c'est la règle qui le fait, et il est
+ * nommé ici pour qu'un second ne s'y glisse pas en silence. En choc, il coûte comme avant.
+ */
+const FREE_UNDER_INITIATIVE = new Set(['armor2>armor1']);
+
 describe('the damage table holds no absolute counter', () => {
   const couples = COMBAT_PROFILES.flatMap((attacker) =>
     COMBAT_PROFILES.filter((defender) => reaches(attacker, defender)).map(
@@ -105,7 +120,11 @@ describe('the damage table holds no absolute counter', () => {
         `${attacker} → ${defender} wipes for nothing`,
       ).toBe(false);
     }
-    if (reaches(defender, attacker) && DAMAGE_TABLE[defender][attacker]! >= 0.15) {
+    if (
+      reaches(defender, attacker) &&
+      DAMAGE_TABLE[defender][attacker]! >= 0.15 &&
+      !FREE_UNDER_INITIATIVE.has(`${attacker}>${defender}`)
+    ) {
       expect(
         fight.lostByAttacker,
         `${defender} can reach ${attacker} and still costs it nothing`,
@@ -115,20 +134,26 @@ describe('the damage table holds no absolute counter', () => {
 });
 
 /**
- * **La révision du 16/09 de l'ADR 0014** : les deux camps tirent sur l'état d'avant la passe. Le
- * cas de référence en donne les deux chiffres, et ils sont dans l'ADR — c'est le seul endroit où
- * le joueur peut lire ce que coûte une attaque frontale.
+ * **L'initiative** (grilling du 14/10, B16) : l'attaquant frappe, le défenseur riposte avec ce
+ * qui lui reste. Les deux chiffres du cas de référence sont dans `CLAUDE.md` — c'est là qu'on lit
+ * ce que coûte une attaque frontale, en terrain libre et contre une garnison.
  */
-describe('the reference case of ADR 0014', () => {
-  it('has fifty soldiers lose twenty-five and cost the attacker twenty-nine', () => {
+describe('the reference case of the initiative', () => {
+  it('has fifty soldiers in the open lose twenty-five and cost the attacker thirteen', () => {
     const fight = duel('infantry1', 'infantry1');
     expect(fight.lostByDefender).toBe(25);
-    expect(fight.lostByAttacker).toBe(29);
+    expect(fight.lostByAttacker).toBe(13);
   });
 
-  it('makes the attacker of an even fight the one that pays', () => {
-    const fight = duel('infantry1', 'infantry1');
-    expect(fight.lostByAttacker).toBeGreaterThan(fight.lostByDefender);
+  it('has the same fifty in garrison cost the attacker fourteen', () => {
+    const fight = duel('infantry1', 'infantry1', { sheltered: true });
+    expect(fight.lostByDefender).toBe(25);
+    expect(fight.lostByAttacker).toBe(14);
+  });
+
+  it('makes the attacker of an even fight the one that comes out ahead', () => {
+    const fight = duel('infantry1', 'infantry1', { sheltered: true });
+    expect(fight.lostByAttacker).toBeLessThan(fight.lostByDefender);
   });
 
   it('gives mark-2 infantry the answer to a heavy tank that mark 1 does not have', () => {
@@ -138,7 +163,7 @@ describe('the reference case of ADR 0014', () => {
   });
 });
 
-describe('one pass, two salvoes, and the excess is lost', () => {
+describe('the strike, then the riposte, and the excess is lost', () => {
   it('wastes the strikes of six columns aimed at a single defender', () => {
     const attackers = Array.from({ length: 6 }, () => troop('armor2'));
     const lone = troop('infantry1');
@@ -176,7 +201,7 @@ describe('one pass, two salvoes, and the excess is lost', () => {
     expect(engagement.outcomes.find((one) => one.id === armour.id)!.strengthAfter).toBe(12);
   });
 
-  it('lets a defender broken by the salvo fire in the same pass before it routs', () => {
+  it('lets a defender broken by the strike riposte with what it has left, then rout', () => {
     const lorries = troop('landTransport');
     const worn = troop('infantry1', 16);
     const engagement = resolveEngagement({
@@ -189,13 +214,20 @@ describe('one pass, two salvoes, and the excess is lost', () => {
     const outcome = engagement.outcomes.find((one) => one.id === worn.id)!;
     expect(outcome.state).toBe('routed');
     expect(outcome.strengthAfter).toBeGreaterThan(0);
-    // Simultaneous: it broke contact *after* having fired, not instead of firing.
-    expect(firedBy(engagement, worn)).toHaveLength(1);
-    expect(firedBy(engagement, worn)[0]!.target).toBe(lorries.id);
+    // The routing is read after the riposte: it answers first, with its remainder, then breaks.
+    const [riposte] = firedBy(engagement, worn);
+    expect(riposte).toMatchObject({ phase: 'riposte', target: lorries.id });
+    expect(riposte!.losses).toBe(
+      Math.round(
+        DAMAGE_TABLE.infantry1.landTransport! *
+          (outcome.strengthAfter / 50) *
+          lorries.nominalStrength,
+      ),
+    );
     expect(engagement.winner).toBe('attacker');
   });
 
-  it('lets a defender destroyed by the salvo fire all the same', () => {
+  it('gives no riposte to a defender the strike destroyed', () => {
     const tanks = troop('armor2');
     const rifles = troop('infantry1');
     const engagement = resolveEngagement({
@@ -206,8 +238,10 @@ describe('one pass, two salvoes, and the excess is lost', () => {
     });
 
     expect(engagement.outcomes.find((one) => one.id === rifles.id)!.state).toBe('destroyed');
-    expect(firedBy(engagement, rifles)).toHaveLength(1);
-    expect(firedBy(engagement, rifles)[0]!.target).toBe(tanks.id);
+    expect(firedBy(engagement, rifles)).toHaveLength(0);
+    expect(engagement.outcomes.find((one) => one.id === tanks.id)!.strengthAfter).toBe(
+      tanks.strength,
+    );
   });
 
   it('has the defender pick with the table, like anyone else', () => {
@@ -237,14 +271,74 @@ describe('one pass, two salvoes, and the excess is lost', () => {
   it('fires from the one side that reaches, and it may be the defender', () => {
     const fight = duel('armor2', 'bomber');
     expect(fight.engagement.strikes).toHaveLength(1);
-    expect(fight.engagement.strikes[0]!.by).toBe(fight.defender.id);
+    expect(fight.engagement.strikes[0]).toMatchObject({ by: fight.defender.id, phase: 'riposte' });
     expect(fight.lostByAttacker).toBeGreaterThan(0);
     expect(fight.lostByDefender).toBe(0);
   });
 
-  it('writes one phase and one only, the riposte being legacy', () => {
+  it('gives no riposte to a defender the table does not let reach the attacker', () => {
+    const bombers = troop('bomber');
+    const rifles = troop('infantry1');
+    const engagement = resolveEngagement({
+      attackers: [bombers],
+      defenders: [rifles],
+      ammunition: SUPPLIED,
+      rules: COMBAT_RULES,
+    });
+    expect(firedBy(engagement, rifles)).toHaveLength(0);
+    expect(firedBy(engagement, bombers)).toHaveLength(1);
+  });
+
+  it('writes the strike first and the riposte after it', () => {
     const fight = duel('infantry1', 'infantry1');
+    expect(fight.engagement.strikes.map((strike) => [strike.phase, strike.by])).toEqual([
+      ['strike', fight.attacker.id],
+      ['riposte', fight.defender.id],
+    ]);
+  });
+
+  it('keeps the garrison bonus off a pile posted in the open', () => {
+    expect(duel('infantry1', 'infantry1').lostByAttacker).toBeLessThan(
+      duel('infantry1', 'infantry1', { sheltered: true }).lostByAttacker,
+    );
+  });
+});
+
+/**
+ * **Le choc** (B17) : deux unités qui s'attaquent l'une l'autre tirent ensemble, sur l'état
+ * d'avant la passe. Le serveur ne l'emploie pas encore — il attend la Blitz.
+ */
+describe('the shock', () => {
+  it('has both sides fire on the state the pass opened with', () => {
+    const fight = duel('infantry1', 'infantry1', { mode: 'shock' });
+    expect(fight.lostByDefender).toBe(25);
+    expect(fight.lostByAttacker).toBe(25);
     expect(fight.engagement.strikes.map((strike) => strike.phase)).toEqual(['strike', 'strike']);
+  });
+
+  it('lets a defender destroyed in the shock fire all the same', () => {
+    const tanks = troop('armor2');
+    const rifles = troop('infantry1');
+    const engagement = resolveEngagement({
+      attackers: [tanks, troop('armor2')],
+      defenders: [rifles],
+      ammunition: SUPPLIED,
+      rules: COMBAT_RULES,
+      mode: 'shock',
+    });
+    expect(engagement.outcomes.find((one) => one.id === rifles.id)!.state).toBe('destroyed');
+    expect(firedBy(engagement, rifles)).toHaveLength(1);
+  });
+
+  it('makes the one free hit of the initiative cost again', () => {
+    expect(duel('armor2', 'armor1').lostByAttacker).toBe(0);
+    expect(duel('armor2', 'armor1', { mode: 'shock' }).lostByAttacker).toBeGreaterThan(0);
+  });
+
+  it('still carries the garrison bonus of a sheltered defender', () => {
+    expect(duel('infantry1', 'infantry1', { mode: 'shock', sheltered: true }).lostByAttacker).toBe(
+      29,
+    );
   });
 });
 
@@ -307,8 +401,8 @@ describe('the magazine is billed at the pass', () => {
 
     expect(engagement.magazine.attacker).toEqual({ needed: 10, spent: 0, dry: true });
     expect(engagement.magazine.defender.dry).toBe(false);
-    // Simultaneous: the defender's salvo owes nothing to what the attacker managed to fire.
-    expect(firedBy(engagement, defender)[0]!.losses).toBe(supplied.lostByAttacker);
+    // Dry, the strike is weaker, so more is left to riposte with than in the supplied case.
+    expect(firedBy(engagement, defender)[0]!.losses).toBeGreaterThan(supplied.lostByAttacker);
   });
 
   it('asks nothing of a side that brings nothing', () => {

@@ -8,6 +8,7 @@ import {
   type Engagement,
 } from '../src/domain/combat';
 import { landAtPoint } from './routes';
+import { movementsOf } from './movement/forces';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -47,14 +48,34 @@ export type Resolution = {
  * A troop's hit points **are** its strength (ADR 0014), so the account is written in the same
  * unit the screen reads: 32 of 50 soldiers left.
  */
-const combatantOf = (troop: Doc<'troops'>): Combatant => ({
+const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
   id: troop._id,
   role: troop.role,
   tier: troop.tier,
   strength: troop.currentStrength,
   nominalStrength: troop.nominalStrength,
   formedAt: troop._creationTime,
+  sheltered,
 });
+
+/**
+ * **Le bonus de défense est un bonus de bâtiment** (grilling du 14/10, B16) : une troupe en
+ * garnison d'un bâtiment ou d'un avant-poste, ou la garnison d'un objectif — que le siège
+ * irrégulier tient sur un point —, et jamais une pile posée en terrain libre ni en mer. Une
+ * troupe garde son adresse quand elle marche, donc une troupe d'un mouvement n'est à l'abri de
+ * rien, même si son adresse nomme encore un bâtiment.
+ */
+async function shelteredOf(
+  ctx: MutationCtx,
+  defender: Engaged,
+): Promise<(troop: Doc<'troops'>) => boolean> {
+  const irregular = (await ctx.db.get(defender.playerId))?.irregular === true;
+  const marching = new Set(
+    (await movementsOf(ctx, defender.playerId)).flatMap((movement) => movement.troopIds),
+  );
+  return (troop) =>
+    !marching.has(troop._id) && (irregular || typeof troop.stationedAt === 'string');
+}
 
 export async function resolveContact(
   ctx: MutationCtx,
@@ -89,9 +110,10 @@ export async function resolveContact(
    * holds, and a camp that could not pay has already fired at `DRY_AMMUNITION_FACTOR`. An
    * engagement is never declined for want of matter.
    */
+  const sheltered = await shelteredOf(ctx, defender);
   const engagement = resolveEngagement({
-    attackers: attacker.troops.map(combatantOf),
-    defenders: defender.troops.map(combatantOf),
+    attackers: attacker.troops.map((troop) => combatantOf(troop)),
+    defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
     ammunition: {
       attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
       defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,

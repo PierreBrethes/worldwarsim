@@ -2,14 +2,17 @@ import type { UnitRole, UnitTier } from './ids';
 import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from './troops';
 
 /**
- * **One engagement is one resolution pass** (ADR 0014, revised 16/09/2026 — decision 1b). Both
- * sides fire on the state the pass opened with, the losses land together, and it is over. Three
- * passes turn fourteen of the seventy-five reachable couples into total annihilations —
- * measured, not supposed.
+ * **One engagement is one resolution pass, and the attacker has the initiative** (grilling of
+ * 14/10/2026, B16 — it replaces the simultaneous pass of 16/09). The attacker strikes with what
+ * it brings; the losses land; the defender ripostes with what it has left, if anything, and if
+ * the table lets it reach. A defender the strike destroyed does not answer. The rout is read
+ * once, after the riposte.
  *
- * **There is no initiative any more.** Attacking an equal force costs more than holding it: the
- * defender carries `garrisonBonus` and the attacker carries nothing, so an attack is worth
- * something only in superiority or in surprise.
+ * **The shock is the other reading of the same pass** (B17): two forces charging each other fire
+ * together, on the state the pass opened with. Nothing on the server orders it yet.
+ *
+ * The defence's only advantage is the **garrison bonus**: a defender sheltered in a building, an
+ * outpost or an objective ripostes at `garrisonBonus`. A pile posted in the open has nothing.
  *
  * Deterministic, without a die: in an asynchronous game nobody is there to react to a roll.
  *
@@ -67,6 +70,7 @@ export const TRANSPORT_PROFILES: ReadonlyArray<CombatProfile> = [
 
 export type CombatRules = {
   readonly damage: DamageTable;
+  /** What a sheltered defender ripostes at — never a pile in the open, never the attacker. */
   readonly garrisonBonus: number;
   readonly routThreshold: number;
   /**
@@ -104,19 +108,19 @@ export type Combatant = {
   readonly nominalStrength: number;
   /** Breaks a tie between two troops of the same role: the older one fires first. */
   readonly formedAt: number;
+  /** In garrison of a building, an outpost or an objective: it defends at `garrisonBonus`. */
+  readonly sheltered?: boolean;
 };
+
+/** `initiative`: the attacker strikes, the defender ripostes with the rest. `shock`: together. */
+export type PassMode = 'initiative' | 'shock';
 
 export type CombatSide = 'attacker' | 'defender';
 
 export type TroopState = 'standing' | 'routed' | 'destroyed';
 
 export type Strike = {
-  /**
-   * **`'riposte'` is legacy**, like `decoy` in `convex/validators.ts`: the pass has had a single
-   * salvo per side since the revision of 16/09/2026, and every report written from now on says
-   * `'strike'` on both sides. The literal survives in the validator because engagements already
-   * recorded carry it, and no migration rewrites them.
-   */
+  /** `'riposte'` is the defender's answer under the initiative; a shock writes `'strike'` twice. */
   readonly phase: 'strike' | 'riposte';
   readonly by: string;
   readonly target: string;
@@ -151,11 +155,6 @@ export const byStrikeOrder = (a: Combatant, b: Combatant): number =>
   a.formedAt - b.formedAt ||
   (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-/**
- * A troop through the pass: what it fires with never moves — that is `combatant.strength`, the
- * state the pass opened with — and `remaining` only ever falls, under the other side's salvo.
- * Two fields rather than one is the whole of the simultaneity.
- */
 type Fighter = {
   readonly combatant: Combatant;
   readonly side: CombatSide;
@@ -167,12 +166,14 @@ export function resolveEngagement({
   defenders,
   ammunition,
   rules,
+  mode = 'initiative',
 }: {
   attackers: ReadonlyArray<Combatant>;
   defenders: ReadonlyArray<Combatant>;
   /** Each side's national stock, as it stands when the two forces meet. */
   ammunition: Readonly<Record<CombatSide, number>>;
   rules: CombatRules;
+  mode?: PassMode;
 }): Engagement {
   const line = (combatant: Combatant, side: CombatSide): Fighter => ({
     combatant,
@@ -189,33 +190,30 @@ export function resolveEngagement({
   };
   const supply = (side: CombatSide) => (magazine[side].dry ? rules.dryFactor : 1);
 
-  /**
-   * **One salvo per side, both fired on the state the pass opened with.** The two loops read
-   * and write disjoint things — a side fires with `combatant.strength`, which nothing touches,
-   * and spends only the opposing `remaining` — so running one before the other in the source is
-   * an order of writing, never an order of battle.
-   *
-   * `garrisonBonus` is applied **once**, on the defender's salvo, and nowhere else. Dividing the
-   * attacker's as well — what the sequential rule did — stacked the advantage to ×1.32 of real
-   * spread where the constant says ×1.15, so the figure read in `convex/constants.ts` was not the
-   * figure the pass applied.
-   */
-  const salvo = (shooters: ReadonlyArray<Fighter>, at: ReadonlyArray<Fighter>, modifier: number) =>
+  /** Under the initiative a troop fires with what it has left; in a shock, with what it brought. */
+  const firing = (fighter: Fighter) =>
+    mode === 'shock' ? fighter.combatant.strength : fighter.remaining;
+
+  const salvo = (
+    shooters: ReadonlyArray<Fighter>,
+    at: ReadonlyArray<Fighter>,
+    phase: Strike['phase'],
+  ) =>
     shooters.flatMap((shooter) => {
+      const strength = firing(shooter);
+      if (strength <= 0) return [];
       const target = pick(shooter, at, rules);
-      return target === null ? [] : [hit(shooter, target, modifier, rules)];
+      if (target === null) return [];
+      const shelter =
+        shooter.side === 'defender' && shooter.combatant.sheltered ? rules.garrisonBonus : 1;
+      return [hit(shooter, strength, target, supply(shooter.side) * shelter, phase, rules)];
     });
 
   const strikes = [
-    ...salvo(striking, holding, supply('attacker')),
-    ...salvo(holding, striking, supply('defender') * rules.garrisonBonus),
+    ...salvo(striking, holding, 'strike'),
+    ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte'),
   ];
 
-  /**
-   * **The losses are read once, and only here.** Nothing routs or dies inside a salvo: a
-   * defender taken under the quarter, or to nothing, has already fired — that is what
-   * simultaneous means.
-   */
   const outcomes = [...striking, ...holding].map((fighter) => ({
     id: fighter.combatant.id,
     side: fighter.side,
@@ -295,21 +293,27 @@ function pick(
 /**
  * `share × (strength / nominal) × modifier × nominal(target)`, rounded, and **capped at what the
  * target has left**: the excess is lost rather than spilling onto the next troop. That single
- * rule is what bounds stacking — six columns on one target waste five of them, and it is the one
- * thing a salvo reads in firing order rather than from the state the pass opened with.
+ * rule is what bounds stacking — six columns on one target waste five of them.
  */
-function hit(shooter: Fighter, target: Fighter, modifier: number, rules: CombatRules): Strike {
+function hit(
+  shooter: Fighter,
+  strength: number,
+  target: Fighter,
+  modifier: number,
+  phase: Strike['phase'],
+  rules: CombatRules,
+): Strike {
   const share = damageOf(rules, shooter.combatant, target.combatant) ?? 0;
   const raw =
     share *
-    (shooter.combatant.strength / shooter.combatant.nominalStrength) *
+    (strength / shooter.combatant.nominalStrength) *
     modifier *
     target.combatant.nominalStrength;
   const losses = Math.min(target.remaining, Math.round(raw));
 
   target.remaining -= losses;
 
-  return { phase: 'strike', by: shooter.combatant.id, target: target.combatant.id, losses };
+  return { phase, by: shooter.combatant.id, target: target.combatant.id, losses };
 }
 
 /**

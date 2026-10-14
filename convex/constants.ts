@@ -595,11 +595,10 @@ export const DAMAGE_TABLE: DamageTable = {
  * `CLAUDE.md` forbids a rule reading it without its own ADR; and **the pincer** (×1.20),
  * because "two converging movements" is one number and three undecided definitions.
  *
- * **C'est le seul avantage qui reste au défenseur** depuis que les deux camps tirent ensemble
- * (ADR 0014, révision 1b du 16/09/2026) : plus d'initiative, donc ce facteur dit à lui seul ce
- * que coûte une attaque frontale. Il s'applique deux fois dans `resolveEngagement` — divisé chez
- * l'attaquant, multiplié chez le défenseur, ×1,32 d'écart réel — et ce doublon est relu quand on
- * chiffre terrain et retranchement (Registre 29-30).
+ * **Un bonus de bâtiment, et lui seul** (grilling du 14/10/2026, B16) : depuis que l'attaquant a
+ * l'initiative, la défense n'a plus que ses murs. Une troupe en garnison d'un bâtiment, d'un
+ * avant-poste ou d'un objectif riposte à ce facteur ; une pile posée en terrain libre ou en mer
+ * riposte nue. Il s'applique une fois, sur la riposte, dans `resolveEngagement`.
  *
  * @a-mesurer rapport pertes attaquant / défenseur par engagement sur une saison
  */
