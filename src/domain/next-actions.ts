@@ -1,4 +1,6 @@
 import { fr } from '@/i18n/fr';
+import { asClockTime } from './duration';
+import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
 import type { ResourceKey } from './ids';
@@ -18,6 +20,9 @@ import { stationNames, type StationNames } from './station-name';
  * ce qui interdit à cette carte de devenir une seconde liste de tâches à tenir à jour.
  */
 export type NextActionKind =
+  /** Un de mes sites se fait capturer : la seule attente qui ait une heure de perte (14/10). */
+  | 'siteUnderCapture'
+  | 'captureStopped'
   | 'foundation'
   | 'idleSite'
   | 'idleProjection'
@@ -94,6 +99,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
   const standing = view.me.troops.filter((troop) => !marching.has(troop.id));
 
   return [
+    ...captureLines(view),
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
     ...raiseOutpostLine(view),
@@ -101,6 +107,36 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
     ...idleProjectionLine(view),
     ...troopsWithoutOrder(view, standing, names),
     ...unsuppliedTroops(view, standing, names),
+  ];
+}
+
+/**
+ * **Une capture qui m'attend** : en tête, le site que je suis en train de perdre et l'heure où il
+ * part — la ligne recentre sur lui ; plus bas, celle que mon infanterie a lâchée, à relancer.
+ * Celle qui court chez moi n'attend rien de moi : elle se lit sur la carte.
+ */
+function captureLines(view: PlayerView): ReadonlyArray<NextAction> {
+  const threatened = view.captures.filter((capture) => capture.side === 'defender');
+  const stopped = view.captures.filter(
+    (capture) => capture.side === 'capturer' && capture.stoppedAt !== null,
+  );
+  const [one] = threatened;
+  const [dropped] = stopped;
+  return [
+    ...lineOf(
+      'siteUnderCapture',
+      threatened.length === 1 && one !== undefined
+        ? fr.nextActions.siteUnderCapture(captureSiteName(one), asClockTime(one.completesAt))
+        : fr.nextActions.sitesUnderCapture(threatened.length),
+      threatened.map((capture) => ({ kind: 'map', point: capture.point })),
+    ),
+    ...lineOf(
+      'captureStopped',
+      stopped.length === 1 && dropped !== undefined
+        ? fr.nextActions.captureStopped(captureSiteName(dropped))
+        : fr.nextActions.capturesStopped(stopped.length),
+      stopped.map((capture) => ({ kind: 'map', point: capture.point })),
+    ),
   ];
 }
 

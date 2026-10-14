@@ -1634,6 +1634,11 @@ export const fr = {
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
     idleSite: 'chantier libre — rien en file',
+    siteUnderCapture: (site: string, hour: string) =>
+      `${site} : capture en cours, perdue vers ${hour}`,
+    sitesUnderCapture: (count: number) => `${count} sites en cours de capture`,
+    captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
+    capturesStopped: (count: number) => `${count} captures arrêtées`,
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
