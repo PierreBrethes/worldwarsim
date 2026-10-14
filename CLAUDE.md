@@ -529,8 +529,16 @@ ici et coûterait un modèle mental de plus.
 réglage n'était plus jamais au-dessus de zéro, et `Curvature`, `frame.drop`, `setCurvature` et le
 test d'horizon des étiquettes sont partis avec lui — un point du plateau se relit tel quel, et le
 raycast vise la géométrie qu'on voit. Plus d'épaisseur non plus : un pays est un aplat
-(`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est le trait
-d'encre des frontières, et l'écart ne sert qu'au tampon de profondeur. **La pente suit la
+(`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est un trait
+d'encre, et l'écart ne sert qu'au tampon de profondeur. **Les traits suivent le prototype —
+14/10/2026** : la côte est le trait le plus gras (`LineSegments2`, encre .92, plancher 2 px et
+0,03 u qui grossit au zoom, `coastWidthPx`), séparée des frontières terrestres par
+`splitOutlines` — une arête que deux pays partagent est une frontière, 1 px ; les frontières de
+région sont en pointillé (4 px d'encre, 2 de blanc, encre .38) ; l'anneau de destination est un
+pointillé d'encre. **Et l'objectif du prototype s'essaie** (Réglages, `wws-camera-lens`, défaut
+« jeu ») : 28° et ACES 1,05, rendus par un œil (`eye`) reculé sur l'axe de la caméra pilotée
+(`eyeDistanceFactor`, `src/domain/camera-lens.ts`) — la caméra de 42° garde les contrôles et tous
+les seuils de distance, l'œil rend, projette les étiquettes et vise les rayons. **La pente suit la
 distance** (`steepestTiltAt`, `camera-tilt.ts`) : on se penche jusqu'à 66° au rapproché, on ne
 dépasse plus 52° à la vue monde ; l'aplomb reste permis partout et la pente sous ce plafond reste
 celle du joueur.
