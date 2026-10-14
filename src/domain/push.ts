@@ -101,8 +101,9 @@ const ALARM_ORDER: ReadonlyArray<Exclude<PushType, 'telegraph'>> = [
  * **Le reste part en une seule notification** : un événement, sa phrase ; plusieurs, un résumé.
  * Le télégraphe est tenu à part — il a sa propre cadence.
  *
- * **L'adresse suit les attaques, pas le compte des alarmes** (lot mobile-3, §6). Une seule
- * attaque dans le lot ouvre sa dépêche, même quand la colonne relevée en approche part dans la
+ * **Une alarme seule ouvre sa propre adresse** — sa dépêche pour une attaque, l'accueil pour le
+ * rappel d'une Blitz, le journal pour le reste. **En lot, l'adresse suit les attaques, pas le
+ * compte des alarmes** (lot mobile-3, §6). Une seule attaque dans le lot ouvre sa dépêche, même quand la colonne relevée en approche part dans la
  * même minute — c'est le cas ordinaire, le relevé précède l'arrivée de peu. Plusieurs attaques
  * gardent le journal : une adresse ne mène qu'à une dépêche, et choisir l'une tairait les autres.
  */
