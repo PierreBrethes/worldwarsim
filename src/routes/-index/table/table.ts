@@ -230,47 +230,53 @@ export class LandingTable {
     this.isLand = landMask(sheet);
     const narrow = innerWidth <= 760;
     this.renderer = new WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(narrow ? 1.6 : 2, devicePixelRatio));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
-    this.renderer.toneMapping = NoToneMapping;
-    this.scene.background = new Color(PALETTE.desk);
-    this.moments = new Moments(this.scene, motion);
-    this.lamp = new Lamp(this.scene);
+    // Whatever was built before a throw — a context, listeners, textures — goes with it.
+    try {
+      this.renderer.setPixelRatio(Math.min(narrow ? 1.6 : 2, devicePixelRatio));
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = PCFSoftShadowMap;
+      this.renderer.toneMapping = NoToneMapping;
+      this.scene.background = new Color(PALETTE.desk);
+      this.moments = new Moments(this.scene, motion);
+      this.lamp = new Lamp(this.scene);
 
-    const { x0, x1, y0, y1 } = sheet.box;
-    const texture = new CanvasTexture(engrave(sheet, narrow ? 2560 : 4096));
-    texture.colorSpace = SRGBColorSpace;
-    texture.anisotropy = 8;
-    const edge = new MeshStandardMaterial({ color: '#cbbb98', roughness: 0.9 });
-    const top = new MeshStandardMaterial({ map: texture, roughness: 0.92 });
-    const paper = new Mesh(new BoxGeometry(x1 - x0, 0.13, y1 - y0), [
-      edge,
-      edge,
-      top,
-      edge,
-      edge,
-      edge,
-    ]);
-    paper.position.copy(this.frame.toWorld((x0 + x1) / 2, (y0 + y1) / 2, SHEET_Y - 0.065));
-    paper.receiveShadow = true;
-    const desk = new Mesh(
-      new PlaneGeometry(500, 500),
-      new MeshStandardMaterial({ color: '#241a0e', roughness: 1 }),
-    );
-    desk.rotation.x = -Math.PI / 2;
-    desk.position.copy(paper.position).setY(-0.07);
-    desk.receiveShadow = true;
-    this.scene.add(paper, desk);
-    this.night = new NightSky(this.scene, this.frame, this.surface(), this.lamp, null);
+      const { x0, x1, y0, y1 } = sheet.box;
+      const texture = new CanvasTexture(engrave(sheet, narrow ? 2560 : 4096));
+      texture.colorSpace = SRGBColorSpace;
+      texture.anisotropy = 8;
+      const edge = new MeshStandardMaterial({ color: '#cbbb98', roughness: 0.9 });
+      const top = new MeshStandardMaterial({ map: texture, roughness: 0.92 });
+      const paper = new Mesh(new BoxGeometry(x1 - x0, 0.13, y1 - y0), [
+        edge,
+        edge,
+        top,
+        edge,
+        edge,
+        edge,
+      ]);
+      paper.position.copy(this.frame.toWorld((x0 + x1) / 2, (y0 + y1) / 2, SHEET_Y - 0.065));
+      paper.receiveShadow = true;
+      const desk = new Mesh(
+        new PlaneGeometry(500, 500),
+        new MeshStandardMaterial({ color: '#241a0e', roughness: 1 }),
+      );
+      desk.rotation.x = -Math.PI / 2;
+      desk.position.copy(paper.position).setY(-0.07);
+      desk.receiveShadow = true;
+      this.scene.add(paper, desk);
+      this.night = new NightSky(this.scene, this.frame, this.surface(), this.lamp, null);
 
-    addEventListener('resize', this.resize);
-    canvas.addEventListener('pointerdown', this.onDown);
-    addEventListener('pointermove', this.onMove);
-    addEventListener('pointerup', this.onUp);
-    addEventListener('keydown', this.onKey);
-    this.resize();
-    this.prepare('hero');
+      addEventListener('resize', this.resize);
+      canvas.addEventListener('pointerdown', this.onDown);
+      addEventListener('pointermove', this.onMove);
+      addEventListener('pointerup', this.onUp);
+      addEventListener('keydown', this.onKey);
+      this.resize();
+      this.prepare('hero');
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
     this.frameId = requestAnimationFrame(this.tick);
   }
 
