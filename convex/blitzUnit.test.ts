@@ -354,6 +354,47 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(await t.run((ctx) => ctx.db.get(chase))).toMatchObject({ type: 'march' });
   });
 
+  it('does not call a road it cannot take a target lost from sight', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const shore = { lon: 2.0, lat: 50.95 };
+    const ship = { lon: 1.6, lat: 51.05 };
+    const hunter = await troop(t, seat, shore);
+    const quarry = await troop(t, guest, ship, 'cargo');
+    const chase = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('movements', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'point', point: shore },
+        from: { lon: 2.2, lat: 50.9 },
+        to: shore,
+        hostCountry: 'FRA',
+        points: [{ lon: 2.2, lat: 50.9 }, shore],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [hunter],
+        departedAt: MIDDAY - 60_000,
+        arrivesAt: MIDDAY,
+        pursuit: { troopId: quarry, checkAt: MIDDAY + 1_000 },
+      });
+    });
+    vi.setSystemTime(MIDDAY + 1_000);
+    await t.mutation(internal.movements.pursue, { movementId: chase, expectedAt: MIDDAY + 1_000 });
+    expect(await t.run((ctx) => ctx.db.get(chase))).toMatchObject({ type: 'march' });
+    const player = await t.run((ctx) => seatIn(ctx, seat));
+    const notices = await t.run((ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect(),
+    );
+    expect(notices.map((notice) => notice.kind)).not.toContain('pursuitLost');
+  });
+
   it('gives up on a target out of sight and stops at its last known position', async () => {
     const t = boot();
     const { seat, guest } = await blitz(t);

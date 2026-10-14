@@ -195,11 +195,13 @@ export async function pursue(
   else {
     /** **Au bout de sa route sans contact, elle repart** : la grille arrête une route au centre
      *  d'une cellule, parfois au-delà de l'allonge, et attendre sur place se réveillerait sans
-     *  fin. Une route qui n'avance plus abandonne. */
+     *  fin. Une route qui n'avance plus s'arrête. */
     const arrived = now >= movement.arrivesAt;
     if (arrived || distanceKm(quarry!.point, pointOf(movement.to)) > ARRIVAL_RADIUS_KM) {
       if (!(await bendTowards(ctx, movement, hunters, at, quarry!.point, now))) {
-        await loseSight(ctx, movement, now, true);
+        /** Une route coupée n'est pas une cible perdue de vue : la marche s'arrête sans dépêche,
+         *  et son arrivée le dit. */
+        await loseSight(ctx, movement, now, false);
         return;
       }
       await reassessDetection(ctx, movement.seasonId, now);
