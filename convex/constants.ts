@@ -815,7 +815,6 @@ export const routeMinutes = (costUnits: number): number =>
   Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
 
 export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
-export const MIN_PLAYERS_TO_LAUNCH = 2;
 
 /**
  * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the

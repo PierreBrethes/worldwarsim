@@ -5,7 +5,7 @@ import type { Id } from './_generated/dataModel';
 import { FOUNDER_ABSENCE_HOURS, PRESENCE_THROTTLE_MIN } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
+import { foundSeat, joinSeat, seatDoc, setClock } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -24,7 +24,8 @@ const HOUR = 3_600_000;
 const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
-  const { seat, code } = await foundSeat(t, 'Pierre', null, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+  await setClock(t, seat.seasonId, null);
   const seats = [seat];
   for (let rank = 1; rank < players; rank += 1) {
     seats.push(await joinSeat(t, code, `Joueur ${rank}`));
@@ -139,7 +140,8 @@ describe('fondateur absent', () => {
 
   it('ne se tait ni sur un salon ni sur un défait', async () => {
     const t = boot();
-    const { seat: lobby } = await foundSeat(t, 'Pierre', null, 0.5);
+    const { seat: lobby } = await foundSeat(t, 'Pierre', 0.5);
+    await setClock(t, lobby.seasonId, null);
     await t.mutation(api.players.touch, lobby);
     expect((await playerOf(t, lobby)).lastSeenAt).toBeUndefined();
 

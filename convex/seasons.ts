@@ -25,13 +25,12 @@ import {
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
-import { SEASON_CLOCK_HOURS, SEASON_MODE } from './validators';
+import { SEASON_MODE } from './validators';
 import { creationRefusalOf, MODE_RULES, modeOf } from '../src/domain/season-mode';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
   PRESS_EDITION_HOURS,
-  MIN_PLAYERS_TO_LAUNCH,
   STARTING_KIT,
 } from './constants';
 
@@ -64,33 +63,31 @@ async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Prom
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
+const maximumOf = (season: Doc<'seasons'>): number => MODE_RULES[modeOf(season.mode)].maxPlayers;
+
 /**
- * **Un seul choix** (ADR 0020 §11) : l'horloge, et elle peut ne pas exister. Le format est parti
- * le 31/08 — il ne restait de lui qu'une ligne de départ, et une seule saison n'en demande pas
- * deux.
+ * **Un seul choix : le mode** (lot 1 de la Blitz, 14/10/2026). Il fixe l'horloge, le plafond de
+ * joueurs et, en Blitz, le théâtre — le fondateur ne règle plus l'horloge. Le format est parti le
+ * 31/08 (ADR 0020 §11) ; les saisons sans horloge d'avant se lisent toujours.
  */
 export const create = mutation({
   args: {
     token: v.string(),
-    /** Ignored once a `mode` is given: the mode fixes the clock. */
-    durationHours: v.optional(SEASON_CLOCK_HOURS),
     compensation: v.number(),
-    mode: v.optional(SEASON_MODE),
+    mode: SEASON_MODE,
     theatre: v.optional(v.string()),
   },
-  handler: async (ctx, { token, durationHours, compensation, mode, theatre }) => {
+  handler: async (ctx, { token, compensation, mode, theatre }) => {
     const account = await accountOf(ctx, token);
     if (!account) fail('UNKNOWN_SESSION');
-    if (mode !== undefined) {
-      const refusal = creationRefusalOf(mode, theatre);
-      if (refusal !== null) fail(refusal);
-    }
+    const refusal = creationRefusalOf(mode, theatre);
+    if (refusal !== null) fail(refusal);
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
       code,
       status: 'lobby',
-      durationHours: mode === undefined ? (durationHours ?? null) : MODE_RULES[mode].clockHours,
-      ...(mode === undefined ? {} : { mode }),
+      durationHours: MODE_RULES[mode].clockHours,
+      mode,
       ...(mode === 'blitz' ? { theatre } : {}),
       compensation: Math.max(0, Math.min(1, compensation)),
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -181,7 +178,7 @@ export const join = mutation({
      * is where it is read.
      */
     const present = await seatsOf(ctx, season._id);
-    const maximum = MODE_RULES[modeOf(season.mode)].maxPlayers;
+    const maximum = maximumOf(season);
     const refusal = joinRefusalOf({
       seated: (await seatOf(ctx, account, season._id)) !== null,
       status: season.status,
@@ -240,7 +237,7 @@ export const invitation = query({
     const account = token === undefined ? null : await accountOf(ctx, token);
     const mine = account === null ? null : await seatOf(ctx, account, season._id);
     const present = await seatsOf(ctx, season._id);
-    const maximum = MODE_RULES[modeOf(season.mode)].maxPlayers;
+    const maximum = maximumOf(season);
     return {
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
@@ -291,7 +288,7 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
     status: season.status,
     mode: modeOf(season.mode),
     theatre: season.theatre ?? null,
-    maximum: MODE_RULES[modeOf(season.mode)].maxPlayers,
+    maximum: maximumOf(season),
     durationHours: season.durationHours,
     launchedAt: season.launchedAt,
     createdAt: season._creationTime,
@@ -332,7 +329,7 @@ export const lobby = query({
       status: season.status,
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
-      maximum: MODE_RULES[modeOf(season.mode)].maxPlayers,
+      maximum: maximumOf(season),
       registrationClosesAt:
         season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
       durationHours: season.durationHours,
@@ -374,8 +371,9 @@ export const launch = mutation({
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const present = await seatsOf(ctx, season._id);
-    if (present.length < MIN_PLAYERS_TO_LAUNCH) {
-      fail('NOT_ENOUGH_PLAYERS', { minimum: MIN_PLAYERS_TO_LAUNCH });
+    const { minPlayers } = MODE_RULES[modeOf(season.mode)];
+    if (present.length < minPlayers) {
+      fail('NOT_ENOUGH_PLAYERS', { minimum: minPlayers });
     }
     const stragglers = present.filter((entry) => !entry.ready);
     if (stragglers.length > 0) {

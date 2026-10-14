@@ -32,7 +32,7 @@ async function ready(t: Bench, seat: Seat, rank: number) {
 
 /** A lobby with `count` players, all ready, and the creator at the head. */
 async function lobbyOf(t: Bench, count: number) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const seated = [seat];
   for (let rank = 1; rank < count; rank += 1) {
     seated.push(await joinSeat(t, code, `Joueur ${String(rank)}`));
@@ -51,7 +51,7 @@ describe('seasons.invitation', () => {
 
   it('answers a code the alphabet never draws the same way, without looking anything up', async () => {
     const t = boot();
-    await foundSeat(t, 'Pierre', 48, 0.5);
+    await foundSeat(t, 'Pierre', 0.5);
     for (const code of ['K7Q2P0', 'abc', '']) {
       expect((await t.query(api.seasons.invitation, { code })).refusal).toBe('UNKNOWN_GAME_CODE');
     }
@@ -59,7 +59,7 @@ describe('seasons.invitation', () => {
 
   it('serves what is needed to decide to come in, and no more', async () => {
     const t = boot();
-    const { code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { code } = await foundSeat(t, 'Pierre', 0.5);
     const answer = await t.query(api.seasons.invitation, { code });
 
     expect(answer).toEqual({
@@ -70,7 +70,7 @@ describe('seasons.invitation', () => {
       mode: 'mondiale',
       theatre: null,
       status: 'lobby',
-      durationHours: 48,
+      durationHours: 168,
       registrationClosesAt: null,
       seated: null,
     });
@@ -78,7 +78,7 @@ describe('seasons.invitation', () => {
 
   it('gives no seasonId to somebody without a seat — anonymous, or signed in elsewhere', async () => {
     const t = boot();
-    const { code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { code } = await foundSeat(t, 'Pierre', 0.5);
     const stranger = await signIn(t, 'Étranger');
 
     for (const args of [{ code }, { code, token: stranger }, { code, token: 'jeton-inconnu' }]) {
@@ -91,7 +91,7 @@ describe('seasons.invitation', () => {
 
   it('gives the exact seat to the account that holds one', async () => {
     const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     const answer = await t.query(api.seasons.invitation, { code, token: seat.token });
 
     expect(answer.seated).toEqual({ seasonId: seat.seasonId, status: 'lobby', atWar: false });
@@ -100,7 +100,7 @@ describe('seasons.invitation', () => {
 
   it('reads the same season whatever the case and the spaces around the code', async () => {
     const t = boot();
-    const { code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { code } = await foundSeat(t, 'Pierre', 0.5);
     const typed = await t.query(api.seasons.invitation, { code: ` ${code.toLowerCase()} ` });
 
     expect(typed.founder).toBe('Pierre');
@@ -168,7 +168,7 @@ describe('the invitation and join refuse alike', () => {
       'a full lobby',
       'LOBBY_FULL',
       async (t) => {
-        const { code } = await foundSeat(t, 'Pierre', 48, 0.5);
+        const { code } = await foundSeat(t, 'Pierre', 0.5);
         for (let rank = 1; rank < MAX_PLAYERS; rank += 1) {
           await joinSeat(t, code, `Joueur ${String(rank)}`);
         }
@@ -210,7 +210,7 @@ describe('the invitation and join refuse alike', () => {
 
   it('lets a lowercase code with spaces join the same season', async () => {
     const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     const token = await signIn(t, 'Arrivant');
 
     const joined = await t.mutation(api.seasons.join, { token, code: ` ${code.toLowerCase()} ` });

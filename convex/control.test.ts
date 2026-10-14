@@ -36,7 +36,7 @@ const SASKATCHEWAN = 'CAN-631';
 const BRITISH_COLUMBIA = 'CAN-633';
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   const third = await joinSeat(t, code, 'Marc');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
@@ -182,7 +182,7 @@ describe('the home ground is coloured from the launch', () => {
 
   it('leaves a seat still choosing out of the answer entirely', async () => {
     const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     await joinSeat(t, code, 'Léa');
     expect(await t.query(api.control.held, seat)).toEqual([]);
   });

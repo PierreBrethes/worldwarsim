@@ -15,7 +15,6 @@ describe('seasons.create by mode', () => {
       token,
       compensation: 0.5,
       mode: 'mondiale',
-      durationHours: null,
     });
     const season = await t.run((ctx) => ctx.db.get(seasonId));
     expect(season).toMatchObject({ durationHours: 168, mode: 'mondiale' });
