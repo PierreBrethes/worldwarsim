@@ -685,7 +685,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, marching, narrow, column],
+    [navigate, openGarrison, boardPoint, view.me, view.mode, marching, narrow, column],
   );
 
   /**
