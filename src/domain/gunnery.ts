@@ -58,7 +58,7 @@ export function movementSheetOf(roles: ReadonlyArray<UnitRole>): MovementSheet {
 }
 
 /**
- * **Trois bandes, et l'encre les dit avant les chiffres.** Une grille de soixante-quinze
+ * **Trois bandes, et l'encre les dit avant les chiffres.** Une grille de quatre-vingt-treize
  * nombres ne se lit pas : ce qu'un joueur y cherche est « qu'est-ce qui casse ça », et c'est un
  * motif, pas une valeur. La valeur reste imprimée dans la case — l'abaque de 1940 en portait
  * une — et le survol la commente.

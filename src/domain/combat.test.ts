@@ -20,6 +20,7 @@ const UNIT_OF: Readonly<Record<CombatProfile, { role: UnitRole; tier: UnitTier }
   armor1: { role: 'armor', tier: 1 },
   armor2: { role: 'armor', tier: 2 },
   landTransport: { role: 'landTransport', tier: 1 },
+  artillery: { role: 'artillery', tier: 1 },
   fighter: { role: 'fighter', tier: 1 },
   bomber: { role: 'bomber', tier: 1 },
   airTransport: { role: 'airTransport', tier: 1 },
@@ -96,9 +97,9 @@ describe('the damage table holds no absolute counter', () => {
     ),
   );
 
-  it('reaches seventy-five couples out of a hundred and twenty-one', () => {
-    expect(couples).toHaveLength(75);
-    expect(COMBAT_PROFILES.length ** 2).toBe(121);
+  it('reaches ninety-three couples out of a hundred and forty-four', () => {
+    expect(couples).toHaveLength(93);
+    expect(COMBAT_PROFILES.length ** 2).toBe(144);
   });
 
   it.each(couples)('%s against %s is neither a wipe nor a free hit', (attacker, defender) => {
@@ -112,7 +113,13 @@ describe('the damage table holds no absolute counter', () => {
         `${attacker} → ${defender} wipes for nothing`,
       ).toBe(false);
     }
-    if (reaches(defender, attacker) && DAMAGE_TABLE[defender][attacker]! >= 0.15) {
+    /** L'artillerie ne riposte jamais au contact (B20) : sa case dit ce que vaut son tir
+     *  indirect, et c'est l'infanterie au contact qui la tue. */
+    if (
+      defender !== 'artillery' &&
+      reaches(defender, attacker) &&
+      DAMAGE_TABLE[defender][attacker]! >= 0.15
+    ) {
       expect(
         fight.lostByAttacker,
         `${defender} can reach ${attacker} and still costs it nothing`,
@@ -307,6 +314,28 @@ describe('the strike, then the riposte, and the excess is lost', () => {
  * **Le choc** (B17) : deux unités qui s'attaquent l'une l'autre tirent ensemble, sur l'état
  * d'avant la passe. Le serveur ne l'emploie pas encore — il attend la Blitz.
  */
+describe('indirect fire', () => {
+  it('lets the battery strike from afar and the target never answer', () => {
+    const fight = duel('artillery', 'infantry1', { mode: 'indirect' });
+    expect(fight.lostByDefender).toBe(30);
+    expect(fight.lostByAttacker).toBe(0);
+    expect(fight.engagement.strikes).toHaveLength(1);
+  });
+
+  it('leaves the artillery silent at contact, whichever side it is on', () => {
+    const attacked = duel('infantry1', 'artillery');
+    expect(attacked.lostByDefender).toBe(8);
+    expect(attacked.lostByAttacker).toBe(0);
+    const charging = duel('artillery', 'infantry1');
+    expect(firedBy(charging.engagement, charging.attacker)).toHaveLength(0);
+  });
+
+  it('bills the target nothing, since it does not fire', () => {
+    const fight = duel('artillery', 'infantry1', { mode: 'indirect' });
+    expect(fight.engagement.magazine.defender.needed).toBe(0);
+  });
+});
+
 describe('the shock', () => {
   it('has both sides fire on the state the pass opened with', () => {
     const fight = duel('infantry1', 'infantry1', { mode: 'shock' });

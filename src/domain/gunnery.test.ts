@@ -46,9 +46,9 @@ describe('the firing abacus is the table, arranged', () => {
     }
   });
 
-  it('replays the seventy-five reachable couples and not one more', () => {
+  it('replays the ninety-three reachable couples and not one more', () => {
     const reached = firing.flatMap((row) => row.shots.filter((shot) => shot.reach === 'hits'));
-    expect(reached).toHaveLength(75);
+    expect(reached).toHaveLength(93);
   });
 
   /** Une case absente est « ne l'atteint pas », jamais un zéro : un blindé qui n'atteint pas un

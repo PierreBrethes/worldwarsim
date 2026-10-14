@@ -105,7 +105,7 @@ se serrent. Le port et l'aérodrome s'ouvrent à toute troupe terrestre ; le cam
 rendez-vous en marche (`joinTransport`), parce qu'il motorise et ne fait rien traverser.
 
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
-dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — soixante-quinze
+dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — quatre-vingt-treize
 couples, une ligne par profil, l'encre dit la bande avant que le chiffre soit lu, le survol donne la
 valeur. Depuis la décision 60b il est aussi le **catalogue** : au pli d'une ligne, sprite national,
 équipement, coût alliage par marque, formation, effectif nominal, « en service » servi par

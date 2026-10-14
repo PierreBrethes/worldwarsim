@@ -1132,6 +1132,7 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
    *  la rapporter. Le motif vient avant le sol vide, qui se lit, lui. */
   'INFANTRY_REQUIRED',
   'UNIT_TARGET_ONLY',
+  'INDIRECT_FIRE_ONLY',
   /** En dernier : la carte montre un sol vide, et c'est précisément ce que le joueur y lit. */
   'NOTHING_TO_ATTACK',
   'NOT_ORDERABLE',

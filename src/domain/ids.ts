@@ -21,6 +21,7 @@ export type UnitRole =
   | 'infantry'
   | 'armor'
   | 'landTransport'
+  | 'artillery'
   | 'fighter'
   | 'bomber'
   | 'airTransport'
