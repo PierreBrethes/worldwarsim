@@ -1,15 +1,18 @@
 import { Link } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMapMotion } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Wordmark } from '@/shell/Masthead';
 import { Stamp } from '@/shell/Stamp';
-import { Board } from './Board';
 import { Bureau, BUREAU_ID, focusCode } from './Bureau';
 import { Clippings } from './Clippings';
 import type { LandingTable, Reading, SceneName, Story } from './table/table';
 import './landing.css';
+
+/** What stands over the table — posters, rose, the board's frame — comes with the table, never
+ *  before it: the une stays light. */
+const Board = lazy(() => import('./Board').then((module) => ({ default: module.Board })));
 
 /**
  * **La une publique : on entre dans la photographie** (prototype `landing.html`, validé le
@@ -114,8 +117,9 @@ export function Landing() {
     let alive = true;
     let made: LandingTable | null = null;
     void (async () => {
-      const [{ LandingTable }, sheet] = await Promise.all([
+      const [{ LandingTable }, , sheet] = await Promise.all([
         import('./table/table'),
+        import('./Board'),
         fetch('/europe-sheet.json').then((response) => response.json()),
         ...ENGRAVING_FONTS.map((font) => document.fonts.load(font).catch(() => undefined)),
       ]);
@@ -146,14 +150,18 @@ export function Landing() {
     <div className={`lp${playing ? ' lp-playing' : ''}`} data-still={still ? '' : undefined}>
       <canvas ref={canvas} className="lp-canvas" aria-hidden />
       <div className="lp-vignette" aria-hidden />
-      <Board
-        table={table}
-        story={story}
-        scene={scene}
-        progress={progress}
-        age={age}
-        still={still}
-      />
+      {table !== null && (
+        <Suspense fallback={null}>
+          <Board
+            table={table}
+            story={story}
+            scene={scene}
+            progress={progress}
+            age={age}
+            still={still}
+          />
+        </Suspense>
+      )}
 
       <main>
         <div className="lp-une-wrap">
