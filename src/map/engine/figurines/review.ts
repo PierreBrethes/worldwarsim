@@ -17,7 +17,8 @@ import { TIERS_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { pilePieces } from '@/domain/pile-pieces';
 import { fr } from '@/i18n/fr';
-import { blockFigurine, washedBlock } from '../blocks';
+import { inkAnnotation } from '../annotations';
+import { blockFigurine } from '../blocks';
 import type { Smoke } from '../smoke';
 import { Faces, pileObject } from '../standing';
 import { BUILDINGS } from '@/domain/ids';
@@ -137,13 +138,20 @@ if (kind === 'buildings') {
     card(spriteUrl(nation, 'infantry', 1), caption, pile?.object ?? null);
   }
 
-  // Seen from behind, as on the board: the pictogram is what the page is there to judge.
-  const BLOCK_VIEW = { size: 1.1, angle: 0.5 };
+  // Seen from above: the annotation lies flat on the board.
+  const INK_VIEW = { size: 1.6, angle: 0 };
 
-  /** The enemy as the board stands it: a block per medium, and a last known position. */
+  /** The enemy as the board writes it: an annotation per medium, fresh and twelve hours old. */
   for (const medium of ['land', 'sea', 'air'] as const)
-    card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object, BLOCK_VIEW);
-  card(null, 'bloc adverse · dernière position connue', washedBlock('land'), BLOCK_VIEW);
+    card(null, `relevé · ${medium}`, inkAnnotation(medium, Date.now(), null).object, INK_VIEW);
+  card(
+    null,
+    'relevé · il y a 12 h',
+    inkAnnotation('land', Date.now() - 12 * 3_600_000, 12 * 60).object,
+    INK_VIEW,
+  );
+  /** The block an account from before the fire was seen still replays (F1). */
+  card(null, 'bloc · rejeu d’avant', blockFigurine('land').object, { size: 1.1, angle: 0.5 });
 }
 
 /** `?motion=reduced` stills the smoke, as the board does. */

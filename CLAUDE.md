@@ -63,8 +63,19 @@ sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), **e
 la frappe, où ne tire que l'attaquant et ne tombe que le défenseur, puis la riposte, où ne tire
 que ce qui reste debout en face (`replayAt(...).firing`) —, un bandeau qui coupe
 la lecture et avance étape par étape, la carte muette jusqu'à « quitter », qui se confirme et
-rend la caméra. Chez soi des figurines par rôle ; en face **un bloc par troupe et des totaux**,
-jamais un rôle — le brouillard ne se lève pas parce qu'on a tiré.
+rend la caméra. Chez soi des figurines par rôle, **et en face aussi** : **au feu, on voit
+l'ennemi** (F1, 14/10/2026). L'engagement grave la nation des deux camps (`engagements.nations`,
+optionnel) ; rôles et effectifs sont déjà dans `engagements.troops`. Ce que chacun a eu en face
+(`Faced` : nation, et par rôle et marque troupes, effectif, pertes) sort d'**une** fonction,
+`facedOf` (`convex/view.ts`), qui le sert au compte rendu et au rejeu des **deux participants
+seulement** — jamais à un tiers, et **jamais à la cible d'un bombardement**, qui ne voit pas d'où
+vient le coup (le tireur, lui, voit sa cible). Le rejeu dresse l'adversaire **en ses figurines**,
+aux couleurs de sa nation (`figurineFor(foe, …)`, planche ou carte à défaut, `ReplayScene`) ; la
+dépêche et la feuille d'arrivée le nomment (`fr.combat.faced`, « en face, Allemagne : blindé ×1
+(12 machines), infanterie ×2 (100 hommes) »). L'arc adverse et le camp relevé n'ont toujours ni
+`type` ni `stack` : ce qui est révélé vit dans le compte rendu, typé à part. Un engagement d'avant
+ce lot n'a pas `nations` et garde **un bloc par troupe et des totaux** (`blockFigurine`, seul usage
+restant des blocs).
 
 **Et un cargo peut rester en mer avec des unités dedans** (décision de Pierre, 18/09/2026, qui
 révise la 72a du 04/09 — bannières dans les ADR 0019 §2 et 0012). Une colonne embarquée
@@ -251,7 +262,8 @@ position, un milieu, deux dates** — jamais la composition, jamais l'effectif, 
 l'agent dormant garde son métier, qui est d'**identifier** et non de repérer. Sortie de portée,
 elle devient une dernière position connue et s'efface après `LAST_KNOWN_HOURS`. Sur la carte c'est
 la **silhouette de domaine** d'un arc adverse (`src/map/engine/silhouettes.ts`, une seule source
-pour le pion et pour le mât), en encre sourde, délavée quand le relevé date ; le clic gauche ouvre
+pour le pion et pour le mât), en encre sourde, délavée quand le relevé date — et au rapproché son
+**annotation à l'encre** (F2, ci-dessous) ; le clic gauche ouvre
 un cartouche qui dit ce qu'on sait, le clic droit la seule branche qui existe — attaquer. Sans ce
 relevé, le §3 serait injouable : un adversaire camperait chez soi sans que rien ne le dise.
 
@@ -381,17 +393,22 @@ heure, « composition inconnue, nation inconnue » — rien que ce que l'arc ser
 Souris seulement — au toucher, le tap lit déjà et ouvre ce que la pièce ouvre ; un clic la ferme,
 pour ne pas doubler la surface qu'il ouvre ; elle efface le cartouche le temps du survol. La page
 `/figurines.html`, servie en développement seulement, montre chaque figurine à côté de sa
-planche. Un arc adverse porte un **bloc** de son milieu, dos à l'œil, et une dernière position
-connue un **bloc délavé** au bout de son tronçon figé (`lastKnownMedium`, `arcs.ts`) — rien de plus
-que le milieu servi. Au rapproché, le pion dit son milieu : une coque en mer laisse un **sillage**
+planche. **Une force adverse seulement relevée s'écrit à l'encre** (F2, 14/10/2026,
+`src/map/engine/annotations.ts`, d'après la page « renseignement » de la landing) : une
+**annotation posée à plat** — cercle pointillé, domaine hachuré à la plume, « ? » rouge et l'heure
+du relevé, la même que l'affiche (`surveyedAt` : en vue, sa première observation ; dernière position
+connue, la dernière fois vue — des instants servis, jamais un âge contre l'horloge) —, qui **pâlit avec l'âge** jusqu'à une trace au bout de `LAST_KNOWN_HOURS`
+(`surveyInk`, `src/domain/survey-ink.ts`). Un camp relevé (`CampLayer`), le pion d'un fil adverse,
+qui glisse le long du tronçon, et une dernière position connue au bout de son tronçon figé
+(`lastKnownMedium`, `arcs.ts`) — rien de plus que le milieu et l'heure servis. Au rapproché, le pion dit son milieu : une coque en mer laisse un **sillage**
 (`Wake`, `smoke.ts`), un avion porte son **ombre** au sol, l'écart valant son altitude — le fil
 aérien d'une route tout aérienne monte, tient sa croisière et redescend (`flightAltitude`,
 `thread.ts`) ; un véhicule entamé de mes mouvements **fume** comme posé (`movementWear`, lu sur
 mes troupes, `null` hors `mine`). **Et mes pièces vivent sur leur route** (lot « vie des
 pièces », 13/10/2026, valeurs du prototype) : un véhicule qui roule soulève de la **poussière**
 et tangue, une coque roule et pilonne, un avion **s'incline** dans la courbe de sa route lue
-autour de lui (`swayOf`, `sway.ts` ; rôles par `movementRoles`, donc `null` hors `mine` — un
-bloc adverse ne bouge pas), le tout en animations « actives » seulement, figé sinon ; le fil
+autour de lui (`swayOf`, `sway.ts` ; rôles par `movementRoles`, donc `null` hors `mine` — une
+annotation adverse ne bouge pas), le tout en animations « actives » seulement, figé sinon ; le fil
 affiché tient déjà le rendu continu. **Et un site qui produit fume** : une couche d'`Ambience`
 à 8 pas par seconde (`MaquetteLayer.smoke`) au-dessus des repères `fx_smoke` de la maquette — le
 haut de sa boîte faute de repère —, sur mes seuls producteurs reliés dont le débit servi est

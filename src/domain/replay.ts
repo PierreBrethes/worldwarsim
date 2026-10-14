@@ -48,7 +48,8 @@ export type PieceFate = 'standing' | 'fallen' | 'routed';
 
 /**
  * One troop on the table. `progress` is how far its fate has played, 0..1 — a fall or a retreat
- * under way; a standing piece is at 0. **An enemy piece has no role, structurally**: a block.
+ * under way; a standing piece is at 0. **An enemy piece carries its role only when it was seen
+ * at the fire** (F1): an account written before 14/10 has none, and stands a block.
  */
 export type ReplayPiece =
   | {
@@ -58,7 +59,12 @@ export type ReplayPiece =
       readonly fate: PieceFate;
       readonly progress: number;
     }
-  | { readonly side: 'theirs'; readonly fate: PieceFate; readonly progress: number };
+  | {
+      readonly side: 'theirs';
+      readonly seen?: { readonly role: UnitRole; readonly tier: UnitTier };
+      readonly fate: PieceFate;
+      readonly progress: number;
+    };
 
 export type ReplayFrame = {
   readonly step: ReplayStep;
@@ -94,18 +100,24 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
   const at = motion === 'reduced' ? bounds.end : shown;
   const progress = Math.min(1, (at - bounds.start) / (bounds.end - bounds.start));
 
-  const mine = view.mine.flatMap((entry) =>
-    destinies(entry.troops, entry.destroyed, entry.routed).map((fate) => ({
-      role: entry.role,
-      tier: entry.tier,
-      fate,
-    })),
-  );
+  const byKind = (kinds: ReplayView['mine']) =>
+    kinds.flatMap((entry) =>
+      destinies(entry.troops, entry.destroyed, entry.routed).map((fate) => ({
+        role: entry.role,
+        tier: entry.tier,
+        fate,
+      })),
+    );
+  const mine = byKind(view.mine);
   /** Bombardée, la cible ne voit pas d'où vient le coup : aucune batterie sur sa table. */
   const unseen = view.bombardment !== undefined && view.side === 'defender';
-  const theirs = unseen
+  const theirs: Array<{ fate: PieceFate; seen?: { role: UnitRole; tier: UnitTier } }> = unseen
     ? []
-    : destinies(view.theirs.troops, view.theirs.destroyed, view.theirs.routed);
+    : view.faced
+      ? byKind(view.faced.forces).map(({ role, tier, fate }) => ({ seen: { role, tier }, fate }))
+      : destinies(view.theirs.troops, view.theirs.destroyed, view.theirs.routed).map((fate) => ({
+          fate,
+        }));
 
   // Each side falls in the beat aimed at it, one piece at a time across what the shots leave of it.
   const struckIn = (side: 'mine' | 'theirs') => {
@@ -117,7 +129,7 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
   const ranks = { mine: 0, theirs: 0 };
   const fallCount = {
     mine: mine.filter((piece) => piece.fate === 'fallen').length,
-    theirs: theirs.filter((fate) => fate === 'fallen').length,
+    theirs: theirs.filter((piece) => piece.fate === 'fallen').length,
   };
   const rout = stepBounds('deroute');
   const share = (from: number, length: number) => Math.min(1, Math.max(0, (at - from) / length));
@@ -146,7 +158,11 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
         tier: piece.tier,
         ...playOut(piece.fate, 'mine'),
       })),
-      ...theirs.map((fate): ReplayPiece => ({ side: 'theirs', ...playOut(fate, 'theirs') })),
+      ...theirs.map((piece): ReplayPiece => ({
+        side: 'theirs',
+        ...(piece.seen ? { seen: piece.seen } : {}),
+        ...playOut(piece.fate, 'theirs'),
+      })),
     ],
   };
 }

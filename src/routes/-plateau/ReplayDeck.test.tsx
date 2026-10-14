@@ -81,3 +81,32 @@ it('compte chez moi par rôle et en face en totaux', () => {
     fr.replay.theirs + '29011',
   ]);
 });
+
+it('compte en face par rôle sous sa nation, quand on l’a vue au feu (F1)', () => {
+  const view: ReplayView = {
+    combatId: combat.id,
+    at: combat.at,
+    point: combat.point,
+    side: 'attacker',
+    won: true,
+    mine: [{ role: 'infantry', tier: 1, troops: 3, lost: 40, routed: 0, destroyed: 1 }],
+    theirs: combat.theirs,
+    faced: {
+      nation: 'germany',
+      forces: [
+        { role: 'armor', tier: 1, troops: 2, strength: 24, lost: 90, routed: 1, destroyed: 1 },
+      ],
+    },
+  };
+  render(<ReplayAccount view={view} said={fought!.text} />);
+  const lines = screen
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => row.textContent);
+  expect(lines).toEqual([
+    fr.replay.mine,
+    `${roleLabel('infantry', 3)} MK1` + '34001',
+    fr.nations.germany,
+    `${roleLabel('armor', 2)} MK1` + '29011',
+  ]);
+});

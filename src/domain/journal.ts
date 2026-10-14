@@ -96,7 +96,7 @@ export function journalDispatches(
             severity: 'critical' as const,
             kind: 'reduction' as const,
             text: fr.victory.dispatch(
-              nationName(report.reduced.by),
+              report.reduced.by === null ? null : nationName(report.reduced.by),
               nationName(report.reduced.whom),
             ),
           },
@@ -645,6 +645,7 @@ const fromCombat = (report: CombatReport): Written => ({
     theirs: report.theirs,
     outpostDisabled: report.outpostDisabled,
     shock: report.shock === true,
+    faced: report.faced,
   }),
   combat: report,
   place: report.point,

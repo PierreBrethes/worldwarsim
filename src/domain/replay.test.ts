@@ -45,7 +45,35 @@ describe('replayAt', () => {
     expect(replayAt(view, REPLAY_MS + 5000)).toMatchObject({ step: 'compte-rendu', progress: 1 });
   });
 
-  it('stands one block per enemy troop, and never a role on that side', () => {
+  it('stands what was faced at the fire by role and mark, one per troop (F1)', () => {
+    const faced: ReplayView = {
+      ...view,
+      theirs: { troops: 3, lost: 90, routed: 0, destroyed: 1 },
+      faced: {
+        nation: 'germany',
+        forces: [
+          { role: 'armor', tier: 1, troops: 1, strength: 12, lost: 12, routed: 0, destroyed: 1 },
+          {
+            role: 'infantry',
+            tier: 2,
+            troops: 2,
+            strength: 100,
+            lost: 78,
+            routed: 0,
+            destroyed: 0,
+          },
+        ],
+      },
+    };
+    const theirs = replayAt(faced, REPLAY_MS).pieces.filter((p) => p.side === 'theirs');
+    expect(theirs.map((p) => (p.side === 'theirs' ? [p.seen, p.fate] : null))).toEqual([
+      [{ role: 'armor', tier: 1 }, 'fallen'],
+      [{ role: 'infantry', tier: 2 }, 'standing'],
+      [{ role: 'infantry', tier: 2 }, 'standing'],
+    ]);
+  });
+
+  it('stands one block per enemy troop when the fire was not seen — an old account', () => {
     const theirs = replayAt(view, 0).pieces.filter((p) => p.side === 'theirs');
     expect(theirs).toHaveLength(4);
     for (const piece of theirs)

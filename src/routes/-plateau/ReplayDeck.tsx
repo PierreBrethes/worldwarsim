@@ -164,8 +164,8 @@ export function ReplayDeck({
   );
 }
 
-/** **Le décompte final** : chez nous par rôle et marque, en face les seuls totaux — ce que le
- *  compte rendu sert, rien de plus (ADR 0005). */
+/** **Le décompte final** : chez nous par rôle et marque, en face de même sous sa nation quand on
+ *  l'a vue au feu (F1) — les seuls totaux sur un compte rendu d'avant. */
 export function ReplayAccount({ view, said }: { view: ReplayView; said: string }) {
   const mineLost = view.mine.reduce((sum, entry) => sum + entry.lost, 0);
   const cell = 'px-2 py-[3px] text-right font-(family-name:--font-mono) text-[12px]';
@@ -180,6 +180,10 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
       <td className={cell}>{tally.destroyed}</td>
     </tr>
   );
+  const kinds = (entries: ReplayView['mine']) =>
+    entries.map((entry) =>
+      row(`${roleLabel(entry.role, entry.troops)} ${tierLabel(entry.tier)}`, entry),
+    );
   const heading = (label: string) => (
     <tr>
       <th
@@ -217,10 +221,15 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
         </thead>
         <tbody>
           {heading(fr.replay.mine)}
-          {view.mine.map((entry) =>
-            row(`${roleLabel(entry.role, entry.troops)} ${tierLabel(entry.tier)}`, entry),
+          {kinds(view.mine)}
+          {view.faced ? (
+            <>
+              {heading(fr.combat.facedNation(view.faced.nation))}
+              {kinds(view.faced.forces)}
+            </>
+          ) : (
+            row(fr.replay.theirs, view.theirs, 'border-t-2 border-[var(--ink)]')
           )}
-          {row(fr.replay.theirs, view.theirs, 'border-t-2 border-[var(--ink)]')}
         </tbody>
       </table>
     </section>

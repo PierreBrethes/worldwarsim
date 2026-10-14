@@ -237,6 +237,10 @@ export async function resolveContact(
     disabledUntil,
     reducedDefender,
     ...(mode === 'shock' ? { shock: true } : {}),
+    nations: {
+      attacker: (await ctx.db.get(attacker.playerId))?.nation ?? null,
+      defender: (await ctx.db.get(defender.playerId))?.nation ?? null,
+    },
     ...(firedFrom === undefined ? {} : { firedFrom }),
     troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
