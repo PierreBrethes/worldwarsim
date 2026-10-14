@@ -60,6 +60,13 @@ describe('settingsRefusalOf', () => {
     expect(refusal({ ...mondiale, seatCap: 8 })).toBeNull();
   });
 
+  it('refuses an hour or a seat count that is not a number one can keep', () => {
+    expect(refusal({ ...blitz, scheduledAt: Number.NaN })).toBe('RENDEZVOUS_PAST');
+    expect(refusal({ ...blitz, scheduledAt: Number.POSITIVE_INFINITY })).toBe('RENDEZVOUS_PAST');
+    expect(refusal({ ...blitz, seatCap: Number.NaN })).toBe('SEATS_OUT_OF_RANGE');
+    expect(refusal({ ...blitz, seatCap: 2.5 })).toBe('SEATS_OUT_OF_RANGE');
+  });
+
   it('refuses a theatre too small for those already seated', () => {
     expect(refusal({ ...blitz, theatre: 'pacific' }, 4)).toBe('THEATRE_TOO_SMALL');
   });

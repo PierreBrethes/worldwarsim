@@ -67,9 +67,9 @@ export function settingsRefusalOf(
     return 'INVALID_CAPTURE_HOURS';
   }
   if (
-    context.rendezvousChanged &&
     settings.scheduledAt !== null &&
-    settings.scheduledAt <= context.now
+    (!Number.isFinite(settings.scheduledAt) ||
+      (context.rendezvousChanged && settings.scheduledAt <= context.now))
   ) {
     return 'RENDEZVOUS_PAST';
   }
@@ -77,7 +77,10 @@ export function settingsRefusalOf(
   if (context.seated > range.max) return 'THEATRE_TOO_SMALL';
   /** Au-delà du plafond, le plafond tient (`seatCapOf`) : passer à un théâtre plus petit ne
    *  demande pas de baisser les places d'abord. */
-  if (settings.seatCap !== null && settings.seatCap < Math.max(range.min, context.seated)) {
+  if (
+    settings.seatCap !== null &&
+    (!Number.isInteger(settings.seatCap) || settings.seatCap < Math.max(range.min, context.seated))
+  ) {
     return 'SEATS_OUT_OF_RANGE';
   }
   return null;

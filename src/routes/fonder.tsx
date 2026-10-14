@@ -90,6 +90,10 @@ function Found() {
   const found = () =>
     void run(async () => {
       setError(null);
+      if (scheduledAt !== null && Number.isNaN(scheduledAt)) {
+        setError(fr.errors.RENDEZVOUS_PAST());
+        return;
+      }
       try {
         const { seasonId } = await create({
           token,
