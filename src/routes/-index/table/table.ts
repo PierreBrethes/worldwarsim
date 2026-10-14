@@ -202,6 +202,7 @@ export class LandingTable {
   private readonly still: boolean;
   private current: SceneName | null = null;
   private running = true;
+  private frameId = 0;
   private cam = { x: 0, z: 0, dist: 60, phi: 0.9, theta: 0, fx: 0, fy: 0 };
   private camKnown = false;
   private lastCam = '';
@@ -270,7 +271,7 @@ export class LandingTable {
     addEventListener('keydown', this.onKey);
     this.resize();
     this.prepare('hero');
-    requestAnimationFrame(this.tick);
+    this.frameId = requestAnimationFrame(this.tick);
   }
 
   dispose(): void {
@@ -280,7 +281,10 @@ export class LandingTable {
     removeEventListener('pointermove', this.onMove);
     removeEventListener('pointerup', this.onUp);
     removeEventListener('keydown', this.onKey);
+    cancelAnimationFrame(this.frameId);
     this.renderer.dispose();
+    // The page can be left and reopened: a context per visit would pile up to the browser's cap.
+    this.renderer.forceContextLoss();
   }
 
   /** Lays a DOM node on the table: the table moves it over its anchor at every image. */
@@ -327,7 +331,13 @@ export class LandingTable {
     return this.frame.lonLatAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
   }
 
-  private maquette(key: BuildingKey, span: number, at: Vector3, yaw: number): Group {
+  private maquette(
+    key: BuildingKey,
+    span: number,
+    at: Vector3,
+    yaw: number,
+    onLoad: (model: Object3D) => void = () => undefined,
+  ): Group {
     const holder = new Group();
     holder.position.copy(at);
     holder.rotation.y = yaw;
@@ -345,6 +355,7 @@ export class LandingTable {
           if ((part as Mesh).isMesh) part.receiveShadow = true;
         });
         holder.add(model);
+        onLoad(model);
       });
     return holder;
   }
@@ -412,7 +423,12 @@ export class LandingTable {
   private buildHero(): void {
     const paris = PLACES.paris;
     this.maquette('hq', 0.83, this.at(paris, -0.35, 0.15), 0.3);
-    const foundry = this.maquette('foundry', 0.73, this.at(PLACES.lille, 0, 0.2), -0.4);
+    const smokeFrom: Object3D[] = [];
+    this.maquette('foundry', 0.73, this.at(PLACES.lille, 0, 0.2), -0.4, (model) =>
+      model.traverse((part) => {
+        if (part.name === 'fx_smoke') smokeFrom.push(part);
+      }),
+    );
     this.maquette('barracks', 0.73, this.at(paris, 0.5, 1.15), 0.5);
     const escort = this.piece('france', 'escort', [1]);
     const plane = this.piece('france', 'fighter', [1]);
@@ -429,15 +445,7 @@ export class LandingTable {
       ].map((p) => this.toSea(p)),
     );
     const lane = curve.getPoints(160).map((p) => this.toSea(p, 0.073));
-    this.hero = { smokeFrom: [], escort, plane, lane };
-    const hero = this.hero;
-    const findSmoke = () => {
-      foundry.traverse((part) => {
-        if (part.name === 'fx_smoke') hero.smokeFrom.push(part);
-      });
-      if (hero.smokeFrom.length === 0 && foundry.children.length === 0) setTimeout(findSmoke, 400);
-    };
-    findSmoke();
+    this.hero = { smokeFrom, escort, plane, lane };
   }
 
   private tickHero(dt: number, t: number): void {
@@ -1211,7 +1219,7 @@ export class LandingTable {
 
   private readonly tick = () => {
     if (!this.running) return;
-    requestAnimationFrame(this.tick);
+    this.frameId = requestAnimationFrame(this.tick);
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.clock.elapsedTime;
     const { scene: name, progress } = this.reading;

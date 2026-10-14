@@ -119,9 +119,14 @@ export function Landing() {
         setTable(made);
         setEngraved(true);
       } catch (error) {
+        // Without WebGL the page still reads: the clippings carry the text, the photo the desk.
         console.error('landing table', error);
+        setEngraved(true);
       }
-    })().catch((error: unknown) => console.error('landing table', error));
+    })().catch((error: unknown) => {
+      console.error('landing table', error);
+      setEngraved(true);
+    });
     return () => {
       alive = false;
       made?.dispose();

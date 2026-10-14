@@ -238,6 +238,7 @@ function RacePins({ table, progress }: { table: LandingTable | null; progress: n
               onPointerEnter={(event) => event.pointerType === 'mouse' && setOpen(point)}
               onPointerLeave={(event) => event.pointerType === 'mouse' && setOpen(null)}
               onClick={() => setOpen((shown) => (shown === point ? null : point))}
+              onBlur={() => setOpen(null)}
             >
               <b>{name}</b>
               <span>{rule}</span>
