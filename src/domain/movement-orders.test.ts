@@ -845,6 +845,11 @@ describe('a Blitz order (lot 5)', () => {
     expect(refusalOf('attack', track, blitz(['infantry']))).toBeNull();
   });
 
+  it('leaves the artillery its bombardment, never a charge', () => {
+    expect(refusalOf('attack', enemyCamp, blitz(['artillery']))).toBe('INDIRECT_FIRE_ONLY');
+    expect(refusalOf('march', paris, blitz(['artillery']))).toBeNull();
+  });
+
   it('chases a column only in a Blitz', () => {
     expect(refusalOf('attack', track, column(['infantry']))).toBe('NOTHING_TO_ATTACK');
   });

@@ -354,6 +354,7 @@ export const NOMINAL_STRENGTH: Readonly<
   infantry: { 1: 50, 2: 30 },
   armor: { 1: 12, 2: 6 },
   landTransport: { 1: 24 },
+  artillery: { 1: 12 },
   fighter: { 1: 12 },
   bomber: { 1: 9 },
   airTransport: { 1: 6 },
@@ -378,6 +379,7 @@ export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,
   armor: 0,
   landTransport: 120,
+  artillery: 0,
   fighter: 0,
   bomber: 0,
   airTransport: 80,
@@ -394,6 +396,7 @@ export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: n
   infantry: { alloy: 18, minutes: 20 },
   armor: { alloy: 95, minutes: 70 },
   landTransport: { alloy: 40, minutes: 45 },
+  artillery: { alloy: 80, minutes: 60 },
   fighter: { alloy: 110, minutes: 90 },
   bomber: { alloy: 160, minutes: 120 },
   airTransport: { alloy: 90, minutes: 75 },
@@ -447,6 +450,7 @@ export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
   infantry: 1,
   landTransport: 2,
   armor: 3,
+  artillery: 3,
   cargo: 1,
   escort: 2,
   carrier: 5,
@@ -510,33 +514,67 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
 /**
  * **The damage table of `chiffrage-combat.md` §2, copied literally**: the share of the defender's
  * nominal strength a full-strength attacker destroys in one pass, before modifiers. A **missing**
- * cell is "cannot reach", never a zero — seventy-five reachable couples out of a hundred and
- * twenty-one, which `combat.test.ts` replays.
+ * cell is "cannot reach", never a zero — ninety-three reachable couples out of a hundred and
+ * forty-four, which `combat.test.ts` replays.
  *
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
  * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
  */
 export const DAMAGE_TABLE: DamageTable = {
-  infantry1: { infantry1: 0.5, infantry2: 0.55, armor1: 0.15, armor2: 0.05, landTransport: 0.7 },
+  infantry1: {
+    infantry1: 0.5,
+    infantry2: 0.55,
+    armor1: 0.15,
+    armor2: 0.05,
+    landTransport: 0.7,
+    artillery: 0.7,
+  },
   infantry2: {
     infantry1: 0.35,
     infantry2: 0.4,
     armor1: 0.65,
     armor2: 0.45,
     landTransport: 0.6,
+    artillery: 0.6,
     fighter: 0.06,
     bomber: 0.1,
     airTransport: 0.12,
   },
-  armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.25, landTransport: 0.85 },
-  armor2: { infantry1: 0.75, infantry2: 0.7, armor1: 0.75, armor2: 0.5, landTransport: 0.9 },
+  armor1: {
+    infantry1: 0.7,
+    infantry2: 0.65,
+    armor1: 0.5,
+    armor2: 0.25,
+    landTransport: 0.85,
+    artillery: 0.8,
+  },
+  armor2: {
+    infantry1: 0.75,
+    infantry2: 0.7,
+    armor1: 0.75,
+    armor2: 0.5,
+    landTransport: 0.9,
+    artillery: 0.85,
+  },
   landTransport: {
     infantry1: 0.1,
     infantry2: 0.1,
     armor1: 0.05,
     armor2: 0.02,
     landTransport: 0.15,
+    artillery: 0.1,
+  },
+  artillery: {
+    infantry1: 0.6,
+    infantry2: 0.55,
+    armor1: 0.5,
+    armor2: 0.4,
+    landTransport: 0.7,
+    artillery: 0.5,
+    escort: 0.15,
+    cargo: 0.3,
+    carrier: 0.1,
   },
   fighter: {
     infantry1: 0.25,
@@ -544,6 +582,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.1,
     armor2: 0.05,
     landTransport: 0.45,
+    artillery: 0.3,
     fighter: 0.5,
     bomber: 0.75,
     airTransport: 0.85,
@@ -557,6 +596,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.6,
     armor2: 0.55,
     landTransport: 0.6,
+    artillery: 0.6,
     fighter: 0.08,
     bomber: 0.2,
     airTransport: 0.25,
@@ -571,6 +611,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.05,
     armor2: 0.02,
     landTransport: 0.12,
+    artillery: 0.15,
     fighter: 0.15,
     bomber: 0.15,
     airTransport: 0.18,
@@ -585,6 +626,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.08,
     armor2: 0.04,
     landTransport: 0.25,
+    artillery: 0.2,
     fighter: 0.4,
     bomber: 0.35,
     airTransport: 0.45,
@@ -635,6 +677,7 @@ export const DETECTION_RANGE_KM: Readonly<Record<UnitRole, number>> = {
   infantry: 60,
   armor: 60,
   landTransport: 40,
+  artillery: 60,
   fighter: 150,
   bomber: 100,
   airTransport: 80,
@@ -674,6 +717,7 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,
   armor: 60,
   landTransport: 45,
+  artillery: 120,
   fighter: 50,
   bomber: 90,
   airTransport: 60,
@@ -681,6 +725,18 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   cargo: 60,
   carrier: 75,
 };
+
+/**
+ * **Le tir indirect de l'artillerie** (B20) : portée, zone morte proche où l'on ne tire pas, et le
+ * temps immobile qu'il faut pour être **en batterie**. À la vitesse d'une Blitz d'Europe (le
+ * théâtre traversé en 18 min, ≈ 230 km/min), la portée vaut quarante secondes de marche adverse,
+ * la zone morte treize, et la mise en batterie cent dix kilomètres : on voit venir, on tire une
+ * fois, et le contact arrive. Au Pacifique et aux Amériques (≈ 650 km/min) tout tient en quinze
+ * secondes — des kilomètres fixes y sont courts.
+ *
+ * @a-mesurer toutes ; rien n'a encore joué une soirée
+ */
+export const INDIRECT_FIRE = { rangeKm: 150, deadZoneKm: 50, emplaceSeconds: 30 } as const;
 
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
@@ -1101,6 +1157,7 @@ export const BLITZ = {
     infantry: 60,
     landTransport: 90,
     armor: 180,
+    artillery: 160,
     fighter: 200,
     bomber: 260,
     airTransport: 150,

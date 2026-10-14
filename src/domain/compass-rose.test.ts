@@ -1265,3 +1265,87 @@ describe('raising a level from the map', () => {
     expect(compassOf(mast, observing)).toBeNull();
   });
 });
+
+/**
+ * **Bombarder** (B20, lot 6b) : sur une unité en vue, la pièce en main tire de sa batterie, et
+ * la rose dit pourquoi elle ne le peut pas — la même fonction que `movements.bombard`.
+ */
+describe('the bombardment on the rose', () => {
+  const battery = {
+    kind: 'point',
+    lonLat: [2.35, 48.85],
+    country: 'FRA',
+    afloat: false,
+    coastal: false,
+  };
+  const gunner = (extra: Record<string, unknown> = {}) =>
+    ({
+      ...view,
+      mode: 'blitz',
+      theatre: 'europe',
+      camps: [
+        { id: 'camp-r', lastKnown: false },
+        { id: 'camp-old', lastKnown: true },
+      ],
+      me: {
+        ...view.me,
+        troops: [{ id: 'G-1', role: 'artillery', tier: 1, stationedAt: battery, ...extra }],
+      },
+    }) as unknown as PlayerView;
+  const rule = {
+    roles: ['artillery'],
+    myRegionIds: new Set<string>(),
+    myOutpostIds: new Set<string>(),
+    departureBuildings: new Set(),
+    afloat: false,
+    coastal: false,
+    blitz: {
+      theatre: { id: 'europe', box: { west: -12, south: 34, east: 45, north: 72 } },
+      reloading: false,
+      occupiedBuildingIds: new Set<string>(),
+    },
+  } as unknown as Parameters<typeof compassOf>[2];
+  const camp = (point: readonly [number, number], id = 'camp-r'): CompassTarget => ({
+    kind: 'camp',
+    id,
+    point,
+    country: 'FRA',
+    name: 'camp relevé',
+  });
+  const ROUEN = [1.1, 49.44] as const;
+  const NOW = 1_000_000;
+  const fire = (target: CompassTarget, extra?: Record<string, unknown>) =>
+    compassOf(target, gunner(extra), rule, battery as never, 0, ['G-1'], NOW);
+
+  it('offers « bombarder » alone on a seen unit within range', () => {
+    const compass = fire(camp(ROUEN))!;
+    expect(compass.actions.map((action) => action.key)).toEqual(['bombard']);
+    expect(compass.actions[0]).toMatchObject({
+      troopId: 'G-1',
+      target: { kind: 'camp', campId: 'camp-r' },
+    });
+  });
+
+  it('names why it holds its fire', () => {
+    expect(fire(camp([2.13, 48.8]))?.refusal).toMatch(/^trop près : 17 km/);
+    expect(fire(camp([4.85, 45.75]))?.refusal).toMatch(/^hors de portée/);
+    expect(fire(camp(ROUEN), { emplacedAt: NOW + 12_000 })?.refusal).toMatch(/prête dans 12 s/);
+    expect(fire(camp(ROUEN), { reloadUntil: NOW + 5_000 })?.refusal).toBe(fr.errors.RELOADING());
+    expect(fire(camp(ROUEN, 'camp-old'))?.refusal).toBe(fr.errors.NOTHING_TO_ATTACK());
+    expect(fire(camp(ROUEN))?.actions.every((action) => action.key === 'bombard')).toBe(true);
+  });
+
+  it('holds its fire aboard a transport', () => {
+    const afloat = { ...battery, afloat: true };
+    const aboard = {
+      ...gunner(),
+      me: {
+        ...gunner().me,
+        troops: [{ id: 'G-1', role: 'artillery', tier: 1, stationedAt: afloat }],
+      },
+    } as unknown as PlayerView;
+    expect(compassOf(camp(ROUEN), aboard, rule, afloat as never, 0, ['G-1'], NOW)?.refusal).toBe(
+      fr.errors.ABOARD(),
+    );
+  });
+});

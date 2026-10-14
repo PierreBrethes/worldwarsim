@@ -638,7 +638,7 @@ const fromCombat = (report: CombatReport): Written => ({
   kind: report.side === 'defender' ? 'attacked' : 'assault',
   text: fr.combat.dispatch({
     where: countryLabel(report.hostCountry),
-    intercepted: report.cause === 'interception',
+    cause: report.cause,
     attacking: report.side === 'attacker',
     won: report.won,
     mine: report.mine,

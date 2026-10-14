@@ -135,6 +135,8 @@ export type MapMarker =
       readonly pieces: PilePieces;
       /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
       readonly reloadUntil?: number;
+      /** **L'artillerie** (B20) : l'instant où la pile sera en batterie, absent sinon. */
+      readonly emplacedAt?: number;
       readonly ink: string;
     }
   | {
@@ -231,6 +233,8 @@ export type Reach = {
    * cercle autour d'eux promettrait une allonge qu'aucune règle ne leur donne.
    */
   readonly contactKm: number | null;
+  /** **Ce qu'une artillerie atteint** (B20) : l'anneau de portée, et la zone morte hachurée. */
+  readonly fire?: { readonly rangeKm: number; readonly deadZoneKm: number };
 };
 
 export type LabelType =
@@ -797,6 +801,16 @@ function markerLabel(marker: MapMarker): MapLabel {
                   role: 'countdown' as const,
                   dueAt: marker.reloadUntil,
                   prefix: fr.reload.prefix,
+                  clock: true as const,
+                },
+              ]),
+          ...(marker.emplacedAt === undefined
+            ? []
+            : [
+                {
+                  role: 'countdown' as const,
+                  dueAt: marker.emplacedAt,
+                  prefix: fr.battery.prefix,
                   clock: true as const,
                 },
               ]),

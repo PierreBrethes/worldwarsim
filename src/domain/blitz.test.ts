@@ -38,6 +38,10 @@ describe('le recrutement de la Blitz', () => {
       'WRONG_PROJECTION_BUILDING',
     );
     expect(blitzRecruitRefusalOf({ ...ok, site: 'airfield', role: 'bomber' })).toBeNull();
+    expect(blitzRecruitRefusalOf({ ...ok, site: 'barracks', role: 'artillery' })).toBeNull();
+    expect(blitzRecruitRefusalOf({ ...ok, site: 'hq', role: 'artillery' })).toBe(
+      'WRONG_PROJECTION_BUILDING',
+    );
   });
 
   it('ne forme que dans un bâtiment libre (U6)', () => {

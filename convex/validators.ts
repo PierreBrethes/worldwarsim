@@ -14,6 +14,7 @@ export const UNIT_ROLE = v.union(
   v.literal('infantry'),
   v.literal('armor'),
   v.literal('landTransport'),
+  v.literal('artillery'),
   v.literal('fighter'),
   v.literal('bomber'),
   v.literal('airTransport'),

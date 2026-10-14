@@ -1,4 +1,5 @@
 import type { UnitRole, UnitTier } from './ids';
+import { firesIndirect } from './indirect-fire';
 import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from './troops';
 
 /**
@@ -33,6 +34,7 @@ export const COMBAT_PROFILES = [
   'armor1',
   'armor2',
   'landTransport',
+  'artillery',
   'fighter',
   'bomber',
   'airTransport',
@@ -48,8 +50,8 @@ export const profileOf = (role: UnitRole, tier: UnitTier): CombatProfile =>
 
 /**
  * The share of the defender's **nominal** strength a full-strength attacker destroys in one
- * pass, before modifiers. An absent cell means "cannot reach" — forty-six of the hundred and
- * twenty-one — and a missing cell is never a zero: a bomber unreachable by a tank is not a
+ * pass, before modifiers. An absent cell means "cannot reach" — fifty-one of the hundred and
+ * forty-four — and a missing cell is never a zero: a bomber unreachable by a tank is not a
  * bomber a tank hits for nothing.
  */
 export type DamageTable = Readonly<
@@ -113,8 +115,9 @@ export type Combatant = {
   readonly sheltered?: boolean;
 };
 
-/** `initiative`: the attacker strikes, the defender ripostes with the rest. `shock`: together. */
-export type PassMode = 'initiative' | 'shock';
+/** `initiative`: the attacker strikes, the defender ripostes with the rest. `shock`: together.
+ *  `indirect`: the battery strikes from afar, and nobody answers (B20). */
+export type PassMode = 'initiative' | 'shock' | 'indirect';
 
 export type CombatSide = 'attacker' | 'defender';
 
@@ -188,8 +191,14 @@ export function resolveEngagement({
   /** Under the initiative a troop fires with what it has left; in a shock, with what it brought. */
   const firing = (fighter: Fighter) =>
     mode === 'shock' ? fighter.combatant.strength : fighter.remaining;
+  /** **L'artillerie ne tire qu'à distance** (B20) : au contact elle se tait, des deux côtés, et
+   *  sous un tir indirect la cible n'a rien à répondre. */
+  const fires = (fighter: Fighter) =>
+    mode === 'indirect'
+      ? fighter.side === 'attacker' && firesIndirect(fighter.combatant.role)
+      : !firesIndirect(fighter.combatant.role);
   const bill = (side: CombatSide, fighters: ReadonlyArray<Fighter>) =>
-    draw(fighters.map(firing), ammunition[side], rules);
+    draw(fighters.filter(fires).map(firing), ammunition[side], rules);
 
   const salvo = (
     shooters: ReadonlyArray<Fighter>,
@@ -197,7 +206,7 @@ export function resolveEngagement({
     phase: Strike['phase'],
     magazine: Magazine,
   ) =>
-    shooters.flatMap((shooter) => {
+    shooters.filter(fires).flatMap((shooter) => {
       const supply = magazine.dry ? rules.dryFactor : 1;
       const strength = firing(shooter);
       if (strength <= 0) return [];

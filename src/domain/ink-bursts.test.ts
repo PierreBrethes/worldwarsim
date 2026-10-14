@@ -41,6 +41,21 @@ describe('inkBursts', () => {
     ]);
   });
 
+  it('stamps « bombardé » on both sides, and draws the shot from my battery alone', () => {
+    const fired = {
+      ...combat,
+      cause: 'bombardment',
+      firedFrom: { lon: 1, lat: 48 },
+    } as CombatReport;
+    const taken = { ...combat, cause: 'bombardment' } as CombatReport;
+    expect(inkBursts([dispatch(20, 'assault', fired)], 10, [])).toEqual([
+      { kind: 'combat', at: [2, 49], from: [1, 48], words: { word: 'bombardé', hour: hour(20) } },
+    ]);
+    expect(inkBursts([dispatch(20, 'attacked', taken)], 10, [])).toEqual([
+      { kind: 'combat', at: [2, 49], words: { word: 'bombardé', hour: hour(20) } },
+    ]);
+  });
+
   it('stamps « terrain tenu » after « engagé » when the ground was held', () => {
     const won = { ...combat, won: true };
     expect(inkBursts([dispatch(20, 'assault', won)], 10, [])).toEqual([

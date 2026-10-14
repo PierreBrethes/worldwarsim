@@ -95,7 +95,9 @@ export type FigurineFiles = Partial<
 
 // Still to sculpt: the R35 (French armor MK1), the Ju 52 (German air transport), the Japanese
 // MK2 infantry (Type 1 anti-tank gun, no file yet), the Japanese air transport, the Soviet,
-// Chinese and Italian carriers and the French cargo — none exist as plates either.
+// Chinese and Italian carriers and the French cargo — none exist as plates either. The artillery
+// (lot 6b) has no file in any nation yet: `uk/artillery.glb` first, the common model of
+// `PROMPTS-3D-2026-10-14.md` n° 2, then the seven others.
 export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = {
   france: {
     infantry: [frInfantry1, frInfantry2],

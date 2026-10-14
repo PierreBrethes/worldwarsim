@@ -1,5 +1,7 @@
 import { COMBAT_PROFILES, profileOf, type CombatProfile, type DamageTable } from './combat';
 import type { UnitRole, UnitTier } from './ids';
+import { blitzOnly } from './blitz';
+import type { SeasonMode } from './season-mode';
 import { landCostOf, motorized, routeModeOf } from './movement-orders';
 import { COST_BY_MEDIUM, type LandPace, type RouteMode } from './routing';
 import { ROLE_ORDER, TIERS_BY_ROLE } from './troops';
@@ -58,7 +60,7 @@ export function movementSheetOf(roles: ReadonlyArray<UnitRole>): MovementSheet {
 }
 
 /**
- * **Trois bandes, et l'encre les dit avant les chiffres.** Une grille de soixante-quinze
+ * **Trois bandes, et l'encre les dit avant les chiffres.** Une grille de quatre-vingt-treize
  * nombres ne se lit pas : ce qu'un joueur y cherche est « qu'est-ce qui casse ça », et c'est un
  * motif, pas une valeur. La valeur reste imprimée dans la case — l'abaque de 1940 en portait
  * une — et le survol la commente.
@@ -110,13 +112,20 @@ export type GunneryRow =
  * comme cibles, ce qu'ils sont par conception (`TRANSPORT_PROFILES`), et comme lignes, parce
  * qu'on les recrute et qu'un joueur venu chercher son cargo doit le trouver.
  */
-export function gunneryRows(table: DamageTable): ReadonlyArray<GunneryRow> {
-  return COMBAT_PROFILES.map((attacker) => {
+/** **Les profils qu'un mode connaît** : l'artillerie n'existe qu'en Blitz (lot 6b). */
+export const profilesFor = (mode: SeasonMode): ReadonlyArray<CombatProfile> =>
+  COMBAT_PROFILES.filter((profile) => mode === 'blitz' || !blitzOnly(PROFILE_UNITS[profile].role));
+
+export function gunneryRows(
+  table: DamageTable,
+  profiles: ReadonlyArray<CombatProfile> = COMBAT_PROFILES,
+): ReadonlyArray<GunneryRow> {
+  return profiles.map((attacker) => {
     if (Object.keys(table[attacker]).length === 0) return { attacker, fires: false };
     return {
       attacker,
       fires: true,
-      shots: COMBAT_PROFILES.map((defender) => {
+      shots: profiles.map((defender) => {
         const share = table[attacker][defender];
         return share === undefined
           ? { defender, reach: 'none' as const }

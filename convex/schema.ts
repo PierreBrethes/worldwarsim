@@ -393,6 +393,9 @@ export default defineSchema({
     /** **Blitz** (B19) : jusqu'à quand la troupe recharge après une frappe — elle bouge, elle
      *  n'attaque pas. Absent, elle n'a jamais frappé. */
     reloadUntil: v.optional(v.number()),
+    /** **L'artillerie** (B20) : l'heure où elle s'est posée, d'où se compte sa mise en batterie.
+     *  Absent, depuis sa formation (`_creationTime`). */
+    settledAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -779,8 +782,11 @@ export default defineSchema({
     defenderId: v.id('players'),
     /** What brought them into contact — an arrival, or an interception on the road, which is
      *  the one thing that hands the initiative to the defending side (ADR 0008). */
-    cause: v.union(v.literal('arrival'), v.literal('interception')),
+    cause: v.union(v.literal('arrival'), v.literal('interception'), v.literal('bombardment')),
     point: LON_LAT,
+    /** **D'où la batterie a tiré** (B20), pour le trait d'encre de l'attaquant — jamais servi à
+     *  la cible, qui ne sait pas d'où le coup est parti. */
+    firedFrom: v.optional(LON_LAT),
     hostCountry: v.string(),
     at: v.number(),
     winner: COMBAT_SIDE,
@@ -976,10 +982,13 @@ export default defineSchema({
     at: v.number(),
     /** Private message: the only other reader. Absent on the general channel. */
     to: v.optional(v.id('players')),
+    /** The lobby's thread, apart from the season's: `true` there, absent in war and on rows
+     *  written before the split. Erased at the launch, as the war thread is at the conclusion. */
+    lobby: v.optional(v.boolean()),
   })
     .index('bySeason', ['seasonId'])
-    .index('byChannel', ['seasonId', 'to', 'at'])
-    .index('byPair', ['seasonId', 'to', 'playerId', 'at'])
+    .index('byChannel', ['seasonId', 'lobby', 'to', 'at'])
+    .index('byPair', ['seasonId', 'lobby', 'to', 'playerId', 'at'])
     .index('byPlayer', ['playerId']),
 
   /**

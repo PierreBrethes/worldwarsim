@@ -26,10 +26,13 @@ export const fundsAt = (funds: Funds, now: number): number =>
 
 const FORMED_BY: Readonly<Partial<Record<BuildingKey, ReadonlyArray<UnitRole>>>> = {
   hq: ['infantry'],
-  barracks: ['infantry', 'armor', 'landTransport'],
+  barracks: ['infantry', 'armor', 'landTransport', 'artillery'],
   airfield: ['fighter', 'bomber', 'airTransport'],
   port: ['escort', 'cargo', 'carrier'],
 };
+
+/** **L'artillerie n'existe qu'en Blitz pour l'instant** (lot 6b) : la Mondiale ne la forme pas. */
+export const blitzOnly = (role: UnitRole): boolean => role === 'artillery';
 
 export const rolesFormedBy = (key: BuildingKey): ReadonlyArray<UnitRole> => FORMED_BY[key] ?? [];
 
