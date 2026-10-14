@@ -538,10 +538,7 @@ export class TerrainSketches {
       kept.leftAt = null;
       return;
     }
-    const line = new LineSegments2(
-      new LineSegmentsGeometry(),
-      this.material(pen),
-    );
+    const line = new LineSegments2(new LineSegmentsGeometry(), this.material(pen));
     /** Transparent like the fills it lies on: drawn before them, a paper stroke is tinted by the
      *  nation's ink and reads grey-blue. */
     line.renderOrder = 1;
