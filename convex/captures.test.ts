@@ -578,6 +578,73 @@ describe('the defender is warned on his device', () => {
   });
 });
 
+describe('every capture wears the site down', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('costs a level to its taker, and another to the owner who takes it back, never under one', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV, 3);
+    const levelAfter = async (by: Seat) => {
+      const infantry = await troop(t, by, 'infantry', null);
+      await captureArrival(
+        t,
+        by,
+        { kind: 'building', buildingId: barracks },
+        pointOfRegion(PSKOV),
+        'RUS',
+        [infantry],
+      );
+      await finish(t);
+      await t.run((ctx) => ctx.db.patch(infantry, { stationedAt: null }));
+      return (await t.run((ctx) => ctx.db.get(barracks)))!.level;
+    };
+    expect(await levelAfter(seat)).toBe(2);
+    expect(await levelAfter(guest)).toBe(1);
+    expect(await levelAfter(seat)).toBe(1);
+  });
+});
+
+describe('a disabled outpost', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('is captured all the same, even inside its immunity: immunity guards against a raid only', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, guest);
+    const point = pointOfRegion(PRAHOVA);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point,
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 1,
+        specialization: 'relay',
+        foundedAt: MIDDAY - 10 * HOUR,
+        disabledUntil: MIDDAY + 4 * HOUR,
+        immuneUntil: MIDDAY + 20 * HOUR,
+      }),
+    );
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(t, seat, { kind: 'outpost', outpostId }, point, 'ROU', [infantry]);
+
+    await finish(t);
+
+    const me = await playerOf(t, seat);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.playerId).toBe(me._id);
+  });
+});
+
 describe('ordering a capture', () => {
   it('is refused to a column without infantry, and on a headquarters', async () => {
     const t = boot();

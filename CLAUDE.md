@@ -677,7 +677,10 @@ une occupation qu'à son tenant et à qui a perdu ce sol. Au front : l'anneau qu
 tampon « capture » sur l'étiquette du site (`CaptureGauge`), « fin vers » chez le capteur, « perdu
 vers » à l'encre d'alerte chez le défenseur, qui ne voit jamais qui capture ; la ligne en tête de
 « à faire maintenant », l'affiche, la modale du site ; le tampon « capturé » des deux côtés à la
-prise. Hors lot : QG, points stratégiques, Blitz neutre, vivres à sec.
+prise. **Chaque capture abîme** (K7) : repris par son ancien propriétaire, un bâtiment reperd un
+niveau, jamais sous 1. **Un avant-poste désactivé reste capturable**, immunité comprise (K8) :
+l'immunité protège d'un raid, pas d'une capture. Hors lot : QG, points stratégiques, Blitz neutre,
+vivres à sec.
 ## Schéma Convex
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
