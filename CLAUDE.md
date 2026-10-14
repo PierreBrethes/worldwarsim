@@ -570,8 +570,8 @@ test d'horizon des étiquettes sont partis avec lui — un point du plateau se r
 raycast vise la géométrie qu'on voit. Plus d'épaisseur non plus : un pays est un aplat
 (`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est un trait
 d'encre, et l'écart ne sert qu'au tampon de profondeur. **Les traits suivent le prototype —
-14/10/2026** : la côte est le trait le plus gras (`LineSegments2`, encre .92, plancher 1,5 px et
-0,03 u qui grossit au zoom, `coastWidthPx`), séparée des frontières terrestres par
+14/10/2026** : la côte est le trait le plus gras (`LineSegments2`, encre .92, plancher 0,75 px et
+0,015 u qui grossit au zoom — moitié moins large depuis le retour de Pierre du 14/10, `coastWidthPx`), séparée des frontières terrestres par
 `splitOutlines` — une arête que deux pays partagent est une frontière, 1 px ; les frontières de
 région sont en pointillé (4 px d'encre, 2 de blanc, encre .38) ; l'anneau de destination est un
 pointillé d'encre de 1,5 px sur un liseré papier. **Et l'objectif du prototype s'essaie** (Réglages, `wws-camera-lens`, défaut
