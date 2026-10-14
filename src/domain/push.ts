@@ -172,17 +172,20 @@ export const PUSH_TEST_INTERVAL_MS = 10_000;
 /** Une clé P-256 non compressée fait 87 caractères en base64url, le secret 22. */
 export const PUSH_KEY_MAX_LENGTH = 256;
 
-const PRIVATE_SUFFIXES = ['.local', '.localhost', '.internal', '.lan', '.home', '.localdomain'];
+/** Les services de push des navigateurs : FCM (Chrome, Edge, Brave, Opera, Vivaldi, Samsung
+ *  Internet), Mozilla autopush (Firefox), Apple (Safari macOS et iOS), WNS (Edge sous Windows). */
+const PUSH_SERVICE_SUFFIXES = [
+  'fcm.googleapis.com',
+  'push.services.mozilla.com',
+  'push.apple.com',
+  'notify.windows.com',
+];
 
 /**
- * **Une adresse qu'un service de push peut porter, et pas autre chose.** L'endpoint vient du
- * client et c'est le serveur qui l'appelle : sans ce contrôle, n'importe quel compte lui faisait
- * émettre des requêtes vers l'hôte de son choix — un service du réseau du VPS compris — et lisait
- * le résultat dans la liste de ses appareils (un 404 retire la ligne, un succès la date).
- *
- * HTTPS sur son port, sans identifiants, vers un nom de domaine public : ni adresse IP, ni nom
- * court (`backend`, `dashboard` sont ceux du réseau Docker), ni suffixe privé. **Ce n'est pas une
- * liste des services connus**, exprès : elle refuserait le navigateur qu'on n'a pas prévu.
+ * **Une adresse de service de push connu, et pas autre chose.** L'endpoint vient du client et
+ * c'est le serveur qui l'appelle : une liste noire de formes d'hôtes se contourne par le DNS
+ * (`127.0.0.1.nip.io`), une liste blanche de domaines non. HTTPS sur son port, sans identifiants.
+ * Un navigateur au service exotique ne s'abonne pas — c'est le prix.
  */
 export function isPushEndpoint(endpoint: string): boolean {
   let url: URL;
@@ -195,8 +198,7 @@ export function isPushEndpoint(endpoint: string): boolean {
     return false;
   }
   const host = url.hostname.toLowerCase().replace(/\.$/, '');
-  if (host.startsWith('[') || /^[\d.]+$/.test(host) || !host.includes('.')) return false;
-  return !PRIVATE_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  return PUSH_SERVICE_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 
 /**
