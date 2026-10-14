@@ -1,5 +1,7 @@
 # Proposition — Chiffrage du combat
 
+> **Révision du 14/10/2026 : l'initiative revient (ADR 0014, B16/B17) ; la passe simultanée ne survit que comme choc (`mode: 'shock'`) — ce qui suit décrit la règle du 16/09.**
+
 > **Révision du 16/09/2026 — résolution simultanée (décision 1b, [ADR 0014](../../adr/0014-troupes-discretes-et-combat-sequentiel.md)).**
 > Les deux camps tirent sur l'état d'avant la passe : le §3 et le §4 ci-dessous portent la
 > révision. **Aucune valeur de la table ne bouge** — seul l'ordre des tirs a changé.

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/routes/*.tsx",
+    "src/map/engine/figurines/review.ts",
+    "src/map/engine/pictogram-review.tsx",
+    "scripts/*.mjs",
+    "WWS/simulation/opening/{run,verify,army}.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx,css}",
+    "convex/**/*.ts",
+    "scripts/**/*.mjs",
+    "WWS/simulation/opening/**/*.mjs"
+  ],
+  "ignoreDependencies": ["world-atlas"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    "WWS/simulation/opening/constants.mjs": ["exports"]
+  }
+}

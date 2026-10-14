@@ -129,8 +129,6 @@ export function seasonOf(format, overrides = {}) {
   };
 }
 
-export const scenario48h = (overrides = {}) => seasonOf('skirmish', overrides);
-
 export const PROFILE_DEFAULT = {
   plan: PLANS.economy,
   alloyReserve: 0.5,

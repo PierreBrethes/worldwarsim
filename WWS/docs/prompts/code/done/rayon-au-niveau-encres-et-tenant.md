@@ -1,3 +1,5 @@
+> **Historique (14/10/2026) : `SEAT_INKS` n'existe plus dans le code ; ce prompt est livré et gardé pour mémoire.**
+
 # Prompt Claude Code — retouches du contrôle visuel : rayon au niveau, encres franches, tenant à l'infobulle
 
 Lis `CLAUDE.md`, `CONVENTIONS.md`, `WWS/docs/adr/0020-domination-par-couleur.md`,

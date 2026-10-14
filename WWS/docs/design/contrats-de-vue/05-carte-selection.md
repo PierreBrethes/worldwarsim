@@ -45,8 +45,8 @@ brief flux-mouvement).
 
 ### P3
 
-- `opponents[].lastIntel` — servi « — » (placeholder, surface 4.9) : **ne pas dessiner la
-  ligne** tant que rien ne la remplit.
+- `opponents[].lastIntel` — **retiré** du serveur et de `PlayerView` (14/10/2026) ; ne plus le
+  chercher. Ancienne note : servi « — » (placeholder, surface 4.9), ne pas dessiner la ligne.
 - « progression » d'un adversaire — **n'est pas servie** (`bar.progress` est un échafaudage
   client à 0). La ligne actuelle du panneau est à retirer de la maquette.
 - Le type de terrain (`regionType`) — factice assumé, décoratif : l'infobulle de survol
@@ -130,7 +130,7 @@ brief flux-mouvement).
 - **Panneau d'avant-poste dédié** : les données P1/P2 ci-dessus existent toutes dans
   `me.outposts[]` + `siteSlots`, mais la surface actuelle les éparpille (GroundPanel,
   Économie). Prompt client, rien à servir.
-- **`lastIntel` et la progression adverse** : surfaces 4.8 / 4.9 — rien de servi, retirer
+- **`lastIntel` (retiré) et la progression adverse** : surfaces 4.8 / 4.9 — rien de servi, retirer
   des maquettes jusque-là.
 - **Aucune posture** (ADR 0021 révisée le 08/09) : le comportement vient de l'ordre, sans champ
   ni sélecteur. `attack` et `raid` engagent ; `march` et `return` observent.
