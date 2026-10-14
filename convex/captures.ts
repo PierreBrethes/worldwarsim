@@ -18,6 +18,8 @@ import { regionFacts, pointOfBuilding } from './regions';
 import { clipToStorage } from './resources';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays } from './seats';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { reassessDetection } from './movement/detection';
@@ -113,7 +115,7 @@ const schedule = (ctx: MutationCtx, captureId: Id<'captures'>, at: number) =>
 
 async function notifyBoth(
   ctx: MutationCtx,
-  capture: Pick<Capture, 'playerId' | 'defenderId' | 'site' | 'point'>,
+  capture: Pick<Capture, 'seasonId' | 'playerId' | 'defenderId' | 'site' | 'point'>,
   at: number,
   notice:
     | { kind: 'captureStarted'; completesAt: number }
@@ -132,6 +134,17 @@ async function notifyBoth(
       point: capture.point,
       ...notice,
     });
+  }
+  /** **L'alarme quitte l'écran en Mondiale** : on ne joue pas devant la carte, et c'est la seule
+   *  heure de perte du jeu. En Blitz tout le monde est là, et il n'y a pas de notification. */
+  const phrase =
+    notice.kind === 'captureStarted'
+      ? push.captureThreat
+      : notice.kind === 'captureSucceeded'
+        ? push.siteLost
+        : null;
+  if (phrase !== null && (await modeOf(ctx, capture.seasonId)) === 'mondiale') {
+    await notifyPlayer(ctx, capture.defenderId, { type: 'attack', phrase, url: journalUrl, at });
   }
 }
 

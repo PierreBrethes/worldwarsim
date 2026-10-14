@@ -4,6 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { UnitRole } from '../src/domain/ids';
 import { nominalStrength } from './constants';
+import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
@@ -486,6 +487,52 @@ describe('the foundation and a captured building', () => {
     expect(
       foundationOwedBy({ nation: 'france' }, [{ key: first.key, regionId: MARNE, capturedAt: 1 }]),
     ).toEqual(owed);
+  });
+});
+
+describe('the defender is warned on his device', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const pushed = async (t: Bench, seat: Seat) => {
+    const player = await playerOf(t, seat);
+    return t.run(async (ctx) =>
+      (await ctx.db.query('pushQueue').collect())
+        .filter((row) => row.accountId === player.accountId)
+        .map((row) => row.phrase),
+    );
+  };
+
+  it('when a capture opens and when the site is lost, in the long mode only', async () => {
+    for (const mode of ['mondiale', 'blitz'] as const) {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode }));
+      await t.mutation(api.notifications.subscribe, {
+        token: guest.token,
+        endpoint: 'https://push.example/lea',
+        p256dh: 'p256dh',
+        auth: 'auth',
+        userAgent: 'Mozilla/5.0',
+      });
+      const barracks = await building(t, guest, PSKOV);
+      const infantry = await troop(t, seat, 'infantry', null);
+      await captureArrival(
+        t,
+        seat,
+        { kind: 'building', buildingId: barracks },
+        pointOfRegion(PSKOV),
+        'RUS',
+        [infantry],
+      );
+      await finish(t);
+      expect(await pushed(t, guest)).toEqual(
+        mode === 'mondiale' ? [push.captureThreat, push.siteLost] : [],
+      );
+    }
   });
 });
 

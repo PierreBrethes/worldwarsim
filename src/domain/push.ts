@@ -35,6 +35,8 @@ export const push = {
   attack: 'Une passe de résolution a eu lieu : une de vos forces a été attaquée.',
   outpostDisabled: 'Un de vos avant-postes est désactivé.',
   foundationLost: 'Un de vos avant-postes en chantier est détruit avec sa garnison.',
+  captureThreat: 'Un de vos sites est en cours de capture.',
+  siteLost: 'Un de vos sites a été capturé.',
   sighting: 'Une colonne adverse a été relevée dans une de vos portées.',
   dryFire: 'Un de vos camps a tiré à sec : le magasin ne couvrait pas la passe.',
   seasonLaunched: 'La saison est lancée.',
