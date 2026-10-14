@@ -244,7 +244,7 @@ async function anchoredBuildings(
  * **La garnison passe au sol, elle ne meurt pas** (ADR 0019, règle 3) : elle devient une pile
  * posée au point de l'avant-poste — là où elle se tenait déjà, et où la carte la dessinait.
  */
-async function groundGarrison(ctx: MutationCtx, outpost: Doc<'outposts'>): Promise<void> {
+export async function groundGarrison(ctx: MutationCtx, outpost: Doc<'outposts'>): Promise<void> {
   for (const troop of await ctx.db
     .query('troops')
     .withIndex('byStation', (q) => q.eq('stationedAt', outpost._id))
@@ -259,7 +259,7 @@ async function groundGarrison(ctx: MutationCtx, outpost: Doc<'outposts'>): Promi
  * temps déjà consommé. C'est mot pour mot ce que `cancelWorkOn` fait des chantiers d'un bâtiment
  * rasé ; la file d'un avant-poste se lit sur un autre champ, voilà tout.
  */
-async function cancelRaisesOf(
+export async function cancelRaisesOf(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   outpost: Doc<'outposts'>,

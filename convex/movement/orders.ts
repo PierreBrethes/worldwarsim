@@ -167,6 +167,17 @@ export async function surveyedPlunderTarget(
   player: Doc<'players'>,
   buildingId: Id<'buildings'>,
 ): Promise<SurveyedPlunderTarget> {
+  const target = await surveyedTarget(ctx, player, buildingId);
+  if (!isPlunderTarget(target.key)) fail('UNKNOWN_BUILDING');
+  return target;
+}
+
+/** Any installation of somebody else's that this player has surveyed, whatever it is. */
+export async function surveyedTarget(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<SurveyedPlunderTarget> {
   const surveys = await ctx.db
     .query('regionSightings')
     .withIndex('byPlayerHasInstallations', (q) =>
@@ -181,7 +192,7 @@ export async function surveyedPlunderTarget(
       })),
     )
     .find((installation) => installation.buildingId === buildingId);
-  if (seen === undefined || !isPlunderTarget(seen.key)) fail('UNKNOWN_BUILDING');
+  if (seen === undefined) fail('UNKNOWN_BUILDING');
 
   const building = await ctx.db.get(buildingId);
   if (
