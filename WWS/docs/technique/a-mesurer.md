@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 279be02 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : df541e5 -->
 
 # Les constantes à mesurer
 
@@ -20,7 +20,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | --- | --- | --- | --- |
 | `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:292` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
 | `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:373` | every role; no season simulation models plunder cargo yet |
-| `DEFENDER_BONUS` | `1.15` | `convex/constants.ts:607` | rapport pertes attaquant / défenseur par engagement sur une saison |
+| `GARRISON_DAMAGE_TAKEN` | `0.7` | `convex/constants.ts:607` | rapport pertes attaquant / défenseur par engagement sur une saison |
 | `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:630` | every value; no season simulation models detection |
 | `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:661` | an assumed starting point; nothing measures how close is close enough on arrival |
 | `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:675` | a rank in the ordering the design asks for, and nothing more |
@@ -47,7 +47,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1019` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1038` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:7` | before treating it as a campaign balance rule. |
-| `STEP_MS` | `{ voyage: 1500, pose: 1200, salves: 900, pertes: 3000, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
+| `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:75` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:89` | assumed against the troop ceiling alone — two cargos lift a whole infantry |

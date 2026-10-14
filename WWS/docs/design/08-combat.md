@@ -58,6 +58,14 @@ Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §12.
 > **Révision du 16/09/2026 — résolution simultanée (décision 1b, [ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md)).**
 > L'initiative à l'attaquant est abandonnée. Le reste du §3 tient tel quel.
 
+> **Révision du 14/10/2026 — l'initiative revient (ADR 0014, B16).** L'attaquant frappe, les
+> pertes s'appliquent, puis le défenseur **riposte avec ce qui lui reste** ; détruit par la
+> frappe, il ne riposte pas. On ne paie en munitions que ce qu'on tire. Le bonus devient une
+> **protection** (C1) : une garnison de bâtiment, d'objectif ou d'avant-poste debout et en service
+> encaisse ×0,7 des coups (`GARRISON_DAMAGE_TAKEN`) et riposte sans multiplicateur. Cinquante
+> contre cinquante : 25 / 13 en terrain libre, 18 / 16 en garnison. La salve simultanée décrite ci-dessous ne survit que comme **choc** (B17).
+> Une riposte qui touche abat au moins un (C2). Les deux paragraphes suivants sont historiques.
+
 **Un engagement = une passe de résolution**, et une passe = **une salve de chaque camp, tirée sur
 l'état d'avant la passe**. Chacun vise la meilleure cible que la table lui donne, et seulement
 s'il **peut** l'atteindre — un canon antichar ne tire pas sur un bombardier. Les pertes

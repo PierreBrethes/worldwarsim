@@ -499,7 +499,10 @@ describe('plunder presence', () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    /** Trois compagnies : la garnison de l'entrepôt encaisse ×0,7 (C1), et deux la laisseraient
+     *  debout à 14. */
     const attackers = await Promise.all([
+      troop(t, seat, 'infantry', barracks),
       troop(t, seat, 'infantry', barracks),
       troop(t, seat, 'infantry', barracks),
     ]);

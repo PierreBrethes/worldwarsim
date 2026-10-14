@@ -117,6 +117,10 @@ export function CombatLines({ combat }: { combat: CombatReport }) {
         value={said.lossesValue(combat.mine.lost, combat.mine.destroyed, combat.mine.routed)}
       />
       <Row label={said.theirs} value={said.theirsValue(combat.theirs.lost)} />
+      <Row
+        label={said.pass}
+        value={fr.combat.beats(combat.side === 'attacker', combat.mine.lost, combat.theirs.lost)}
+      />
       <Row label={said.ground} value={combat.won ? said.held : said.lost} />
       {combat.outpostDisabled && <Row label={said.outpost} value={said.outpostDisabled} />}
     </>

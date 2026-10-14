@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Box3, Mesh, type Object3D } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { REPLAY_MS, replayAt, stepBounds } from '@/domain/replay';
+import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, type ReplayStep } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
 import { ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
@@ -65,7 +65,17 @@ describe('ReplayScene', () => {
   });
 });
 
-describe('the salvoes', () => {
+/** The middle of a fire step's volley, and a moment just after its shots land. */
+const inVolley = (step: ReplayStep) => {
+  const { start, end } = stepBounds(step);
+  return start + (VOLLEY_SHARE / 2) * (end - start);
+};
+const justLanded = (step: ReplayStep) => {
+  const { start, end } = stepBounds(step);
+  return start + VOLLEY_SHARE * (end - start) + 50;
+};
+
+describe('the strike and the riposte', () => {
   it('cross the gap both ways, each line at the other', () => {
     // Two of mine, one block: both of mine aim at it, and it answers the first of mine.
     expect([0, 1, 2].map((k) => salvoTarget(k, 2, 1))).toEqual([2, 2, 0]);
@@ -81,20 +91,40 @@ describe('the salvoes', () => {
     expect(shotShare(0, 1, true)).toBe(0.5);
   });
 
-  it('shake both lines as they land, briefly, and never at reduced motion', () => {
-    expect(shakeOf('pertes', 0.05, false)).not.toBe(0);
-    expect(shakeOf('pertes', 0.5, false)).toBe(0);
-    expect(shakeOf('salves', 0.5, false)).toBe(0);
-    expect(shakeOf('pertes', 0.05, true)).toBe(0);
+  it('shake both lines as a volley lands, briefly, and never at reduced motion', () => {
+    expect(shakeOf(replayAt(luxembourg, justLanded('frappe')), false)).not.toBe(0);
+    expect(shakeOf(replayAt(luxembourg, justLanded('riposte')), false)).not.toBe(0);
+    expect(shakeOf(replayAt(luxembourg, inVolley('frappe')), false)).toBe(0);
+    expect(shakeOf(replayAt(luxembourg, stepBounds('deroute').start + 50), false)).toBe(0);
+    expect(shakeOf(replayAt(luxembourg, justLanded('frappe')), true)).toBe(0);
   });
 
-  it('draws a shot per piece during the salvo, and none after', () => {
+  it('fires the attacker in the strike, then what stands of the defence in the riposte', () => {
+    // Luxembourg seen from France, the defender: one enemy block strikes my three, then my three
+    // answer — and once the block is down, nothing of theirs is left to fire.
     const scene = new ReplayScene(null, replayAt(luxembourg, 0).pieces, 'land');
-    const shots = () => scene.object.children.slice(4).filter((shot) => shot.visible).length;
-    const salvo = stepBounds('salves');
-    scene.show(replayAt(luxembourg, (salvo.start + salvo.end) / 2), 0, false);
-    expect(shots()).toBe(4);
+    const shooting = () =>
+      scene.object.children
+        .slice(4)
+        .map((shot, k) => (shot.visible ? k : -1))
+        .filter((k) => k >= 0);
+    scene.show(replayAt(luxembourg, inVolley('frappe')), 0, false);
+    expect(shooting()).toEqual([3]);
+    scene.show(replayAt(luxembourg, inVolley('riposte')), 0, false);
+    expect(shooting()).toEqual([0, 1, 2]);
     scene.show(replayAt(luxembourg, REPLAY_MS), 0, false);
-    expect(shots()).toBe(0);
+    expect(shooting()).toEqual([]);
+  });
+
+  it('gives no riposte to a line the strike laid down', () => {
+    const attacked: ReplayView = {
+      ...luxembourg,
+      side: 'attacker',
+      mine: [{ role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 }],
+      theirs: { troops: 1, lost: 50, routed: 0, destroyed: 1 },
+    };
+    const scene = new ReplayScene(null, replayAt(attacked, 0).pieces, 'land');
+    scene.show(replayAt(attacked, inVolley('riposte')), 0, false);
+    expect(scene.object.children.slice(3).some((shot) => shot.visible)).toBe(false);
   });
 });
