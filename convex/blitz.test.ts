@@ -2,6 +2,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { THEATRES } from '../src/domain/theatres';
 import { BLITZ } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -146,6 +147,22 @@ describe('la carte de départ de la Blitz', () => {
     expect((await t.query(api.seasons.lobby, seat)).launchRefusal).toBe('BLITZ_MAP_FAILED');
   });
 
+  it('n’assoit pas plus de joueurs que son théâtre n’en tient (T1)', async () => {
+    const t = boot();
+    const token = await signIn(t, 'Pierre');
+    const { code } = await t.mutation(api.seasons.create, {
+      token,
+      compensation: 0.5,
+      mode: 'blitz',
+      theatre: 'pacific',
+    });
+    await joinSeat(t, code, 'Léa');
+    const third = await signIn(t, 'Tiers');
+    await expect(t.mutation(api.seasons.join, { token: third, code })).rejects.toThrow(
+      /BLITZ_FULL/,
+    );
+  });
+
   it('ne se pose qu’une fois', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);
@@ -171,24 +188,15 @@ describe('la carte de départ, théâtre par théâtre', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  /** **Le Pacifique à quatre est refusé** : le cercle passe sur l'océan, et les QG d'où l'on
-   *  marche (Japon, Philippines, Papouasie, Nouvelle-Zélande) sont à 0,31 d'équité. */
-  for (const [theatre, players, fair] of [
-    ['europe', 4, true],
-    ['pacific', 2, true],
-    ['pacific', 4, false],
-    ['americas', 3, true],
-    ['mediterranean', 3, true],
-  ] as const) {
-    it(`pose à pied dans la tolérance, ou revient au salon — ${theatre} à ${String(players)}`, async () => {
+  /** **Chaque théâtre se pose à son plafond** (T1) ; un de plus échouait sur six graines sur six
+   *  le 14/10 (Pacifique à 3, Amériques et Méditerranée à 4), d'où les fourchettes de
+   *  `THEATRES`. */
+  for (const { id: theatre, players: range } of THEATRES) {
+    const players = range.max;
+    it(`pose à pied dans la tolérance — ${theatre} à ${String(players)}`, async () => {
       const t = boot();
       const seats = await blitzLaunchedOn(t, theatre, players);
       const season = (await t.run((ctx) => ctx.db.get(seats[0]!.seasonId)))!;
-      if (!fair) {
-        expect(season).toMatchObject({ status: 'lobby', launchRefusal: 'BLITZ_MAP_UNFAIR' });
-        expect(await t.run((ctx) => ctx.db.query('resources').collect())).toEqual([]);
-        return;
-      }
       expect(season.status).toBe('launched');
       const neutral = await neutralOf(t, season._id);
       const neutrals = await buildingsOf(t, neutral._id);

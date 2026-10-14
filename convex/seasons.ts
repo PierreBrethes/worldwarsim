@@ -26,7 +26,7 @@ import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
 import { SEASON_MODE } from './validators';
-import { creationRefusalOf, MODE_RULES, modeOf } from '../src/domain/season-mode';
+import { creationRefusalOf, MODE_RULES, modeOf, seatRangeOf } from '../src/domain/season-mode';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
@@ -70,7 +70,8 @@ async function endow(
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
-const maximumOf = (season: Doc<'seasons'>): number => MODE_RULES[modeOf(season.mode)].maxPlayers;
+const maximumOf = (season: Doc<'seasons'>): number =>
+  seatRangeOf(modeOf(season.mode), season.theatre).max;
 
 /**
  * **Un seul choix : le mode** (lot 1 de la Blitz, 14/10/2026). Il fixe l'horloge, le plafond de
@@ -379,7 +380,7 @@ export const launch = mutation({
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const present = await seatsOf(ctx, season._id);
-    const { minPlayers } = MODE_RULES[modeOf(season.mode)];
+    const minPlayers = seatRangeOf(modeOf(season.mode), season.theatre).min;
     if (present.length < minPlayers) {
       fail('NOT_ENOUGH_PLAYERS', { minimum: minPlayers });
     }

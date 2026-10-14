@@ -295,7 +295,8 @@ export const fr = {
     },
     modeLabel: 'mode',
     theatreLabel: 'théâtre',
-    theatreNote: 'La carte s’ouvre cadrée sur ce théâtre.',
+    theatreNote:
+      'La carte s’ouvre cadrée sur ce théâtre, et le salon n’y assoit pas plus de joueurs qu’il n’en tient.',
     theatres: {
       europe: 'Europe',
       mediterranean: 'Méditerranée',
@@ -303,6 +304,9 @@ export const fr = {
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
     seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
+    /** Ce que la carte de départ du théâtre tient (T1), lu par la vignette. */
+    theatrePlayers: (min: number, max: number) =>
+      min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>
       theatre === null ? mode : `${mode} · ${theatre}`,
   },

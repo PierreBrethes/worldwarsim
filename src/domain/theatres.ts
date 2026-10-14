@@ -9,13 +9,32 @@ export interface Theatre {
     readonly east: number;
     readonly north: number;
   };
+  /** How many players its starting map seats fairly (T1): the placement tests fix it, six seeds
+   *  each (`convex/blitz.test.ts`). Europe at four failed one seed in six (14/10). */
+  readonly players: { readonly min: number; readonly max: number };
 }
 
 export const THEATRES = [
-  { id: 'europe', box: { west: -12, south: 34, east: 45, north: 72 } },
-  { id: 'mediterranean', box: { west: -10, south: 28, east: 42, north: 46 } },
-  { id: 'pacific', box: { west: 95, south: -45, east: 240, north: 55 } },
-  { id: 'americas', box: { west: -130, south: -55, east: -35, north: 60 } },
+  {
+    id: 'europe',
+    box: { west: -12, south: 34, east: 45, north: 72 },
+    players: { min: 2, max: 4 },
+  },
+  {
+    id: 'mediterranean',
+    box: { west: -10, south: 28, east: 42, north: 46 },
+    players: { min: 2, max: 3 },
+  },
+  {
+    id: 'pacific',
+    box: { west: 95, south: -45, east: 240, north: 55 },
+    players: { min: 2, max: 2 },
+  },
+  {
+    id: 'americas',
+    box: { west: -130, south: -55, east: -35, north: 60 },
+    players: { min: 2, max: 3 },
+  },
 ] as const satisfies readonly Theatre[];
 
 export type TheatreId = (typeof THEATRES)[number]['id'];
