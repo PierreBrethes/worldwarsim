@@ -14,6 +14,7 @@ import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
+import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
@@ -283,6 +284,9 @@ export const fr = {
     mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
     mendNote:
       'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    clock: 'fin',
+    clockLabel: (left: string) => `fin de la Blitz dans ${left} — le plus gros revenu l’emporte`,
+    clockEnded: 'terminée',
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },
@@ -290,7 +294,7 @@ export const fr = {
   modes: {
     blitz: {
       name: 'Blitz',
-      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
+      line: '2 h · 2 ou 3 joueurs présents ensemble · un théâtre, on prend le QG adverse',
     },
     mondiale: {
       name: 'Mondiale',
@@ -298,7 +302,8 @@ export const fr = {
     },
     modeLabel: 'mode',
     theatreLabel: 'théâtre',
-    theatreNote: 'La carte s’ouvre cadrée sur ce théâtre.',
+    theatreNote:
+      'La carte s’ouvre cadrée sur ce théâtre, et le salon n’y assoit pas plus de joueurs qu’il n’en tient.',
     theatres: {
       europe: 'Europe',
       mediterranean: 'Méditerranée',
@@ -306,6 +311,8 @@ export const fr = {
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
     seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
+    theatrePlayers: (min: number, max: number) =>
+      min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>
       theatre === null ? mode : `${mode} · ${theatre}`,
   },
@@ -332,7 +339,8 @@ export const fr = {
     /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
     stamp: 'capture',
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
-    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    lostAt: (percent: number, hour: string, hq = false) =>
+      `${percent} % · ${hq ? 'QG perdu' : 'perdu'} vers ${hour}`,
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -587,7 +595,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
-    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
+    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
         ? 'les fonds ne suffisent pas'
@@ -667,6 +675,8 @@ export const fr = {
     UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
     RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
+    SITE_OCCUPIED: () =>
+      'ce bâtiment n’est pas libre : une de vos unités s’y tient ou s’y forme — faites-la sortir pour recruter',
     BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
     ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
     INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
@@ -1368,6 +1378,19 @@ export const fr = {
     reducedMark: 'réduit',
     standingMark: 'debout',
     homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
+    /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
+    blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
+      reason === 'draw'
+        ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+        : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+    verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
+      reason === 'hqTaken'
+        ? 'son infanterie a capturé le dernier quartier général adverse'
+        : reason === 'lastStanding'
+          ? 'seul belligérant encore debout'
+          : reason === 'income'
+            ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
+            : 'revenu et caisse se valent',
   },
 
   /**
@@ -1399,6 +1422,7 @@ export const fr = {
       firedDry: 'tir à sec',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
+      elimination: 'QG tombé',
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
@@ -1514,6 +1538,10 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
+      playerEliminatedAside: (nation: string) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.`,
+      playerEliminated: (nation: string, by: string) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
@@ -1630,6 +1658,8 @@ export const fr = {
         `Notre infanterie tient ${site} : capture vers ${until}.`,
       captureThreat: (site: string, until: string) =>
         `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      hqThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : QG perdu vers ${until}, et sa chute nous élimine. Chassez l’infanterie qui le tient.`,
       captured: (site: string) => `${site} est à nous : capture achevée.`,
       siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>

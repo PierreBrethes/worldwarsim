@@ -262,7 +262,8 @@ export function captureOrderRefusalOf(
   column: Column,
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
-  return captureRefusalOf(target, column.roles, isMine) ?? closedGate(aim, column);
+  const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
+  return captureRefusalOf(target, column.roles, isMine, mode) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */

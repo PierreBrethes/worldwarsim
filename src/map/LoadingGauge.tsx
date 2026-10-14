@@ -46,10 +46,13 @@ export function MarchGauge({ since, dueAt }: { since: number; dueAt: number }) {
  */
 export function CaptureGauge({
   side,
+  hq = false,
   clock,
   completesAt,
 }: {
   side: 'capturer' | 'defender';
+  /** Un QG de Blitz : sa chute élimine, et le défenseur le lit « QG perdu vers ». */
+  hq?: boolean;
   clock: CaptureClock;
   completesAt: number;
 }) {
@@ -71,7 +74,9 @@ export function CaptureGauge({
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
       <span>
-        {side === 'capturer' ? fr.capture.endsAt(percent, hour) : fr.capture.lostAt(percent, hour)}
+        {side === 'capturer'
+          ? fr.capture.endsAt(percent, hour)
+          : fr.capture.lostAt(percent, hour, hq)}
       </span>
     </div>
   );

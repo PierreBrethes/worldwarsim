@@ -41,7 +41,7 @@ describe('seasons.create by mode', () => {
     ).rejects.toThrow(/UNKNOWN_THEATRE/);
   });
 
-  it('refuses a fifth player in a Blitz and says so on the invitation', async () => {
+  it('refuses a player past the theatre in a Blitz and says so on the invitation', async () => {
     const t = boot();
     const token = await signIn(t, 'Pierre');
     const { code } = await t.mutation(api.seasons.create, {
@@ -50,7 +50,7 @@ describe('seasons.create by mode', () => {
       mode: 'blitz',
       theatre: 'europe',
     });
-    for (let rank = 1; rank < 4; rank += 1) await joinSeat(t, code, `Joueur ${String(rank)}`);
+    for (let rank = 1; rank < 3; rank += 1) await joinSeat(t, code, `Joueur ${String(rank)}`);
     expect((await t.query(api.seasons.invitation, { code })).refusal).toBe('BLITZ_FULL');
     const late = await signIn(t, 'Retard');
     await expect(t.mutation(api.seasons.join, { token: late, code })).rejects.toThrow(/BLITZ_FULL/);

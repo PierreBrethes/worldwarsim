@@ -13,7 +13,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
-import { FundsCell, ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
+import { BlitzClock, FundsCell, ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
@@ -93,8 +93,9 @@ export function NarrowBand({
       </div>
 
       {me.funds !== null ? (
-        <div className="flex h-[38px] items-center px-[12px]">
+        <div className="flex h-[38px] items-center justify-between px-[12px]">
           <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
+          <BlitzClock view={view} now={now} />
         </div>
       ) : (
         <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">

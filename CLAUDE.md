@@ -690,14 +690,14 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). **Chaque théâtre déclare son nombre de joueurs** (T1, `Theatre.players`, lu par `seatRangeOf`) : Europe, Méditerranée et Amériques 2-3, Pacifique 2 — un plafond tient sur six graines ou il descend d'un cran (`convex/blitz.test.ts`, `SIX_SEEDS` ; l'Europe à 4 échouait sur une). Le salon refuse au-delà (`joinRefusalOf`, `BLITZ_FULL`), le lancement en deçà comme au-delà, et la vignette de création affiche la fourchette. Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
 
 
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
 `src/domain/capture.ts`). « Capturer » est une branche de la rose sur un bâtiment adverse relevé
 ou un avant-poste adverse, refusée par `captureOrderRefusalOf` — la même fonction que
 `movements.capture` (`CAPTURE_NEEDS_INFANTRY`, `FRIENDLY_TARGET`, `HQ_NOT_CAPTURABLE` : le QG
-attend le lot de l'élimination). La colonne marche comme une attaque ; à l'arrivée une passe a lieu
+ne se capture qu'en Blitz, lot 6 ci-dessous). La colonne marche comme une attaque ; à l'arrivée une passe a lieu
 s'il reste des défenseurs, et si l'attaquant gagne avec de l'infanterie debout, **les troupes se
 posent au point du site** (pas de présence en mouvement comme le pillage : c'est ce qui laisse
 partir et laisse attaquer) et une ligne `captures` porte l'horloge — fait / instant / rythme,
@@ -779,19 +779,19 @@ Europe la portée vaut quarante secondes de marche adverse ; au Pacifique et aux
 `convex/constants.ts`, toutes `@a-mesurer`). Au lancement, `blitz.place` remplace `objectives.place`
 par la même mécanique en trois temps (`placementInput`, action qui mesure, `commit` idempotent) ; la
 règle pure est `src/domain/blitz-placement.ts` : un QG par joueur sur un cercle du théâtre, une
-caserne à lui, deux fantassins en garnison, un pécule ; des **neutres** — ville, caserne, port (une
+caserne à lui, un fantassin dans chacun (U6), un pécule ; des **neutres** — ville, caserne, port (une
 côte n'est côte que si `coastPointNear` y trouve un quai), aérodrome — proches de chaque QG, et
 disputés au milieu de chaque paire de voisins. **Le proche se mesure à pied** (`land`), dans une
 tolérance autour de sa distance cible : un QG d'où l'on ne marche pas jusqu'à sa caserne et ses
 neutres est écarté (jamais sur un îlot). Douze tours du cercle ; l'écart entre QG se juge en combiné
 et, sous `hqEvenness`, **le lancement est défait** (`blitz.abandon`, E6) : la saison revient au salon
 qui le dit (`seasons.launchRefusal`, `BLITZ_MAP_UNFAIR`, ou `BLITZ_MAP_FAILED` quand la pose jette).
-Le Pacifique à quatre est refusé aujourd'hui. Lancée, une Blitz est close aux arrivants
+Lancée, une Blitz est close aux arrivants
 (`BLITZ_STARTED`, E4). Les neutres sont des `buildings` du **siège irrégulier**, sans garnison,
 marqués `startedNeutral` : la liste se sert **figée** (`playerView.neutralSites`) — un neutre pris
 par un autre reste neutre chez moi tant que mon relevé ne voit pas sa région tenue — et se capture
-par le flux du lot 3 sans relevé (`captureAimOf`). **Le QG de la Blitz ne se capture pas encore**
-(`HQ_NOT_CAPTURABLE`) : sa capture élimine, c'est le lot 6. **Rien n'est bâti en Blitz** : ce que
+par le flux du lot 3 sans relevé (`captureAimOf`). Le QG de la Blitz se capture, et sa chute élimine (lot 6,
+ci-dessous). **Rien n'est bâti en Blitz** : ce que
 tient un joueur porte `capturedAt` et colore sa région, et le sol national ne colore rien
 (`homeGroundsOf`). **Les fonds** sont la seule ressource (`players.funds`/`fundsAt`, réglés
 paresseusement, `convex/blitz.ts`) : la ville et le QG versent par minute, rien d'autre ; régler avant
@@ -808,6 +808,24 @@ continue sur un site en capture (E5). Au front : les fonds et leur
 débit sur la réglette (`FundsCell`, compteur des réserves), ni Écon. ni lingot à l'abaque, l'affiche
 « +N/min » d'une ville ou du QG et « neutre » d'un neutre, « villes neutres à prendre » à « à faire
 maintenant ». La ville emprunte la planche et la maquette des baraquements en attendant son GLB (E3).
+
+**Et une Blitz finit — 14/10/2026** (lot 6, B10, B11, U6). **Le QG se capture** en Blitz seulement
+(`captureRefusalOf` lit le mode ; `CAPTURE_MINUTES.blitz.hq`, 6 min, `@a-mesurer`). À la prise de son QG de départ (`buildings.homeOf`, posé par `blitz.commit` — perdre un QG qu'on avait pris n'élimine pas), le
+joueur est **éliminé** (`captures.complete`, `falls`) : tous ses bâtiments passent au capteur, ses
+troupes, ses mouvements et ses captures disparaissent (`disband`), et il sort de la guerre par la
+même porte que la capitulation (`leaveTheWar`, `convex/players.ts` : `defeated`, commandement
+transmis, dépêche publique `playerEliminated`). Dernier belligérant debout, la saison se conclut à
+son nom. **À deux heures**, `blitz.closeAtClock`, planifié au lancement à `launchedAt + durée` et
+idempotent, conclut au **plus gros revenu** tenu à l'instant, départagé par la caisse à l'unité,
+puis l'égalité sans vainqueur (`clockVerdict`, `src/domain/blitz.ts`). La raison est gravée
+(`seasons.verdict` : `hqTaken`, `lastStanding`, `income`, `draw`) et servie (`season.verdict`) :
+l'édition finale l'imprime en manchette (`PressWindow`, `Verdict`) et le journal la dit. **Une Blitz
+n'a pas d'édition toutes les trois heures** — seule la finale paraît. La réglette porte le compte à
+rebours (`BlitzClock`), l'anneau d'un QG dit « QG perdu vers » et la dépêche que sa chute élimine.
+**On ne recrute que dans un bâtiment libre** (U6, `SITE_OCCUPIED` dans `blitzRecruitRefusalOf`, lu
+par la modale et par `troops.recruit`) : aucune troupe à soi dedans, aucune recrue en formation ;
+une des miennes entrée pendant la formation, la recrue se pose à la porte (`troops.deliver`). Un
+joueur qui a capitulé n'achève plus aucune capture.
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
 par `??` — ou bien il s'accompagne d'une migration de backfill. Un champ obligatoire posé sans

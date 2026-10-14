@@ -48,6 +48,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         winnerNation: null,
         standings: [],
       },
+      verdict: server.season.verdict ?? null,
     },
     me: {
       nation: server.me.nation,
@@ -179,7 +180,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
-      server.season.reduction ?? null,
+      server.season.reduction === undefined
+        ? null
+        : { ...server.season.reduction, verdict: server.season.verdict ?? null },
       // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
       server.warEntries ?? [],
       server.notices ?? [],

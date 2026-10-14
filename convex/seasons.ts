@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -25,8 +25,8 @@ import {
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
-import { SEASON_MODE } from './validators';
-import { creationRefusalOf, MODE_RULES, modeOf } from '../src/domain/season-mode';
+import { SEASON_MODE, VERDICT } from './validators';
+import { creationRefusalOf, MODE_RULES, modeOf, seatRangeOf } from '../src/domain/season-mode';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
@@ -70,7 +70,8 @@ async function endow(
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
-const maximumOf = (season: Doc<'seasons'>): number => MODE_RULES[modeOf(season.mode)].maxPlayers;
+const maximumOf = (season: Doc<'seasons'>): number =>
+  seatRangeOf(modeOf(season.mode), season.theatre).max;
 
 /**
  * **Un seul choix : le mode** (lot 1 de la Blitz, 14/10/2026). Il fixe l'horloge, le plafond de
@@ -379,9 +380,11 @@ export const launch = mutation({
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const present = await seatsOf(ctx, season._id);
-    const { minPlayers } = MODE_RULES[modeOf(season.mode)];
-    if (present.length < minPlayers) {
-      fail('NOT_ENOUGH_PLAYERS', { minimum: minPlayers });
+    const range = seatRangeOf(modeOf(season.mode), season.theatre);
+    if (present.length < range.min) fail('NOT_ENOUGH_PLAYERS', { minimum: range.min });
+    /** Un plafond revu à la baisse après que le salon s'est rempli : la carte ne se poserait pas. */
+    if (modeOf(season.mode) === 'blitz' && present.length > range.max) {
+      fail('BLITZ_FULL', { maximum: range.max });
     }
     const stragglers = present.filter((entry) => !entry.ready);
     if (stragglers.length > 0) {
@@ -411,9 +414,20 @@ export const launch = mutation({
      * minute avant : au lancement tout le monde a la même dotation, il n'y a rien à raconter.
      * Le travail se replanifie ensuite lui-même (`convex/press.ts`), comme les files.
      */
-    await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
-      playerId: present[0]!._id,
-    });
+    /** **Une Blitz n'a pas d'édition en cours de partie** : deux heures n'en laisseraient pas
+     *  paraître une seule. Son horloge, elle, la conclut (B11), et la conclusion écrit
+     *  l'édition finale. */
+    if (modeOf(season.mode) === 'blitz' && season.durationHours !== null) {
+      const endsAt = now + season.durationHours * 3_600_000;
+      await ctx.scheduler.runAt(endsAt, internal.blitz.closeAtClock, {
+        seasonId: season._id,
+        expectedAt: endsAt,
+      });
+    } else {
+      await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
+        playerId: present[0]!._id,
+      });
+    }
 
     /**
      * **Les objectifs neutres se posent dans leur propre travail, et ce travail est une action**
@@ -478,6 +492,7 @@ export async function concludeSeason(
   seasonId: Id<'seasons'>,
   winnerId: Id<'players'> | null,
   at: number,
+  verdict?: Infer<typeof VERDICT>,
 ): Promise<void> {
   /**
    * **L'édition finale s'écrit d'abord** (`classement-bareme.md` §5) : après le `patch`, le
@@ -494,6 +509,7 @@ export async function concludeSeason(
     winnerId,
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
     concludedAt: at,
+    ...(verdict === undefined ? {} : { verdict }),
   });
   await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
   for (const entry of await seatsOf(ctx, seasonId)) {

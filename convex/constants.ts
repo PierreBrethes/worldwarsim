@@ -813,14 +813,19 @@ export const PLUNDER_DISABLED_HOURS = 12;
 /**
  * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du
  * 14/10). Une troupe entamée va au prorata de sa force (`captureRate`), et en Mondiale la plage de
- * repos du défenseur ne compte pas. Le QG n'est pas ici : sa capture élimine, c'est un autre lot.
+ * repos du défenseur ne compte pas. Le QG ne se capture qu'en Blitz.
  *
- * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, jamais joués
+ * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, « ≈ 6 min » pour le QG (lot 6), jamais
+ * joués
  */
 export const CAPTURE_MINUTES = {
   mondiale: { building: 360, outpost: 360 },
-  blitz: { building: 3, outpost: 3 },
-} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>>;
+  /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit
+   *  avoir le temps de revenir. */
+  blitz: { building: 3, outpost: 3, hq: 6 },
+} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>> & {
+  blitz: { hq: number };
+};
 
 /**
  * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une

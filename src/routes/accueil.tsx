@@ -223,6 +223,9 @@ function ConnectedHome() {
                       <span className="mt-1 block text-[11px] tracking-[.14em] uppercase">
                         {fr.modes.theatres[candidate.id]}
                       </span>
+                      <span className="block font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
+                        {fr.modes.theatrePlayers(candidate.players.min, candidate.players.max)}
+                      </span>
                     </button>
                   ))}
                 </div>

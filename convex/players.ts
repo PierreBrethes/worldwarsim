@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
-import { mutation } from './_generated/server';
-import type { Doc } from './_generated/dataModel';
+import { mutation, type MutationCtx } from './_generated/server';
+import type { Doc, Id } from './_generated/dataModel';
+import { modeOf } from '../src/domain/season-mode';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
@@ -132,60 +133,95 @@ export const surrender = mutation({
      *  drapeau n'a pas d'armes à déposer, et il ne compte dans aucune fin de saison. */
     if (!isAtWar(player, season)) fail('NOT_AT_WAR');
 
-    const now = Date.now();
-    await ctx.db.patch(player._id, { defeated: true });
+    await leaveTheWar(ctx, season, player, Date.now(), { kind: 'playerSurrendered' });
+  },
+});
 
-    const present = await seatsOf(ctx, season._id);
-    const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
+/**
+ * **Sortir de la guerre, par la capitulation ou par la chute de son QG** (B10) : la même sortie,
+ * parce qu'elle a les mêmes conséquences pour la table — défait, commandement transmis, saison
+ * conclue s'il ne reste qu'un belligérant. Seule la dépêche dit laquelle.
+ */
+export async function leaveTheWar(
+  ctx: MutationCtx,
+  season: Doc<'seasons'>,
+  player: Doc<'players'>,
+  now: number,
+  exit:
+    | { readonly kind: 'playerSurrendered' }
+    | {
+        readonly kind: 'playerEliminated';
+        readonly by: string;
+        readonly capturerId: Id<'players'>;
+      },
+): Promise<void> {
+  await ctx.db.patch(player._id, { defeated: true });
 
-    /**
-     * **Le commandement passe au plus ancien joueur encore debout.** Le rang d'entrée plutôt
-     * qu'un vote : entre amis, celui qui est là depuis le début est celui qui saura clore, et
-     * une élection à deux joueurs n'est pas une élection.
-     *
-     * Le titre n'est retiré que s'il y a une main pour le prendre : le dernier fondateur d'une
-     * saison où plus personne n'est debout le garde, ce qui tient l'invariant — un `creator` par
-     * saison, jamais zéro.
-     */
-    const successor = player.creator
-      ? ([...standing].sort((left, right) => left._creationTime - right._creationTime)[0] ?? null)
-      : null;
+  const present = await seatsOf(ctx, season._id);
+  const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
+
+  /**
+   * **Le commandement passe au plus ancien joueur encore debout.** Le rang d'entrée plutôt
+   * qu'un vote : entre amis, celui qui est là depuis le début est celui qui saura clore, et
+   * une élection à deux joueurs n'est pas une élection.
+   *
+   * Le titre n'est retiré que s'il y a une main pour le prendre : le dernier fondateur d'une
+   * saison où plus personne n'est debout le garde, ce qui tient l'invariant — un `creator` par
+   * saison, jamais zéro.
+   */
+  const successor = player.creator
+    ? ([...standing].sort((left, right) => left._creationTime - right._creationTime)[0] ?? null)
+    : null;
+  if (successor !== null) {
+    await ctx.db.patch(player._id, { creator: false });
+    await ctx.db.patch(successor._id, { creator: true });
+  }
+
+  /** Deux nouvelles publiques, déposées chez tout le monde : qui ne joue plus change la table,
+   *  et qui commande la partie décide de sa fin. Ni l'une ni l'autre n'est un secret. */
+  const nameOf = (seat: Doc<'players'>) => seat.nation ?? seat.nickname;
+  for (const seat of present) {
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      nation: nameOf(player),
+      ...(exit.kind === 'playerSurrendered'
+        ? { kind: exit.kind }
+        : {
+            kind: exit.kind,
+            ...(seat._id === player._id || seat._id === exit.capturerId ? { by: exit.by } : {}),
+          }),
+    });
     if (successor !== null) {
-      await ctx.db.patch(player._id, { creator: false });
-      await ctx.db.patch(successor._id, { creator: true });
-    }
-
-    /** Deux nouvelles publiques, déposées chez tout le monde : qui ne joue plus change la table,
-     *  et qui commande la partie décide de sa fin. Ni l'une ni l'autre n'est un secret. */
-    const nameOf = (seat: Doc<'players'>) => seat.nation ?? seat.nickname;
-    for (const seat of present) {
       await ctx.db.insert('notices', {
         playerId: seat._id,
         at: now,
-        kind: 'playerSurrendered',
-        nation: nameOf(player),
+        kind: 'commandTransferred',
+        nation: nameOf(successor),
       });
-      if (successor !== null) {
-        await ctx.db.insert('notices', {
-          playerId: seat._id,
-          at: now,
-          kind: 'commandTransferred',
-          nation: nameOf(successor),
-        });
-      }
     }
+  }
 
-    /**
-     * **La capitulation générale est une victoire, pas une clôture administrative.** Le dernier
-     * belligérant debout prend la saison par la sortie commune (`concludeSeason`), avec son nom
-     * dessus — le journal et l'accueil le lisent comme n'importe quelle autre fin.
-     *
-     * Le compte est celui des **belligérants**, comme partout ailleurs (`victory.standingsOf`) :
-     * un siège pris sur une saison en cours dont le propriétaire choisit encore son drapeau
-     * n'est pas une nation debout, et le laisser compter gèlerait la fin pour toujours.
-     */
-    const belligerents = standing.filter((seat) => isAtWar(seat, season));
-    const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
-    if (survivor !== undefined) await concludeSeason(ctx, season._id, survivor._id, now);
-  },
-});
+  /**
+   * **La capitulation générale est une victoire, pas une clôture administrative.** Le dernier
+   * belligérant debout prend la saison par la sortie commune (`concludeSeason`), avec son nom
+   * dessus — le journal et l'accueil le lisent comme n'importe quelle autre fin.
+   *
+   * Le compte est celui des **belligérants**, comme partout ailleurs (`victory.standingsOf`) :
+   * un siège pris sur une saison en cours dont le propriétaire choisit encore son drapeau
+   * n'est pas une nation debout, et le laisser compter gèlerait la fin pour toujours.
+   */
+  const belligerents = standing.filter((seat) => isAtWar(seat, season));
+  const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
+  if (survivor === undefined) return;
+  /** **En Blitz, l'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé ou
+   *  par la capitulation des autres. */
+  const verdict =
+    modeOf(season.mode) === 'blitz'
+      ? {
+          reason:
+            exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
+        }
+      : undefined;
+  await concludeSeason(ctx, season._id, survivor._id, now, verdict);
+}

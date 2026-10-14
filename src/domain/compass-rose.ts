@@ -806,7 +806,7 @@ function captureBranch(
       label: fr.compass.capture,
       cost: slotCost(view),
       consequence: fr.compass.captureConsequence(
-        asDuration(captureDurationAt(view.mode, site.kind, column.captureRate ?? 1) / 60_000),
+        asDuration(captureDurationAt(view.mode, site, column.captureRate ?? 1) / 60_000),
       ),
       target,
       aim: aimed,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { creationRefusalOf, modeOf, MODE_RULES } from './season-mode';
+import { creationRefusalOf, modeOf, MODE_RULES, seatRangeOf } from './season-mode';
 import { THEATRES, theatreById, theatreCenter } from './theatres';
 
 describe('season mode', () => {
@@ -9,8 +9,16 @@ describe('season mode', () => {
   });
 
   it('fixes the clock and the seats of each mode', () => {
-    expect(MODE_RULES.blitz).toMatchObject({ clockHours: 2, minPlayers: 2, maxPlayers: 4 });
-    expect(MODE_RULES.mondiale).toMatchObject({ clockHours: 168, maxPlayers: 8 });
+    expect(MODE_RULES.blitz).toMatchObject({ clockHours: 2 });
+    expect(seatRangeOf('mondiale', null)).toEqual({ min: 2, max: 8 });
+  });
+
+  /** Fixed by the placement tests (`convex/blitz.test.ts`, T1): six seeds each, 14/10. */
+  it('seats a Blitz as its theatre holds the table', () => {
+    expect(seatRangeOf('blitz', 'europe')).toEqual({ min: 2, max: 3 });
+    expect(seatRangeOf('blitz', 'mediterranean')).toEqual({ min: 2, max: 3 });
+    expect(seatRangeOf('blitz', 'americas')).toEqual({ min: 2, max: 3 });
+    expect(seatRangeOf('blitz', 'pacific')).toEqual({ min: 2, max: 2 });
   });
 
   it('asks a Blitz for a known theatre and refuses one on a Mondiale', () => {
