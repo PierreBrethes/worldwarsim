@@ -738,6 +738,29 @@ reste libre ; la riposte ne recharge pas) — compte à rebours sur l'étiquette
 De deux marches vers le même bâtiment vide, la seconde se pose à sa porte (`occupiedBuildingIds`,
 `convex/blitz.ts`, lu au départ et à l'arrivée) ; une route coupée arrête la poursuite sans dépêche.
 
+**Et l'artillerie tire de loin — 14/10/2026** (lot 6b, B20, règle pure `src/domain/indirect-fire.ts`,
+câblage `convex/movement/bombard.ts`). Un dixième rôle terrestre, `artillery`, **en Blitz seulement**
+(`blitzOnly` : la Mondiale ne la forme pas, `BLITZ_ONLY`, et son `workshop.grid` ne la sert pas) :
+formée à la caserne, 160 de fonds, encombrement 2, rechargement 120 s, une ligne et une colonne de
+`DAMAGE_TABLE` (forte contre infanterie et blindés, rien contre l'air ; l'infanterie au contact la
+tue), quatre-vingt-treize couples. **« Bombarder »** est une branche de la rose sur un camp ou un fil
+adverse en vue, et **la branche est l'ordre** : `movements.bombard` tire sur-le-champ, sans
+mouvement ni poursuite — le tir immédiat règle d'avance la cible qui sortirait de portée. Une seule
+règle pour la rose et le serveur (`bombardRefusalOf`) : `INDIRECT_FIRE` (`@a-mesurer`) — portée
+150 km, **zone morte** sous 50 km (`TOO_CLOSE`, `OUT_OF_RANGE`), **en batterie** 30 s après
+l'arrêt (`NOT_EMPLACED`, `troops.settledAt` écrit par `forgetMovement` à la fin de tout mouvement
+qui la portait, `_creationTime` sinon), `RELOADING`, hors de vue, hors théâtre. La passe est le mode
+`indirect` de `resolveEngagement` : la batterie frappe, **personne ne riposte** ; et dans toute autre
+passe l'artillerie **se tait**, des deux côtés (`firesIndirect`) — `refusalOf('attack')` lui refuse
+la charge (`INDIRECT_FIRE_ONLY`). L'engagement porte `cause: 'bombardment'` et `firedFrom`, servi à
+l'attaquant seul : la cible ne sait pas d'où le coup part. Au front : levée, la pièce montre sa
+portée en plein et sa zone morte hachurée (`Reach.fire`, `ReachRing`) ; « en batterie dans 0:12 »
+sur l'étiquette et l'affiche (`TroopView.emplacedAt`) ; le coup tracé à l'encre de ma batterie au
+tampon « bombardé » (`InkBurst.from`) ; « bombardement » / « bombardés » dans la dépêche. Sans GLB
+ni planche (`artillery: null` dans le manifeste des planches, absente de celui des figurines) : le
+repli en cadre pointillé, en attendant `uk/artillery.glb` (`PROMPTS-3D`, n° 2). À l'échelle : en
+Europe la portée vaut quarante secondes de marche adverse ; au Pacifique et aux Amériques, quinze.
+
 ## Schéma Convex
 
 **Et la Blitz a son économie et sa carte de départ — 14/10/2026** (lot 4, table `BLITZ` de
