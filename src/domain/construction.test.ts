@@ -10,7 +10,13 @@ import {
   type OutpostRaise,
   type Site,
 } from './construction';
-import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
+import {
+  BUILDABLE_BUILDINGS,
+  BUILDINGS,
+  RESOURCES,
+  type BuildingKey,
+  type ResourceKey,
+} from './ids';
 import { unlockLevel } from '../../convex/constants';
 import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 
@@ -58,9 +64,7 @@ describe('the rest of the catalogue', () => {
     ]) {
       const offered = keysOn(overrides);
       const blocked = blockedKeys(overrides);
-      expect([...offered, ...blocked].sort()).toEqual(
-        BUILDINGS.filter((key) => key !== 'depot').sort(),
-      );
+      expect([...offered, ...blocked].sort()).toEqual([...BUILDABLE_BUILDINGS].sort());
     }
   });
 
