@@ -79,27 +79,35 @@ export const siteOf = (site: Target): Capture['site'] =>
     ? { kind: 'building', building: site.key, regionId: site.regionId }
     : { kind: 'outpost', hostCountry: site.hostCountry, level: site.level };
 
-/** L'infanterie du capteur debout au point de la capture — pas en marche, pas ailleurs. */
-async function capturersAt(
+/**
+ * **L'infanterie posée de la saison, rangée par tenant et par point** — lue une fois par
+ * réévaluation, quel que soit le nombre de captures : pas en marche, pas ailleurs.
+ */
+async function infantryByPoint(
   ctx: QueryCtx,
-  capture: Pick<Capture, 'seasonId' | 'playerId' | 'point'>,
-): Promise<ReadonlyArray<Doc<'troops'>>> {
+  seasonId: Id<'seasons'>,
+): Promise<ReadonlyMap<string, ReadonlyArray<Doc<'troops'>>>> {
   const marching = new Set(
-    (await seasonMovements(ctx, capture.seasonId)).flatMap((movement) => movement.troopIds),
+    (await seasonMovements(ctx, seasonId)).flatMap((movement) => movement.troopIds),
   );
-  return (await seasonTroops(ctx, capture.seasonId)).filter((troop) => {
+  const byPoint = new Map<string, Array<Doc<'troops'>>>();
+  for (const troop of await seasonTroops(ctx, seasonId)) {
     const address = troop.stationedAt;
-    return (
-      troop.playerId === capture.playerId &&
-      troop.role === 'infantry' &&
-      !marching.has(troop._id) &&
-      address !== null &&
-      typeof address !== 'string' &&
-      address.lon === capture.point.lon &&
-      address.lat === capture.point.lat
-    );
-  });
+    if (troop.role !== 'infantry' || marching.has(troop._id)) continue;
+    if (address === null || typeof address === 'string') continue;
+    const key = pointKey(troop.playerId, address);
+    byPoint.set(key, [...(byPoint.get(key) ?? []), troop]);
+  }
+  return byPoint;
 }
+
+const pointKey = (playerId: Id<'players'>, point: { lon: number; lat: number }) =>
+  `${playerId}@${point.lon},${point.lat}`;
+
+const capturersOf = (
+  byPoint: ReadonlyMap<string, ReadonlyArray<Doc<'troops'>>>,
+  capture: Pick<Capture, 'playerId' | 'point'>,
+) => byPoint.get(pointKey(capture.playerId, capture.point)) ?? [];
 
 const rateOf = (troops: ReadonlyArray<Doc<'troops'>>) =>
   captureRate(
@@ -248,7 +256,7 @@ async function startCapture(
       capture.point.lat === movement.to.lat,
   );
   if (running !== undefined) {
-    await reassessOne(ctx, running, now);
+    await reassessOne(ctx, running, now, await infantryByPoint(ctx, movement.seasonId));
     return;
   }
   for (const stopped of sameSite) await ctx.db.delete(stopped._id);
@@ -286,9 +294,14 @@ async function startCapture(
  * n'est plus à qui l'on visait : elle s'arrête. Une force qui a changé : ce qui est fait est
  * gardé, et l'échéance se reprend au nouveau rythme. Jamais de remise à zéro.
  */
-async function reassessOne(ctx: MutationCtx, capture: Capture, now: number): Promise<void> {
+async function reassessOne(
+  ctx: MutationCtx,
+  capture: Capture,
+  now: number,
+  byPoint: ReadonlyMap<string, ReadonlyArray<Doc<'troops'>>>,
+): Promise<void> {
   const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
-  const troops = await capturersAt(ctx, capture);
+  const troops = capturersOf(byPoint, capture);
   if (site === null || site.playerId !== capture.defenderId || troops.length === 0) {
     await ctx.db.patch(capture._id, { stoppedAt: now });
     await notifyBoth(ctx, capture, now, { kind: 'captureCancelled' });
@@ -313,7 +326,9 @@ export async function reassessCaptures(
       .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
       .collect()
   ).filter((capture) => capture.stoppedAt === undefined);
-  for (const capture of running) await reassessOne(ctx, capture, now);
+  if (running.length === 0) return;
+  const byPoint = await infantryByPoint(ctx, seasonId);
+  for (const capture of running) await reassessOne(ctx, capture, now, byPoint);
 }
 
 /**
@@ -334,7 +349,8 @@ export const complete = internalMutation({
       return;
     }
     const now = expectedAt;
-    await reassessOne(ctx, capture, now);
+    const byPoint = await infantryByPoint(ctx, capture.seasonId);
+    await reassessOne(ctx, capture, now, byPoint);
     const fresh = await ctx.db.get(captureId);
     if (fresh === null || fresh.stoppedAt !== undefined || fresh.completesAt !== expectedAt) return;
     const site = (await targetOf(ctx, capture.target, capture.playerId, capture.seasonId))!;
@@ -368,7 +384,7 @@ export const complete = internalMutation({
       await ctx.db.patch(site._id, { playerId: capture.playerId });
       /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
        *  raid le trouverait vide et le désactiverait sans combat. */
-      for (const troop of await capturersAt(ctx, capture)) {
+      for (const troop of capturersOf(byPoint, capture)) {
         await ctx.db.patch(troop._id, { stationedAt: site._id });
       }
     }
