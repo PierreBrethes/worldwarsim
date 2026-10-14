@@ -127,10 +127,10 @@ function onSheetEdge([x, y]: Point, sheet: ReadonlyArray<OutlineSample>): boolea
 }
 
 /** Le plancher : de loin, la côte reste un trait gras et non le cheveu d'une ligne WebGL. */
-export const COAST_FLOOR_PX = 1.5;
-/** Sa largeur sur la feuille, quelque vingt pour cent d'un fantassin : au rapproché elle grossit
+export const COAST_FLOOR_PX = 0.75;
+/** Sa largeur sur la feuille, quelque dix pour cent d'un fantassin : au rapproché elle grossit
  *  comme l'encre du prototype, gravée dans sa texture. */
-const COAST_WIDTH = 0.03;
+const COAST_WIDTH = 0.015;
 
 export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
