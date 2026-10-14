@@ -82,30 +82,10 @@ export async function razeBuilding(
   building: Doc<'buildings'>,
   now: number,
 ): Promise<{ refunded: Costs; clipped: Costs | null }> {
-  /** **Relu à chaque mât**, et non porté depuis l'appelant : un démantèlement en emporte
-   *  plusieurs d'affilée, et `settledFoundation` grandit entre deux — un document capturé au
-   *  premier ferait acquitter deux fois la même dette de socle. */
   const player = await ctx.db.get(playerId);
   if (player === null) return { refunded: {}, clipped: null };
-  const refunded = await cancelWorkOn(ctx, player, building, now);
-
-  /** Ce que ce mât acquittait du socle, retenu avant qu'il quitte le sol : le socle est un don
-   *  de lancement, fait une fois, et il ne se redemande pas (décision 6a). */
-  const standing = await playerBuildings(ctx, player._id);
-  const settled = revivedDebts(
-    player,
-    standing,
-    standing.filter((held) => held._id !== building._id),
-  );
-
-  await settle(ctx, player._id, now);
-  await groundGarrison(ctx, building);
+  const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
-  if (settled.length > 0) {
-    await ctx.db.patch(player._id, {
-      settledFoundation: [...(player.settledFoundation ?? []), ...settled],
-    });
-  }
   const clipped =
     canonicalBuildingKey(building.key) === 'warehouse'
       ? await clipToStorage(ctx, player._id, now)
@@ -120,6 +100,41 @@ export async function razeBuilding(
     level: building.level,
   });
   return { refunded, clipped };
+}
+
+/**
+ * **Ce que son propriétaire perd avec un bâtiment, quel que soit le geste** — la file reprise
+ * selon sa règle, le socle qu'il acquittait retenu, le stock réglé, la garnison au sol. Le
+ * bâtiment, lui, reste à l'appelant : la démolition l'efface, la capture le donne.
+ */
+export async function releaseBuilding(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  building: Doc<'buildings'>,
+  now: number,
+): Promise<Costs> {
+  const refunded = await cancelWorkOn(ctx, player, building, now);
+
+  /** Ce que ce mât acquittait du socle, retenu avant qu'il quitte le sol : le socle est un don
+   *  de lancement, fait une fois, et il ne se redemande pas (décision 6a). **Relu à chaque
+   *  mât**, et non porté depuis l'appelant : un démantèlement en emporte plusieurs d'affilée, et
+   *  `settledFoundation` grandit entre deux. */
+  const fresh = (await ctx.db.get(player._id)) ?? player;
+  const standing = await playerBuildings(ctx, player._id);
+  const settled = revivedDebts(
+    fresh,
+    standing,
+    standing.filter((held) => held._id !== building._id),
+  );
+
+  await settle(ctx, player._id, now);
+  await groundGarrison(ctx, building);
+  if (settled.length > 0) {
+    await ctx.db.patch(player._id, {
+      settledFoundation: [...(fresh.settledFoundation ?? []), ...settled],
+    });
+  }
+  return refunded;
 }
 
 /**

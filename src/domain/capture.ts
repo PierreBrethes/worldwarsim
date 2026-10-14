@@ -12,14 +12,10 @@ export type GameMode = keyof typeof CAPTURE_MINUTES;
 export type CaptureKind = 'building' | 'outpost';
 
 export type CaptureTarget =
-  | { readonly kind: 'building'; readonly key: BuildingKey }
-  | { readonly kind: 'outpost' };
+  { readonly kind: 'building'; readonly key: BuildingKey } | { readonly kind: 'outpost' };
 
 export type CaptureRefusal =
-  | 'EMPTY_MOVEMENT'
-  | 'FRIENDLY_TARGET'
-  | 'HQ_NOT_CAPTURABLE'
-  | 'CAPTURE_NEEDS_INFANTRY';
+  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'HQ_NOT_CAPTURABLE' | 'CAPTURE_NEEDS_INFANTRY';
 
 /** Le QG est refusé ici et non oublié : sa capture élimine, et elle arrive avec son lot. */
 export function captureRefusalOf(
@@ -74,8 +70,7 @@ export const progressAt = (clock: CaptureClock, instant: number): number =>
   Math.min(
     1,
     clock.progress +
-      (clock.rate * activeMs(clock.at, Math.max(clock.at, instant), clock.rest)) /
-        clock.durationMs,
+      (clock.rate * activeMs(clock.at, Math.max(clock.at, instant), clock.rest)) / clock.durationMs,
   );
 
 export const completesAt = (clock: CaptureClock): number =>
@@ -90,7 +85,8 @@ const DAY = 86_400_000;
 /** La plage du jour `day` (jours UTC depuis l'époque), qui peut déborder sur le lendemain. */
 function restOf(day: number, rest: TimeWindow): readonly [number, number] {
   const start = day * DAY + rest.startMinutes * 60_000;
-  const end = day * DAY + rest.endMinutes * 60_000 + (rest.endMinutes <= rest.startMinutes ? DAY : 0);
+  const end =
+    day * DAY + rest.endMinutes * 60_000 + (rest.endMinutes <= rest.startMinutes ? DAY : 0);
   return [start, end];
 }
 
