@@ -704,7 +704,7 @@
   width: 34px;
   height: 34px;
   box-sizing: border-box;
-  border: 1px dashed rgb(42 33 24 / 65%);
+  border: 1px dashed color-mix(in srgb, var(--ink) 65%, transparent);
   border-radius: 50%;
   pointer-events: none;
 }
