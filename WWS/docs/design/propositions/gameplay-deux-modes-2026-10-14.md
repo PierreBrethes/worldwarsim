@@ -62,12 +62,17 @@ une soirée au lieu d'une semaine.
   invisible (≈ 80) protège le serveur.
 - **Le télégraphe** (T1, R19) : une seule vue, messages regroupés par auteur, au bureau comme
   au téléphone ; des onglets « Général » et une conversation à deux par joueur, dans les deux
-  modes.
+  modes. **Le fil du salon est distinct de celui de la partie** (14/10) : même widget, autre
+  contenu ; les messages du salon sont effacés au lancement, ceux de la partie à sa conclusion.
 
 ## Blitz
 
 - **Terrain** (B1) : un théâtre par partie, et une vitesse calée pour le traverser en 15 à
-  20 min (≈ 5 min pour 1 000 km en Europe).
+  20 min (≈ 5 min pour 1 000 km en Europe). **Chaque théâtre déclare son nombre de joueurs**,
+  vérifié par les tests de placement (le Pacifique à 2 ou 3) ; la création ne propose pas un
+  théâtre trop petit pour la table (T1).
+- **Recrutement** (U6) : on ne recrute que dans un bâtiment **libre**, et la recrue y entre ;
+  occupé, le refus le dit. Au départ, un fantassin au QG, l'autre dans la caserne.
 - **Présence** (B2) : 2 à 4 joueurs présents à heure convenue. Pas de plage de repos, pas de
   notification.
 - **Départ** (B7) : un QG, une caserne, deux fantassins, un petit pécule. Tout le reste est
