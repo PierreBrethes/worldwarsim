@@ -435,7 +435,10 @@ export const complete = internalMutation({
         });
         taken.push(building);
       }
-      if (falls) await disband(ctx, loser._id, now);
+      if (falls) {
+        await disband(ctx, loser._id, now);
+        await handOverSieges(ctx, capture, now);
+      }
     } else {
       const anchored = (
         await ctx.db
@@ -515,6 +518,39 @@ async function disband(ctx: MutationCtx, playerId: Id<'players'>, now: number): 
     .query('captures')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect()) {
+    if (capture.stoppedAt === undefined) {
+      await notifyBoth(ctx, capture, now, { kind: 'captureCancelled', reason: 'left' });
+    }
     await ctx.db.delete(capture._id);
+  }
+}
+
+/**
+ * **Les sièges des bâtiments de l'éliminé suivent leur nouveau propriétaire.** Celui du capteur
+ * s'efface sans bruit — le site lui revient déjà ; celui d'un tiers continue contre lui, qui
+ * l'apprend comme une capture qui s'ouvre.
+ */
+async function handOverSieges(ctx: MutationCtx, fall: Capture, now: number): Promise<void> {
+  const capturerId = fall.playerId;
+  for (const siege of await ctx.db
+    .query('captures')
+    .withIndex('byDefender', (q) => q.eq('defenderId', fall.defenderId))
+    .collect()) {
+    if (siege._id === fall._id) continue;
+    if (siege.playerId === capturerId) {
+      await ctx.db.delete(siege._id);
+      continue;
+    }
+    await ctx.db.patch(siege._id, { defenderId: capturerId });
+    if (siege.stoppedAt !== undefined) continue;
+    await ctx.db.insert('notices', {
+      playerId: capturerId,
+      at: now,
+      kind: 'captureStarted',
+      side: 'defender',
+      site: siege.site,
+      point: siege.point,
+      completesAt: siege.completesAt,
+    });
   }
 }

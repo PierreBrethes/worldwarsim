@@ -572,7 +572,13 @@ async function captureToTheEnd(
     }),
   );
   await t.mutation(internal.movements.arrive, { movementId });
-  const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+  const capture = (await t.run((ctx) => ctx.db.query('captures').collect())).find(
+    (one) =>
+      one.playerId === by &&
+      one.target.kind === 'building' &&
+      one.target.buildingId === site._id &&
+      one.stoppedAt === undefined,
+  );
   vi.setSystemTime(capture!.completesAt);
   await t.mutation(internal.captures.complete, {
     captureId: capture!._id,
@@ -780,6 +786,84 @@ describe('la chute d’un QG, cas limites', () => {
     expect((await playerOf(t, second!)).defeated).not.toBe(true);
     expect((await buildingsOf(t, victim._id)).map((building) => building._id)).toContain(hq._id);
     void third;
+  });
+});
+
+describe('ce qui courait quand le QG tombe', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('prévient qui l’éliminé assiégeait, efface la capture du capteur, et laisse courir celle d’un tiers', async () => {
+    const t = boot();
+    const [first, second, third] = await blitzLaunchedOn(t, 'europe', 3);
+    const me = await playerOf(t, first!);
+    const victim = await playerOf(t, second!);
+    const late = await playerOf(t, third!);
+    const victims = await buildingsOf(t, victim._id);
+    const hq = victims.find((building) => building.key === 'hq')!;
+    const barracks = victims.find((building) => building.key === 'barracks')!;
+    const lateBarracks = (await buildingsOf(t, late._id)).find((b) => b.key === 'barracks')!;
+    await vacate(t, hq);
+    await vacate(t, barracks);
+    await vacate(t, lateBarracks);
+
+    const siege =
+      (by: typeof me, on: typeof barracks, defender: typeof me): Parameters<typeof t.run>[0] =>
+      async (ctx) => {
+        const [lon, lat] = pointOfBuilding(on)!;
+        await ctx.db.insert('troops', {
+          seasonId: first!.seasonId,
+          playerId: by._id,
+          role: 'infantry',
+          tier: 1,
+          nominalStrength: 50,
+          currentStrength: 50,
+          stationedAt: { lon, lat },
+        });
+        await ctx.db.insert('captures', {
+          seasonId: first!.seasonId,
+          playerId: by._id,
+          defenderId: defender._id,
+          target: { kind: 'building', buildingId: on._id },
+          site: { kind: 'building', building: on.key, regionId: on.regionId },
+          point: { lon, lat },
+          progress: 0,
+          progressAt: MIDDAY,
+          rate: 1,
+          durationMs: 3 * MINUTE,
+          rest: null,
+          completesAt: MIDDAY + 60 * MINUTE,
+        });
+      };
+    await t.run(siege(victim, lateBarracks, late));
+    await t.run(siege(late, barracks, victim));
+    await t.run(siege(me, barracks, victim));
+
+    await captureToTheEnd(t, me._id, first!.seasonId, hq);
+
+    const captures = await t.run((ctx) => ctx.db.query('captures').collect());
+    expect(captures.map((capture) => [capture.playerId, capture.defenderId])).toEqual([
+      [late._id, me._id],
+    ]);
+    const noticesOf = (who: typeof me) =>
+      t.run((ctx) =>
+        ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', who._id))
+          .collect(),
+      );
+    expect(await noticesOf(late)).toContainEqual(
+      expect.objectContaining({ kind: 'captureCancelled', side: 'defender', reason: 'left' }),
+    );
+    expect(await noticesOf(late)).not.toContainEqual(
+      expect.objectContaining({ kind: 'captureCancelled', side: 'capturer' }),
+    );
+    expect(await noticesOf(me)).not.toContainEqual(
+      expect.objectContaining({ kind: 'captureCancelled' }),
+    );
   });
 });
 
