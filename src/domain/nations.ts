@@ -96,3 +96,21 @@ export function inkByClaimedCountry(
 export function nationInk(nation: string | null): string {
   return nation !== null && isNation(nation) ? INK_BY_NATION[nation] : '#6e6a5e';
 }
+
+/** The share of its light a nation ink keeps when it is set as small type on paper. */
+const TYPE_LIGHT = 0.72;
+
+/**
+ * The same ink, deeper, for a name set small on the paper (the telegraph's sender): the board's
+ * inks are made to read as washes and reach 3:1 as type, short of the body-text floor.
+ */
+export function typeInk(ink: string): string {
+  const value = parseInt(ink.slice(1), 16);
+  return `#${[16, 8, 0]
+    .map((shift) =>
+      Math.round(((value >> shift) & 255) * TYPE_LIGHT)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INK_BY_NATION, type Nation } from '@/domain/nations';
+import { INK_BY_NATION, typeInk, type Nation } from '@/domain/nations';
 import {
   builtInk,
   contrastRatio,
@@ -96,6 +96,12 @@ describe('the eight nation inks', () => {
   /** The mast, the telegraph's sender: the ink is also read as type on paper. */
   it.each(inks)('reads %s as type on the paper', (_nation, ink) => {
     expect(contrastRatio(ink, PALETTE.paper)).toBeGreaterThanOrEqual(3);
+  });
+
+  /** The telegraph sets a sender's name in small capitals: body text, so the body text floor. */
+  it.each(inks)('sets %s as small type on the paper, in its own hue', (_nation, ink) => {
+    expect(contrastRatio(typeInk(ink), PALETTE.paper)).toBeGreaterThanOrEqual(4.5);
+    expect(hueDrift(typeInk(ink), ink)).toBeLessThan(15);
   });
 });
 
