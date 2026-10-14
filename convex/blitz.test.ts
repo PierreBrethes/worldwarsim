@@ -2,7 +2,8 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { THEATRES } from '../src/domain/theatres';
+import { THEATRES, theatreById } from '../src/domain/theatres';
+import { blitzMapRulesOf } from '../src/domain/blitz-placement';
 import { BLITZ } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -176,8 +177,9 @@ describe('la carte de départ de la Blitz', () => {
       theatre: 'pacific',
     });
     await joinSeat(t, code, 'Léa');
-    const third = await signIn(t, 'Tiers');
-    await expect(t.mutation(api.seasons.join, { token: third, code })).rejects.toThrow(
+    await joinSeat(t, code, 'Marc');
+    const fourth = await signIn(t, 'Quart');
+    await expect(t.mutation(api.seasons.join, { token: fourth, code })).rejects.toThrow(
       /BLITZ_FULL/,
     );
   });
@@ -192,7 +194,12 @@ describe('la carte de départ de la Blitz', () => {
       theatre: 'europe',
     });
     const seat: Seat = { token, seasonId };
-    const seats = [seat, await joinSeat(t, code, 'Léa'), await joinSeat(t, code, 'Marc')];
+    const seats = [
+      seat,
+      await joinSeat(t, code, 'Léa'),
+      await joinSeat(t, code, 'Marc'),
+      await joinSeat(t, code, 'Zoé'),
+    ];
     for (const [rank, who] of seats.entries()) {
       await t.mutation(api.players.reserveNation, { ...who, nation: NATIONS[rank]! });
       await t.mutation(api.players.declareReady, { ...who, ready: true });
@@ -226,9 +233,9 @@ describe('la carte de départ, théâtre par théâtre', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  /** **Chaque théâtre se pose à son plafond, sur six graines** (T1) ; un de plus échouait le
-   *  14/10 (Pacifique à 3, Amériques et Méditerranée à 4 sur les six, Europe à 4 sur une), d'où
-   *  les fourchettes de `THEATRES`. */
+  /** **Chaque théâtre se pose à son plafond, sur six graines** (T1) ; mesuré le 14/10 après A2
+   *  (distances en part du théâtre, QG tirés sur la terre) : le Pacifique à 4 échoue sur les six,
+   *  d'où les fourchettes de `THEATRES`. */
   for (const { id: theatre, players: range } of THEATRES) {
     it(`se pose sur six graines à son plafond — ${theatre} à ${String(range.max)}`, async () => {
       const refused = [];
@@ -266,14 +273,16 @@ describe('la carte de départ, théâtre par théâtre', () => {
           'land',
         );
         const barracks = held.find((building) => building.key === 'barracks')!;
-        const target = BLITZ.map.starting[0]!.km;
+        const rules = blitzMapRulesOf(theatreById(theatre)!, BLITZ.map);
+        const target = rules.starting[0]!.km;
         expect(Math.abs(onFoot.get(barracks._id)! - target)).toBeLessThanOrEqual(
           target * BLITZ.map.tolerance,
         );
         const cities = neutrals.filter(
           (building) =>
             building.key === 'city' &&
-            Math.abs((onFoot.get(building._id) ?? Infinity) - 250) <= 250 * BLITZ.map.tolerance,
+            Math.abs((onFoot.get(building._id) ?? Infinity) - rules.near[0]!.km) <=
+              rules.near[0]!.km * BLITZ.map.tolerance,
         );
         expect(cities.length).toBeGreaterThan(0);
       }

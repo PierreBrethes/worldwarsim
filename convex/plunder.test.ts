@@ -13,7 +13,7 @@ import {
 import { regionFacts } from './regions';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
-import { surveyFromPoint } from './surveys';
+import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
 import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
@@ -214,7 +214,7 @@ async function returnsOf(t: ReturnType<typeof boot>, seat: Seat) {
 async function observe(t: ReturnType<typeof boot>, seat: Seat) {
   const player = await playerOf(t, seat);
   return t.run((ctx) =>
-    surveyFromPoint(ctx, player._id, regionFacts(PRAHOVA)!.point, Date.now(), 1),
+    fileSurvey(ctx, player._id, [{ point: regionFacts(PRAHOVA)!.point, radiusKm: 1 }], Date.now()),
   );
 }
 
@@ -379,7 +379,7 @@ describe('what a column surveys where it lands', () => {
     const outpost = await building(t, guest, 'warehouse', undefined, PSKOV);
     await t.run(async (ctx) => {
       const me = await seatIn(ctx, seat);
-      await surveyFromPoint(ctx, me._id, regionFacts(PSKOV)!.point, Date.now(), 1);
+      await fileSurvey(ctx, me._id, [{ point: regionFacts(PSKOV)!.point, radiusKm: 1 }], Date.now());
     });
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toHaveLength(1);
 

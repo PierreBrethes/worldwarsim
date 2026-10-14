@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { INDIRECT_FIRE } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import { aboardAt, bombardRefusalOf, emplacedAt } from './indirect-fire';
+import { aboardAt, bombardRefusalOf, emplacedAt, fireReachOf } from './indirect-fire';
 import { THEATRES } from './theatres';
 
 const europe = THEATRES.find((theatre) => theatre.id === 'europe')!;
+const pacific = THEATRES.find((theatre) => theatre.id === 'pacific')!;
+const reach = fireReachOf(europe);
 const battery: LonLat = [10, 50];
 /** Un point plein est de la batterie, à `km` kilomètres. */
 const east = (km: number): LonLat => [10 + km / (111.32 * Math.cos((50 * Math.PI) / 180)), 50];
@@ -30,15 +32,24 @@ describe('a bombardment', () => {
   });
 
   it('cannot reach beyond its range', () => {
-    expect(bombardRefusalOf({ ...ready, to: east(INDIRECT_FIRE.rangeKm + 5) })).toBe(
+    expect(bombardRefusalOf({ ...ready, to: east(reach.rangeKm + 5) })).toBe(
       'OUT_OF_RANGE',
     );
   });
 
   it('cannot fire into its dead zone', () => {
-    expect(bombardRefusalOf({ ...ready, to: east(INDIRECT_FIRE.deadZoneKm - 5) })).toBe(
+    expect(bombardRefusalOf({ ...ready, to: east(reach.deadZoneKm - 5) })).toBe(
       'TOO_CLOSE',
     );
+  });
+
+  it('reaches as far on its theatre: what Europe calls too far, the Pacific fires at (A2)', () => {
+    const kmEast = reach.rangeKm + 50;
+    expect(bombardRefusalOf({ ...ready, to: east(kmEast) })).toBe('OUT_OF_RANGE');
+    const tokyo: LonLat = [140, 35];
+    const offTokyo: LonLat = [140 + kmEast / (111.32 * Math.cos((35 * Math.PI) / 180)), 35];
+    expect(fireReachOf(pacific).rangeKm).toBeGreaterThan(3 * reach.rangeKm);
+    expect(bombardRefusalOf({ ...ready, theatre: pacific, from: tokyo, to: offTokyo })).toBeNull();
   });
 
   it('waits to be in battery after it stopped', () => {

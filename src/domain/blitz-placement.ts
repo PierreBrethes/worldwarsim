@@ -1,6 +1,7 @@
-import { distanceKm, type LonLat } from './geo';
+import { destinationPoint, distanceKm, type LonLat } from './geo';
 import type { BuildingKey } from './ids';
 import { neighbourPairs } from './objective-placement';
+import { theatreKm, type Theatre } from './theatres';
 
 /**
  * **La carte de départ d'une Blitz** (B7, B8 du 14/10). Même partage que les objectifs neutres
@@ -22,11 +23,15 @@ export type BlitzCandidate = {
 };
 
 export type BlitzMapRules = {
-  readonly hqRing: number;
-  /** Combien de tours de table on essaie. */
+  /** Le rayon du cercle des QG : leur écart cible en est la corde. */
+  readonly hqRadiusKm: number;
+  /** De combien, en part, une tablée peut resserrer son cercle : une terre étroite tient un
+   *  cercle plus petit. */
+  readonly hqRadiusSpread: number;
+  /** Combien de tablées on tire au plus, chacune depuis une candidate au hasard. */
+  readonly hqDraws: number;
+  /** Combien de tablées régulières on éprouve en entier avant de choisir. */
   readonly hqTries: number;
-  /** Combien de candidates, des plus proches de la cible, on éprouve pour un QG. */
-  readonly hqScan: number;
   /** En deçà de ce rapport entre le plus court et le plus long écart de QG, la carte est refusée. */
   readonly hqEvenness: number;
   /** L'écart permis autour d'une distance cible, en part de celle-ci. */
@@ -56,25 +61,16 @@ export type BlitzMeasure = (
   maxKm: number,
 ) => ReadonlyMap<string, number>;
 
-type Box = {
-  readonly west: number;
-  readonly south: number;
-  readonly east: number;
-  readonly north: number;
-};
-
 /** `null` : aucun tour de table n'est équitable, et la partie ne se lance pas sur celui-là. */
 export function planBlitzMap({
   seats,
   candidates,
-  box,
   rules,
   seed,
   measure,
 }: {
   readonly seats: ReadonlyArray<string>;
   readonly candidates: ReadonlyArray<BlitzCandidate>;
-  readonly box: Box;
   readonly rules: BlitzMapRules;
   readonly seed: number;
   readonly measure: BlitzMeasure;
@@ -84,7 +80,7 @@ export function planBlitzMap({
   const walkKm = Math.max(...rings.map((ring) => ring.km)) * (1 + rules.tolerance);
   const onFoot = (regionId: string) => measure(regionId, 'land', walkKm);
 
-  const tries = headquartersTries(seats, candidates, box, rules, seed, byId, onFoot)
+  const tries = headquartersTries(seats, candidates, rules, seed, byId, onFoot)
     .map((hqs) => ({ hqs, sites: aroundHeadquarters(seats, hqs, candidates, rules, byId, onFoot) }))
     .filter(
       (attempt): attempt is { hqs: ReadonlyArray<string>; sites: Array<BlitzSite> } =>
@@ -216,67 +212,96 @@ function aroundHeadquarters(
 }
 
 /**
- * **Les QG sur un cercle autour du centre du théâtre**, tourné `hqTries` fois. Pour chaque place
- * du cercle, la candidate la plus proche **d'où l'on marche** : celle dont chaque entrée proche a
- * au moins une région à pied dans la tolérance. Un tour où une place n'en trouve pas est jeté.
+ * **Les QG sur un cercle posé sur la terre du théâtre** (A2) : chaque tablée centre un cercle de
+ * `hqRadiusKm` sur une région tirée au hasard, le tourne au hasard, et prend pour chaque place la
+ * région la plus proche **d'où l'on marche**. Le cercle d'avant tournait autour du centre de la boîte, qui tombait en mer au
+ * Pacifique. Une tablée dont les écarts à vol d'oiseau ne sont pas réguliers est jetée.
  */
 function headquartersTries(
   seats: ReadonlyArray<string>,
   candidates: ReadonlyArray<BlitzCandidate>,
-  box: Box,
   rules: BlitzMapRules,
   seed: number,
   byId: ReadonlyMap<string, BlitzCandidate>,
   onFoot: (regionId: string) => ReadonlyMap<string, number>,
 ): ReadonlyArray<ReadonlyArray<string>> {
-  const center: LonLat = [(box.west + box.east) / 2, (box.south + box.north) / 2];
-  const radius: LonLat = [
-    ((box.east - box.west) / 2) * rules.hqRing,
-    ((box.north - box.south) / 2) * rules.hqRing,
-  ];
-  const turn = ((((seed >>> 0) * 1_664_525 + 1_013_904_223) >>> 0) / 2 ** 32) * 2 * Math.PI;
-  const step = (2 * Math.PI) / seats.length;
-  const rings = [...rules.starting, ...rules.near];
+  /** **D'où l'on marche** : la caserne et chaque neutre proche s'y posent à pied, seul à table —
+   *  la même pose qu'à la fin, sans les voisins. Un îlot passe chaque entrée une à une, jamais
+   *  toutes ensemble à leur écart. */
   const walkable = new Map<string, boolean>();
   const isWalkable = (regionId: string) => {
     let known = walkable.get(regionId);
     if (known === undefined) {
-      const field = onFoot(regionId);
-      known = rings.every(({ key, km }) =>
-        [...field].some(
-          ([other, reach]) =>
-            other !== regionId &&
-            Math.abs(reach - km) <= km * rules.tolerance &&
-            (key !== 'port' || byId.get(other)?.coastal === true),
-        ),
-      );
+      known = aroundHeadquarters(['alone'], [regionId], candidates, rules, byId, onFoot) !== null;
       walkable.set(regionId, known);
     }
     return known;
   };
 
+  const random = mulberry32(seed);
   const tries: Array<ReadonlyArray<string>> = [];
-  for (let attempt = 0; attempt < rules.hqTries; attempt += 1) {
-    const used = new Set<string>();
-    const hqs: Array<string> = [];
+  const seen = new Set<string>();
+  for (let draw = 0; draw < rules.hqDraws && tries.length < rules.hqTries; draw += 1) {
+    const center = candidates[Math.floor(random() * candidates.length)]?.point;
+    const turn = random() * 2 * Math.PI;
+    const radiusKm = rules.hqRadiusKm * (1 - rules.hqRadiusSpread * random());
+    if (center === undefined) break;
+    const hqs: Array<BlitzCandidate> = [];
     for (let rank = 0; rank < seats.length; rank += 1) {
-      const angle = turn + (attempt * step) / rules.hqTries + rank * step;
-      const target = wrap([
-        center[0] + radius[0] * Math.cos(angle),
-        center[1] + radius[1] * Math.sin(angle),
-      ]);
+      const bearing = ((turn + (rank * 2 * Math.PI) / seats.length) * 180) / Math.PI;
+      const target = destinationPoint(center, radiusKm, bearing);
       const pick = candidates
-        .filter((candidate) => !used.has(candidate.regionId))
-        .sort((a, b) => distanceKm(a.point, target) - distanceKm(b.point, target))
-        .slice(0, rules.hqScan)
-        .find((candidate) => isWalkable(candidate.regionId));
+        .filter((candidate) => !hqs.includes(candidate))
+        .map((candidate) => ({ candidate, km: distanceKm(candidate.point, target) }))
+        .sort((a, b) => a.km - b.km)
+        .find(({ candidate }) => isWalkable(candidate.regionId))?.candidate;
       if (pick === undefined) break;
-      used.add(pick.regionId);
-      hqs.push(pick.regionId);
+      hqs.push(pick);
     }
-    if (hqs.length === seats.length) tries.push(hqs);
+    const ids = hqs.map((hq) => hq.regionId);
+    const key = [...ids].sort().join('|');
+    if (hqs.length < seats.length || seen.has(key)) continue;
+    seen.add(key);
+    const gaps = hqs.flatMap((hq, rank) =>
+      hqs.slice(rank + 1).map((other) => distanceKm(hq.point, other.point)),
+    );
+    if (Math.min(...gaps) >= rules.hqEvenness * Math.max(...gaps)) tries.push(ids);
   }
   return tries;
 }
 
-const wrap = ([lon, lat]: LonLat): LonLat => [lon > 180 ? lon - 360 : lon, lat];
+/** Une graine, une suite : la même partie rejoue la même carte. */
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 2 ** 32;
+  };
+}
+
+type ShareRing = { readonly key: BuildingKey; readonly share: number };
+
+/** **Les règles de pose en kilomètres de ce théâtre** (A2) : les cibles et l'écart sont des parts
+ *  de son étendue, la tolérance et les rapports n'ont pas d'unité. */
+export function blitzMapRulesOf(
+  theatre: Theatre,
+  rules: Omit<BlitzMapRules, 'starting' | 'near' | 'spreadKm' | 'hqRadiusKm'> & {
+    readonly hqRadius: number;
+    readonly starting: ReadonlyArray<ShareRing>;
+    readonly near: ReadonlyArray<ShareRing>;
+    readonly spread: number;
+  },
+): BlitzMapRules {
+  const inKm = (rings: ReadonlyArray<ShareRing>) =>
+    rings.map(({ key, share }) => ({ key, km: theatreKm(theatre, share) }));
+  const { spread, hqRadius, ...unitless } = rules;
+  return {
+    ...unitless,
+    hqRadiusKm: theatreKm(theatre, hqRadius),
+    starting: inKm(rules.starting),
+    near: inKm(rules.near),
+    spreadKm: theatreKm(theatre, spread),
+  };
+}

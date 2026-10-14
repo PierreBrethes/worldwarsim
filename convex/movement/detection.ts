@@ -34,6 +34,7 @@ import {
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
 } from '../constants';
+import { seasonTheatre } from './theatre';
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
 import { asPoint, pointOf, seasonMovements, seasonOutposts } from './forces';
@@ -212,6 +213,7 @@ async function detectionBoard(
   movements: ReadonlyArray<Doc<'movements'>>,
   now: number,
 ) {
+  const theatre = seasonTheatre(await ctx.db.get(seasonId));
   const [troops, buildings, outposts, players] = await Promise.all([
     ctx.db
       .query('troops')
@@ -234,7 +236,7 @@ async function detectionBoard(
     mobileById.set(movement._id, {
       movement,
       force: marchingForce(movement),
-      rangeKm: detectionRangeOf(roles),
+      rangeKm: detectionRangeOf(roles, theatre),
     });
   }
 
@@ -270,7 +272,7 @@ async function detectionBoard(
   }
 
   const watchers: PassiveWatcher[] = [...posted].flatMap(([id, force]) => {
-    const radiusKm = detectionRangeOf(force.roles);
+    const radiusKm = detectionRangeOf(force.roles, theatre);
     return radiusKm <= 0
       ? []
       : [

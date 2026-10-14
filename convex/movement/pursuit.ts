@@ -12,7 +12,7 @@ import { contactAt, passModeOf, pursuitVerdict } from '../../src/domain/blitz';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { positionAt, type MarchingForce } from '../../src/domain/interception';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
-import { ARRIVAL_RADIUS_KM, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../constants';
+import { contactKm, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
@@ -20,6 +20,7 @@ import { forgetMovement, standAt } from './arrival';
 import { marchingForce, reassessDetection } from './detection';
 import { asPoint, movementsOf, pointOf, stanceOf, troopsCarriedBy } from './forces';
 import { pacedMinutes } from './pace';
+import { blitzTheatreOf } from './theatre';
 
 /** Where the hunted troop stands now, and the thread it walks if it walks. */
 type Quarry = {
@@ -146,13 +147,14 @@ export async function schedulePursuit(
   if (movement.pursuit === undefined) return;
   const quarry = await quarryNow(ctx, movement.pursuit.troopId, now);
   const step = Math.min(movement.arrivesAt, now + PURSUIT_STEP_SECONDS * 1000);
+  const reachKm = contactKm(await blitzTheatreOf(ctx, movement.playerId));
   const contact =
     quarry === null
       ? null
       : contactAt(
           marchingForce(movement),
           quarry.force,
-          ARRIVAL_RADIUS_KM,
+          reachKm,
           now,
           Math.max(now, step),
         );
@@ -185,8 +187,8 @@ export async function pursue(
    *  de `mobileSighting` comprise —, jamais une distance entre deux positions vraies. */
   await reassessDetection(ctx, movement.seasonId, now);
   const seen = quarry !== null && (await inSight(ctx, movement.playerId, quarry, now));
-  const verdict =
-    quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm: ARRIVAL_RADIUS_KM });
+  const reachKm = contactKm(await blitzTheatreOf(ctx, movement.playerId));
+  const verdict = quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm });
 
   if (verdict === 'strike') await strike(ctx, movement, hunters, quarry!, at, now);
   /** Une cible tombée sous d'autres coups n'est pas « perdue de vue » : la colonne finit sa
@@ -197,7 +199,7 @@ export async function pursue(
      *  d'une cellule, parfois au-delà de l'allonge, et attendre sur place se réveillerait sans
      *  fin. Une route qui n'avance plus s'arrête. */
     const arrived = now >= movement.arrivesAt;
-    if (arrived || distanceKm(quarry!.point, pointOf(movement.to)) > ARRIVAL_RADIUS_KM) {
+    if (arrived || distanceKm(quarry!.point, pointOf(movement.to)) > reachKm) {
       if (!(await bendTowards(ctx, movement, hunters, at, quarry!.point, now))) {
         /** Une route coupée n'est pas une cible perdue de vue : la marche s'arrête sans dépêche,
          *  et son arrivée le dit. */

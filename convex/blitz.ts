@@ -26,6 +26,7 @@ import {
   type Funds,
 } from '../src/domain/blitz';
 import {
+  blitzMapRulesOf,
   planBlitzMap,
   type BlitzCandidate,
   type BlitzMeasure,
@@ -98,7 +99,7 @@ export const placementInput = internalQuery({
     if (seats.length === 0) return null;
     return {
       seed: season.seed,
-      box: theatreById(season.theatre ?? '')?.box ?? null,
+      theatre: season.theatre ?? null,
       seats: seats.map((seat) => seat._id),
     };
   },
@@ -114,8 +115,9 @@ export const place = internalAction({
     let plan: ReadonlyArray<BlitzSite> | null;
     let quays: ReadonlyMap<string, LonLat>;
     try {
-      if (input.box === null) throw new Error('theatre');
-      ({ plan, quays } = drawMap(input.box, input.seats, input.seed));
+      const theatre = theatreById(input.theatre ?? '');
+      if (theatre === null) throw new Error('theatre');
+      ({ plan, quays } = drawMap(theatre, input.seats, input.seed));
     } catch {
       await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_FAILED' });
       return;
@@ -140,15 +142,15 @@ export const place = internalAction({
   },
 });
 
-function drawMap(
-  box: Theatre['box'],
+export function drawMap(
+  theatre: Theatre,
   seats: ReadonlyArray<string>,
   seed: number,
 ): { plan: ReadonlyArray<BlitzSite> | null; quays: ReadonlyMap<string, LonLat> } {
   /** **Une côte n'est côte que si un quai s'y trouve** : la règle ne pose un port que là, et
    *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
   const quays = new Map<string, LonLat>();
-  const candidates = theatreGround(box).map((candidate) => {
+  const candidates = theatreGround(theatre.box).map((candidate) => {
     const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
     if (quay !== null) quays.set(candidate.regionId, quay);
     return { ...candidate, coastal: quay !== null };
@@ -169,7 +171,13 @@ function drawMap(
     return field;
   };
 
-  const plan = planBlitzMap({ seats, candidates, box, rules: BLITZ.map, seed, measure });
+  const plan = planBlitzMap({
+    seats,
+    candidates,
+    rules: blitzMapRulesOf(theatre, BLITZ.map),
+    seed,
+    measure,
+  });
   return { plan, quays };
 }
 

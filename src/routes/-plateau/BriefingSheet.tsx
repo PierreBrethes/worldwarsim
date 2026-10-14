@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { ARRIVAL_RADIUS_KM, DETECTION_RANGE_KM, outpostReachKm } from '../../../convex/constants';
+import { contactKm, detectionRangeOf, outpostReachKm } from '../../../convex/constants';
+import type { Theatre } from '@/domain/theatres';
 import { fr } from '@/i18n/fr';
 import { useMouseMapping } from '@/data/mouseMapping';
 import { useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
@@ -15,7 +16,13 @@ import { useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
  * l'exception qui confirme la règle : ce sont des **constantes d'équilibrage**, pas l'état d'une
  * partie, et les lire ici est ce qui empêche la notice de mentir le jour où elles bougent.
  */
-export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
+export function BriefingSheet({
+  theatre,
+  onDismiss,
+}: {
+  theatre: Theatre | null;
+  onDismiss: () => void;
+}) {
   // Le mappage de la souris est la seconde exception, et de la même famille que les rayons :
   // un réglage du joueur, pas l'état d'une partie — et la notice mentirait sans le lire.
   const mapping = useMouseMapping();
@@ -59,7 +66,11 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
             {/* Le rayon d'un point neuf : la feuille se lit avant d'en avoir fondé un, et c'est
                 celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
             {fr.briefing
-              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1), {
+              .columns(
+                Math.round(detectionRangeOf(['infantry'], theatre)),
+                Math.round(contactKm(theatre)),
+                outpostReachKm(1),
+                {
                 finger,
                 phone,
                 mapping,

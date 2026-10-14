@@ -31,7 +31,6 @@ import {
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
   buildCost,
-  detectionRangeOf,
   routeMinutes,
 } from './constants';
 import { foundationMinutes, scheduleStand } from './outposts';
@@ -368,7 +367,7 @@ export const board = mutation({
       player._id,
       to.point,
       Date.now(),
-      detectionRangeOf(passengers.map((troop) => troop.role)),
+      passengers.map((troop) => troop.role),
     );
     await reassessDetection(ctx, season._id);
     return { boarded: passengers.length };

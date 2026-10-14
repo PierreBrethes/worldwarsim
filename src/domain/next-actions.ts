@@ -3,7 +3,8 @@ import { asClockTime } from './duration';
 import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
-import { BLITZ } from '../../convex/constants';
+import { BLITZ_SHARE } from '../../convex/constants';
+import { theatreById, theatreKm } from './theatres';
 import { rolesFormedBy } from './blitz';
 import type { BuildingKey, ResourceKey } from './ids';
 import { distanceKm, type LonLat } from './geo';
@@ -298,7 +299,7 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
 }
 
 /**
- * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ.nearCityKm` d'un de mes bâtiments,
+ * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ_SHARE.nearCity` du théâtre d'un de mes bâtiments,
  * la plus proche d'abord. C'est la première chose qu'une Blitz demande — une ville verse des fonds
  * à qui la capture, et personne ne la garde.
  */
@@ -310,8 +311,10 @@ function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
     return point === undefined ? [] : [point];
   });
   const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
+  const theatre = theatreById(view.theatre ?? '');
+  const nearKm = theatre === null ? 0 : theatreKm(theatre, BLITZ_SHARE.nearCity);
   const near = view.neutralSites
-    .filter((site) => site.key === 'city' && reach(site.point) <= BLITZ.nearCityKm)
+    .filter((site) => site.key === 'city' && reach(site.point) <= nearKm)
     .sort((left, right) => reach(left.point) - reach(right.point));
   return lineOf(
     'neutralCity',
