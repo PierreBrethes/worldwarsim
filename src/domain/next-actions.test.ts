@@ -311,7 +311,11 @@ describe('what waits for the player', () => {
 describe('a Blitz', () => {
   const blitz = (over: Partial<PlayerView['me']>, neutralSites: PlayerView['neutralSites'] = []) =>
     ({
-      ...board({ construction: null, ...over }),
+      ...board({
+        construction: null,
+        regions: [{ id: 'FRA-1', name: 'Rhône', point: [2, 47], linked: true }],
+        ...over,
+      } as Partial<PlayerView['me']>),
       mode: 'blitz',
       neutralSites,
     }) as PlayerView;
@@ -321,7 +325,7 @@ describe('a Blitz', () => {
     name: 'QG',
     regionId: 'FRA-1',
     level: 1,
-    point: [2, 47],
+    point: null,
   } as unknown as PlayerView['me']['buildings'][number];
 
   it('asks for a recruit at the HQ as at a barracks, and never for a building site', () => {

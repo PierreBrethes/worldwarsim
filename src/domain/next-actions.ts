@@ -288,9 +288,12 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
  * à qui la capture, et personne ne la garde.
  */
 function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
-  const mine = view.me.buildings.flatMap((building) =>
-    building.point === null ? [] : [building.point],
-  );
+  /** Le point d'un bâtiment n'est servi que pour un port : les autres se tiennent à leur région. */
+  const regions = new Map(view.me.regions.map((region) => [region.id, region.point]));
+  const mine = view.me.buildings.flatMap((building) => {
+    const point = building.point ?? regions.get(building.regionId);
+    return point === undefined ? [] : [point];
+  });
   const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
   const near = view.neutralSites
     .filter((site) => site.key === 'city' && reach(site.point) <= BLITZ.nearCityKm)

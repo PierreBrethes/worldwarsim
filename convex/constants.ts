@@ -1090,7 +1090,7 @@ export const BLITZ = {
   },
   map: {
     /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
-    hqRing: 0.6,
+    hqRing: 0.45,
     /** Combien de tours de table on essaie avant de garder le plus équitable : chacun coûte un
      *  champ de route par joueur. */
     hqTries: 3,
