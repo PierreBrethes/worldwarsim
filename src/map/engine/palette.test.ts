@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INK_BY_NATION, type Nation } from '@/domain/nations';
-import { builtInk, contrastRatio, lavis, nationShades, PALETTE, penOn } from './palette';
+import { builtInk, contrastRatio, lavis, lit, nationShades, PALETTE, penOn } from './palette';
 
 const channels = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -127,12 +127,12 @@ describe('the pen over a ground', () => {
   it.each(inks)('reads on every ground of %s', (_nation, ink) => {
     const { sheet, built, surveyed } = nationShades(ink);
     for (const ground of [sheet, built, surveyed])
-      expect(contrastRatio(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(penOn(ground, ink), lit(ground))).toBeGreaterThanOrEqual(3);
   });
 
-  it('draws in the deep of the nation ink rather than in a foreign hue', () => {
-    const { sheet } = nationShades(INK_BY_NATION.japan);
-    const pen = penOn(sheet, INK_BY_NATION.japan);
+  it('draws in the deep of the nation ink, never a foreign hue, where ink reads', () => {
+    const { surveyed } = nationShades(INK_BY_NATION.japan);
+    const pen = penOn(surveyed, INK_BY_NATION.japan);
     expect(pen).not.toBe(PALETTE.paper);
     expect(hueDrift(pen, INK_BY_NATION.japan)).toBeLessThan(35);
   });
@@ -142,6 +142,8 @@ describe('the pen over a ground', () => {
   });
 
   it('turns to paper on a ground too dark for any ink', () => {
-    expect(penOn('#2a2a3a', '#2a5ba8')).toBe(PALETTE.paper);
+    expect(penOn(nationShades(INK_BY_NATION.france).built, INK_BY_NATION.france)).toBe(
+      PALETTE.paper,
+    );
   });
 });

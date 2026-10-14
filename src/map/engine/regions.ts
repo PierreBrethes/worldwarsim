@@ -13,14 +13,13 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { builtInk, HELD_OPACITY, PALETTE } from './palette';
+import { builtInk, HELD_OPACITY, lavis, PALETTE, penOn } from './palette';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import {
   mulberry,
   seed,
   sketchRegion,
   TerrainSketches,
-  inkOn,
   zoomFade,
   type PenStrands,
 } from './terrain';
@@ -341,9 +340,10 @@ export class RegionLayer {
    * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
    * quand les 500 Ko atterrissent, comme pour les bâtiments.
    */
-  /** The countries not laid on the bare paper (an opponent nation's lavis), by `adm0`: the pen
-   *  reads its ground from there. */
+  /** The countries not laid on the bare paper, by `adm0`, with the nation ink their lavis is
+   *  made of: the pen reads its ground from there. */
   private grounds: ReadonlyMap<string, string> = new Map();
+  private builtInk: string = PALETTE.neutralLand;
 
   setGrounds(grounds: ReadonlyMap<string, string>): void {
     this.grounds = grounds;
@@ -371,6 +371,7 @@ export class RegionLayer {
    */
   showBuilt(regionIds: ReadonlySet<string>, ink: string): void {
     this.builtMaterial.color.set(builtInk(ink));
+    this.builtInk = ink;
     /** La liste est refaite à chaque battement de la vue : sans ce garde, un pas de colonne
      *  retriangulait le sol bâti **et toute la couleur tenue**, qui n'avait pas bougé. */
     if (sameIds(regionIds, this.builtIds)) return;
@@ -622,14 +623,20 @@ export class RegionLayer {
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
     const painted = held === undefined || held.state === 'suspended' ? null : held;
-    const under = (region && this.grounds.get(region.country)) ?? PALETTE.neutralLand;
+    const underInk = (region && this.grounds.get(region.country)) ?? null;
+    const under = underInk === null ? PALETTE.neutralLand : lavis(underInk);
+    const built = region !== null && this.builtIds.has(region.id) ? this.builtInk : null;
+    const pen =
+      built !== null
+        ? penOn(builtInk(built), built)
+        : painted !== null
+          ? penOn(lavis(painted.ink, HELD_OPACITY * painted.wash, under), painted.ink)
+          : penOn(under, underInk);
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
       performance.now(),
-      painted?.ink ?? null,
-      painted === null ? 0 : HELD_OPACITY * painted.wash,
-      under,
+      pen,
     );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
@@ -637,11 +644,9 @@ export class RegionLayer {
       return;
     }
 
-    /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
-     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
-    this.hoverMaterial.color.set(
-      inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0), under),
-    );
+    /** **The hover keeps the holder's family** (palette des nations): the contour is the pen of
+     *  the ground it frames, and the terrain is told by the drawing, never by a tint. */
+    this.hoverMaterial.color.set(pen);
 
     const points: number[] = [];
     for (const ring of region.rings) {

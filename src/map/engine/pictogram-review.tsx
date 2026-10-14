@@ -14,7 +14,7 @@ import { mulberry, terrainCluster } from './terrain';
  */
 const TYPES = Object.keys(fr.regionTypes) as ReadonlyArray<RegionType>;
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
-/** The board's ink on a dark held ground: France's blue, which `inkOn` answers with paper. */
+/** A dark held ground, where `penOn` answers with paper. */
 const DARK_GROUND = '#3d4f74';
 
 function Cluster({ type, seed, scale }: { type: RegionType; seed: number; scale: number }) {

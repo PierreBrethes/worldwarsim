@@ -110,17 +110,35 @@ export function contrastRatio(first: string, second: string): number {
 
 /** How far the pen's ink goes toward the black: dark enough to read on the nation's own wash,
  *  enough of the nation left that the drawing stays in its family. */
-const PEN_DEPTH = 0.75;
+const PEN_DEPTH = 0.6;
+
+/** What the warm lamp leaves of a lit ground's light, measured on the board (the sand and
+ *  France's sheet both render at about this share of their luminance). The pen is a line, unlit. */
+const LAMP_SHARE = 0.45;
+
+/** A ground as the board renders it under the lamp, in sRGB. */
+export function lit(ground: string): string {
+  return `#${channelsOf(ground)
+    .map((channel) => {
+      const value = linear(channel) * LAMP_SHARE;
+      const encoded = value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055;
+      return Math.round(encoded * 255)
+        .toString(16)
+        .padStart(2, '0');
+    })
+    .join('')}`;
+}
 
 /**
  * The pen that draws over a painted ground — terrain pictograms and the hover's contour. It
  * takes the **deep** of the ink that painted the ground (plain ink on bare land), or the paper
- * when the paper reads better: the hover says the terrain with the drawing, never by changing
- * the nation's colour.
+ * when the paper reads better on the ground as lit: the hover says the terrain with the
+ * drawing, never by changing the nation's colour.
  */
 export function penOn(ground: string, ink: string | null): string {
-  const deep = ink === null ? PALETTE.border : lavis(PALETTE.border, PEN_DEPTH, ink);
-  return contrastRatio(deep, ground) >= contrastRatio(PALETTE.paper, ground) ? deep : PALETTE.paper;
+  const deep = ink === null ? PALETTE.border : lavis('#000000', PEN_DEPTH, ink);
+  const seen = lit(ground);
+  return contrastRatio(deep, seen) >= contrastRatio(PALETTE.paper, seen) ? deep : PALETTE.paper;
 }
 
 /**
