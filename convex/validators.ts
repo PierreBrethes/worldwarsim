@@ -178,8 +178,6 @@ export const SEASON_STATUS = v.union(
 
 export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
 
-export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
-
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 
