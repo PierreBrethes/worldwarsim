@@ -29,6 +29,7 @@ import {
   TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
+  SEASON_MODE,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -131,6 +132,10 @@ export default defineSchema({
      * `dev:backfillSeasonPreview` le pose sur les saisons d'avant.
      */
     playerCount: v.optional(v.number()),
+    /** Absent reads as `'mondiale'` (`modeOf`): seasons older than the modes are Mondiales. */
+    mode: v.optional(SEASON_MODE),
+    /** A `THEATRES` id; set on a Blitz only. */
+    theatre: v.optional(v.string()),
   }).index('byCode', ['code']),
 
   players: defineTable({

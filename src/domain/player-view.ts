@@ -1006,6 +1006,9 @@ export type PlayerView = {
      *  n'a pas encore posé son quartier général (décision 1b du 13/09) — sans lui, la carte
      *  s'ouvre sur le monde entier et le joueur va chercher son pays. `null` sans drapeau. */
     readonly capitalPoint: LonLat | null;
+    /** Where the board opens: the theatre's centre in a Blitz, the capital otherwise. Read by the
+     *  opening frame only — the return-home path stays on `capitalPoint`. */
+    readonly openingPoint: LonLat | null;
     readonly ink: string;
     readonly power: string;
     readonly progress: number;

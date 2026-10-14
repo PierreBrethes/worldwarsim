@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 759dad5 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : df541e5 -->
 
 # Les constantes à mesurer
 
@@ -18,24 +18,24 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 
 | Constante | Valeur | Où | Pourquoi elle attend |
 | --- | --- | --- | --- |
-| `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:291` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
-| `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:372` | every role; no season simulation models plunder cargo yet |
-| `GARRISON_DAMAGE_TAKEN` | `0.7` | `convex/constants.ts:606` | rapport pertes attaquant / défenseur par engagement sur une saison |
-| `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:629` | every value; no season simulation models detection |
-| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:660` | an assumed starting point; nothing measures how close is close enough on arrival |
-| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:674` | a rank in the ordering the design asks for, and nothing more |
-| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:689` | picked to read against a farm at level one, never measured |
-| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:702` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
-| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:712` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:713` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:722` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:723` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:736` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
-| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:744` | provisional lifetime; no season simulation models crate discovery or collection |
-| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:752` | provisional disclosure delay and search radius; no season simulation models them |
-| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:753` | provisional disclosure delay and search radius; no season simulation models them |
-| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:767` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:799` | shaped so the relay reads as a decision rather than a rounding |
+| `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:292` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
+| `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:373` | every role; no season simulation models plunder cargo yet |
+| `GARRISON_DAMAGE_TAKEN` | `0.7` | `convex/constants.ts:607` | rapport pertes attaquant / défenseur par engagement sur une saison |
+| `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:630` | every value; no season simulation models detection |
+| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:661` | an assumed starting point; nothing measures how close is close enough on arrival |
+| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:675` | a rank in the ordering the design asks for, and nothing more |
+| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:690` | picked to read against a farm at level one, never measured |
+| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:703` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
+| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:713` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:714` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:723` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:724` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:737` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
+| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:745` | provisional lifetime; no season simulation models crate discovery or collection |
+| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:753` | provisional disclosure delay and search radius; no season simulation models them |
+| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:754` | provisional disclosure delay and search radius; no season simulation models them |
+| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:768` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:800` | shaped so the relay reads as a decision rather than a rounding |
 | `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:825` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
 | `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:854` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
 | `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:867` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
@@ -46,7 +46,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_HARD_MIN_KM` | `800` | `convex/constants.ts:1018` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1019` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1038` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
-| `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
+| `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:7` | before treating it as a campaign balance rule. |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:75` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |

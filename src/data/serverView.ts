@@ -61,6 +61,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       /** Un déploiement d'une version en retard n'en sert aucune : le plateau s'ouvre alors
        *  comme il l'a toujours fait, sur le monde. */
       capitalPoint: (server.me.capitalPoint as LonLat | null | undefined) ?? null,
+      openingPoint: (server.me.openingPoint as LonLat | null | undefined) ?? null,
       ink: server.me.ink,
       power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',
       progress: server.me.progress,
