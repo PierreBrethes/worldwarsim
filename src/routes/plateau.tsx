@@ -1350,17 +1350,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }),
     );
 
-    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
-      kind: 'installation' as const,
-      id: `installation-${installation.id}`,
-      buildingId: installation.id,
-      key: installation.key,
-      regionId: installation.regionId,
-      name: fr.buildings[installation.key],
-      plate: buildingSprite(installation.key),
-      washed: knownRegionById.get(installation.regionId)?.state !== 'current',
-      neutral: null,
-    }));
+    /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
+    const neutralIds = new Set(view.neutralSites.map((site) => site.id));
+    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
+      .filter((installation) => !neutralIds.has(installation.id))
+      .map((installation) => ({
+        kind: 'installation' as const,
+        id: `installation-${installation.id}`,
+        buildingId: installation.id,
+        key: installation.key,
+        regionId: installation.regionId,
+        name: fr.buildings[installation.key],
+        plate: buildingSprite(installation.key),
+        washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+        neutral: null,
+      }));
     /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
      *  se capturent comme un site adverse relevé, par la même rose. */
     const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
