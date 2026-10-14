@@ -396,7 +396,8 @@ pour ne pas doubler la surface qu'il ouvre ; elle efface le cartouche le temps d
 planche. **Une force adverse seulement relevée s'écrit à l'encre** (F2, 14/10/2026,
 `src/map/engine/annotations.ts`, d'après la page « renseignement » de la landing) : une
 **annotation posée à plat** — cercle pointillé, domaine hachuré à la plume, « ? » rouge et l'heure
-du relevé —, qui **pâlit avec l'âge** jusqu'à une trace au bout de `LAST_KNOWN_HOURS`
+du relevé, la même que l'affiche (`surveyedAt` : en vue, sa première observation ; dernière position
+connue, la dernière fois vue — des instants servis, jamais un âge contre l'horloge) —, qui **pâlit avec l'âge** jusqu'à une trace au bout de `LAST_KNOWN_HOURS`
 (`surveyInk`, `src/domain/survey-ink.ts`). Un camp relevé (`CampLayer`), le pion d'un fil adverse,
 qui glisse le long du tronçon, et une dernière position connue au bout de son tronçon figé
 (`lastKnownMedium`, `arcs.ts`) — rien de plus que le milieu et l'heure servis. Au rapproché, le pion dit son milieu : une coque en mer laisse un **sillage**
