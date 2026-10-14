@@ -53,6 +53,9 @@ export type ControlOutpost = {
   readonly disabled: boolean;
 };
 
+/** La région d'un bâtiment capturé, et qui le tient. */
+export type Occupation = { readonly regionId: string; readonly owner: string };
+
 /** Le sol d'origine d'une nation en jeu : son pays, et le joueur qui la porte. */
 export type HomeGround = {
   readonly owner: string;
@@ -78,14 +81,27 @@ export function heldRegions({
   regions,
   outposts,
   homeGrounds,
+  occupations = [],
 }: {
   readonly regions: ReadonlyArray<ControlledRegion>;
   readonly outposts: ReadonlyArray<ControlOutpost>;
   readonly homeGrounds: ReadonlyArray<HomeGround>;
+  /**
+   * **Un bâtiment capturé colore sa région pour son capteur** (décision M8 du 14/10) — sol
+   * national compris : c'est la seule chose qui passe devant lui. Le sol s'occupe, la nation
+   * n'est pas annexée pour autant ; reprendre le bâtiment rend la région.
+   */
+  readonly occupations?: ReadonlyArray<Occupation>;
 }): ReadonlyMap<string, string> {
   const homeOwner = new Map(homeGrounds.map(({ country, owner }) => [country, owner]));
+  const occupier = new Map(occupations.map(({ regionId, owner }) => [regionId, owner]));
   const held = new Map<string, string>();
   for (const region of regions) {
+    const occupied = occupier.get(region.id);
+    if (occupied !== undefined) {
+      held.set(region.id, occupied);
+      continue;
+    }
     const home = homeOwner.get(region.country);
     if (home !== undefined) {
       held.set(region.id, home);
@@ -234,14 +250,25 @@ export function knownRegions({
   home,
   covered,
   surveys,
+  occupied = new Map(),
 }: {
   readonly home: { readonly owner: string; readonly regionIds: ReadonlyArray<string> };
   readonly covered: ReadonlySet<string>;
   readonly surveys: ReadonlyArray<Survey>;
+  /** Les occupations que ce joueur sait de source sûre — les siennes, et celles de son sol :
+   *  elles passent avant tout, à jour. L'appelant ne tend jamais celles d'un tiers. */
+  readonly occupied?: ReadonlyMap<string, string>;
 }): ReadonlyArray<KnownRegion> {
   const known = new Map<string, KnownRegion>();
   for (const regionId of home.regionIds) {
-    known.set(regionId, { regionId, owner: home.owner, state: 'current' });
+    known.set(regionId, {
+      regionId,
+      owner: occupied.get(regionId) ?? home.owner,
+      state: 'current',
+    });
+  }
+  for (const [regionId, owner] of occupied) {
+    if (!known.has(regionId)) known.set(regionId, { regionId, owner, state: 'current' });
   }
   for (const survey of surveys) {
     if (survey.owner === null || known.has(survey.regionId)) continue;

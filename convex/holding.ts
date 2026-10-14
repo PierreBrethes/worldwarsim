@@ -1,6 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import { heldRegions } from '../src/domain/control';
+import { heldRegions, type Occupation } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
 import { outpostReachKm } from './constants';
 import { pointOf, seasonOutposts } from './movement/forces';
@@ -34,7 +34,21 @@ export async function heldOver(
     regions,
     outposts: (await seasonOutposts(ctx, seasonId)).map((outpost) => colourReading(outpost, now)),
     homeGrounds: await homeGroundsOf(ctx, seasonId),
+    occupations: await occupationsOf(ctx, seasonId),
   });
+}
+
+/** Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`). */
+export async function occupationsOf(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<ReadonlyArray<Occupation>> {
+  return (
+    await ctx.db
+      .query('buildings')
+      .withIndex('bySeasonCaptured', (q) => q.eq('seasonId', seasonId).gt('capturedAt', 0))
+      .collect()
+  ).map((building) => ({ regionId: building.regionId, owner: building.playerId as string }));
 }
 
 /**
@@ -83,9 +97,11 @@ export function soleHoldOf({
   outposts,
   outpost,
   homeGrounds,
+  occupations = [],
   now,
 }: {
   readonly regions: ReadonlyArray<RegionFacts>;
+  readonly occupations?: ReadonlyArray<Occupation>;
   readonly outposts: ReadonlyArray<Doc<'outposts'>>;
   readonly outpost: Doc<'outposts'>;
   readonly homeGrounds: ReadonlyArray<{ owner: string; country: string }>;
@@ -95,6 +111,7 @@ export function soleHoldOf({
   const swap = (disabled: boolean) =>
     heldRegions({
       regions,
+      occupations,
       outposts: readings.map((reading, rank) =>
         outposts[rank]!._id === outpost._id ? { ...reading, disabled } : reading,
       ),

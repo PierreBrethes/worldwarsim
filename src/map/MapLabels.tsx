@@ -17,7 +17,7 @@ import {
 import { asDuration } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
-import { LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
 import {
   URGENCY_MS,
   cartoucheShown,
@@ -831,6 +831,13 @@ export function MapLabels({
                     </Fragment>
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
+                  ) : line.role === 'capture' ? (
+                    <CaptureGauge
+                      key={rank}
+                      side={line.side}
+                      clock={line.clock}
+                      completesAt={line.completesAt}
+                    />
                   ) : (
                     <div key={rank} className={`label-line label-line--${line.role}`}>
                       {line.text}
@@ -1149,6 +1156,7 @@ function classesOf(label: MapLabel, selected: boolean, destination: boolean): st
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
     destination ? 'label--destination' : '',
+    label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',

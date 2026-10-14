@@ -90,6 +90,9 @@ export type ErrorCode =
   | 'INFANTRY_ONLY'
   | 'INFANTRY_REQUIRED'
   | 'WAREHOUSE_TARGET_ONLY'
+  /** La capture (14/10) : seule l'infanterie capture, et le QG attend son lot. */
+  | 'CAPTURE_NEEDS_INFANTRY'
+  | 'HQ_NOT_CAPTURABLE'
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'

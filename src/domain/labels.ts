@@ -1,5 +1,6 @@
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { fr } from '@/i18n/fr';
+import { countryLabel, fr } from '@/i18n/fr';
+import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
@@ -11,7 +12,7 @@ import {
   type Specialization,
   type UnitRole,
 } from './ids';
-import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
+import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
 import type { WorkSite } from './construction';
 
 /**
@@ -259,7 +260,15 @@ export type LabelLine =
       readonly since?: number;
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
-  | { readonly role: 'loading'; readonly until: number };
+  | { readonly role: 'loading'; readonly until: number }
+  /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
+   *  victoire chez le capteur, de perte chez le défenseur. */
+  | {
+      readonly role: 'capture';
+      readonly side: CaptureView['side'];
+      readonly clock: CaptureClock;
+      readonly completesAt: number;
+    };
 
 /**
  * A mobile anchor carries no position: a movement's head travels along its arc every frame,
@@ -408,7 +417,10 @@ export const cartoucheShown = (
   label: Pick<MapLabel, 'type' | 'lines'>,
   { pointed, selected }: { readonly pointed: boolean; readonly selected: boolean },
 ): boolean =>
-  !NAMED_WHEN_POINTED.has(label.type) || pointed || selected || label.lines.some(isCountdown);
+  !NAMED_WHEN_POINTED.has(label.type) ||
+  pointed ||
+  selected ||
+  label.lines.some((line) => isCountdown(line) || line.role === 'capture');
 
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
@@ -460,11 +472,75 @@ export function buildLabels(
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
   return [
-    ...markers.map(markerLabel),
+    ...withCaptures(markers.map(markerLabel), view.captures),
     ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt)).filter(exists),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
+
+const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
+  target.kind === 'building'
+    ? label.building?.id === target.id || label.installation?.id === target.id
+    : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+
+/**
+ * **Le site visé porte sa capture** — l'anneau pend à son étiquette. Un site que la carte ne
+ * dessine pas (un avant-poste adverse jamais relevé en mât) a la sienne, posée au point où
+ * l'infanterie se tient : on ne perd pas une capture parce que la carte n'a rien sous elle.
+ */
+function withCaptures(
+  labels: ReadonlyArray<MapLabel>,
+  captures: ReadonlyArray<CaptureView>,
+): ReadonlyArray<MapLabel> {
+  const running = captures.filter((capture) => capture.stoppedAt === null);
+  const lineOf = (capture: CaptureView): LabelLine => ({
+    role: 'capture',
+    side: capture.side,
+    clock: capture.clock,
+    completesAt: capture.completesAt,
+  });
+  const carried = labels.map((label) => {
+    const capture = running.find((candidate) => carriesSite(label, candidate.target));
+    return capture === undefined ? label : { ...label, lines: [...label.lines, lineOf(capture)] };
+  });
+  const alone = running.filter(
+    (capture) => !labels.some((label) => carriesSite(label, capture.target)),
+  );
+  return [
+    ...carried,
+    ...alone.map((capture): MapLabel => ({
+      id: `capture-${capture.id}`,
+      type: 'installation',
+      priority: PRIORITY.installation,
+      anchor: { kind: 'ground', lonLat: capture.point },
+      reach: null,
+      ink: null,
+      pictogram: null,
+      plate: null,
+      deposit: null,
+      lootSightingId: null,
+      lootCurrent: true,
+      washed: false,
+      lines: [{ role: 'nature', text: captureSiteName(capture) }, lineOf(capture)],
+      identified: false,
+      offensive: false,
+      idle: false,
+      works: null,
+      hostCountry: null,
+      building: null,
+      installation: null,
+      camp: null,
+      objective: null,
+      station: null,
+      force: null,
+    })),
+  ];
+}
+
+export const captureSiteName = (capture: Pick<CaptureView, 'site' | 'regionName'>): string =>
+  capture.site.kind === 'building'
+    ? fr.capture.buildingSite(fr.buildings[capture.site.building], capture.regionName ?? '')
+    : fr.capture.outpostSite(capture.site.level, countryLabel(capture.site.hostCountry));
 
 /**
  * **Chacun de mes mouvements finit par un drapeau** (carte-lisible, 03/10), planté au bout du

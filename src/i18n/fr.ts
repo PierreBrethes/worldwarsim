@@ -285,6 +285,20 @@ export const fr = {
     listening: 'écoute',
   } satisfies Record<Specialization, string>,
 
+  /** **La capture** (décision du 14/10) — jamais « prise ». */
+  capture: {
+    buildingSite: (building: string, region: string) => `${building} de ${region}`,
+    outpostSite: (level: number, country: string) =>
+      `l’avant-poste de niveau ${level} — ${country}`,
+    /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
+    stamp: 'capture',
+    endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
+    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    underCapture: 'en cours de capture',
+    underCaptureWhy: (hour: string) =>
+      `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
+  },
+
   loot: {
     markerCurrent: 'caisse relevée',
     markerStale: 'dernier relevé',
@@ -532,6 +546,8 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
@@ -1308,6 +1324,11 @@ export const fr = {
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
+      captureStarted: 'capture engagée',
+      captureThreat: 'capture en cours',
+      captured: 'capturé',
+      siteLost: 'site perdu',
+      captureCancelled: 'capture levée',
       productionRestored: 'production rétablie',
       lootTaken: 'butin pris',
       sitePlundered: 'site pillé',
@@ -1333,6 +1354,8 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    /** Un site qui change de main, chez ses deux tenants (14/10). */
+    captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
@@ -1520,6 +1543,21 @@ export const fr = {
        * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
        * dépêche chez lui lui dirait ce que son renseignement n'a pas payé.
        */
+      /**
+       * **La capture** (14/10). Le défenseur ne lit jamais qui capture : il lit le site, et
+       * l'heure où il le perdra si rien ne change — c'est la décision qu'on lui demande.
+       */
+      captureStarted: (site: string, until: string) =>
+        `Notre infanterie tient ${site} : capture vers ${until}.`,
+      captureThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      captured: (site: string) => `${site} est à nous : capture achevée.`,
+      siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
+      captureAbandoned: (site: string) =>
+        `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureLifted: (site: string) => `La capture de ${site} est levée.`,
+      captureVoid: (site: string) =>
+        `Capture de ${site} sans objet : le site n’est plus à celui qu’on visait.`,
       productionCut: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
       productionRestored: (sites: number, country: string) =>
@@ -1643,6 +1681,11 @@ export const fr = {
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
     idleSite: 'chantier libre — rien en file',
+    siteUnderCapture: (site: string, hour: string) =>
+      `${site} : capture en cours, perdue vers ${hour}`,
+    sitesUnderCapture: (count: number) => `${count} sites en cours de capture`,
+    captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
+    capturesStopped: (count: number) => `${count} captures arrêtées`,
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
@@ -1894,6 +1937,7 @@ export const fr = {
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
     presence: (duration: string) => `présence sur site — ${duration}`,
+    capture: (duration: string) => `capture — ${duration} à la force de la pile`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     estimatedLoot: 'butin estimé au relevé',
@@ -2678,7 +2722,7 @@ export const fr = {
             'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
             `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
             `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
-            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
+            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
             'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
             `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
           ],
@@ -2884,6 +2928,10 @@ export const fr = {
     plunderConsequence: (verb: string) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
     installation: 'installation relevée',
+    /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
+    capture: 'capturer',
+    captureConsequence: (duration: string) =>
+      `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',

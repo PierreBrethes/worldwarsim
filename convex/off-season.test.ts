@@ -1093,6 +1093,20 @@ describe('scrapping a season', () => {
           taken: empty,
           storageLost: empty,
         });
+        await ctx.db.insert('captures', {
+          seasonId: player.seasonId,
+          playerId,
+          defenderId: guestId,
+          target: { kind: 'building', buildingId: theirs },
+          site: { kind: 'building', building: 'barracks', regionId: PRAHOVA },
+          point: asPoint(pointOf(PRAHOVA)),
+          progress: 0,
+          progressAt: Date.now(),
+          rate: 1,
+          durationMs: 3_600_000,
+          rest: null,
+          completesAt: Date.now() + 3_600_000,
+        });
         const recoveryId = await ctx.db.insert('lootRecoveries', {
           seasonId: player.seasonId,
           engagementId: engagement._id,

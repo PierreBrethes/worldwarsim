@@ -69,6 +69,7 @@ const view = {
     { id: 'well-enemy', key: 'oilWell', regionId: 'ROU-310' },
   ],
   loadedAt: 0,
+  mode: 'mondiale',
   opponents: [{ nation: 'italy' }, { nation: 'ussr' }],
 } as unknown as PlayerView;
 
@@ -405,13 +406,17 @@ describe('in aim', () => {
 
   /** **Un point adverse ne bouge pas** : la plate de visée d'aujourd'hui, assaut et raid, et pas
    *  de marche — on ne marche pas *sur* un point qu'on vient combattre. */
-  it('keeps the assault and the raid on an outpost that is not mine', () => {
+  it('keeps the assault and the raid on an outpost that is not mine, and adds capture', () => {
     const enemy = compassOf(
       { kind: 'outpost', id: 'AP-99', hostCountry: 'NOR', name: 'relais', coastal: false },
       view,
       column,
     );
-    expect(enemy?.actions.map((action) => action.label)).toEqual(['attaque', 'raid d’avant-poste']);
+    expect(enemy?.actions.map((action) => action.label)).toEqual([
+      'attaque',
+      'raid d’avant-poste',
+      'capturer',
+    ]);
   });
 
   /**
@@ -499,6 +504,7 @@ describe('in aim', () => {
         buildingId: 'warehouse-enemy',
         aim: { kind: 'building', buildingId: 'warehouse-enemy', key: 'warehouse' },
       }),
+      expect.objectContaining({ key: 'capture' }),
     ]);
 
     const producer = compassOf(
@@ -513,6 +519,55 @@ describe('in aim', () => {
       column,
     );
     expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
+  });
+
+  it('offers capture on a surveyed installation, with its duration at full strength', () => {
+    const barracks = compassOf(
+      {
+        kind: 'installation',
+        id: 'barracks-enemy',
+        key: 'barracks',
+        regionId: 'ROU-310',
+        name: 'Caserne',
+      },
+      view,
+      column,
+    );
+    expect(barracks?.actions).toEqual([
+      expect.objectContaining({
+        key: 'capture',
+        label: 'capturer',
+        target: { kind: 'building', id: 'barracks-enemy' },
+        consequence: expect.stringContaining('06:00:00'),
+      }),
+    ]);
+  });
+
+  it('announces the duration at the strength the column really has', () => {
+    const worn = compassOf(
+      {
+        kind: 'installation',
+        id: 'barracks-enemy',
+        key: 'barracks',
+        regionId: 'ROU-310',
+        name: 'Caserne',
+      },
+      view,
+      { ...column, captureRate: 0.5 },
+    );
+    expect(worn?.actions[0]).toMatchObject({
+      key: 'capture',
+      consequence: expect.stringContaining('12:00:00'),
+    });
+  });
+
+  it('says why a headquarters is not captured', () => {
+    const hq = compassOf(
+      { kind: 'installation', id: 'hq-enemy', key: 'hq', regionId: 'ROU-310', name: 'QG' },
+      view,
+      column,
+    );
+    expect(hq).toMatchObject({ actions: [], refusal: fr.errors.HQ_NOT_CAPTURABLE() });
   });
 
   it('offers collection only on the selected private sighting and with free capacity', () => {

@@ -3,6 +3,8 @@ import { v } from 'convex/values';
 import {
   BUILDING_KEY,
   BUILD_COST_KEY,
+  CAPTURE_SITE,
+  CAPTURE_TARGET,
   COMBAT_SIDE,
   DETECTOR,
   FOUNDATION_DEBT,
@@ -315,9 +317,16 @@ export default defineSchema({
     /** A warehouse or production site can be temporarily put out of service. Absent means the
      * row predates building disruption and is active. */
     disabledUntil: v.optional(v.number()),
+    /** **L'heure où il a été capturé** (décision M8 du 14/10) : un bâtiment capturé colore sa
+     *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
+     *  aucun emplacement. Absent : bâti par celui qui le tient. */
+    capturedAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
-    .index('bySeason', ['seasonId']),
+    .index('bySeason', ['seasonId'])
+    /** La couleur relit les bâtiments capturés à chaque lecture : un intervalle sur ce seul champ
+     *  ne se réinvalide pas au moindre niveau gravi ailleurs dans la saison. */
+    .index('bySeasonCaptured', ['seasonId', 'capturedAt']),
 
   /**
    * **One row per troop** (ADR 0014): discrete, unique, never merged with another. Its hit
@@ -509,6 +518,9 @@ export default defineSchema({
      * n'est venu chercher.
      */
     objectiveId: v.optional(v.id('objectives')),
+    /** **La colonne vient capturer** ce site : à l'arrivée elle engage ce qui le tient, et si son
+     *  infanterie reste debout la capture commence (`convex/captures.ts`). */
+    capture: v.optional(CAPTURE_TARGET),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -1115,4 +1127,30 @@ export default defineSchema({
     /** L'écriture relit sa propre ligne avant de décider s'il y a quelque chose à écrire : sans
      *  cet index elle balaierait tout le relevé du joueur par région observée. */
     .index('byPlayerRegion', ['playerId', 'regionId']),
+
+  /**
+   * **Les captures en cours** (décision du 14/10) — une ligne par capteur et par site. L'horloge
+   * est celle de `src/domain/capture.ts` : ce qui était fait (`progress`) à `progressAt`, et le
+   * rythme depuis ; une perte de force relit la ligne au lieu de la remettre à zéro. Arrêtée, la
+   * ligne reste datée (`stoppedAt`) le temps que le capteur le lise à « à faire maintenant ».
+   */
+  captures: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    defenderId: v.id('players'),
+    target: CAPTURE_TARGET,
+    site: CAPTURE_SITE,
+    /** Où l'infanterie du capteur se tient — le point que sa colonne a marché. */
+    point: LON_LAT,
+    progress: v.number(),
+    progressAt: v.number(),
+    rate: v.number(),
+    durationMs: v.number(),
+    rest: v.union(REST_WINDOW, v.null()),
+    completesAt: v.number(),
+    stoppedAt: v.optional(v.number()),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byPlayer', ['playerId'])
+    .index('byDefender', ['defenderId']),
 });

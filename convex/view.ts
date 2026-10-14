@@ -915,6 +915,34 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * Public est ce qui fait converger : une réserve que chacun découvrirait dans son coin ferait
      * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
      */
+    mode: modeOf(season.mode),
+    /**
+     * **Les captures qui me regardent**, des deux côtés (décision du 14/10) : celles que je mène,
+     * arrêtées comprises le temps d'une capture entière — c'est ce que « à faire maintenant »
+     * relance —, et celles qui visent mes sites. Celles-là ne disent jamais qui capture : il n'y
+     * a pas de champ pour lui.
+     */
+    captures: [
+      ...(
+        await ctx.db
+          .query('captures')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      )
+        .filter(
+          (capture) =>
+            capture.stoppedAt === undefined || now - capture.stoppedAt < capture.durationMs,
+        )
+        .map((capture) => captureView(capture, 'capturer')),
+      ...(
+        await ctx.db
+          .query('captures')
+          .withIndex('byDefender', (q) => q.eq('defenderId', player._id))
+          .collect()
+      )
+        .filter((capture) => capture.stoppedAt === undefined)
+        .map((capture) => captureView(capture, 'defender')),
+    ],
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,
@@ -1117,6 +1145,13 @@ function named(notice: PlayableNotice) {
         ...notice,
         regionName: notice.regionId === null ? null : nameOf(notice.regionId),
       };
+    case 'captureStarted':
+    case 'captureSucceeded':
+    case 'captureCancelled':
+      return {
+        ...notice,
+        regionName: notice.site.kind === 'building' ? nameOf(notice.site.regionId) : null,
+      };
     case 'recruitmentDelivered':
       return {
         ...notice,
@@ -1130,6 +1165,28 @@ function named(notice: PlayableNotice) {
   }
 }
 
+const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') => ({
+  id: capture._id as string,
+  side,
+  target:
+    capture.target.kind === 'building'
+      ? { kind: 'building' as const, id: capture.target.buildingId as string }
+      : { kind: 'outpost' as const, id: capture.target.outpostId as string },
+  site: capture.site,
+  regionName:
+    capture.site.kind === 'building' ? (regionFacts(capture.site.regionId)?.name ?? null) : null,
+  point: [capture.point.lon, capture.point.lat] as LonLat,
+  clock: {
+    progress: capture.progress,
+    at: capture.progressAt,
+    rate: capture.rate,
+    durationMs: capture.durationMs,
+    rest: capture.rest,
+  },
+  completesAt: capture.completesAt,
+  stoppedAt: capture.stoppedAt ?? null,
+});
+
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
  *  point of the region it names. One computation for every kind — a kind added to the schema with
  *  either field is located without a line here. */
@@ -1137,7 +1194,7 @@ function placed(notice: PlayableNotice) {
   const regionId =
     'regionId' in notice
       ? notice.regionId
-      : 'site' in notice && notice.site !== null
+      : 'site' in notice && notice.site !== null && 'regionId' in notice.site
         ? notice.site.regionId
         : null;
   const centre = regionId === null ? undefined : regionFacts(regionId)?.point;

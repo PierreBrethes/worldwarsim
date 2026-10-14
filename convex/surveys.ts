@@ -60,6 +60,9 @@ import {
  * qu'il est. Une troupe, une station, un avant-poste ne se distinguent en rien ici — ils
  * regardent, et c'est leur disque qui dit le sol qu'ils relèvent (`regionsCoveredBy`).
  */
+/** Un disque qui ne touche que la cellule où il se tient : sa propre région, rien d'autre. */
+const OWN_GROUND_KM = 1;
+
 export type Observer = { readonly point: LonLat; readonly radiusKm: number };
 
 export async function standingObserversOf(
@@ -80,9 +83,14 @@ export async function standingObserversOf(
 
   const buildings = await playerBuildings(ctx, playerId);
   for (const building of buildings) {
-    if (building.key !== 'listening') continue;
+    /** Un bâtiment capturé voit le sol qu'il tient — sans quoi sa couleur se délaverait chez son
+     *  capteur comme un relevé ancien. */
     const stand = pointOfBuilding(building);
-    if (stand !== null) {
+    if (stand === null) continue;
+    if (building.capturedAt !== undefined) {
+      observers.push({ point: stand, radiusKm: OWN_GROUND_KM });
+    }
+    if (building.key === 'listening') {
       observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }
@@ -173,9 +181,19 @@ export async function fileSurvey(
   const staleAfter = SURVEY_REFRESH_HOURS * 3_600_000;
   let written = 0;
   for (const region of seen) {
-    if (region.country === home) continue;
     const owner = (truth.get(region.id) ?? null) as Id<'players'> | null;
     const installations = installationsByRegion.get(region.id) ?? [];
+    /** **Son sol ne se relève que s'il porte un mât adverse** — un bâtiment capturé chez soi
+     *  (14/10) : sans ligne, le perdant n'avait ni mât à viser ni branche pour le reprendre. Le
+     *  reste de son sol reste servi par la lecture, et la ligne part quand le mât revient. */
+    if (region.country === home && installations.length === 0) {
+      const stale = await ctx.db
+        .query('regionSightings')
+        .withIndex('byPlayerRegion', (q) => q.eq('playerId', playerId).eq('regionId', region.id))
+        .unique();
+      if (stale !== null) await ctx.db.delete(stale._id);
+      continue;
+    }
     const row = await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerRegion', (q) => q.eq('playerId', playerId).eq('regionId', region.id))

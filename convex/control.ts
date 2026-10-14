@@ -4,9 +4,9 @@ import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
-import { soleHoldOf } from './holding';
+import { occupationsOf, soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
-import { allRegions, homeCountryOf, regionsOf } from './regions';
+import { allRegions, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { playerOf, seatsOf } from './seats';
 import { regionsCoveredBy } from './regionGeometry';
 import { standingObserversOf } from './surveys';
@@ -76,7 +76,19 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
     .collect();
 
+  /** **Une occupation se sait de deux côtés** : chez qui tient le bâtiment, et chez qui a perdu
+   *  ce sol-là. Un tiers ne l'apprend que par son relevé. */
+  const occupied = new Map(
+    (await occupationsOf(ctx, season._id))
+      .filter(
+        ({ regionId, owner }) =>
+          owner === player._id || (home !== null && regionFacts(regionId)?.country === home),
+      )
+      .map(({ regionId, owner }) => [regionId, owner]),
+  );
+
   const known = knownRegions({
+    occupied,
     home: {
       owner: player._id,
       regionIds: home === null ? [] : regionsOf(home).map((region) => region.id),
@@ -93,7 +105,9 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  regroupement, parce qu'il en retire ses propres lignes : un relevé d'hier dit encore que ce
    *  sol est à lui, et le peindre plein pendant la désactivation serait le mensonge que la
    *  hachure existe pour éviter. */
-  const suspended = await suspendedRegionsOf(ctx, player._id, homeGrounds);
+  const suspended = await suspendedRegionsOf(ctx, player._id, homeGrounds, [
+    ...(await occupationsOf(ctx, season._id)),
+  ]);
 
   /** Par tenant, et les mains vides ne voyagent pas : un siège dont ce joueur ne connaît rien
    *  ne tient rien *pour lui*, et une ligne vide serait une couleur de plus dans la légende. */
@@ -152,6 +166,7 @@ async function suspendedRegionsOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   homeGrounds: ReadonlyArray<{ owner: string; country: string }>,
+  occupations: ReadonlyArray<{ regionId: string; owner: string }>,
 ): Promise<ReadonlyMap<string, number>> {
   const now = Date.now();
   const outposts = await outpostsOf(ctx, playerId);
@@ -166,7 +181,14 @@ async function suspendedRegionsOf(
   const regions = allRegions();
   const suspended = new Map<string, number>();
   for (const outpost of halted) {
-    for (const regionId of soleHoldOf({ regions, outposts, outpost, homeGrounds, now })) {
+    for (const regionId of soleHoldOf({
+      regions,
+      outposts,
+      outpost,
+      homeGrounds,
+      occupations,
+      now,
+    })) {
       /** Deux points hors service qui couvrent la même région : la couleur revient au premier
        *  des deux, et c'est la seule date qu'il y ait à promettre. */
       const already = suspended.get(regionId);

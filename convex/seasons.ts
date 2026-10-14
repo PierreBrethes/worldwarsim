@@ -646,7 +646,8 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'notices'
       | 'presences'
       | 'readMarks'
-      | 'messages',
+      | 'messages'
+      | 'captures',
   ) =>
     ctx.db
       .query(table)
@@ -728,6 +729,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...lootRumors,
     ...lootRecoveries,
     ...lootCollections,
+    ...(await byPlayer('captures')),
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),

@@ -21,6 +21,7 @@ import { placeLabel } from '@/domain/station-name';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import type {
+  CapturePreviewed,
   LootCollectionPreviewed,
   MovementPreviewed,
   PlunderPreviewed,
@@ -35,12 +36,17 @@ import type { Seat } from '@/data/session';
  * charge, la présence sur site — se lit là où il existe et se tait ailleurs, plutôt que d'ouvrir
  * une seconde carte qui redirait le reste mot pour mot.
  */
-export type Previewed = MovementPreviewed | PlunderPreviewed | LootCollectionPreviewed;
+export type Previewed =
+  MovementPreviewed | PlunderPreviewed | CapturePreviewed | LootCollectionPreviewed;
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
 export type PreviewMission =
   | { readonly kind: 'march' }
   | { readonly kind: 'plunder'; readonly buildingId: string }
+  | {
+      readonly kind: 'capture';
+      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+    }
   | { readonly kind: 'collect'; readonly sightingId: string };
 
 /**
@@ -85,6 +91,14 @@ export const wireTarget = (aim: MovementAim) =>
             aim.kind === 'objective'
             ? ({ kind: 'objective', objectiveId: aim.objectiveId as Id<'objectives'> } as const)
             : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+
+export const wireCaptureTarget = (target: {
+  readonly kind: 'building' | 'outpost';
+  readonly id: string;
+}) =>
+  target.kind === 'building'
+    ? ({ kind: 'building', buildingId: target.id as Id<'buildings'> } as const)
+    : ({ kind: 'outpost', outpostId: target.id as Id<'outposts'> } as const);
 
 /**
  * Where a column stands, in the shape the mutations take — the branded ids go back on at the one
@@ -154,6 +168,7 @@ export function MovementPreview({
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
   const plunder = useMutation(api.movements.plunder);
+  const capture = useMutation(api.movements.capture);
   const collectLoot = useMutation(api.movements.collectLoot);
   const { aim, type, mission } = choice;
 
@@ -170,56 +185,63 @@ export function MovementPreview({
      *  sépare, jamais un type de plus sur le fil. Reste la fondation, qui n'est plus un ordre
      *  (`foundOutpostHere`), et le leurre, retiré du jeu le 29/08/2026. */
     const order =
-      mission.kind === 'plunder'
-        ? plunder({
+      mission.kind === 'capture'
+        ? capture({
             ...seat,
             origin: from,
             troopIds: ids,
-            buildingId: mission.buildingId as Id<'buildings'>,
+            target: wireCaptureTarget(mission.target),
           })
-        : mission.kind === 'collect'
-          ? collectLoot({
+        : mission.kind === 'plunder'
+          ? plunder({
               ...seat,
               origin: from,
               troopIds: ids,
-              sightingId: mission.sightingId as Id<'lootCrateSightings'>,
+              buildingId: mission.buildingId as Id<'buildings'>,
             })
-          : type === 'march' && aim.kind === 'point'
-            ? marchTo({
+          : mission.kind === 'collect'
+            ? collectLoot({
                 ...seat,
                 origin: from,
                 troopIds: ids,
-                point: { lon: aim.lon, lat: aim.lat },
+                sightingId: mission.sightingId as Id<'lootCrateSightings'>,
               })
-            : type === 'march' && aim.kind === 'building'
-              ? enterGarrison({
+            : type === 'march' && aim.kind === 'point'
+              ? marchTo({
                   ...seat,
                   origin: from,
                   troopIds: ids,
-                  buildingId: aim.buildingId as Id<'buildings'>,
+                  point: { lon: aim.lon, lat: aim.lat },
                 })
-              : /** **Une marche sur un avant-poste ne vise que le sien** (décision du 16/09) :
-                 *  `refusalOf` le garantit, et la colonne y devient garnison à l'arrivée. */
-                type === 'march' && aim.kind === 'outpost'
-                ? enterOutpost({
+              : type === 'march' && aim.kind === 'building'
+                ? enterGarrison({
                     ...seat,
                     origin: from,
                     troopIds: ids,
-                    outpostId: aim.outpostId as Id<'outposts'>,
+                    buildingId: aim.buildingId as Id<'buildings'>,
                   })
-                : type === 'raid' && aim.kind === 'outpost'
-                  ? raid({
+                : /** **Une marche sur un avant-poste ne vise que le sien** (décision du 16/09) :
+                   *  `refusalOf` le garantit, et la colonne y devient garnison à l'arrivée. */
+                  type === 'march' && aim.kind === 'outpost'
+                  ? enterOutpost({
                       ...seat,
                       origin: from,
                       troopIds: ids,
                       outpostId: aim.outpostId as Id<'outposts'>,
                     })
-                  : attack({
-                      ...seat,
-                      origin: from,
-                      troopIds: ids,
-                      target: wireTarget(aim),
-                    });
+                  : type === 'raid' && aim.kind === 'outpost'
+                    ? raid({
+                        ...seat,
+                        origin: from,
+                        troopIds: ids,
+                        outpostId: aim.outpostId as Id<'outposts'>,
+                      })
+                    : attack({
+                        ...seat,
+                        origin: from,
+                        troopIds: ids,
+                        target: wireTarget(aim),
+                      });
 
     order.then(
       ({ movementId, arrivesAt }) =>
@@ -261,6 +283,11 @@ export function MovementPreview({
       {'cargo' in preview && (
         <div className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
           {fr.loot.freeCapacity(Math.round(preview.cargo.free))}
+        </div>
+      )}
+      {'captureMinutes' in preview && (
+        <div className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
+          {fr.aim.capture(asDuration(preview.captureMinutes))}
         </div>
       )}
       {'presenceHours' in preview && (

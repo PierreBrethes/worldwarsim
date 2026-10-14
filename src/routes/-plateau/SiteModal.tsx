@@ -217,6 +217,7 @@ function Site({
           {fr.common.close}
         </button>
       </DragHandle>
+      <UnderCapture view={view} buildingId={building.id} />
 
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
@@ -392,6 +393,29 @@ const RECRUITED_NOTICE_MS = 8_000;
  * quelques pixels. Ici toute la feuille défile ; l'en-tête, les trois onglets et le plafond restent
  * collés. Un seul gabarit pour la caserne, le port et l'aérodrome : former, la file, la garnison.
  */
+/**
+ * **Le site se fait capturer** (14/10) : le tampon, et pourquoi — une infanterie adverse le tient
+ * et il change de main à l'heure dite si personne ne l'en chasse. Jamais qui : la vue ne le sert
+ * pas. Le remède est sur la carte, comme pour « hors réseau ».
+ */
+function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: string }) {
+  const capture = view.captures.find(
+    (candidate) =>
+      candidate.side === 'defender' &&
+      candidate.target.kind === 'building' &&
+      candidate.target.id === buildingId,
+  );
+  if (capture === undefined) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-(color:--ink)/18 px-4 py-2">
+      <Stamp label={fr.capture.underCapture} tone="critical" size="small" />
+      <span className="text-[12.5px] text-[var(--critical)]">
+        {fr.capture.underCaptureWhy(asClockTime(capture.completesAt))}
+      </span>
+    </div>
+  );
+}
+
 function NarrowSite({
   view,
   seat,
@@ -518,6 +542,7 @@ function NarrowSite({
             <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
           </div>
         )}
+        <UnderCapture view={view} buildingId={building.id} />
         <div role="tablist" className="grid h-[40px] grid-cols-3">
           {(['form', 'queue', 'garrison'] as const).map((id) => (
             <button

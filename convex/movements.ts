@@ -12,6 +12,8 @@ import {
   routeModeOf,
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
+import { captureDurationAt, captureRate } from '../src/domain/capture';
+import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { distanceKm } from '../src/domain/geo';
 import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
@@ -47,6 +49,7 @@ import {
 import { asPoint, movementsOf, pointOf, recognises, specializationServed } from './movement/forces';
 import {
   aimOf,
+  captureAimOf,
   columnOf,
   departureOf,
   march,
@@ -65,10 +68,12 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
+  CAPTURE_TARGET,
   CONTACT_FORCE,
   LON_LAT,
   MOVEMENT_ORIGIN,
@@ -493,6 +498,34 @@ export const plunder = mutation({
   },
 });
 
+/**
+ * **Capturer** (décision du 14/10) : un bâtiment adverse relevé, ou un avant-poste adverse. La
+ * colonne y marche comme à une attaque ; l'arrivée engage, puis l'infanterie debout capture
+ * (`captures.ts`). Le refus est celui de la rose (`captureOrderRefusalOf`).
+ */
+export const capture = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'attack',
+      origin,
+      troopIds,
+      aim: await captureAimOf(ctx, player, target),
+      capture: target,
+    });
+  },
+});
+
 /** Public S8 filing: the private sighting is the sole target authority exposed to the client. */
 export const collectLoot = mutation({
   args: {
@@ -665,6 +698,57 @@ export const previewPlunder = query({
   },
 });
 
+/** L'aperçu d'une capture : la route, l'heure, et la durée à pleine force que le serveur datera.
+ *  Il ne refuse rien — la rose n'a offert la branche que si `captureOrderRefusalOf` l'a permise. */
+export const previewCapture = query({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    target: CAPTURE_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (troops === null) return null;
+    const column = await columnOf(ctx, player._id, troops, departure);
+    const aimed = await captureAimOf(ctx, player, target);
+    const route = routeBetween(
+      departure.point,
+      aimed.point,
+      routeModeOf(column.roles),
+      landCostOf(column.roles),
+    );
+    if (route === null) return null;
+    const now = Date.now();
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
+      destinationName: aimed.name,
+      originName: departure.name,
+      route: routeFacts(route),
+      captureMinutes:
+        captureDurationAt(
+          modeOf(season.mode),
+          target.kind,
+          captureRate(
+            troops.map((troop) => ({
+              role: troop.role,
+              strength: troop.currentStrength,
+              nominalStrength: troop.nominalStrength,
+            })),
+          ),
+        ) / 60_000,
+    };
+  },
+});
+
 /** The estimate is frozen from the owned sighting. The true crate is deliberately never read. */
 export const previewLootCollection = query({
   args: {
@@ -762,6 +846,13 @@ export const arrive = internalMutation({
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    if (movement.capture !== undefined) {
+      await surveyAlongRoute(ctx, movement, now);
+      await arriveForCapture(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }

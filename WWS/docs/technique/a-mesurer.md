@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : df541e5 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : af2f66f -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-36 valeurs marquées dans `convex/` et `src/domain/`.
+37 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -18,34 +18,35 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 
 | Constante | Valeur | Où | Pourquoi elle attend |
 | --- | --- | --- | --- |
-| `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:292` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
-| `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:373` | every role; no season simulation models plunder cargo yet |
-| `GARRISON_DAMAGE_TAKEN` | `0.7` | `convex/constants.ts:607` | rapport pertes attaquant / défenseur par engagement sur une saison |
-| `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:630` | every value; no season simulation models detection |
-| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:661` | an assumed starting point; nothing measures how close is close enough on arrival |
-| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:675` | a rank in the ordering the design asks for, and nothing more |
-| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:690` | picked to read against a farm at level one, never measured |
-| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:703` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
-| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:713` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:714` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:723` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:724` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:737` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
-| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:745` | provisional lifetime; no season simulation models crate discovery or collection |
-| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:753` | provisional disclosure delay and search radius; no season simulation models them |
-| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:754` | provisional disclosure delay and search radius; no season simulation models them |
-| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:768` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:800` | shaped so the relay reads as a decision rather than a rounding |
-| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:825` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
-| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:854` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
-| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:867` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
-| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:881` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
-| `OBJECTIVE_ARCHETYPES` | `[ { key: 'abandonedStores', tier: 'easy', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 60 } }, { key: 'stalledConvoy', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 150, ammunition: 40 } }, { key: 'fuelDump', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 150, oil: 60 } }, { key: 'irregularArsenal', tier: 'hard', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'armor', tier: 1 }, ], depot: { alloy: 300, ammunition: 80 } }, ]` | `convex/constants.ts:942` | toute la table : par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_NEAR_KM` | `1_500` | `convex/constants.ts:1016` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_SPREAD_KM` | `300` | `convex/constants.ts:1017` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_HARD_MIN_KM` | `800` | `convex/constants.ts:1018` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1019` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1038` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
+| `OUTPOST_RAISE_SPEC` | `{ cost: { alloy: 65, coal: 20 }, minutes: 65 }` | `convex/constants.ts:293` | calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09) |
+| `CARRY_CAPACITY_BY_ROLE` | `{ infantry: 40, armor: 0, landTransport: 120, fighter: 0, bomber: 0, airTransport: 80, escort: 0, cargo: 240, carrier: 0 }` | `convex/constants.ts:374` | every role; no season simulation models plunder cargo yet |
+| `GARRISON_DAMAGE_TAKEN` | `0.7` | `convex/constants.ts:608` | rapport pertes attaquant / défenseur par engagement sur une saison |
+| `DETECTION_RANGE_KM` | `{ infantry: 60, armor: 60, landTransport: 40, fighter: 150, bomber: 100, airTransport: 80, escort: 120, cargo: 60, carrier: 200 }` | `convex/constants.ts:631` | every value; no season simulation models detection |
+| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:662` | an assumed starting point; nothing measures how close is close enough on arrival |
+| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:676` | a rank in the ordering the design asks for, and nothing more |
+| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:691` | picked to read against a farm at level one, never measured |
+| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:704` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
+| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:714` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:715` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:724` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:725` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `CAPTURE_MINUTES` | `{ mondiale: { building: 360, outpost: 360 }, blitz: { building: 3, outpost: 3 } } as const satisfies Record<SeasonMode, Record<'building' \| 'outpost', number>>` | `convex/constants.ts:734` | « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, jamais joués |
+| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:750` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
+| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:758` | provisional lifetime; no season simulation models crate discovery or collection |
+| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:766` | provisional disclosure delay and search radius; no season simulation models them |
+| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:767` | provisional disclosure delay and search radius; no season simulation models them |
+| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:781` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:813` | shaped so the relay reads as a decision rather than a rounding |
+| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:838` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
+| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:867` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:880` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
+| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:894` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
+| `OBJECTIVE_ARCHETYPES` | `[ { key: 'abandonedStores', tier: 'easy', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 60 } }, { key: 'stalledConvoy', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 150, ammunition: 40 } }, { key: 'fuelDump', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { alloy: 150, oil: 60 } }, { key: 'irregularArsenal', tier: 'hard', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'armor', tier: 1 }, ], depot: { alloy: 300, ammunition: 80 } }, ]` | `convex/constants.ts:955` | toute la table : par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_NEAR_KM` | `1_500` | `convex/constants.ts:1029` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_SPREAD_KM` | `300` | `convex/constants.ts:1030` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_HARD_MIN_KM` | `800` | `convex/constants.ts:1031` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1032` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1051` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:7` | before treating it as a campaign balance rule. |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:75` | a day ahead: one evening's glance covers the night. |

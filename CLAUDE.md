@@ -665,8 +665,36 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create` en tire l'horloge — `durationHours` n'y compte plus qu'à défaut de `mode`, pour les anciens appelants. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.capitalPoint`). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). **Pour l'instant une Blitz se joue comme une Mondiale** : ni économie, ni capture, ni refus hors théâtre.
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). **Pour l'instant une Blitz se joue comme une Mondiale**, capture comprise : ni économie, ni refus hors théâtre.
 
+
+**Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
+`src/domain/capture.ts`). « Capturer » est une branche de la rose sur un bâtiment adverse relevé
+ou un avant-poste adverse, refusée par `captureOrderRefusalOf` — la même fonction que
+`movements.capture` (`CAPTURE_NEEDS_INFANTRY`, `FRIENDLY_TARGET`, `HQ_NOT_CAPTURABLE` : le QG
+attend le lot de l'élimination). La colonne marche comme une attaque ; à l'arrivée une passe a lieu
+s'il reste des défenseurs, et si l'attaquant gagne avec de l'infanterie debout, **les troupes se
+posent au point du site** (pas de présence en mouvement comme le pillage : c'est ce qui laisse
+partir et laisse attaquer) et une ligne `captures` porte l'horloge — fait / instant / rythme,
+`progressAt` et `completesAt`. **Le rythme est la force de la meilleure infanterie présente**
+(`captureRate`, pas la somme), la plage de repos du défenseur ne compte pas en Mondiale, et les
+durées sont `CAPTURE_MINUTES` par mode (`modeOf(seasons.mode)`, `src/domain/season-mode.ts`, aligné sur le lot des modes). **Rien ne la remet à
+zéro** : elle se relit avec la détection (`reassessCaptures`, appelée au bout de
+`reassessDetection`) — plus d'infanterie au point ou site changé de main, elle s'arrête ;
+force changée, l'échéance se reprend du fait. Au bout, **événement de couleur** : régler, donner,
+rapporter. Un bâtiment perd un niveau en Mondiale, passe sans file ni garnison (`releaseBuilding`,
+extrait de la démolition), porte `capturedAt` et **colore sa région pour son capteur, sol national
+compris** (`occupations` de `heldRegions`, index `bySeasonCaptured`) ; il n'occupe aucun
+emplacement, et le raser redevient un événement de couleur. Un avant-poste passe avec son niveau
+et ses bâtiments ancrés, et l'infanterie du capteur y entre en garnison. `control.held` ne montre
+une occupation qu'à son tenant et à qui a perdu ce sol. Au front : l'anneau qui se remplit et le
+tampon « capture » sur l'étiquette du site (`CaptureGauge`), « fin vers » chez le capteur, « perdu
+vers » à l'encre d'alerte chez le défenseur, qui ne voit jamais qui capture ; la ligne en tête de
+« à faire maintenant », l'affiche, la modale du site ; le tampon « capturé » des deux côtés à la
+prise. **Chaque capture abîme** (K7) : repris par son ancien propriétaire, un bâtiment reperd un
+niveau, jamais sous 1. **Un avant-poste désactivé reste capturable**, immunité comprise (K8) :
+l'immunité protège d'un raid, pas d'une capture. Hors lot : QG, points stratégiques, Blitz neutre,
+vivres à sec.
 ## Schéma Convex
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
@@ -691,7 +719,7 @@ plus le dépôt :
 ## Vocabulaire imposé
 
 **mouvement** (pas convoi) · **passe de résolution** (pas tour de combat) · avant-poste **désactivé**
-ou **détruit** (jamais pris) · **journal d'événements** · **slot de mouvement**.
+ou **détruit**, ou **capturé** par l'infanterie (jamais pris) · **journal d'événements** · **slot de mouvement**.
 Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTEXT.md`.
 
 ## Ce qui reste
@@ -699,8 +727,8 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
 grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mouvement en carte a
 remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque
-encore au schéma de jeu : l'occupation et les revenus — le pillage, lui, se joue depuis le
-10/09. Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
+encore au schéma de jeu : les revenus — le pillage se joue depuis le 10/09, l'occupation
+depuis la capture (14/10). Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
 pas tranché.
 
 **Et un bâtiment ne produit que relié** (ADR 0020 §6, `src/domain/economy.ts` pour la règle —
@@ -774,7 +802,7 @@ passe au sol au point, et la dépêche `outpostDismantled` compte les mâts empo
 perdue s'annonce avant le clic : `outposts.soleHold` lit la **même** différence de deux
 `heldRegions` que la zone hachurée d'un point hors service (`soleHoldOf`, `convex/holding.ts`).
 
-**L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
+**L'avant-poste se conteste par le raid, et il se capture par l'infanterie** (capture, 14/10) : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
 désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
 qu'il disputait. **Elle ne l'efface plus pour autant, depuis le 15/09** : `control.held` sert à son
@@ -818,7 +846,7 @@ est `null` s'acquitte quelle que soit la région (`settlesDebt`, `src/domain/eco
 les deux bouts). `CAPITAL_REGION` survit pour ce qu'elle a toujours été — le seul point qu'on
 connaisse d'une nation qui n'a rien bâti : le repli d'une troupe sans adresse (`surveys.ts`,
 `movement/arrival.ts`, `movement/detection.ts`, lignes historiques seulement) et le **cadrage
-d'ouverture** du plateau d'un joueur sans QG (`me.capitalPoint`).
+d'ouverture** du plateau d'un joueur sans QG (`me.openingPoint`, la capitale hors Blitz).
 
 **Les emplacements suivent le niveau du site** (ADR 0020 §10, `convex/sites.ts`) : le sol
 national en porte `2 × niveau de QG`, un avant-poste en porte **son niveau**, et il n'y a plus

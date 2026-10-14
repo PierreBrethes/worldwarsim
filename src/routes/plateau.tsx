@@ -47,6 +47,7 @@ import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
+import { captureRate } from '@/domain/capture';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
@@ -120,6 +121,7 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import {
   MovementPreview,
   wireOrigin,
+  wireCaptureTarget,
   wireTarget,
   type OrderChoice,
   type Previewed,
@@ -875,6 +877,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           return;
         case 'aim':
         case 'plunder':
+        case 'capture':
         case 'collect': {
           const choice = choiceOf(action);
           setOrder({ ...choice, choices: [choice], x: at.x, y: at.y });
@@ -1812,6 +1815,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? 'skip'
       : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
   );
+  const capturePreview = useQuery(
+    api.movements.previewCapture,
+    dispatch === null || mission?.kind !== 'capture'
+      ? 'skip'
+      : { ...dispatch, target: wireCaptureTarget(mission.target) },
+  );
   const collectPreview = useQuery(
     api.movements.previewLootCollection,
     dispatch === null || mission?.kind !== 'collect'
@@ -1823,9 +1832,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? undefined
       : mission.kind === 'plunder'
         ? plunderPreview
-        : mission.kind === 'collect'
-          ? collectPreview
-          : marchPreview;
+        : mission.kind === 'capture'
+          ? capturePreview
+          : mission.kind === 'collect'
+            ? collectPreview
+            : marchPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -2591,6 +2602,13 @@ function choiceOf(action: OrderAction): OrderChoice {
         type: 'march',
         mission: { kind: 'plunder', buildingId: action.buildingId },
       };
+    case 'capture':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'attack',
+        mission: { kind: 'capture', target: action.target },
+      };
     case 'collect':
       return {
         ...said,
@@ -2613,10 +2631,11 @@ function armedColumn(
   station: MarchStation,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
-  const roles = troopIds.flatMap((troopId) => {
+  const troops = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-    return troop ? [troop.role] : [];
+    return troop ? [troop] : [];
   });
+  const roles = troops.map((troop) => troop.role);
   const departure =
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
@@ -2645,6 +2664,7 @@ function armedColumn(
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,
+      captureRate: captureRate(troops),
     },
   };
 }

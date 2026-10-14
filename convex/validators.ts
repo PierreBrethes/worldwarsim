@@ -216,7 +216,51 @@ const NOTICE_HEAD = { playerId: v.id('players'), at: v.number() };
  *  the troop comes home rather than dying for it (`troops.deliver`), and the dispatch says so. */
 const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.string() }), v.null());
 
+/**
+ * **Le site qu'une capture vise, tel que les deux camps le nomment** : un bâtiment par sa clé et
+ * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
+ * le voit pas, il voit un bloc s'il le relève.
+ */
+export const CAPTURE_SITE = v.union(
+  v.object({ kind: v.literal('building'), building: BUILDING_KEY, regionId: v.string() }),
+  v.object({ kind: v.literal('outpost'), hostCountry: v.string(), level: v.number() }),
+);
+
+export const CAPTURE_TARGET = v.union(
+  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
+  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+);
+
+const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
+
 export const NOTICE = v.union(
+  /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
+   *  chez le capteur. L'heure est celle de la perte si rien ne change. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureStarted'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+    completesAt: v.number(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureSucceeded'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+  }),
+  /** Plus aucune infanterie du capteur sur place, ou le site n'est plus à qui l'on visait. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureCancelled'),
+    side: CAPTURE_SIDE,
+    site: CAPTURE_SITE,
+    point: LON_LAT,
+    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre. */
+    reason: v.optional(v.union(v.literal('left'), v.literal('gone'))),
+  }),
   /** L'entrée que le monde a reprise avant son tour, remboursée entière. `BUILD_COST_KEY` parce
    *  qu'une élévation d'avant-poste se rembourse par la même porte (précision du 15/09). */
   v.object({

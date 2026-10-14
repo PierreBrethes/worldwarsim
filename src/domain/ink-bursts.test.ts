@@ -23,6 +23,17 @@ const dispatch = (
 });
 
 describe('inkBursts', () => {
+  it('stamps « capturé » where a site changed hands, on both sides', () => {
+    const at = (kind: JournalDispatch['kind']) => ({
+      ...dispatch(20, kind),
+      place: { lon: 30, lat: 57 },
+    });
+    expect(inkBursts([at('captured'), at('siteLost')], 10, [])).toEqual([
+      { kind: 'captured', at: [30, 57], words: { word: 'capturé', hour: hour(20) } },
+      { kind: 'captured', at: [30, 57], words: { word: 'capturé', hour: hour(20) } },
+    ]);
+  });
+
   it('stamps a combat at its pass, once it is newer than what the map has seen', () => {
     const journal = [dispatch(20, 'assault', combat), dispatch(5, 'attacked', combat)];
     expect(inkBursts(journal, 10, [])).toEqual([

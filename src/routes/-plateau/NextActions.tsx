@@ -266,7 +266,11 @@ function Row({
       onClick={onPick}
       className="flex w-full cursor-pointer items-baseline gap-2 border-b border-(color:--ink)/18 px-[13px] py-[8px] text-left last:border-b-0 hover:bg-(--ink)/7"
     >
-      <span className="min-w-0 flex-1 text-[13px] leading-[1.25] text-[var(--ink)]">
+      <span
+        className={`min-w-0 flex-1 text-[13px] leading-[1.25] ${
+          action.kind === 'siteUnderCapture' ? 'text-[var(--critical)]' : 'text-[var(--ink)]'
+        }`}
+      >
         {action.label}
       </span>
       <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">

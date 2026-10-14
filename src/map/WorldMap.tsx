@@ -259,7 +259,12 @@ export type PlacingBuilding = {
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 /** The branches that open the order card (`actOnCompass`) rather than act at once. */
-const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set(['aim', 'plunder', 'collect']);
+const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set([
+  'aim',
+  'plunder',
+  'capture',
+  'collect',
+]);
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };

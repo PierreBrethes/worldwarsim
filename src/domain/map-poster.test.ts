@@ -47,7 +47,7 @@ const me = {
 } as unknown as PlayerView['me'];
 
 const view = (override: Partial<PlayerView> = {}): PlayerView =>
-  ({ arcs: [], camps: [], loadedAt: LOADED_AT, me, ...override }) as PlayerView;
+  ({ arcs: [], camps: [], captures: [], loadedAt: LOADED_AT, me, ...override }) as PlayerView;
 
 const building = (
   id: string,
@@ -80,6 +80,59 @@ const posterFor = (v: PlayerView, markers: ReadonlyArray<MapMarker>, id: string)
 };
 
 const texts = (poster: Poster | null) => JSON.stringify(poster);
+
+const capture = (side: 'capturer' | 'defender', id: string): PlayerView['captures'][number] => ({
+  id: `c-${side}`,
+  side,
+  target: { kind: 'building', id },
+  site: { kind: 'building', building: 'foundry', regionId: 'r-plain' },
+  regionName: 'Marne',
+  point: [0, 0],
+  clock: { progress: 0.5, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+  completesAt: LOADED_AT + 1_800_000,
+  stoppedAt: null,
+});
+
+describe('a capture on the poster', () => {
+  it('tells the defender how far it went and when the site is lost', () => {
+    const poster = posterFor(
+      view({ captures: [capture('defender', 'b-foundry')] }),
+      [building('b-foundry', 'foundry', 'r-plain')],
+      'm-b-foundry',
+    );
+    expect(poster?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'capture',
+      chip: `50 % · perdu vers ${asClockTime(LOADED_AT + 1_800_000)}`,
+      tone: 'cut',
+    });
+  });
+
+  it('tells the capturer on the pile that holds the site', () => {
+    const pile: MapMarker = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'Marne',
+      plate: null,
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      ink: '#2f4f78',
+    };
+    const held = {
+      ...pile,
+      station: { kind: 'point', lonLat: [0, 0], country: 'FRA', afloat: false, coastal: false },
+    } as MapMarker;
+    const troops = [{ ...me.troops[0]!, stationedAt: (held as { station: unknown }).station }];
+    const poster = posterFor(
+      view({ captures: [capture('capturer', 'b-x')], me: { ...me, troops } as PlayerView['me'] }),
+      [held],
+      'pile',
+    );
+    expect(poster?.lines).toContainEqual(expect.objectContaining({ label: 'capture', tone: 'ok' }));
+  });
+});
 
 describe('posterOf', () => {
   it('reads my posted pile off the troops at its address, titled by its place', () => {

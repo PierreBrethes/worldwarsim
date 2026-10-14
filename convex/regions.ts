@@ -237,20 +237,26 @@ export function foundationOwed(
  */
 export const foundationOwedBy = (
   player: { readonly nation: string | null; readonly settledFoundation?: ReadonlyArray<Held> },
-  buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }>,
+  buildings: ReadonlyArray<SocleBuilding>,
 ): ReadonlyArray<FoundationDebt> =>
   foundationOwed(player.nation, [...heldPairs(buildings), ...(player.settledFoundation ?? [])]);
 
 type Held = { readonly key: BuildingKey; readonly deposit: DepositKey | null };
 
-/** Ce qu'un bâtiment acquitte : sa clé et le gisement sous lui, jamais sa région. */
-export const heldPairs = (
-  buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }>,
-): ReadonlyArray<Held> =>
-  buildings.map((building) => ({
-    key: building.key,
-    deposit: depositOfRegion(building.regionId),
-  }));
+/** Ce qu'un bâtiment acquitte : sa clé et le gisement sous lui, jamais sa région. **Un bâtiment
+ *  capturé n'acquitte rien** (14/10) : le socle est ce qu'on pose, pas ce qu'on prend. */
+export const heldPairs = (buildings: ReadonlyArray<SocleBuilding>): ReadonlyArray<Held> =>
+  buildings.flatMap((building) =>
+    building.capturedAt === undefined
+      ? [{ key: building.key, deposit: depositOfRegion(building.regionId) }]
+      : [],
+  );
+
+type SocleBuilding = {
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly capturedAt?: number;
+};
 
 /**
  * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges
