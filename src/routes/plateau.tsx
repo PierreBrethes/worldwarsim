@@ -2040,7 +2040,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <ReplayLaunch.Provider value={launchReplay}>
           <div ref={board} className="relative min-w-0 flex-1">
-            {blitzTheatre !== null && view.me.hqLevel === 0 && (
+            {blitzTheatre !== null && view.me.hqLevel === 0 && !view.me.defeated && (
               <div
                 role="status"
                 className="eyebrow-dark pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center"
