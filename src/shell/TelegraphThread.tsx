@@ -39,14 +39,12 @@ export function TelegraphThread({
   messages,
   to,
   seat,
-  lobby = false,
   height,
   autoFocus = false,
 }: {
   messages: ReadonlyArray<TelegraphMessage>;
   to?: Id<'players'>;
   seat: Seat;
-  lobby?: boolean;
   height: number | 'fill';
   autoFocus?: boolean;
 }) {
@@ -80,12 +78,11 @@ export function TelegraphThread({
       ...seat,
       text,
       ...(to === undefined ? {} : { to }),
-      ...(lobby ? { lobby } : {}),
     }).catch((error: unknown) => {
       setDraft(text);
       handleError(error, setRefusal);
     });
-  }, [draft, post, seat, to, lobby]);
+  }, [draft, post, seat, to]);
 
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {

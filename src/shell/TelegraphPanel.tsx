@@ -32,7 +32,6 @@ export function TelegraphPanel({
   telegraph,
   tabs,
   seat,
-  lobby = false,
   height,
   autoFocus = false,
   inset = '',
@@ -40,7 +39,6 @@ export function TelegraphPanel({
   telegraph: Telegraph;
   tabs: ReturnType<typeof useTelegraphTabs>;
   seat: Seat;
-  lobby?: boolean;
   height: number | 'fill';
   autoFocus?: boolean;
   /** Marges du fil seul : les onglets restent à pleine largeur du cadre. */
@@ -78,7 +76,6 @@ export function TelegraphPanel({
           messages={channel === undefined ? telegraph.general : channel.messages}
           {...(channel === undefined ? {} : { to: channel.with })}
           seat={seat}
-          lobby={lobby}
           height={height}
           autoFocus={autoFocus}
         />

@@ -7,6 +7,7 @@ import {
   TELEGRAPH_DEPTH,
 } from '../src/domain/telegraph';
 import { ERASE_BATCH } from './messages';
+import type { Seat } from '../src/data/session';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
@@ -56,9 +57,9 @@ describe('le télégraphe', () => {
   it('s’écrit dès le salon — on se chambre en attendant le lancement', async () => {
     const t = boot();
     const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
-    await t.mutation(api.messages.post, { ...seat, text: 'alors, on se décide ?', lobby: true });
+    await t.mutation(api.messages.post, { ...seat, text: 'alors, on se décide ?' });
 
-    const seen = await t.query(api.messages.recent, { ...guest, lobby: true });
+    const seen = await t.query(api.messages.recent, { ...guest });
     expect(seen.messages.map((message) => message.text)).toEqual(['alors, on se décide ?']);
     expect(seen.messages[0]!.nickname).toBe('Pierre');
     expect(seen.messages[0]!.mine).toBe(false);
@@ -295,66 +296,41 @@ describe('le salon et la partie', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  const texts = async (
-    t: ReturnType<typeof boot>,
-    seat: Parameters<typeof seatDoc>[1],
-    lobby: boolean,
-  ) => {
-    const seen = await t.query(api.messages.recent, { ...seat, lobby });
+  const texts = async (t: ReturnType<typeof boot>, seat: Parameters<typeof seatDoc>[1]) => {
+    const seen = await t.query(api.messages.recent, seat);
     return {
       general: seen.messages.map((m) => m.text),
       direct: seen.direct.flatMap((c) => c.messages.map((m) => m.text)),
     };
   };
 
-  it('tient deux fils étanches, privés compris', async () => {
-    const t = boot();
-    const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
-    const guestId = (await seatDoc(t, guest))._id;
-    await t.mutation(api.messages.post, { ...seat, text: 'au salon', lobby: true });
-    vi.setSystemTime(MIDDAY.getTime() + MESSAGE_MIN_INTERVAL_MS);
-    await t.mutation(api.messages.post, { ...seat, text: 'psst salon', to: guestId, lobby: true });
-    vi.setSystemTime(MIDDAY.getTime() + 2 * MESSAGE_MIN_INTERVAL_MS);
-    await t.mutation(api.messages.post, { ...seat, text: 'à la partie' });
-    vi.setSystemTime(MIDDAY.getTime() + 3 * MESSAGE_MIN_INTERVAL_MS);
-    await t.mutation(api.messages.post, { ...seat, text: 'psst partie', to: guestId });
-
-    expect(await texts(t, guest, true)).toEqual({ general: ['au salon'], direct: ['psst salon'] });
-    expect(await texts(t, guest, false)).toEqual({
-      general: ['à la partie'],
-      direct: ['psst partie'],
-    });
-  });
-
-  it('refuse d’écrire au salon une fois la saison lancée', async () => {
-    const t = boot();
-    const { seat } = await launched(t, 'Pierre', 'Léa');
-    await expect(
-      t.mutation(api.messages.post, { ...seat, text: 'trop tard', lobby: true }),
-    ).rejects.toThrow('SEASON_ALREADY_LAUNCHED');
-  });
-
-  it('efface le salon au lancement, et pas la partie', async () => {
-    const t = boot();
-    const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
-    await t.mutation(api.messages.post, { ...seat, text: 'au salon', lobby: true });
-    await t.run(async (ctx) => {
-      await ctx.db.insert('messages', {
-        seasonId: (await ctx.db.query('seasons').first())!._id,
-        playerId: (await ctx.db.query('players').first())!._id,
-        text: 'ancienne partie',
-        at: MIDDAY.getTime(),
-      });
-    });
+  async function launchNow(t: ReturnType<typeof boot>, seat: Seat, guest: Seat) {
     await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
     await t.mutation(api.players.declareReady, { ...seat, ready: true });
     await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
     await t.mutation(api.players.declareReady, { ...guest, ready: true });
     await t.mutation(api.seasons.launch, seat);
     await flush(t);
+  }
 
-    expect(await texts(t, seat, true)).toEqual({ general: [], direct: [] });
-    expect(await texts(t, seat, false)).toEqual({ general: ['ancienne partie'], direct: [] });
+  it('range sans paramètre un message d’avant le lancement au salon, effacé au lancement', async () => {
+    const t = boot();
+    const { seat, guest } = await lobby(t, 'Pierre', 'Léa');
+    const guestId = (await seatDoc(t, guest))._id;
+    await t.mutation(api.messages.post, { ...seat, text: 'au salon' });
+    vi.setSystemTime(MIDDAY.getTime() + MESSAGE_MIN_INTERVAL_MS);
+    await t.mutation(api.messages.post, { ...seat, text: 'psst salon', to: guestId });
+    expect(await texts(t, guest)).toEqual({ general: ['au salon'], direct: ['psst salon'] });
+    const rows = await t.run(async (ctx) => ctx.db.query('messages').collect());
+    expect(rows.every((row) => row.lobby === true)).toBe(true);
+
+    await launchNow(t, seat, guest);
+    expect(await texts(t, guest)).toEqual({ general: [], direct: [] });
+    expect(await t.run(async (ctx) => ctx.db.query('messages').collect())).toEqual([]);
+
+    vi.setSystemTime(MIDDAY.getTime() + 2 * MESSAGE_MIN_INTERVAL_MS);
+    await t.mutation(api.messages.post, { ...seat, text: 'à la partie' });
+    expect(await texts(t, guest)).toEqual({ general: ['à la partie'], direct: [] });
   });
 
   it('efface la partie à la conclusion, par lots', async () => {
@@ -380,6 +356,6 @@ describe('le salon et la partie', () => {
     await flush(t);
     const left = await t.run(async (ctx) => ctx.db.query('messages').collect());
     expect(left).toEqual([]);
-    expect(await texts(t, seat, false)).toEqual({ general: [], direct: [] });
+    expect(await texts(t, seat)).toEqual({ general: [], direct: [] });
   });
 });

@@ -25,18 +25,20 @@ function requireOpenChannel(season: Doc<'seasons'>): void {
   if (season.status === 'concluded') fail('SEASON_CONCLUDED');
 }
 
+/** **Le fil se déduit de la saison, jamais du client** : un onglet périmé ne peut pas écrire
+ *  dans le mauvais fil. Avant le lancement c'est le salon, après c'est la partie. */
+const isLobby = (season: Doc<'seasons'>) => season.status === 'lobby';
+
 export const post = mutation({
   args: {
     token: v.string(),
     seasonId: v.id('seasons'),
     text: v.string(),
     to: v.optional(v.id('players')),
-    lobby: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, text, to, lobby }) => {
+  handler: async (ctx, { token, seasonId, text, to }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireOpenChannel(season);
-    if (lobby === true && season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
 
     const seats = await seatsOf(ctx, season._id);
     if (to !== undefined && (to === player._id || !seats.some((seat) => seat._id === to))) {
@@ -71,7 +73,7 @@ export const post = mutation({
       text: trimmed,
       at: now,
       ...(to === undefined ? {} : { to }),
-      ...(lobby === true ? { lobby } : {}),
+      ...(isLobby(season) ? { lobby: true } : {}),
     });
     for (const seat of seats) {
       if (seat._id === player._id || (to !== undefined && seat._id !== to)) continue;
@@ -96,10 +98,10 @@ export const post = mutation({
  * simply carries `null`, which is what the lobby shows.
  */
 export const recent = query({
-  args: { token: v.string(), seasonId: v.id('seasons'), lobby: v.optional(v.boolean()) },
-  handler: async (ctx, { token, seasonId, lobby }) => {
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
-    const thread = lobby === true ? true : undefined;
+    const thread = isLobby(season) ? true : undefined;
     const seats = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))

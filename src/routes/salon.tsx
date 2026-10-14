@@ -479,7 +479,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
  * ici.
  */
 function LobbyTelegraph({ seat }: { seat: Seat }) {
-  const telegraph = useTelegraph(seat, { lobby: true });
+  const telegraph = useTelegraph(seat);
   const tabs = useTelegraphTabs(telegraph, seat);
   useReadOnUnmount(tabs.leave);
 
@@ -489,7 +489,7 @@ function LobbyTelegraph({ seat }: { seat: Seat }) {
         <span className="eyebrow">{fr.telegraph.header}</span>
         <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.lobbyChannel}</span>
       </div>
-      <TelegraphPanel telegraph={telegraph} tabs={tabs} seat={seat} lobby height={220} />
+      <TelegraphPanel telegraph={telegraph} tabs={tabs} seat={seat} height={220} />
     </section>
   );
 }

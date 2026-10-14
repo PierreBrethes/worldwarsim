@@ -42,8 +42,8 @@ const QUIET: Telegraph = { general: [], generalUnread: 0, direct: [], unread: 0 
  * qu'un afficheur. Au salon il n'y a ni rail ni badge, mais le même abonnement et le même
  * tic-tac — d'où la remontée hors de `-plateau/`.
  */
-export function useTelegraph(seat: Seat, { lobby = false } = {}): Telegraph {
-  const served = useQuery(api.messages.recent, lobby ? { ...seat, lobby } : seat);
+export function useTelegraph(seat: Seat): Telegraph {
+  const served = useQuery(api.messages.recent, seat);
   const telegraph = useMemo<Telegraph>(() => {
     if (served === undefined) return QUIET;
     const generalUnread = unreadCount(served.messages, served.readAt);

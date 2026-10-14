@@ -284,9 +284,10 @@ participants seulement, mêmes bornes **par canal**, un message par seconde tous
 lecture datée par canal dans `readMarks.telegraphDirectReadAt`). Le fil est partout la vue en
 bandes groupées par émetteur. **Et le salon a son propre fil** (14/10/2026) : `messages.lobby`
 (`true` au salon, absent en partie et sur les lignes d'avant) cloisonne les deux, privés compris —
-`recent` et `post` prennent `lobby`, `markRead` n'en a pas besoin. Le salon pose **le même widget**
+le **serveur** déduit le fil de la saison (au salon : le salon ; lancée : la partie), `recent` et
+`post` n'ont aucun paramètre pour cela — un onglet périmé ne peut pas écrire dans le mauvais fil. Le salon pose **le même widget**
 que la fenêtre (`src/shell/TelegraphPanel.tsx` : onglets, fil groupé), seulement tant que la saison
-est au salon ; écrire au salon une fois lancée est refusé (`SEASON_ALREADY_LAUNCHED`). Pas
+est au salon. Pas
 d'archive : `messages.erase` vide le salon au lancement et la partie à la conclusion, par lots de
 `ERASE_BATCH` qui se replanifient — les dates de lecture n'ont rien à suivre, aucun message ne les
 dépasse. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
