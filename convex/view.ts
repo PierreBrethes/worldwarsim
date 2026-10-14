@@ -941,7 +941,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * **Les bâtiments neutres de la Blitz, publics comme les objectifs** : on sait où aller et ce
      * qu'il y a à prendre, et il n'y a personne à relever — ils ne sont pas gardés (B8).
      */
-    neutralSites: blitz ? await neutralSitesOf(ctx, season._id) : [],
+    neutralSites: blitz ? await neutralSitesOf(ctx, season._id, player._id) : [],
     /**
      * **Les captures qui me regardent**, des deux côtés (décision du 14/10) : celles que je mène,
      * arrêtées comprises le temps d'une capture entière — c'est ce que « à faire maintenant »
@@ -1390,25 +1390,33 @@ async function fundsServed(ctx: QueryCtx, player: Doc<'players'>, now: number) {
   return { stock: fundsAt(funds, now), perMinute: funds.perMinute };
 }
 
-async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>) {
-  const neutral = (
+/**
+ * **Les neutres de départ, figés** : un neutre pris par un autre reste neutre chez moi tant que je
+ * n'ai pas relevé sa région tenue (`regionSightings.ownerId`) ; le capteur, lui, le lit à lui.
+ */
+async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<'players'>) {
+  const starting = (
     await ctx.db
-      .query('players')
+      .query('buildings')
       .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
       .collect()
-  ).find((seat) => seat.irregular === true);
-  if (neutral === undefined) return [];
-  return (await playerBuildings(ctx, neutral._id)).flatMap((building) => {
+  ).filter((building) => building.startedNeutral === true && building.playerId !== playerId);
+  const served = [];
+  for (const building of starting) {
+    const survey = await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerRegion', (q) =>
+        q.eq('playerId', playerId).eq('regionId', building.regionId),
+      )
+      .unique();
     const point = pointOfBuilding(building);
-    return point === null
-      ? []
-      : [
-          {
-            id: building._id,
-            key: canonicalBuildingKey(building.key),
-            regionId: building.regionId,
-            point,
-          },
-        ];
-  });
+    if ((survey?.ownerId ?? null) !== null || point === null) continue;
+    served.push({
+      id: building._id,
+      key: canonicalBuildingKey(building.key),
+      regionId: building.regionId,
+      point,
+    });
+  }
+  return served;
 }

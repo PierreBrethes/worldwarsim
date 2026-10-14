@@ -328,6 +328,9 @@ export default defineSchema({
      *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
      *  aucun emplacement. Absent : bâti par celui qui le tient. */
     capturedAt: v.optional(v.number()),
+    /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
+     *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
+    startedNeutral: v.optional(v.literal(true)),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

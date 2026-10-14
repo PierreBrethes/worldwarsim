@@ -6,6 +6,7 @@ import { BLITZ } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
 import { routeKmFrom } from './routes';
+import { surveyFromPoint } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
 import { joinSeat, seatIn, signIn, TEST_SEASON_SEED, type Seat } from './seats.fixture';
@@ -204,7 +205,7 @@ describe('les fonds de la Blitz', () => {
 
   it('suivent une ville neutre capturée, réglés à l’heure de la capture', async () => {
     const t = boot();
-    const { seat } = await blitzLaunched(t);
+    const { seat, guest } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
     const neutral = await neutralOf(t, seat.seasonId);
     const city = (await buildingsOf(t, neutral._id)).find((building) => building.key === 'city')!;
@@ -255,6 +256,19 @@ describe('les fonds de la Blitz', () => {
       stock: BLITZ.startingFunds + 4 * hq + town,
       perMinute: hq + town,
     });
+
+    /** **Le brouillard tient** : l'autre la voit neutre tant qu'il ne l'a pas relevée. */
+    const neutralFor = async (who: Seat) =>
+      (await t.query(api.view.playerView, who)).neutralSites.map((site) => site.id);
+    expect(await neutralFor(seat)).not.toContain(city._id);
+    expect(await neutralFor(guest)).toContain(city._id);
+    const other = await playerOf(t, guest);
+    /** L'ordre part sur la foi de ce qu'il voit : un refus lui apprendrait la prise. */
+    await expect(
+      t.run((ctx) => captureAimOf(ctx, other, { kind: 'building', buildingId: city._id })),
+    ).resolves.toMatchObject({ target: { kind: 'building', buildingId: city._id } });
+    await t.run((ctx) => surveyFromPoint(ctx, other._id, pointOfBuilding(city)!, Date.now()));
+    expect(await neutralFor(guest)).not.toContain(city._id);
   });
 });
 

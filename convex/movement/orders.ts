@@ -258,7 +258,9 @@ async function neutralBuilding(
 ): Promise<Doc<'buildings'> | null> {
   const building = await ctx.db.get(buildingId);
   if (building === null || building.seasonId !== player.seasonId) return null;
-  return (await ctx.db.get(building.playerId))?.irregular === true ? building : null;
+  /** **Neutre de départ, même pris depuis** : la liste se sert figée (`neutralSitesOf`), et
+   *  refuser l'ordre apprendrait la prise ; l'arrivée lit la vérité. */
+  return building.startedNeutral === true && building.playerId !== player._id ? building : null;
 }
 
 /** Arrival revalidation is internal state handling: it never returns a reason or a target view. */

@@ -254,7 +254,7 @@ export const commit = internalMutation({
         ...(site.point === null ? {} : { point: site.point }),
         /** **En Blitz rien n'est bâti** : ce que tient un joueur colore sa région comme une
          *  capture (`occupationsOf`), le QG de départ compris. Un neutre ne colore rien. */
-        ...(site.owner === null ? {} : { capturedAt: now }),
+        ...(site.owner === null ? { startedNeutral: true as const } : { capturedAt: now }),
       });
       if (site.owner === null || site.key !== 'hq') continue;
       for (let rank = 0; rank < 2; rank += 1) {
