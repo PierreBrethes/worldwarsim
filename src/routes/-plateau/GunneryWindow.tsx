@@ -90,7 +90,7 @@ export function GunneryWindow({
             {fr.gunnery.lead}{' '}
             <HelpMark>
               {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, DRY_AMMUNITION_FACTOR)}{' '}
-              {fr.gunnery.contactRange(Math.round(contactKm(theatre)))}
+              {fr.gunnery.contactRange(contactKm(theatre))}
             </HelpMark>
           </div>
         </div>
@@ -251,7 +251,7 @@ export function GunnerySheet({
           <span className="eyebrow">{fr.production.domains[DOMAIN_BY_ROLE[role]]}</span>
           <span className="ml-auto flex items-center gap-[6px] font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
             <StatGlyph stat="range" onHover={setRangeHover} />
-            {fr.gunnery.detectionRange(Math.round(detectionRangeOf([role], theatre)))}
+            {fr.gunnery.detectionRange(detectionRangeOf([role], theatre))}
           </span>
         </div>
 

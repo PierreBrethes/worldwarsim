@@ -55,14 +55,16 @@ export function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[num
  */
 export type ReplayFire = { readonly battery: readonly [number, number] } | 'unseen' | null;
 
+const batteryOf = (fire: ReplayFire): readonly [number, number] | null =>
+  fire !== null && fire !== 'unseen' ? fire.battery : null;
+
 /** The half width of what both sides take, to frame it and to clear the board around it — the
  *  battery's own place included, where its pile would otherwise stand twice. */
 export function replayReach(view: ReplayView, fire: ReplayFire = null): number {
   const troops = Math.max(view.theirs.troops, ...view.mine.map((entry) => entry.troops), 1);
   const sides = GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
-  return fire !== null && fire !== 'unseen'
-    ? Math.max(sides, Math.hypot(...fire.battery) + COLUMN)
-    : sides;
+  const battery = batteryOf(fire);
+  return battery === null ? sides : Math.max(sides, Math.hypot(...battery) + COLUMN);
 }
 
 const FIRING: Plume = {
@@ -235,10 +237,7 @@ export class ReplayScene {
   ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
     const spots = {
-      mine:
-        fire !== null && fire !== 'unseen'
-          ? replayLayout(mine, 'mine').map(() => fire.battery)
-          : replayLayout(mine, 'mine'),
+      mine: replayLayout(mine, 'mine').map((spot) => batteryOf(fire) ?? spot),
       theirs: replayLayout(pieces.length - mine, 'theirs'),
     };
     this.pieces = pieces.map((piece, k) =>
@@ -297,9 +296,7 @@ export class ReplayScene {
     } else {
       // Its front, +z, towards the enemy on the right — or, a battery, towards its target.
       holder.rotation.y =
-        this.fire !== null && this.fire !== 'unseen'
-          ? Math.atan2(GAP - home[0], -home[1])
-          : Math.PI / 2;
+        batteryOf(this.fire) === null ? Math.PI / 2 : Math.atan2(GAP - home[0], -home[1]);
       marker.position.set(0, 0.25, 0.3);
       const infantry = piece.role === 'infantry';
       const figurine = figurineFor(
@@ -407,7 +404,7 @@ export class ReplayScene {
     // Aimed once every holder stands where this frame puts it.
     const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
     const volley = volleyOf(frame);
-    const battery = this.fire !== null && this.fire !== 'unseen';
+    const battery = batteryOf(this.fire) !== null;
     this.pieces.forEach((piece, k) => {
       piece.shot.scale.z = 1;
       if (this.fire === 'unseen') {

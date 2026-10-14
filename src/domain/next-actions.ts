@@ -4,7 +4,7 @@ import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
 import { BLITZ_SHARE } from '../../convex/constants';
-import { theatreById, theatreKm } from './theatres';
+import { playedTheatre, theatreKm } from './theatres';
 import { rolesFormedBy } from './blitz';
 import type { BuildingKey, ResourceKey } from './ids';
 import { distanceKm, type LonLat } from './geo';
@@ -311,7 +311,7 @@ function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
     return point === undefined ? [] : [point];
   });
   const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
-  const theatre = theatreById(view.theatre ?? '');
+  const theatre = playedTheatre(view);
   const nearKm = theatre === null ? 0 : theatreKm(theatre, BLITZ_SHARE.nearCity);
   const near = view.neutralSites
     .filter((site) => site.key === 'city' && reach(site.point) <= nearKm)

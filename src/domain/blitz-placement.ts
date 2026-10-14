@@ -214,8 +214,8 @@ function aroundHeadquarters(
 /**
  * **Les QG sur un cercle posé sur la terre du théâtre** (A2) : chaque tablée centre un cercle de
  * `hqRadiusKm` sur une région tirée au hasard, le tourne au hasard, et prend pour chaque place la
- * région la plus proche **d'où l'on marche**. Le cercle d'avant tournait autour du centre de la boîte, qui tombait en mer au
- * Pacifique. Une tablée dont les écarts à vol d'oiseau ne sont pas réguliers est jetée.
+ * région la plus proche **d'où l'on marche** : un cercle autour du centre de la boîte tombe en
+ * mer au Pacifique. Une tablée dont les écarts à vol d'oiseau ne sont pas réguliers est jetée.
  */
 function headquartersTries(
   seats: ReadonlyArray<string>,

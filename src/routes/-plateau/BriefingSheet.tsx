@@ -67,8 +67,8 @@ export function BriefingSheet({
                 celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
             {fr.briefing
               .columns(
-                Math.round(detectionRangeOf(['infantry'], theatre)),
-                Math.round(contactKm(theatre)),
+                detectionRangeOf(['infantry'], theatre),
+                contactKm(theatre),
                 outpostReachKm(1),
                 {
                   finger,

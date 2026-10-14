@@ -89,8 +89,8 @@ export const bombardRefusalDetails = (order: Bombardment) => {
   const reach = order.theatre === null ? null : fireReachOf(order.theatre);
   return {
     km: Math.round(distanceKm(order.from, order.to)),
-    minimum: Math.round(reach?.deadZoneKm ?? 0),
-    maximum: Math.round(reach?.rangeKm ?? 0),
+    minimum: reach?.deadZoneKm ?? 0,
+    maximum: reach?.rangeKm ?? 0,
     seconds: Math.max(0, Math.ceil((order.emplacedAt - order.now) / 1000)),
   };
 };

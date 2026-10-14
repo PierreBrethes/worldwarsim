@@ -68,6 +68,7 @@ export function spanKm(theatre: Theatre): number {
 /**
  * **Every Blitz distance is a share of its theatre** (A2), as its pace is: contact, sight, fire,
  * the starting map. One rule, so the Pacific plays the Europe evening on a map four times wider;
- * the shares are cut so Europe keeps the kilometres it had.
+ * the shares are cut so Europe keeps the kilometres it had. Whole kilometres: the texts print them.
  */
-export const theatreKm = (theatre: Theatre, share: number): number => share * spanKm(theatre);
+export const theatreKm = (theatre: Theatre, share: number): number =>
+  Math.round(share * spanKm(theatre));

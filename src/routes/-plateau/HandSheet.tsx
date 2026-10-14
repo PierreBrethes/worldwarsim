@@ -112,11 +112,9 @@ export function HandSheet({
       )}
       <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
         {fr.hand.scouting(
-          Math.round(
-            detectionRangeOf(
-              inHand.map((troop) => troop.role),
-              playedTheatre(view),
-            ),
+          detectionRangeOf(
+            inHand.map((troop) => troop.role),
+            playedTheatre(view),
           ),
         )}
       </p>

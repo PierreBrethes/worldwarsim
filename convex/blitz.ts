@@ -142,7 +142,7 @@ export const place = internalAction({
   },
 });
 
-export function drawMap(
+function drawMap(
   theatre: Theatre,
   seats: ReadonlyArray<string>,
   seed: number,

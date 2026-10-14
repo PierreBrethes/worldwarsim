@@ -330,6 +330,7 @@ describe('a Blitz', () => {
         ...over,
       } as Partial<PlayerView['me']>),
       mode: 'blitz',
+      theatre: 'europe',
       neutralSites,
     }) as PlayerView;
   const hq = {

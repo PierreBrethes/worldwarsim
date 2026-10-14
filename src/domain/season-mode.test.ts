@@ -15,10 +15,10 @@ describe('season mode', () => {
 
   /** Fixed by the placement tests (`convex/blitz.test.ts`, T1): six seeds each, 14/10. */
   it('seats a Blitz as its theatre holds the table', () => {
-    expect(seatRangeOf('blitz', 'europe')).toEqual({ min: 2, max: 3 });
-    expect(seatRangeOf('blitz', 'mediterranean')).toEqual({ min: 2, max: 3 });
-    expect(seatRangeOf('blitz', 'americas')).toEqual({ min: 2, max: 3 });
-    expect(seatRangeOf('blitz', 'pacific')).toEqual({ min: 2, max: 2 });
+    expect(seatRangeOf('blitz', 'europe')).toEqual({ min: 2, max: 4 });
+    expect(seatRangeOf('blitz', 'mediterranean')).toEqual({ min: 2, max: 4 });
+    expect(seatRangeOf('blitz', 'americas')).toEqual({ min: 2, max: 4 });
+    expect(seatRangeOf('blitz', 'pacific')).toEqual({ min: 2, max: 3 });
   });
 
   it('asks a Blitz for a known theatre and refuses one on a Mondiale', () => {
