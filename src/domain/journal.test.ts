@@ -117,6 +117,17 @@ describe('the journal', () => {
     expect(fired!.text).toContain('sur URSS : infanterie ×1 (50 hommes)');
   });
 
+  it('tells a reduction under bombardment without naming the gunner', () => {
+    const struck: CombatReport = {
+      ...battle(NOON),
+      cause: 'bombardment',
+      side: 'defender',
+      reduced: { by: null, whom: 'ussr' },
+    };
+    const said = journalDispatches([struck], null, [], []).find((d) => d.kind === 'reduction');
+    expect(said!.text).toBe('URSS est réduit, sous un bombardement');
+  });
+
   it('merges the two streams by hour, newest first', () => {
     const dispatches = journalDispatches(
       [battle(NOON - 2 * HOUR), battle(NOON)],

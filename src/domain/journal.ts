@@ -96,7 +96,7 @@ export function journalDispatches(
             severity: 'critical' as const,
             kind: 'reduction' as const,
             text: fr.victory.dispatch(
-              nationName(report.reduced.by),
+              report.reduced.by === null ? null : nationName(report.reduced.by),
               nationName(report.reduced.whom),
             ),
           },

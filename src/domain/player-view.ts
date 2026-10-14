@@ -356,7 +356,7 @@ export type CombatReport = {
    * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
    * simplified Domination is public, which is where it departs from design sheet 05.
    */
-  readonly reduced: { readonly by: string; readonly whom: string } | null;
+  readonly reduced: { readonly by: string | null; readonly whom: string } | null;
 };
 
 /**

@@ -812,7 +812,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          */
         reduced: engagement.reducedDefender
           ? {
-              by: nationOf.get(engagement.attackerId) ?? '?',
+              /** Sauf à la cible d'un bombardement, qui ne sait pas d'où vient le coup (B20). */
+              by:
+                engagement.cause === 'bombardment' && side === 'defender'
+                  ? null
+                  : (nationOf.get(engagement.attackerId) ?? '?'),
               whom: nationOf.get(engagement.defenderId) ?? '?',
             }
           : null,

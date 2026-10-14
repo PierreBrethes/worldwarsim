@@ -1394,7 +1394,8 @@ export const fr = {
   victory: {
     kicker: 'domination — victoire de test',
     scaffold: 'condition unique et publique, en attendant la part de carte',
-    dispatch: (by: string, whom: string) => `${by} a réduit ${whom}`,
+    dispatch: (by: string | null, whom: string) =>
+      by === null ? `${whom} est réduit, sous un bombardement` : `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
     reducedMark: 'réduit',
