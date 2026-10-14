@@ -250,6 +250,10 @@ export const fr = {
     buildingSite: (building: string, region: string) => `${building} de ${region}`,
     outpostSite: (level: number, country: string) =>
       `l’avant-poste de niveau ${level} — ${country}`,
+    /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
+    stamp: 'capture',
+    endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
+    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
   },
 
   loot: {
@@ -1305,6 +1309,8 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    /** Un site qui change de main, chez ses deux tenants (14/10). */
+    captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */

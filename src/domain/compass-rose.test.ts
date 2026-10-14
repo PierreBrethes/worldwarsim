@@ -549,7 +549,7 @@ describe('in aim', () => {
       view,
       column,
     );
-    expect(hq).toMatchObject({ actions: [], refusal: fr.errors.HQ_NOT_CAPTURABLE({}) });
+    expect(hq).toMatchObject({ actions: [], refusal: fr.errors.HQ_NOT_CAPTURABLE() });
   });
 
   it('offers collection only on the selected private sighting and with free capacity', () => {

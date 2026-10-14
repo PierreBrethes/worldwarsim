@@ -853,3 +853,43 @@
 .label-anchor.label-anchor--dressed .label-block .label-lines * {
   pointer-events: auto;
 }
+
+/* La capture (14/10) : l'anneau qui se remplit, le tampon, l'heure. Chez le défenseur, l'encre
+   d'alerte — c'est un site qu'il est en train de perdre. */
+.capture-gauge {
+  --capture-ink: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--capture-ink);
+}
+
+.capture-gauge--defender {
+  --capture-ink: var(--critical);
+}
+
+.capture-ring {
+  width: 22px;
+  height: 22px;
+  transform: rotate(-90deg);
+}
+
+.capture-ring circle {
+  fill: none;
+  stroke: var(--capture-ink);
+  stroke-width: 3;
+}
+
+.capture-ring-track {
+  opacity: 0.2;
+}
+
+.capture-stamp {
+  padding: 0 3px;
+  border: 1.5px solid var(--capture-ink);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
+}
