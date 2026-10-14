@@ -151,13 +151,7 @@ export async function schedulePursuit(
   const contact =
     quarry === null
       ? null
-      : contactAt(
-          marchingForce(movement),
-          quarry.force,
-          reachKm,
-          now,
-          Math.max(now, step),
-        );
+      : contactAt(marchingForce(movement), quarry.force, reachKm, now, Math.max(now, step));
   /** Une seconde au moins : une colonne déjà au bout de sa route ne se réveille pas en boucle. */
   const checkAt = Math.max(now + 1000, contact ?? step);
   await ctx.db.patch(movement._id, { pursuit: { ...movement.pursuit, checkAt } });

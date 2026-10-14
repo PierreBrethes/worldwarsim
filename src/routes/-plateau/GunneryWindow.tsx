@@ -166,7 +166,11 @@ export function GunneryWindow({
                           className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
                           <div className="hud-fold">
-                            <GunnerySheet profile={row.attacker} workshop={workshop} theatre={theatre} />
+                            <GunnerySheet
+                              profile={row.attacker}
+                              workshop={workshop}
+                              theatre={theatre}
+                            />
                           </div>
                         </td>
                       </tr>

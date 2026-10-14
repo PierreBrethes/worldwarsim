@@ -32,15 +32,11 @@ describe('a bombardment', () => {
   });
 
   it('cannot reach beyond its range', () => {
-    expect(bombardRefusalOf({ ...ready, to: east(reach.rangeKm + 5) })).toBe(
-      'OUT_OF_RANGE',
-    );
+    expect(bombardRefusalOf({ ...ready, to: east(reach.rangeKm + 5) })).toBe('OUT_OF_RANGE');
   });
 
   it('cannot fire into its dead zone', () => {
-    expect(bombardRefusalOf({ ...ready, to: east(reach.deadZoneKm - 5) })).toBe(
-      'TOO_CLOSE',
-    );
+    expect(bombardRefusalOf({ ...ready, to: east(reach.deadZoneKm - 5) })).toBe('TOO_CLOSE');
   });
 
   it('reaches as far on its theatre: what Europe calls too far, the Pacific fires at (A2)', () => {

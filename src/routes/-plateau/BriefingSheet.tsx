@@ -71,10 +71,11 @@ export function BriefingSheet({
                 Math.round(contactKm(theatre)),
                 outpostReachKm(1),
                 {
-                finger,
-                phone,
-                mapping,
-              })
+                  finger,
+                  phone,
+                  mapping,
+                },
+              )
               .map((column) => (
                 <Column key={column.title} title={column.title} lines={column.lines} />
               ))}

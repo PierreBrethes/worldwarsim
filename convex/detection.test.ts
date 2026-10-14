@@ -50,7 +50,9 @@ const northOf = (point: LonLat, km: number): LonLat => [point[0], point[1] + km 
 
 describe('role detection ranges', () => {
   it('gives a stack its best role without adding ranges', () => {
-    expect(detectionRangeOf(['infantry', 'fighter', 'cargo'], null)).toBe(DETECTION_RANGE_KM.fighter);
+    expect(detectionRangeOf(['infantry', 'fighter', 'cargo'], null)).toBe(
+      DETECTION_RANGE_KM.fighter,
+    );
     expect(detectionRangeOf([], null)).toBe(0);
   });
 });

@@ -379,7 +379,12 @@ describe('what a column surveys where it lands', () => {
     const outpost = await building(t, guest, 'warehouse', undefined, PSKOV);
     await t.run(async (ctx) => {
       const me = await seatIn(ctx, seat);
-      await fileSurvey(ctx, me._id, [{ point: regionFacts(PSKOV)!.point, radiusKm: 1 }], Date.now());
+      await fileSurvey(
+        ctx,
+        me._id,
+        [{ point: regionFacts(PSKOV)!.point, radiusKm: 1 }],
+        Date.now(),
+      );
     });
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toHaveLength(1);
 
