@@ -972,10 +972,13 @@ export default defineSchema({
     at: v.number(),
     /** Private message: the only other reader. Absent on the general channel. */
     to: v.optional(v.id('players')),
+    /** The lobby's thread, apart from the season's: `true` there, absent in war and on rows
+     *  written before the split. Erased at the launch, as the war thread is at the conclusion. */
+    lobby: v.optional(v.boolean()),
   })
     .index('bySeason', ['seasonId'])
-    .index('byChannel', ['seasonId', 'to', 'at'])
-    .index('byPair', ['seasonId', 'to', 'playerId', 'at'])
+    .index('byChannel', ['seasonId', 'lobby', 'to', 'at'])
+    .index('byPair', ['seasonId', 'lobby', 'to', 'playerId', 'at'])
     .index('byPlayer', ['playerId']),
 
   /**

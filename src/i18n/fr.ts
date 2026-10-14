@@ -2655,6 +2655,7 @@ export const fr = {
   telegraph: {
     header: 'télégraphe',
     channel: 'canal général',
+    lobbyChannel: 'canal du salon — effacé au lancement',
     general: 'Général',
     privateChannel: (nickname: string) => `conversation privée avec ${nickname}`,
     empty: 'La ligne est muette — personne n’a encore télégraphié.',

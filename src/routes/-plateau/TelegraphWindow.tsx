@@ -1,10 +1,7 @@
-import { useMutation } from 'convex/react';
-import { useCallback, useState } from 'react';
-import { api } from '../../../convex/_generated/api';
-import type { Id } from '../../../convex/_generated/dataModel';
+import { useCallback } from 'react';
 import { fr } from '@/i18n/fr';
 import type { Telegraph } from '@/data/telegraph';
-import { TelegraphThread } from '@/shell/TelegraphThread';
+import { TelegraphPanel, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
@@ -24,26 +21,14 @@ export function TelegraphWindow({
 }: WindowProps & { telegraph: Telegraph; seat: Seat }) {
   const sized = useWindowSized();
   const narrow = useNarrowScreen();
-  const markRead = useMutation(api.messages.markRead);
-  const [active, setActive] = useState<Id<'players'> | null>(null);
-  const channel = telegraph.direct.find((candidate) => candidate.with === active);
+  const tabs = useTelegraphTabs(telegraph, seat);
+  const { channel, leave } = tabs;
   const title =
     channel === undefined ? fr.telegraph.channel : fr.telegraph.privateChannel(channel.nickname);
-
-  // Each channel is stamped read when left, by another tab or by closing the window.
-  const leave = useCallback(
-    () => void markRead(active === null ? seat : { ...seat, with: active }).catch(() => undefined),
-    [markRead, seat, active],
-  );
   const close = useCallback(() => {
     leave();
     onClose();
   }, [leave, onClose]);
-  const open = (next: Id<'players'> | null) => {
-    if (next === active) return;
-    leave();
-    setActive(next);
-  };
 
   return (
     <FloatingWindow name="telegraph" onClose={close} {...windowProps} width={460}>
@@ -85,78 +70,15 @@ export function TelegraphWindow({
           </DragHandle>
         )}
 
-        {telegraph.direct.length > 0 && (
-          <div
-            role="tablist"
-            className="flex shrink-0 overflow-x-auto border-b border-[var(--ink)] text-[10px] tracking-[.14em] uppercase"
-          >
-            <Tab
-              label={fr.telegraph.general}
-              unread={telegraph.generalUnread}
-              selected={active === null}
-              onSelect={() => open(null)}
-            />
-            {telegraph.direct.map((other) => (
-              <Tab
-                key={other.with}
-                label={other.nickname}
-                ink={other.ink}
-                unread={other.unread}
-                selected={active === other.with}
-                onSelect={() => open(other.with)}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className={`flex min-h-0 flex-1 flex-col ${narrow ? '' : 'px-4 py-2'}`}>
-          <TelegraphThread
-            key={active ?? 'general'}
-            messages={channel === undefined ? telegraph.general : channel.messages}
-            {...(channel === undefined ? {} : { to: channel.with })}
-            seat={seat}
-            height={sized ? 'fill' : 420}
-            autoFocus
-          />
-        </div>
+        <TelegraphPanel
+          telegraph={telegraph}
+          tabs={tabs}
+          seat={seat}
+          height={sized ? 'fill' : 420}
+          autoFocus
+          inset={narrow ? '' : 'px-4 py-2'}
+        />
       </div>
     </FloatingWindow>
-  );
-}
-
-function Tab({
-  label,
-  ink,
-  unread,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  ink?: string;
-  unread: number;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={selected}
-      onClick={onSelect}
-      className={`flex shrink-0 cursor-pointer items-center gap-[6px] border-r border-(color:--ink)/30 px-3 py-[7px] font-semibold ${
-        selected ? 'bg-[var(--ink)] text-[var(--paper)]' : 'hover:bg-(--ink)/10'
-      }`}
-      style={selected || ink === undefined ? undefined : { color: ink }}
-    >
-      {label}
-      {!selected && unread > 0 && (
-        <span
-          aria-label={fr.rail.telegraphUnread(unread)}
-          className="min-w-[16px] bg-[var(--critical)] px-1 text-center text-[9px] text-[var(--paper)]"
-        >
-          {unread}
-        </span>
-      )}
-    </button>
   );
 }
