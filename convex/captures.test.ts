@@ -224,7 +224,7 @@ describe('capturing a building', () => {
 
     const guestPlayer = await playerOf(t, guest);
     expect((await t.run((ctx) => ctx.db.get(barracks)))!.playerId).toBe(guestPlayer._id);
-    expect(await noticesOf(t, guest, 'captureCancelled')).toHaveLength(1);
+    expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([{ reason: 'left' }]);
   });
 
   it('is not cancelled once due, even if the infantry leaves before the rendezvous runs', async () => {
@@ -246,6 +246,27 @@ describe('capturing a building', () => {
     await reassess(t, seat.seasonId);
     expect(await capturesOf(t)).toMatchObject([{ completesAt: due!.completesAt }]);
     expect((await capturesOf(t))[0]!.stoppedAt).toBeUndefined();
+  });
+
+  it('tells only the capturer when the site goes, and leaves him nothing to relaunch', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await t.run((ctx) => ctx.db.delete(barracks));
+    await reassess(t, seat.seasonId);
+
+    expect(await capturesOf(t)).toEqual([]);
+    expect(await noticesOf(t, seat, 'captureCancelled')).toMatchObject([{ reason: 'gone' }]);
+    expect(await noticesOf(t, guest, 'captureCancelled')).toEqual([]);
   });
 
   it('slows the rest when the infantry loses strength, without starting over', async () => {

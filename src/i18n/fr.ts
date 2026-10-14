@@ -1514,6 +1514,8 @@ export const fr = {
       captureAbandoned: (site: string) =>
         `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
       captureLifted: (site: string) => `La capture de ${site} est levée.`,
+      captureVoid: (site: string) =>
+        `Capture de ${site} sans objet : le site n’est plus à celui qu’on visait.`,
       productionCut: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
       productionRestored: (sites: number, country: string) =>

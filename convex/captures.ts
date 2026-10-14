@@ -128,7 +128,7 @@ async function notifyBoth(
   notice:
     | { kind: 'captureStarted'; completesAt: number }
     | { kind: 'captureSucceeded' }
-    | { kind: 'captureCancelled' },
+    | { kind: 'captureCancelled'; reason: 'left' | 'gone' },
 ): Promise<void> {
   for (const [playerId, side] of [
     [capture.playerId, 'capturer'],
@@ -305,8 +305,12 @@ async function reassessOne(
   if (capture.completesAt <= now) return;
   const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
   const troops = capturersOf(byPoint, capture);
-  if (site === null || site.playerId !== capture.defenderId || troops.length === 0) {
-    await stop(ctx, capture, now);
+  if (site === null || site.playerId !== capture.defenderId) {
+    await stop(ctx, capture, now, 'gone');
+    return;
+  }
+  if (troops.length === 0) {
+    await stop(ctx, capture, now, 'left');
     return;
   }
   const rate = rateOf(troops);
@@ -317,9 +321,33 @@ async function reassessOne(
   await schedule(ctx, capture._id, due);
 }
 
-async function stop(ctx: MutationCtx, capture: Capture, now: number): Promise<void> {
+/**
+ * **Deux fins, deux lecteurs.** L'infanterie est partie ou morte (`left`) : les deux camps
+ * l'apprennent, et la ligne reste au capteur pour qu'il relance. Le site n'est plus à viser —
+ * rasé, ou pris par un autre (`gone`) : seul le capteur l'apprend, le défenseur sait déjà ce
+ * qui est arrivé à son site, et il n'y a rien à relancer.
+ */
+async function stop(
+  ctx: MutationCtx,
+  capture: Capture,
+  now: number,
+  reason: 'left' | 'gone',
+): Promise<void> {
+  if (reason === 'gone') {
+    await ctx.db.delete(capture._id);
+    await ctx.db.insert('notices', {
+      playerId: capture.playerId,
+      at: now,
+      kind: 'captureCancelled',
+      side: 'capturer',
+      site: capture.site,
+      point: capture.point,
+      reason,
+    });
+    return;
+  }
   await ctx.db.patch(capture._id, { stoppedAt: now });
-  await notifyBoth(ctx, capture, now, { kind: 'captureCancelled' });
+  await notifyBoth(ctx, capture, now, { kind: 'captureCancelled', reason });
 }
 
 export async function reassessCaptures(
@@ -359,7 +387,7 @@ export const complete = internalMutation({
     const byPoint = await infantryByPoint(ctx, capture.seasonId);
     const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
     if (site === null || site.playerId !== capture.defenderId) {
-      await stop(ctx, capture, now);
+      await stop(ctx, capture, now, 'gone');
       return;
     }
     const loser = (await ctx.db.get(site.playerId))!;

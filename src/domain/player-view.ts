@@ -875,7 +875,7 @@ type NoticeBody =
     } & (
       | { readonly kind: 'captureStarted'; readonly completesAt: number }
       | { readonly kind: 'captureSucceeded' }
-      | { readonly kind: 'captureCancelled' }
+      | { readonly kind: 'captureCancelled'; readonly reason?: 'left' | 'gone' }
     ));
 
 /**

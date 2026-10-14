@@ -352,7 +352,11 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'captureCancelled',
-        text: defending ? said.captureLifted(site) : said.captureAbandoned(site),
+        text: defending
+          ? said.captureLifted(site)
+          : notice.reason === 'gone'
+            ? said.captureVoid(site)
+            : said.captureAbandoned(site),
       };
     }
     case 'productionRestored':
