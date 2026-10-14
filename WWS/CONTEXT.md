@@ -82,6 +82,8 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 > et l'agent dormant nommaient une seconde façon de voir : la détection suit désormais le rôle des
 > troupes et rien d'autre (ADR 0021). Ils ne s'emploient plus, et **un terme du glossaire qui ne
 > désigne rien coûte plus qu'il ne rapporte** — c'est ce qu'on a appris avec le leurre.
+> *Le 14/10/2026, l'occupation est revenue sous un autre nom : la **capture** d'un bâtiment
+> colore sa région, sol national compris. Dire « capture », jamais « occupation ».*
 
 > **Retiré du vocabulaire le 29/08/2026 : le leurre.** Il était « un mouvement à zéro unité, un
 > slot, indiscernable d'un vrai ». Conçu par la fiche 04, codé, puis retiré sans avoir jamais été
