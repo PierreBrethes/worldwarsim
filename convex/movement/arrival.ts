@@ -14,6 +14,7 @@ import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
+import { firesIndirect } from '../../src/domain/indirect-fire';
 import { buildingAt, playerBuildings } from '../buildingReads';
 import {
   cargoTotal,
@@ -103,7 +104,22 @@ export async function forgetMovement(
       },
     });
   }
+  if (movement !== null) await settleBatteries(ctx, movement.troopIds, now);
   await ctx.db.delete(movementId);
+}
+
+/** **Une pièce se met en batterie à l'arrêt** (B20) : la fin du mouvement qui la portait date
+ *  son immobilité, quelle que soit la façon dont il s'achève. */
+async function settleBatteries(
+  ctx: MutationCtx,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+  now: number,
+): Promise<void> {
+  for (const troopId of troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop !== null && firesIndirect(troop.role))
+      await ctx.db.patch(troopId, { settledAt: now });
+  }
 }
 
 async function homewardCargoOf(

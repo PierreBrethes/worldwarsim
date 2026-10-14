@@ -70,6 +70,7 @@ import { resolveLootCollectionArrivals, startLootCollectionMission } from './loo
 import { restHold } from './movement/rest';
 import { pursue as pursueStep, quarryOf } from './movement/pursuit';
 import { blitzTheatreOf } from './movement/theatre';
+import { bombard as bombardFrom } from './movement/bombard';
 import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
@@ -457,6 +458,24 @@ export const attack = mutation({
       aim: await aimOf(ctx, player._id, target),
       ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
     });
+  },
+});
+
+/** **Bombarder** (B20) : l'artillerie tire sur une unité en vue, sur-le-champ, sans mouvement. */
+export const bombard = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    troopId: v.id('troops'),
+    target: v.union(
+      v.object({ kind: v.literal('camp'), campId: v.id('campSightings') }),
+      v.object({ kind: v.literal('track'), movementId: v.id('movements') }),
+    ),
+  },
+  handler: async (ctx, { token, seasonId, troopId, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    return bombardFrom(ctx, player, troopId, target);
   },
 });
 

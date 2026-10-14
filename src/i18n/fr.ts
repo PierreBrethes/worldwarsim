@@ -1297,7 +1297,7 @@ export const fr = {
   combat: {
     dispatch: ({
       where,
-      intercepted,
+      cause,
       attacking,
       won,
       mine,
@@ -1306,7 +1306,7 @@ export const fr = {
       shock = false,
     }: {
       where: string;
-      intercepted: boolean;
+      cause: 'arrival' | 'interception' | 'bombardment';
       attacking: boolean;
       won: boolean;
       mine: { troops: number; lost: number; routed: number; destroyed: number };
@@ -1314,13 +1314,22 @@ export const fr = {
       outpostDisabled: boolean;
       shock?: boolean;
     }) => {
-      const opening = intercepted
-        ? attacking
-          ? `interception ${where}`
-          : `colonne interceptée ${where}`
-        : attacking
-          ? `engagement ${where}`
-          : `attaque reçue ${where}`;
+      /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
+      if (cause === 'bombardment') {
+        const lost = attacking ? theirs.lost : mine.lost;
+        const fell = (attacking ? theirs : mine).destroyed > 0;
+        return attacking
+          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
+      }
+      const opening =
+        cause === 'interception'
+          ? attacking
+            ? `interception ${where}`
+            : `colonne interceptée ${where}`
+          : attacking
+            ? `engagement ${where}`
+            : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
@@ -1916,14 +1925,22 @@ export const fr = {
    */
   dispatchSheet: {
     kicker: (time: string) => `dépêche · ${time}`,
-    title: (attacking: boolean, intercepted: boolean, where: string) =>
-      intercepted
+    title: (
+      attacking: boolean,
+      cause: 'arrival' | 'interception' | 'bombardment',
+      where: string,
+    ) =>
+      cause === 'bombardment'
         ? attacking
-          ? `Interception — ${where}`
-          : `Colonne interceptée — ${where}`
-        : attacking
-          ? `Engagement — ${where}`
-          : `Attaque subie — ${where}`,
+          ? `Bombardement — ${where}`
+          : `Bombardés — ${where}`
+        : cause === 'interception'
+          ? attacking
+            ? `Interception — ${where}`
+            : `Colonne interceptée — ${where}`
+          : attacking
+            ? `Engagement — ${where}`
+            : `Attaque subie — ${where}`,
     engaged: 'engagées',
     engagedValue: (mine: number, theirs: number) => `${mine} contre ${theirs}`,
     losses: 'nos pertes',

@@ -103,17 +103,19 @@ export async function resolveContact(
     disabledUntil,
     at,
     mode = 'initiative',
+    firedFrom,
   }: {
     seasonId: Id<'seasons'>;
     attacker: Engaged;
     defender: Engaged;
-    cause: 'arrival' | 'interception';
+    cause: 'arrival' | 'interception' | 'bombardment';
     point: { lon: number; lat: number };
     hostCountry: string;
     outpostId: Id<'outposts'> | null;
     disabledUntil: number | null;
     at: number;
     mode?: PassMode;
+    firedFrom?: { lon: number; lat: number };
   },
 ): Promise<Resolution> {
   /**
@@ -223,6 +225,7 @@ export async function resolveContact(
     disabledUntil,
     reducedDefender,
     ...(mode === 'shock' ? { shock: true } : {}),
+    ...(firedFrom === undefined ? {} : { firedFrom }),
     troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {

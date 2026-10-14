@@ -247,6 +247,8 @@ export type TroopView = {
   readonly supplied: boolean;
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
+  /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
+  readonly emplacedAt?: number;
   /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
   readonly mending: boolean;
 };
@@ -322,7 +324,10 @@ export const NOTICES_SERVED = 200;
 export type CombatReport = {
   readonly id: string;
   readonly at: number;
-  readonly cause: 'arrival' | 'interception';
+  readonly cause: 'arrival' | 'interception' | 'bombardment';
+  /** **D'où ma batterie a tiré** (B20) : servi à l'attaquant seul — la cible ne sait pas d'où
+   *  le coup est parti. */
+  readonly firedFrom?: { readonly lon: number; readonly lat: number };
   readonly side: 'attacker' | 'defender';
   readonly won: boolean;
   readonly hostCountry: string;

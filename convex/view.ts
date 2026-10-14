@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { fail } from './errors';
+import { emplacedAt, firesIndirect } from '../src/domain/indirect-fire';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
@@ -653,6 +654,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
           ? { reloadUntil: troop.reloadUntil }
           : {}),
+        ...(firesIndirect(troop.role) && emplacedAt(troop.settledAt ?? troop._creationTime) > now
+          ? { emplacedAt: emplacedAt(troop.settledAt ?? troop._creationTime) }
+          : {}),
         mending: mending.has(troop._id),
       })),
       stationedCargo: stationedCargo.map((group) => ({
@@ -736,6 +740,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         id: engagement._id,
         at: engagement.at,
         cause: engagement.cause,
+        ...(side === 'attacker' && engagement.firedFrom !== undefined
+          ? { firedFrom: engagement.firedFrom }
+          : {}),
         side,
         won: engagement.winner === side,
         hostCountry: engagement.hostCountry,
