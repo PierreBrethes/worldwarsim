@@ -1,3 +1,5 @@
+import { withinTheatre } from './blitz';
+import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal, type CaptureTarget } from './capture';
 import { produces } from './economy';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
@@ -116,7 +118,21 @@ export type MovementAim =
    * building (`aimOf`), so nothing here has to ask. The key travels because the rule reads it
    * (`GARRISON_KEYS_BY_ROLE`), and the client holds it off the mast it clicked.
    */
-  | { readonly kind: 'building'; readonly buildingId: string; readonly key: BuildingKey };
+  | { readonly kind: 'building'; readonly buildingId: string; readonly key: BuildingKey }
+  /**
+   * **Une colonne adverse en vue**, visée en Blitz seulement (B18) : l'attaquant la poursuit et
+   * frappe au contact. Le relevé du fil répond — sa position à l'instant de l'ordre —, jamais la
+   * colonne vraie ; ailleurs qu'en Blitz il n'y a rien à poursuivre.
+   */
+  | {
+      readonly kind: 'track';
+      readonly sightingId: string;
+      readonly lon: number;
+      readonly lat: number;
+      readonly hostCountry: string;
+      readonly onLand: boolean;
+      readonly coastal: boolean;
+    };
 
 /**
  * The column as the rule reads it: what it carries, and what its owner already holds. Plain
@@ -158,6 +174,14 @@ export type Column = {
    * infanterie. Absent, la pleine force — ce que la rose annonçait avant d'avoir les troupes.
    */
   readonly captureRate?: number;
+  /** **Une Blitz** (lot 5) : absent, la Mondiale, où rien de ceci ne se lit. */
+  readonly blitz?: {
+    readonly theatre: Theatre;
+    /** La troupe a frappé il y a moins que son rechargement : elle bouge, elle n'attaque pas. */
+    readonly reloading: boolean;
+    /** Mes bâtiments où se tient déjà une de mes troupes — une seule unité par bâtiment. */
+    readonly occupiedBuildingIds: ReadonlySet<string>;
+  };
 };
 
 export type OrderRefusal =
@@ -190,7 +214,12 @@ export type OrderRefusal =
    *  neutre en réduirait la garnison sans rien pouvoir rapporter. C'est le même mot que
    *  l'expédition de pillage refuse (`PlunderRefusal`), parce que c'est la même raison. */
   | 'INFANTRY_REQUIRED'
-  | 'NOT_ORDERABLE';
+  | 'NOT_ORDERABLE'
+  | 'ONE_UNIT_ONLY'
+  | 'OUTSIDE_THEATRE'
+  | 'UNIT_TARGET_ONLY'
+  | 'RELOADING'
+  | 'BUILDING_OCCUPIED';
 
 export type PlunderAim = {
   readonly kind: 'building';
@@ -318,6 +347,8 @@ export function refusalOf(
      * which role may end there.
      */
     case 'march':
+      if (aim.kind === 'building' && column.blitz?.occupiedBuildingIds.has(aim.buildingId))
+        return 'BUILDING_OCCUPIED';
       if (aim.kind === 'building') {
         return barredFrom(column.roles, aim.key) === null
           ? closedGate(aim, column)
@@ -340,6 +371,12 @@ export function refusalOf(
      */
     case 'attack':
       if (mine(aim, column)) return 'FRIENDLY_TARGET';
+      /** **En Blitz, l'attaque vise une unité, pas un point** (B18). */
+      if (column.blitz !== undefined) {
+        if (aim.kind !== 'camp' && aim.kind !== 'track') return 'UNIT_TARGET_ONLY';
+        if (column.blitz.reloading) return 'RELOADING';
+        return closedGate(aim, column);
+      }
       if (aim.kind === 'objective' && !column.roles.includes('infantry'))
         return 'INFANTRY_REQUIRED';
       return nothingToAttack(aim) ?? closedGate(aim, column);
@@ -430,6 +467,8 @@ const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
     case 'outpost':
     case 'objective':
       return null;
+    case 'track':
+      return 'NOTHING_TO_ATTACK';
     case 'point':
     case 'region':
       return aim.surveyed ? null : 'NOTHING_TO_ATTACK';
@@ -463,6 +502,12 @@ const mine = (aim: MovementAim, column: Column): boolean =>
  * already gates recruitment, and there is no second one.
  */
 const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
+  if (column.blitz !== undefined) {
+    /** **Une troupe part seule** (B15), et nulle part hors de la boîte du théâtre (B1). */
+    if (column.roles.length > 1) return 'ONE_UNIT_ONLY';
+    const at = pointOfAim(aim);
+    if (at !== null && !withinTheatre(column.blitz.theatre, at)) return 'OUTSIDE_THEATRE';
+  }
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (domains.has('air') && !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)) {
     return 'NO_AIRFIELD_AT_DEPARTURE';
@@ -547,12 +592,17 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
  * modes de mer le lire du même mot.
  */
 const atSea = (aim: MovementAim): boolean =>
-  (aim.kind === 'point' || aim.kind === 'camp') && !aim.onLand;
+  (aim.kind === 'point' || aim.kind === 'camp' || aim.kind === 'track') && !aim.onLand;
+
+/** Ce qu'une visée porte de coordonnées ; un mât, une région et un point d'appui n'en portent pas. */
+const pointOfAim = (aim: MovementAim): readonly [number, number] | null =>
+  'lon' in aim ? [aim.lon, aim.lat] : null;
 
 const shore = (aim: MovementAim): boolean => {
   switch (aim.kind) {
     case 'point':
     case 'camp':
+    case 'track':
     case 'outpost':
       return aim.coastal;
     case 'building':

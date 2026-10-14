@@ -613,6 +613,11 @@ export const fr = {
      *  sentence before the click, the server answers it after. */
     NOT_A_GARRISON_FOR: (d) => `${aRoleName(d.role)} n’entre pas dans ${aBuildingName(d.building)}`,
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
+    ONE_UNIT_ONLY: () => 'en Blitz, une unité part seule',
+    OUTSIDE_THEATRE: () => 'hors du théâtre : la partie se joue dans son cadre',
+    UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
+    RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
+    BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',

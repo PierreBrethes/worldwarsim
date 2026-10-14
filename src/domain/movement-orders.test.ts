@@ -19,6 +19,7 @@ import {
 } from './movement-orders';
 import { COST_BY_MEDIUM } from './routing';
 import { BOARDING_RADIUS_KM } from './troops';
+import { theatreById } from './theatres';
 
 const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Column => ({
   roles,
@@ -801,5 +802,62 @@ describe('boarding a transport', () => {
     expect(board({ aboard: ['escort'] })).toBe('NO_TRANSPORT_HERE');
     expect(board({ passengers: ['fighter'] })).toBe('LAND_TROOPS_ONLY');
     expect(board({ passengers: [] })).toBe('EMPTY_MOVEMENT');
+  });
+});
+
+describe('a Blitz order (lot 5)', () => {
+  const europe = theatreById('europe')!;
+  const blitz = (
+    roles: ReadonlyArray<UnitRole>,
+    held: Partial<NonNullable<Column['blitz']>> = {},
+  ) =>
+    column(roles, {
+      blitz: { theatre: europe, reloading: false, occupiedBuildingIds: new Set(), ...held },
+    });
+  const paris: MovementAim = { ...point, lon: 2.35, lat: 48.85 };
+  const newYork: MovementAim = { ...point, lon: -74, lat: 40.7 };
+  const track: MovementAim = {
+    kind: 'track',
+    sightingId: 's1',
+    lon: 4,
+    lat: 50,
+    hostCountry: 'BEL',
+    onLand: true,
+    coastal: false,
+  };
+  const enemyCamp: MovementAim = { ...camp, lon: 4, lat: 50 };
+
+  it('sends one troop and never two', () => {
+    expect(refusalOf('march', paris, blitz(['infantry', 'infantry']))).toBe('ONE_UNIT_ONLY');
+    expect(refusalOf('march', paris, blitz(['infantry']))).toBeNull();
+  });
+
+  it('aims nowhere outside its theatre', () => {
+    expect(refusalOf('march', newYork, blitz(['infantry']))).toBe('OUTSIDE_THEATRE');
+    expect(refusalOf('march', newYork, column(['infantry']))).toBeNull();
+  });
+
+  it('attacks a unit, not a place', () => {
+    expect(refusalOf('attack', paris, blitz(['infantry']))).toBe('UNIT_TARGET_ONLY');
+    expect(refusalOf('attack', enemyCamp, blitz(['infantry']))).toBeNull();
+    expect(refusalOf('attack', track, blitz(['infantry']))).toBeNull();
+  });
+
+  it('chases a column only in a Blitz', () => {
+    expect(refusalOf('attack', track, column(['infantry']))).toBe('NOTHING_TO_ATTACK');
+  });
+
+  it('moves while reloading, but does not attack', () => {
+    const reloading = blitz(['infantry'], { reloading: true });
+    expect(refusalOf('attack', enemyCamp, reloading)).toBe('RELOADING');
+    expect(refusalOf('march', paris, reloading)).toBeNull();
+  });
+
+  it('enters a building of mine only while it stands empty', () => {
+    const barracks: MovementAim = { kind: 'building', buildingId: 'b1', key: 'barracks' };
+    expect(
+      refusalOf('march', barracks, blitz(['infantry'], { occupiedBuildingIds: new Set(['b1']) })),
+    ).toBe('BUILDING_OCCUPIED');
+    expect(refusalOf('march', barracks, blitz(['infantry']))).toBeNull();
   });
 });
