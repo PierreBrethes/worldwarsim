@@ -809,6 +809,18 @@ export default defineSchema({
      *  passe à l'initiative. */
     shock: v.optional(v.boolean()),
     /**
+     * **Au feu, on voit l'ennemi** (F1, 14/10/2026) : la nation de chaque camp au moment de la
+     * passe — ses rôles et effectifs sont déjà dans `troops`. Servie à l'autre participant
+     * seulement, jamais à la cible d'un bombardement (`facedOf`, `convex/view.ts`). Absente sur
+     * un engagement d'avant ce lot, qui garde ses blocs et ses totaux.
+     */
+    nations: v.optional(
+      v.object({
+        attacker: v.union(v.string(), v.null()),
+        defender: v.union(v.string(), v.null()),
+      }),
+    ),
+    /**
      * **Legacy, plus jamais écrit ni lu.** Le détail frappe par frappe est passé dans la table
      * `strikes` : gardé dans le document de l'engagement, il se relisait à chaque chargement du
      * plateau pour n'afficher que deux totaux. `v.optional` et non un retrait sec, pour la raison

@@ -20,7 +20,13 @@ import {
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
-import { NOTICES_SERVED, type CombatTally, type TroopStation } from '../src/domain/player-view';
+import {
+  NOTICES_SERVED,
+  type CombatTally,
+  type Faced,
+  type ForceKind,
+  type TroopStation,
+} from '../src/domain/player-view';
 import {
   buildingCostKey,
   cappedByHq,
@@ -91,6 +97,37 @@ export const tallyOf = (rows: Doc<'engagements'>['troops']): CombatTally => ({
   routed: rows.filter((troop) => troop.state === 'routed').length,
   destroyed: rows.filter((troop) => troop.state === 'destroyed').length,
 });
+
+/** A side by role and mark, in the order the replay stands them. */
+export const kindsOf = (rows: Doc<'engagements'>['troops']): ForceKind[] =>
+  [...new Set(rows.map((troop) => `${troop.role}:${troop.tier}`))].sort().map((kind) => {
+    const of = rows.filter((troop) => `${troop.role}:${troop.tier}` === kind);
+    return {
+      role: of[0]!.role,
+      tier: of[0]!.tier,
+      strength: of.reduce((sum, troop) => sum + troop.strengthBefore, 0),
+      ...tallyOf(of),
+    };
+  });
+
+/**
+ * **Au feu, on voit l'ennemi** (F1) — ce que `side` a eu en face. Rien sur un engagement d'avant
+ * le lot, et rien pour la cible d'un bombardement : elle ne voit pas d'où vient le coup.
+ */
+export function facedOf(
+  engagement: Doc<'engagements'>,
+  side: 'attacker' | 'defender',
+): { faced?: Faced } {
+  if (engagement.nations === undefined) return {};
+  if (engagement.cause === 'bombardment' && side === 'defender') return {};
+  const other = side === 'attacker' ? 'defender' : 'attacker';
+  return {
+    faced: {
+      nation: engagement.nations[other],
+      forces: kindsOf(engagement.troops.filter((troop) => troop.side === other)),
+    },
+  };
+}
 
 export const playerView = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
@@ -767,6 +804,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         shock: engagement.shock === true,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
+        ...facedOf(engagement, side),
         /**
          * **Named on purpose**, like the board above it: the journal writes "X a réduit Y" so
          * the table is legible from the account rather than from a second count. Both nations

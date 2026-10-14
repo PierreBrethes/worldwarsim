@@ -341,6 +341,9 @@ export type CombatReport = {
   readonly shock?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
+  /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
+   *  la cible d'un bombardement, qui ne voit pas d'où vient le coup. */
+  readonly faced?: Faced;
   /**
    * Set when this pass is the one that put the defender under the bar of the **test victory**
    * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
@@ -368,6 +371,25 @@ export type CombatTally = {
   readonly destroyed: number;
 };
 
+/** One kind of troop engaged — role and mark — and what it brought (`strength`, men and
+ *  machines before the pass) and left. */
+export type ForceKind = CombatTally & {
+  readonly role: UnitRole;
+  readonly tier: UnitTier;
+  readonly strength: number;
+};
+
+/**
+ * **What a participant saw of the other side, at the fire** (F1, 14/10/2026): nation, roles,
+ * strengths. It lives in the account and nowhere else — an enemy arc and a surveyed camp still
+ * carry no role and no nation: what is revealed is what was fought.
+ */
+export type Faced = {
+  /** `null` for the irregular seat that holds the neutral objectives. */
+  readonly nation: string | null;
+  readonly forces: ReadonlyArray<ForceKind>;
+};
+
 /**
  * **One engagement as its replay reads it, served to a party only** (`convex/replay.ts`, ADR 0026
  * §7). My side by role and mark; the other side the totals `CombatReport` already serves — the
@@ -381,6 +403,7 @@ export type ReplayView = {
   readonly won: boolean;
   readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
   readonly theirs: CombatTally;
+  readonly faced?: Faced;
   /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
    *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
