@@ -338,6 +338,9 @@ export default defineSchema({
     /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
      *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
     startedNeutral: v.optional(v.literal(true)),
+    /** **Le QG de départ d'une Blitz, et de qui** : sa chute élimine ce joueur-là (B10), pas
+     *  celui qui le tenait après l'avoir pris. */
+    homeOf: v.optional(v.id('players')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

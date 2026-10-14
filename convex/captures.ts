@@ -390,6 +390,12 @@ export const complete = internalMutation({
     ) {
       return;
     }
+    /** **Qui a déposé les armes ne prend plus rien** : en Blitz sa capture d'un QG éliminerait
+     *  un belligérant au profit d'un observateur. */
+    if ((await ctx.db.get(capture.playerId))?.defeated === true) {
+      await stop(ctx, capture, expectedAt, 'gone');
+      return;
+    }
     const now = expectedAt;
     const byPoint = await infantryByPoint(ctx, capture.seasonId);
     const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
@@ -409,7 +415,7 @@ export const complete = internalMutation({
     const taken: Array<Doc<'buildings'>> = [];
     /** **En Blitz, un QG tombé emporte tout** (B10) : ses bâtiments passent au capteur, ses
      *  troupes disparaissent, et le joueur sort de la guerre (`leaveTheWar`, plus bas). */
-    const falls = mode === 'blitz' && 'key' in site && site.key === 'hq';
+    const falls = mode === 'blitz' && 'key' in site && site.homeOf === loser._id;
     if ('key' in site) {
       for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
         await releaseBuilding(ctx, loser, building, now);
@@ -457,7 +463,8 @@ export const complete = internalMutation({
     await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
     await reassessDetection(ctx, capture.seasonId, now);
-    if (falls) {
+    /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
+    if (falls && loser.defeated !== true) {
       const capturer = (await ctx.db.get(capture.playerId))!;
       await leaveTheWar(
         ctx,

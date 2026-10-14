@@ -268,6 +268,7 @@ export const commit = internalMutation({
         /** **En Blitz rien n'est bâti** : ce que tient un joueur colore sa région comme une
          *  capture (`occupationsOf`), le QG de départ compris. Un neutre ne colore rien. */
         ...(site.owner === null ? { startedNeutral: true as const } : { capturedAt: now }),
+        ...(site.owner !== null && site.key === 'hq' ? { homeOf: site.owner } : {}),
       });
       if (site.owner === null) continue;
       /** **Un fantassin au QG, l'autre dans la caserne** (U6) : une unité par bâtiment, et
@@ -425,7 +426,7 @@ export const closeAtClock = internalMutation({
       lines.push({ id: seat._id, perMinute: funds.perMinute, funds: fundsAt(funds, expectedAt) });
     }
     const { winnerId, reason, perMinute } = clockVerdict(lines);
-    await concludeSeason(ctx, seasonId, winnerId as Id<'players'> | null, expectedAt, {
+    await concludeSeason(ctx, seasonId, winnerId, expectedAt, {
       reason,
       ...(perMinute === null ? {} : { perMinute }),
     });

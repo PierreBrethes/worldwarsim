@@ -652,6 +652,82 @@ describe('la chute d’un QG (B10)', () => {
   });
 });
 
+describe('la chute d’un QG, cas limites', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('n’élimine pas qui perd un QG qu’il avait pris : seul son propre QG l’élimine', async () => {
+    const t = boot();
+    const [first, second, third] = await blitzLaunchedOn(t, 'europe', 3);
+    const me = await playerOf(t, first!);
+    const victim = await playerOf(t, second!);
+    const late = await playerOf(t, third!);
+    const hq = (await buildingsOf(t, victim._id)).find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
+    await captureToTheEnd(t, me._id, first!.seasonId, hq);
+    const [lon, lat] = pointOfBuilding(hq)!;
+    await t.run(async (ctx) => {
+      for (const troop of await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
+        .collect()) {
+        await ctx.db.patch(troop._id, { stationedAt: { lon: lon + 3, lat } });
+      }
+    });
+    await captureToTheEnd(t, late._id, first!.seasonId, hq);
+    expect((await playerOf(t, first!)).defeated).not.toBe(true);
+    expect((await buildingsOf(t, me._id)).some((building) => building.key === 'hq')).toBe(true);
+  });
+
+  it('ne laisse pas un joueur qui a capitulé achever une capture', async () => {
+    const t = boot();
+    const [first, second, third] = await blitzLaunchedOn(t, 'europe', 3);
+    const me = await playerOf(t, first!);
+    const victim = await playerOf(t, second!);
+    const hq = (await buildingsOf(t, victim._id)).find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
+    const [lon, lat] = pointOfBuilding(hq)!;
+    const [infantry] = await troopsOf(t, me._id);
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: first!.seasonId,
+        playerId: me._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'building', buildingId: hq._id },
+        from: { lon: lon - 1, lat },
+        to: { lon, lat },
+        hostCountry: '',
+        points: [
+          { lon: lon - 1, lat },
+          { lon, lat },
+        ],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry!._id],
+        departedAt: MIDDAY,
+        arrivesAt: MIDDAY,
+        capture: { kind: 'building', buildingId: hq._id },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    await t.mutation(api.players.surrender, first!);
+    const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+    vi.setSystemTime(capture!.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: capture!._id,
+      expectedAt: capture!.completesAt,
+    });
+    expect((await playerOf(t, second!)).defeated).not.toBe(true);
+    expect((await buildingsOf(t, victim._id)).map((building) => building._id)).toContain(hq._id);
+    void third;
+  });
+});
+
 describe('la fin à deux heures (B11)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
