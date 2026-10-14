@@ -749,7 +749,11 @@ mouvement ni poursuite — le tir immédiat règle d'avance la cible qui sortira
 règle pour la rose et le serveur (`bombardRefusalOf`) : `INDIRECT_FIRE` (`@a-mesurer`) — portée
 150 km, **zone morte** sous 50 km (`TOO_CLOSE`, `OUT_OF_RANGE`), **en batterie** 30 s après
 l'arrêt (`NOT_EMPLACED`, `troops.settledAt` écrit par `forgetMovement` à la fin de tout mouvement
-qui la portait, `_creationTime` sinon), `RELOADING`, hors de vue, hors théâtre. La passe est le mode
+qui la portait et à l'embarquement, `_creationTime` sinon), `RELOADING`, hors de vue — la vue
+refaite avant d'être lue (`reassessDetection`, comme la charge de Blitz), hors théâtre, **en route**
+(`ON_THE_MOVE`, et pas de compte à rebours servi) et **à bord** d'un transport (`ABOARD`,
+`aboardAt`). Sous un tir indirect, seul le camp de la cible se noie, sa pile au point comptée
+(`aboard` de `resolveContact`) : la batterie tire de la côte. La passe est le mode
 `indirect` de `resolveEngagement` : la batterie frappe, **personne ne riposte** ; et dans toute autre
 passe l'artillerie **se tait**, des deux côtés (`firesIndirect`) — `refusalOf('attack')` lui refuse
 la charge (`INDIRECT_FIRE_ONLY`). L'engagement porte `cause: 'bombardment'` et `firedFrom`, servi à
