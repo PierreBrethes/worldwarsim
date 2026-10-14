@@ -114,20 +114,26 @@ export const recent = query({
         mine: message.playerId === player._id,
       };
     };
-    const tail = (to: Id<'players'> | undefined, from: Id<'players'> | null) => {
-      const channel = ctx.db
+    const general = () =>
+      ctx.db
         .query('messages')
-        .withIndex('byChannel', (q) => q.eq('seasonId', season._id).eq('to', to))
-        .order('desc');
-      return (
-        from === null ? channel : channel.filter((q) => q.eq(q.field('playerId'), from))
-      ).take(TELEGRAPH_DEPTH);
-    };
+        .withIndex('byChannel', (q) => q.eq('seasonId', season._id).eq('to', undefined))
+        .order('desc')
+        .take(TELEGRAPH_DEPTH);
+    const between = (from: Id<'players'>, to: Id<'players'>) =>
+      ctx.db
+        .query('messages')
+        .withIndex('byPair', (q) => q.eq('seasonId', season._id).eq('to', to).eq('playerId', from))
+        .order('desc')
+        .take(TELEGRAPH_DEPTH);
 
     const direct = [];
     for (const other of await seatsOf(ctx, season._id)) {
       if (other._id === player._id) continue;
-      const rows = [...(await tail(player._id, other._id)), ...(await tail(other._id, player._id))]
+      const rows = [
+        ...(await between(other._id, player._id)),
+        ...(await between(player._id, other._id)),
+      ]
         .filter((message) => canRead(message, player._id))
         .sort((a, b) => b.at - a.at)
         .slice(0, TELEGRAPH_DEPTH)
@@ -146,7 +152,7 @@ export const recent = query({
       /** The hour he last closed the window, `null` while he never has: the client counts what
        *  is unread from it, exactly as the journal does, and nothing here counts for him. */
       readAt: marks.telegraphReadAt,
-      messages: (await tail(undefined, null)).reverse().map(shape),
+      messages: (await general()).reverse().map(shape),
       direct,
     };
   },
@@ -160,11 +166,13 @@ export const recent = query({
 export const markRead = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), with: v.optional(v.id('players')) },
   handler: async (ctx, { token, seasonId, with: other }) => {
-    const { player } = await playerOf(ctx, token, seasonId);
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (other === undefined) {
       await stampReadMark(ctx, player._id, { telegraphReadAt: Date.now() });
       return;
     }
+    const seats = await seatsOf(ctx, season._id);
+    if (other === player._id || !seats.some((seat) => seat._id === other)) return;
     const { telegraphDirectReadAt } = await readMarksOf(ctx, player);
     await stampReadMark(ctx, player._id, {
       telegraphDirectReadAt: { ...telegraphDirectReadAt, [other]: Date.now() },

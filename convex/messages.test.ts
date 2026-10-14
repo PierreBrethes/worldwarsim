@@ -267,4 +267,14 @@ describe('les canaux privés', () => {
     expect(after.direct.find((c) => c.nickname === 'Pierre')!.readAt).toBe(MIDDAY.getTime());
     expect(after.readAt).toBeNull();
   });
+
+  it('ignore la lecture d’un canal qui n’existe pas', async () => {
+    const t = boot();
+    const { pierre } = await trio(t);
+    const elsewhere = await lobby(t, 'Zoé', 'Yann');
+    await t.mutation(api.messages.markRead, { ...pierre, with: await idOf(t, pierre) });
+    await t.mutation(api.messages.markRead, { ...pierre, with: await idOf(t, elsewhere.guest) });
+    const marks = await t.run(async (ctx) => ctx.db.query('readMarks').collect());
+    expect(marks.flatMap((row) => Object.keys(row.telegraphDirectReadAt ?? {}))).toEqual([]);
+  });
 });

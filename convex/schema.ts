@@ -930,6 +930,7 @@ export default defineSchema({
   })
     .index('bySeason', ['seasonId'])
     .index('byChannel', ['seasonId', 'to', 'at'])
+    .index('byPair', ['seasonId', 'to', 'playerId', 'at'])
     .index('byPlayer', ['playerId']),
 
   /**
