@@ -181,17 +181,7 @@ export function Protractor({
       />
       <ul id={ROUNDS_ID} inert={!open} aria-hidden={!open}>
         {rounds.map(({ key, round }, rank) => {
-          const angle = ((FIRST_DEG + rank * STEP_DEG) * Math.PI) / 180;
-          return (
-            <li key={key}>
-              {round({
-                '--x': `${Math.round(RADIUS * Math.cos(angle))}px`,
-                '--y': `${Math.round(RADIUS * Math.sin(angle))}px`,
-                '--rank': rank,
-                '--back': rounds.length - 1 - rank,
-              } as CSSProperties)}
-            </li>
-          );
+          return <li key={key}>{round(roundAt(rank, rounds.length))}</li>;
         })}
       </ul>
       <button
@@ -247,20 +237,31 @@ const RADIUS = 205;
 const FIRST_DEG = 11;
 const STEP_DEG = 68 / 5;
 
-const ARC_OUTER = RADIUS + 34;
-const ARC_INNER = RADIUS - 34;
+/** Où le rond de rang `rank` se pose sur l'arc, et dans quel ordre il sort puis rentre. */
+export function roundAt(rank: number, count: number): CSSProperties {
+  const angle = ((FIRST_DEG + rank * STEP_DEG) * Math.PI) / 180;
+  return {
+    '--x': `${Math.round(RADIUS * Math.cos(angle))}px`,
+    '--y': `${Math.round(RADIUS * Math.sin(angle))}px`,
+    '--rank': rank,
+    '--back': count - 1 - rank,
+  } as CSSProperties;
+}
 
-const ARC = (radius: number): CSSProperties => ({
+export const ARC_OUTER = RADIUS + 34;
+export const ARC_INNER = RADIUS - 34;
+
+export const ARC = (radius: number): CSSProperties => ({
   right: -radius,
   bottom: -radius,
   width: radius * 2,
   height: radius * 2,
 });
 
-const ROUND =
+export const ROUND =
   'protractor-round float flex h-[48px] w-[48px] cursor-pointer flex-col items-center justify-center gap-[2px] rounded-full border border-[var(--ink)]';
 
-const LABEL = 'text-[7px] leading-none font-semibold tracking-[.08em] uppercase';
+export const LABEL = 'text-[7px] leading-none font-semibold tracking-[.08em] uppercase';
 
 /** Ce qui se lit dans le coin d'un rond sans être un compte : l'heure du chantier, le rang. */
 function Corner({ children }: { children: ReactNode }) {
