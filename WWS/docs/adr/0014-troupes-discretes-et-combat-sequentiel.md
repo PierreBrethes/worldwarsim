@@ -1,7 +1,21 @@
-# ADR 0014 — Troupes discrètes et combat simultané
+# ADR 0014 — Troupes discrètes et combat à l'initiative
 
 **Statut :** acceptée — précisée par l'[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md)
-— **révisée le 16/09/2026 : résolution simultanée (décision 1b)**
+— révisée le 16/09/2026 (résolution simultanée, décision 1b) — **révisée le 14/10/2026 :
+retour de l'initiative, protection de garnison (B16, B17, C1)**
+
+> **Révision du 14/10/2026 — l'initiative revient (grilling des deux modes, B16 et B17).**
+> L'attaquant frappe avec ses PV actuels ; les pertes s'appliquent ; le défenseur **riposte avec
+> ce qui lui reste**, s'il lui reste quelque chose et si la table le laisse toucher. Un défenseur
+> détruit par la frappe ne riposte pas ; la déroute se lit une fois, après la riposte. Le bonus
+> de défense devient une **protection** à la Advance Wars (C1) : une garnison de bâtiment,
+> d'avant-poste debout et en service ou d'objectif **encaisse ×0,7** des coups
+> (`GARRISON_DAMAGE_TAKEN`) et riposte sans multiplicateur. La passe simultanée survit comme
+> **choc** (`mode: 'shock'`), réservé à deux unités qui s'attaquent l'une l'autre — la Blitz,
+> lot 5 ; le serveur ne l'ordonne nulle part encore. Cas de référence : cinquante fantassins
+> contre cinquante en terrain libre, le défenseur perd 25 et l'attaquant 13 ; en garnison, 18
+> et 16. Une riposte qui touche abat au moins un (C2) ; la riposte se paie sur ce que
+> la frappe a laissé (C3) ; un point en chantier ou désactivé n'a pas de murs (C4). Source : `../design/propositions/gameplay-deux-modes-2026-10-14.md`.
 
 > **Révision du 16/09/2026 — résolution simultanée (décision 1b).** L'initiative à l'attaquant
 > est abandonnée : les deux camps tirent sur l'état d'avant la passe et les pertes s'appliquent

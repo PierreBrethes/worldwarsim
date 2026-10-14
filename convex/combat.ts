@@ -3,11 +3,14 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
   drownedOf,
   resolveEngagement,
+  winnerOf,
   type Combatant,
   type CombatantOutcome,
   type Engagement,
 } from '../src/domain/combat';
 import { landAtPoint } from './routes';
+import { movementsOf } from './movement/forces';
+import { outpostShelters } from '../src/domain/outposts';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -47,14 +50,43 @@ export type Resolution = {
  * A troop's hit points **are** its strength (ADR 0014), so the account is written in the same
  * unit the screen reads: 32 of 50 soldiers left.
  */
-const combatantOf = (troop: Doc<'troops'>): Combatant => ({
+const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
   id: troop._id,
   role: troop.role,
   tier: troop.tier,
   strength: troop.currentStrength,
   nominalStrength: troop.nominalStrength,
   formedAt: troop._creationTime,
+  sheltered,
 });
+
+/**
+ * **La défense n'a que ses murs** (grilling du 14/10, B16 et C1) : elle encaisse moins, une troupe en
+ * garnison d'un bâtiment ou d'un avant-poste, ou la garnison d'un objectif — que le siège
+ * irrégulier tient sur un point —, et jamais une pile posée en terrain libre ni en mer. Une
+ * troupe garde son adresse quand elle marche, donc une troupe d'un mouvement n'est à l'abri de
+ * rien, même si son adresse nomme encore un bâtiment. **Un point en chantier ou désactivé n'a
+ * pas de murs** (décision du 14/10, C4, `outpostShelters`), et l'aperçu de l'ordre le lit aussi.
+ */
+async function shelteredOf(
+  ctx: MutationCtx,
+  defender: Engaged,
+  at: number,
+): Promise<(troop: Doc<'troops'>) => boolean> {
+  const irregular = (await ctx.db.get(defender.playerId))?.irregular === true;
+  const marching = new Set(
+    (await movementsOf(ctx, defender.playerId)).flatMap((movement) => movement.troopIds),
+  );
+  const bare = new Set<string>();
+  for (const address of new Set(defender.troops.map((troop) => troop.stationedAt))) {
+    const outpostId = typeof address === 'string' ? ctx.db.normalizeId('outposts', address) : null;
+    const outpost = outpostId === null ? null : await ctx.db.get(outpostId);
+    if (outpost !== null && !outpostShelters(outpost, at)) bare.add(outpost._id);
+  }
+  return (troop) =>
+    !marching.has(troop._id) &&
+    (irregular || (typeof troop.stationedAt === 'string' && !bare.has(troop.stationedAt)));
+}
 
 export async function resolveContact(
   ctx: MutationCtx,
@@ -89,9 +121,10 @@ export async function resolveContact(
    * holds, and a camp that could not pay has already fired at `DRY_AMMUNITION_FACTOR`. An
    * engagement is never declined for want of matter.
    */
+  const sheltered = await shelteredOf(ctx, defender, at);
   const engagement = resolveEngagement({
-    attackers: attacker.troops.map(combatantOf),
-    defenders: defender.troops.map(combatantOf),
+    attackers: attacker.troops.map((troop) => combatantOf(troop)),
+    defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
     ammunition: {
       attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
       defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,
@@ -156,6 +189,9 @@ export async function resolveContact(
         ? { ...outcome, state: 'routed' as const }
         : outcome,
   );
+  /** **Le terrain se lit sur la liste amendée** : une cargaison noyée n'est plus debout, et la
+   *  passe qui a coulé le dernier banc a dégagé le terrain. */
+  const winner = winnerOf(outcomes);
   const routed = outcomes.flatMap((outcome) =>
     outcome.state === 'routed' ? [byId.get(outcome.id)!] : [],
   );
@@ -170,7 +206,7 @@ export async function resolveContact(
     point,
     hostCountry,
     at,
-    winner: engagement.winner,
+    winner,
     outpostId,
     disabledUntil,
     reducedDefender,
@@ -196,10 +232,8 @@ export async function resolveContact(
     at,
   });
 
-  const recoveringPlayerId =
-    engagement.winner === 'attacker' ? attacker.playerId : defender.playerId;
-  const dispossessedPlayerId =
-    engagement.winner === 'attacker' ? defender.playerId : attacker.playerId;
+  const recoveringPlayerId = winner === 'attacker' ? attacker.playerId : defender.playerId;
+  const dispossessedPlayerId = winner === 'attacker' ? defender.playerId : attacker.playerId;
   const cargoSettlement = await settleCombatCargo(
     ctx,
     cargoBefore,
@@ -213,7 +247,7 @@ export async function resolveContact(
     destroyed: cargoSettlement.destroyed,
     recoveringPlayerId,
     standingTroopIds: outcomes
-      .filter((outcome) => outcome.side === engagement.winner && outcome.state === 'standing')
+      .filter((outcome) => outcome.side === winner && outcome.state === 'standing')
       .map((outcome) => outcome.id),
     point,
     at,
@@ -253,19 +287,16 @@ export async function resolveContact(
    * written: the condition of the test victory is "be the attacker of the pass that crosses the
    * threshold" (`convex/victory.ts`), and there is no other moment at which that is true.
    *
-   * **The attacker of a camp's pass is the camp, and that counts** (ADR 0019 §3, ratified
-   * 18/08). A player therefore advances his victory during a pass he ordered nothing in — which
-   * is a decision, not an oversight: posting the camp *was* the order. It cost a slot, one troop
-   * out of twenty-four and, once the upkeep lands, a raised one. An investment that pays nothing
-   * when its bet comes off is not an investment; this is the yield of the intelligence, not a
-   * win in one's sleep.
+   * **The attacker is whoever's order aimed at the other** (ADR 0024 §3): nothing fights
+   * without an order since 13/09, so a camp that answers an assault is its defender and never
+   * advances a victory by riposting.
    */
   const season = await ctx.db.get(seasonId);
   if (season) await claimVictory(ctx, season, attacker.playerId, at);
 
   /** **Une seule liste d'issues sort d'ici** : l'appelant lit les survivants dessus pour les
    *  renvoyer chez eux (`engageAt`), et un noyé qui y serait encore `standing` marcherait. */
-  return { engagementId, engagement: { ...engagement, outcomes }, routed, routedCargo };
+  return { engagementId, engagement: { ...engagement, outcomes, winner }, routed, routedCargo };
 }
 
 /**

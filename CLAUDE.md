@@ -30,16 +30,25 @@ pas d'agent. **Le leurre a été codé puis retiré le 29/08/2026** — décisio
 documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survit dans
 `convex/validators.ts`, en legacy et jamais réécrit, le temps d'un wipe.
 
-**Le combat existe, et les deux camps tirent en même temps** (ADR 0014, révision 1b du
-16/09/2026) : une passe de résolution déterministe, sans aléa, **une salve de chaque camp calculée
-sur l'état d'avant la passe**, les pertes appliquées ensemble et la déroute lue une seule fois
-après — donc **un défenseur détruit dans la passe a tiré quand même** (`src/domain/combat.ts` pour
-la règle, `convex/combat.ts` pour le branchement, table de dégâts et modificateurs dans
-`convex/constants.ts`). Il n'y a plus d'initiative ni de phase « riposte » : `Strike.phase` vaut
-toujours `'strike'`, le littéral `'riposte'` survit au seul validateur, legacy comme `decoy`, et
-c'est `bySide` qui dit qui a tiré. `DEFENDER_BONUS` devient le seul avantage de la défense —
-cinquante fantassins contre cinquante en plaine, le défenseur perd 25 et l'attaquant 29 : l'attaque
-ne vaut qu'en supériorité ou en surprise. **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
+**Le combat existe, et l'attaquant a l'initiative** (ADR 0014, révision du 14/10/2026, B16) :
+une passe de résolution déterministe, sans aléa — **l'attaquant frappe** avec ses PV actuels ×
+`DAMAGE_TABLE`, les pertes s'appliquent, puis **le défenseur riposte avec ce qui lui reste**, s'il
+lui reste quelque chose et si la table le laisse toucher ; la déroute se lit une fois, après —
+donc **un défenseur détruit par la frappe ne riposte pas** (`src/domain/combat.ts` pour la règle,
+`convex/combat.ts` pour le branchement, table et modificateurs dans `convex/constants.ts`).
+`Strike.phase` dit `'strike'` pour l'attaquant, `'riposte'` pour la réponse ; les engagements
+écrits sous la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés. **Le seul
+avantage de la défense est un mur**, une protection à la Advance Wars (C1) : une troupe en
+garnison d'un bâtiment, d'un avant-poste ou d'un objectif **encaisse** `GARRISON_DAMAGE_TAKEN`
+(×0,7) de chaque coup et riposte sans multiplicateur — protection refusée jamais à une pile posée en terrain libre
+ni en mer ni à une troupe en mouvement, ni à la garnison d'un point en chantier ou désactivé
+(`shelteredOf`, `outpostShelters`). On ne paie en munitions que ce qu'on tire : la riposte se
+facture sur ce que la frappe a laissé, un défenseur anéanti ne paie rien ; et le vainqueur se lit
+sur les issues amendées par le large. Cinquante fantassins contre cinquante en
+terrain libre : le défenseur perd 25, l'attaquant 13 ; en garnison, 18 et 16. **Une riposte qui touche abat au moins un** (C2, riposte seulement, ni frappe ni choc) : le char léger que le lourd laisse à 3 / 12 riposte pour .375, que l'arrondi effaçait. La passe simultanée survit comme **choc** (`mode: 'shock'`, B17), testée et
+ordonnée nulle part : elle attend la Blitz. L'aperçu d'un ordre d'attaque dit « vous frappez en
+premier » et si la cible encaisse moins ; dépêche, feuille d'arrivée et compte rendu disent
+« notre frappe en abat N, leur riposte en abat M » (`combatBeats`, `fr.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
 une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
 marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —
 de déclencheur il est devenu l'**allonge** d'une attaque (`defenceNear`, lu par `engageAt` et par
@@ -50,7 +59,9 @@ prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches, et **ce compte rendu se rejoue** (surface 4.7, ADR 0026
 §7, 13/10/2026) : « rejouer » sur la dépêche d'un combat à soi — marge du journal, sa manchette
 au téléphone, feuille d'arrivée — et nulle part ailleurs ; une dizaine de secondes sur la carte,
-sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), un bandeau qui coupe
+sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), **en deux temps** —
+la frappe, où ne tire que l'attaquant et ne tombe que le défenseur, puis la riposte, où ne tire
+que ce qui reste debout en face (`replayAt(...).firing`) —, un bandeau qui coupe
 la lecture et avance étape par étape, la carte muette jusqu'à « quitter », qui se confirme et
 rend la caméra. Chez soi des figurines par rôle ; en face **un bloc par troupe et des totaux**,
 jamais un rôle — le brouillard ne se lève pas parce qu'on a tiré.
@@ -377,9 +388,9 @@ affiché tient déjà le rendu continu. **Et un site qui produit fume** : une co
 à 8 pas par seconde (`MaquetteLayer.smoke`) au-dessus des repères `fx_smoke` de la maquette — le
 haut de sa boîte faute de repère —, sur mes seuls producteurs reliés dont le débit servi est
 positif (`producingSites`, `src/domain/producing.ts`), figée en « réduites », absente en
-« coupées ». Au rejeu, chaque pièce envoie **un trait d'encre** vers l'autre ligne pendant les
-salves (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent** à l'impact et la
-fumée des salves s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
+« coupées ». Au rejeu, chaque pièce du camp qui tire envoie **un trait d'encre** vers l'autre ligne, à la
+frappe puis à la riposte (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent**
+à chaque impact et la fumée de la volée s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
 mes bâtiments debout, les installations relevées et les objectifs neutres poussent au rapproché
 en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
@@ -893,8 +904,8 @@ autres (ADR 0024 §1). C'est **l'exception nommée de l'ADR 0024 §4** : on l'at
 relevé, parce qu'il n'y a rien à percer. Ce qui le tient appartient à un **siège irrégulier** —
 un `players` marqué `irregular`, sans compte et sans vue, que `seatsOf` écarte en une ligne de
 tout ce qui demande « qui joue ici » (salon, accueil, presse, classement, encre, doyen,
-entretien). Ses troupes sont des `troops` ordinaires : elles défendent, tirent dans la même passe
-simultanée et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
+entretien). Ses troupes sont des `troops` ordinaires : elles défendent, ripostent en garnison
+— protégées — et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
 (ADR 0014 : une passe, rien debout en face), borné par ce que la colonne porte, **le reste reste
 au sol** pour le suivant ; le retour chargé est la mécanique du pillage, sans une ligne de plus.
 Pas de capture au seuil tenu, pas de renfort, pas d'objectif mobile : c'est le lot 2.

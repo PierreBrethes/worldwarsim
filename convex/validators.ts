@@ -766,10 +766,10 @@ export const TROOP_STATE = v.union(
  * detail (`strikes`) and the legacy array still lying in the engagements written before it — one
  * shape, so a row of one is readable as a row of the other for as long as both exist.
  *
- * **`'riposte'` est legacy**, comme `decoy` : depuis la résolution simultanée (ADR 0014,
- * révision 1b du 16/09/2026) une passe est une salve par camp et tout ce qui s'écrit porte
- * `'strike'`. Le littéral reste parce que des engagements enregistrés le portent et qu'aucune
- * migration ne les réécrit — le côté du tireur, lui, se lit dans `bySide`.
+ * **`'riposte'` a repris du service** avec l'initiative (grilling du 14/10, B16) : la frappe de
+ * l'attaquant porte `'strike'`, la réponse du défenseur `'riposte'`. Les engagements écrits sous
+ * la passe simultanée (16/09 → 14/10) portent `'strike'` des deux côtés ; le côté du tireur se lit
+ * toujours dans `bySide`.
  */
 export const STRIKE = {
   phase: v.union(v.literal('strike'), v.literal('riposte')),

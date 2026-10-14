@@ -15,7 +15,7 @@ import {
   Vector3,
 } from 'three';
 import type { Medium } from '@/domain/ids';
-import { STEP_MS, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
+import { STEP_MS, VOLLEY_SHARE, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
@@ -94,17 +94,17 @@ function drawFlash(): CanvasTexture {
 }
 
 /**
- * **Both salvoes leave at once** (ADR 0014): each piece sends one shot of ink across the gap —
- * mine at the blocks, the blocks at mine, the prototype's pairing (`table-etat-major.html`,
- * `updateReplay`). `null` when there is nothing in front to aim at. Indices into the frame's
- * pieces, mine first.
+ * **Each line fires in its own beat** — the attacker in the strike, the defender in the riposte
+ * (B16) — and each piece sends one shot of ink across the gap: mine at the blocks, the blocks at
+ * mine, the prototype's pairing (`table-etat-major.html`, `updateReplay`). `null` when there is
+ * nothing in front to aim at. Indices into the frame's pieces, mine first.
  */
 export function salvoTarget(k: number, mine: number, theirs: number): number | null {
   if (k < mine) return theirs === 0 ? null : mine + (k % theirs);
   return mine === 0 ? null : ((k - mine) * 2) % mine;
 }
 
-/** A shot's share of its flight through the salvo step, staggered by its rank; `null` before it
+/** A shot's share of its flight through the volley, staggered by its rank; `null` before it
  *  leaves and after it lands. Reduced motion holds every shot halfway across. */
 export function shotShare(progress: number, k: number, still: boolean): number | null {
   if (still) return 0.5;
@@ -113,15 +113,28 @@ export function shotShare(progress: number, k: number, still: boolean): number |
   return share > 0 && share < 1 ? share : null;
 }
 
-/** How long both lines shake as the salvoes land, and how far they lean, in radians. */
+/** The volley's share of a fire step, `null` once the shots have landed or outside one. */
+function volleyOf(frame: ReplayFrame): number | null {
+  return frame.firing !== null && frame.progress < VOLLEY_SHARE
+    ? frame.progress / VOLLEY_SHARE
+    : null;
+}
+
+/** How long it is since a fire step's shots landed, in ms; negative before, `null` outside one. */
+function sinceImpact(frame: ReplayFrame): number | null {
+  return frame.firing === null ? null : (frame.progress - VOLLEY_SHARE) * STEP_MS[frame.step];
+}
+
+/** How long both lines shake as a volley lands, and how far they lean, in radians. */
 const SHAKE_MS = 500;
 const SHAKE = 0.05;
-export function shakeOf(step: ReplayFrame['step'], progress: number, still: boolean): number {
-  if (still || step !== 'pertes') return 0;
-  const hit = (progress * STEP_MS.pertes) / SHAKE_MS;
+export function shakeOf(frame: ReplayFrame, still: boolean): number {
+  const since = sinceImpact(frame);
+  if (still || since === null || since < 0) return 0;
+  const hit = since / SHAKE_MS;
   return hit < 1 ? Math.sin(hit * Math.PI * 3) * SHAKE * (1 - hit) : 0;
 }
-/** The salvo's smoke hangs on into the losses: a puff does not vanish as the shot lands. */
+/** The volley's smoke hangs on into the falls: a puff does not vanish as the shot lands. */
 const LINGER_MS = 900;
 /** ...and fades over the last of it, rather than being cut. */
 const LINGER_FADE_MS = 400;
@@ -320,16 +333,23 @@ export class ReplayScene {
       holder.visible = down >= 0;
       holder.position.y = DROP * (1 - ease(Math.min(1, Math.max(0, down)))) ** 2;
 
-      const salvo =
-        step === 'salves' ? (still ? 1 : Math.sin(Math.PI * Math.min(1, progress / 0.35))) : 0;
+      const fires = frame.firing === piece.side && state.fate !== 'fallen';
+      const volley = volleyOf(frame);
+      const salvo = !fires
+        ? 0
+        : still
+          ? 1
+          : volley === null
+            ? 0
+            : Math.sin(Math.PI * Math.min(1, volley / 0.35));
       piece.flash.visible = salvo > 0.02;
       piece.flash.scale.setScalar(piece.flashSize * salvo);
-      const elapsed = progress * STEP_MS.pertes;
-      const lingering = step === 'pertes' && elapsed < LINGER_MS;
-      const fade = lingering ? Math.min(1, (LINGER_MS - elapsed) / LINGER_FADE_MS) : 1;
-      piece.firing.object.visible = step === 'salves' || (lingering && !still);
+      const since = sinceImpact(frame) ?? Infinity;
+      const lingering = since >= 0 && since < LINGER_MS;
+      const fade = lingering ? Math.min(1, (LINGER_MS - since) / LINGER_FADE_MS) : 1;
+      piece.firing.object.visible = fires && (still || volley !== null || lingering);
       piece.firing.frame(
-        still ? 0.4 : step === 'salves' ? progress * 0.9 + 0.05 : 0.95 + elapsed / 1000,
+        still ? 0.4 : (progress * STEP_MS[step]) / 1000 + (frame.firing === null ? 0 : 0.05),
         fade,
       );
 
@@ -337,7 +357,7 @@ export class ReplayScene {
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;
       const sign = piece.side === 'mine' ? -1 : 1;
       holder.position.x = piece.home[0] + sign * RETREAT * retreat;
-      holder.rotation.z = shakeOf(step, progress, still);
+      holder.rotation.z = shakeOf(frame, still);
       if (piece.burns) {
         pivot.rotation.set(0, 0, 0);
       } else if (piece.side === 'theirs') {
@@ -362,9 +382,11 @@ export class ReplayScene {
     });
     // Aimed once every holder stands where this frame puts it.
     const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
+    const volley = volleyOf(frame);
     this.pieces.forEach((piece, k) => {
       const target = this.pieces[salvoTarget(k, mine, count - mine) ?? -1];
-      const share = step === 'salves' ? shotShare(progress, k, still) : null;
+      const fires = frame.firing === piece.side && frame.pieces[k]!.fate !== 'fallen';
+      const share = fires && (still || volley !== null) ? shotShare(volley ?? 0, k, still) : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
       muzzle.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);

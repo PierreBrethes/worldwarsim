@@ -1014,23 +1014,23 @@ describe('an attack marches at somebody', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    // Fifty soldiers against fifty, both salvoes fired on the state the pass opened with: he
-    // loses 25, I lose 29 — attaquer à forces égales coûte plus cher (ADR 0014, révision 1b).
+    // Fifty soldiers against fifty in his barracks: the garrison takes .7 of my strike — 18 —
+    // and its 32 left riposte for 16. Le cas de référence de `CLAUDE.md`.
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
     expect(await strikesIn(t, account!._id)).toHaveLength(2);
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(25);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(21);
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(32);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(34);
 
     // And both sides read it, each from its own side of the field.
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.reports[0]!.side).toBe('attacker');
-    expect(mine.reports[0]!.mine.lost).toBe(29);
-    expect(mine.reports[0]!.theirs.lost).toBe(25);
+    expect(mine.reports[0]!.mine.lost).toBe(16);
+    expect(mine.reports[0]!.theirs.lost).toBe(18);
     const theirsView = await t.query(api.view.playerView, guest);
     expect(theirsView.reports[0]!.side).toBe('defender');
-    expect(theirsView.reports[0]!.mine.lost).toBe(25);
+    expect(theirsView.reports[0]!.mine.lost).toBe(18);
   });
 
   it('refuses to march on one of my own regions', async () => {
@@ -1077,7 +1077,7 @@ describe('the pass is what ammunition is spent on', () => {
     return { troop, defender };
   }
 
-  it('takes ten rounds off each side for one company apiece', async () => {
+  it('takes off each side what it fires: ten rounds to strike, five to riposte', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);
@@ -1085,9 +1085,38 @@ describe('the pass is what ammunition is spent on', () => {
 
     await fight(t, seat, guest);
 
-    // Fifty soldiers, one round per five points: ten, on both sides of the field.
+    // One round per five points: fifty soldiers strike for ten, the thirty-two the strike left
+    // in the barracks riposte for seven — one pays only for what one fires (C3, 14/10).
     expect(await ammunitionOf(t, seat)).toBe(490);
-    expect(await ammunitionOf(t, guest)).toBe(490);
+    expect(await ammunitionOf(t, guest)).toBe(493);
+  });
+
+  it('bills nothing to a garrison the strike wiped out, and never tells it it ran dry', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setAmmunition(t, guest, 0);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const defender = await form(t, guest, 'infantry', theirs);
+    await t.run(async (ctx) => ctx.db.patch(defender, { currentStrength: 15 }));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await t.run(async (ctx) => ctx.db.get(defender))).toBeNull();
+    const dry = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'firedDry'))
+        .collect(),
+    );
+    expect(dry).toHaveLength(0);
   });
 
   it('strikes at .60 and empties what is left when the magazine cannot cover the pass', async () => {
@@ -1098,10 +1127,10 @@ describe('the pass is what ammunition is spent on', () => {
 
     const { troop, defender } = await fight(t, seat, guest);
 
-    // Supplied, the reference case takes 25 off the defender and 29 off the attacker. Dry, the
-    // attacker's salvo is worth .60 of itself — and the defender, answering a lesser blow with a
-    // full magazine, bites harder.
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 15);
+    // Supplied, the reference case takes 18 off the garrison and 16 off the attacker. Dry, the
+    // attacker's strike is worth .60 of itself — .5 × .6 × .7 × 50, eleven — and the defender,
+    // keeping more to riposte with, bites harder.
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 11);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
     // The four rounds it had went into the pass; it did not fight for free.
     expect(await ammunitionOf(t, seat)).toBe(0);
@@ -1366,11 +1395,13 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
-    /** La seconde compagnie part entamée : à pleine force les deux salves effacent exactement
+    /** La seconde compagnie part entamée : à pleine force les deux frappes effacent exactement
      *  les cinquante hommes de la garnison, et c'est la déroute qu'on lit ici. */
     await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
     const held = await garrison(t, guest, outpostId);
+    /** La garnison encaisse ×0,7 (C1) : entière, elle tiendrait — à trente, la frappe la casse. */
+    await t.run(async (ctx) => ctx.db.patch(held, { currentStrength: 30 }));
 
     await t.mutation(api.movements.raid, {
       ...seat,
@@ -1388,6 +1419,15 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     expect(outpost!.disabledUntil).toBe(account!.at + OUTPOST_DISABLED_HOURS * 3_600_000);
     expect(outpost!.immuneUntil).toBeGreaterThan(outpost!.disabledUntil!);
 
+    // Behind its walls the garrison takes .7 of each blow — 18, then 11 — where the open ground
+    // would have taken 25 and 5; one man is left, and he ripostes for one.
+    const strikes = await strikesIn(t, account!._id);
+    expect(strikes.map((one) => [one.phase, one.losses])).toEqual([
+      ['strike', 18],
+      ['strike', 11],
+      ['riposte', 1],
+    ]);
+
     // The garrison broke contact rather than dying, and it is still standing on its point.
     const broken = await t.run(async (ctx) => ctx.db.get(held));
     expect(broken!.currentStrength).toBeGreaterThan(0);
@@ -1403,6 +1443,40 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const left = owner.me.outposts[0]!.disabledMinutesLeft!;
     expect(left).toBeGreaterThan(0);
     expect(left).toBeLessThanOrEqual(OUTPOST_DISABLED_HOURS * 60);
+  });
+
+  /** Décision de Pierre du 14/10 (C4) : un point en chantier ou désactivé n'a pas de murs. */
+  it.each([
+    ['under construction', { standsAt: MIDDAY.getTime() + 30 * 86_400_000 }],
+    ['out of service', { disabledUntil: MIDDAY.getTime() + 30 * 86_400_000 }],
+  ] as const)('gives a garrison no walls on a point %s', async (_, state) => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
+    const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
+    await garrison(t, guest, outpostId);
+    await t.run(async (ctx) => ctx.db.patch(outpostId, state));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [first, second],
+      target: { kind: 'outpost', outpostId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    // Bare, it takes the blows whole — 25 and 15, where walls would let through 18 and 11 — and
+    // its ten left riposte for five.
+    const [account] = await engagementsIn(t);
+    const strikes = await strikesIn(t, account!._id);
+    expect(strikes.map((one) => [one.phase, one.losses])).toEqual([
+      ['strike', 25],
+      ['strike', 15],
+      ['riposte', 5],
+    ]);
   });
 
   it('walks up to an ungarrisoned point and puts it out without a battle', async () => {
@@ -1945,11 +2019,10 @@ describe('a march goes to a point and the column stays there', () => {
 
   /**
    * **L'assaut sur un camp relevé** (ADR 0024 §4) : c'est désormais le seul chemin vers cette
-   * passe-là. Les deux camps tirent ensemble (ADR 0014, révision 1b du 16/09) — le camp visé
-   * rend les coups sans que personne l'ordonne — et le battu reflue par le retour que nul n'a
-   * demandé.
+   * passe-là. L'attaquant frappe d'abord, le camp visé riposte avec ce qui lui reste sans que
+   * personne l'ordonne — et, posé en terrain libre, il encaisse tout.
    */
-  it('opens the pass on a surveyed camp, with a salvo from each side', async () => {
+  it('opens the pass on a surveyed camp: the strike, then the riposte', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1976,12 +2049,17 @@ describe('a march goes to a point and the column stays there', () => {
     expect(account!.attackerId).toBe(await playerOf(t, seat));
     expect(account!.defenderId).toBe(await playerOf(t, guest));
     expect(account!.cause).toBe('arrival');
-    /** Le camp rend les coups sans que personne l'ordonne (ADR 0024 §3), et il les rend dans la
-     *  même salve — c'est le côté qui les sépare désormais, plus la phase. */
+    /** Le camp rend les coups sans que personne l'ordonne (ADR 0024 §3), mais après la frappe. */
     const strikes = await strikesIn(t, account!._id);
-    expect(strikes.some((strike) => strike.bySide === 'attacker')).toBe(true);
-    expect(strikes.some((strike) => strike.bySide === 'defender')).toBe(true);
-    expect(strikes.every((strike) => strike.phase === 'strike')).toBe(true);
+    expect(strikes.map((strike) => [strike.bySide, strike.phase])).toEqual([
+      ['attacker', 'strike'],
+      ['attacker', 'strike'],
+      ['defender', 'riposte'],
+      ['defender', 'riposte'],
+    ]);
+    /** 25 + 15 sur la première compagnie du camp, qui riposte de ses 10 hommes restants (5) ;
+     *  la seconde, intacte, de ses 50 (25) — trente en tout, sans bonus en terrain libre. */
+    expect((await t.run(async (ctx) => ctx.db.get(first)))!.currentStrength).toBe(20);
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.currentStrength).toBeLessThan(
       nominalStrength('infantry', 1),
     );
@@ -2895,7 +2973,7 @@ describe('a rout refluxes to the nearest anchor', () => {
    */
   async function assault(t: ReturnType<typeof boot>, seat: Seat, at: LonLat, onto: LonLat) {
     const troopIds = [await post(t, seat, at), await post(t, seat, at)];
-    /** La seconde colonne part entamée : à pleine force les deux salves effacent exactement les
+    /** La seconde colonne part entamée : à pleine force les deux frappes effacent exactement les
      *  cinquante hommes du camp, et il n'y aurait plus de déroute à suivre. */
     await t.run(async (ctx) => ctx.db.patch(troopIds[1]!, { currentStrength: 30 }));
     const campId = await surveyCamp(t, seat, asPoint(onto));
@@ -3886,6 +3964,30 @@ describe('rester en mer', () => {
     /** **Le compte de la passe dit la vérité** : le fantassin y est détruit, parce qu'il l'est. */
     const [account] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
     expect(account!.troops.find((one) => one.troopId === aboard)!.state).toBe('destroyed');
+  });
+
+  /** **Le vainqueur se lit après le large** : une cargaison noyée n'est plus debout, et la passe
+   *  qui coule le dernier banc a dégagé le terrain. */
+  it('gives the field to the hunter whose strike drowned what it did not shoot', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const water = { lon: DOGGER[0], lat: DOGGER[1] };
+    await postAt(t, guest, 'cargo', water, 4 / 8);
+    const aboard = await postAt(t, guest, 'infantry', water);
+
+    const quay = await raise(t, seat, 'port', NORD);
+    const campId = await surveyCamp(t, seat, water);
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [await form(t, seat, 'escort', quay)],
+      target: { kind: 'camp', campId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [account] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(account!.troops.find((one) => one.troopId === aboard)!.state).toBe('destroyed');
+    expect(account!.winner).toBe('attacker');
   });
 
   /**
