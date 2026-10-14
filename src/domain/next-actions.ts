@@ -266,8 +266,21 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   /** En Blitz le QG forme aussi — l'infanterie (`rolesFormedBy`). */
   const forms = (key: BuildingKey) =>
     view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : PROJECTION_KEYS.has(key);
+  /** **En Blitz on ne recrute que dans un bâtiment libre** (U6) : celui qu'une des miennes tient
+   *  n'attend rien. */
+  const marching = marchingTroopIds(view.arcs);
+  const held = new Set(
+    view.mode === 'blitz'
+      ? view.me.troops.flatMap((troop) =>
+          troop.stationedAt.kind === 'building' && !marching.has(troop.id)
+            ? [troop.stationedAt.buildingId]
+            : [],
+        )
+      : [],
+  );
   const idle = view.me.buildings.filter(
-    (building) => forms(building.key) && !view.me.recruiting.includes(building.id),
+    (building) =>
+      forms(building.key) && !view.me.recruiting.includes(building.id) && !held.has(building.id),
   );
   const [only] = idle;
   if (only === undefined) return [];

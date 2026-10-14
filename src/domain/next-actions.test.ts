@@ -346,6 +346,13 @@ describe('a Blitz', () => {
     expect(kinds(blitz({ buildings: [hq], recruiting: ['B-hq'] }))).toEqual([]);
   });
 
+  it('asks nothing of a building one of mine holds: it is not free (U6)', () => {
+    const guard = troop({ stationedAt: { kind: 'building', buildingId: 'B-hq' } });
+    expect(kinds(blitz({ buildings: [hq], recruiting: [], troops: [guard] }))).not.toContain(
+      'idleProjection',
+    );
+  });
+
   it('points at the neutral cities within reach, the nearest first', () => {
     const [line] = nextActionsOf(
       blitz({ buildings: [hq], recruiting: ['B-hq'] }, [
