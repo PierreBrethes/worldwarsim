@@ -8,8 +8,8 @@ import { DispatchSheet } from './DispatchSheet';
 
 /**
  * **L'arrivée sur une dépêche de combat** (lot mobile-3, §6). La feuille dit ce que le journal dit
- * déjà — pertes, terrain, avant-poste désactivé — et **ne nomme pas l'assaillant** : le compte
- * rendu ne le nomme pas, et aucune nation ne doit y paraître (ADR 0005).
+ * déjà — pertes, terrain, avant-poste désactivé — et ce qu'on a eu en face au feu (F1), quand le
+ * compte rendu le porte ; un compte rendu d'avant ne nomme personne.
  */
 afterEach(cleanup);
 
@@ -30,7 +30,7 @@ const attacked: CombatReport = {
 
 const [dispatch] = journalDispatches([attacked], null, []);
 
-it('dit les pertes et l’avant-poste désactivé, sans nommer l’assaillant', () => {
+it('dit les pertes et l’avant-poste désactivé, sans nommer l’assaillant d’un compte rendu d’avant', () => {
   render(
     <DispatchSheet
       dispatch={dispatch!}
@@ -47,6 +47,30 @@ it('dit les pertes et l’avant-poste désactivé, sans nommer l’assaillant', 
   for (const nation of Object.values(fr.nations).filter((name) => name !== fr.nations.france))
     expect(sheet.textContent).not.toContain(nation);
   expect(screen.queryByRole('button', { name: /assaillant/i })).toBeNull();
+});
+
+it('nomme la nation et les rôles qu’on a eus en face au feu (F1)', () => {
+  const seen: CombatReport = {
+    ...attacked,
+    faced: {
+      nation: 'germany',
+      forces: [
+        { role: 'armor', tier: 1, troops: 2, strength: 24, lost: 12, routed: 0, destroyed: 0 },
+      ],
+    },
+  };
+  render(
+    <DispatchSheet
+      dispatch={journalDispatches([seen], null, [])[0]!}
+      combat={seen}
+      onOpenGarrison={() => {}}
+      onOpenJournal={() => {}}
+      onClose={() => {}}
+    />,
+  );
+  const sheet = screen.getByRole('dialog');
+  expect(sheet.textContent).toContain(fr.dispatchSheet.faced);
+  expect(sheet.textContent).toContain('Allemagne : blindé ×2 (24 machines)');
 });
 
 it('n’offre la garnison que s’il en reste une, et garde le journal et « plus tard »', () => {
