@@ -87,16 +87,6 @@ export async function spendFunds(
   await ctx.db.patch(playerId, { funds: stock - amount });
 }
 
-export async function creditFunds(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  amount: number,
-  now: number,
-): Promise<void> {
-  const stock = await settleFunds(ctx, playerId, now);
-  await ctx.db.patch(playerId, { funds: stock + amount });
-}
-
 export const placementInput = internalQuery({
   args: { seasonId: v.id('seasons') },
   handler: async (ctx, { seasonId }) => {

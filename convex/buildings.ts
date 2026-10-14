@@ -13,7 +13,7 @@ import { foundationOwedBy, pointOfBuilding } from './regions';
 import { clipToStorage, credit, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
-import { creditFunds, isBlitz, refuseInBlitz } from './blitz';
+import { refuseInBlitz } from './blitz';
 
 export type { BuildingKey };
 
@@ -178,16 +178,15 @@ async function cancelWorkOn(
   }
 
   const hqLevel = levelOf(await playerBuildings(ctx, player._id), 'hq');
-  /** En Blitz une recrue se paie en fonds : c'est en fonds qu'elle se rend. */
-  const blitz = await isBlitz(ctx, building.seasonId);
+  /** **Une Blitz n'a jamais de lot en attente** (U6) : un seul par bâtiment libre, daté à
+   *  l'ordre, donc rien à y rendre. */
   const batches = await ctx.db
     .query('recruitments')
     .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      if (blitz) await creditFunds(ctx, player._id, BLITZ.rolePrice[batch.role], now);
-      else add({ alloy: recruitmentCost(batch.role, batch.tier, hqLevel).alloy });
+      add({ alloy: recruitmentCost(batch.role, batch.tier, hqLevel).alloy });
     }
     await ctx.db.delete(batch._id);
   }
