@@ -492,6 +492,14 @@ export const fr = {
     NOT_ENOUGH_PLAYERS: (d) => `il faut au moins ${num(d.minimum)} joueurs`,
     PLAYERS_NOT_READY: (d) =>
       `pas prêts : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'}`,
+    PLAYERS_ABSENT: (d) =>
+      `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans eux`,
+    SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
+    INVALID_CAPTURE_HOURS: () => 'la prise d’un QG dure 12 ou 24 heures',
+    RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
+    SEATS_OUT_OF_RANGE: () =>
+      'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
+    THEATRE_TOO_SMALL: () => 'ce théâtre n’assoit pas tous ceux qui sont déjà à table',
     INVALID_REST_WINDOW: () => 'plage invalide : minutes entre 0 et 1439',
     REST_WINDOW_FROZEN: () =>
       'la plage de repos se déclare au salon — elle est scellée pour toute la saison',

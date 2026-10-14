@@ -148,6 +148,15 @@ export default defineSchema({
     theatre: v.optional(v.string()),
     /** Why the last launch of a Blitz came back to the lobby; cleared by the next launch. */
     launchRefusal: v.optional(LAUNCH_REFUSAL),
+    /** **L'ordre d'opérations**, réglé par le fondateur jusqu'au lancement
+     *  (`src/domain/operation-order.ts`). Absent se lit comme les défauts : pas de rendez-vous,
+     *  pas de rappel, prise d'un QG en 12 h, la table pleine. `scheduledAt: null` est une Blitz
+     *  « dès que la table est complète ». */
+    scheduledAt: v.optional(v.union(v.number(), v.null())),
+    remind: v.optional(v.boolean()),
+    /** Mondiale (M15) : stocké et affiché, la capture de QG Mondiale n'existe pas encore. */
+    hqCaptureHours: v.optional(v.number()),
+    seatCap: v.optional(v.number()),
   }).index('byCode', ['code']),
 
   players: defineTable({
@@ -274,6 +283,10 @@ export default defineSchema({
     /** L'heure du dernier télégraphe parti en notification pour cette place : le télégraphe
      *  n'en déclenche qu'une par heure (`convex/notifications.ts`). */
     telegraphPushedAt: v.optional(v.number()),
+    /** **À la table du salon d'une Blitz**, au dernier battement (`players.beatLobby`). Jamais
+     *  écrit ni servi en Mondiale : la présence y serait un canal sur les plages de repos
+     *  (ADR 0005). */
+    lobbySeenAt: v.optional(v.number()),
   })
     .index('byAccountSeason', ['accountId', 'seasonId'])
     .index('bySeason', ['seasonId']),

@@ -40,6 +40,7 @@ export const push = {
   sighting: 'Une colonne adverse a été relevée dans une de vos portées.',
   dryFire: 'Un de vos camps a tiré à sec : le magasin ne couvrait pas la passe.',
   seasonLaunched: 'La saison est lancée.',
+  rendezvousSoon: (minutes: number) => `La Blitz commence dans ${minutes} minutes : à table.`,
   seasonConcluded: 'La saison est close.',
   seasonDominated: 'La saison est dominée : un belligérant l’emporte.',
   telegraphOne: 'Un message au télégraphe.',
@@ -114,7 +115,7 @@ export function groupAlarms(
   const tag = `${seasonId}:alarms`;
   const attacks = alarms.filter((row) => row.type === 'attack');
   const url = attacks.length === 1 ? attacks[0]!.url : journalUrl;
-  if (alarms.length === 1) return { body: alarms[0]!.phrase, url, tag };
+  if (alarms.length === 1) return { body: alarms[0]!.phrase, url: alarms[0]!.url, tag };
   const labels = ALARM_ORDER.flatMap((type) => {
     const count = alarms.filter((row) => row.type === type).length;
     return count === 0 ? [] : [push.alarmLabels[type](count)];

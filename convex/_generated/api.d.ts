@@ -30,6 +30,7 @@ import type * as lootCrates from "../lootCrates.js";
 import type * as lootRumors from "../lootRumors.js";
 import type * as messages from "../messages.js";
 import type * as movement_arrival from "../movement/arrival.js";
+import type * as movement_bombard from "../movement/bombard.js";
 import type * as movement_cargoReturn from "../movement/cargoReturn.js";
 import type * as movement_detection from "../movement/detection.js";
 import type * as movement_forces from "../movement/forces.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   lootRumors: typeof lootRumors;
   messages: typeof messages;
   "movement/arrival": typeof movement_arrival;
+  "movement/bombard": typeof movement_bombard;
   "movement/cargoReturn": typeof movement_cargoReturn;
   "movement/detection": typeof movement_detection;
   "movement/forces": typeof movement_forces;
