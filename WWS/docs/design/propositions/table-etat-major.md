@@ -208,7 +208,7 @@ Avis de Pierre du 12/10 entre crochets.
   re-résoudre : elles se font face, éclairs de bouche, celles perdues tombent. [*Oui.*]
   **Prototypé le 12/10** (version 8), en quatre temps : mise en place — ma ligne entre, et le bloc
   relevé se dédouble en autant de blocs que le compte rendu compte de troupes adverses ; salves
-  simultanées — éclairs et tirs d'encre partent **ensemble** des deux lignes, les pertes tombent
+  simultanées (règle du 16/09 ; l'initiative est revenue le 14/10, ADR 0014) — éclairs et tirs d'encre partent **ensemble** des deux lignes, les pertes tombent
   ensemble (une figurine couchée, le char qui fume, un bloc renversé) ; déroute — lue une fois
   après, les blocs déroutés reculent et pâlissent ; compte rendu — tampon « terrain tenu », la
   phrase même de la dépêche, le tableau chez moi / en face. **Le brouillard tient** : en face,

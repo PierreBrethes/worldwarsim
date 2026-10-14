@@ -1,5 +1,7 @@
 # Le combat après le 16/09 — simultané, contact, terrain, retranchement (décisions, 16/09/2026)
 
+> **Révision du 14/10/2026 : l'initiative revient (ADR 0014, B16/B17) ; la passe simultanée ne survit que comme choc (`mode: 'shock'`) — ce qui suit décrit la règle du 16/09.**
+
 **Statut : décisions de Pierre du 16/09/2026**, prises en session Cowork à partir d'une idée de
 « portée d'attaque » à la Advance Wars. Ce doc dit ce qui est tranché, ce qui existait déjà sous
 un autre nom, et ce qui attend. Il est la source de la révision de l'ADR 0014 et des entrées
