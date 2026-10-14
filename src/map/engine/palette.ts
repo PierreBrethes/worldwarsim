@@ -138,6 +138,8 @@ export function lit(ground: string): string {
  * takes the **deep** of the ink that painted the ground (plain ink on bare land), or the paper
  * when the paper reads better on the ground as lit: the hover says the terrain with the
  * drawing, never by changing the nation's colour.
+ * The night does not change it: it is chosen on the ground by day, and the veil darkens the
+ * ground under an unlit stroke — the paper gains, the deep ink loses, deliberately left so.
  */
 export function penOn(ground: string, ink: string | null): string {
   const deep = ink === null ? PALETTE.border : lavis('#000000', PEN_DEPTH, ink);
