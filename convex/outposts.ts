@@ -8,7 +8,7 @@ import { razeBuilding } from './buildings';
 import { playerBuildings } from './buildingReads';
 import { buildCost, buildMinutes, outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
-import { homeGroundsOf, soleHoldOf } from './holding';
+import { homeGroundsOf, occupationsOf, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
 import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
 import { allRegions } from './regions';
@@ -234,6 +234,7 @@ async function anchoredBuildings(
       outposts: await outpostsOf(ctx, playerId),
       outpost,
       homeGrounds: await homeGroundsOf(ctx, outpost.seasonId),
+      occupations: await occupationsOf(ctx, outpost.seasonId),
       now,
     }),
   );
@@ -303,6 +304,7 @@ export const soleHold = query({
         outposts: await outpostsOf(ctx, player._id),
         outpost,
         homeGrounds: await homeGroundsOf(ctx, season._id),
+        occupations: await occupationsOf(ctx, season._id),
         now: Date.now(),
       }).length,
     };
