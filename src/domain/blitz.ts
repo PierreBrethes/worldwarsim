@@ -48,8 +48,9 @@ export function pursuitVerdict({
 }
 
 /**
- * The first instant in `[from, to]` the two forces stand within `reachKm`, or `null`. Sampled
- * like `firstMobileEncounter`, and for its reason: wrong by one step against an unmeasured reach.
+ * The first instant in `[from, to]` the two forces stand within `reachKm`, or `null`. Sampled, not
+ * solved: a closed form on two broken great-circle paths is a quartic per pair of segments, and
+ * one step of error weighs nothing against a reach nobody has measured.
  * The medium is not read — a pursuit is an order, and the table of damage says who can touch.
  */
 export function contactAt(
