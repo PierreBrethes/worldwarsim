@@ -694,7 +694,8 @@
 }
 
 /* **Une destination de la colonne armée** (lot mobile-3, A8) : un cercle au pied du mât, là où
-   l'ordre arrivera. Il n'existe que sous le seuil et en visée — le plateau le décide. */
+   l'ordre arrivera. Il n'existe que sous le seuil et en visée — le plateau le décide. Un
+   pointillé d'encre comme l'anneau du prototype (P:113), plus le bleu de mer plein. */
 .label--destination::after {
   content: '';
   position: absolute;
@@ -703,7 +704,7 @@
   width: 34px;
   height: 34px;
   box-sizing: border-box;
-  border: 2px solid var(--sea-ink);
+  border: 1px dashed rgb(42 33 24 / 65%);
   border-radius: 50%;
   pointer-events: none;
 }
