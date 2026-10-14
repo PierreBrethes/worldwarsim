@@ -18,6 +18,7 @@ import {
 import { stampAt } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { wordedTexture } from '@/map/engine/ink';
+import { PALETTE } from '@/map/engine/palette';
 
 /** Everything on the sheet lies this far over it, so the paper does not swallow it. */
 export const SHEET_Y = 0.08;
@@ -269,7 +270,7 @@ export class Moments {
 export function surveyMark(hour: string, size: number): Mesh<PlaneGeometry, MeshBasicMaterial> {
   const texture = canvasTexture(256, 256, (ctx) => {
     ctx.translate(128, 128);
-    ctx.strokeStyle = ctx.fillStyle = '#2a2118';
+    ctx.strokeStyle = ctx.fillStyle = PALETTE.border;
     ctx.lineCap = 'round';
     ctx.setLineDash([14, 9]);
     ctx.lineWidth = 5;
@@ -303,7 +304,7 @@ export function surveyMark(hour: string, size: number): Mesh<PlaneGeometry, Mesh
     ctx.fillStyle = '#8f3a2c';
     ctx.fillText('?', 58, -38);
     ctx.font = '500 26px "IBM Plex Mono", monospace';
-    ctx.fillStyle = '#2a2118';
+    ctx.fillStyle = PALETTE.border;
     ctx.fillText(hour, 0, 74);
   });
   const mesh = new Mesh(

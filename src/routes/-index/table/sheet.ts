@@ -175,9 +175,11 @@ export function engrave(sheet: EuropeSheet, width: number): HTMLCanvasElement {
   }
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(42,33,24,.75)';
+  ctx.strokeStyle = PALETTE.border;
   ctx.lineWidth = width / 1500;
+  ctx.globalAlpha = 0.75;
   for (const { path } of countries) ctx.stroke(path);
+  ctx.globalAlpha = 1;
   ctx.strokeStyle = PALETTE.border;
   ctx.lineWidth = width / 1100;
   ctx.stroke(land);
