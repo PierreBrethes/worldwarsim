@@ -206,4 +206,22 @@ describe('the operation order', () => {
       expect(queued.map((row) => row.url)).toEqual(remind ? ['/accueil'] : []);
     }
   });
+
+  it('reminds once even when the reminder is unticked and ticked again', async () => {
+    const t = boot();
+    const { founder } = await blitz(t);
+    await t.mutation(api.notifications.subscribe, {
+      token: founder.token,
+      endpoint: 'https://push.example/koval',
+      p256dh: 'p256dh',
+      auth: 'auth',
+      userAgent: 'Mozilla/5.0 Chrome/126.0',
+    });
+    await t.mutation(api.seasons.configure, { ...founder, remind: false });
+    await t.mutation(api.seasons.configure, { ...founder, remind: true });
+    vi.advanceTimersByTime(45 * MINUTE);
+    await t.finishInProgressScheduledFunctions();
+    const queued = await t.run((ctx) => ctx.db.query('pushQueue').collect());
+    expect(queued).toHaveLength(1);
+  });
 });

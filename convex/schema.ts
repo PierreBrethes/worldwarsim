@@ -157,6 +157,8 @@ export default defineSchema({
     /** Mondiale (M15) : stocké et affiché, la capture de QG Mondiale n'existe pas encore. */
     hqCaptureHours: v.optional(v.number()),
     seatCap: v.optional(v.number()),
+    /** Le travail du rappel en attente, qu'un changement de l'ordre annule (`planReminder`). */
+    reminderJobId: v.optional(v.id('_scheduled_functions')),
   }).index('byCode', ['code']),
 
   players: defineTable({

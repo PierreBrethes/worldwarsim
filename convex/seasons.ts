@@ -106,20 +106,27 @@ const SETTINGS_ARGS = {
   seatCap: v.optional(v.number()),
 };
 
-/** **Le rappel quinze minutes avant le rendez-vous**, un travail par rendez-vous : il se relit
- *  à l'échéance (`remind`) et se tait si l'heure a changé depuis, sans qu'on ait à l'annuler.
- *  ponytail: un rendez-vous déplacé puis remis à la même heure rappelle deux fois ; garder l'id du
- *  travail sur la saison si ça arrive. */
+/** **Le rappel quinze minutes avant le rendez-vous** : un seul travail par saison. Tout
+ *  changement de l'ordre annule le précédent et replanifie ; `remind` se relit encore à
+ *  l'échéance, au cas où. */
 async function planReminder(ctx: MutationCtx, season: Doc<'seasons'>): Promise<void> {
+  if (season.reminderJobId !== undefined) {
+    const job = await ctx.db.system.get(season.reminderJobId);
+    if (job !== null && job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+  }
   const settings = settingsOf(season);
-  if (settings.mode !== 'blitz' || settings.scheduledAt === null || settings.remind !== true)
-    return;
-  const at = settings.scheduledAt - REMINDER_MINUTES * 60_000;
-  if (at <= Date.now()) return;
-  await ctx.scheduler.runAt(at, internal.seasons.remind, {
-    seasonId: season._id,
-    expectedAt: settings.scheduledAt,
-  });
+  const at =
+    settings.mode === 'blitz' && settings.scheduledAt !== null && settings.remind === true
+      ? settings.scheduledAt - REMINDER_MINUTES * 60_000
+      : null;
+  const reminderJobId =
+    at === null || at <= Date.now()
+      ? undefined
+      : await ctx.scheduler.runAt(at, internal.seasons.remind, {
+          seasonId: season._id,
+          expectedAt: settings.scheduledAt!,
+        });
+  await ctx.db.patch(season._id, { reminderJobId });
 }
 
 export const remind = internalMutation({
@@ -244,9 +251,7 @@ export const configure = mutation({
     });
     for (const entry of present) if (entry.ready) await ctx.db.patch(entry._id, { ready: false });
     const patched = await ctx.db.get(season._id);
-    if (patched !== null && (changes.scheduledAt !== undefined || changes.remind === true)) {
-      await planReminder(ctx, patched);
-    }
+    if (patched !== null) await planReminder(ctx, patched);
   },
 });
 
