@@ -6,6 +6,7 @@ import type { UnitRole } from '../src/domain/ids';
 import { nominalStrength } from './constants';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
+import { walkHome } from './movement/arrival';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -383,6 +384,55 @@ describe('taking a site back', () => {
         target: { kind: 'building', buildingId: barracks },
       }),
     ).resolves.toMatchObject({ movementId: expect.any(String) });
+  });
+});
+
+describe('a site that changed hands while its column was away', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('does not take its old garrison back in, on the road home or at the door', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const away = await troop(t, guest, 'infantry', barracks);
+    const homing = await troop(t, guest, 'infantry', barracks);
+    const capturer = await playerOf(t, seat);
+    await t.run((ctx) => ctx.db.patch(barracks, { playerId: capturer._id, capturedAt: MIDDAY }));
+
+    const there = pointOfRegion(PRAHOVA);
+    await t.run(async (ctx) => {
+      const troop = (await ctx.db.get(away))!;
+      await walkHome(ctx, { winners: [troop], beaten: [] }, [there.lon, there.lat], MIDDAY);
+    });
+    expect((await t.run((ctx) => ctx.db.get(away)))!.stationedAt).toEqual(there);
+
+    const owner = await playerOf(t, guest);
+    const to = pointOfRegion(PSKOV);
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        type: 'return',
+        fromBuildingId: barracks,
+        target: { kind: 'home' },
+        from: there,
+        to,
+        hostCountry: 'RUS',
+        points: [there, to],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [homing],
+        departedAt: MIDDAY - HOUR,
+        arrivesAt: MIDDAY,
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    expect((await t.run((ctx) => ctx.db.get(homing)))!.stationedAt).toEqual(to);
   });
 });
 
