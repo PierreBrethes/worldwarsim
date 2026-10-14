@@ -1130,16 +1130,6 @@ export const fr = {
     credits: 'crédits',
     /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
     back: 'retour à la une',
-    shortDate: (at: Date) =>
-      new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(
-        at,
-      ),
-    shortDateline: 'édition de guerre',
-    stamp: 'sur invitation',
-    codeTitle: 'J’ai un code d’invitation',
-    codeHint: 'Six caractères, reçus avec l’invitation',
-    open: 'ouvrir',
-    accountTitle: 'Déjà un compte ?',
   },
 
   /** **La feuille qu'ouvre un lien d'invitation** (`/rejoindre/CODE`). Les refus sont ceux du
