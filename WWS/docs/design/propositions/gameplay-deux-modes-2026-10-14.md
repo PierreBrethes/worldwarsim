@@ -34,11 +34,18 @@ une soirée au lieu d'une semaine.
 - **La capture, à la Advance Wars** (B3, B3b, M7). Seule l'infanterie capture. Elle tient le
   bâtiment ; la capture avance **au rythme de ses PV** (10/10 = vitesse de base, 5/10 = moitié).
   Un combat ne la remet jamais à zéro : seuls le départ ou la mort de l'unité qui capture le
-  font. Une présence ennemie ne la suspend pas — il faut attaquer.
+  font. Une présence ennemie ne la suspend pas — il faut attaquer. Revue du lot 3 : la
+  meilleure infanterie présente fixe la vitesse, pas la somme (K1) ; l'infanterie qui capture
+  un avant-poste y entre en garnison (K2) ; un bâtiment capturé n'occupe aucun emplacement
+  (K3) ; la rose annonce la durée à la force réelle (K4) ; l'heure de perte, qui laisse deviner
+  la force du capteur, est acceptée (K5) ; un bâtiment repris reperd un niveau, jamais sous 1
+  (K7) ; un avant-poste désactivé reste capturable, même immunisé (K8).
 - **Le combat à l'initiative** (B16, M14). L'attaquant frappe avec ses PV actuels × la table
-  de dégâts (`DAMAGE_TABLE`, inchangée) ; le défenseur riposte avec ce qui lui reste, s'il peut
-  toucher. La passe simultanée disparaît. Le bonus de défense devient un bonus **de bâtiment**
-  (des « étoiles »).
+  de dégâts (`DAMAGE_TABLE`) ; le défenseur riposte avec ce qui lui reste, s'il peut toucher.
+  La passe simultanée disparaît. Revue du lot 2 : **la garnison encaisse moins** (≈ ×0,7 des
+  dégâts reçus, les « étoiles » d'Advance Wars) et riposte normalement — un avant-poste en
+  chantier ou désactivé n'abrite pas (C1, C4) ; un blindé MK1 riposte au MK2 à 25 % de sa
+  case contre un MK1 (C2) ; on ne paie en munitions que ce qu'on tire (C3).
 - **Charge contre charge = choc simultané** (B17, option b). Deux unités qui s'attaquent l'une
   l'autre au contact tirent ensemble. Qui frappe une cible posée ou occupée ailleurs a
   l'initiative. Voir venir laisse trois parades : tenir (étoiles), contre-charger, reculer.
