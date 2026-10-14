@@ -1,4 +1,5 @@
 import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
+import { DEFAULT_CAMERA_LENS, isCameraLens, type CameraLens } from '@/domain/camera-lens';
 import { DEFAULT_DAY_CYCLE, isDayCycle, type DayCycle } from '@/domain/daylight';
 import {
   DEFAULT_MAP_MOTION_SETTING,
@@ -223,6 +224,25 @@ export function readDayCycle(): DayCycle {
 export const keepDayCycle = (cycle: DayCycle): void => {
   try {
     localStorage.setItem(DAY_CYCLE_KEY, cycle);
+  } catch {
+    // Private mode: the choice lasts the session only.
+  }
+};
+
+const CAMERA_LENS_KEY = 'wws-camera-lens';
+
+export function readCameraLens(): CameraLens {
+  try {
+    const kept = localStorage.getItem(CAMERA_LENS_KEY);
+    return isCameraLens(kept) ? kept : DEFAULT_CAMERA_LENS;
+  } catch {
+    return DEFAULT_CAMERA_LENS;
+  }
+}
+
+export const keepCameraLens = (lens: CameraLens): void => {
+  try {
+    localStorage.setItem(CAMERA_LENS_KEY, lens);
   } catch {
     // Private mode: the choice lasts the session only.
   }

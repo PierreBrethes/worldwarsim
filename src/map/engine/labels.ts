@@ -173,6 +173,8 @@ export class LabelLayer {
     width: number,
     height: number,
     mobilePositions: ReadonlyMap<string, Vector3>,
+    /** Where sizes are measured from: the driven camera when a longer lens renders from further back. */
+    measuredFrom: Vector3 = camera.position,
   ): ReadonlyArray<LabelProjection> {
     camera.getWorldDirection(this.gaze);
     const share = this.regionShare();
@@ -188,7 +190,7 @@ export class LabelLayer {
         continue;
       }
 
-      const distance = position.distanceTo(camera.position);
+      const distance = position.distanceTo(measuredFrom);
       // Behind the camera, the perspective projection returns the symmetric point: without
       // this straightening, an indicator would head to the edge opposite its entity.
       const behind = this.toward.copy(position).sub(camera.position).dot(this.gaze) < 0;

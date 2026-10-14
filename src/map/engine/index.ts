@@ -1,7 +1,9 @@
 import {
+  ACESFilmicToneMapping,
   Color,
   Fog,
   MOUSE,
+  NoToneMapping,
   PCFSoftShadowMap,
   PerspectiveCamera,
   Raycaster,
@@ -19,6 +21,7 @@ import {
   type Object3D,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { isTyping } from '@/map/typing';
 import {
   DEFAULT_MOUSE_MAPPING,
@@ -37,6 +40,12 @@ import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
+import {
+  DEFAULT_CAMERA_LENS,
+  eyeDistanceFactor,
+  LENS_FOV,
+  type CameraLens,
+} from '@/domain/camera-lens';
 import { boardInstant, type DayCycle } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
@@ -53,7 +62,7 @@ import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { HELD_OPACITY, lavis, PALETTE } from './palette';
-import { buildCountries, type CountryMesh } from './countries';
+import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
@@ -219,6 +228,13 @@ type Gesture = {
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
+  /**
+   * **What renders, as opposed to what is driven** (`camera-lens.ts`). The controls, the
+   * distance and every threshold read `camera`; the eye stands on its axis, backed off to frame
+   * the same looked-at plane through its own lens. With the game lens it is the camera's twin.
+   */
+  private readonly eye = new PerspectiveCamera(LENS_FOV.game, 1, 0.5, 3000);
+  private lens: CameraLens = DEFAULT_CAMERA_LENS;
   private readonly renderer: WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
@@ -242,6 +258,7 @@ export class MapEngine {
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  private readonly coast: LineSegments2;
   /** Land and water in one list, allocated once: it is walked on every hover of a placement,
    *  and a fresh array per frame is the kind of garbage a render loop must not make. */
   private readonly aimable: Object3D[];
@@ -379,9 +396,9 @@ export class MapEngine {
     this.frame = new WorldFrame(world);
 
     this.scene.background = new Color(PALETTE.desk);
-    this.scene.fog = new Fog(PALETTE.desk, 460, 950);
+    this.scene.fog = new Fog(PALETTE.desk, FOG_NEAR, FOG_FAR);
 
-    this.camera = new PerspectiveCamera(42, 1, 0.5, 3000);
+    this.camera = new PerspectiveCamera(LENS_FOV.game, 1, 0.5, 3000);
     this.camera.position.set(30, 250, 300);
 
     // The stencil serves the coastal wash, whose ribbons overlap: without it, three opens
@@ -442,20 +459,22 @@ export class MapEngine {
 
     this.scene.add(buildCoastalWash(world, this.frame));
 
-    const { meshes, borders } = buildCountries(world, this.frame);
+    const { meshes, borders, coast } = buildCountries(world, this.frame);
     this.countries = meshes;
     this.borders = borders;
+    this.coast = coast;
     for (const mesh of meshes) {
       mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
     this.scene.add(borders);
+    this.scene.add(coast);
 
     this.aimable = [...this.countries, this.surface];
 
     if (this.ambience.enabled('sea')) {
       this.ambience.add(
-        new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, {
+        new RibbonLayer(this.scene, this.eye, this.renderer, this.frame, {
           ...CURRENT_RIBBONS,
           // Until the surf's grid lands, no current is born: building it here would cost a
           // second copy of the same raster on the first ambient step.
@@ -465,7 +484,7 @@ export class MapEngine {
     }
     if (this.ambience.enabled('wind')) {
       this.ambience.add(
-        new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, WIND_RIBBONS),
+        new RibbonLayer(this.scene, this.eye, this.renderer, this.frame, WIND_RIBBONS),
       );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
@@ -992,7 +1011,7 @@ export class MapEngine {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
-    this.ray.setFromCamera(this.aim, this.camera);
+    this.ray.setFromCamera(this.aim, this.syncEye());
     return true;
   }
 
@@ -1069,7 +1088,10 @@ export class MapEngine {
     if (!clientWidth || !clientHeight) return;
     this.camera.aspect = clientWidth / clientHeight;
     this.camera.updateProjectionMatrix();
+    this.eye.aspect = this.camera.aspect;
+    this.eye.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
+    this.coast.material.resolution.set(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
@@ -1301,7 +1323,7 @@ export class MapEngine {
       this.maquettes.boxOf(labelId);
     return box === null || box.isEmpty()
       ? null
-      : screenRect(box, this.camera, this.screenWidth, this.screenHeight);
+      : screenRect(box, this.eye, this.screenWidth, this.screenHeight);
   }
 
   /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
@@ -1394,6 +1416,30 @@ export class MapEngine {
     this.pointer.x = (this.pointerScreen.x / rect.width) * 2 - 1;
     this.pointer.y = -(this.pointerScreen.y / rect.height) * 2 + 1;
     this.hoverDirty = true;
+  }
+
+  setCameraLens(lens: CameraLens): void {
+    this.invalidate();
+    this.lens = lens;
+    this.eye.fov = LENS_FOV[lens];
+    this.eye.updateProjectionMatrix();
+    this.renderer.toneMapping = lens === 'poc' ? ACESFilmicToneMapping : NoToneMapping;
+    this.renderer.toneMappingExposure = lens === 'poc' ? POC_EXPOSURE : 1;
+    const fog = this.scene.fog as Fog;
+    fog.near = FOG_NEAR * eyeDistanceFactor(lens);
+    fog.far = FOG_FAR * eyeDistanceFactor(lens);
+    this.syncEye();
+  }
+
+  private syncEye(): PerspectiveCamera {
+    const target = this.controls.target;
+    this.eye.position
+      .subVectors(this.camera.position, target)
+      .multiplyScalar(eyeDistanceFactor(this.lens))
+      .add(target);
+    this.eye.quaternion.copy(this.camera.quaternion);
+    this.eye.updateMatrixWorld();
+    return this.eye;
   }
 
   setDayCycle(cycle: DayCycle): void {
@@ -1624,7 +1670,7 @@ export class MapEngine {
   ): ReadonlyArray<LabelProjection> {
     const replay = this.replay;
     if (replay === null) return projections;
-    const center = replay.center.clone().project(this.camera);
+    const center = replay.center.clone().project(this.eye);
     const x = ((center.x + 1) / 2) * this.screenWidth;
     const y = ((1 - center.y) / 2) * this.screenHeight;
     const radius = replay.reach / this.unitsPerPixel(distance);
@@ -1702,7 +1748,7 @@ export class MapEngine {
   }
 
   private updateHover(): void {
-    this.ray.setFromCamera(this.pointer, this.camera);
+    this.ray.setFromCamera(this.pointer, this.syncEye());
     /** **The pointer's rest, (-2, -2), is off the screen but not off the board**: tilted and
      *  close, a ray cast outside the frame still lands on a country, and the dock would announce
      *  a hover nobody made — on a phone, from the first frame. */
@@ -1756,7 +1802,7 @@ export class MapEngine {
      *  hit already in hand. */
     if (this.placing !== null) {
       const arrived = this.ghost.spot === null;
-      this.ray.setFromCamera(this.pointer, this.camera);
+      this.ray.setFromCamera(this.pointer, this.syncEye());
       const board = onScreen ? this.ray.intersectObjects(this.aimable, false)[0]?.point : undefined;
       this.ghost.aimAt(
         board === undefined ? null : board.x + this.frame.centerX,
@@ -1806,6 +1852,7 @@ export class MapEngine {
       this.camera.position.distanceTo(this.controls.target),
     );
     this.controls.update();
+    this.syncEye();
     if (this.hoverDirty) {
       // Le survol change ce qui s'allume.
       this.invalidate();
@@ -1841,7 +1888,7 @@ export class MapEngine {
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
-    // beneath — WebGL only knows one pixel of width.
+    // beneath. The coast is the one fat stroke, a ribbon with a pixel floor.
     const yaw = cameraYaw(this.camera.position, this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
@@ -1863,19 +1910,21 @@ export class MapEngine {
         castShadows(root);
       if (this.replay) castShadows(this.replay.scene.object);
     }
-    this.regions.animate(distance, now);
+    this.regions.animate(distance, now, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
         : 0.62;
+    this.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
 
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.eye);
     const projections = this.labels.project(
-      this.camera,
+      this.eye,
       this.screenWidth,
       this.screenHeight,
       this.arcs.headPositions,
+      this.camera.position,
     );
     const tilt =
       this.ambience.motion === 'off'
@@ -1894,6 +1943,11 @@ export class MapEngine {
     );
   };
 }
+
+const FOG_NEAR = 460;
+const FOG_FAR = 950;
+/** The prototype's exposure under ACES (P:456). */
+const POC_EXPOSURE = 1.05;
 
 /** Une marge au-dessus du plancher : la molette s'arrête rarement pile sur `minDistance`. */
 const ZOOM_FLOOR_SLACK = 1.15;
