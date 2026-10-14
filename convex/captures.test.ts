@@ -332,6 +332,46 @@ describe('capturing a building', () => {
   });
 });
 
+describe('a capturer who lays down his arms', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('still takes the site in the long mode: his troops hold and act as before', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const guest = await joinSeat(t, code, 'Léa');
+    const third = await joinSeat(t, code, 'Marc');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+      [third, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    for (const who of [seat, guest, third]) await placeHq(t, who);
+    await restWindow(t, guest, NO_REST);
+    const barracks = await building(t, guest, PSKOV);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await t.mutation(api.players.surrender, seat);
+    await finish(t);
+    const me = await playerOf(t, seat);
+    expect((await t.run((ctx) => ctx.db.get(barracks)))!.playerId).toBe(me._id);
+  });
+});
+
 describe('capturing an outpost', () => {
   beforeEach(() => {
     vi.useFakeTimers();

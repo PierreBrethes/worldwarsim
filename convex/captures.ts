@@ -230,6 +230,17 @@ export async function arriveForCapture(
 
   for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: movement.to });
   await forgetMovement(ctx, movement._id);
+  if (await surrenderedInBlitz(ctx, movement.playerId)) {
+    const refused = {
+      seasonId: movement.seasonId,
+      playerId: movement.playerId,
+      defenderId: site.playerId,
+      site: siteOf(site),
+      point: movement.to,
+    };
+    await notifyBoth(ctx, refused, now, { kind: 'captureCancelled', reason: 'left' });
+    return;
+  }
   await startCapture(ctx, movement, site, standing, now);
 }
 
@@ -390,10 +401,8 @@ export const complete = internalMutation({
     ) {
       return;
     }
-    /** **Qui a déposé les armes ne prend plus rien** : en Blitz sa capture d'un QG éliminerait
-     *  un belligérant au profit d'un observateur. */
-    if ((await ctx.db.get(capture.playerId))?.defeated === true) {
-      await stop(ctx, capture, expectedAt, 'gone');
+    if (await surrenderedInBlitz(ctx, capture.playerId)) {
+      await stop(ctx, capture, expectedAt, 'left');
       return;
     }
     const now = expectedAt;
@@ -479,6 +488,16 @@ export const complete = internalMutation({
     }
   },
 });
+
+/**
+ * **En Blitz, qui a déposé les armes ne prend plus rien** : sa capture d'un QG éliminerait un
+ * belligérant au profit d'un observateur. En Mondiale ses troupes tiennent et agissent comme
+ * avant (décision du 31/08), captures comprises.
+ */
+async function surrenderedInBlitz(ctx: QueryCtx, playerId: Id<'players'>): Promise<boolean> {
+  const player = await ctx.db.get(playerId);
+  return player?.defeated === true && (await seasonModeOf(ctx, player.seasonId)) === 'blitz';
+}
 
 /** **Ses troupes disparaissent** (B10), en marche comme posées, et ses captures avec elles. */
 async function disband(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {

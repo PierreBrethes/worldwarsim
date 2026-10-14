@@ -682,6 +682,52 @@ describe('la chute d’un QG, cas limites', () => {
     expect((await buildingsOf(t, me._id)).some((building) => building.key === 'hq')).toBe(true);
   });
 
+  it('ne laisse pas commencer la capture d’un joueur qui a capitulé, et le dit aux deux camps', async () => {
+    const t = boot();
+    const [first, second] = await blitzLaunchedOn(t, 'europe', 3);
+    const me = await playerOf(t, first!);
+    const victim = await playerOf(t, second!);
+    const hq = (await buildingsOf(t, victim._id)).find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
+    await t.mutation(api.players.surrender, first!);
+    const [lon, lat] = pointOfBuilding(hq)!;
+    const [infantry] = await troopsOf(t, me._id);
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: first!.seasonId,
+        playerId: me._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'building', buildingId: hq._id },
+        from: { lon: lon - 1, lat },
+        to: { lon, lat },
+        hostCountry: '',
+        points: [
+          { lon: lon - 1, lat },
+          { lon, lat },
+        ],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry!._id],
+        departedAt: MIDDAY,
+        arrivesAt: MIDDAY,
+        capture: { kind: 'building', buildingId: hq._id },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    expect(await t.run((ctx) => ctx.db.query('captures').collect())).toEqual([]);
+    for (const who of [me, victim]) {
+      const notices = await t.run((ctx) =>
+        ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', who._id))
+          .collect(),
+      );
+      expect(notices).toContainEqual(expect.objectContaining({ kind: 'captureCancelled' }));
+    }
+  });
+
   it('ne laisse pas un joueur qui a capitulé achever une capture', async () => {
     const t = boot();
     const [first, second, third] = await blitzLaunchedOn(t, 'europe', 3);
