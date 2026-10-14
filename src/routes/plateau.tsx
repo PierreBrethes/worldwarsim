@@ -1354,6 +1354,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       name: fr.buildings[installation.key],
       plate: buildingSprite(installation.key),
       washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+      neutral: null,
+    }));
+    /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
+     *  se capturent comme un site adverse relevé, par la même rose. */
+    const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
+      kind: 'installation' as const,
+      id: `installation-${site.id}`,
+      buildingId: site.id,
+      key: site.key,
+      regionId: site.regionId,
+      name: fr.buildings[site.key],
+      plate: buildingSprite(site.key),
+      washed: false,
+      neutral: { lonLat: site.point },
     }));
 
     if (!toggles.buildings)
@@ -1418,6 +1432,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...camps,
       ...objectives,
       ...surveyed,
+      ...neutral,
       ...outposts,
       ...stacks,
       ...standing,
@@ -1433,6 +1448,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.camps,
     view.objectives,
     view.surveyedInstallations,
+    view.neutralSites,
     knownRegionById,
     toggles.buildings,
     toggles.deposits,

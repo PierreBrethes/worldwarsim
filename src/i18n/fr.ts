@@ -254,6 +254,9 @@ export const fr = {
   /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
   blitz: {
     funds: 'fonds',
+    neutral: 'neutre',
+    neutralSite: (region: string) => `neutre · ${region}`,
+    unguarded: 'personne ne la tient — l’infanterie la capture',
     perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
