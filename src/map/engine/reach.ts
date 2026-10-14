@@ -12,7 +12,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { LonLat } from '@/domain/geo';
 import type { Reach } from '@/domain/labels';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { ARC_COLORS } from './palette';
+import { ARC_COLORS, PALETTE } from './palette';
 import { hatch } from './regions';
 
 /**
@@ -43,6 +43,16 @@ const THICKNESS = 3;
  * depuis le même point, et deux encres en feraient deux sujets. Ce qui les sépare est le trait.
  */
 const INK = ARC_COLORS.mine.progress;
+
+/**
+ * **La zone morte est à l'encre du plateau, pas à l'ambre** (A4) : à l'Europe elle tient
+ * cinquante kilomètres quand la pièce en voit soixante, et deux traits d'ambre se frôlaient au
+ * point de n'en faire qu'un. Le noir dit « ici on ne tire pas », l'ambre « ici je vois, ici je
+ * porte » : deux sujets, deux encres, et le motif — hachure pleine contre tireté — les sépare
+ * même quand les rayons se touchent.
+ */
+const DEAD_INK = PALETTE.border;
+const DEAD_THICKNESS = 2;
 
 /**
  * **Le tireté se compte, il ne se mesure pas.** Une longueur fixe en unités de plateau ferait du
@@ -83,17 +93,17 @@ export class ReachRing {
   readonly object = new Group();
   private readonly detection = new Ring(true);
   private readonly contact = new Ring(false);
-  /** **L'artillerie** (B20) : sa portée en plein, sa zone morte en plein et hachurée dedans. */
+  /** **L'artillerie** (B20) : sa portée en plein, sa zone morte à l'encre, hachurée dedans. */
   private readonly range = new Ring(false);
-  private readonly deadZone = new Ring(false);
+  private readonly deadZone = new Ring(false, DEAD_INK, DEAD_THICKNESS);
   private readonly deadFill = new Mesh(
     new BufferGeometry(),
     hatch(
       new MeshStandardMaterial({
-        color: INK,
-        emissive: INK,
+        color: DEAD_INK,
+        emissive: DEAD_INK,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.45,
         depthTest: false,
         side: DoubleSide,
       }),
@@ -228,10 +238,14 @@ class Ring {
   private readonly geometry = new LineGeometry();
   private readonly material: LineMaterial;
 
-  constructor(private readonly dashed: boolean) {
+  constructor(
+    private readonly dashed: boolean,
+    color: string = INK,
+    thickness = THICKNESS,
+  ) {
     this.material = new LineMaterial({
-      color: INK,
-      linewidth: THICKNESS,
+      color,
+      linewidth: thickness,
       transparent: true,
       opacity: 0.85,
       depthTest: false,
