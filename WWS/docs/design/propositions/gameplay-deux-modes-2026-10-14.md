@@ -8,7 +8,8 @@ qu'il contredit seront révisées quand un lot s'y appuiera.
 
 Sources, hors dépôt (`Claude outputs/`, non versionné) : `REVUE-GAMEPLAY-2026-10-13.md` (la
 revue), `PROPOSITION-RESSOURCES-MONDIALE-2026-10-14.md` (la refonte des ressources, adoptée
-avec un amendement, R4), `POINTS-STRATEGIQUES-2026-10-14.md` (le vivier, en cours).
+avec un amendement, R4), `POINTS-STRATEGIQUES-2026-10-14.md` (le vivier, adopté tel quel,
+fiches détaillées par lieu).
 
 ## Le principe
 
@@ -96,13 +97,67 @@ une soirée au lieu d'une semaine.
 - **Points stratégiques** (M1, M1b) : un vivier d'une quinzaine de lieux réels de 1940 ; chaque
   saison en tire 7, pour que chaque joueur en ait à peu près autant à portée de route, jamais
   sur le sol d'une nation jouée (R15). Chacun **casse une règle** pour qui le tient et ne
-  produit rien (R18) — Pierre veut innover sur ces règles : vivier en cours. Victoire : en tenir
-  **4 sur 7 pendant 24 h d'affilée**.
+  produit rien (R18). Victoire : en tenir **4 sur 7 pendant 24 h d'affilée**. Le vivier et la
+  façon de tenir sont dans la section suivante.
 - **Écrasement** : prendre le QG de tous les adversaires.
 - **Horloge de 7 jours** (M4) ; à défaut de vainqueur, **cumul d'heures de points tenus**, le
   territoire pour départager (M12).
 - **Pas de victoire au compte de régions** (M3) : il favorise les grands pays. Le territoire
   reste au classement de la presse.
+
+### Les points stratégiques (P1-P12)
+
+Dix-huit lieux, chacun une règle cassée pour qui le tient (format de Cosmic Encounter : le
+pouvoir est la règle). ★ utile, ★★ forte, ★★★ change la partie ; code F faible, M moyen, L lourd.
+
+| Lieu | Règle cassée | ★ | Code |
+|---|---|---|---|
+| Gibraltar | le détroit est fermé à vos rivaux, sauf à qui vous l'ouvrez (liste publique) | ★★★ | L |
+| Suez | une fois par jour, un de vos mouvements partis change de destination | ★★ | L |
+| Panama | toute coque qui franchit le canal vous est relevée en clair | ★ | M |
+| Bakou | vos motorisés font le plein partout | ★★ | F |
+| Narvik | vos exploitations produisent même hors réseau | ★★ | M |
+| Dakar | vos réserves ne se pillent pas | ★★ | F |
+| Tanger | vous seul commercez avec un comptoir neutre (3 contre 1, plafonné par édition) | ★★ | F |
+| Istanbul | une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs ; tampon « lu à Istanbul » chez eux (essai, P7) | ★★ | F |
+| Stockholm | les traités que vous enregistrez lient (aucun ordre offensif entre signataires, 48 h au plus) ; tous tombent si le point change de main | ★★★ | M |
+| Rangoun | une fois par jour, un joueur sous embargo 24 h (aucun envoi vers lui) | ★ | F |
+| Lisbonne | vous lisez la nation de tout ce que vous relevez ; l'agent dormant est gelé en V1 (P9) | ★★ | M |
+| Montevideo | une fois par jour, une fausse dépêche dans les Échos, par formulaire à trous (P6) | ★ | M |
+| Hong Kong | vous lisez l'événement de la une 24 h avant les autres | ★ | F |
+| Malte | vos garnisons tirent avant l'assaillant, sauf celles des points stratégiques (P5) | ★★★ | M |
+| Halifax | vos mouvements maritimes ne prennent pas de slot | ★ | F |
+| Manille | vos avions ignorent leur allonge au-dessus de la mer | ★★ | M |
+| Singapour | vos blindés et camions se forment sans pétrole | ★ | F |
+| Brazzaville | votre QG pris, il se relève ici au niveau 1, une fois par saison (exception assumée à M2a, P8) | ★★★ | L |
+
+**Au banc** (P12) : Varsovie (capture pendant la plage de repos, trop cruelle), Reykjavik, Le
+Cap, Darwin, Pearl Harbor, Bosphore.
+
+**Tirage** : par la graine, au lancement, comme les objectifs neutres. Exclus : sol national
+d'une nation jouée et régions voisines ; deux points à moins de 1 500 km ; un point par pays.
+Diversité : au moins 4 familles, au plus 2 points ★★★, au moins 2 points ★, un seul verrou de
+route. Équité : depuis la capitale de 1940, en heures de route combinée, chaque joueur a au
+moins 2 points à moins de 24 h, à un point près des autres. À 2 ou 3 joueurs, le vivier se
+limite à la région jouable.
+
+**Tenir** :
+- trois états publics : neutre, tenu (teneur, depuis quand, heures cumulées), contesté. Qui
+  conteste reste caché jusqu'à la prise (P2) ;
+- le teneur garde le point sans garnison ; une alarme part dès qu'une capture commence (P1) ;
+- le point colore sa région mais n'ouvre aucun emplacement, ne produit rien et ne ravitaille
+  pas ; sa règle s'applique dès la prise et s'éteint à la perte ;
+- les pouvoirs quotidiens se rechargent à l'édition de 9 h, sans cumul (P4) ;
+- le compte à rebours de 24 h repart à zéro à la **perte** d'un des quatre, pas à la
+  contestation (P3).
+
+**Presse** : la une des Sept au jour 0 ; l'encadré « La course aux Sept » à chaque édition ;
+le compte à rebours en manchette ; le palmarès par lieu à l'édition finale.
+
+**Premier vivier codé** (P11) : les dix règles légères — Bakou, Dakar, Tanger, Istanbul,
+Rangoun, Hong Kong, Halifax, Singapour, Narvik, Lisbonne. Malte vient avec le combat à
+l'initiative ; Gibraltar, Suez et Brazzaville ensuite. Plus tard (P10) : le vainqueur bannit
+un lieu du tirage suivant.
 
 ### Prendre et perdre
 - **Tout ce qui a un propriétaire se capture** (M7, M9) : bâtiment (≈ 6 h) et avant-poste, avec
@@ -178,8 +233,7 @@ une soirée au lieu d'une semaine.
 
 ## Encore ouvert
 
-- Le vivier de points stratégiques et leurs règles cassées (en cours, P1), puis les atouts
-  nationaux.
+- Les atouts nationaux, à refaire contre les points stratégiques.
 - La reconnaissance aérienne : forme de l'ordre et de ce qu'il révèle.
 - Toutes les valeurs (vitesses, rechargements, portées, durées, coûts) sont `@a-mesurer`.
 - Le dernier 🔴 (avantage d'isolement géographique) : les points stratégiques hors du sol
