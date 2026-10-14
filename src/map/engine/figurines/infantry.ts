@@ -60,9 +60,24 @@ export function squadOf(
   soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
     const [x, z] = SLOTS[k]!;
     const man = soldier.make();
-    if (soldier.marches) pose(man, marching(k * 1.8 + 0.6));
+    if (soldier.marches) {
+      man.userData.stride = k * 1.8 + 0.6;
+      pose(man, marching(man.userData.stride as number));
+    }
     man.position.set(x, 0, z);
     squad.add(man);
   });
   return squad;
+}
+
+/**
+ * **Les hommes qui marchent, au pas** (page publique) : chaque marcheur reprend sa foulée à
+ * `seconds`, décalé des autres ; `null` les arrête jambes droites. Le plateau ne s'en sert pas —
+ * ses pièces gardent la pose où `squadOf` les a mises.
+ */
+export function stride(root: Object3D, seconds: number | null): void {
+  root.traverse((man) => {
+    const phase = man.userData.stride as number | undefined;
+    if (phase !== undefined) pose(man, marching(seconds === null ? 0 : phase + seconds * 9));
+  });
 }

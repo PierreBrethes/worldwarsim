@@ -113,6 +113,7 @@ const arcs: ReadonlyArray<ArcView> = [
     identification: { pierced: false },
     estimatedMinutesLeft: null,
     watchMinutesLeft: 4,
+    since: 0,
     progress: 0.5,
   },
 ];

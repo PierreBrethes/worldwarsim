@@ -9,14 +9,15 @@
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
-import { NATION_BY_ADM0 } from '../domain/nations';
+import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { DispatchKind, Faced, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
+import type { RacePoint } from '../domain/landing';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -121,6 +122,24 @@ const combatBeats = (
     riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
   return `${attacking ? 'notre' : 'leur'} frappe en abat ${strike}, ${answer}`;
 };
+
+/**
+ * **Ce qu'on a eu en face au feu** (F1) : la nation, puis chaque rôle, en hommes ou en machines
+ * (ADR 0014) — les marques se fondent, la phrase compte des rôles.
+ */
+const facedWords = (faced: Faced): string => {
+  const roles = [...new Set(faced.forces.map((force) => force.role))].map((role) => {
+    const of = faced.forces.filter((force) => force.role === role);
+    const troops = of.reduce((sum, force) => sum + force.troops, 0);
+    const strength = of.reduce((sum, force) => sum + force.strength, 0);
+    const unit = role === 'infantry' ? 'homme' : 'machine';
+    return `${roleLabel(role, 1)} ×${troops} (${strength} ${unit}${plural(strength, '', 's')})`;
+  });
+  return `${facedNation(faced.nation)} : ${roles.join(', ')}`;
+};
+
+const facedNation = (nation: string | null): string =>
+  nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
 
 export const fr = {
   nations: {
@@ -1491,8 +1510,9 @@ export const fr = {
     unavailable: 'Le film n’est pas disponible pour l’instant.',
   },
 
-  /** **La une** (`/` sans session, maquette 2a du 03/10) : une première page qui ne propose pas
-   *  de compte seul — on entre sur invitation (marque-1c). */
+  /** **La une** (`/` sans session, page publique du 14/10/2026) : une édition qu'on déplie — la
+   *  une, puis sa photographie, qui est la table, et des coupures que la table joue. On entre sur
+   *  invitation (marque-1c) : un code, ou un compte déjà ouvert. */
   front: {
     /** La date du jour en tête de page, longue au bureau, abrégée sur téléphone. */
     date: (at: Date) =>
@@ -1502,39 +1522,262 @@ export const fr = {
         month: 'long',
         year: 'numeric',
       }).format(at),
-    shortDate: (at: Date) =>
-      new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(
-        at,
-      ),
-    shortDateline: 'édition de guerre',
-    film: 'voir le film (30 s)',
-    caption: 'Le plateau, à l’encre : des forces se déplacent sur la carte du monde.',
-    headline: 'Sept jours pour refaire le monde',
-    lede: 'Stratégie entre amis sur une carte du monde réel : 2 à 8 joueurs, une saison de sept jours.',
-    stamp: 'sur invitation',
-    codeTitle: 'J’ai un code d’invitation',
-    codeLabel: 'code d’invitation',
-    codeHint: 'Six caractères, reçus avec l’invitation',
-    open: 'ouvrir',
-    accountTitle: 'Déjà un compte ?',
-    signIn: 'se connecter',
-    haveCode: 'j’ai un code',
-    /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
-    back: 'retour à la une',
-    briefs: [
+    dateline: 'le monde en jeu',
+    datelineLong: ' — édition de guerre',
+    onInvitation: 'sur invitation',
+    film: 'voir le film (30 s)',
+    unfold: 'dépliez l’édition',
+    engraving: 'gravure de la carte…',
+    caption:
+      'Notre photographie : la table, ce matin, au-dessus de la Manche. Rien n’y est retouché : c’est le jeu.',
+    headline: 'Une soirée ou sept jours pour refaire le monde',
+    lede: 'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
+    editions: [
       {
-        kicker: 'la saison',
-        text: 'Une saison dure sept jours. On y passe quelques minutes, plusieurs fois par jour.',
+        kicker: 'L’édition du soir',
+        name: 'Blitz',
+        meta: '1 à 2 h · 2 à 4 joueurs présents · un théâtre',
+        text: 'On prend des villes, on forme ses troupes, on tombe le quartier général d’en face.',
       },
       {
-        kicker: 'la nation',
-        text: 'Chacun prend une nation de 1940, la développe, et envoie ses forces sur terre, en mer et dans les airs.',
-      },
-      {
-        kicker: 'les ordres',
-        text: 'Les ordres se donnent, puis la carte les exécute pendant qu’on vit sa vie. Une dépêche prévient quand il se passe quelque chose.',
+        kicker: 'L’hebdomadaire',
+        name: 'Mondiale',
+        meta: '7 jours · 2 à 8 joueurs · le monde',
+        text: 'Deux ou trois visites par jour, sept points à tenir, une presse toutes les trois heures.',
       },
     ],
+    haveCode: 'j’ai un code',
+    signIn: 'se connecter',
+    briefs: [
+      {
+        kicker: 'Le front',
+        text: 'Les pièces se lèvent et se posent comme aux échecs.',
+        page: 'Page 2',
+      },
+      {
+        kicker: 'Renseignement',
+        text: 'Ce que vous savez de l’ennemi pâlit à l’encre.',
+        page: 'Page 3',
+      },
+      {
+        kicker: 'L’assaut',
+        text: 'On frappe le premier ; l’infanterie capture Berne.',
+        page: 'Page 4',
+      },
+      { kicker: 'La course', text: 'Sept lieux réels, une règle cassée chacun.', page: 'Page 5' },
+    ],
+
+    /** La feuille d'Europe : ce qui y est gravé, au crayon et à l'encre de mer. */
+    sheet: {
+      cartouche: 'ÉTAT-MAJOR  ·  FEUILLE  D’EUROPE',
+      seas: {
+        atlantic: 'Océan Atlantique',
+        mediterranean: 'Méditerranée',
+        northSea: 'Mer du Nord',
+        channel: 'La Manche',
+        blackSea: 'Mer Noire',
+      },
+      km: (km: number) => `${km} km`,
+      north: 'N',
+    },
+
+    pieces: {
+      pile: 'pile · la mienne',
+      infantry: 'Infanterie',
+      post: 'avant-poste · le mien',
+      postLevel: 'Niv. 3',
+      reach: 'portée',
+      reachKm: '240 km',
+      surveyedAgo: (time: string, hours: number) =>
+        hours === 0 ? `relevé · ${time}` : `relevé de ${time} · il y a ${hours} h`,
+      estimatedHeading: 'cap estimé',
+      southWest: 'sud-ouest',
+      atContact: (time: string) => `au contact · ${time}`,
+      infantryOne: 'infanterie ×1',
+      men: (count: number) => `${count} hommes`,
+      armorOne: 'blindé ×1',
+      panzer: 'Panzer IV',
+      openField: 'rase campagne',
+      unsheltered: 'sans abri',
+      berne: 'Berne',
+      town: 'ville',
+      townMine: 'ville · la mienne',
+      capture: 'capture · infanterie',
+      capturing: 'En cours',
+      taken: 'Capturée',
+      forces: 'forces',
+      forcesValue: '10 / 10',
+      forceInField: 'la force devant Berne',
+      enemyForce: 'force relevée',
+    },
+
+    /** La carte d'envoi au point posé : ce que le serveur daterait, en jeu. */
+    send: {
+      toward: (place: string) => `vers ${place}`,
+      here: 'le point visé',
+      arrival: (time: string) => `arrivée ${time}`,
+      slots: '1 mouvement sur 2',
+    },
+
+    founded: 'fondé',
+
+    /** Les lieux où la compagnie se pose, et les villes que la nuit allume. */
+    places: {
+      verdun: 'Verdun',
+      metz: 'Metz',
+      nancy: 'Nancy',
+      reims: 'Reims',
+      strasbourg: 'Strasbourg',
+      saarbrucken: 'Sarrebruck',
+      brussels: 'Bruxelles',
+      lille: 'Lille',
+      lyon: 'Lyon',
+      paris: 'Paris',
+    },
+    cities: {
+      paris: 'Paris',
+      london: 'Londres',
+      berlin: 'Berlin',
+      rome: 'Rome',
+      madrid: 'Madrid',
+      moscow: 'Moscou',
+      warsaw: 'Varsovie',
+      cairo: 'Le Caire',
+      istanbul: 'Istanbul',
+      stockholm: 'Stockholm',
+    },
+
+    pages: {
+      front: {
+        folio: 'Page 2 · le front',
+        time: '14:05',
+        title: 'On lève la pièce, on la pose, l’ordre part',
+        chapo: 'Pas de menu : le mouvement s’ordonne sur la carte, et nulle part ailleurs.',
+        body: 'Levée, la compagnie suit la main ; posée, la rose dit ce qu’on peut faire là. La route et l’heure d’arrivée viennent du serveur. On envoie, un mouvement est pris — et c’est irréversible.',
+        steps: ['lever', 'poser', 'choisir', 'envoyer', 'arriver'],
+        legend: 'À vous : cliquez la compagnie, puis un point de la carte.',
+      },
+      fog: {
+        folio: 'Page 3 · renseignement',
+        time: '09:40',
+        title: 'L’ennemi n’a pas de visage, seulement une date',
+        chapo: 'Vous ne voyez de l’autre que ce que vos postes relèvent, et le relevé vieillit.',
+        body: 'Une colonne traverse la portée de votre avant-poste : on en garde le tronçon, le cap, une heure. Jamais la destination, la composition ni la nation — une annotation à l’encre, qui pâlit.',
+        age: 'âge du relevé',
+        ageNow: 'à jour',
+        ageAgo: (hours: number) =>
+          `il y a ${hours} h${hours >= 6 ? ' · dernière position connue' : ''}`,
+        statesLabel: 'Les trois états d’une région',
+        states: ['vierge, au crayon', 'relevée, gravée', 'à jour, à l’encre'],
+      },
+      battle: {
+        folio: 'Page 4 · l’assaut',
+        time: '15:12',
+        title: 'Berne change de main',
+        chapo:
+          'L’attaquant frappe le premier ; le défenseur riposte avec ce qui lui reste. À l’abri d’une garnison il encaisserait moins — en rase campagne, rien ne le couvre. Puis l’infanterie entre dans la ville, et la capture.',
+        steps: ['ordre', 'frappe', 'riposte', 'repli', 'capture'],
+        dispatch:
+          '15:12 — DEVANT BERNE. Notre assaut a frappé le premier ; l’adversaire a riposté puis s’est replié. 15:54 — BERNE EST À NOUS.',
+        legend:
+          'Seule l’infanterie capture, au rythme de ses forces. Au feu, on voit qui l’on affronte : rôles, effectifs, nation.',
+        replay: 'rejouer',
+        takenAt: '15:54',
+      },
+      race: {
+        folio: 'Page 5 · la course aux Sept',
+        day: (day: number) => `jour ${day}`,
+        title: 'La course aux Sept',
+        chapo:
+          'Sept lieux réels de 1940, tirés au sort à chaque saison. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
+        tableLabel: 'Points tenus',
+        belligerent: 'Belligérant',
+        points: 'points',
+        held: 'tenus',
+        waiting: 'Les Sept attendent leurs teneurs.',
+        takes: (nation: string, point: string) => `${nation} prend ${point}.`,
+        three: (nation: string) =>
+          `${nation} tient trois des Sept. Il lui en faut quatre, vingt-quatre heures durant.`,
+        winsIn: (nation: string) => `${nation} prend Malte et tient quatre des Sept. Victoire dans`,
+        ifNothingMoves: 'si rien ne bouge.',
+        countdown: (minutes: number) =>
+          `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`,
+        legend: 'Chaque lieu casse une règle pour qui le tient. Survolez ou touchez un jalon.',
+        /** Les nations de la course, avec leur article, en tête de phrase. */
+        nations: {
+          uk: 'Le Royaume-Uni',
+          germany: 'L’Allemagne',
+          italy: 'L’Italie',
+          ussr: 'L’U.R.S.S.',
+        } satisfies Partial<Record<Nation, string>>,
+        sites: {
+          gibraltar: ['Gibraltar', 'Le détroit est fermé à vos rivaux, sauf à qui vous l’ouvrez.'],
+          malta: ['Malte', 'Vos garnisons tirent avant l’assaillant.'],
+          suez: ['Suez', 'Une fois par jour, un de vos mouvements partis change de destination.'],
+          istanbul: [
+            'Istanbul',
+            'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
+          ],
+          narvik: ['Narvik', 'Vos exploitations produisent même hors réseau.'],
+          baku: ['Bakou', 'Vos motorisés font le plein partout.'],
+          lisbon: ['Lisbonne', 'Vous lisez la nation de tout ce que vous relevez.'],
+        } satisfies Record<RacePoint, readonly [string, string]>,
+      },
+      night: {
+        folio: 'Page 6 · chronique',
+        title: 'La nuit tombe sur l’Europe',
+        chapo: 'Le jour suit le vrai soleil : il fait nuit à Paris quand il fait nuit à Paris.',
+        body: 'Faites défiler : l’ombre gagne d’est en ouest, chaque ville s’allume à son crépuscule. Du décor — et l’heure à laquelle dorment vos adversaires.',
+        clock: (at: number, zone: string) =>
+          new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: zone })
+            .format(at)
+            .replace(':', ' h '),
+        cities: { london: 'Londres', paris: 'Paris', moscow: 'Moscou' },
+      },
+      press: {
+        folio: 'Page 7 · la presse',
+        edition: 'édition de 15:00',
+        title: 'La presse tient les comptes',
+        chapo: 'Toutes les trois heures, une édition. Entre deux, le classement ne bouge pas.',
+        tableLabel: 'Classement de l’édition',
+        rank: 'rang',
+        nation: 'nation',
+        territory: 'territoire',
+        general: 'général',
+        rows: [
+          { nation: 'uk', pseudo: 'Brisquard', territory: '31 %', general: '4 820' },
+          { nation: 'ussr', pseudo: 'Colonel Plume', territory: '27 %', general: '4 410' },
+          { nation: 'germany', pseudo: 'Mlle Sextant', territory: '24 %', general: '3 960' },
+          { nation: 'italy', pseudo: 'Le Doyen', territory: '18 %', general: '2 705' },
+        ] satisfies ReadonlyArray<{
+          nation: Nation;
+          pseudo: string;
+          territory: string;
+          general: string;
+        }>,
+        telegraph: 'télégraphe · canal général',
+        wires: [
+          ['Brisquard', 'Malte tombera avant l’édition de 18 h.'],
+          ['Mlle Sextant', 'On en reparle à Gibraltar.'],
+          ['Colonel Plume', 'Je ne dis rien. STOP.'],
+        ],
+      },
+    },
+
+    /** Les deux portes, au bout de l'édition : on n'entre pas seul. */
+    bureau: {
+      folio: 'Bureau des engagements',
+      title: 'Prenez votre place à la table',
+      chapo: 'On n’entre pas seul : un ami vous a envoyé un lien, ou un code.',
+      codeTitle: 'J’ai un code d’invitation',
+      codeHint: 'Six caractères, reçus avec l’invitation.',
+      open: 'ouvrir l’invitation',
+    },
+    footer: 'La Manchette · le monde en jeu, édition de guerre · Fond de carte : Natural Earth',
+    staged: 'Les scènes sont jouées : aucune partie réelle n’y figure.',
+    credits: 'crédits',
+    /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
+    back: 'retour à la une',
   },
 
   launchSequence: {
@@ -1812,6 +2055,7 @@ export const fr = {
       theirs,
       outpostDisabled,
       shock = false,
+      faced,
     }: {
       where: string;
       cause: 'arrival' | 'interception' | 'bombardment';
@@ -1821,13 +2065,14 @@ export const fr = {
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
       shock?: boolean;
+      faced?: Faced | undefined;
     }) => {
       /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
       if (cause === 'bombardment') {
         const lost = attacking ? theirs.lost : mine.lost;
         const fell = (attacking ? theirs : mine).destroyed > 0;
         return attacking
-          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          ? `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
           : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
       }
       const opening =
@@ -1838,7 +2083,7 @@ export const fr = {
           : attacking
             ? `engagement ${where}`
             : `attaque reçue ${where}`;
-      const forces = `${mine.troops} contre ${theirs.troops}`;
+      const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
@@ -1848,10 +2093,12 @@ export const fr = {
           : null,
         outpostDisabled ? 'avant-poste désactivé' : null,
       ].filter((piece): piece is string => piece !== null);
-      return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
+      return `${opening} — ${forces} ${toll} · ${after.join(' · ')}`;
     },
     disabledUntil: (time: string) => `désactivé — retour à ${time}`,
     beats: combatBeats,
+    faced: facedWords,
+    facedNation,
   },
 
   /**
@@ -1863,7 +2110,8 @@ export const fr = {
   victory: {
     kicker: 'domination — victoire de test',
     scaffold: 'condition unique et publique, en attendant la part de carte',
-    dispatch: (by: string, whom: string) => `${by} a réduit ${whom}`,
+    dispatch: (by: string | null, whom: string) =>
+      by === null ? `${whom} est réduit, sous un bombardement` : `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
     reducedMark: 'réduit',
@@ -2486,6 +2734,7 @@ export const fr = {
       ]
         .filter((piece): piece is string => piece !== null)
         .join(' · '),
+    faced: 'au feu',
     theirs: 'en face',
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
@@ -2502,7 +2751,8 @@ export const fr = {
 
   /**
    * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
-   * secondes, et un cartouche à la fin — chez nous par rôle, en face des totaux (ADR 0005).
+   * secondes, et un cartouche à la fin — chez nous par rôle, en face par rôle sous sa nation (F1),
+   * ou des totaux sur un compte rendu d'avant le 14/10.
    */
   replay: {
     play: 'rejouer',
@@ -3763,7 +4013,6 @@ export const fr = {
     lot: 'lot',
     lotProgress: (produced: number, ordered: number) => `${produced} / ${ordered}`,
     surveyed: (time: string) => `relevé · ${time}`,
-    inSight: 'relevé · en vue',
     standing: 'force posée',
     moving: 'force en mouvement',
     unknown: 'composition inconnue, nation inconnue',

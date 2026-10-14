@@ -209,7 +209,7 @@ type Look = 'whole' | 'burnt' | 'washed';
 
 type Piece = {
   readonly side: 'mine' | 'theirs';
-  /** A vehicle burns where it stands; a man and a block go down. */
+  /** A vehicle burns where it stands, mine or seen at the fire; a man and a block go down. */
   readonly burns: boolean;
   /** A card faces the eye: it goes down onto its back, as a block does, never in its own plane. */
   card: boolean;
@@ -231,7 +231,8 @@ const ease = (k: number) => k * k * (3 - 2 * k);
 
 /**
  * **A combat played on the table** (surface 4.7, ADR 0026 §7): my figurines by role on the
- * left, one block per enemy troop on the right, set down at the point and driven by
+ * left, the enemy's on the right in its own nation's figurines (F1) — or one block per troop for
+ * an account from before the fire was seen — set down at the point and driven by
  * `replayAt`. The scene draws a frame and decides nothing: the timeline is the domain's.
  * Geometry and materials are the modules' (figurines, blocks, smoke): nothing to free but itself.
  */
@@ -239,12 +240,14 @@ export class ReplayScene {
   readonly object = new Group();
   private readonly pieces: Piece[];
 
-  /** `medium` is the point's: the enemy's blocks wear its pictogram, never a role. */
+  /** `medium` is the point's: an enemy block — an account from before the fire was seen — wears
+   *  its pictogram, never a role. `foe` is the nation faced at the fire (F1). */
   constructor(
     nation: string | null,
     pieces: ReadonlyArray<ReplayPiece>,
     medium: Medium,
     private readonly fire: ReplayFire = null,
+    foe: string | null = null,
   ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
     const spots = {
@@ -252,7 +255,12 @@ export class ReplayScene {
       theirs: replayLayout(pieces.length - mine, 'theirs'),
     };
     this.pieces = pieces.map((piece, k) =>
-      this.stand(piece, nation, medium, spots[piece.side][piece.side === 'mine' ? k : k - mine]!),
+      this.stand(
+        piece,
+        piece.side === 'mine' ? nation : foe,
+        medium,
+        spots[piece.side][piece.side === 'mine' ? k : k - mine]!,
+      ),
     );
     // After the holders, which keep the pieces' order.
     this.object.add(...this.pieces.map((piece) => piece.shot));
@@ -276,9 +284,10 @@ export class ReplayScene {
     // their yaw — inner, it rolled mine along their aim and tipped the blocks towards the eye.
     holder.rotation.order = 'ZYX';
     holder.position.set(home[0], 0, home[1]);
+    const seen = piece.side === 'mine' ? piece : piece.seen;
     const built: Piece = {
       side: piece.side,
-      burns: piece.side === 'mine' && piece.role !== 'infantry',
+      burns: seen !== undefined && seen.role !== 'infantry',
       card: false,
       home,
       holder,
@@ -297,7 +306,7 @@ export class ReplayScene {
       marker.add(built.burning.object);
     }
 
-    if (piece.side === 'theirs') {
+    if (seen === undefined) {
       built.body = blockFigurine(medium).object;
       // It tips onto its back, away from the eye, its pictogram to the sky: tipped sideways, in
       // the eye's plane, a fallen block looked like a standing one.
@@ -305,19 +314,23 @@ export class ReplayScene {
       built.body.position.z = BLOCK_HALF;
       marker.position.set(-0.75 * FIGURINE_SCALE, 0.3, BLOCK_HALF);
     } else {
-      // Its front, +z, towards the enemy on the right — or, a battery, towards its target.
+      // Its front, +z, towards the other line — or, a battery, towards its target.
       holder.rotation.y =
-        batteryOf(this.fire) === null ? Math.PI / 2 : Math.atan2(GAP - home[0], -home[1]);
+        piece.side === 'theirs'
+          ? -Math.PI / 2
+          : batteryOf(this.fire) === null
+            ? Math.PI / 2
+            : Math.atan2(GAP - home[0], -home[1]);
       marker.position.set(0, 0.25, 0.3);
-      const infantry = piece.role === 'infantry';
+      const infantry = seen.role === 'infantry';
       const figurine = figurineFor(
         nation,
-        piece.role,
-        infantry ? [piece.tier, piece.tier, piece.tier] : [piece.tier],
+        seen.role,
+        infantry ? [seen.tier, seen.tier, seen.tier] : [seen.tier],
       );
       if (figurine === null) {
         built.card = true;
-        const plate = plateOf(spriteUrl(nation, piece.role, piece.tier));
+        const plate = plateOf(spriteUrl(nation, seen.role, seen.tier));
         // Upright to the eye, whichever way the holder faces — a battery faces its target.
         plate.rotation.y = -holder.rotation.y;
         built.body.add(plate, contactShadow());
@@ -392,13 +405,11 @@ export class ReplayScene {
       holder.rotation.z = shakeOf(frame, still);
       if (piece.burns) {
         pivot.rotation.set(0, 0, 0);
-      } else if (piece.side === 'theirs') {
-        pivot.rotation.set(-(Math.PI / 2) * fall, 0, 0);
       } else if (piece.card) {
-        // Away from the eye: the holder's +x is the scene's -z.
-        pivot.rotation.set(0, 0, -(Math.PI / 2) * fall);
+        // Away from the eye: mine's +x is the scene's -z, theirs' is its +z.
+        pivot.rotation.set(0, 0, (piece.side === 'mine' ? -1 : 1) * (Math.PI / 2) * fall);
       } else {
-        // Backwards, away from the enemy: the holder's +z faces them.
+        // Backwards, away from the other line: the holder's +z faces it — a block onto its back.
         pivot.rotation.set(-(Math.PI / 2) * fall, 0, 0);
       }
       const burnt = piece.burns && fall > 0;

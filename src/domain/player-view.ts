@@ -130,6 +130,8 @@ export type ArcView =
       /** How long the watch still runs. **It is what paces the pawn**: the pion must reach the
        *  end of the watched stretch when the window closes, not when the column lands. */
       readonly watchMinutesLeft: number;
+      /** L'instant de sa première observation, l'heure qu'il porte tant qu'il est en vue (H3). */
+      readonly since: number;
       readonly progress: number;
     }
   | {
@@ -142,6 +144,9 @@ export type ArcView =
       readonly detectorRegion: string | null;
       readonly headingDegrees: number;
       readonly seenMinutesAgo: number;
+      /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
+       *  écrivent, sans le redériver d'un âge. */
+      readonly lastSeenAt: number;
       readonly progress: number;
     }
   | {
@@ -183,6 +188,8 @@ export type CampView = {
   readonly medium: 'land' | 'sea' | 'air';
   readonly since: number;
   readonly seenMinutesAgo: number | null;
+  /** L'instant où il a été vu pour la dernière fois, `null` tant qu'il est en vue. */
+  readonly lastSeenAt: number | null;
   readonly detector: Detector;
   readonly detectorRegion: string | null;
   readonly lastKnown: boolean;
@@ -341,12 +348,15 @@ export type CombatReport = {
   readonly shock?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
+  /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
+   *  la cible d'un bombardement, qui ne voit pas d'où vient le coup. */
+  readonly faced?: Faced;
   /**
    * Set when this pass is the one that put the defender under the bar of the **test victory**
    * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
    * simplified Domination is public, which is where it departs from design sheet 05.
    */
-  readonly reduced: { readonly by: string; readonly whom: string } | null;
+  readonly reduced: { readonly by: string | null; readonly whom: string } | null;
 };
 
 /**
@@ -368,10 +378,29 @@ export type CombatTally = {
   readonly destroyed: number;
 };
 
+/** One kind of troop engaged — role and mark — and what it brought (`strength`, men and
+ *  machines before the pass) and left. */
+export type ForceKind = CombatTally & {
+  readonly role: UnitRole;
+  readonly tier: UnitTier;
+  readonly strength: number;
+};
+
+/**
+ * **What a participant saw of the other side, at the fire** (F1, 14/10/2026): nation, roles,
+ * strengths. It lives in the account and nowhere else — an enemy arc and a surveyed camp still
+ * carry no role and no nation: what is revealed is what was fought.
+ */
+export type Faced = {
+  /** `null` for the irregular seat that holds the neutral objectives. */
+  readonly nation: string | null;
+  readonly forces: ReadonlyArray<ForceKind>;
+};
+
 /**
  * **One engagement as its replay reads it, served to a party only** (`convex/replay.ts`, ADR 0026
- * §7). My side by role and mark; the other side the totals `CombatReport` already serves — the
- * strikes carry both sides' roles, and the replay does not lift the fog the account kept down.
+ * §7). My side by role and mark; the other side as it was faced at the fire (`faced`, F1), or —
+ * an account from before 14/10, or the target of a bombardment — only the totals.
  */
 export type ReplayView = {
   readonly combatId: string;
@@ -381,6 +410,8 @@ export type ReplayView = {
   readonly won: boolean;
   readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
   readonly theirs: CombatTally;
+  /** Ce qu'on a eu en face au feu (F1), aux mêmes conditions que `CombatReport.faced`. */
+  readonly faced?: Faced;
   /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
    *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };

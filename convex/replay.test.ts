@@ -118,7 +118,7 @@ describe('replayOf', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('serves each side its own detail by role and mark, and never a role of the other', async () => {
+  it('serves each side its own detail by role and mark', async () => {
     const t = boot();
     const [france, ussr] = await launched(t);
     const combatId = await fight(t, france, ussr);
@@ -138,8 +138,6 @@ describe('replayOf', () => {
       { role: 'armor', tier: 1, troops: 1 },
       { role: 'armor', tier: 2, troops: 1 },
     ]);
-    expect(JSON.stringify(attacker)).not.toContain('armor');
-    expect(JSON.stringify(defender)).not.toContain('infantry');
     expect(attacker.theirs).toEqual(sum(defender.mine));
     expect(defender.theirs).toEqual(sum(attacker.mine));
   });
@@ -159,6 +157,67 @@ describe('replayOf', () => {
       expect(replay.theirs).toEqual(report.theirs);
       expect(sum(replay.mine).lost).toBeGreaterThan(0);
     }
+  });
+
+  it('shows each side what it faced at the fire — nation, roles, strength — and nobody else (F1)', async () => {
+    const t = boot();
+    const [france, ussr, germany] = await launched(t);
+    const combatId = await fight(t, france, ussr);
+
+    const attacker = await t.query(api.replay.replayOf, { ...france, combatId });
+    const defender = await t.query(api.replay.replayOf, { ...ussr, combatId });
+    if ('refusal' in attacker || 'refusal' in defender) throw new Error('refused');
+    const kinds = (faced: typeof attacker.faced) =>
+      faced && {
+        nation: faced.nation,
+        forces: faced.forces.map(({ role, tier, troops, strength }) => ({
+          role,
+          tier,
+          troops,
+          strength,
+        })),
+      };
+    expect(kinds(attacker.faced)).toEqual({
+      nation: 'ussr',
+      forces: [
+        { role: 'armor', tier: 1, troops: 1, strength: 50 },
+        { role: 'armor', tier: 2, troops: 1, strength: 50 },
+      ],
+    });
+    expect(kinds(defender.faced)).toEqual({
+      nation: 'france',
+      forces: [
+        { role: 'infantry', tier: 1, troops: 2, strength: 100 },
+        { role: 'infantry', tier: 2, troops: 1, strength: 50 },
+      ],
+    });
+    for (const [seat, replay] of [
+      [france, attacker],
+      [ussr, defender],
+    ] as const) {
+      const report = (await t.query(api.view.playerView, seat)).reports.find(
+        (account) => account.id === combatId,
+      )!;
+      expect(report.faced).toEqual(replay.faced);
+    }
+    const bystander = await t.query(api.view.playerView, germany);
+    expect(JSON.stringify(bystander)).not.toContain(combatId);
+  });
+
+  it('keeps an engagement written before the fire was seen in totals (F1, no migration)', async () => {
+    const t = boot();
+    const [france, ussr] = await launched(t);
+    const combatId = await fight(t, france, ussr);
+    await t.run((ctx) => ctx.db.patch(combatId, { nations: undefined }));
+
+    const attacker = await t.query(api.replay.replayOf, { ...france, combatId });
+    if ('refusal' in attacker) throw new Error('refused');
+    expect(attacker.faced).toBeUndefined();
+    expect(JSON.stringify(attacker)).not.toContain('armor');
+    const report = (await t.query(api.view.playerView, france)).reports.find(
+      (account) => account.id === combatId,
+    )!;
+    expect(report.faced).toBeUndefined();
   });
 
   it('refuses a player who had no side in it, and an id that names nothing', async () => {

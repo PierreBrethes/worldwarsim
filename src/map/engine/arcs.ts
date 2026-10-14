@@ -10,7 +10,7 @@ import type { UnitRole } from '@/domain/ids';
 import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
-import { blockFigurine, washedBlock } from './blocks';
+import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
 import { nearWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
@@ -31,7 +31,7 @@ type RenderedArc = {
   thread: Thread;
   unrolled: ReadonlyArray<UnrolledSegment>;
   pawn: Pawn;
-  /** A last known position's washed block, at the end of the frozen stretch; `null` otherwise. */
+  /** A last known position's annotation, at the end of the frozen stretch; `null` otherwise. */
   relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
@@ -185,9 +185,14 @@ export class ArcLayer {
       const pawn = new Pawn(
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
-        // The fog serves an enemy no roles: its pieces are blocks, back to the eye (ADR 0026 §4).
+        // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
+        // its stretch (F2, ADR 0026 §4 révisé), dated by its first observation (H3).
         arc.state === 'enemyDetected'
-          ? { land: blockFigurine('land'), sea: blockFigurine('sea'), air: blockFigurine('air') }
+          ? {
+              land: annotationFigurine('land', arc.since),
+              sea: annotationFigurine('sea', arc.since),
+              air: annotationFigurine('air', arc.since),
+            }
           : roles && {
               land: figurineOf(roles.land),
               sea: figurineOf(roles.sea),
@@ -211,8 +216,8 @@ export class ArcLayer {
       const relicMedium = lastKnownMedium(arc);
       const lastLeg = thread.legs.at(-1);
       let relic: Group | null = null;
-      if (relicMedium !== null && lastLeg !== undefined) {
-        relic = washedBlock(relicMedium);
+      if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
+        relic = inkAnnotation(relicMedium, arc.lastSeenAt, arc.seenMinutesAgo).object;
         pointOnLeg(lastLeg, 1, relic.position);
         relic.visible = false;
         this.group.add(relic);
@@ -412,7 +417,7 @@ export class ArcLayer {
     for (const rendered of this.rendered) {
       rendered.thread.dispose();
       rendered.pawn.dispose();
-      rendered.relic?.removeFromParent();
+      if (rendered.relic) eraseAnnotation(rendered.relic);
     }
     this.rendered = [];
     this.targets = [];
@@ -441,7 +446,7 @@ function paceOf(arc: ArcView): number {
 }
 
 /**
- * **The medium a last known position's block stands in, or `null` for no block** (ADR 0026 §4):
+ * **The medium a last known position's annotation is written in, or `null` for none** (F2):
  * the end of the frozen stretch, in what the sighting served — a point and a medium, nothing more.
  * A column still watched has its pawn; mine never goes stale.
  */

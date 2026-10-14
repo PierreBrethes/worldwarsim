@@ -458,6 +458,8 @@ describe('what sees a camp standing', () => {
     const [closed] = await campsOf(t, guest);
     expect(closed!.until).toBe(Date.now());
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'troop' }]);
+    const served = (await t.query(api.view.playerView, guest)).camps;
+    expect(served).toMatchObject([{ lastKnown: true, lastSeenAt: Date.now() }]);
   });
 
   /** Une garnison d'avant-poste est une pile posée comme une autre, et la station l'entend. */
@@ -515,6 +517,7 @@ describe('what sees a camp standing', () => {
       'detectorRegion',
       'id',
       'lastKnown',
+      'lastSeenAt',
       'medium',
       'point',
       'seenMinutesAgo',
@@ -522,6 +525,7 @@ describe('what sees a camp standing', () => {
     ]);
     expect(camp!.lastKnown).toBe(false);
     expect(camp!.seenMinutesAgo).toBeNull();
+    expect(camp!.lastSeenAt).toBeNull();
   });
 
   /** **Le coût, mesuré** : une ligne par couple (observateur, camp) couvert, jamais un balayage

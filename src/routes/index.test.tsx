@@ -11,7 +11,7 @@ import {
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { forgetSession, keepSession } from '@/data/session';
-import { FrontPage } from './-index/FrontPage';
+import { Landing } from './-index/Landing';
 import { Route as IndexRoute } from './index';
 
 afterEach(() => {
@@ -19,8 +19,18 @@ afterEach(() => {
   forgetSession();
 });
 
-/** jsdom n'évalue aucune requête média : la une en lit une pour savoir si la boucle peut jouer. */
-vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+/** jsdom n'évalue aucune requête média, ne charge pas de fonte et n'a pas de WebGL : la table de
+ *  la une ne se pose jamais, et la page doit tenir sans elle. */
+vi.stubGlobal('matchMedia', (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => undefined,
+  removeEventListener: () => undefined,
+}));
+vi.stubGlobal('fetch', () => new Promise(() => undefined));
+Object.defineProperty(document, 'fonts', {
+  value: { ready: Promise.resolve(), load: () => Promise.resolve([]) },
+});
 
 /** La vraie garde de `/`, et deux pages témoins à la place des surfaces qu'elle ouvre : l'arbre
  *  réel monterait le plateau, three.js compris, pour vérifier une redirection. */
@@ -30,7 +40,7 @@ const mount = () => {
     getParentRoute: () => root,
     path: '/',
     beforeLoad: (context) => IndexRoute.options.beforeLoad?.(context as never),
-    component: FrontPage,
+    component: Landing,
   });
   const home = createRoute({
     getParentRoute: () => root,
@@ -55,7 +65,7 @@ const mount = () => {
 it('sert la une à qui n’a pas de session', async () => {
   mount();
   expect(await screen.findByRole('heading', { name: fr.front.headline })).toBeTruthy();
-  expect(screen.getByLabelText(fr.front.codeTitle)).toBeTruthy();
+  expect(screen.getByLabelText(fr.front.bureau.codeTitle)).toBeTruthy();
 });
 
 it('renvoie à l’accueil qui a une session', async () => {
@@ -67,8 +77,8 @@ it('renvoie à l’accueil qui a une session', async () => {
 
 it('ouvre l’invitation au sixième caractère, en capitales', async () => {
   const router = mount();
-  const field = await screen.findByLabelText(fr.front.codeTitle);
-  const open = screen.getByRole('button', { name: fr.front.open });
+  const field = await screen.findByLabelText(fr.front.bureau.codeTitle);
+  const open = screen.getByRole('button', { name: fr.front.bureau.open });
 
   fireEvent.change(field, { target: { value: 'k7q2p' } });
   expect(open).toHaveProperty('disabled', true);

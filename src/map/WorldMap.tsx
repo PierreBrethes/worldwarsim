@@ -73,7 +73,7 @@ type Props = {
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
-  /** The enemy's surveyed camps, which the board stands as blocks up close. */
+  /** The enemy's surveyed camps, which the board annotates in ink up close. */
   camps: ReadonlyArray<SurveyedCamp>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
