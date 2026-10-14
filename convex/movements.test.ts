@@ -1077,7 +1077,7 @@ describe('the pass is what ammunition is spent on', () => {
     return { troop, defender };
   }
 
-  it('takes ten rounds off each side for one company apiece', async () => {
+  it('takes off each side what it fires: ten rounds to strike, five to riposte', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);
@@ -1085,9 +1085,38 @@ describe('the pass is what ammunition is spent on', () => {
 
     await fight(t, seat, guest);
 
-    // Fifty soldiers, one round per five points: ten, on both sides of the field.
+    // One round per five points: fifty soldiers strike for ten, the twenty-five the strike left
+    // riposte for five — one pays only for what one fires (C3, 14/10).
     expect(await ammunitionOf(t, seat)).toBe(490);
-    expect(await ammunitionOf(t, guest)).toBe(490);
+    expect(await ammunitionOf(t, guest)).toBe(495);
+  });
+
+  it('bills nothing to a garrison the strike wiped out, and never tells it it ran dry', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setAmmunition(t, guest, 0);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const defender = await form(t, guest, 'infantry', theirs);
+    await t.run(async (ctx) => ctx.db.patch(defender, { currentStrength: 20 }));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await t.run(async (ctx) => ctx.db.get(defender))).toBeNull();
+    const dry = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'firedDry'))
+        .collect(),
+    );
+    expect(dry).toHaveLength(0);
   });
 
   it('strikes at .60 and empties what is left when the magazine cannot cover the pass', async () => {
@@ -1098,9 +1127,9 @@ describe('the pass is what ammunition is spent on', () => {
 
     const { troop, defender } = await fight(t, seat, guest);
 
-    // Supplied, the reference case takes 25 off the defender and 29 off the attacker. Dry, the
-    // attacker's salvo is worth .60 of itself — and the defender, answering a lesser blow with a
-    // full magazine, bites harder.
+    // Supplied, the reference case takes 25 off the defender and 14 off the attacker. Dry, the
+    // attacker's strike is worth .60 of itself — and the defender, keeping more to riposte with,
+    // bites harder.
     expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 15);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
     // The four rounds it had went into the pass; it did not fight for free.

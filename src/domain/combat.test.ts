@@ -343,6 +343,7 @@ describe('the magazine is billed at the pass', () => {
       defenders: [troop('infantry1', 22)],
       ammunition: SUPPLIED,
       rules: COMBAT_RULES,
+      mode: 'shock',
     });
 
     // 50 soldiers and 12 tanks: ten rounds and three. The defender's 22 points round up to five.
@@ -350,16 +351,42 @@ describe('the magazine is billed at the pass', () => {
     expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
   });
 
-  it('bills a company that does not outlive its salvo, because it was engaged all the same', () => {
+  /** Décision de Pierre du 14/10 (C3) : on ne paie que ce qu'on tire. */
+  it('bills the riposte on what the strike left standing', () => {
     const engagement = resolveEngagement({
-      attackers: [troop('armor2'), troop('armor2')],
+      attackers: [troop('infantry1')],
       defenders: [troop('infantry1')],
       ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
+    // Twenty-five soldiers left to answer: five rounds, not the ten the company brought in.
+    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
+  });
+
+  it('bills nothing to a defence the strike wiped out, and never calls it dry', () => {
+    const engagement = resolveEngagement({
+      attackers: [troop('armor2'), troop('armor2')],
+      defenders: [troop('infantry1')],
+      ammunition: { attacker: 10_000, defender: 0 },
+      rules: COMBAT_RULES,
+    });
+
     expect(engagement.outcomes.find((one) => one.side === 'defender')!.state).toBe('destroyed');
-    expect(engagement.magazine.defender.spent).toBe(10);
+    expect(engagement.magazine.defender).toEqual({ needed: 0, spent: 0, dry: false });
+  });
+
+  it('judges the riposte dry on what it needs after the strike', () => {
+    const defender = troop('infantry1');
+    const engagement = resolveEngagement({
+      attackers: [troop('infantry1')],
+      defenders: [defender],
+      ammunition: { attacker: 10_000, defender: 5 },
+      rules: COMBAT_RULES,
+    });
+
+    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
+    expect(firedBy(engagement, defender)[0]!.losses).toBe(13);
   });
 
   it('takes everything that is left and fires at .60 when the stock cannot cover the pass', () => {

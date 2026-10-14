@@ -83,10 +83,10 @@ export type CombatRules = {
 };
 
 /**
- * **What one side's pass takes out of the national stock** (question 18, settled 25/08). The
- * bill is read at the *entry* of the pass, from the strength each troop brings into it: a
- * company that does not outlive its own salvo still drew its rounds, and reading the strengths
- * once is what keeps the amount independent of the firing order.
+ * **What one side's pass takes out of the national stock** (question 18, settled 25/08). **One
+ * pays only for what one fires** (decision of 14/10, C3): the attacker on the strength it strikes
+ * with, the defender on what the strike left it to riposte with — a defence wiped out pays
+ * nothing and is never dry. A shock bills both sides at the entry, since both fire on it.
  *
  * **Dryness is a property of the side, never of a troop.** The stock is national — there is no
  * order in which to hand rounds to one company before another that would not be a rule
@@ -184,34 +184,35 @@ export function resolveEngagement({
   const striking = [...attackers].sort(byStrikeOrder).map((one) => line(one, 'attacker'));
   const holding = [...defenders].sort(byStrikeOrder).map((one) => line(one, 'defender'));
 
-  const magazine = {
-    attacker: draw(attackers, ammunition.attacker, rules),
-    defender: draw(defenders, ammunition.defender, rules),
-  };
-  const supply = (side: CombatSide) => (magazine[side].dry ? rules.dryFactor : 1);
-
   /** Under the initiative a troop fires with what it has left; in a shock, with what it brought. */
   const firing = (fighter: Fighter) =>
     mode === 'shock' ? fighter.combatant.strength : fighter.remaining;
+  const bill = (side: CombatSide, fighters: ReadonlyArray<Fighter>) =>
+    draw(fighters.map(firing), ammunition[side], rules);
 
   const salvo = (
     shooters: ReadonlyArray<Fighter>,
     at: ReadonlyArray<Fighter>,
     phase: Strike['phase'],
+    magazine: Magazine,
   ) =>
     shooters.flatMap((shooter) => {
+      const supply = magazine.dry ? rules.dryFactor : 1;
       const strength = firing(shooter);
       if (strength <= 0) return [];
       const target = pick(shooter, at, rules);
       if (target === null) return [];
       const shelter =
         shooter.side === 'defender' && shooter.combatant.sheltered ? rules.garrisonBonus : 1;
-      return [hit(shooter, strength, target, supply(shooter.side) * shelter, phase, rules)];
+      return [hit(shooter, strength, target, supply * shelter, phase, rules)];
     });
 
+  const attackerMagazine = bill('attacker', striking);
+  const struck = salvo(striking, holding, 'strike', attackerMagazine);
+  const magazine = { attacker: attackerMagazine, defender: bill('defender', holding) };
   const strikes = [
-    ...salvo(striking, holding, 'strike'),
-    ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte'),
+    ...struck,
+    ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte', magazine.defender),
   ];
 
   const outcomes = [...striking, ...holding].map((fighter) => ({
@@ -240,9 +241,9 @@ function stateOf(fighter: Fighter, rules: CombatRules): TroopState {
  * The rounds a force draws for one pass, against what its nation actually holds. Rounded up per
  * troop rather than on the sum: the tranche is a magazine, and half a magazine is a full one.
  */
-function draw(force: ReadonlyArray<Combatant>, stock: number, rules: CombatRules): Magazine {
-  const needed = force.reduce(
-    (rounds, one) => rounds + Math.ceil(one.strength / rules.strengthPerRound),
+function draw(strengths: ReadonlyArray<number>, stock: number, rules: CombatRules): Magazine {
+  const needed = strengths.reduce(
+    (rounds, strength) => rounds + Math.ceil(strength / rules.strengthPerRound),
     0,
   );
   const held = Math.max(0, Math.floor(stock));
