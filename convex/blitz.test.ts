@@ -923,6 +923,12 @@ describe('la fin à deux heures (B11)', () => {
     expect(jobs.filter((job) => job.name.includes('press'))).toEqual([]);
   });
 
+  it('ne se fait pas relancer une presse par la sortie de secours', async () => {
+    const t = boot();
+    await blitzLaunched(t);
+    expect(await t.mutation(internal.dev.relaunchPress, {})).toEqual({ relaunched: [] });
+  });
+
   it('donne la saison au plus gros revenu, une seule fois', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
