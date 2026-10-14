@@ -7,21 +7,28 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
-| **Saison** | Une partie complète, de la création au wipe. |
+| **Saison** | Une partie complète, de la création au wipe. Elle se joue dans un **mode**. |
+| **Mode** | La façon dont une saison se joue, sur le même support (carte, unités, brouillard) : **Blitz** ou **Mondiale**. Les deux modes partagent la capture et le combat ; ils diffèrent par l'économie, la victoire et l'horloge. *(décision du 14/10/2026)* |
+| **Blitz** | Le mode court : 1 à 2 h, 2 à 4 joueurs présents ensemble, sur un théâtre. Une seule ressource, les fonds ; on ne bâtit rien, on capture. Gagne qui prend le QG adverse. Jamais « partie en temps réel » : c'est une partie **synchrone**. |
+| **Mondiale** | Le mode long : 7 jours, asynchrone, sur le monde entier. On bâtit, on élève, on capture ; on gagne par les points stratégiques ou par les QG. |
+| **Théâtre** | La portion de carte où se joue une Blitz (Europe, Pacifique…), tirée ou choisie au salon. |
 | **Compte** | Identité durable : pseudo unique et mot de passe, sans e-mail, conservée après la suppression des saisons. **Un compte possède ses places** — au plus une par saison — et l'accueil liste les siennes. *(ADR 0022)* |
 | **Place** | Le siège d'un compte dans une saison. Elle porte le pseudo copié à l'entrée et figé pour la saison, la nation, la plage de repos. On la quitte d'un écran, jamais du serveur : seule la destruction de la saison l'efface. |
 | **Session** | Accès à un compte par un jeton de 32 octets aléatoires. Plusieurs sessions indépendantes, sans expiration — un second appareil ouvre les mêmes places ; on déconnecte une session, ou on les révoque toutes lors d'une récupération admin. Le jeton de partie n'existe plus : chaque ordre voyage en `{ session, saison }`. |
-| **Horloge** | La durée d'une saison : 48 h, 7 jours, ou **sans horloge**. Une saison sans horloge se clôt à la main par son fondateur, et aucun écran n'y affiche de compte à rebours. *(révision du 27/08 de l'ADR 0017)* |
+| **Horloge** | La durée d'une saison : 2 h en Blitz, 7 jours en Mondiale, toujours affichée. « Sans horloge » disparaît. *(décision du 14/10/2026 ; le code sert encore l'horloge optionnelle du 27/08)* |
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
 | **Pays neutre** | Un pays non joué. Support d'avant-postes, partenaire commercial, source de mercenaires. |
-| **Avant-poste** | Point posé sur un pays neutre. Ouvre un rayon (`outpostReachKm`, 120 à 240 km suivant son niveau) où l'on bâtit et où les troupes posées s'entretiennent au tarif domestique. **Il tient toute région dont un bout entre dans ce rayon** — jamais son seul centre : une géante se tient depuis sa lisière *(révisé 17/09, ADR 0020 §1)*. Une spécialisation (relais ou écoute), choisie à la construction. Se désactive ou se détruit — ou se démantèle par son propriétaire, au clic droit —, ne se capture jamais. *(révisé 16/09 — démantèlement ; l'Extraction a disparu le 18/08, fiche 03)* |
+| **Avant-poste** | Point posé sur un pays neutre. Ouvre un rayon (`outpostReachKm`, 120 à 240 km suivant son niveau) où l'on bâtit et où les troupes posées s'entretiennent au tarif domestique. **Il tient toute région dont un bout entre dans ce rayon** — jamais son seul centre : une géante se tient depuis sa lisière *(révisé 17/09, ADR 0020 §1)*. Une spécialisation (relais ou écoute), choisie à la construction. Se désactive, se démantèle par son propriétaire au clic droit, ou **se capture** — avec son rayon et ce qu'il ancre. *(révisé 16/09 — démantèlement ; capture décidée le 14/10/2026)* |
 | **Objectif** | Une réserve neutre posée au lancement sur une région de pays sans siège. **Publique** : dépêche à tous, marqueur sur la carte de tous, dépôt restant lisible. Deux par joueur à moins de `OBJECTIVE_NEAR_KM` de son QG, plus un **dur** par paire de voisins, au milieu de la route qui les sépare. Se réduit, ne se capture pas. |
 | **Archétype** | Ce qu'un objectif est : un nom de 1940, un palier, une garnison locale, un dépôt. Une **palette** (`OBJECTIVE_ARCHETYPES`), dont chaque saison tire une partie. Le palier se dit en toutes lettres — *forces irrégulières légères, organisées, retranchées* — et la composition, jamais. |
 | **Garnison locale** | La force neutre qui tient un objectif. Posée, elle défend et n'ordonne jamais rien (ADR 0019 §3) ; elle ne se renforce pas, ne se déroute pas, ne mange pas. **Elle n'est pas publique** : elle se relève comme toute force posée (ADR 0024 §1). Jamais « barbares », jamais « camp de barbares ». |
 | **Dépôt** | Le stock posé d'un objectif. Le premier qui réduit la garnison l'emporte, borné par ce que sa colonne porte ; **le reste reste au sol** pour le suivant. Vidé, l'objectif passe *épuisé*, et la dépêche le dit à tous sans nommer le preneur. |
-| **Mouvement** | Un envoi de troupes d'un point A à un point B. Irréversible. Représenté par un arc. |
-| **Slot de mouvement** | La ressource la plus rare du jeu. Limite le nombre de mouvements simultanés. |
+| **Mouvement** | Un envoi de troupes d'un point A à un point B. Irréversible. Représenté par un arc. En Blitz, une unité seule ; en Mondiale, une pile. |
+| **Point stratégique** | Un lieu réel de 1940, public, tiré parmi un vivier au lancement d'une Mondiale (sept par saison). Il ne produit rien : il **casse une règle** pour qui le tient. En tenir quatre 24 h d'affilée gagne la saison. Neutre, **tenu** ou **contesté**. |
+| **Teneur** | Le joueur qui tient un point stratégique. Il le garde sans garnison jusqu'à ce qu'on le lui capture. |
+| **Éliminé** | Le joueur dont le QG est capturé. Il observe : sa carte figée, la presse, le télégraphe. Jamais « mort », jamais « vaincu ». |
+| **Slot de mouvement** | La ressource la plus rare de la Mondiale. Limite le nombre de mouvements simultanés. La Blitz n'en a pas. |
 | **À flot** | Une pile dont le point de départ est sur une cellule d'eau de la grille de routage. La porte navale ne se lit pas sur elle : le port a été payé à l'embarquement, au premier départ. **Mais elle ne repart que par sa coque** — sans rien qui flotte sous elle, aucun ordre (`NO_HULL_AT_SEA`). Se calcule au départ, jamais stocké. *(ADR 0019 §2, révisions du 27/08, du 09/09 et du 18/09)* |
 | **Colonne embarquée** | Une pile qui porte à la fois de la terre et de la mer : elle vise **un point de mer ou une côte**, jamais l'intérieur des terres. En mer elle **reste** — coques et passagers à une seule adresse, être à bord est un état calculé — et elle y vit sans ravitaillement, au tarif majoré. On n'y fonde pas. *(ADR 0019 §2, révision du 18/09 — « un cargo peut rester en mer avec des unités dedans »)* |
 | **Capacité** | Ce qu'un transport emporte, en **places** : cargo 12, porte-avions 6, transport aérien 2. Une troupe tient dans **un seul** transport — les capacités ne s'additionnent pas d'une coque à l'autre. *(ADR 0025)* |
@@ -37,26 +44,34 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Relié** | Un bâtiment dont la région porte la couleur de son propriétaire. **Seul un bâtiment relié produit** (ADR 0020 §6) : le sol national l'est toujours, une région d'avant-poste l'est tant que le point la tient, et un point désactivé décolore donc **coupe** (§7). Ce qui n'est pas relié est **hors réseau** — un état, jamais une panne : rien ne se répare sur le site, la région se reprend sur la carte. Ne concerne que ce qui produit, les quatre extracteurs et les trois chaînes. |
 | **La Manchette** | Le nom du jeu depuis le 02/10/2026 (décision `marque-nom-2026-10-02`) : le titre d'un quotidien et sa bande. Affiché par `fr.masthead` seulement ; **`worldwarsim`** reste le nom de code — dépôt, paquet, projet Convex, domaine, clés `localStorage`. |
 | **Journal d'événements** | L'écran « qu'est-ce qui a changé depuis ma dernière visite ». |
-| **Télégraphe** | Le chat de la partie : **un seul canal général**, ouvert dès le salon, fermé à la conclusion. Le mot est imposé — ni « chat » ni « dépêches », qui appartiennent au journal. *(décision du 29/08)* |
+| **Télégraphe** | Le chat de la partie : un **canal général**, ouvert dès le salon, fermé à la conclusion, et un **canal privé** par paire de joueurs. Le mot est imposé — ni « chat » ni « dépêches », qui appartiennent au journal. *(décision du 29/08 ; canaux privés le 14/10)* |
 
 ## Ressources
 
 | Terme | Définition |
 |---|---|
 | **Entrepôt** | Le seul stockage national : chaque niveau relève les huit plafonds, et c'est la seule entrée de l'interface et du simulateur. `depot` est une clé **historique** — rendue comme un entrepôt, jamais posée à neuf, prix et chantiers anciens conservés. *(unifié le 09/09/2026)* |
-| **Ressources** | Huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
+| **Fonds** | La seule ressource de la Blitz, versée par les villes et le QG tenus. Jamais « argent », jamais « crédits ». |
+| **Seuil scellé** | En Mondiale, la part de chaque réserve qui ne se pille jamais (le plafond initial). Seul l'excédent est à prendre. *(décision du 14/10)* |
+| **Ressources** | **Mondiale, décidé le 14/10, pas encore codé** : six — vivres, charbon, minerai, pétrole, acier, munitions ; textile et bandages disparaissent, l'alliage devient l'acier. **Aujourd'hui** : huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
 
 ## Actions
 
 | Terme | Définition |
 |---|---|
-| **Raid** | Désactive temporairement un avant-poste. Ne le capture jamais. |
+| **Capture** | Ce que fait une infanterie qui tient un bâtiment, un avant-poste, un point stratégique ou un QG adverse : au bout du temps, il change de propriétaire. Elle avance **au rythme des PV** de la troupe ; un combat ne la remet jamais à zéro, seuls le départ ou la mort de la troupe l'annulent. En Mondiale elle s'arrête pendant la plage de repos du défenseur. Jamais « prise ». *(décision du 14/10)* |
+| **Initiative** | L'attaquant frappe le premier ; le défenseur **riposte** avec ce qui lui reste. Ensemble, frappe et riposte font une **passe de résolution**. |
+| **Choc** | Deux unités qui s'attaquent l'une l'autre au contact : elles tirent en même temps, personne n'a l'initiative. |
+| **Riposte** | La réponse automatique d'un attaqué, avec ses PV restants, s'il peut toucher l'attaquant. Elle ne coûte pas de rechargement. |
+| **Rechargement** | En Blitz, le délai après une frappe pendant lequel une unité ne peut plus attaquer ; propre à chaque rôle. Elle peut bouger. |
+| **Tir indirect** | Une frappe à distance, sans riposte reçue ni donnée, avec une **zone morte** proche où l'on ne peut pas tirer. L'artillerie tire ainsi, **en batterie** — immobile depuis un instant. |
+| **Raid** | Désactive temporairement un avant-poste. En Mondiale, fusionné avec l'attaque (décision du 14/10, pas encore codé). |
 | **Lever / poser** | Lever une pile, c'est la prendre en main au clic qui lit ; la poser, c'est nommer sa destination au clic « agir », ce qui ouvre la rose. Rien ne part avant « envoyer — irréversible » ; Échap repose. *(ADR 0026 §6)* |
 | **Pillage** | Expédition dirigée contre une installation adverse **déjà relevée** : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site, puis rentre. Sur un entrepôt elle rapporte ; sur un producteur c'est un **sabotage**, le même ordre sans butin. La charge se crédite au premier franchissement d'une région tenue ; ce qui tombe en route devient une **caisse**, ramassable par qui l'a relevée. |
 | **Interception** | Combat déclenché en route par un mouvement **offensif** — `attack` ou `raid` — qui rencontre un mouvement adverse dans le même milieu. Une force **posée** voit sans intercepter : détecter et engager sont deux choses depuis la révision de l'ADR 0021 (08/09/2026). |
 | **Cap d'arrivée** | Direction depuis laquelle une force atteint sa cible. Modificateur de combat. |
 | **Rejeu** | Vue rapprochée d'un combat déjà résolu. Spectacle, jamais interaction. Se lance depuis la dépêche du combat ; en face, des blocs et des totaux — le brouillard ne se lève pas parce qu'on a tiré. *(ADR 0026 §7)* |
-| **Plage de repos** | 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver. |
+| **Plage de repos** | En Mondiale, 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver, et aucune capture n'y progresse contre soi. La Blitz n'en a pas. |
 
 ## Retiré du vocabulaire
 
@@ -79,5 +94,5 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 À ne jamais employer, parce qu'ils ramènent des attentes de genre qu'on ne tient pas :
 **tick**, **temps réel**, **micro**, **unité sélectionnée**, **base**, **rush** (au sens RTS),
-**tour de combat** (il n'y a pas de tours : il y a des *passes* de résolution),
+**tour de combat** (il n'y a pas de tours : il y a des *passes* de résolution, même en Blitz),
 **convoi** (dire **mouvement**, le terme couvre aussi les agents et les avant-postes).
