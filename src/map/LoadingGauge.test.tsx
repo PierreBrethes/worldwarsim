@@ -57,5 +57,15 @@ describe('CaptureGauge', () => {
     expect(markup).toContain('stroke-dasharray="0.75 1"');
     expect(markup).toContain('75 % · perdu vers');
     expect(markup).toContain('capture-gauge--defender');
+    expect(
+      renderToStaticMarkup(
+        <CaptureGauge
+          side="defender"
+          hq
+          clock={clock}
+          completesAt={Date.UTC(2026, 9, 14, 12, 30)}
+        />,
+      ),
+    ).toContain('75 % · QG perdu vers');
   });
 });

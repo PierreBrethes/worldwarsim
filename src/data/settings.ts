@@ -7,7 +7,7 @@ import {
   type MapMotionSetting,
 } from '@/domain/map-motion';
 import { type PieceScale, parsePieceScale } from '@/domain/piece-scale';
-import { DEFAULT_MOUSE_MAPPING, isMouseMapping, type MouseMapping } from '@/domain/mouse-mapping';
+import { CLASSIC_MAPPING, isMouseMapping, type MouseMapping } from '@/domain/mouse-mapping';
 
 const HUD_SCALE_KEY = 'wws-hud-scale';
 // Must agree with `--hud-scale` in `tokens.css`: the token is the first paint's scale, this
@@ -99,7 +99,7 @@ const MOUSE_MAPPING_KEY = 'wws-mouse-mapping';
  */
 export function readMouseMapping(): MouseMapping {
   const kept = readObject(MOUSE_MAPPING_KEY);
-  return isMouseMapping(kept) ? kept : DEFAULT_MOUSE_MAPPING;
+  return isMouseMapping(kept) ? kept : CLASSIC_MAPPING;
 }
 
 export function keepMouseMapping(mapping: MouseMapping): void {

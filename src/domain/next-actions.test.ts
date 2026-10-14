@@ -15,6 +15,7 @@ const board = (
     arcs,
     captures,
     loadedAt: 0,
+    season: { reduction: { concludedAt: null } },
     me: {
       homePosition: HOME,
       hqLevel: 1,
@@ -232,6 +233,18 @@ describe('what waits for the player', () => {
     expect(kinds(board({ ...owing, defeated: true }))).toEqual([]);
   });
 
+  it('waits on nobody once the season is concluded', () => {
+    const view = board({ troops: [troop({ stationedAt: posted('ITA', [7.7, 45]) })] });
+    const over = {
+      ...view,
+      season: {
+        ...view.season,
+        reduction: { target: 1, concludedAt: 1, winnerNation: null, standings: [] },
+      },
+    } as PlayerView;
+    expect(kinds(over)).toEqual([]);
+  });
+
   it('holds the reading order: what is owed, then what produces, then what stands', () => {
     const busy = board({
       foundation: [{ key: 'mine', deposit: 'ore' }],
@@ -317,6 +330,7 @@ describe('a Blitz', () => {
         ...over,
       } as Partial<PlayerView['me']>),
       mode: 'blitz',
+      theatre: 'europe',
       neutralSites,
     }) as PlayerView;
   const hq = {
@@ -331,6 +345,13 @@ describe('a Blitz', () => {
   it('asks for a recruit at the HQ as at a barracks, and never for a building site', () => {
     expect(kinds(blitz({ buildings: [hq], recruiting: [] }))).toEqual(['idleProjection']);
     expect(kinds(blitz({ buildings: [hq], recruiting: ['B-hq'] }))).toEqual([]);
+  });
+
+  it('asks nothing of a building one of mine holds: it is not free (U6)', () => {
+    const guard = troop({ stationedAt: { kind: 'building', buildingId: 'B-hq' } });
+    expect(kinds(blitz({ buildings: [hq], recruiting: [], troops: [guard] }))).not.toContain(
+      'idleProjection',
+    );
   });
 
   it('points at the neutral cities within reach, the nearest first', () => {

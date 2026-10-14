@@ -1,3 +1,4 @@
+import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
@@ -13,6 +14,7 @@ import type {
   MapPlace,
   Notice,
   ReductionBoard,
+  SeasonVerdict,
   WarEntry,
 } from './player-view';
 
@@ -51,20 +53,32 @@ const reachableSite = (
  */
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
-  reduction: ReductionBoard | null,
+  /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
+  reduction: (ReductionBoard & { readonly verdict?: SeasonVerdict | null }) | null,
   entries: ReadonlyArray<WarEntry>,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
+  const verdict = reduction?.verdict ?? null;
+  const closing =
+    verdict !== null
+      ? fr.victory.blitzConcluded(
+          verdict.reason,
+          verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
+          verdict.perMinute,
+        )
+      : reduction === null || reduction.winnerNation === null
+        ? null
+        : fr.victory.concluded(nationName(reduction.winnerNation));
   const concluded: ReadonlyArray<Written> =
-    reduction === null || reduction.concludedAt === null || reduction.winnerNation === null
+    reduction === null || reduction.concludedAt === null || closing === null
       ? []
       : [
           {
             at: reduction.concludedAt,
             severity: 'critical',
             kind: 'seasonConcluded',
-            text: fr.victory.concluded(nationName(reduction.winnerNation)),
+            text: closing,
           },
         ];
 
@@ -337,7 +351,12 @@ function written(notice: Notice): Written {
           at: notice.at,
           severity: defending ? 'critical' : 'notable',
           kind: defending ? 'captureThreat' : 'captureStarted',
-          text: defending ? said.captureThreat(site, until) : said.captureStarted(site, until),
+          /** Seul un QG de Blitz se capture, et sa chute élimine (B10) : la dépêche le dit. */
+          text: defending
+            ? isHqSite(notice.site)
+              ? said.hqThreat(site, until)
+              : said.captureThreat(site, until)
+            : said.captureStarted(site, until),
         };
       }
       if (notice.kind === 'captureSucceeded') {
@@ -456,6 +475,16 @@ function written(notice: Notice): Written {
         severity: 'critical',
         kind: 'surrender',
         text: said.playerSurrendered(nationName(notice.nation)),
+      };
+    case 'playerEliminated':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'elimination',
+        text:
+          notice.by === undefined
+            ? said.playerEliminatedAside(nationName(notice.nation))
+            : said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
       };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':
@@ -609,7 +638,7 @@ const fromCombat = (report: CombatReport): Written => ({
   kind: report.side === 'defender' ? 'attacked' : 'assault',
   text: fr.combat.dispatch({
     where: countryLabel(report.hostCountry),
-    intercepted: report.cause === 'interception',
+    cause: report.cause,
     attacking: report.side === 'attacker',
     won: report.won,
     mine: report.mine,

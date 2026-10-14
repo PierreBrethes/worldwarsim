@@ -3,7 +3,8 @@ import { asClockTime } from './duration';
 import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
-import { BLITZ } from '../../convex/constants';
+import { BLITZ_SHARE } from '../../convex/constants';
+import { playedTheatre, theatreKm } from './theatres';
 import { rolesFormedBy } from './blitz';
 import type { BuildingKey, ResourceKey } from './ids';
 import { distanceKm, type LonLat } from './geo';
@@ -91,6 +92,8 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
    *  absence *est* l'état fermé — et c'est exactement ce qu'on doit à un joueur qui a déposé les
    *  armes : pas une liste grisée de ce qu'il ne fera plus. */
   if (view.me.defeated) return [];
+  /** Une saison conclue se relit : rien n'y attend plus personne. */
+  if (view.season.reduction.concludedAt !== null) return [];
   /**
    * **Tant que le quartier général est dû, il est la seule chose qui attende** (décision 1b du
    * 13/09). Rien d'autre ne se bâtit avant lui (`HQ_FIRST`), donc « chantier libre — rien en
@@ -264,8 +267,21 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   /** En Blitz le QG forme aussi — l'infanterie (`rolesFormedBy`). */
   const forms = (key: BuildingKey) =>
     view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : PROJECTION_KEYS.has(key);
+  /** **En Blitz on ne recrute que dans un bâtiment libre** (U6) : celui qu'une des miennes tient
+   *  n'attend rien. */
+  const marching = marchingTroopIds(view.arcs);
+  const held = new Set(
+    view.mode === 'blitz'
+      ? view.me.troops.flatMap((troop) =>
+          troop.stationedAt.kind === 'building' && !marching.has(troop.id)
+            ? [troop.stationedAt.buildingId]
+            : [],
+        )
+      : [],
+  );
   const idle = view.me.buildings.filter(
-    (building) => forms(building.key) && !view.me.recruiting.includes(building.id),
+    (building) =>
+      forms(building.key) && !view.me.recruiting.includes(building.id) && !held.has(building.id),
   );
   const [only] = idle;
   if (only === undefined) return [];
@@ -283,7 +299,7 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
 }
 
 /**
- * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ.nearCityKm` d'un de mes bâtiments,
+ * **Les villes neutres à portée** (Blitz) : à moins de `BLITZ_SHARE.nearCity` du théâtre d'un de mes bâtiments,
  * la plus proche d'abord. C'est la première chose qu'une Blitz demande — une ville verse des fonds
  * à qui la capture, et personne ne la garde.
  */
@@ -295,8 +311,10 @@ function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
     return point === undefined ? [] : [point];
   });
   const reach = (point: LonLat) => Math.min(...mine.map((own) => distanceKm(own, point)));
+  const theatre = playedTheatre(view);
+  const nearKm = theatre === null ? 0 : theatreKm(theatre, BLITZ_SHARE.nearCity);
   const near = view.neutralSites
-    .filter((site) => site.key === 'city' && reach(site.point) <= BLITZ.nearCityKm)
+    .filter((site) => site.key === 'city' && reach(site.point) <= nearKm)
     .sort((left, right) => reach(left.point) - reach(right.point));
   return lineOf(
     'neutralCity',

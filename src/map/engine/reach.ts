@@ -1,11 +1,19 @@
-import { Group } from 'three';
+import {
+  BufferGeometry,
+  DoubleSide,
+  Float32BufferAttribute,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+} from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { LonLat } from '@/domain/geo';
 import type { Reach } from '@/domain/labels';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { ARC_COLORS } from './palette';
+import { ARC_COLORS, PALETTE } from './palette';
+import { hatch } from './regions';
 
 /**
  * Fine enough that four hundred kilometres read as a circle rather than as a polygon, coarse
@@ -35,6 +43,16 @@ const THICKNESS = 3;
  * depuis le même point, et deux encres en feraient deux sujets. Ce qui les sépare est le trait.
  */
 const INK = ARC_COLORS.mine.progress;
+
+/**
+ * **La zone morte est à l'encre du plateau, pas à l'ambre** (A4) : à l'Europe elle tient
+ * cinquante kilomètres quand la pièce en voit soixante, et deux traits d'ambre se frôlaient au
+ * point de n'en faire qu'un. Le noir dit « ici on ne tire pas », l'ambre « ici je vois, ici je
+ * porte » : deux sujets, deux encres, et le motif — hachure pleine contre tireté — les sépare
+ * même quand les rayons se touchent.
+ */
+const DEAD_INK = PALETTE.border;
+const DEAD_THICKNESS = 2;
 
 /**
  * **Le tireté se compte, il ne se mesure pas.** Une longueur fixe en unités de plateau ferait du
@@ -75,12 +93,36 @@ export class ReachRing {
   readonly object = new Group();
   private readonly detection = new Ring(true);
   private readonly contact = new Ring(false);
+  /** **L'artillerie** (B20) : sa portée en plein, sa zone morte à l'encre, hachurée dedans. */
+  private readonly range = new Ring(false);
+  private readonly deadZone = new Ring(false, DEAD_INK, DEAD_THICKNESS);
+  private readonly deadFill = new Mesh(
+    new BufferGeometry(),
+    hatch(
+      new MeshStandardMaterial({
+        color: DEAD_INK,
+        emissive: DEAD_INK,
+        transparent: true,
+        opacity: 0.45,
+        depthTest: false,
+        side: DoubleSide,
+      }),
+    ),
+  );
   /** Le rayon du contact en unités de plateau : le seuil de lisibilité se juge en pixels, et
    *  c'est le seul chiffre qui fasse le pont. Zéro quand il n'y a pas de contact à dessiner. */
   private contactUnits = 0;
 
   constructor(private readonly frame: WorldFrame) {
-    this.object.add(this.detection.line, this.contact.line);
+    this.object.add(
+      this.detection.line,
+      this.contact.line,
+      this.range.line,
+      this.deadZone.line,
+      this.deadFill,
+    );
+    this.deadFill.renderOrder = 3;
+    this.deadFill.frustumCulled = false;
     this.object.visible = false;
   }
 
@@ -95,6 +137,8 @@ export class ReachRing {
   resize(width: number, height: number): void {
     this.detection.resize(width, height);
     this.contact.resize(width, height);
+    this.range.resize(width, height);
+    this.deadZone.resize(width, height);
   }
 
   /** Le contact tient vingt-cinq kilomètres : à distance c'est un point, et un point ment. */
@@ -107,10 +151,25 @@ export class ReachRing {
     this.object.removeFromParent();
     this.detection.dispose();
     this.contact.dispose();
+    this.range.dispose();
+    this.deadZone.dispose();
+    this.deadFill.geometry.dispose();
+    (this.deadFill.material as MeshStandardMaterial).dispose();
   }
 
   private write(reach: Reach): void {
     this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
+    const fire = reach.fire ?? null;
+    this.range.line.visible = fire !== null;
+    this.deadZone.line.visible = fire !== null;
+    this.deadFill.visible = fire !== null;
+    if (fire !== null) {
+      this.range.write(circleAround(this.frame, reach.lonLat, fire.rangeKm));
+      const dead = circleAround(this.frame, reach.lonLat, fire.deadZoneKm);
+      this.deadZone.write(dead);
+      this.deadFill.geometry.dispose();
+      this.deadFill.geometry = discOf(this.frame, reach.lonLat, dead);
+    }
 
     if (reach.contactKm === null) {
       this.contact.line.visible = false;
@@ -150,6 +209,24 @@ export function circleAround(frame: WorldFrame, [lon, lat]: LonLat, km: number):
   return { positions, perimeter };
 }
 
+/** Un éventail de triangles du centre au tracé : le disque hachuré de la zone morte. */
+function discOf(frame: WorldFrame, at: LonLat, { positions }: Circle): BufferGeometry {
+  const center = frame.projectLonLat(at, COUNTRY_THICKNESS + LIFT);
+  const fan: number[] = [];
+  for (let i = 0; i + 5 < positions.length; i += 3)
+    fan.push(
+      center.x,
+      center.y,
+      center.z,
+      ...positions.slice(i + 3, i + 6),
+      ...positions.slice(i, i + 3),
+    );
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(fan, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** Le tracé projeté d'un cercle, et sa longueur : le rythme du tireté comme le seuil du contact
  *  se lisent tous deux sur elle, et la mesurer une fois évite de la supposer ronde. */
 type Circle = { readonly positions: ReadonlyArray<number>; readonly perimeter: number };
@@ -161,10 +238,14 @@ class Ring {
   private readonly geometry = new LineGeometry();
   private readonly material: LineMaterial;
 
-  constructor(private readonly dashed: boolean) {
+  constructor(
+    private readonly dashed: boolean,
+    color: string = INK,
+    thickness = THICKNESS,
+  ) {
     this.material = new LineMaterial({
-      color: INK,
-      linewidth: THICKNESS,
+      color,
+      linewidth: thickness,
       transparent: true,
       opacity: 0.85,
       depthTest: false,

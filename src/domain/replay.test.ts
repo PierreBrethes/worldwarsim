@@ -133,3 +133,33 @@ describe('steppedFrom', () => {
     expect(steppedFrom(stepBounds('compte-rendu').start + 1, 1)).toBe(REPLAY_MS);
   });
 });
+
+describe('the replay of a bombardment (B20, A4)', () => {
+  const shelled: ReplayView = {
+    ...view,
+    side: 'defender',
+    won: false,
+    mine: [{ role: 'infantry', tier: 1, troops: 1, lost: 60, routed: 0, destroyed: 1 }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    bombardment: {},
+  };
+  const firing: ReplayView = {
+    ...view,
+    mine: [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    theirs: { troops: 1, lost: 60, routed: 0, destroyed: 1 },
+    bombardment: { from: { lon: 4.35, lat: 48.85 } },
+  };
+  const during = (step: 'frappe' | 'riposte') => stepBounds(step).start + 1;
+
+  it('draws no battery at the target: the shot comes from nowhere it can see', () => {
+    expect(replayAt(shelled, 0).pieces.filter((p) => p.side === 'theirs')).toEqual([]);
+    expect(replayAt(shelled, during('frappe')).firing).toBe('theirs');
+    expect(count(replayAt(shelled, REPLAY_MS).pieces, 'mine', 'fallen')).toBe(1);
+  });
+
+  it('answers nothing: nobody fires in the riposte', () => {
+    expect(replayAt(shelled, during('riposte')).firing).toBeNull();
+    expect(replayAt(firing, during('riposte')).firing).toBeNull();
+    expect(replayAt(firing, during('frappe')).firing).toBe('mine');
+  });
+});

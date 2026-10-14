@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { nationInk } from '../src/domain/nations';
 import {
@@ -23,6 +24,10 @@ import { playerOf, seatsOf } from './seats';
 function requireOpenChannel(season: Doc<'seasons'>): void {
   if (season.status === 'concluded') fail('SEASON_CONCLUDED');
 }
+
+/** **Le fil se déduit de la saison, jamais du client** : un onglet périmé ne peut pas écrire
+ *  dans le mauvais fil. Avant le lancement c'est le salon, après c'est la partie. */
+const isLobby = (season: Doc<'seasons'>) => season.status === 'lobby';
 
 export const post = mutation({
   args: {
@@ -68,6 +73,7 @@ export const post = mutation({
       text: trimmed,
       at: now,
       ...(to === undefined ? {} : { to }),
+      ...(isLobby(season) ? { lobby: true } : {}),
     });
     for (const seat of seats) {
       if (seat._id === player._id || (to !== undefined && seat._id !== to)) continue;
@@ -95,6 +101,7 @@ export const recent = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
+    const thread = isLobby(season) ? true : undefined;
     const seats = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
@@ -117,13 +124,17 @@ export const recent = query({
     const general = () =>
       ctx.db
         .query('messages')
-        .withIndex('byChannel', (q) => q.eq('seasonId', season._id).eq('to', undefined))
+        .withIndex('byChannel', (q) =>
+          q.eq('seasonId', season._id).eq('lobby', thread).eq('to', undefined),
+        )
         .order('desc')
         .take(TELEGRAPH_DEPTH);
     const between = (from: Id<'players'>, to: Id<'players'>) =>
       ctx.db
         .query('messages')
-        .withIndex('byPair', (q) => q.eq('seasonId', season._id).eq('to', to).eq('playerId', from))
+        .withIndex('byPair', (q) =>
+          q.eq('seasonId', season._id).eq('lobby', thread).eq('to', to).eq('playerId', from),
+        )
         .order('desc')
         .take(TELEGRAPH_DEPTH);
 
@@ -177,5 +188,29 @@ export const markRead = mutation({
     await stampReadMark(ctx, player._id, {
       telegraphDirectReadAt: { ...telegraphDirectReadAt, [other]: Date.now() },
     });
+  },
+});
+
+/** Bounded so no single mutation deletes thousands of rows: a full pass queues the next. */
+export const ERASE_BATCH = 500;
+
+/**
+ * **Un fil s'efface en entier, par lots** : le salon au lancement, la partie à la conclusion —
+ * pas d'archive. Les dates de lecture n'ont rien à suivre : celles du salon précèdent le
+ * lancement, celles de la partie la conclusion, aucun message ne peut les dépasser.
+ */
+export const erase = internalMutation({
+  args: { seasonId: v.id('seasons'), lobby: v.boolean() },
+  handler: async (ctx, { seasonId, lobby }) => {
+    const rows = await ctx.db
+      .query('messages')
+      .withIndex('byChannel', (q) =>
+        q.eq('seasonId', seasonId).eq('lobby', lobby ? true : undefined),
+      )
+      .take(ERASE_BATCH);
+    for (const row of rows) await ctx.db.delete(row._id);
+    if (rows.length === ERASE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby });
+    }
   },
 });

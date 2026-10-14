@@ -26,8 +26,6 @@ export const CLASSIC_MAPPING: MouseMapping = { left: 'orient', middle: 'pan', ri
 /** Le retour de la partie du 11/09 : la rose au clic molette, la carte au clic droit. */
 export const WHEEL_ACTS_MAPPING: MouseMapping = { left: 'orient', middle: 'act', right: 'pan' };
 
-export const DEFAULT_MOUSE_MAPPING = CLASSIC_MAPPING;
-
 export type MousePresetKey = 'classic' | 'wheelActs';
 
 export const MOUSE_PRESETS: ReadonlyArray<{

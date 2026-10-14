@@ -135,6 +135,8 @@ export type MapMarker =
       readonly pieces: PilePieces;
       /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
       readonly reloadUntil?: number;
+      /** **L'artillerie** (B20) : l'instant où la pile sera en batterie, absent sinon. */
+      readonly emplacedAt?: number;
       readonly ink: string;
     }
   | {
@@ -187,6 +189,10 @@ export type MapMarker =
        */
       readonly works: WorkSite | null;
       readonly reach: Reach | null;
+      /** Sa garnison, comme une pile posée : la fin de son rechargement (B19) et l'instant où
+       *  son artillerie est en batterie (B20), absents sinon. */
+      readonly reloadUntil?: number;
+      readonly emplacedAt?: number;
       readonly ink: string;
     }
   | {
@@ -226,11 +232,13 @@ export type Reach = {
   /** Ce que la chose voit passer — le tireté (ADR 0021). */
   readonly detectionKm: number;
   /**
-   * **Ce que la chose touche**, `ARRIVAL_RADIUS_KM` — le plein (décisions 4a et 3a du 16/09).
+   * **Ce que la chose touche**, `contactKm(théâtre)` — le plein (décisions 4a et 3a du 16/09).
    * `null` pour un avant-poste et une station : ils relèvent, ils n'engagent rien, et un second
    * cercle autour d'eux promettrait une allonge qu'aucune règle ne leur donne.
    */
   readonly contactKm: number | null;
+  /** **Ce qu'une artillerie atteint** (B20) : l'anneau de portée, et la zone morte hachurée. */
+  readonly fire?: { readonly rangeKm: number; readonly deadZoneKm: number };
 };
 
 export type LabelType =
@@ -273,6 +281,7 @@ export type LabelLine =
   | {
       readonly role: 'capture';
       readonly side: CaptureView['side'];
+      readonly site: CaptureView['site'];
       readonly clock: CaptureClock;
       readonly completesAt: number;
     };
@@ -505,6 +514,7 @@ function withCaptures(
   const lineOf = (capture: CaptureView): LabelLine => ({
     role: 'capture',
     side: capture.side,
+    site: capture.site,
     clock: capture.clock,
     completesAt: capture.completesAt,
   });
@@ -788,16 +798,7 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
-          ...(marker.reloadUntil === undefined
-            ? []
-            : [
-                {
-                  role: 'countdown' as const,
-                  dueAt: marker.reloadUntil,
-                  prefix: fr.reload.prefix,
-                  clock: true as const,
-                },
-              ]),
+          ...countdownsOf(marker),
         ],
       };
     case 'construction':
@@ -838,6 +839,7 @@ function markerLabel(marker: MapMarker): MapLabel {
           ...(marker.level === null
             ? []
             : [{ role: 'figures', text: fr.labels.buildingLevel(marker.level) } as const]),
+          ...countdownsOf(marker),
         ],
       };
     case 'deposit':
@@ -854,6 +856,36 @@ function markerLabel(marker: MapMarker): MapLabel {
       };
   }
 }
+
+/** Ce que la pile attend, posée ou en garnison : son rechargement, puis sa mise en batterie. */
+const countdownsOf = ({
+  reloadUntil,
+  emplacedAt,
+}: {
+  readonly reloadUntil?: number;
+  readonly emplacedAt?: number;
+}) => [
+  ...(reloadUntil === undefined
+    ? []
+    : [
+        {
+          role: 'countdown' as const,
+          dueAt: reloadUntil,
+          prefix: fr.reload.prefix,
+          clock: true as const,
+        },
+      ]),
+  ...(emplacedAt === undefined
+    ? []
+    : [
+        {
+          role: 'countdown' as const,
+          dueAt: emplacedAt,
+          prefix: fr.battery.prefix,
+          clock: true as const,
+        },
+      ]),
+];
 
 /**
  * The intelligence rule lives in this function and nowhere else: an unidentified enemy

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
-import type { PressEdition, PressLine, PressOwnLine } from '@/domain/player-view';
+import type { PressEdition, PressLine, PressOwnLine, SeasonVerdict } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
@@ -22,21 +22,29 @@ import { FloatingWindow, type WindowProps } from './Window';
  *
  * **Ce qui n'existe pas ici est aussi structurel que ce qui y est** : ni l'industrie ni le
  * militaire d'un autre joueur — le serveur ne les construit pas (`PressLine` n'a pas les
- * champs) — ni courbe, ni historique, ni compte de régions, ni vainqueur. Aucun ordre ne part
+ * champs) — ni courbe, ni historique, ni compte de régions, ni vainqueur, hors le verdict d'une Blitz
+ * à son édition finale. Aucun ordre ne part
  * d'ici : on ferme, et c'est tout.
  */
 export function PressWindow({
   press,
+  verdict,
   onClose,
   ...windowProps
-}: WindowProps & { press: PressEdition | null }) {
+}: WindowProps & { press: PressEdition | null; verdict: SeasonVerdict | null }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
 
   if (narrow)
     return (
       <FloatingWindow name="press" onClose={onClose} {...windowProps} width={1040}>
-        <NarrowPress press={press} sort={sort} onSort={setSort} onClose={onClose} />
+        <NarrowPress
+          press={press}
+          verdict={verdict}
+          sort={sort}
+          onSort={setSort}
+          onClose={onClose}
+        />
       </FloatingWindow>
     );
 
@@ -81,6 +89,7 @@ export function PressWindow({
           </div>
         </div>
 
+        {press?.final === true && <Verdict verdict={verdict} />}
         {press === null ? (
           <p className="mx-auto max-w-[62ch] px-6 py-[56px] text-center font-(family-name:--font-display) text-[20px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.press.none}
@@ -90,6 +99,21 @@ export function PressWindow({
         )}
       </div>
     </FloatingWindow>
+  );
+}
+
+/** **L'édition finale d'une Blitz dit le vainqueur et pourquoi** (B10, B11) : c'est l'écran de
+ *  fin. Une Mondiale n'a pas de verdict, et la manchette reste la sienne. */
+function Verdict({ verdict }: { verdict: SeasonVerdict | null }) {
+  if (verdict === null) return null;
+  return (
+    <p className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px] text-center font-(family-name:--font-display) text-[19px] leading-[1.3] font-bold text-[var(--ink)]">
+      {fr.victory.blitzConcluded(
+        verdict.reason,
+        verdict.winnerNation === null ? null : nationLabel(verdict.winnerNation),
+        verdict.perMinute,
+      )}
+    </p>
   );
 }
 
@@ -349,11 +373,13 @@ const MINUTE = 60_000;
  */
 function NarrowPress({
   press,
+  verdict,
   sort,
   onSort,
   onClose,
 }: {
   press: PressEdition | null;
+  verdict: SeasonVerdict | null;
   sort: SortKey;
   onSort: (key: SortKey) => void;
   onClose: () => void;
@@ -399,6 +425,7 @@ function NarrowPress({
         )}
       </div>
 
+      {press?.final === true && <Verdict verdict={verdict} />}
       {press === null ? (
         <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
           {fr.press.none}

@@ -257,7 +257,7 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 
 ## Acté le 16/09 — le combat (proposition `combat-simultane-terrain-retranchement.md`)
 
-- **Résolution simultanée** (décision 1b, révise l'ADR 0014) : **livrée le 16/09** — une salve par
+- **Résolution simultanée** (décision 1b, révise l'ADR 0014 ; **révisée le 14/10 : l'initiative revient, la simultanée ne survit que comme choc**) : **livrée le 16/09** — une salve par
   camp sur l'état d'avant la passe, `riposteTarget` supprimé, `Strike.phase` toujours `'strike'`
   (le littéral `'riposte'` reste au validateur, legacy). Cas de référence : 22 / 29 en plaine.
   Prompt `prompts/code/ready/resolution-simultanee.md`.

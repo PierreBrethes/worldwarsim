@@ -4,6 +4,7 @@ import { COMBAT_PROFILES, profileOf, TRANSPORT_PROFILES } from './combat';
 import {
   bandOf,
   gunneryRows,
+  profilesFor,
   movementSheetOf,
   PROFILE_UNITS,
   STRONG_SHARE,
@@ -46,9 +47,9 @@ describe('the firing abacus is the table, arranged', () => {
     }
   });
 
-  it('replays the seventy-five reachable couples and not one more', () => {
+  it('replays the ninety-three reachable couples and not one more', () => {
     const reached = firing.flatMap((row) => row.shots.filter((shot) => shot.reach === 'hits'));
-    expect(reached).toHaveLength(75);
+    expect(reached).toHaveLength(93);
   });
 
   /** Une case absente est « ne l'atteint pas », jamais un zéro : un blindé qui n'atteint pas un
@@ -136,5 +137,17 @@ describe('the movement rule printed on a unit sheet', () => {
       pace: 'foot',
       costs: { land: 1.6, sea: 1 },
     });
+  });
+});
+
+/** **L'artillerie n'existe qu'en Blitz** (lot 6b) : l'abaque d'une Mondiale ne la montre pas. */
+describe('the abacus of a Mondiale', () => {
+  it('has no artillery row nor column', () => {
+    const mondiale = gunneryRows(DAMAGE_TABLE, profilesFor('mondiale'));
+    expect(mondiale.map((row) => row.attacker)).not.toContain('artillery');
+    expect(
+      mondiale.flatMap((row) => (row.fires ? row.shots.map((shot) => shot.defender) : [])),
+    ).not.toContain('artillery');
+    expect(profilesFor('blitz')).toContain('artillery');
   });
 });

@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { Fragment, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
-  ARRIVAL_RADIUS_KM,
+  contactKm,
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
   GARRISON_DAMAGE_TAKEN,
@@ -10,11 +10,12 @@ import {
   detectionRangeOf,
 } from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
-import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
+import { TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
   gunneryRows,
   movementSheetOf,
   PROFILE_UNITS,
+  profilesFor,
   type Band,
   type GunneryShot,
 } from '@/domain/gunnery';
@@ -31,6 +32,7 @@ import { FloatingWindow, type WindowProps } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 import { rolesFormingSites } from '@/domain/blitz';
+import type { Theatre } from '@/domain/theatres';
 import { BLITZ } from '../../../convex/constants';
 
 /**
@@ -49,10 +51,15 @@ import { BLITZ } from '../../../convex/constants';
  * **Aucune action, aucun stock.** On ne forme pas depuis l'abaque : un coût nu suffit, et un
  * « 18 / 320 » y serait la réserve imprimée une fois de plus (contrat 06 P3).
  */
-export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & { seat: Seat }) {
-  const rows = gunneryRows(DAMAGE_TABLE);
-  const columns = COMBAT_PROFILES;
+export function GunneryWindow({
+  seat,
+  theatre,
+  onClose,
+  ...windowProps
+}: WindowProps & { seat: Seat; theatre: Theatre | null }) {
   const workshop = useQuery(api.troops.workshop, seat);
+  const columns = profilesFor(workshop?.blitz === true ? 'blitz' : 'mondiale');
+  const rows = gunneryRows(DAMAGE_TABLE, columns);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (
@@ -83,7 +90,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
             {fr.gunnery.lead}{' '}
             <HelpMark>
               {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, DRY_AMMUNITION_FACTOR)}{' '}
-              {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
+              {fr.gunnery.contactRange(contactKm(theatre))}
             </HelpMark>
           </div>
         </div>
@@ -159,7 +166,11 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
                           className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
                           <div className="hud-fold">
-                            <GunnerySheet profile={row.attacker} workshop={workshop} />
+                            <GunnerySheet
+                              profile={row.attacker}
+                              workshop={workshop}
+                              theatre={theatre}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -197,9 +208,11 @@ type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.wor
 export function GunnerySheet({
   profile,
   workshop,
+  theatre,
 }: {
   profile: CombatProfile;
   workshop: WorkshopView | undefined;
+  theatre: Theatre | null;
 }) {
   const { role, tier, marked } = PROFILE_UNITS[profile];
   const sheet = fr.unitSheets[role];
@@ -238,7 +251,7 @@ export function GunnerySheet({
           <span className="eyebrow">{fr.production.domains[DOMAIN_BY_ROLE[role]]}</span>
           <span className="ml-auto flex items-center gap-[6px] font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
             <StatGlyph stat="range" onHover={setRangeHover} />
-            {fr.gunnery.detectionRange(detectionRangeOf([role]))}
+            {fr.gunnery.detectionRange(detectionRangeOf([role], theatre))}
           </span>
         </div>
 

@@ -180,6 +180,17 @@ describe('posterOf', () => {
       tone: 'cut',
     });
     expect(posterFor(view(), [pile], 'pile')?.lines).toEqual([]);
+
+    const emplacing = {
+      ...me,
+      troops: [{ ...me.troops[0]!, role: 'artillery', emplacedAt: LOADED_AT + 12_000 }],
+    } as PlayerView['me'];
+    expect(posterFor(view({ me: emplacing }), [pile], 'pile')?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'en batterie dans',
+      chip: '0:12',
+      tone: 'ok',
+    });
   });
 
   it('dates my movement by its arrival and fills the bar to its progress', () => {
@@ -265,6 +276,31 @@ describe('posterOf', () => {
       title: 'Caserne, niv. 1 → 2',
       lines: [{ kind: 'row', label: 'reste', value: '00:15:00' }],
       bar: 0.75,
+    });
+  });
+
+  it('counts down the battery of a gun in garrison, on its building (B20)', () => {
+    const garrisoned = {
+      ...me,
+      troops: [
+        {
+          ...me.troops[0]!,
+          role: 'artillery',
+          stationedAt: { kind: 'building', buildingId: 'b-barracks' },
+          emplacedAt: LOADED_AT + 18_000,
+        },
+      ],
+    } as PlayerView['me'];
+    const barracks = posterFor(
+      view({ me: garrisoned }),
+      [building('b-barracks', 'barracks', 'r-plain', null, 1)],
+      'm-b-barracks',
+    );
+    expect(barracks?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'en batterie dans',
+      chip: '0:18',
+      tone: 'ok',
     });
   });
 

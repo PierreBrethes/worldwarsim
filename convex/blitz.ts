@@ -17,8 +17,16 @@ import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { fundsAt, incomePerMinute, mendPlan, notInBlitz, type Funds } from '../src/domain/blitz';
 import {
+  clockVerdict,
+  fundsAt,
+  incomePerMinute,
+  mendPlan,
+  notInBlitz,
+  type Funds,
+} from '../src/domain/blitz';
+import {
+  blitzMapRulesOf,
   planBlitzMap,
   type BlitzCandidate,
   type BlitzMeasure,
@@ -34,6 +42,7 @@ import { endowIrregular, irregularSeat } from './objectives';
 import { allRegions, pointOfBuilding, regionFacts } from './regions';
 import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
+import { concludeSeason } from './seasons';
 import { surveyFromPoint } from './surveys';
 import { reassessCaptures } from './captures';
 import { movementsOf } from './movement/forces';
@@ -79,16 +88,6 @@ export async function spendFunds(
   await ctx.db.patch(playerId, { funds: stock - amount });
 }
 
-export async function creditFunds(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  amount: number,
-  now: number,
-): Promise<void> {
-  const stock = await settleFunds(ctx, playerId, now);
-  await ctx.db.patch(playerId, { funds: stock + amount });
-}
-
 export const placementInput = internalQuery({
   args: { seasonId: v.id('seasons') },
   handler: async (ctx, { seasonId }) => {
@@ -100,7 +99,7 @@ export const placementInput = internalQuery({
     if (seats.length === 0) return null;
     return {
       seed: season.seed,
-      box: theatreById(season.theatre ?? '')?.box ?? null,
+      theatre: season.theatre ?? null,
       seats: seats.map((seat) => seat._id),
     };
   },
@@ -116,8 +115,9 @@ export const place = internalAction({
     let plan: ReadonlyArray<BlitzSite> | null;
     let quays: ReadonlyMap<string, LonLat>;
     try {
-      if (input.box === null) throw new Error('theatre');
-      ({ plan, quays } = drawMap(input.box, input.seats, input.seed));
+      const theatre = theatreById(input.theatre ?? '');
+      if (theatre === null) throw new Error('theatre');
+      ({ plan, quays } = drawMap(theatre, input.seats, input.seed));
     } catch {
       await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_FAILED' });
       return;
@@ -143,14 +143,14 @@ export const place = internalAction({
 });
 
 function drawMap(
-  box: Theatre['box'],
+  theatre: Theatre,
   seats: ReadonlyArray<string>,
   seed: number,
 ): { plan: ReadonlyArray<BlitzSite> | null; quays: ReadonlyMap<string, LonLat> } {
   /** **Une côte n'est côte que si un quai s'y trouve** : la règle ne pose un port que là, et
    *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
   const quays = new Map<string, LonLat>();
-  const candidates = theatreGround(box).map((candidate) => {
+  const candidates = theatreGround(theatre.box).map((candidate) => {
     const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
     if (quay !== null) quays.set(candidate.regionId, quay);
     return { ...candidate, coastal: quay !== null };
@@ -171,7 +171,13 @@ function drawMap(
     return field;
   };
 
-  const plan = planBlitzMap({ seats, candidates, box, rules: BLITZ.map, seed, measure });
+  const plan = planBlitzMap({
+    seats,
+    candidates,
+    rules: blitzMapRulesOf(theatre, BLITZ.map),
+    seed,
+    measure,
+  });
   return { plan, quays };
 }
 
@@ -270,9 +276,12 @@ export const commit = internalMutation({
         /** **En Blitz rien n'est bâti** : ce que tient un joueur colore sa région comme une
          *  capture (`occupationsOf`), le QG de départ compris. Un neutre ne colore rien. */
         ...(site.owner === null ? { startedNeutral: true as const } : { capturedAt: now }),
+        ...(site.owner !== null && site.key === 'hq' ? { homeOf: site.owner } : {}),
       });
-      if (site.owner === null || site.key !== 'hq') continue;
-      for (let rank = 0; rank < 2; rank += 1) {
+      if (site.owner === null) continue;
+      /** **Un fantassin au QG, l'autre dans la caserne** (U6) : une unité par bâtiment, et
+       *  chacun des deux sites de départ peut former dès qu'il se vide. */
+      if (site.key === 'hq' || site.key === 'barracks') {
         const strength = nominalStrength('infantry', 1);
         await ctx.db.insert('troops', {
           seasonId,
@@ -284,6 +293,7 @@ export const commit = internalMutation({
           stationedAt: buildingId,
         });
       }
+      if (site.key !== 'hq') continue;
       const point = pointOfBuilding({ regionId: site.regionId });
       if (point !== null) await surveyFromPoint(ctx, site.owner, point, now);
     }
@@ -398,6 +408,38 @@ export async function occupiedBuildingIds(
 }
 
 const pointKey = (point: LonLat) => `${point[0]},${point[1]}`;
+
+/**
+ * **À deux heures, la Blitz se conclut** (B11) : le plus gros revenu tenu à l'instant gagne, la
+ * caisse départage, puis l'égalité (`clockVerdict`). Planifié au lancement à l'échéance de
+ * l'horloge ; une saison déjà conclue, relancée depuis ou revenue au salon n'en fait rien.
+ */
+export const closeAtClock = internalMutation({
+  args: { seasonId: v.id('seasons'), expectedAt: v.number() },
+  handler: async (ctx, { seasonId, expectedAt }) => {
+    const season = await ctx.db.get(seasonId);
+    if (
+      season === null ||
+      season.status !== 'launched' ||
+      season.launchedAt === null ||
+      season.durationHours === null ||
+      season.launchedAt + season.durationHours * 3_600_000 !== expectedAt
+    ) {
+      return;
+    }
+    const lines = [];
+    for (const seat of await seatsOf(ctx, seasonId)) {
+      if (seat.defeated === true) continue;
+      const funds = await fundsOf(ctx, seat, expectedAt);
+      lines.push({ id: seat._id, perMinute: funds.perMinute, funds: fundsAt(funds, expectedAt) });
+    }
+    const { winnerId, reason, perMinute } = clockVerdict(lines);
+    await concludeSeason(ctx, seasonId, winnerId, expectedAt, {
+      reason,
+      ...(perMinute === null ? {} : { perMinute }),
+    });
+  },
+});
 
 /** La porte serveur de `notInBlitz` : bâtir, élever, fonder, démolir, piller, commander un lot. */
 export function refuseInBlitz(season: Doc<'seasons'>): void {

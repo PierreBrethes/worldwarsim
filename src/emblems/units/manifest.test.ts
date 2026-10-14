@@ -48,7 +48,8 @@ describe('unit sprite manifest', () => {
   });
 
   /**
-   * The two complete plates — France is still the one without a cargo. A `null` slipping into
+   * The two complete plates — France is still the one without a cargo. The artillery (lot 6b)
+   * has no plate in any nation yet: it is the one role every manifest leaves `null`. A `null` slipping into
    * either would go unseen on screen: `UnitSprite` falls back to its dotted frame, which is
    * exactly what a half-drawn nation is supposed to look like.
    */
@@ -56,8 +57,10 @@ describe('unit sprite manifest', () => {
     const sprites = SPRITES_BY_NATION[nation];
     if (sprites === undefined) throw new Error(`${nation} must be in the manifest`);
     for (const role of ROLES) {
+      if (role === 'artillery') continue;
       expect(sprites[role], role).not.toBeNull();
     }
+    expect(sprites.artillery).toBeNull();
     expect(spriteUrl(nation, 'infantry', 1)).not.toBe(spriteUrl(nation, 'infantry', 2));
     expect(spriteUrl(nation, 'cargo', 1)).not.toBeNull();
   });
@@ -79,7 +82,7 @@ describe('unit sprite manifest', () => {
     const sprites = SPRITES_BY_NATION[nation];
     if (sprites === undefined) throw new Error(`${nation} must be in the manifest`);
     for (const role of ROLES) {
-      if (role === undrawn) continue;
+      if (role === undrawn || role === 'artillery') continue;
       expect(sprites[role], role).not.toBeNull();
     }
     expect(sprites[undrawn]).toBeNull();

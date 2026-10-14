@@ -12,6 +12,7 @@ const GAIT_BY_ROLE: Readonly<Record<UnitRole, Gait | null>> = {
   infantry: null,
   armor: 'rolling',
   landTransport: 'rolling',
+  artillery: 'rolling',
   fighter: 'wing',
   bomber: 'wing',
   airTransport: 'wing',

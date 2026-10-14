@@ -4,16 +4,32 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173,
       "autoPort": true
     },
     {
       "name": "dev-nvm",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", ". \"$HOME/.nvm/nvm.sh\" && nvm use --silent 24 && npm run dev"],
+      "runtimeArgs": [
+        "-c",
+        ". \"$HOME/.nvm/nvm.sh\" && nvm use --silent 24 && npm run dev"
+      ],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "prototypes",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5197"
+      ],
+      "port": 5197
     }
   ]
 }

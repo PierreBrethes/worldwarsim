@@ -9,32 +9,41 @@ import type { SeasonMode } from './season-mode';
  * rose, par la mutation et par la carte — le serveur date, le client interpole, et c'est la même
  * horloge des deux côtés.
  */
-export type CaptureKind = 'building' | 'outpost';
-
 export type CaptureTarget =
   { readonly kind: 'building'; readonly key: BuildingKey } | { readonly kind: 'outpost' };
 
 export type CaptureRefusal =
   'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'HQ_NOT_CAPTURABLE' | 'CAPTURE_NEEDS_INFANTRY';
 
-/** Le QG est refusé ici et non oublié : sa capture élimine, et elle arrive avec son lot. */
+/** **Le QG ne se capture qu'en Blitz**, où sa chute élimine (B10) ; en Mondiale il attend la
+ *  victoire par les QG. */
 export function captureRefusalOf(
   target: CaptureTarget,
   roles: ReadonlyArray<UnitRole>,
   isMine: boolean,
+  mode: SeasonMode,
 ): CaptureRefusal | null {
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (isMine) return 'FRIENDLY_TARGET';
-  if (target.kind === 'building' && target.key === 'hq') return 'HQ_NOT_CAPTURABLE';
+  if (isHq(target) && mode === 'mondiale') return 'HQ_NOT_CAPTURABLE';
   return roles.includes('infantry') ? null : 'CAPTURE_NEEDS_INFANTRY';
 }
 
-export const captureDurationMs = (mode: SeasonMode, kind: CaptureKind): number =>
-  CAPTURE_MINUTES[mode][kind] * 60_000;
+const isHq = (target: CaptureTarget): boolean => target.kind === 'building' && target.key === 'hq';
+
+export const captureDurationMs = (mode: SeasonMode, target: CaptureTarget): number =>
+  (mode === 'blitz' && isHq(target)
+    ? CAPTURE_MINUTES.blitz.hq
+    : CAPTURE_MINUTES[mode][target.kind]) * 60_000;
 
 /** La durée qu'une infanterie à ce rythme mettrait, hors plage de repos. */
-export const captureDurationAt = (mode: SeasonMode, kind: CaptureKind, rate: number): number =>
-  captureDurationMs(mode, kind) / rate;
+export const captureDurationAt = (mode: SeasonMode, target: CaptureTarget, rate: number): number =>
+  captureDurationMs(mode, target) / rate;
+
+export const isHqSite = (site: {
+  readonly kind: 'building' | 'outpost';
+  readonly building?: BuildingKey;
+}): boolean => site.kind === 'building' && site.building === 'hq';
 
 /**
  * **La vitesse est la force de la meilleure infanterie présente** — pleine, la vitesse de base ;

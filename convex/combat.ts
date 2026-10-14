@@ -103,17 +103,22 @@ export async function resolveContact(
     disabledUntil,
     at,
     mode = 'initiative',
+    firedFrom,
+    aboard = [],
   }: {
     seasonId: Id<'seasons'>;
     attacker: Engaged;
     defender: Engaged;
-    cause: 'arrival' | 'interception';
+    cause: 'arrival' | 'interception' | 'bombardment';
     point: { lon: number; lat: number };
     hostCountry: string;
     outpostId: Id<'outposts'> | null;
     disabledUntil: number | null;
     at: number;
     mode?: PassMode;
+    firedFrom?: { lon: number; lat: number };
+    /** La pile du défenseur au même point, hors de la passe : ses coques portent encore. */
+    aboard?: ReadonlyArray<Doc<'troops'>>;
   },
 ): Promise<Resolution> {
   /**
@@ -193,7 +198,16 @@ export async function resolveContact(
    * Placé avant `reducedDefender` de propos délibéré : couler un transport chargé *est* une
    * réduction, et la domination doit la compter dans la passe qui l'a franchie.
    */
-  const sunk = await drownAtSea(ctx, { point, outcomes: engagement.outcomes, byId, at });
+  /** **Un tir indirect ne noie que la cible** (B20) : la batterie tire de la côte, et la cible
+   *  garde les coques de sa pile, qui ne sont pas dans la passe. */
+  const sunk = await drownAtSea(ctx, {
+    point,
+    outcomes: engagement.outcomes,
+    byId: new Map([...byId, ...aboard.map((troop) => [troop._id, troop] as const)]),
+    at,
+    sides: mode === 'indirect' ? ['defender'] : ['attacker', 'defender'],
+    aboard,
+  });
   const outcomes: ReadonlyArray<CombatantOutcome> = engagement.outcomes.map((outcome) =>
     sunk.drowned.has(outcome.id)
       ? { ...outcome, state: 'destroyed' as const }
@@ -223,6 +237,7 @@ export async function resolveContact(
     disabledUntil,
     reducedDefender,
     ...(mode === 'shock' ? { shock: true } : {}),
+    ...(firedFrom === undefined ? {} : { firedFrom }),
     troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {
@@ -330,18 +345,22 @@ async function drownAtSea(
     outcomes,
     byId,
     at,
+    sides,
+    aboard,
   }: {
     point: { lon: number; lat: number };
     outcomes: ReadonlyArray<CombatantOutcome>;
     byId: Map<string, Doc<'troops'>>;
     at: number;
+    sides: ReadonlyArray<'attacker' | 'defender'>;
+    aboard: ReadonlyArray<Doc<'troops'>>;
   },
 ): Promise<{ readonly drowned: ReadonlySet<string>; readonly withdrawn: ReadonlySet<string> }> {
   const drowned = new Set<string>();
   const withdrawn = new Set<string>();
   if (landAtPoint([point.lon, point.lat])) return { drowned, withdrawn };
 
-  for (const side of ['attacker', 'defender'] as const) {
+  for (const side of sides) {
     const survivors = outcomes.filter(
       (outcome) => outcome.side === side && outcome.state !== 'destroyed',
     );
@@ -350,7 +369,10 @@ async function drownAtSea(
       role: byId.get(outcome.id)!.role,
     });
     const fate = drownedOf(
-      survivors.filter((outcome) => outcome.state === 'standing').map(unit),
+      [
+        ...survivors.filter((outcome) => outcome.state === 'standing').map(unit),
+        ...(side === 'defender' ? aboard.map(({ _id, role }) => ({ id: _id, role })) : []),
+      ],
       survivors.filter((outcome) => outcome.state === 'routed').map(unit),
     );
     for (const id of fate.withdrawn) withdrawn.add(id);
@@ -363,7 +385,9 @@ async function drownAtSea(
      */
     const lost = fate.drowned.map((id) => ({
       role: byId.get(id)!.role,
-      strength: outcomes.find((outcome) => outcome.id === id)!.strengthAfter,
+      strength:
+        outcomes.find((outcome) => outcome.id === id)?.strengthAfter ??
+        byId.get(id)!.currentStrength,
     }));
     const of = (role: 'infantry' | 'other') =>
       lost

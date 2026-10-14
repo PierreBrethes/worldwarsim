@@ -95,7 +95,7 @@ export type UnitVisual =
 
 /**
  * `null` says "this role has no visual yet", and the complete `Record` forces every added
- * nation to answer for all nine roles: an omission becomes a compile error, not a missing
+ * nation to answer for all ten roles: an omission becomes a compile error, not a missing
  * image discovered on screen.
  */
 export type NationSprites = Readonly<Record<UnitRole, UnitVisual | null>>;
@@ -104,6 +104,7 @@ const FRANCE: NationSprites = {
   infantry: { kind: 'tiered', tiers: [infantry1, infantry2] },
   armor: { kind: 'tiered', tiers: [armor1, armor2] },
   landTransport: { kind: 'single', url: landTransport },
+  artillery: null,
   fighter: { kind: 'single', url: fighter },
   bomber: { kind: 'single', url: bomber },
   airTransport: { kind: 'single', url: airTransport },
@@ -117,6 +118,7 @@ const UK: NationSprites = {
   infantry: { kind: 'tiered', tiers: [ukInfantry1, ukInfantry2] },
   armor: { kind: 'tiered', tiers: [ukArmor1, ukArmor2] },
   landTransport: { kind: 'single', url: ukLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: ukFighter },
   bomber: { kind: 'single', url: ukBomber },
   airTransport: { kind: 'single', url: ukAirTransport },
@@ -130,6 +132,7 @@ const USA: NationSprites = {
   infantry: { kind: 'tiered', tiers: [usaInfantry1, usaInfantry2] },
   armor: { kind: 'tiered', tiers: [usaArmor1, usaArmor2] },
   landTransport: { kind: 'single', url: usaLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: usaFighter },
   bomber: { kind: 'single', url: usaBomber },
   airTransport: { kind: 'single', url: usaAirTransport },
@@ -143,6 +146,7 @@ const USSR: NationSprites = {
   infantry: { kind: 'tiered', tiers: [ussrInfantry1, ussrInfantry2] },
   armor: { kind: 'tiered', tiers: [ussrArmor1, ussrArmor2] },
   landTransport: { kind: 'single', url: ussrLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: ussrFighter },
   bomber: { kind: 'single', url: ussrBomber },
   airTransport: { kind: 'single', url: ussrAirTransport },
@@ -156,6 +160,7 @@ const GERMANY: NationSprites = {
   infantry: { kind: 'tiered', tiers: [germanyInfantry1, germanyInfantry2] },
   armor: { kind: 'tiered', tiers: [germanyArmor1, germanyArmor2] },
   landTransport: { kind: 'single', url: germanyLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: germanyFighter },
   bomber: { kind: 'single', url: germanyBomber },
   airTransport: null,
@@ -169,6 +174,7 @@ const CHINA: NationSprites = {
   infantry: { kind: 'tiered', tiers: [chinaInfantry1, chinaInfantry2] },
   armor: { kind: 'tiered', tiers: [chinaArmor1, chinaArmor2] },
   landTransport: { kind: 'single', url: chinaLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: chinaFighter },
   bomber: { kind: 'single', url: chinaBomber },
   airTransport: { kind: 'single', url: chinaAirTransport },
@@ -182,6 +188,7 @@ const ITALY: NationSprites = {
   infantry: { kind: 'tiered', tiers: [italyInfantry1, italyInfantry2] },
   armor: { kind: 'tiered', tiers: [italyArmor1, italyArmor2] },
   landTransport: { kind: 'single', url: italyLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: italyFighter },
   bomber: { kind: 'single', url: italyBomber },
   airTransport: { kind: 'single', url: italyAirTransport },
@@ -198,6 +205,7 @@ const JAPAN: NationSprites = {
   infantry: { kind: 'tiered', tiers: [japanInfantry1, japanInfantry2] },
   armor: { kind: 'tiered', tiers: [japanArmor1, japanArmor2] },
   landTransport: { kind: 'single', url: japanLandTransport },
+  artillery: null,
   fighter: { kind: 'single', url: japanFighter },
   bomber: { kind: 'single', url: japanBomber },
   airTransport: null,

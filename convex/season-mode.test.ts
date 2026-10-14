@@ -41,7 +41,7 @@ describe('seasons.create by mode', () => {
     ).rejects.toThrow(/UNKNOWN_THEATRE/);
   });
 
-  it('refuses a fifth player in a Blitz and says so on the invitation', async () => {
+  it('refuses a player past the theatre in a Blitz and says so on the invitation', async () => {
     const t = boot();
     const token = await signIn(t, 'Pierre');
     const { code } = await t.mutation(api.seasons.create, {

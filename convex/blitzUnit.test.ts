@@ -425,6 +425,8 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     const { seat, guest } = await blitz(t);
     const hunter = await troop(t, seat, PARIS);
     await troop(t, guest, BERLIN);
+    /** Un guetteur à Potsdam la voit à l'ordre, puis tombe : la cible sort de la vue. */
+    const spotter = await troop(t, seat, { lon: 13.06, lat: 52.4 });
     const campId = await surveyCamp(t, seat, BERLIN);
 
     await t.mutation(api.movements.attack, {
@@ -433,6 +435,7 @@ describe('a Blitz unit and its orders (lot 5)', () => {
       troopIds: [hunter],
       target: { kind: 'camp', campId },
     });
+    await t.run((ctx) => ctx.db.delete(spotter));
     await runPursuits(t);
     const lost = await movementOf(t, hunter);
     expect(lost).toMatchObject({ type: 'march' });

@@ -14,6 +14,7 @@ import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
+import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
@@ -117,6 +118,7 @@ export const fr = {
     infantry: { one: 'infanterie', many: 'infanterie' },
     armor: { one: 'blindé', many: 'blindés' },
     landTransport: { one: 'transport terrestre', many: 'transports terrestres' },
+    artillery: { one: 'artillerie', many: 'artilleries' },
     fighter: { one: 'chasseur', many: 'chasseurs' },
     bomber: { one: 'bombardier', many: 'bombardiers' },
     airTransport: { one: 'transport aérien', many: 'transports aériens' },
@@ -131,6 +133,7 @@ export const fr = {
     infantry: 'f',
     armor: 'm',
     landTransport: 'm',
+    artillery: 'f',
     fighter: 'm',
     bomber: 'm',
     airTransport: 'm',
@@ -143,6 +146,7 @@ export const fr = {
     infantry: 'INF',
     armor: 'BLD',
     landTransport: 'TPT',
+    artillery: 'ART',
     fighter: 'CHS',
     bomber: 'BMB',
     airTransport: 'TPA',
@@ -280,6 +284,9 @@ export const fr = {
     mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
     mendNote:
       'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    clock: 'fin',
+    clockLabel: (left: string) => `fin de la Blitz dans ${left} — le plus gros revenu l’emporte`,
+    clockEnded: 'terminée',
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },
@@ -295,7 +302,8 @@ export const fr = {
     },
     modeLabel: 'mode',
     theatreLabel: 'théâtre',
-    theatreNote: 'La carte s’ouvre cadrée sur ce théâtre.',
+    theatreNote:
+      'La carte s’ouvre cadrée sur ce théâtre, et le salon n’y assoit pas plus de joueurs qu’il n’en tient.',
     theatres: {
       europe: 'Europe',
       mediterranean: 'Méditerranée',
@@ -303,6 +311,8 @@ export const fr = {
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
     seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
+    theatrePlayers: (min: number, max: number) =>
+      min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>
       theatre === null ? mode : `${mode} · ${theatre}`,
   },
@@ -329,7 +339,8 @@ export const fr = {
     /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
     stamp: 'capture',
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
-    lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    lostAt: (percent: number, hour: string, hq = false) =>
+      `${percent} % · ${hq ? 'QG perdu' : 'perdu'} vers ${hour}`,
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -584,7 +595,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
-    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
+    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
         ? 'les fonds ne suffisent pas'
@@ -664,6 +675,21 @@ export const fr = {
     UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
     RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
+    SITE_OCCUPIED: () =>
+      'ce bâtiment n’est pas libre : une de vos unités s’y tient ou s’y forme — faites-la sortir pour recruter',
+    BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
+    ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
+    INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
+    NOT_EMPLACED: (details) =>
+      typeof details.seconds === 'number' && details.seconds > 0
+        ? `pas encore en batterie : prête dans ${details.seconds} s`
+        : 'pas encore en batterie : elle doit rester immobile un instant',
+    TOO_CLOSE: (details) =>
+      `trop près : ${num(details.km)} km, la zone morte en fait ${num(details.minimum)}`,
+    ON_THE_MOVE: () => 'en route : l’artillerie ne tire qu’à l’arrêt',
+    ABOARD: () => 'à bord d’un transport : une pièce transportée ne tire pas',
+    OUT_OF_RANGE: (details) =>
+      `hors de portée : ${num(details.km)} km pour ${num(details.maximum)}`,
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
@@ -1288,7 +1314,7 @@ export const fr = {
   combat: {
     dispatch: ({
       where,
-      intercepted,
+      cause,
       attacking,
       won,
       mine,
@@ -1297,7 +1323,7 @@ export const fr = {
       shock = false,
     }: {
       where: string;
-      intercepted: boolean;
+      cause: 'arrival' | 'interception' | 'bombardment';
       attacking: boolean;
       won: boolean;
       mine: { troops: number; lost: number; routed: number; destroyed: number };
@@ -1305,13 +1331,22 @@ export const fr = {
       outpostDisabled: boolean;
       shock?: boolean;
     }) => {
-      const opening = intercepted
-        ? attacking
-          ? `interception ${where}`
-          : `colonne interceptée ${where}`
-        : attacking
-          ? `engagement ${where}`
-          : `attaque reçue ${where}`;
+      /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
+      if (cause === 'bombardment') {
+        const lost = attacking ? theirs.lost : mine.lost;
+        const fell = (attacking ? theirs : mine).destroyed > 0;
+        return attacking
+          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
+      }
+      const opening =
+        cause === 'interception'
+          ? attacking
+            ? `interception ${where}`
+            : `colonne interceptée ${where}`
+          : attacking
+            ? `engagement ${where}`
+            : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
@@ -1343,6 +1378,19 @@ export const fr = {
     reducedMark: 'réduit',
     standingMark: 'debout',
     homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
+    /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
+    blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
+      reason === 'draw'
+        ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+        : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+    verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
+      reason === 'hqTaken'
+        ? 'son infanterie a capturé le dernier quartier général adverse'
+        : reason === 'lastStanding'
+          ? 'seul belligérant encore debout'
+          : reason === 'income'
+            ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
+            : 'revenu et caisse se valent',
   },
 
   /**
@@ -1374,6 +1422,7 @@ export const fr = {
       firedDry: 'tir à sec',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
+      elimination: 'QG tombé',
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
@@ -1407,6 +1456,7 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
@@ -1488,6 +1538,10 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
+      playerEliminatedAside: (nation: string) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.`,
+      playerEliminated: (nation: string, by: string) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
@@ -1604,6 +1658,8 @@ export const fr = {
         `Notre infanterie tient ${site} : capture vers ${until}.`,
       captureThreat: (site: string, until: string) =>
         `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+      hqThreat: (site: string, until: string) =>
+        `${site} est en cours de capture : QG perdu vers ${until}, et sa chute nous élimine. Chassez l’infanterie qui le tient.`,
       captured: (site: string) => `${site} est à nous : capture achevée.`,
       siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>
@@ -1890,6 +1946,11 @@ export const fr = {
     label: 'rechargement',
     prefix: 'rechargement ',
   },
+  /** **La mise en batterie** (B20) : l'artillerie immobile ne tire qu'au bout de son attente. */
+  battery: {
+    label: 'en batterie dans',
+    prefix: 'en batterie dans ',
+  },
 
   sent: {
     stamp: 'transmis',
@@ -1907,14 +1968,22 @@ export const fr = {
    */
   dispatchSheet: {
     kicker: (time: string) => `dépêche · ${time}`,
-    title: (attacking: boolean, intercepted: boolean, where: string) =>
-      intercepted
+    title: (
+      attacking: boolean,
+      cause: 'arrival' | 'interception' | 'bombardment',
+      where: string,
+    ) =>
+      cause === 'bombardment'
         ? attacking
-          ? `Interception — ${where}`
-          : `Colonne interceptée — ${where}`
-        : attacking
-          ? `Engagement — ${where}`
-          : `Attaque subie — ${where}`,
+          ? `Bombardement — ${where}`
+          : `Bombardés — ${where}`
+        : cause === 'interception'
+          ? attacking
+            ? `Interception — ${where}`
+            : `Colonne interceptée — ${where}`
+          : attacking
+            ? `Engagement — ${where}`
+            : `Attaque subie — ${where}`,
     engaged: 'engagées',
     engagedValue: (mine: number, theirs: number) => `${mine} contre ${theirs}`,
     losses: 'nos pertes',
@@ -2550,6 +2619,7 @@ export const fr = {
     infantry: 'soldats',
     armor: 'chars',
     landTransport: 'camions',
+    artillery: 'pièces',
     fighter: 'appareils',
     bomber: 'appareils',
     airTransport: 'appareils',
@@ -2615,6 +2685,7 @@ export const fr = {
   telegraph: {
     header: 'télégraphe',
     channel: 'canal général',
+    lobbyChannel: 'canal du salon — effacé au lancement',
     general: 'Général',
     privateChannel: (nickname: string) => `conversation privée avec ${nickname}`,
     empty: 'La ligne est muette — personne n’a encore télégraphié.',
@@ -2948,6 +3019,10 @@ export const fr = {
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
     enemyColumn: 'colonne ennemie',
+    /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
+    bombard: 'bombarder',
+    bombardConsequence: (km: number) =>
+      `Tir indirect à ${km} km, sur-le-champ : la cible ne peut pas répondre. Puis la pièce recharge.`,
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
@@ -3249,6 +3324,11 @@ export const fr = {
     landTransport: {
       kind: 'support',
       contribution: 'Motorise deux fantassins : projette l’infanterie plus loin.',
+    },
+    artillery: {
+      kind: 'combat',
+      strongAgainst: ['infanterie', 'blindé'],
+      weakAgainst: ['infanterie au contact', 'bombardier'],
     },
     fighter: {
       kind: 'combat',

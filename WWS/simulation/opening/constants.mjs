@@ -63,14 +63,14 @@ export const EXPLOITED_DEPOSITS = {
 
 export const PROJECTION_BY_DOMAIN = { land: 'barracks', air: 'airfield', sea: 'port' };
 export const DOMAIN_BY_ROLE = {
-  infantry: 'land', armor: 'land', landTransport: 'land',
+  infantry: 'land', armor: 'land', landTransport: 'land', artillery: 'land',
   fighter: 'air', bomber: 'air', airTransport: 'air',
   escort: 'sea', cargo: 'sea', carrier: 'sea',
 };
 
 export const NOMINAL_STRENGTH = {
   infantry: { 1: 50, 2: 30 }, armor: { 1: 12, 2: 6 }, landTransport: { 1: 24 },
-  fighter: { 1: 12 }, bomber: { 1: 9 }, airTransport: { 1: 6 },
+  artillery: { 1: 12 }, fighter: { 1: 12 }, bomber: { 1: 9 }, airTransport: { 1: 6 },
   escort: { 1: 6 }, cargo: { 1: 8 }, carrier: { 1: 24 },
 };
 
@@ -79,7 +79,7 @@ export const COST_BY_ROLE = {
   landTransport: { alloy: 40, minutes: 45 }, fighter: { alloy: 110, minutes: 90 },
   bomber: { alloy: 160, minutes: 120 }, airTransport: { alloy: 90, minutes: 75 },
   escort: { alloy: 175, minutes: 180 }, cargo: { alloy: 120, minutes: 100 },
-  carrier: { alloy: 430, minutes: 480 },
+  carrier: { alloy: 430, minutes: 480 }, artillery: { alloy: 80, minutes: 60 },
 };
 
 /** One round per five points of engaged strength, per pass — and the pass is the only bill

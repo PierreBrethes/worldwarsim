@@ -55,7 +55,7 @@ export function DispatchSheet({
           className="font-(family-name:--font-display) text-[22px] leading-[1.12] font-extrabold"
           style={{ color: isAlarm(dispatch.kind) ? 'var(--critical)' : 'var(--ink)' }}
         >
-          {said.title(attacking, combat.cause === 'interception', where)}
+          {said.title(attacking, combat.cause, where)}
         </h3>
         <div className="mt-[8px]">
           <CombatLines combat={combat} />

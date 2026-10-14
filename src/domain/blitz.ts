@@ -4,7 +4,7 @@ import type { SeasonMode } from './season-mode';
 import { distanceKm, type LonLat } from './geo';
 import type { PassMode } from './combat';
 import { INTERCEPTION_SAMPLES, positionAt, type MarchingForce } from './interception';
-import type { Theatre } from './theatres';
+import { spanKm, type Theatre } from './theatres';
 
 /**
  * **L'économie de la Blitz** (lot 4 des deux modes, 14/10) : une ressource, les fonds, et des
@@ -26,10 +26,13 @@ export const fundsAt = (funds: Funds, now: number): number =>
 
 const FORMED_BY: Readonly<Partial<Record<BuildingKey, ReadonlyArray<UnitRole>>>> = {
   hq: ['infantry'],
-  barracks: ['infantry', 'armor', 'landTransport'],
+  barracks: ['infantry', 'armor', 'landTransport', 'artillery'],
   airfield: ['fighter', 'bomber', 'airTransport'],
   port: ['escort', 'cargo', 'carrier'],
 };
+
+/** **L'artillerie n'existe qu'en Blitz pour l'instant** (lot 6b) : la Mondiale ne la forme pas. */
+export const blitzOnly = (role: UnitRole): boolean => role === 'artillery';
 
 export const rolesFormedBy = (key: BuildingKey): ReadonlyArray<UnitRole> => FORMED_BY[key] ?? [];
 
@@ -40,7 +43,7 @@ export const rolesFormingSites = (role: UnitRole): ReadonlyArray<BuildingKey> =>
   );
 
 export type BlitzRecruitRefusal =
-  'WRONG_PROJECTION_BUILDING' | 'TROOP_BOUND_REACHED' | 'INSUFFICIENT_FUNDS';
+  'WRONG_PROJECTION_BUILDING' | 'SITE_OCCUPIED' | 'TROOP_BOUND_REACHED' | 'INSUFFICIENT_FUNDS';
 
 /** Une marque par rôle, aucun palier, aucun plafond affiché : le frein est le prix. */
 export function blitzRecruitRefusalOf({
@@ -48,14 +51,19 @@ export function blitzRecruitRefusalOf({
   role,
   funds,
   troops,
+  occupied,
 }: {
   readonly site: BuildingKey;
   readonly role: UnitRole;
   readonly funds: number;
   /** Debout et en file : la file n'est pas un endroit où garer l'armée que la borne refuse. */
   readonly troops: number;
+  /** **Une unité par bâtiment, la recrue comprise** (U6) : une des miennes s'y tient, ou s'y
+   *  forme déjà — elle y entrera, et il n'y a qu'une place. */
+  readonly occupied: boolean;
 }): BlitzRecruitRefusal | null {
   if (!rolesFormedBy(site).includes(role)) return 'WRONG_PROJECTION_BUILDING';
+  if (occupied) return 'SITE_OCCUPIED';
   if (troops >= BLITZ.troopBound) return 'TROOP_BOUND_REACHED';
   return funds < BLITZ.rolePrice[role] ? 'INSUFFICIENT_FUNDS' : null;
 }
@@ -100,6 +108,35 @@ export function mendPlan<T extends Wounded & { readonly id: string }>(
   });
 }
 
+/** Pourquoi une Blitz s'est conclue : le dernier debout — QG pris ou capitulation —, ou
+ *  l'horloge, au revenu ou à égalité (B10, B11). */
+export type VerdictReason = 'hqTaken' | 'lastStanding' | 'income' | 'draw';
+
+/**
+ * **À deux heures, le plus gros revenu gagne** (B11) : les fonds par minute tenus à l'instant,
+ * départagés par la caisse à l'unité près, puis l'égalité déclarée — personne ne gagne.
+ */
+export function clockVerdict<Id extends string>(
+  lines: ReadonlyArray<{ readonly id: Id; readonly perMinute: number; readonly funds: number }>,
+): {
+  readonly winnerId: Id | null;
+  readonly reason: 'income' | 'draw';
+  readonly perMinute: number | null;
+} {
+  const ranked = [...lines].sort(
+    (a, b) => b.perMinute - a.perMinute || Math.floor(b.funds) - Math.floor(a.funds),
+  );
+  const [first, second] = ranked;
+  if (first === undefined) return { winnerId: null, reason: 'draw', perMinute: null };
+  const tied =
+    second !== undefined &&
+    second.perMinute === first.perMinute &&
+    Math.floor(second.funds) === Math.floor(first.funds);
+  return tied
+    ? { winnerId: null, reason: 'draw', perMinute: first.perMinute }
+    : { winnerId: first.id, reason: 'income', perMinute: first.perMinute };
+}
+
 /**
  * **Ni construction, ni élévation, ni fondation en Blitz** (B4) : la rose ne propose pas ces
  * ordres et le serveur les refuse, par cette seule lecture. On n'y pille pas non plus — il n'y a
@@ -120,15 +157,6 @@ export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   const { west, south, east, north } = theatre.box;
   if (lat < south || lat > north) return false;
   return [lon, lon + 360].some((candidate) => candidate >= west && candidate <= east);
-}
-
-function spanKm(theatre: Theatre): number {
-  const { west, south, east, north } = theatre.box;
-  const middle = (south + north) / 2;
-  return Math.max(
-    distanceKm([west, south], [west, north]),
-    distanceKm([west, middle], [west + (east - west) / 2, middle]) * 2,
-  );
 }
 
 /** What a thousand kilometres of land cost on this theatre's clock. */

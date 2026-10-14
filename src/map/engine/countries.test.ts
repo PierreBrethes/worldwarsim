@@ -51,7 +51,7 @@ describe('splitOutlines', () => {
 
 describe('coastWidthPx', () => {
   it('keeps its floor from afar', () => {
-    expect(coastWidthPx(1)).toBe(1.5);
+    expect(coastWidthPx(1)).toBe(0.75);
   });
 
   it('grows with the zoom like ink on the sheet', () => {

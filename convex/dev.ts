@@ -5,6 +5,7 @@ import { internalMutation, internalQuery } from './_generated/server';
 import { heldOf } from './control';
 import { settle } from './resources';
 import { viewOf } from './view';
+import { modeOf } from '../src/domain/season-mode';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -161,6 +162,8 @@ export const relaunchPress = internalMutation({
     const relaunched: string[] = [];
     for (const season of await ctx.db.query('seasons').collect()) {
       if (season.status !== 'launched' || alive.has(season._id)) continue;
+      /** Une Blitz n'a pas de chaîne d'édition : seule sa conclusion en écrit une. */
+      if (modeOf(season.mode) === 'blitz') continue;
       /** N'importe quel siège fait l'affaire : `publish` ne s'en sert que pour retrouver la
        *  saison et vérifier qu'elle se joue encore. */
       const seat = await ctx.db

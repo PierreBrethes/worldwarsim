@@ -1,5 +1,6 @@
 import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
+import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
 import type {
   BuildCostKey,
@@ -247,6 +248,8 @@ export type TroopView = {
   readonly supplied: boolean;
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
+  /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
+  readonly emplacedAt?: number;
   /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
   readonly mending: boolean;
 };
@@ -322,7 +325,10 @@ export const NOTICES_SERVED = 200;
 export type CombatReport = {
   readonly id: string;
   readonly at: number;
-  readonly cause: 'arrival' | 'interception';
+  readonly cause: 'arrival' | 'interception' | 'bombardment';
+  /** **D'où ma batterie a tiré** (B20) : servi à l'attaquant seul — la cible ne sait pas d'où
+   *  le coup est parti. */
+  readonly firedFrom?: { readonly lon: number; readonly lat: number };
   readonly side: 'attacker' | 'defender';
   readonly won: boolean;
   readonly hostCountry: string;
@@ -375,6 +381,9 @@ export type ReplayView = {
   readonly won: boolean;
   readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
   readonly theirs: CombatTally;
+  /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
+   *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */
+  readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
 };
 
 /**
@@ -596,6 +605,7 @@ export type DispatchKind =
   | 'firedDry'
   | 'foundNothing'
   | 'surrender'
+  | 'elimination'
   | 'command'
   /** L'édition du classement : le seul rendez-vous que tout le monde reçoit à la même heure. */
   | 'edition'
@@ -809,6 +819,12 @@ type NoticeBody =
   /** Une capitulation, et la main qu'elle passe (`convex/players.ts`, `surrender`). Publiques
    *  toutes les deux : elles changent la table, elles ne relèvent d'aucun brouillard. */
   | { readonly kind: 'playerSurrendered'; readonly at: number; readonly nation: string }
+  | {
+      readonly kind: 'playerEliminated';
+      readonly at: number;
+      readonly nation: string;
+      readonly by?: string;
+    }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
    *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
@@ -943,6 +959,14 @@ export type JournalDispatch = {
  * about everybody: the condition is unique, public and named, deliberately, and a capacity is
  * neither a position nor a composition — the fog loses nothing.
  */
+export type SeasonVerdict = {
+  readonly reason: VerdictReason;
+  /** `null` à égalité. */
+  readonly winnerNation: string | null;
+  /** Le revenu du vainqueur, quand c'est l'horloge qui a tranché. */
+  readonly perMinute: number | null;
+};
+
 export type ReductionBoard = {
   /** How many distinct players one has to hold under the bar, `⌈(n−1)/2⌉`. */
   readonly target: number;
@@ -1035,6 +1059,9 @@ export type PlayerView = {
     readonly playableRegion: string;
     readonly travelMinutesPer1000km: number;
     readonly reduction: ReductionBoard;
+    /** **Pourquoi la Blitz s'est conclue** (B10, B11), `null` tant qu'elle se joue et en
+     *  Mondiale : l'édition finale le dit en manchette. */
+    readonly verdict: SeasonVerdict | null;
   };
   readonly me: {
     readonly nation: string;

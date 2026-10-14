@@ -25,6 +25,7 @@ import type { Conversion, FoundationDebt } from '../src/domain/economy';
 import { MODE_RULES } from '../src/domain/season-mode';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
+import { theatreKm, type Theatre } from '../src/domain/theatres';
 
 export { NATIONS } from '../src/domain/ids';
 
@@ -354,6 +355,7 @@ export const NOMINAL_STRENGTH: Readonly<
   infantry: { 1: 50, 2: 30 },
   armor: { 1: 12, 2: 6 },
   landTransport: { 1: 24 },
+  artillery: { 1: 12 },
   fighter: { 1: 12 },
   bomber: { 1: 9 },
   airTransport: { 1: 6 },
@@ -378,6 +380,7 @@ export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,
   armor: 0,
   landTransport: 120,
+  artillery: 0,
   fighter: 0,
   bomber: 0,
   airTransport: 80,
@@ -394,6 +397,7 @@ export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: n
   infantry: { alloy: 18, minutes: 20 },
   armor: { alloy: 95, minutes: 70 },
   landTransport: { alloy: 40, minutes: 45 },
+  artillery: { alloy: 80, minutes: 60 },
   fighter: { alloy: 110, minutes: 90 },
   bomber: { alloy: 160, minutes: 120 },
   airTransport: { alloy: 90, minutes: 75 },
@@ -447,6 +451,7 @@ export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
   infantry: 1,
   landTransport: 2,
   armor: 3,
+  artillery: 3,
   cargo: 1,
   escort: 2,
   carrier: 5,
@@ -510,33 +515,67 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
 /**
  * **The damage table of `chiffrage-combat.md` §2, copied literally**: the share of the defender's
  * nominal strength a full-strength attacker destroys in one pass, before modifiers. A **missing**
- * cell is "cannot reach", never a zero — seventy-five reachable couples out of a hundred and
- * twenty-one, which `combat.test.ts` replays.
+ * cell is "cannot reach", never a zero — ninety-three reachable couples out of a hundred and
+ * forty-four, which `combat.test.ts` replays.
  *
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
  * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
  */
 export const DAMAGE_TABLE: DamageTable = {
-  infantry1: { infantry1: 0.5, infantry2: 0.55, armor1: 0.15, armor2: 0.05, landTransport: 0.7 },
+  infantry1: {
+    infantry1: 0.5,
+    infantry2: 0.55,
+    armor1: 0.15,
+    armor2: 0.05,
+    landTransport: 0.7,
+    artillery: 0.7,
+  },
   infantry2: {
     infantry1: 0.35,
     infantry2: 0.4,
     armor1: 0.65,
     armor2: 0.45,
     landTransport: 0.6,
+    artillery: 0.6,
     fighter: 0.06,
     bomber: 0.1,
     airTransport: 0.12,
   },
-  armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.25, landTransport: 0.85 },
-  armor2: { infantry1: 0.75, infantry2: 0.7, armor1: 0.75, armor2: 0.5, landTransport: 0.9 },
+  armor1: {
+    infantry1: 0.7,
+    infantry2: 0.65,
+    armor1: 0.5,
+    armor2: 0.25,
+    landTransport: 0.85,
+    artillery: 0.8,
+  },
+  armor2: {
+    infantry1: 0.75,
+    infantry2: 0.7,
+    armor1: 0.75,
+    armor2: 0.5,
+    landTransport: 0.9,
+    artillery: 0.85,
+  },
   landTransport: {
     infantry1: 0.1,
     infantry2: 0.1,
     armor1: 0.05,
     armor2: 0.02,
     landTransport: 0.15,
+    artillery: 0.1,
+  },
+  artillery: {
+    infantry1: 0.6,
+    infantry2: 0.55,
+    armor1: 0.5,
+    armor2: 0.4,
+    landTransport: 0.7,
+    artillery: 0.5,
+    escort: 0.15,
+    cargo: 0.3,
+    carrier: 0.1,
   },
   fighter: {
     infantry1: 0.25,
@@ -544,6 +583,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.1,
     armor2: 0.05,
     landTransport: 0.45,
+    artillery: 0.3,
     fighter: 0.5,
     bomber: 0.75,
     airTransport: 0.85,
@@ -557,6 +597,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.6,
     armor2: 0.55,
     landTransport: 0.6,
+    artillery: 0.6,
     fighter: 0.08,
     bomber: 0.2,
     airTransport: 0.25,
@@ -571,6 +612,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.05,
     armor2: 0.02,
     landTransport: 0.12,
+    artillery: 0.15,
     fighter: 0.15,
     bomber: 0.15,
     airTransport: 0.18,
@@ -585,6 +627,7 @@ export const DAMAGE_TABLE: DamageTable = {
     armor1: 0.08,
     armor2: 0.04,
     landTransport: 0.25,
+    artillery: 0.2,
     fighter: 0.4,
     bomber: 0.35,
     airTransport: 0.45,
@@ -635,6 +678,7 @@ export const DETECTION_RANGE_KM: Readonly<Record<UnitRole, number>> = {
   infantry: 60,
   armor: 60,
   landTransport: 40,
+  artillery: 60,
   fighter: 150,
   bomber: 100,
   airTransport: 80,
@@ -648,8 +692,17 @@ export const DETECTION_RANGE_KM: Readonly<Record<UnitRole, number>> = {
  * 08/09/2026). These are starting points inherited from the abandoned posture brief, not
  * balance claims: the first campaign still has to measure all nine.
  */
-export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
-  roles.reduce((best, role) => Math.max(best, DETECTION_RANGE_KM[role]), 0);
+export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>, theatre: Theatre | null): number =>
+  roles.reduce(
+    (best, role) =>
+      Math.max(
+        best,
+        theatre === null
+          ? DETECTION_RANGE_KM[role]
+          : theatreKm(theatre, BLITZ_SHARE.detection[role]),
+      ),
+    0,
+  );
 
 /**
  * **How close one has to stand to be found on arrival.** ADR 0019 §1: it replaces the containment
@@ -665,6 +718,38 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
 export const ARRIVAL_RADIUS_KM = 25;
 
 /**
+ * **The Blitz's distances, as shares of its theatre's span** (A2, `theatreKm`): cut so Europe
+ * (4 225 km) keeps the Mondiale's kilometres, and every wider theatre widens them all alike — a
+ * fixed 25 km of contact was a pinhead on the Pacific.
+ *
+ * @a-mesurer every share; nothing has played an evening
+ */
+export const BLITZ_SHARE = {
+  contact: 0.0059,
+  detection: {
+    infantry: 0.0142,
+    armor: 0.0142,
+    landTransport: 0.0095,
+    artillery: 0.0142,
+    fighter: 0.0355,
+    bomber: 0.0237,
+    airTransport: 0.0189,
+    escort: 0.0284,
+    cargo: 0.0142,
+    carrier: 0.0473,
+  } as Readonly<Record<UnitRole, number>>,
+  /** The artillery's reach, and the dead zone under it where it does not fire (B20). */
+  fireRange: 0.0355,
+  deadZone: 0.0118,
+  /** « À faire maintenant » montre les villes neutres à cette part d'un de mes bâtiments. */
+  nearCity: 0.142,
+} as const;
+
+/** **How close is contact**: the Mondiale's kilometres, or the Blitz's share of its theatre. */
+export const contactKm = (theatre: Theatre | null): number =>
+  theatre === null ? ARRIVAL_RADIUS_KM : theatreKm(theatre, BLITZ_SHARE.contact);
+
+/**
  * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
  * le déclenche pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne.
  *
@@ -674,6 +759,7 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,
   armor: 60,
   landTransport: 45,
+  artillery: 120,
   fighter: 50,
   bomber: 90,
   airTransport: 60,
@@ -681,6 +767,16 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   cargo: 60,
   carrier: 75,
 };
+
+/**
+ * **Le temps immobile qu'il faut à l'artillerie pour être en batterie** (B20) ; sa portée et sa
+ * zone morte sont des parts du théâtre (`BLITZ_SHARE`). Un théâtre se traverse en 18 min, donc
+ * partout la portée vaut quarante secondes de marche adverse, la zone morte treize, et la mise en
+ * batterie le double de la portée : on voit venir, on tire une fois, et le contact arrive.
+ *
+ * @a-mesurer rien n'a encore joué une soirée
+ */
+export const INDIRECT_FIRE = { emplaceSeconds: 30 } as const;
 
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
@@ -757,14 +853,19 @@ export const PLUNDER_DISABLED_HOURS = 12;
 /**
  * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du
  * 14/10). Une troupe entamée va au prorata de sa force (`captureRate`), et en Mondiale la plage de
- * repos du défenseur ne compte pas. Le QG n'est pas ici : sa capture élimine, c'est un autre lot.
+ * repos du défenseur ne compte pas. Le QG ne se capture qu'en Blitz.
  *
- * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, jamais joués
+ * @a-mesurer « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, « ≈ 6 min » pour le QG (lot 6), jamais
+ * joués
  */
 export const CAPTURE_MINUTES = {
   mondiale: { building: 360, outpost: 360 },
-  blitz: { building: 3, outpost: 3 },
-} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>>;
+  /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit
+   *  avoir le temps de revenir. */
+  blitz: { building: 3, outpost: 3, hq: 6 },
+} as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>> & {
+  blitz: { hq: number };
+};
 
 /**
  * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une
@@ -1096,6 +1197,7 @@ export const BLITZ = {
     infantry: 60,
     landTransport: 90,
     armor: 180,
+    artillery: 160,
     fighter: 200,
     bomber: 260,
     airTransport: 150,
@@ -1104,8 +1206,6 @@ export const BLITZ = {
     carrier: 320,
   } as Readonly<Record<UnitRole, number>>,
   recruitMinutes: 1,
-  /** « À faire maintenant » montre les villes neutres à cette distance d'un de mes bâtiments. */
-  nearCityKm: 600,
   /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
   troopBound: 80,
   mend: {
@@ -1116,28 +1216,33 @@ export const BLITZ = {
     priceShare: 0.5,
   },
   map: {
-    /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
-    hqRing: 0.45,
-    /** Combien de tours de table on essaie (E6 : une douzaine) avant de refuser le lancement. */
+    /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en
+     *  Europe —, et l'écart cible entre QG en est la corde. */
+    hqRadius: 0.225,
+    hqRadiusSpread: 0.5,
+    /** Combien de tablées on tire au plus, chacune d'une région au hasard. */
+    hqDraws: 1000,
+    /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */
     hqTries: 12,
-    /** Combien de régions, des plus proches de la place du cercle, on éprouve pour un QG. */
-    hqScan: 40,
     /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */
     hqEvenness: 0.6,
     /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */
     tolerance: 0.35,
-    /** La caserne de départ, à soi, à cette distance de route du QG. */
-    starting: [{ key: 'barracks', km: 120 }],
-    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous. */
+    /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km
+     *  en Europe. */
+    starting: [{ key: 'barracks', share: 0.0284 }],
+    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450,
+     *  350 et 400 km en Europe. */
     near: [
-      { key: 'city', km: 250 },
-      { key: 'city', km: 450 },
-      { key: 'port', km: 350 },
-      { key: 'airfield', km: 400 },
+      { key: 'city', share: 0.0592 },
+      { key: 'city', share: 0.1065 },
+      { key: 'port', share: 0.0828 },
+      { key: 'airfield', share: 0.0947 },
     ],
     /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */
     disputed: ['city', 'airfield'],
-    spreadKm: 80,
+    /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */
+    spread: 0.0189,
     fairness: 0.8,
   } as const,
 } as const;

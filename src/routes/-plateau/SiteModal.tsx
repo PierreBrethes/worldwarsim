@@ -462,6 +462,7 @@ function BlitzSite({
                 role,
                 funds,
                 troops: army,
+                occupied: held.length > 0 || (facility?.queue.length ?? 0) > 0,
               });
               const price = BLITZ.rolePrice[role];
               return (

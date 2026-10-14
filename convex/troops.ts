@@ -7,9 +7,9 @@ import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/dom
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
-import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
+import { blitzOnly, blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
-import { creditFunds, fundsOf, isBlitz, spendFunds } from './blitz';
+import { fundsOf, isBlitz, occupiedBuildingIds, spendFunds } from './blitz';
 import {
   BLITZ,
   COST_BY_ROLE,
@@ -23,7 +23,7 @@ import {
   troopCap,
 } from './constants';
 import { fail } from './errors';
-import { regionFacts } from './regions';
+import { pointOfBuilding, regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf, settle } from './resources';
 import {
   playerOf,
@@ -101,24 +101,26 @@ export const workshop = query({
       alloy: snapshotOf(economy, 'alloy'),
       facilities,
       roster: roster(troops),
-      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
-        role,
-        tiers: TIERS_BY_ROLE[role],
-        producedBy: projectionKeyOf(role),
-        /**
-         * What the headquarters must reach before this role is recruitable at all — zero for
-         * the roles their projection building already carries. Served, like the mark-2
-         * threshold above, so the line the screen greys and the recruitment the server refuses
-         * are the same number.
-         */
-        unlockedAtHqLevel: roleHqLevel(role),
-        /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
-         *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
-         *  et la modale de site le compare au niveau de *son* bâtiment. */
-        unlockedAtSiteLevel: roleSiteLevel(role),
-        unit: priced(role, 1, hqLevel),
-        unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
-      })),
+      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>)
+        .filter((role) => blitz || !blitzOnly(role))
+        .map((role) => ({
+          role,
+          tiers: TIERS_BY_ROLE[role],
+          producedBy: projectionKeyOf(role),
+          /**
+           * What the headquarters must reach before this role is recruitable at all — zero for
+           * the roles their projection building already carries. Served, like the mark-2
+           * threshold above, so the line the screen greys and the recruitment the server refuses
+           * are the same number.
+           */
+          unlockedAtHqLevel: roleHqLevel(role),
+          /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
+           *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
+           *  et la modale de site le compare au niveau de *son* bâtiment. */
+          unlockedAtSiteLevel: roleSiteLevel(role),
+          unit: priced(role, 1, hqLevel),
+          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
+        })),
     };
   },
 });
@@ -138,6 +140,7 @@ export const recruit = mutation({
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
+    if (blitzOnly(role)) fail('BLITZ_ONLY');
     const expected = projectionKeyOf(role);
     if (building.key !== expected)
       fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
@@ -208,23 +211,24 @@ async function recruitInBlitz(
   const troops =
     (await troopsOf(ctx, player._id)).length + (await recruitmentsOf(ctx, player._id)).length;
   const funds = fundsAt(await fundsOf(ctx, player, now), now);
-  const refusal = blitzRecruitRefusalOf({ site: building.key, role, funds, troops });
+  const queue = await queueOf(ctx, building._id);
+  const occupied =
+    queue.length > 0 || (await occupiedBuildingIds(ctx, player._id, [])).has(building._id);
+  const refusal = blitzRecruitRefusalOf({ site: building.key, role, funds, troops, occupied });
   if (refusal !== null) {
     fail(refusal, { needed: BLITZ.rolePrice[role], held: Math.floor(funds), found: building.key });
   }
   await spendFunds(ctx, player._id, BLITZ.rolePrice[role], now);
-  const queue = await queueOf(ctx, building._id);
-  const rank = (queue[queue.length - 1]?.rank ?? -1) + 1;
   const recruitmentId = await ctx.db.insert('recruitments', {
     playerId: player._id,
     buildingId: building._id,
     role,
     tier: 1,
-    rank,
+    rank: 0,
     finishesAt: null,
   });
   await startHead(ctx, building._id, now);
-  return { cost: { alloy: 0, minutes: BLITZ.recruitMinutes }, rank, recruitmentId };
+  return { cost: { alloy: 0, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
 }
 
 /**
@@ -240,11 +244,6 @@ export const cancel = mutation({
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
-    if (modeOf(season.mode) === 'blitz') {
-      await creditFunds(ctx, player._id, BLITZ.rolePrice[batch.role], Date.now());
-      await ctx.db.delete(recruitmentId);
-      return { refunded: { alloy: 0, minutes: BLITZ.recruitMinutes } };
-    }
     const hqLevel = await hqLevelOf(ctx, player._id);
     const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
     await credit(ctx, player._id, { alloy: cost.alloy }, Date.now());
@@ -271,6 +270,14 @@ export const deliver = internalMutation({
     await settle(ctx, batch.playerId, Date.now());
     const strength = nominalStrength(batch.role, batch.tier);
     const station = await ctx.db.get(batch.buildingId);
+    /** **Une unité par bâtiment** (U6) : une des miennes y est entrée pendant la formation, la
+     *  recrue sort se poser à sa porte, comme une seconde marche (`movements.arrive`). */
+    const door =
+      station !== null &&
+      modeOf(season.mode) === 'blitz' &&
+      (await occupiedBuildingIds(ctx, batch.playerId, [])).has(station._id)
+        ? pointOfBuilding(station)
+        : null;
     await ctx.db.insert('troops', {
       seasonId: season._id,
       playerId: batch.playerId,
@@ -278,7 +285,8 @@ export const deliver = internalMutation({
       tier: batch.tier,
       nominalStrength: strength,
       currentStrength: strength,
-      stationedAt: station ? batch.buildingId : null,
+      stationedAt:
+        door !== null ? { lon: door[0], lat: door[1] } : station ? batch.buildingId : null,
     });
     /** The site travels with the delivery, `null` when it was razed while the batch formed —
      *  the company comes home rather than dying for it, and the dispatch has to say which. */

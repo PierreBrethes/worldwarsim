@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fr } from '@/i18n/fr';
 import { abbreviateStack, buildLabels, cartoucheShown, type MapMarker } from './labels';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
@@ -84,6 +85,7 @@ describe('buildLabels', () => {
     expect(label?.lines.at(-1)).toEqual({
       role: 'capture',
       side: 'defender',
+      site: capture.site,
       clock: capture.clock,
       completesAt: capture.completesAt,
     });
@@ -382,6 +384,34 @@ describe('buildLabels', () => {
     expect(deposit?.ink).toBeNull();
     expect(deposit?.lines).toEqual([]);
     expect(deposit?.priority).toBeLessThan(building?.priority ?? 0);
+  });
+
+  it('counts down on a mast the battery of the gun garrisoned inside (B20)', () => {
+    const [barracks] = buildLabels(viewWith([]), [
+      {
+        kind: 'building',
+        id: 'building-FR-60-barracks',
+        buildingId: 'b-1',
+        key: 'barracks',
+        regionId: 'FR-60',
+        regionName: 'Oise',
+        lonLat: null,
+        hostCountry: 'France',
+        name: 'Caserne',
+        level: 1,
+        plate: '/barracks.webp',
+        works: null,
+        reach: null,
+        emplacedAt: 18_000,
+        ink: '#2f4f78',
+      },
+    ]);
+    expect(barracks?.lines).toContainEqual({
+      role: 'countdown',
+      dueAt: 18_000,
+      prefix: fr.battery.prefix,
+      clock: true,
+    });
   });
 });
 

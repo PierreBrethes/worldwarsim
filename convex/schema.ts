@@ -33,6 +33,7 @@ import {
   UNIT_TIER,
   SEASON_MODE,
   LAUNCH_REFUSAL,
+  VERDICT,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -124,6 +125,12 @@ export default defineSchema({
      * une saison conclue ne se rejoue pas.
      */
     winnerNation: v.optional(v.union(v.string(), v.null())),
+    /**
+     * **Pourquoi la Blitz s'est conclue** (B10, B11) : le dernier debout après une chute de QG
+     * ou une capitulation, le plus gros revenu à l'horloge, ou l'égalité. Absent en Mondiale et
+     * sur toute saison d'avant le lot 6 : l'édition finale ne dit alors que le vainqueur.
+     */
+    verdict: v.optional(VERDICT),
     /**
      * **Combien de places la saison porte**, tenu à l'écriture. C'est la dénormalisation qui a
      * sorti la liste des parties du compte de son délai d'une seconde (12/09) : l'accueil lit
@@ -331,6 +338,9 @@ export default defineSchema({
     /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
      *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
     startedNeutral: v.optional(v.literal(true)),
+    /** **Le QG de départ d'une Blitz, et de qui** : sa chute élimine ce joueur-là (B10), pas
+     *  celui qui le tenait après l'avoir pris. */
+    homeOf: v.optional(v.id('players')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -351,7 +361,7 @@ export default defineSchema({
    *
    * **`byStation` still answers only the two id forms**, and that is deliberate. A point address
    * cannot be looked up by equality: the question asked of it is never "who hangs from this
-   * coordinate" but "who stands within `ARRIVAL_RADIUS_KM` of it", which no equality index
+   * coordinate" but "who stands within `contactKm(theatre)` of it", which no equality index
    * answers and which a pair of numbers would only answer along one axis. That question is
    * served by a scan bounded by the game's own ceiling — 24 troops per player (ADR 0014), eight
    * players, under two hundred rows — which is the same order of magnitude as the scan of
@@ -383,6 +393,9 @@ export default defineSchema({
     /** **Blitz** (B19) : jusqu'à quand la troupe recharge après une frappe — elle bouge, elle
      *  n'attaque pas. Absent, elle n'a jamais frappé. */
     reloadUntil: v.optional(v.number()),
+    /** **L'artillerie** (B20) : l'heure où elle s'est posée, d'où se compte sa mise en batterie.
+     *  Absent, depuis sa formation (`_creationTime`). */
+    settledAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -769,8 +782,11 @@ export default defineSchema({
     defenderId: v.id('players'),
     /** What brought them into contact — an arrival, or an interception on the road, which is
      *  the one thing that hands the initiative to the defending side (ADR 0008). */
-    cause: v.union(v.literal('arrival'), v.literal('interception')),
+    cause: v.union(v.literal('arrival'), v.literal('interception'), v.literal('bombardment')),
     point: LON_LAT,
+    /** **D'où la batterie a tiré** (B20), pour le trait d'encre de l'attaquant — jamais servi à
+     *  la cible, qui ne sait pas d'où le coup est parti. */
+    firedFrom: v.optional(LON_LAT),
     hostCountry: v.string(),
     at: v.number(),
     winner: COMBAT_SIDE,
@@ -966,10 +982,13 @@ export default defineSchema({
     at: v.number(),
     /** Private message: the only other reader. Absent on the general channel. */
     to: v.optional(v.id('players')),
+    /** The lobby's thread, apart from the season's: `true` there, absent in war and on rows
+     *  written before the split. Erased at the launch, as the war thread is at the conclusion. */
+    lobby: v.optional(v.boolean()),
   })
     .index('bySeason', ['seasonId'])
-    .index('byChannel', ['seasonId', 'to', 'at'])
-    .index('byPair', ['seasonId', 'to', 'playerId', 'at'])
+    .index('byChannel', ['seasonId', 'lobby', 'to', 'at'])
+    .index('byPair', ['seasonId', 'lobby', 'to', 'playerId', 'at'])
     .index('byPlayer', ['playerId']),
 
   /**
