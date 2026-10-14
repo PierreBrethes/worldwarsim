@@ -55,8 +55,11 @@ une soirée au lieu d'une semaine.
   Blitz d'abord ; d'autres rôles indirects (cuirassé) plus tard.
 - **Au feu, on voit l'ennemi** (F1, 14/10). Qui prend part à une passe voit ce qu'il a en face
   — rôles, effectifs, nation —, pendant le combat comme au rejeu, en vraies figurines. Le
-  brouillard garde tout ce qu'on n'a pas affronté ; une force seulement relevée reste un bloc,
-  dessiné plus « carte » que la stèle actuelle. Révise l'ADR 0026 (rejeu en blocs et totaux).
+  brouillard garde tout ce qu'on n'a pas affronté. Révise l'ADR 0026 (rejeu en blocs et totaux).
+  Les figurines adverses du combat portent les couleurs de leur nation (F3). **Une force
+  seulement relevée n'est plus un bloc vu de dos** mais une **annotation à l'encre** posée à
+  plat : cercle pointillé, domaine hachuré à la plume, « ? » et l'heure, qui pâlit avec l'âge du
+  relevé — exactement ce que le relevé sait (F2, d'après la landing V3).
 - **Le soin** : sur un bâtiment à soi (B12, R2).
 - **Pas de plafond de troupes affiché** (R10b). Le frein est l'économie ; une borne technique
   invisible (≈ 80) protège le serveur.
