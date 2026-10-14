@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import schema from './schema';
 import { modules } from './test.setup';
 import { joinSeat, seatDoc, signIn, type Seat } from './seats.fixture';
@@ -187,6 +187,9 @@ describe('the operation order', () => {
     expect(['europe', 'mediterranean', 'pacific', 'americas']).toContain(
       (await t.query(api.seasons.lobby, founder)).theatre,
     );
+
+    await t.mutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_UNFAIR' });
+    expect((await t.query(api.seasons.lobby, founder)).theatre).toBe('draw');
   });
 
   it('reminds every seat fifteen minutes before the rendezvous, unless told not to', async () => {

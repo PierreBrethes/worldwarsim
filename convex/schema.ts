@@ -159,6 +159,8 @@ export default defineSchema({
     seatCap: v.optional(v.number()),
     /** Le travail du rappel en attente, qu'un changement de l'ordre annule (`planReminder`). */
     reminderJobId: v.optional(v.id('_scheduled_functions')),
+    /** Le théâtre a été tiré au sort au lancement : un lancement défait le remet au sort. */
+    theatreDrawn: v.optional(v.boolean()),
   }).index('byCode', ['code']),
 
   players: defineTable({

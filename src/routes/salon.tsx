@@ -911,6 +911,7 @@ function Orders({
               <label className="custom">
                 <span>{fr.found.custom}</span>
                 <input
+                  key={scheduledAt ?? 'full'}
                   type="datetime-local"
                   aria-label={fr.found.customLabel}
                   min={localInput(now)}

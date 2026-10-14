@@ -593,6 +593,7 @@ export const launch = mutation({
       playableRegion: playableRegion(present.length),
       playerCount: present.length,
       ...(theatre === undefined ? {} : { theatre }),
+      ...(season.theatre === THEATRE_DRAW ? { theatreDrawn: true } : {}),
     });
     await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
     /** **L'absent parti sans nation en reçoit une** (J1 b) : en Blitz elles sont identiques. */

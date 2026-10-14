@@ -15,6 +15,7 @@ import { Wordmark } from '@/shell/Masthead';
 import { EngravedMap, WORLD_BOX } from '@/emblems/EngravedMap';
 import { OffSeasonPage, boxOf, localInput } from '@/shell/OffSeason';
 import { Telegram } from '@/shell/Telegram';
+import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
 import { keepSeat, useSession } from '@/data/session';
 import { useSingleFlight } from '@/data/useSingleFlight';
@@ -52,7 +53,8 @@ function Found() {
     THEATRES.some((candidate) => candidate.id === search.theatre) ? search.theatre! : 'europe',
   );
   const [when, setWhen] = useState<When>('tonight');
-  const [now] = useState(() => Date.now());
+  /** L'heure proposée suit la pendule : une page ouverte passé 21:00 propose demain. */
+  const now = useClock(30_000);
   const evening = nextEvening(new Date(now));
   const [customAt, setCustomAt] = useState(localInput(evening + DAY_MS));
   const [remind, setRemind] = useState(true);
