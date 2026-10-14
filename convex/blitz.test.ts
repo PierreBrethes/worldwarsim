@@ -59,7 +59,7 @@ const movementOf = (t: Bench, troopId: Id<'troops'>) =>
 
 /** Each look of every pursuit, in date order, until none is left. */
 async function runPursuits(t: Bench) {
-  for (let step = 0; step < 200; step += 1) {
+  for (let step = 0; step < 60; step += 1) {
     const pending = (await t.run((ctx) => ctx.db.query('movements').collect()))
       .flatMap((one) => (one.pursuit === undefined ? [] : [one]))
       .sort((a, b) => a.pursuit!.checkAt - b.pursuit!.checkAt);
@@ -179,6 +179,38 @@ describe('a Blitz unit and its orders (lot 5)', () => {
         target: { kind: 'camp', campId: again },
       }),
     ).rejects.toThrow(/RELOADING/);
+  });
+
+  it('takes the road again when its route stops short of the target', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const hunter = await troop(t, seat, PARIS);
+    const quarry = await troop(t, guest, LYON);
+    const short = { lon: 4.85, lat: 46.15 };
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      await ctx.db.insert('movements', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'point', point: LYON },
+        from: PARIS,
+        to: LYON,
+        hostCountry: 'FRA',
+        points: [PARIS, short],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [hunter],
+        departedAt: MIDDAY - 60_000,
+        arrivesAt: MIDDAY,
+        pursuit: { troopId: quarry, checkAt: MIDDAY },
+      });
+    });
+    await surveyCamp(t, seat, LYON);
+    await runPursuits(t);
+    expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
   });
 
   it('gives up on a target out of sight and stops at its last known position', async () => {

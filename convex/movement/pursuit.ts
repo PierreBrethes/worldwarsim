@@ -188,11 +188,17 @@ export async function pursue(
     quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm: ARRIVAL_RADIUS_KM });
 
   if (verdict === 'strike') await strike(ctx, movement, hunters, quarry!, at, now);
-  else if (verdict === 'lost') await loseSight(ctx, movement, now);
+  /** Une cible tombée sous d'autres coups n'est pas « perdue de vue » : la colonne finit sa
+   *  route sans dépêche, et son arrivée le dit. */
+  else if (verdict === 'lost') await loseSight(ctx, movement, now, quarry !== null);
   else {
-    if (distanceKm(quarry!.point, pointOf(movement.to)) > ARRIVAL_RADIUS_KM) {
+    /** **Au bout de sa route sans contact, elle repart** : la grille arrête une route au centre
+     *  d'une cellule, parfois au-delà de l'allonge, et attendre sur place se réveillerait sans
+     *  fin. Une route qui n'avance plus abandonne. */
+    const arrived = now >= movement.arrivesAt;
+    if (arrived || distanceKm(quarry!.point, pointOf(movement.to)) > ARRIVAL_RADIUS_KM) {
       if (!(await bendTowards(ctx, movement, hunters, at, quarry!.point, now))) {
-        await loseSight(ctx, movement, now);
+        await loseSight(ctx, movement, now, true);
         return;
       }
       await reassessDetection(ctx, movement.seasonId, now);
@@ -212,7 +218,8 @@ async function bendTowards(
 ): Promise<boolean> {
   const roles = hunters.map((troop) => troop.role);
   const route = routeBetween(from, to, routeModeOf(roles), landCostOf(roles));
-  if (route === null) return false;
+  const end = route?.points.at(-1);
+  if (route === null || end === undefined || distanceKm(end, from) < 1) return false;
   const minutes = await pacedMinutes(ctx, movement.playerId, route, now);
   await ctx.db.patch(movement._id, {
     from: asPoint(from),
@@ -232,11 +239,17 @@ async function bendTowards(
 
 /** **Perdue de vue** : la colonne finit sa route jusqu'à la dernière position connue, et s'y
  *  pose comme une marche. */
-async function loseSight(ctx: MutationCtx, movement: Doc<'movements'>, now: number): Promise<void> {
+async function loseSight(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  now: number,
+  outOfSight: boolean,
+): Promise<void> {
   await ctx.db.patch(movement._id, { type: 'march', pursuit: undefined });
   await ctx.scheduler.runAt(Math.max(now, movement.arrivesAt), internal.movements.arrive, {
     movementId: movement._id,
   });
+  if (!outOfSight) return;
   await ctx.db.insert('notices', {
     playerId: movement.playerId,
     at: now,
