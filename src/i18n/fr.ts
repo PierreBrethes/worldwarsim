@@ -261,7 +261,7 @@ export const fr = {
     siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
     fundsHeld: (funds: number) => `${num(funds)} fonds en caisse`,
     price: (funds: number) => `${num(funds)} fonds`,
-    ready: (minutes: number) => `prêt en ${num(minutes)} min`,
+    terms: (funds: number, minutes: number) => `${num(funds)} fonds · prêt en ${num(minutes)} min`,
     recruit: (funds: number) => `former — ${num(funds)} fonds`,
     short: (missing: number) => `il manque ${num(missing)} fonds`,
     mend: 'soin',

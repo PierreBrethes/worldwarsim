@@ -475,17 +475,13 @@ function BlitzSite({
                       width={200}
                     />
                   </div>
-                  <div className="flex items-baseline gap-3 px-4 pt-[10px]">
-                    <span className="font-(family-name:--font-display) text-[18px] leading-[1.1] font-extrabold text-[var(--ink)]">
+                  <div className="px-4 pt-[10px]">
+                    <div className="font-(family-name:--font-display) text-[18px] leading-[1.1] font-extrabold text-[var(--ink)]">
                       {roleLabel(role, 1)}
-                    </span>
-                    <span className="flex-1" />
-                    <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
-                      {fr.blitz.price(price)}
-                    </span>
-                    <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
-                      {fr.blitz.ready(BLITZ.recruitMinutes)}
-                    </span>
+                    </div>
+                    <div className="mt-[3px] font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
+                      {fr.blitz.terms(price, BLITZ.recruitMinutes)}
+                    </div>
                   </div>
                   <div className="px-4 pt-[9px] pb-[14px]">
                     {observing ? null : refusal === null ? (
@@ -560,7 +556,11 @@ function BlitzSite({
               observing={observing}
               onPrepare={onPrepare}
             />
-            <p className="mt-2 text-[11.5px] text-[var(--ink-quiet)] italic">{fr.blitz.mendNote}</p>
+            {held.length > 0 && (
+              <p className="mt-2 text-[11.5px] text-[var(--ink-quiet)] italic">
+                {fr.blitz.mendNote}
+              </p>
+            )}
           </div>
         </section>
       </div>
