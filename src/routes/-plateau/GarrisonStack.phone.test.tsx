@@ -28,6 +28,7 @@ const troop = (id: string, role: TroopView['role']): TroopView => ({
   nominalStrength: 50,
   stationedAt: station,
   supplied: true,
+  mending: false,
 });
 const HELD = [troop('i-1', 'infantry'), troop('i-2', 'infantry'), troop('a-1', 'armor')];
 const view = { me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView;

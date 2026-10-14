@@ -251,6 +251,14 @@ export const fr = {
     world: 'Monde',
   } satisfies Record<PlayableRegion, string>,
 
+  /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
+  blitz: {
+    funds: 'fonds',
+    perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
+    fundsLabel: (stock: number, perMinute: number) =>
+      `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
+  },
+
   modes: {
     blitz: {
       name: 'Blitz',
