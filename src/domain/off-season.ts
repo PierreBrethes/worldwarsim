@@ -1,4 +1,5 @@
 import type { PlayableRegion } from './ids';
+import type { SeasonMode } from './season-mode';
 
 export type { PlayableRegion };
 
@@ -34,7 +35,12 @@ export function canJoinRegistration(
  * ensemble, et « plus de nation » est celui qui nomme le vrai obstacle d'un arrivant tardif.
  */
 export type JoinRefusal =
-  'SEAT_TAKEN' | 'SEASON_CONCLUDED' | 'REGISTRATION_CLOSED' | 'NO_FREE_NATION' | 'LOBBY_FULL';
+  | 'SEAT_TAKEN'
+  | 'SEASON_CONCLUDED'
+  | 'REGISTRATION_CLOSED'
+  | 'NO_FREE_NATION'
+  | 'LOBBY_FULL'
+  | 'BLITZ_FULL';
 
 export function joinRefusalOf(input: {
   readonly seated: boolean;
@@ -44,12 +50,13 @@ export function joinRefusalOf(input: {
   readonly seats: number;
   readonly freeNations: number;
   readonly maximum: number;
+  readonly mode?: SeasonMode;
 }): JoinRefusal | null {
   if (input.seated) return 'SEAT_TAKEN';
   if (input.status === 'concluded') return 'SEASON_CONCLUDED';
   if (!canJoinRegistration(input.status, input.launchedAt, input.now)) return 'REGISTRATION_CLOSED';
   if (input.status === 'launched' && input.freeNations === 0) return 'NO_FREE_NATION';
-  if (input.seats >= input.maximum) return 'LOBBY_FULL';
+  if (input.seats >= input.maximum) return input.mode === 'blitz' ? 'BLITZ_FULL' : 'LOBBY_FULL';
   return null;
 }
 

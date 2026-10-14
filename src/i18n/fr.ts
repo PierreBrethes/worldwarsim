@@ -13,6 +13,8 @@ import { NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { SeasonMode } from '../domain/season-mode';
+import type { TheatreId } from '../domain/theatres';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -231,6 +233,29 @@ export const fr = {
     world: 'Monde',
   } satisfies Record<PlayableRegion, string>,
 
+  modes: {
+    blitz: {
+      name: 'Blitz',
+      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
+    },
+    mondiale: {
+      name: 'Mondiale',
+      line: '7 jours · 2 à 8 joueurs, deux ou trois visites par jour · le monde entier',
+    },
+    modeLabel: 'mode',
+    theatreLabel: 'théâtre',
+    theatreNote: 'La carte s’ouvre cadrée sur ce théâtre.',
+    theatres: {
+      europe: 'Europe',
+      mediterranean: 'Méditerranée',
+      pacific: 'Pacifique',
+      americas: 'Amériques',
+    } satisfies Record<TheatreId, string>,
+    seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
+    summary: (mode: string, theatre: string | null) =>
+      theatre === null ? mode : `${mode} · ${theatre}`,
+  },
+
   regionTypes: {
     plain: 'plaine',
     forest: 'forêt',
@@ -386,6 +411,11 @@ export const fr = {
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
+    BLITZ_FULL: (d) =>
+      `cette Blitz est complète : elle se joue à ${num(d.maximum)} joueurs au plus`,
+    THEATRE_REQUIRED: () => 'une Blitz demande un théâtre',
+    UNKNOWN_THEATRE: () => 'théâtre inconnu',
+    THEATRE_ONLY_IN_BLITZ: () => 'seule une Blitz se joue sur un théâtre',
     NO_FREE_NATION: () => 'plus aucune nation libre dans ce théâtre — la saison est complète',
     NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
@@ -825,13 +855,8 @@ export const fr = {
     open: 'ouvert',
     finished: 'terminée',
     foundTitle: 'Fonder une saison',
-    /**
-     * **Fonder ne demande plus rien** (décision du 31/08) : plus de choix d'horloge ni de
-     * théâtre à l'écran. La phrase dit alors ce qui est décidé à la place du joueur — il doit
-     * savoir ce qu'il obtient sans qu'on le lui ait demandé.
-     */
-    foundNote: (theatre: string) =>
-      `Sans horloge — la partie se clôt à la main. Théâtre : ${theatre}.`,
+    /** Fonder demande le mode ; l'horloge et le plafond de joueurs en découlent (`MODE_RULES`). */
+    foundNote: 'Choisissez le mode : l’horloge et le nombre de joueurs en découlent.',
     noClock: 'sans horloge',
     foundSubmit: 'fonder — obtenir un code',
     joinTitle: 'Rejoindre par code',
@@ -865,8 +890,8 @@ export const fr = {
     codeCopied: 'code copié',
     copyLink: 'copier le lien d’invitation',
     linkCopied: 'lien copié',
-    participantCount: (count: number) =>
-      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur 8`,
+    participantCount: (count: number, maximum: number) =>
+      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur ${maximum}`,
     registrationBeforeLaunch: (hours: number) =>
       `Les inscriptions sont ouvertes avant le lancement, puis pendant les ${hours} premières heures.`,
     registrationUntil: (date: string) => `Clôture des nouvelles inscriptions : ${date}.`,
@@ -923,6 +948,7 @@ export const fr = {
     footerLeft: 'la partie commence quand le fondateur lance — pas avant',
     footerEnterWar: 'la saison court — votre entrée est immédiate',
     footerCode: (code: string) => `salon ${code}`,
+    pace2: '2 heures',
     pace48: '48 heures',
     pace168: '7 jours',
     paceNone: 'sans horloge',
@@ -3287,12 +3313,24 @@ export function countryLabel(adm0: string): string {
   return (countryNames as Readonly<Record<string, string>>)[adm0] ?? adm0;
 }
 
+/** « Blitz · Europe » ou « Mondiale » : le mode d'une saison, et son théâtre quand elle en a un. */
+export const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
+  fr.modes.summary(
+    fr.modes[mode].name,
+    theatre === null ? null : ((fr.modes.theatres as Record<string, string>)[theatre] ?? theatre),
+  );
+
+/** Où une saison se joue : le théâtre d'une Blitz, le monde ou sa région pour une Mondiale. */
+export const placeLabel = (mode: SeasonMode, theatre: string | null, region: string): string =>
+  mode === 'blitz' ? modeSummary(mode, theatre) : `${fr.modes[mode].name} · ${region}`;
+
 /**
  * **L'horloge d'une saison, en un mot.** Trois écrans la nomment — l'accueil, le salon, la
  * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
  */
 export function clockLabel(durationHours: number | null): string {
   if (durationHours === null) return fr.lobby.paceNone;
+  if (durationHours === 2) return fr.lobby.pace2;
   return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
 }
 

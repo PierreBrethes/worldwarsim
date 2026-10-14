@@ -66,6 +66,8 @@ import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { isAtWar, playerOf, requireStarted, seatsOf, warEntryOf } from './seats';
+import { modeOf } from '../src/domain/season-mode';
+import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
@@ -90,6 +92,21 @@ export const playerView = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: (ctx, { token, seasonId }) => viewOf(ctx, token, seasonId),
 });
+
+/**
+ * **Où la carte s'ouvre** : le centre du théâtre en Blitz, la capitale de 1940 ailleurs. Distinct
+ * de `capitalPoint`, qui reste la capitale pour le repli « chez soi » — en Blitz le quartier
+ * général sera posé par le générateur, pas sur le sol national.
+ */
+function openingPointOf(season: Doc<'seasons'>, nation: string | null): LonLat | null {
+  const theatre = season.theatre === undefined ? null : theatreById(season.theatre);
+  if (modeOf(season.mode) === 'blitz' && theatre !== null) return theatreCenter(theatre);
+  return capitalPointOf(nation);
+}
+
+function capitalPointOf(nation: string | null): LonLat | null {
+  return isNation(nation) ? (regionFacts(capitalRegionOf(nation))?.point ?? null) : null;
+}
 
 /**
  * **La vue d'un joueur, en fonction.** `playerView` n'est plus qu'une porte : l'export de la
@@ -441,12 +458,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * des régions, côté serveur — et la position du pays ne convient pas : elle tombe au
        * centre des États-Unis, à deux mille kilomètres de Washington.
        *
-       * Servi toujours, lu seulement à `hqLevel === 0` : un cadrage n'est pas un secret, et un
-       * champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
+       * Servi toujours, lu seulement par le repli « chez soi » : un cadrage n'est pas un secret, et
+       * un champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
        */
-      capitalPoint: isNation(player.nation)
-        ? (regionFacts(capitalRegionOf(player.nation))?.point ?? null)
-        : null,
+      capitalPoint: capitalPointOf(player.nation),
+      /** Lu par le seul cadrage d'ouverture du plateau, jamais par le retour « chez soi ». */
+      openingPoint: openingPointOf(season, player.nation),
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and

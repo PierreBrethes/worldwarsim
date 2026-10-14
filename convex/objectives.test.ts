@@ -58,7 +58,7 @@ async function launchedSeason(
     'ussr',
   ],
 ): Promise<ReadonlyArray<Seat>> {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const seats: Array<Seat> = [seat];
   for (let rank = 1; rank < nations.length; rank += 1) {
     seats.push(await joinSeat(t, code, `Joueur ${rank}`));

@@ -654,6 +654,9 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). **Pour l'instant une Blitz se joue comme une Mondiale**, capture comprise : ni économie, ni refus hors théâtre.
+
+
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
 `src/domain/capture.ts`). « Capturer » est une branche de la rose sur un bâtiment adverse relevé
 ou un avant-poste adverse, refusée par `captureOrderRefusalOf` — la même fonction que
@@ -832,7 +835,7 @@ est `null` s'acquitte quelle que soit la région (`settlesDebt`, `src/domain/eco
 les deux bouts). `CAPITAL_REGION` survit pour ce qu'elle a toujours été — le seul point qu'on
 connaisse d'une nation qui n'a rien bâti : le repli d'une troupe sans adresse (`surveys.ts`,
 `movement/arrival.ts`, `movement/detection.ts`, lignes historiques seulement) et le **cadrage
-d'ouverture** du plateau d'un joueur sans QG (`me.capitalPoint`).
+d'ouverture** du plateau d'un joueur sans QG (`me.openingPoint`, la capitale hors Blitz).
 
 **Les emplacements suivent le niveau du site** (ADR 0020 §10, `convex/sites.ts`) : le sol
 national en porte `2 × niveau de QG`, un avant-poste en porte **son niveau**, et il n'y a plus

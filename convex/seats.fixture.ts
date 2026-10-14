@@ -58,14 +58,13 @@ export const TEST_SEASON_SEED = 1;
 export async function foundSeat(
   t: Bench,
   nickname = 'Pierre',
-  durationHours: 48 | 168 | null = 48,
   compensation = 0.5,
 ): Promise<{ seat: Seat; code: string }> {
   const token = await signIn(t, nickname);
   const { code, seasonId } = await t.mutation(api.seasons.create, {
     token,
-    durationHours,
     compensation,
+    mode: 'mondiale',
   });
   await t.run(async (ctx) => ctx.db.patch(seasonId, { seed: TEST_SEASON_SEED }));
   return { seat: { token, seasonId }, code };
@@ -245,3 +244,7 @@ async function writeCampSighting(
     noticeFiled: true,
   });
 }
+
+/** A short or absent clock, for the suites that measure what the end of a season does. */
+export const setClock = (t: Bench, seasonId: Id<'seasons'>, hours: number | null) =>
+  t.run((ctx) => ctx.db.patch(seasonId, { durationHours: hours }));

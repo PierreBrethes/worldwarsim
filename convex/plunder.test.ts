@@ -27,7 +27,7 @@ const RUHR = 'DEU-1572';
 const PSKOV = 'RUS-2335'; // sol soviétique : la région adverse de la partie de contrôle
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });

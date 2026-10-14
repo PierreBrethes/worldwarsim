@@ -136,6 +136,8 @@ export default defineSchema({
     playerCount: v.optional(v.number()),
     /** Absent reads as `'mondiale'` (`modeOf`): seasons older than the modes are Mondiales. */
     mode: v.optional(SEASON_MODE),
+    /** A `THEATRES` id; set on a Blitz only. */
+    theatre: v.optional(v.string()),
   }).index('byCode', ['code']),
 
   players: defineTable({

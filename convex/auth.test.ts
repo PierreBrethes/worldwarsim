@@ -455,7 +455,7 @@ describe('identity persistence across game purges', () => {
     });
     const { seasonId } = await t.mutation(api.seasons.create, {
       ...session,
-      durationHours: 48,
+      mode: 'mondiale',
       compensation: 0.5,
     });
     expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre' });

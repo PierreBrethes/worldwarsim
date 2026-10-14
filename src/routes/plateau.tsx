@@ -1659,8 +1659,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /**
    * **Un joueur sans quartier général n'a rien sur la carte**, et la carte s'ouvre sur le monde
    * entier : il lui faudrait trouver son pays avant de pouvoir poser quoi que ce soit. La caméra
-   * va donc à la capitale de 1940 — le seul point qu'on connaisse de lui tant qu'il n'a rien
-   * bâti (décision 1b du 13/09), servi par `me.capitalPoint` parce que la table vit avec l'index
+   * va donc à `me.openingPoint` — la capitale de 1940, seul point qu'on connaisse de lui tant
+   * qu'il n'a rien bâti (décision 1b du 13/09), ou le centre du théâtre en Blitz —, servi par le
+   * serveur parce que la table vit avec l'index
    * des régions, côté serveur.
    *
    * Une seule fois, et jamais après la pose : un recadrage qui reviendrait à chaque vue reprendrait
@@ -1669,11 +1670,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const framedOnCapital = useRef(false);
   useEffect(() => {
     if (framedOnCapital.current || view.me.hqLevel > 0) return;
-    const capital = view.me.capitalPoint;
-    if (capital === null) return;
+    const opening = view.me.openingPoint;
+    if (opening === null) return;
     framedOnCapital.current = true;
-    setFocus({ ids: [], places: [capital], nonce: Date.now() });
-  }, [view.me.hqLevel, view.me.capitalPoint]);
+    setFocus({ ids: [], places: [opening], nonce: Date.now() });
+  }, [view.me.hqLevel, view.me.openingPoint]);
 
   const editionServed = useRef(false);
   useEffect(() => {

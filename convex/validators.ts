@@ -176,9 +176,7 @@ export const SEASON_STATUS = v.union(
   v.literal('concluded'),
 );
 
-/** L'horloge d'une saison, `null` quand elle n'en a pas : on la clôt à la main
- *  (`seasons.conclude`). Aucun écran n'affiche alors de compte à rebours. */
-export const SEASON_CLOCK_HOURS = v.union(v.literal(48), v.literal(168), v.null());
+export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
 
 export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
 

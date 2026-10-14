@@ -22,7 +22,7 @@ const boot = () => convexTest({ schema, modules, transactionLimits: true });
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 async function lobby(t: ReturnType<typeof boot>, host: string, visitor: string) {
-  const { seat, code } = await foundSeat(t, host, 48, 0.5);
+  const { seat, code } = await foundSeat(t, host, 0.5);
   const guest = await joinSeat(t, code, visitor);
   return { seat, guest };
 }
@@ -178,7 +178,7 @@ describe('les canaux privés', () => {
     (await seatDoc(t, seat))._id;
 
   async function trio(t: ReturnType<typeof boot>) {
-    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     const lea = await joinSeat(t, code, 'Léa');
     const marc = await joinSeat(t, code, 'Marc');
     return { pierre: seat, lea, marc };
