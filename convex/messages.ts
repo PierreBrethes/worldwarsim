@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { nationInk } from '../src/domain/nations';
 import {
+  canRead,
   MESSAGE_MAX_CHARS,
   MESSAGE_MIN_INTERVAL_MS,
   TELEGRAPH_DEPTH,
@@ -24,10 +25,20 @@ function requireOpenChannel(season: Doc<'seasons'>): void {
 }
 
 export const post = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons'), text: v.string() },
-  handler: async (ctx, { token, seasonId, text }) => {
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    text: v.string(),
+    to: v.optional(v.id('players')),
+  },
+  handler: async (ctx, { token, seasonId, text, to }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireOpenChannel(season);
+
+    const seats = await seatsOf(ctx, season._id);
+    if (to !== undefined && (to === player._id || !seats.some((seat) => seat._id === to))) {
+      fail('UNKNOWN_RECIPIENT');
+    }
 
     const trimmed = text.trim();
     if (trimmed.length === 0) fail('EMPTY_MESSAGE');
@@ -56,9 +67,10 @@ export const post = mutation({
       playerId: player._id,
       text: trimmed,
       at: now,
+      ...(to === undefined ? {} : { to }),
     });
-    for (const seat of await seatsOf(ctx, season._id)) {
-      if (seat._id === player._id) continue;
+    for (const seat of seats) {
+      if (seat._id === player._id || (to !== undefined && seat._id !== to)) continue;
       await notifyPlayer(ctx, seat._id, {
         type: 'telegraph',
         phrase: push.telegraphOne,
@@ -83,33 +95,59 @@ export const recent = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
-    const latest = await ctx.db
-      .query('messages')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .order('desc')
-      .take(TELEGRAPH_DEPTH);
     const seats = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
       .collect();
     const byId = new Map(seats.map((seat) => [seat._id, seat]));
+    const marks = await readMarksOf(ctx, player);
+
+    const shape = (message: Doc<'messages'>) => {
+      const sender = byId.get(message.playerId);
+      return {
+        id: message._id,
+        at: message.at,
+        text: message.text,
+        nickname: sender?.nickname ?? '',
+        nation: sender?.nation ?? null,
+        ink: nationInk(sender?.nation ?? null),
+        mine: message.playerId === player._id,
+      };
+    };
+    const tail = (to: Id<'players'> | undefined, from: Id<'players'> | null) => {
+      const channel = ctx.db
+        .query('messages')
+        .withIndex('byChannel', (q) => q.eq('seasonId', season._id).eq('to', to))
+        .order('desc');
+      return (
+        from === null ? channel : channel.filter((q) => q.eq(q.field('playerId'), from))
+      ).take(TELEGRAPH_DEPTH);
+    };
+
+    const direct = [];
+    for (const other of await seatsOf(ctx, season._id)) {
+      if (other._id === player._id) continue;
+      const rows = [...(await tail(player._id, other._id)), ...(await tail(other._id, player._id))]
+        .filter((message) => canRead(message, player._id))
+        .sort((a, b) => b.at - a.at)
+        .slice(0, TELEGRAPH_DEPTH)
+        .reverse();
+      direct.push({
+        with: other._id,
+        nickname: other.nickname,
+        nation: other.nation ?? null,
+        ink: nationInk(other.nation ?? null),
+        readAt: marks.telegraphDirectReadAt[other._id] ?? null,
+        messages: rows.map(shape),
+      });
+    }
 
     return {
       /** The hour he last closed the window, `null` while he never has: the client counts what
        *  is unread from it, exactly as the journal does, and nothing here counts for him. */
-      readAt: (await readMarksOf(ctx, player)).telegraphReadAt,
-      messages: latest.reverse().map((message) => {
-        const sender = byId.get(message.playerId);
-        return {
-          id: message._id,
-          at: message.at,
-          text: message.text,
-          nickname: sender?.nickname ?? '',
-          nation: sender?.nation ?? null,
-          ink: nationInk(sender?.nation ?? null),
-          mine: message.playerId === player._id,
-        };
-      }),
+      readAt: marks.telegraphReadAt,
+      messages: (await tail(undefined, null)).reverse().map(shape),
+      direct,
     };
   },
 });
@@ -120,9 +158,16 @@ export const recent = query({
  * playing.
  */
 export const markRead = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons') },
-  handler: async (ctx, { token, seasonId }) => {
+  args: { token: v.string(), seasonId: v.id('seasons'), with: v.optional(v.id('players')) },
+  handler: async (ctx, { token, seasonId, with: other }) => {
     const { player } = await playerOf(ctx, token, seasonId);
-    await stampReadMark(ctx, player._id, { telegraphReadAt: Date.now() });
+    if (other === undefined) {
+      await stampReadMark(ctx, player._id, { telegraphReadAt: Date.now() });
+      return;
+    }
+    const { telegraphDirectReadAt } = await readMarksOf(ctx, player);
+    await stampReadMark(ctx, player._id, {
+      telegraphDirectReadAt: { ...telegraphDirectReadAt, [other]: Date.now() },
+    });
   },
 });

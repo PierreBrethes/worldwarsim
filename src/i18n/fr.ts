@@ -554,6 +554,7 @@ export const fr = {
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
+    UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
     TELEGRAPH_TOO_FAST: () => 'un message par seconde — laissez la ligne respirer',
     UNKNOWN_COMBAT: () => 'ce combat n’a plus de compte rendu à rejouer',
     NOT_A_PARTY: () => 'on ne rejoue que ses propres combats',
@@ -2443,6 +2444,8 @@ export const fr = {
   telegraph: {
     header: 'télégraphe',
     channel: 'canal général',
+    general: 'Général',
+    privateChannel: (nickname: string) => `conversation privée avec ${nickname}`,
     empty: 'La ligne est muette — personne n’a encore télégraphié.',
     placeholder: 'télégraphier…',
     send: 'envoyer',
