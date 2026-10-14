@@ -3,6 +3,7 @@ import {
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
@@ -27,11 +28,14 @@ import {
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
 /**
- * Well under the country borders' opacity (0.62 at rest, reinforced at zoom): WebGL draws
- * everything one pixel wide, so the hierarchy between country and region goes through the
- * ink, not the thickness.
+ * Well under the country borders' opacity (0.62 at rest, reinforced at zoom), and dotted as on
+ * the prototype (`table-etat-major`, P:329): the hierarchy between country and region goes
+ * through the ink and the dash, WebGL drawing both one pixel wide.
  */
-const FULL_OPACITY = 0.3;
+const FULL_OPACITY = 0.38;
+/** The prototype's two inked for one blank, in screen pixels so the rhythm holds at any zoom. */
+const DASH_PX = 4;
+const GAP_PX = 2;
 
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
@@ -213,7 +217,7 @@ export class RegionLayer {
   readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
   readonly terrain = new TerrainSketches();
-  private readonly lineMaterial: LineBasicMaterial;
+  private readonly lineMaterial: LineDashedMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
   private readonly designatedMaterial: MeshStandardMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
@@ -242,7 +246,7 @@ export class RegionLayer {
     /** The countries painted whole on their own sheet, adm0 → ink — see `wholeSheets`. */
     private readonly onSheets: (sheets: ReadonlyMap<string, string>) => void = () => {},
   ) {
-    this.lineMaterial = new LineBasicMaterial({
+    this.lineMaterial = new LineDashedMaterial({
       color: PALETTE.border,
       transparent: true,
       opacity: 0,
@@ -299,10 +303,16 @@ export class RegionLayer {
 
   display(data: RegionsData): void {
     const points: number[] = [];
+    // Along each line and not per segment: a dash restarting at every vertex would stutter.
+    const distances: number[] = [];
     for (const line of data.lines) {
+      let along = 0;
       for (let i = 0; i < line.length - 1; i++) {
         const [ax, ay] = line[i]!;
         const [bx, by] = line[i + 1]!;
+        const next = along + Math.hypot(bx - ax, by - ay);
+        distances.push(along, next);
+        along = next;
         points.push(
           ax - this.frame.centerX,
           COUNTRY_THICKNESS + STROKE_LIFT,
@@ -316,6 +326,7 @@ export class RegionLayer {
     this.lines.geometry.dispose();
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    geometry.setAttribute('lineDistance', new Float32BufferAttribute(distances, 1));
     this.lines.geometry = geometry;
 
     this.prepared = data.regions.map(prepare);
@@ -551,7 +562,7 @@ export class RegionLayer {
   }
 
   /** Fade driven by camera→target distance; invisible, the layer costs nothing. */
-  animate(cameraDistance: number, now: number): void {
+  animate(cameraDistance: number, now: number, unitsPerPixel: number): void {
     this.share = Math.min(
       1,
       Math.max(
@@ -560,6 +571,8 @@ export class RegionLayer {
       ),
     );
     this.lineMaterial.opacity = this.share * FULL_OPACITY;
+    this.lineMaterial.dashSize = DASH_PX * unitsPerPixel;
+    this.lineMaterial.gapSize = GAP_PX * unitsPerPixel;
     this.lines.visible = this.share > 0.01;
     this.builtMaterial.opacity = this.share;
     this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;

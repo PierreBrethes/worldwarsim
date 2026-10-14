@@ -9,8 +9,11 @@ import {
   Shape,
   ShapeGeometry,
 } from 'three';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { ProjectedCountry, World } from '@/domain/world';
+import type { OutlineSample, ProjectedCountry, World } from '@/domain/world';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, LAND_STENCIL, RECESSION, type WorldFrame } from './frame';
 import { screenTrame } from './regions';
@@ -66,33 +69,95 @@ function flatRings(country: ProjectedCountry, frame: WorldFrame): BufferGeometry
   return geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
 }
 
-function outlinesOf(country: ProjectedCountry, frame: WorldFrame): BufferGeometry {
-  const points: number[] = [];
-  for (const ring of country.rings) {
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i]!;
-      const b = ring[(i + 1) % ring.length]!;
-      points.push(
-        a[0] - frame.centerX,
-        COUNTRY_THICKNESS + BORDER_LIFT,
-        a[1] - frame.centerY,
-        b[0] - frame.centerX,
-        COUNTRY_THICKNESS + BORDER_LIFT,
-        b[1] - frame.centerY,
-      );
-    }
+type Point = readonly [number, number];
+type Edge = readonly [Point, Point];
+
+/**
+ * **La côte est le trait le plus fort de la feuille, la frontière un trait d'encre** (POC
+ * `table-etat-major`, 14/10/2026). Natural Earth trace deux fois une frontière terrestre, une
+ * fois par pays, sur les mêmes sommets : une arête vue deux fois est une frontière, une arête
+ * vue une fois borde la mer.
+ */
+export function splitOutlines(
+  countries: ReadonlyArray<ReadonlyArray<ReadonlyArray<Point>>>,
+  sheet: ReadonlyArray<OutlineSample> = [],
+): {
+  coast: Edge[];
+  borders: Edge[];
+} {
+  const seen = new Map<string, { edge: Edge; count: number }>();
+  for (const rings of countries)
+    for (const ring of rings)
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i]!;
+        const b = ring[(i + 1) % ring.length]!;
+        const [low, high] = a[0] < b[0] || (a[0] === b[0] && a[1] <= b[1]) ? [a, b] : [b, a];
+        const key = `${low[0]},${low[1]},${high[0]},${high[1]}`;
+        const known = seen.get(key);
+        if (known) known.count++;
+        else seen.set(key, { edge: [low, high], count: 1 });
+      }
+  const coast: Edge[] = [];
+  const borders: Edge[] = [];
+  for (const { edge, count } of seen.values()) {
+    if (count > 1) borders.push(edge);
+    else if (!edge.every((point) => onSheetEdge(point, sheet))) coast.push(edge);
   }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-  return geometry;
+  return { coast, borders };
+}
+
+/** Au-delà de deux décimales du `world.json`, sans toucher la vraie côte la plus proche du bord. */
+const SHEET_EDGE_TOLERANCE = 0.15;
+
+/**
+ * La Tchoukotka et les Fidji sont coupées à l'antiméridien : l'arête de coupe, vue une fois,
+ * passerait pour une côte et soulignerait le bord de la feuille de l'encre la plus grasse.
+ */
+function onSheetEdge([x, y]: Point, sheet: ReadonlyArray<OutlineSample>): boolean {
+  for (let i = 1; i < sheet.length; i++) {
+    const [, westA, eastA, yA] = sheet[i - 1]!;
+    const [, westB, eastB, yB] = sheet[i]!;
+    if ((y - yA) * (y - yB) > 0) continue;
+    const share = yA === yB ? 0 : (y - yA) / (yB - yA);
+    const west = westA + (westB - westA) * share;
+    const east = eastA + (eastB - eastA) * share;
+    return Math.abs(x - west) < SHEET_EDGE_TOLERANCE || Math.abs(x - east) < SHEET_EDGE_TOLERANCE;
+  }
+  return false;
+}
+
+/** Le plancher : de loin, la côte reste un trait gras et non le cheveu d'une ligne WebGL. */
+export const COAST_FLOOR_PX = 1.5;
+/** Sa largeur sur la feuille, quelque vingt pour cent d'un fantassin : au rapproché elle grossit
+ *  comme l'encre du prototype, gravée dans sa texture. */
+const COAST_WIDTH = 0.03;
+
+export const coastWidthPx = (unitsPerPixel: number): number =>
+  Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
+
+const COAST_OPACITY = 0.92;
+
+function strokePositions(edges: ReadonlyArray<Edge>, frame: WorldFrame): number[] {
+  const height = COUNTRY_THICKNESS + BORDER_LIFT;
+  return edges.flatMap(([a, b]) => [
+    a[0] - frame.centerX,
+    height,
+    a[1] - frame.centerY,
+    b[0] - frame.centerX,
+    height,
+    b[1] - frame.centerY,
+  ]);
 }
 
 export function buildCountries(
   world: World,
   frame: WorldFrame,
-): { meshes: CountryMesh[]; borders: LineSegments<BufferGeometry, LineBasicMaterial> } {
+): {
+  meshes: CountryMesh[];
+  borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  coast: LineSegments2;
+} {
   const meshes: CountryMesh[] = [];
-  const outlines: BufferGeometry[] = [];
 
   for (const country of world.countries) {
     const material = screenTrame(
@@ -120,13 +185,32 @@ export function buildCountries(
     const mesh = new Mesh(flatRings(country, frame), material) as CountryMesh;
     mesh.userData = { name: country.name, adm0: country.adm0, pencil };
     meshes.push(mesh);
-    outlines.push(outlinesOf(country, frame));
   }
 
+  const { coast: shore, borders: frontiers } = splitOutlines(
+    world.countries.map((country) => country.rings),
+    world.outline,
+  );
+  const bordersGeometry = new BufferGeometry();
+  bordersGeometry.setAttribute(
+    'position',
+    new Float32BufferAttribute(strokePositions(frontiers, frame), 3),
+  );
   const borders = new LineSegments(
-    mergeGeometries(outlines, false)!,
+    bordersGeometry,
     new LineBasicMaterial({ color: PALETTE.border, transparent: true, opacity: 0.62 }),
   );
+  const coastGeometry = new LineSegmentsGeometry();
+  coastGeometry.setPositions(strokePositions(shore, frame));
+  const coast = new LineSegments2(
+    coastGeometry,
+    new LineMaterial({
+      color: PALETTE.border,
+      linewidth: COAST_FLOOR_PX,
+      transparent: true,
+      opacity: COAST_OPACITY,
+    }),
+  );
 
-  return { meshes, borders };
+  return { meshes, borders, coast };
 }

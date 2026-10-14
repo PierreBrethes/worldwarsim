@@ -267,10 +267,13 @@ cadres : une fenêtre qu'on ouvre au plateau, et une section posée à demeure a
 que l'écriture acceptée avant le lancement prend son sens, et le salon n'a ni rail ni badge, donc
 il date la lecture en quittant la feuille. Trois bornes,
 d'écran et non d'équilibrage (`src/domain/telegraph.ts`) : 300 caractères, un message par seconde
-et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de canal privé, pas de
-mention, pas de modération. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
-autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail compte depuis
-la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
+et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de mention, pas de modération. **Et des canaux privés à deux** (14/10/2026) : la fenêtre a un
+onglet « Général » et un par autre joueur de la partie (`messages.to` optionnel, servi aux deux
+participants seulement, mêmes bornes **par canal**, un message par seconde tous canaux confondus ;
+lecture datée par canal dans `readMarks.telegraphDirectReadAt`). Le fil est partout la vue en
+bandes groupées par émetteur ; le salon n'a que le général. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
+autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail somme les canaux, chacun depuis
+sa dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 
 **Le compte possède ses places** (ADR 0022, livré le 11/09/2026). Un pseudo unique et un mot de
 passe, sans e-mail : `/connexion` ouvre un dossier ou en reprend un, et l'accueil liste les
@@ -529,8 +532,16 @@ ici et coûterait un modèle mental de plus.
 réglage n'était plus jamais au-dessus de zéro, et `Curvature`, `frame.drop`, `setCurvature` et le
 test d'horizon des étiquettes sont partis avec lui — un point du plateau se relit tel quel, et le
 raycast vise la géométrie qu'on voit. Plus d'épaisseur non plus : un pays est un aplat
-(`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est le trait
-d'encre des frontières, et l'écart ne sert qu'au tampon de profondeur. **La pente suit la
+(`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est un trait
+d'encre, et l'écart ne sert qu'au tampon de profondeur. **Les traits suivent le prototype —
+14/10/2026** : la côte est le trait le plus gras (`LineSegments2`, encre .92, plancher 1,5 px et
+0,03 u qui grossit au zoom, `coastWidthPx`), séparée des frontières terrestres par
+`splitOutlines` — une arête que deux pays partagent est une frontière, 1 px ; les frontières de
+région sont en pointillé (4 px d'encre, 2 de blanc, encre .38) ; l'anneau de destination est un
+pointillé d'encre de 1,5 px sur un liseré papier. **Et l'objectif du prototype s'essaie** (Réglages, `wws-camera-lens`, défaut
+« jeu ») : 28° et ACES 1,05, rendus par un œil (`eye`) reculé sur l'axe de la caméra pilotée
+(`eyeDistanceFactor`, `src/domain/camera-lens.ts`) — la caméra de 42° garde les contrôles et tous
+les seuils de distance, l'œil rend, projette les étiquettes et vise les rayons. **La pente suit la
 distance** (`steepestTiltAt`, `camera-tilt.ts`) : on se penche jusqu'à 66° au rapproché, on ne
 dépasse plus 52° à la vue monde ; l'aplomb reste permis partout et la pente sous ce plafond reste
 celle du joueur.

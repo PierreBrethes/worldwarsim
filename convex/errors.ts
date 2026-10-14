@@ -120,6 +120,7 @@ export type ErrorCode =
   | 'EMPTY_MESSAGE'
   | 'MESSAGE_TOO_LONG'
   | 'TELEGRAPH_TOO_FAST'
+  | 'UNKNOWN_RECIPIENT'
   | 'UNKNOWN_COMBAT'
   | 'NOT_A_PARTY';
 

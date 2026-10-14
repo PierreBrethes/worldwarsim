@@ -1,6 +1,7 @@
 import { useMutation } from 'convex/react';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
+import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
 import type { Telegraph } from '@/data/telegraph';
 import { TelegraphThread } from '@/shell/TelegraphThread';
@@ -24,12 +25,25 @@ export function TelegraphWindow({
   const sized = useWindowSized();
   const narrow = useNarrowScreen();
   const markRead = useMutation(api.messages.markRead);
+  const [active, setActive] = useState<Id<'players'> | null>(null);
+  const channel = telegraph.direct.find((candidate) => candidate.with === active);
+  const title =
+    channel === undefined ? fr.telegraph.channel : fr.telegraph.privateChannel(channel.nickname);
 
-  /** Lu à la fermeture, comme le journal : ce qu'on a eu le temps de voir est lu. */
+  // Each channel is stamped read when left, by another tab or by closing the window.
+  const leave = useCallback(
+    () => void markRead(active === null ? seat : { ...seat, with: active }).catch(() => undefined),
+    [markRead, seat, active],
+  );
   const close = useCallback(() => {
-    void markRead(seat).catch(() => undefined);
+    leave();
     onClose();
-  }, [markRead, seat, onClose]);
+  }, [leave, onClose]);
+  const open = (next: Id<'players'> | null) => {
+    if (next === active) return;
+    leave();
+    setActive(next);
+  };
 
   return (
     <FloatingWindow name="telegraph" onClose={close} {...windowProps} width={460}>
@@ -44,7 +58,7 @@ export function TelegraphWindow({
                 {fr.telegraph.header}
               </span>
               <span className="truncate font-(family-name:--font-display) text-[13px] leading-none text-[var(--ink-quiet)] italic">
-                {fr.telegraph.channel}
+                {title}
               </span>
             </span>
             <button
@@ -59,7 +73,7 @@ export function TelegraphWindow({
           <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
             <span className="eyebrow">{fr.telegraph.header}</span>
             <span className="font-(family-name:--font-display) text-[12px] text-[var(--ink-quiet)] italic">
-              {fr.telegraph.channel}
+              {title}
             </span>
             <button
               type="button"
@@ -71,9 +85,35 @@ export function TelegraphWindow({
           </DragHandle>
         )}
 
+        {telegraph.direct.length > 0 && (
+          <div
+            role="tablist"
+            className="flex shrink-0 overflow-x-auto border-b border-[var(--ink)] text-[10px] tracking-[.14em] uppercase"
+          >
+            <Tab
+              label={fr.telegraph.general}
+              unread={telegraph.generalUnread}
+              selected={active === null}
+              onSelect={() => open(null)}
+            />
+            {telegraph.direct.map((other) => (
+              <Tab
+                key={other.with}
+                label={other.nickname}
+                ink={other.ink}
+                unread={other.unread}
+                selected={active === other.with}
+                onSelect={() => open(other.with)}
+              />
+            ))}
+          </div>
+        )}
+
         <div className={`flex min-h-0 flex-1 flex-col ${narrow ? '' : 'px-4 py-2'}`}>
           <TelegraphThread
-            telegraph={telegraph}
+            key={active ?? 'general'}
+            messages={channel === undefined ? telegraph.general : channel.messages}
+            {...(channel === undefined ? {} : { to: channel.with })}
             seat={seat}
             height={sized ? 'fill' : 420}
             autoFocus
@@ -81,5 +121,42 @@ export function TelegraphWindow({
         </div>
       </div>
     </FloatingWindow>
+  );
+}
+
+function Tab({
+  label,
+  ink,
+  unread,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  ink?: string;
+  unread: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onSelect}
+      className={`flex shrink-0 cursor-pointer items-center gap-[6px] border-r border-(color:--ink)/30 px-3 py-[7px] font-semibold ${
+        selected ? 'bg-[var(--ink)] text-[var(--paper)]' : 'hover:bg-(--ink)/10'
+      }`}
+      style={selected || ink === undefined ? undefined : { color: ink }}
+    >
+      {label}
+      {!selected && unread > 0 && (
+        <span
+          aria-label={fr.rail.telegraphUnread(unread)}
+          className="min-w-[16px] bg-[var(--critical)] px-1 text-center text-[9px] text-[var(--paper)]"
+        >
+          {unread}
+        </span>
+      )}
+    </button>
   );
 }

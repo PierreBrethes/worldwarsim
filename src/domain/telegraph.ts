@@ -53,3 +53,20 @@ export function threadLayout<Entry extends ThreadEntry>(
     return { entry, opensDay, opensRun };
   });
 }
+
+/** A private message carries its recipient; the general channel carries none. */
+export function canRead(
+  message: { readonly playerId: string; readonly to?: string | undefined },
+  viewerId: string,
+): boolean {
+  return message.to === undefined || message.playerId === viewerId || message.to === viewerId;
+}
+
+/** What the others wrote after the hour the channel was last read: one's own lines never count. */
+export function unreadCount(
+  messages: ReadonlyArray<{ readonly at: number; readonly mine: boolean }>,
+  readAt: number | null,
+): number {
+  return messages.filter((message) => !message.mine && (readAt === null || message.at > readAt))
+    .length;
+}
