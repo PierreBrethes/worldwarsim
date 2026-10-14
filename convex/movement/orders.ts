@@ -537,33 +537,34 @@ export async function columnOf(
 }
 
 /**
- * **Mes bâtiments déjà tenus** (B15, une unité par bâtiment) : une troupe posée dedans, ou une
- * marche déjà en route pour y entrer. Les troupes de l'ordre n'en occupent aucun — elles partent.
+ * **Mes bâtiments déjà tenus** (B15, une unité par bâtiment) : une de mes troupes y est posée.
+ * Les troupes de l'ordre n'en occupent aucun — elles partent. La rose lit la même chose dans la
+ * vue (`armedColumn`).
+ *
+ * ponytail: deux marches parties ensemble vers le même bâtiment vide y entrent toutes les deux ;
+ * compter les marches en route demanderait de servir leur cible au client.
  */
 async function occupiedBuildingIds(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   ordered: ReadonlyArray<Doc<'troops'>>,
 ): Promise<Set<string>> {
-  const movements = await movementsOf(ctx, playerId);
-  const marching = new Set(movements.flatMap((movement) => movement.troopIds));
+  const marching = new Set((await movementsOf(ctx, playerId)).flatMap((one) => one.troopIds));
   const leaving = new Set(ordered.map((troop) => troop._id));
-  const held = (
-    await ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  ).flatMap((troop) =>
-    typeof troop.stationedAt === 'string' && !marching.has(troop._id) && !leaving.has(troop._id)
-      ? [troop.stationedAt]
-      : [],
+  return new Set(
+    (
+      await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).flatMap((troop) =>
+      typeof troop.stationedAt === 'string' &&
+      !marching.has(troop._id) &&
+      !leaving.has(troop._id)
+        ? [troop.stationedAt]
+        : [],
+    ),
   );
-  const awaited = movements.flatMap((movement) =>
-    movement.type === 'march' && movement.target.kind === 'building'
-      ? [movement.target.buildingId]
-      : [],
-  );
-  return new Set<string>([...held, ...awaited]);
 }
 
 /** Same shape and reason as `capReliefOf`: "montez le QG" is advice, "un quartier général niveau

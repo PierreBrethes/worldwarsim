@@ -75,7 +75,14 @@ const andList = (items: ReadonlyArray<string>): string =>
  * face. Les pertes d'un camp sont toutes de l'autre temps — c'est l'initiative —, donc le compte
  * rendu suffit à les répartir sans rien servir de plus.
  */
-const combatBeats = (attacking: boolean, mineLost: number, theirsLost: number): string => {
+const combatBeats = (
+  attacking: boolean,
+  mineLost: number,
+  theirsLost: number,
+  shock = false,
+): string => {
+  /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
+  if (shock) return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
   const [strike, riposte] = attacking ? [theirsLost, mineLost] : [mineLost, theirsLost];
   const answer =
     riposte > 0 ? `${attacking ? 'leur' : 'notre'} riposte en abat ${riposte}` : 'aucune riposte';
@@ -322,6 +329,7 @@ export const fr = {
       plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,
       collection: 'vers le dernier relevé',
       cargoReturn: 'retour chargé',
+      pursuit: 'poursuite',
     },
   },
 
@@ -1248,6 +1256,7 @@ export const fr = {
       mine,
       theirs,
       outpostDisabled,
+      shock = false,
     }: {
       where: string;
       intercepted: boolean;
@@ -1256,6 +1265,7 @@ export const fr = {
       mine: { troops: number; lost: number; routed: number; destroyed: number };
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
+      shock?: boolean;
     }) => {
       const opening = intercepted
         ? attacking
@@ -1265,7 +1275,7 @@ export const fr = {
           ? `engagement ${where}`
           : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}`;
-      const toll = combatBeats(attacking, mine.lost, theirs.lost);
+      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
@@ -1833,11 +1843,18 @@ export const fr = {
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
+  /** Blitz (B19) : après une frappe, une unité bouge mais n'attaque pas encore. */
+  reload: {
+    label: 'rechargement',
+    prefix: 'rechargement ',
+  },
+
   sent: {
     stamp: 'transmis',
     title: (order: string, destination: string) => `${order} — ${destination}`,
     line: (time: string, used: number, total: number) =>
       `arrivée ${time} · mouvements ${used} / ${total}`,
+    arrival: (time: string) => `arrivée ${time}`,
     follow: 'suivre',
   },
 
@@ -1934,6 +1951,9 @@ export const fr = {
     duration: (duration: string, count: number) =>
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
+    pursuit: 'poursuite',
+    pursuitNote:
+      'l’heure est celle de sa position actuelle : la route se recourbe si elle bouge, et la poursuite s’abandonne si elle sort de votre vue',
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
      * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
@@ -2885,6 +2905,7 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
+    enemyColumn: 'colonne ennemie',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :

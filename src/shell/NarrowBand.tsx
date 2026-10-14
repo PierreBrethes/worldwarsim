@@ -79,6 +79,7 @@ export function NarrowBand({
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
         <span className="flex-1" />
+        {view.mode !== 'blitz' && (
         <span
           className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
           title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
@@ -88,6 +89,7 @@ export function NarrowBand({
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
         </span>
+        )}
       </div>
 
       <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">

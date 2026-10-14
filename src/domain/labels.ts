@@ -130,6 +130,8 @@ export type MapMarker =
       readonly plate: string | null;
       /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
       readonly pieces: PilePieces;
+      /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
+      readonly reloadUntil?: number;
       readonly ink: string;
     }
   | {
@@ -258,6 +260,8 @@ export type LabelLine =
       readonly prefix: string;
       /** My column's departure, read off the share served: its bar fills from there to `dueAt`. */
       readonly since?: number;
+      /** À la seconde (« 0:42 ») plutôt qu'en durée, et muet une fois échu : un rechargement. */
+      readonly clock?: true;
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
@@ -766,6 +770,16 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
+          ...(marker.reloadUntil === undefined
+            ? []
+            : [
+                {
+                  role: 'countdown' as const,
+                  dueAt: marker.reloadUntil,
+                  prefix: fr.reload.prefix,
+                  clock: true as const,
+                },
+              ]),
         ],
       };
     case 'construction':
@@ -1005,5 +1019,7 @@ function missionLabel(
       return fr.loot.missions.collection;
     case 'cargoReturn':
       return fr.loot.missions.cargoReturn;
+    case 'pursuit':
+      return fr.loot.missions.pursuit;
   }
 }

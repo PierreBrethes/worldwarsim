@@ -157,6 +157,31 @@ describe('posterOf', () => {
     expect(posterFor(view(), [empty], 'pile')).toBeNull();
   });
 
+  it('counts down the reload of a Blitz troop that struck', () => {
+    const pile: MapMarker = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'Marne',
+      plate: null,
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      ink: '#2f4f78',
+    };
+    const reloading = {
+      ...me,
+      troops: [{ ...me.troops[0]!, reloadUntil: LOADED_AT + 42_000 }],
+    } as PlayerView['me'];
+    expect(posterFor(view({ me: reloading }), [pile], 'pile')?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'rechargement',
+      chip: '0:42',
+      tone: 'cut',
+    });
+    expect(posterFor(view(), [pile], 'pile')?.lines).toEqual([]);
+  });
+
   it('dates my movement by its arrival and fills the bar to its progress', () => {
     const arc: ArcView = {
       state: 'mine',

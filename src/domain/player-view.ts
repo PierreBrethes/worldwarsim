@@ -36,6 +36,8 @@ export type OwnMovementMission =
     }
   | { readonly kind: 'collection'; readonly sightingId: string }
   | { readonly kind: 'cargoReturn'; readonly regionId: string }
+  /** Blitz (B18) : la colonne poursuit une unité, et sa route se recourbe sur elle. */
+  | { readonly kind: 'pursuit' }
   | null;
 
 /**
@@ -243,6 +245,8 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
+  readonly reloadUntil?: number;
 };
 
 export type OutpostView = {
@@ -325,6 +329,8 @@ export type CombatReport = {
   /** L'avant-poste visé, quand c'en était un : la garnison qu'une dépêche ouvre est la sienne. */
   readonly outpostId: string | null;
   readonly outpostDisabled: boolean;
+  /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. */
+  readonly shock?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
   /**
@@ -1172,6 +1178,8 @@ export type PlayerView = {
   readonly objectives: ReadonlyArray<ObjectiveView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
   readonly mode: SeasonMode;
+  /** Le théâtre d'une Blitz, `null` en Mondiale. */
+  readonly theatre: string | null;
   readonly captures: ReadonlyArray<CaptureView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */

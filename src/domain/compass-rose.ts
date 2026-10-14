@@ -133,6 +133,20 @@ export type CompassTarget =
       readonly coastal?: boolean;
       readonly name: string;
     }
+  /**
+   * **Une colonne adverse en vue, visée en Blitz** (B18) : le relevé de son fil, et le point où
+   * on l'a désignée — le serveur relit sa position vraie. Ailleurs qu'en Blitz, `refusalOf` dit
+   * qu'il n'y a rien à poursuivre.
+   */
+  | {
+      readonly kind: 'track';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly country: string | null;
+      readonly onLand: boolean;
+      readonly coastal: boolean;
+      readonly name: string;
+    }
   | {
       /**
        * **Un objectif neutre** (17/09/2026) : la seule cible du jeu qu'on vise **sans l'avoir
@@ -516,7 +530,9 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
  * The only cost the game can quantify today. The steel and duration of a founding exist
  * nowhere — displaying them would mean inventing them.
  */
-function slotCost(view: PlayerView): string {
+function slotCost(view: PlayerView): string | null {
+  /** Pas de slots en Blitz (B5) : la branche ne porte pas de prix. */
+  if (view.mode === 'blitz') return null;
   const free = view.me.slots.total - view.me.slots.used;
   return fr.compass.slotsCost(free);
 }
@@ -965,6 +981,19 @@ function aim(
    * vient de `refusalOf`, la fonction que la mutation relit — une colonne sans infanterie s'y
    * voit dire pourquoi, jamais une branche grisée (ADR 0015).
    */
+  if (target.kind === 'track') {
+    return fanOf(target.name, view, column, [
+      {
+        kind: 'track',
+        sightingId: target.id,
+        lon: target.point[0],
+        lat: target.point[1],
+        hostCountry: target.country ?? '',
+        onLand: target.onLand,
+        coastal: target.coastal,
+      },
+    ]);
+  }
   if (target.kind === 'objective') {
     return fanOf(target.name, view, column, [
       {
@@ -1072,6 +1101,11 @@ function fanOf(
  */
 const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'EMPTY_MOVEMENT',
+  /** Blitz (lot 5) : la main en tient deux, et la carte ne le dit pas. */
+  'ONE_UNIT_ONLY',
+  /** La boîte se lit sur la carte, mais un clic au ras du cadre ne dit pas de quel côté il est. */
+  'OUTSIDE_THEATRE',
+  'RELOADING',
   'NO_AIRFIELD_AT_DEPARTURE',
   'NO_PORT_AT_DEPARTURE',
   /** Juste après les portes de départ, parce que c'en est une : la carte montre une pile sur
@@ -1089,12 +1123,14 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
   'NOT_A_GARRISON_FOR',
+  'BUILDING_OCCUPIED',
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',
   /** Ce que la carte ne dit pas : une réserve se **porte**, et un mât de blindés n'a rien pour
    *  la rapporter. Le motif vient avant le sol vide, qui se lit, lui. */
   'INFANTRY_REQUIRED',
+  'UNIT_TARGET_ONLY',
   /** En dernier : la carte montre un sol vide, et c'est précisément ce que le joueur y lit. */
   'NOTHING_TO_ATTACK',
   'NOT_ORDERABLE',
@@ -1268,6 +1304,7 @@ function build(
     case 'installation':
     case 'loot':
     case 'camp':
+    case 'track':
       return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * **L'objectif est la seule cible qui parle au repos**, et c'est la conséquence de sa

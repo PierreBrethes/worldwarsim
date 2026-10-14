@@ -169,6 +169,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     objectives: server.objectives ?? [],
     /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
     mode: modeOf(server.mode),
+    theatre: server.theatre ?? null,
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],

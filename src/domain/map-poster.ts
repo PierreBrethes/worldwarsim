@@ -1,7 +1,7 @@
 import { fr, stackLabel } from '@/i18n/fr';
 import { riseOf, type WorkSite } from './construction';
 import { progressAt } from './capture';
-import { asClockTime, asDuration } from './duration';
+import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
 import type { MapLabel } from './labels';
@@ -86,10 +86,16 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
     if (held.length === 0) return null;
     const ids = new Set(held.map((troop) => troop.id));
+    /** **Blitz** (B19) : la plus longue attente de la pile, à la seconde. */
+    const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
     return {
       ...plain,
       eyebrow: fr.troops.sheetKicker,
       title: natureOf(label),
+      lines:
+        reload > 0
+          ? [{ kind: 'chip', label: fr.reload.label, chip: reloadClock(reload), tone: 'cut' }]
+          : [],
       pile: {
         lines: pileSheet(held),
         cargo: view.me.stationedCargo

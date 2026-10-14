@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { asDuration } from '@/domain/duration';
+import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
 import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
@@ -400,7 +400,12 @@ export function MapLabels({
       const node = countdowns.current.get(label.id);
       if (countdown === undefined || node === undefined) continue;
       const left = Math.max(0, countdown.dueAt - now);
-      node.textContent = `${countdown.prefix}${asDuration(left / 60_000)}`;
+      node.textContent =
+        countdown.clock === true
+          ? left > 0
+            ? `${countdown.prefix}${reloadClock(left)}`
+            : ''
+          : `${countdown.prefix}${asDuration(left / 60_000)}`;
       roots.current.get(label.id)?.classList.toggle('label--urgent', left < URGENCY_MS);
     }
   }, [labels]);

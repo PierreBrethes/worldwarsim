@@ -94,6 +94,8 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       {me.construction !== null && <SiteCell view={view} now={now} />}
 
+      {/* Pas de slots en Blitz (B5) : la cadence est le rechargement. */}
+      {view.mode !== 'blitz' && (
       <div
         className={`${CELL} gap-[9px] whitespace-nowrap`}
         title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
@@ -106,6 +108,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
           {fr.banner.slotsCount(me.slots.used, me.slots.total)}
         </span>
       </div>
+      )}
 
       <div
         ref={reserves}

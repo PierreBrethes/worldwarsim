@@ -113,6 +113,7 @@ export function NationWindow({
             )}
           </Entry>
 
+          {view.mode !== 'blitz' && (
           <Entry header={fr.nationSheet.restHeader}>
             <div className="flex items-center gap-2 font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
               {view.me.restWindow}
@@ -121,6 +122,7 @@ export function NationWindow({
               </HelpMark>
             </div>
           </Entry>
+          )}
         </div>
       </div>
     </FloatingWindow>

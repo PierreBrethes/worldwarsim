@@ -242,10 +242,14 @@ function DeskJournal({
             {fr.journal.atWaking}
           </span>
           <span className="flex-1" />
-          <span className="text-[12px] text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
-          <span className="font-(family-name:--font-mono) text-[13px]">
-            {view.me.slots.used} / {view.me.slots.total}
-          </span>
+          {view.mode !== 'blitz' && (
+            <>
+              <span className="text-[12px] text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
+              <span className="font-(family-name:--font-mono) text-[13px]">
+                {view.me.slots.used} / {view.me.slots.total}
+              </span>
+            </>
+          )}
         </div>
         {stalled.length > 0 ? (
           stalled.map((entry) => (
@@ -554,9 +558,11 @@ function NarrowJournal({
           <span className="text-[10px] font-bold tracking-[.2em] uppercase">
             {fr.journal.atWaking}
           </span>
-          <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-quiet)]">
-            {fr.journal.slotsEngaged} {view.me.slots.used} / {view.me.slots.total}
-          </span>
+          {view.mode !== 'blitz' && (
+            <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-quiet)]">
+              {fr.journal.slotsEngaged} {view.me.slots.used} / {view.me.slots.total}
+            </span>
+          )}
         </div>
         {stalled.length > 0 ? (
           stalled.map((entry) => (
