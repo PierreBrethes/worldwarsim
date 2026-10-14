@@ -271,8 +271,10 @@ export const commit = internalMutation({
          *  capture (`occupationsOf`), le QG de départ compris. Un neutre ne colore rien. */
         ...(site.owner === null ? { startedNeutral: true as const } : { capturedAt: now }),
       });
-      if (site.owner === null || site.key !== 'hq') continue;
-      for (let rank = 0; rank < 2; rank += 1) {
+      if (site.owner === null) continue;
+      /** **Un fantassin au QG, l'autre dans la caserne** (U6) : une unité par bâtiment, et
+       *  chacun des deux sites de départ peut former dès qu'il se vide. */
+      if (site.key === 'hq' || site.key === 'barracks') {
         const strength = nominalStrength('infantry', 1);
         await ctx.db.insert('troops', {
           seasonId,
@@ -284,6 +286,7 @@ export const commit = internalMutation({
           stationedAt: buildingId,
         });
       }
+      if (site.key !== 'hq') continue;
       const point = pointOfBuilding({ regionId: site.regionId });
       if (point !== null) await surveyFromPoint(ctx, site.owner, point, now);
     }

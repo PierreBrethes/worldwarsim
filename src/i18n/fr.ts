@@ -668,6 +668,8 @@ export const fr = {
     UNIT_TARGET_ONLY: () => 'en Blitz, une attaque vise une unité ennemie, pas un point',
     RELOADING: () => 'en rechargement : elle peut bouger, pas encore attaquer',
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
+    SITE_OCCUPIED: () =>
+      'ce bâtiment n’est pas libre : une de vos unités s’y tient ou s’y forme — faites-la sortir pour recruter',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',

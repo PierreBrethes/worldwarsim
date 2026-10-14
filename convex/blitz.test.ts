@@ -76,6 +76,20 @@ const neutralOf = (t: Bench, seasonId: Id<'seasons'>) =>
     return seats.find((candidate) => candidate.irregular === true)!;
   });
 
+/** Sort la garnison d'un bâtiment à quelques kilomètres : il redevient libre (U6). */
+const vacate = (t: Bench, building: { _id: Id<'buildings'>; regionId: string; point?: unknown }) =>
+  t.run(async (ctx) => {
+    const [lon, lat] = pointOfBuilding(building as never)!;
+    const inside = await ctx.db
+      .query('troops')
+      .withIndex('byStation', (q) => q.eq('stationedAt', building._id))
+      .collect();
+    for (const troop of inside) {
+      await ctx.db.patch(troop._id, { stationedAt: { lon: lon + 1.5, lat } });
+    }
+    return inside;
+  });
+
 const fundsServed = async (t: Bench, seat: Seat) =>
   (await t.query(api.view.playerView, seat)).me.funds;
 
@@ -86,18 +100,16 @@ describe('la carte de départ de la Blitz', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('donne à chacun un QG, une caserne, deux fantassins et un pécule ; le reste est neutre', async () => {
+  it('donne à chacun un QG, une caserne, un fantassin dans chacun et un pécule ; le reste est neutre', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
     for (const who of [seat, guest]) {
       const me = await playerOf(t, who);
       const held = await buildingsOf(t, me._id);
       expect(held.map((building) => building.key).sort()).toEqual(['barracks', 'hq']);
-      const hq = held.find((building) => building.key === 'hq')!;
-      expect((await troopsOf(t, me._id)).map((troop) => [troop.role, troop.stationedAt])).toEqual([
-        ['infantry', hq._id],
-        ['infantry', hq._id],
-      ]);
+      expect(
+        (await troopsOf(t, me._id)).map((troop) => troop.stationedAt).sort(),
+      ).toEqual(held.map((building) => building._id).sort());
       expect(me.funds).toBe(BLITZ.startingFunds);
     }
     const neutral = await buildingsOf(t, (await neutralOf(t, seat.seasonId))._id);
@@ -352,20 +364,19 @@ describe('un site capturé avec sa file', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('rend au perdant les fonds d’une recrue qui n’a pas commencé, jamais de l’alliage', async () => {
+  it('perd la recrue déjà en formation, sans fonds ni alliage rendus', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
     const loser = await playerOf(t, guest);
     const barracks = (await buildingsOf(t, loser._id)).find((b) => b.key === 'barracks')!;
-    for (let rank = 0; rank < 2; rank += 1) {
-      await t.mutation(api.troops.recruit, {
-        ...guest,
-        buildingId: barracks._id,
-        role: 'infantry',
-        tier: 1,
-      });
-    }
+    await vacate(t, barracks);
+    await t.mutation(api.troops.recruit, {
+      ...guest,
+      buildingId: barracks._id,
+      role: 'infantry',
+      tier: 1,
+    });
     const [infantry] = await troopsOf(t, me._id);
     const [lon, lat] = pointOfBuilding(barracks)!;
     const movementId = await t.run((ctx) =>
@@ -400,9 +411,8 @@ describe('un site capturé avec sa file', () => {
       expectedAt: capture!.completesAt,
     });
     const minutes = (capture!.completesAt - MIDDAY) / MINUTE;
-    expect((await playerOf(t, guest)).funds).toBe(
-      before + BLITZ.rolePrice.infantry + minutes * BLITZ.fundsPerMinute.hq!,
-    );
+    expect((await playerOf(t, guest)).funds).toBe(before + minutes * BLITZ.fundsPerMinute.hq!);
+    expect(await t.run((ctx) => ctx.db.query('recruitments').collect())).toEqual([]);
     const alloy = await t.run(async (ctx) =>
       (
         await ctx.db
@@ -427,6 +437,7 @@ describe('le recrutement de la Blitz', () => {
     const { seat } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
     const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    await vacate(t, hq);
     const { recruitmentId } = await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: hq._id,
@@ -438,7 +449,39 @@ describe('le recrutement de la Blitz', () => {
     expect(batch!.finishesAt).toBe(MIDDAY + BLITZ.recruitMinutes * MINUTE);
 
     await t.mutation(internal.troops.deliver, { recruitmentId });
-    expect(await troopsOf(t, me._id)).toHaveLength(3);
+    expect((await troopsOf(t, me._id)).map((troop) => troop.stationedAt)).toContain(hq._id);
+  });
+
+  it('ne forme que dans un bâtiment libre, la recrue en formation comprise (U6)', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    const order = { ...seat, buildingId: hq._id, role: 'infantry' as const, tier: 1 as const };
+    await expect(t.mutation(api.troops.recruit, order)).rejects.toThrow(/SITE_OCCUPIED/);
+    await vacate(t, hq);
+    await t.mutation(api.troops.recruit, order);
+    await expect(t.mutation(api.troops.recruit, order)).rejects.toThrow(/SITE_OCCUPIED/);
+  });
+
+  it('pose la recrue à la porte quand une des miennes est entrée entre-temps', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    const [guard] = await vacate(t, hq);
+    const { recruitmentId } = await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: hq._id,
+      role: 'infantry',
+      tier: 1,
+    });
+    await t.run((ctx) => ctx.db.patch(guard!._id, { stationedAt: hq._id }));
+    await t.mutation(internal.troops.deliver, { recruitmentId });
+    const [lon, lat] = pointOfBuilding(hq)!;
+    expect(
+      (await troopsOf(t, me._id)).filter((troop) => troop._id !== guard!._id).map((troop) => troop.stationedAt),
+    ).toContainEqual({ lon, lat });
   });
 
   it('refuse un blindé au QG, et ce que les fonds ne paient pas', async () => {
@@ -451,6 +494,7 @@ describe('le recrutement de la Blitz', () => {
     await expect(
       t.mutation(api.troops.recruit, { ...seat, buildingId: hq._id, role: 'armor', tier: 1 }),
     ).rejects.toThrow(/WRONG_PROJECTION_BUILDING/);
+    await vacate(t, barracks);
     await t.run((ctx) => ctx.db.patch(me._id, { funds: 100 }));
     await expect(
       t.mutation(api.troops.recruit, { ...seat, buildingId: barracks._id, role: 'armor', tier: 1 }),

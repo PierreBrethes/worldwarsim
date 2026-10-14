@@ -26,7 +26,7 @@ describe('les fonds de la Blitz', () => {
 });
 
 describe('le recrutement de la Blitz', () => {
-  const ok = { role: 'infantry', funds: 1_000, troops: 0 } as const;
+  const ok = { role: 'infantry', funds: 1_000, troops: 0, occupied: false } as const;
 
   it('forme dans le bâtiment de son domaine, et l’infanterie au QG', () => {
     expect(rolesFormedBy('hq')).toEqual(['infantry']);
@@ -37,6 +37,15 @@ describe('le recrutement de la Blitz', () => {
       'WRONG_PROJECTION_BUILDING',
     );
     expect(blitzRecruitRefusalOf({ ...ok, site: 'airfield', role: 'bomber' })).toBeNull();
+  });
+
+  it('ne forme que dans un bâtiment libre (U6)', () => {
+    expect(blitzRecruitRefusalOf({ ...ok, site: 'barracks', occupied: true })).toBe(
+      'SITE_OCCUPIED',
+    );
+    expect(blitzRecruitRefusalOf({ ...ok, site: 'city', occupied: true })).toBe(
+      'WRONG_PROJECTION_BUILDING',
+    );
   });
 
   it('se paie en fonds, et une borne invisible arrête l’armée', () => {

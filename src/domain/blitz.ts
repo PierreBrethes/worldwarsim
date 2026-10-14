@@ -40,7 +40,7 @@ export const rolesFormingSites = (role: UnitRole): ReadonlyArray<BuildingKey> =>
   );
 
 export type BlitzRecruitRefusal =
-  'WRONG_PROJECTION_BUILDING' | 'TROOP_BOUND_REACHED' | 'INSUFFICIENT_FUNDS';
+  'WRONG_PROJECTION_BUILDING' | 'SITE_OCCUPIED' | 'TROOP_BOUND_REACHED' | 'INSUFFICIENT_FUNDS';
 
 /** Une marque par rôle, aucun palier, aucun plafond affiché : le frein est le prix. */
 export function blitzRecruitRefusalOf({
@@ -48,14 +48,19 @@ export function blitzRecruitRefusalOf({
   role,
   funds,
   troops,
+  occupied,
 }: {
   readonly site: BuildingKey;
   readonly role: UnitRole;
   readonly funds: number;
   /** Debout et en file : la file n'est pas un endroit où garer l'armée que la borne refuse. */
   readonly troops: number;
+  /** **Une unité par bâtiment, la recrue comprise** (U6) : une des miennes s'y tient, ou s'y
+   *  forme déjà — elle y entrera, et il n'y a qu'une place. */
+  readonly occupied: boolean;
 }): BlitzRecruitRefusal | null {
   if (!rolesFormedBy(site).includes(role)) return 'WRONG_PROJECTION_BUILDING';
+  if (occupied) return 'SITE_OCCUPIED';
   if (troops >= BLITZ.troopBound) return 'TROOP_BOUND_REACHED';
   return funds < BLITZ.rolePrice[role] ? 'INSUFFICIENT_FUNDS' : null;
 }
