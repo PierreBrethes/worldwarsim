@@ -98,6 +98,10 @@ retiré le 16/09. Le terrain et le retranchement se chiffreront sur cet écart-l
 (`convex/movements.ts:245`). Un raid gagné désactive l'avant-poste visé (jamais ne le prend,
 ADR 0004) ; une attaque n'a pas cet effet secondaire, elle ne fait que combattre.
 
+> **Révision du 14/10/2026 (lot 5 des deux modes)** : `firstMobileEncounter` a disparu avec la
+> poursuite de la Blitz, qui date son contact elle-même (`contactAt`, `src/domain/blitz.ts`). Le
+> paragraphe suivant décrit la règle d'avant, retirée du plateau dès l'ADR 0024 §3.
+
 **Le contact à distance ne concerne que deux mouvements compatibles**
 (`src/domain/interception.ts`, `firstMobileEncounter`). Ils doivent occuper le même milieu au même
 instant ; au moins l'un des deux doit porter `attack` ou `raid`, seuls ordres dont le comportement
