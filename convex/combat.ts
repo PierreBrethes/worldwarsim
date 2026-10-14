@@ -12,6 +12,7 @@ import {
 import { landAtPoint } from './routes';
 import { movementsOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
+import { isBlitz } from './blitz';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
@@ -102,7 +103,6 @@ export async function resolveContact(
     disabledUntil,
     at,
     mode = 'initiative',
-    blitz = false,
   }: {
     seasonId: Id<'seasons'>;
     attacker: Engaged;
@@ -114,8 +114,6 @@ export async function resolveContact(
     disabledUntil: number | null;
     at: number;
     mode?: PassMode;
-    /** **Une Blitz ne déroute personne** (B15) : un pion seul à dix PV tient ou tombe. */
-    blitz?: boolean;
   },
 ): Promise<Resolution> {
   /**
@@ -128,13 +126,20 @@ export async function resolveContact(
    * engagement is never declined for want of matter.
    */
   const sheltered = await shelteredOf(ctx, defender, at);
+  /** **La Blitz ne tient pas de magasin** : sa seule ressource est les fonds, et l'on y tire
+   *  sans compter les coups. */
+  const blitz = await isBlitz(ctx, seasonId);
+  const magazineOf = async (playerId: Id<'players'>) =>
+    blitz ? Infinity : (await economyOf(ctx, playerId, at)).stocks.ammunition;
   const engagement = resolveEngagement({
     attackers: attacker.troops.map((troop) => combatantOf(troop)),
     defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
     ammunition: {
-      attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
-      defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,
+      attacker: await magazineOf(attacker.playerId),
+      defender: await magazineOf(defender.playerId),
     },
+    /** **Une Blitz ne déroute personne** (B15) : un pion seul tient ou tombe, quel que soit
+     *  l'ordre qui l'a mis au feu — poursuite, capture ou objectif. */
     rules: blitz ? { ...COMBAT_RULES, routThreshold: 0 } : COMBAT_RULES,
     mode,
   });
@@ -142,7 +147,7 @@ export async function resolveContact(
   for (const side of ['attacker', 'defender'] as const) {
     const { spent, dry } = engagement.magazine[side];
     const who = side === 'attacker' ? attacker.playerId : defender.playerId;
-    if (spent > 0) await debit(ctx, who, { ammunition: spent }, at);
+    if (spent > 0 && !blitz) await debit(ctx, who, { ammunition: spent }, at);
     /**
      * **A side that could not pay struck at `DRY_AMMUNITION_FACTOR`**, and nothing else on the
      * board says it: the account of the pass shows losses, never the reason for them, so a

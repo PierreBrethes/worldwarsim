@@ -56,6 +56,16 @@ describe('joinRefusalOf', () => {
     expect(joinRefusalOf({ ...launched, now: 7_200_000 })).toBe('REGISTRATION_CLOSED');
   });
 
+  it('shuts a Blitz at its launch: everybody is there, nobody arrives late (E4)', () => {
+    const launched = {
+      ...open,
+      status: 'launched' as const,
+      launchedAt: 0,
+      mode: 'blitz' as const,
+    };
+    expect(joinRefusalOf({ ...launched, now: 1 })).toBe('BLITZ_STARTED');
+  });
+
   it('names the Blitz ceiling apart from a full Mondiale lobby', () => {
     expect(joinRefusalOf({ ...open, seats: 4, maximum: 4, mode: 'blitz' })).toBe('BLITZ_FULL');
     expect(joinRefusalOf({ ...open, seats: 4, maximum: 4 })).toBe('LOBBY_FULL');

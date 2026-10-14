@@ -1,5 +1,7 @@
 import { fr, stackLabel } from '@/i18n/fr';
+import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
+import type { BuildingKey } from './ids';
 import { progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
@@ -88,14 +90,33 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const ids = new Set(held.map((troop) => troop.id));
     /** **Blitz** (B19) : la plus longue attente de la pile, à la seconde. */
     const reload = Math.max(0, ...held.map((troop) => (troop.reloadUntil ?? 0) - now));
+    const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
       eyebrow: fr.troops.sheetKicker,
       title: natureOf(label),
-      lines:
-        reload > 0
-          ? [{ kind: 'chip', label: fr.reload.label, chip: reloadClock(reload), tone: 'cut' }]
-          : [],
+      lines: [
+        ...(reload > 0
+          ? [
+              {
+                kind: 'chip' as const,
+                label: fr.reload.label,
+                chip: reloadClock(reload),
+                tone: 'cut' as const,
+              },
+            ]
+          : []),
+        ...(mending === 0
+          ? []
+          : [
+              {
+                kind: 'chip' as const,
+                label: fr.blitz.mend,
+                chip: fr.blitz.mending(mending),
+                tone: 'ok' as const,
+              },
+            ]),
+      ],
       pile: {
         lines: pileSheet(held),
         cargo: view.me.stationedCargo
@@ -106,6 +127,15 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
   }
   if (label.works !== null && label.works.phase !== 'raising') return worksPoster(label.works, now);
   if (label.building !== null) return buildingPoster(label, label.building, view, now);
+  if (label.installation?.neutral === true) {
+    const { key } = label.installation;
+    return {
+      ...plain,
+      eyebrow: fr.blitz.neutral,
+      title: fr.buildings[key],
+      lines: [...fundsLines(key), { kind: 'text', text: fr.blitz.unguarded }],
+    };
+  }
   if (label.objective !== null) {
     const { name, tier, depot, emptied } = label.objective;
     return {
@@ -207,7 +237,7 @@ function buildingPoster(
   view: PlayerView,
   now: number,
 ): Poster {
-  const lines: PosterLine[] = [];
+  const lines: PosterLine[] = view.mode === 'blitz' ? [...fundsLines(building.key)] : [];
   let bar: number | null = null;
 
   if (produces(building.key)) {
@@ -306,3 +336,11 @@ function rateOf(
 
 const natureOf = (label: MapLabel): string =>
   label.lines.flatMap((line) => (line.role === 'nature' ? [line.text] : []))[0] ?? '';
+
+/** **Ce qu'un site verse en Blitz** : une ville et le QG, chaque minute, à qui les tient. */
+const fundsLines = (key: BuildingKey): ReadonlyArray<PosterLine> => {
+  const income = incomePerMinute([key]);
+  return income === 0
+    ? []
+    : [{ kind: 'row', label: fr.blitz.funds, value: fr.blitz.perMinute(income) }];
+};

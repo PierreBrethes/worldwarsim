@@ -318,7 +318,10 @@ async function raise(
  * *absent* vaut « entré à l'ouverture » (`warEntryOf`), donc le silence en aurait fait un
  * belligérant de plus au classement et à la presse.
  */
-async function irregularSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<Id<'players'>> {
+export async function irregularSeat(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Id<'players'>> {
   const already = (
     await ctx.db
       .query('players')
@@ -348,7 +351,7 @@ async function irregularSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise
  * règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
  * aucune chaîne, aucun entretien (`upkeepOf` l'ignore).
  */
-async function endowIrregular(
+export async function endowIrregular(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   at: number,

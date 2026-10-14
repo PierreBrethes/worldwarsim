@@ -82,6 +82,7 @@ import {
   MOVEMENT_TYPE,
   SPECIALIZATION,
 } from './validators';
+import { refuseInBlitz } from './blitz';
 
 /**
  * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
@@ -112,6 +113,7 @@ export const foundOutpostHere = mutation({
   handler: async (ctx, { token, seasonId, point, regionId, specialization, troopIds }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
 
     /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
@@ -495,6 +497,7 @@ export const plunder = mutation({
   handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    refuseInBlitz(season);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     return march(ctx, {
       playerId: player._id,

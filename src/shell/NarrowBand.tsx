@@ -13,7 +13,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
-import { ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
+import { FundsCell, ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
@@ -92,41 +92,47 @@ export function NarrowBand({
         )}
       </div>
 
-      <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
-        {RESOURCES.map((resource) => (
-          <ResourceCell
-            key={resource}
-            resource={resource}
-            view={view}
-            now={now}
-            stacked
-            onClick={(event) => {
-              const left = event.currentTarget.offsetLeft;
-              setShown((open) =>
-                open?.resource === resource
-                  ? null
-                  : {
-                      resource,
-                      left: Math.max(
-                        0,
-                        Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
-                      ),
-                    },
-              );
-            }}
-          />
-        ))}
-        {shown !== null && (
-          <ReserveCard
-            resource={shown.resource}
-            view={view}
-            now={now}
-            mark={marks[shown.resource]}
-            left={shown.left}
-            width={DETAIL_WIDTH}
-          />
-        )}
-      </div>
+      {me.funds !== null ? (
+        <div className="flex h-[38px] items-center px-[12px]">
+          <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
+        </div>
+      ) : (
+        <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
+          {RESOURCES.map((resource) => (
+            <ResourceCell
+              key={resource}
+              resource={resource}
+              view={view}
+              now={now}
+              stacked
+              onClick={(event) => {
+                const left = event.currentTarget.offsetLeft;
+                setShown((open) =>
+                  open?.resource === resource
+                    ? null
+                    : {
+                        resource,
+                        left: Math.max(
+                          0,
+                          Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
+                        ),
+                      },
+                );
+              }}
+            />
+          ))}
+          {shown !== null && (
+            <ReserveCard
+              resource={shown.resource}
+              view={view}
+              now={now}
+              mark={marks[shown.resource]}
+              left={shown.left}
+              width={DETAIL_WIDTH}
+            />
+          )}
+        </div>
+      )}
 
       {surface === 'dossier' && (
         <NationDossier

@@ -60,6 +60,8 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
   billets,
   warehouse,
   depot: warehouse,
+  // ponytail: la ville de la Blitz porte la planche des baraquements, en attendant la sienne.
+  city: billets,
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];
@@ -86,6 +88,7 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
   billets: billetsMaquette,
   warehouse: warehouseMaquette,
   depot: warehouseMaquette,
+  city: billetsMaquette,
 };
 
 /** The one mine that changes with its ground: the region decides what it digs (`economy.ts`),

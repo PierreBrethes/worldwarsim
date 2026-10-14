@@ -79,7 +79,8 @@ export function SurfaceColumn({
     >
       {todo}
       {square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
-      {square('economy', fr.rail.economy, <IndustryGlyph size={18} />)}
+      {/* La Blitz n'a ni réserve ni chantier : l'économie s'y lit sur la réglette, en fonds. */}
+      {view.mode !== 'blitz' && square('economy', fr.rail.economy, <IndustryGlyph size={18} />)}
       {square('gunnery', fr.rail.gunnery, <AbacusMark size={17} />)}
       {square(
         'journal',

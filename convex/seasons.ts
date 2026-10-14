@@ -48,14 +48,21 @@ import {
  *
  * Un belligérant qui n'a encore rien debout est donc un état normal, et le premier de la saison.
  */
-async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Promise<void> {
+async function endow(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  season: Doc<'seasons'>,
+  at: number,
+): Promise<void> {
   if (!isNation(player.nation)) fail('UNKNOWN_NATION', { nickname: player.nickname });
-  const kit = STARTING_KIT;
+  /** **La Blitz ne tient aucune des huit** : ses lignes existent à zéro, parce que tout ce qui
+   *  règle une économie les relit, et ses fonds viennent avec la carte (`blitz.commit`). */
+  const blitz = modeOf(season.mode) === 'blitz';
   for (const key of RESOURCES) {
     await ctx.db.insert('resources', {
       playerId: player._id,
       key,
-      stock: kit[key],
+      stock: blitz ? 0 : STARTING_KIT[key],
       updatedAt: at,
     });
   }
@@ -329,6 +336,7 @@ export const lobby = query({
       status: season.status,
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
+      launchRefusal: season.launchRefusal ?? null,
       maximum: maximumOf(season),
       registrationClosesAt:
         season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
@@ -384,10 +392,11 @@ export const launch = mutation({
     await ctx.db.patch(season._id, {
       status: 'launched',
       launchedAt: now,
+      launchRefusal: undefined,
       playableRegion: playableRegion(present.length),
     });
     for (const entry of present) {
-      await endow(ctx, entry, now);
+      await endow(ctx, entry, season, now);
       await notifyPlayer(ctx, entry._id, {
         type: 'season',
         phrase: push.seasonLaunched,
@@ -415,7 +424,13 @@ export const launch = mutation({
      * que la séparation achète est une saison **jouable avant que les dépêches tombent** : le
      * plateau s'ouvre, les réserves paraissent une seconde plus tard.
      */
-    await ctx.scheduler.runAfter(0, internal.objectives.place, { seasonId: season._id });
+    /** **La Blitz tire sa carte de départ au lieu de ses objectifs** (lot 4) : un QG et une
+     *  caserne par joueur, le reste neutre, par la même mécanique en trois temps. */
+    await ctx.scheduler.runAfter(
+      0,
+      modeOf(season.mode) === 'blitz' ? internal.blitz.place : internal.objectives.place,
+      { seasonId: season._id },
+    );
   },
 });
 
@@ -437,6 +452,7 @@ export const enterWar = mutation({
     /** Twice-clicked is not an error: the second call finds a belligerent and hands out
      *  nothing. Answering with a refusal would be telling him his own entry failed. */
     if (isAtWar(player, season)) return;
+    if (modeOf(season.mode) === 'blitz') fail('BLITZ_STARTED');
     if (player.nation === null) fail('NATION_REQUIRED');
 
     const present = await seatsOf(ctx, season._id);
@@ -445,7 +461,7 @@ export const enterWar = mutation({
     );
     if (holder) fail('NATION_TAKEN', { nation: player.nation, nickname: holder.nickname });
 
-    await endow(ctx, player, Date.now());
+    await endow(ctx, player, season, Date.now());
   },
 });
 

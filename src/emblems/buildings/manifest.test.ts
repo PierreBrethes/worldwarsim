@@ -16,7 +16,8 @@ describe('building sprite manifest', () => {
 
   it('gives every current building its own plate', () => {
     const drawn = BUILDINGS.map(buildingSprite).filter((url) => url !== null);
-    expect(new Set(drawn).size).toBe(drawn.length - 1);
+    // The depot reads as the warehouse, the Blitz city borrows the billets until it has its own.
+    expect(new Set(drawn).size).toBe(drawn.length - 2);
     expect(drawn).toHaveLength(BUILDINGS.length);
   });
 });

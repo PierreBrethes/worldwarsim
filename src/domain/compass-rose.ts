@@ -12,6 +12,7 @@ import {
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
+import { notInBlitz } from './blitz';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
@@ -722,7 +723,7 @@ function plunderFan(
 ): Compass {
   const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
   const isMine = view.me.buildings.some((standing) => standing.id === target.id);
-  const refused = plunderOrderRefusalOf(aimed, column, isMine);
+  const refused = notInBlitz(view.mode) ?? plunderOrderRefusalOf(aimed, column, isMine);
   const label =
     canonicalBuildingKey(target.key) === 'warehouse' ? fr.compass.plunder : fr.compass.sabotage;
   const capture = captureBranch(
@@ -1161,6 +1162,17 @@ function build(
   /** La composition en main si la cible est la pile tenue, sinon `null`. */
   composition: ReadonlyArray<string> | null,
 ): Fan {
+  /** **En Blitz on ne bâtit, n'élève, ne fonde ni ne rase rien** (`notInBlitz`) : au repos, ses
+   *  mâts, ses points et ses piles n'ont aucune branche — le clic droit y reste inerte. */
+  if (
+    notInBlitz(view.mode) !== null &&
+    (target.kind === 'region' ||
+      target.kind === 'building' ||
+      target.kind === 'outpost' ||
+      target.kind === 'force')
+  ) {
+    return { kicker: '', name: '', actions: [], refusal: null };
+  }
   switch (target.kind) {
     case 'region': {
       // The country's fan, plus one branch. A region is the same land seen closer: taking

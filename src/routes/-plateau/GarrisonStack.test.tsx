@@ -25,6 +25,7 @@ const troop = (
   nominalStrength,
   stationedAt: station,
   supplied: true,
+  mending: false,
 });
 
 describe('GarrisonStack', () => {

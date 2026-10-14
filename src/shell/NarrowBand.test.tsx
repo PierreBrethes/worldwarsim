@@ -41,6 +41,7 @@ const view = {
     chains: [],
     buildings: [],
     troops: [{}, {}, {}],
+    funds: null,
     resources: Object.fromEntries(
       RESOURCES.map((key) => [key, { stock: 40, ratePerHour: 2, cap: 400 }]),
     ),

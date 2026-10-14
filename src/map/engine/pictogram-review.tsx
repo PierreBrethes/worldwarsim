@@ -4,7 +4,8 @@ import { DepositMark } from '@/emblems/DepositMark';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { fr } from '@/i18n/fr';
 import '@/styles/index.css';
-import { PALETTE } from './palette';
+import { INK_BY_NATION } from '@/domain/nations';
+import { lit, nationShades, PALETTE, penOn } from './palette';
 import { mulberry, terrainCluster } from './terrain';
 
 /**
@@ -14,8 +15,10 @@ import { mulberry, terrainCluster } from './terrain';
  */
 const TYPES = Object.keys(fr.regionTypes) as ReadonlyArray<RegionType>;
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
-/** The board's ink on a dark held ground: France's blue, which `inkOn` answers with paper. */
-const DARK_GROUND = '#3d4f74';
+/** France's home sheet as the lamp renders it, and the pen the board draws on it. */
+const FRANCE = INK_BY_NATION.france;
+const DARK_GROUND = lit(nationShades(FRANCE).sheet);
+const DARK_PEN = penOn(nationShades(FRANCE).sheet, FRANCE);
 
 function Cluster({ type, seed, scale }: { type: RegionType; seed: number; scale: number }) {
   const strokes = terrainCluster(type, mulberry(seed));
@@ -118,7 +121,7 @@ function Review() {
                 <Cluster key={seed} type={type} seed={seed} scale={1} />
               ))}
             </Sheet>
-            <Sheet ground={DARK_GROUND} ink={PALETTE.paper}>
+            <Sheet ground={DARK_GROUND} ink={DARK_PEN}>
               {SEEDS.map((seed) => (
                 <Cluster key={seed} type={type} seed={seed} scale={1} />
               ))}

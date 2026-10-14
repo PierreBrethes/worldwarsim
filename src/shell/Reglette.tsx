@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -117,30 +118,32 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
           if (event.pointerType !== 'touch') setShown(null);
         }}
       >
-        {RESOURCES.map((resource) => (
-          <span key={resource} className="relative">
-            <ResourceCell
-              resource={resource}
-              view={view}
-              now={now}
-              onPointerEnter={(event) => {
-                if (event.pointerType !== 'touch') setShown(resource);
-              }}
-              onClick={() => setShown((open) => (open === resource ? null : resource))}
-            />
-            {shown === resource && (
-              <ReserveCard
+        {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
+        {me.funds === null &&
+          RESOURCES.map((resource) => (
+            <span key={resource} className="relative">
+              <ResourceCell
                 resource={resource}
                 view={view}
                 now={now}
-                mark={marks[resource]}
-                left={0}
-                top={RULE_HEIGHT + 15}
-                {...(marks[resource] === null ? {} : { width: 240 })}
+                onPointerEnter={(event) => {
+                  if (event.pointerType !== 'touch') setShown(resource);
+                }}
+                onClick={() => setShown((open) => (open === resource ? null : resource))}
               />
-            )}
-          </span>
-        ))}
+              {shown === resource && (
+                <ReserveCard
+                  resource={resource}
+                  view={view}
+                  now={now}
+                  mark={marks[resource]}
+                  left={0}
+                  top={RULE_HEIGHT + 15}
+                  {...(marks[resource] === null ? {} : { width: 240 })}
+                />
+              )}
+            </span>
+          ))}
       </div>
     </header>
   );
@@ -292,6 +295,67 @@ export function ResourceCell({
         />
       )}
     </button>
+  );
+}
+
+/**
+ * **Les fonds de la Blitz, seuls sur la réglette** (lot 4) : aucune des huit réserves n'y paraît.
+ * Le chiffre s'annonce comme celui d'une réserve (`useAnnouncedStock`) — un fonds est une réserve
+ * sans plafond —, et le débit par minute se lit à côté : c'est lui que la capture d'une ville
+ * fait monter.
+ */
+export function FundsCell({
+  funds,
+  loadedAt,
+  now,
+  stacked = false,
+}: {
+  funds: { readonly stock: number; readonly perMinute: number };
+  loadedAt: number;
+  now: number;
+  stacked?: boolean;
+}) {
+  const reserve = useMemo(
+    () => ({ stock: funds.stock, ratePerHour: funds.perMinute * 60, cap: Infinity }),
+    [funds.stock, funds.perMinute],
+  );
+  const stock = currentStock(reserve, loadedAt, now);
+  const motion = useMapMotion();
+  const reduced = usePrefersReducedMotion();
+  const still = motion === 'off' || reduced;
+  const { shown, tag, clearTag } = useAnnouncedStock(reserve, loadedAt, still);
+  return (
+    <span
+      role="status"
+      aria-label={fr.blitz.fundsLabel(stock, funds.perMinute)}
+      className={`flex items-baseline whitespace-nowrap ${stacked ? 'gap-[8px]' : 'gap-[10px]'}`}
+    >
+      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+        {fr.blitz.funds}
+      </span>
+      <span
+        aria-hidden
+        className="relative inline-flex font-(family-name:--font-mono) text-[17px] leading-none font-medium tabular-nums"
+      >
+        <Odometer value={still ? stock : shown} roll={motion === 'full' && !still} />
+        {tag !== null && (
+          <ReserveTag
+            gain={tag.gain}
+            alarm={false}
+            quiet={motion === 'reduced'}
+            spot={{ left: '50%', bottom: 'calc(100% + 7px)', transform: 'translateX(-50%)' }}
+            onDone={clearTag}
+            key={tag.id}
+          />
+        )}
+      </span>
+      <span
+        aria-hidden
+        className="font-(family-name:--font-mono) text-[11.5px] leading-none text-[var(--ink-soft)]"
+      >
+        {fr.blitz.perMinute(funds.perMinute)}
+      </span>
+    </span>
   );
 }
 

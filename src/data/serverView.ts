@@ -122,7 +122,12 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       troopCap: server.me.troopCap,
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
-      troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
+      troops: server.me.troops.map((troop) => ({
+        ...troop,
+        supplied: troop.supplied ?? true,
+        mending: troop.mending ?? false,
+      })),
+      funds: server.me.funds ?? null,
       stationedCargo: server.me.stationedCargo ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
        *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
@@ -170,6 +175,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
     mode: modeOf(server.mode),
     theatre: server.theatre ?? null,
+    neutralSites: server.neutralSites ?? [],
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],

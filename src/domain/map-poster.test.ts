@@ -393,3 +393,59 @@ describe('posterOf', () => {
     });
   });
 });
+
+describe('the Blitz poster', () => {
+  it('says what a neutral city pays and that nobody holds it', () => {
+    const city = {
+      kind: 'installation',
+      id: 'n-city',
+      buildingId: 'city-1',
+      key: 'city',
+      regionId: 'r-plain',
+      name: 'Ville',
+      plate: null,
+      washed: false,
+      neutral: { lonLat: [2, 48] },
+    } as MapMarker;
+    expect(posterFor(view({ mode: 'blitz' }), [city], 'n-city')).toMatchObject({
+      eyebrow: 'neutre',
+      title: 'Ville',
+      lines: [
+        { kind: 'row', label: 'fonds', value: '+15/min' },
+        { kind: 'text', text: 'personne ne la tient — l’infanterie la capture' },
+      ],
+    });
+  });
+
+  it('adds the funds my HQ pays, in a Blitz only', () => {
+    const hq = building('b-hq', 'hq', 'r-plain', null, 1);
+    expect(posterFor(view({ mode: 'blitz' }), [hq], 'm-b-hq')!.lines).toEqual([
+      { kind: 'row', label: 'fonds', value: '+30/min' },
+    ]);
+    expect(posterFor(view({ mode: 'mondiale' }), [hq], 'm-b-hq')!.lines).toEqual([]);
+  });
+});
+
+describe('a mending pile', () => {
+  it('says on its poster that it is mending', () => {
+    const mending = {
+      ...me,
+      troops: me.troops.map((troop) => ({ ...troop, mending: true })),
+    } as PlayerView['me'];
+    const pile = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [0, 0],
+      station: { kind: 'building', buildingId: 'b-mine' },
+      stack: { infantry: 1 },
+      place: 'garnison',
+      plate: null,
+      pieces: { groups: [], more: 0, spread: [] },
+      ink: '#2f4f78',
+    } as unknown as MapMarker;
+    const poster = posterFor(view({ me: mending }), [pile], 'pile');
+    expect(poster?.lines).toEqual([
+      { kind: 'chip', label: 'soin', chip: 'reprend des forces', tone: 'ok' },
+    ]);
+  });
+});

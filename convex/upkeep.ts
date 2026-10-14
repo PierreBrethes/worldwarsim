@@ -9,6 +9,7 @@ import {
 } from './constants';
 import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint, landAtPoint } from './routes';
+import { modeOf } from '../src/domain/season-mode';
 
 /**
  * **What an army costs to hold, and why it costs more far from home** (ADR 0019 §4).
@@ -112,7 +113,10 @@ export async function upkeepOf(
    * entretien ferait de son stock de vivres — qui n'existe pas — une famine permanente, et le
    * `starving` d'un joueur que personne ne joue n'a rien à arbitrer.
    */
-  if (player?.irregular === true) {
+  /** **La Blitz ne mange pas non plus** : sa seule ressource est les fonds, qui ne nourrissent
+   *  personne. Sans cela chaque Blitz serait une famine dès le premier fantassin. */
+  const blitz = player !== null && modeOf((await ctx.db.get(player.seasonId))?.mode) === 'blitz';
+  if (player?.irregular === true || blitz) {
     return { troops: 0, unsupplied: 0, foodPerHour: 0, unsuppliedTroopIds: [], outposts: 0 };
   }
   const home = homeCountryOf(player?.nation ?? null);

@@ -6,6 +6,7 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import type { TelegraphMessage } from '@/data/telegraph';
 import { asPressDate } from '@/domain/duration';
+import { typeInk } from '@/domain/nations';
 import { MESSAGE_MAX_CHARS, threadLayout } from '@/domain/telegraph';
 import type { Seat } from '@/data/session';
 import { useNarrowScreen } from './viewport';
@@ -195,7 +196,7 @@ function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
             <span
               title={message.mine ? undefined : nationLabel(message.nation)}
               className="text-[9.5px] font-bold tracking-[.18em] uppercase"
-              style={{ color: message.mine ? 'var(--ink-soft)' : message.ink }}
+              style={{ color: message.mine ? 'var(--ink-soft)' : typeInk(message.ink) }}
             >
               {message.mine ? fr.telegraph.you : message.nickname}
             </span>

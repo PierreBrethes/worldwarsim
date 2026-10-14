@@ -45,6 +45,9 @@ export type MapMarker =
       readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
+      /** **Un neutre de la Blitz** (lot 4) : public, posé à son point — le quai d'un port —, et
+       *  jamais délavé ; `null` hors Blitz, où le relevé ne porte que la région. */
+      readonly neutral: { readonly lonLat: LonLat } | null;
     }
   | {
       /**
@@ -294,6 +297,8 @@ export type InstallationHandle = {
   readonly id: string;
   readonly key: Exclude<BuildingKey, 'depot'>;
   readonly regionId: string;
+  /** Un neutre de la Blitz, qu'on capture sans l'avoir relevé. */
+  readonly neutral: boolean;
 };
 
 /** A standing building, as a label hands it to whoever acts on it. */
@@ -588,6 +593,9 @@ const exists = <T>(value: T | null): value is T => value !== null;
 /** A port hangs from its quay, a deposit and every other building from their region, and
  *  everything that carries a coordinate from that coordinate. */
 function anchorOf(marker: MapMarker): LabelAnchor {
+  if (marker.kind === 'installation' && marker.neutral !== null) {
+    return { kind: 'ground', lonLat: marker.neutral.lonLat };
+  }
   if (marker.kind === 'deposit' || marker.kind === 'installation') {
     return { kind: 'region', regionId: marker.regionId };
   }
@@ -664,9 +672,19 @@ function markerLabel(marker: MapMarker): MapLabel {
         priority: PRIORITY.installation,
         pictogram: null,
         plate: marker.plate,
-        installation: { id: marker.buildingId, key: marker.key, regionId: marker.regionId },
+        installation: {
+          id: marker.buildingId,
+          key: marker.key,
+          regionId: marker.regionId,
+          neutral: marker.neutral !== null,
+        },
         hostCountry: null,
-        lines: [{ role: 'nature', text: marker.name }],
+        lines: [
+          { role: 'nature', text: marker.name },
+          ...(marker.neutral === null
+            ? []
+            : [{ role: 'mention', text: fr.blitz.neutral } as const]),
+        ],
       };
     /**
      * **Ce qu'on sait d'un camp, et c'est tout** (ADR 0024 §1) : il se tient là, dans ce

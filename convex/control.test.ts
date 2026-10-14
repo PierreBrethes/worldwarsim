@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
-import { SEAT_INKS } from '../src/domain/control';
+import { INK_BY_NATION } from '../src/domain/nations';
 import { outpostReachKm } from './constants';
 import { regionFacts } from './regions';
 import schema from './schema';
@@ -173,11 +173,11 @@ describe('the home ground is coloured from the launch', () => {
     expect(await knownOf(t, guest, PARIS)).toBeNull();
   });
 
-  it('gives each seat its own ink, in the order they entered', async () => {
+  it("inks each seat with its nation's ink, whatever the order they entered", async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    expect((await heldBy(t, seat, 'Pierre'))?.ink).toBe(SEAT_INKS[0]);
-    expect((await heldBy(t, guest, 'Léa'))?.ink).toBe(SEAT_INKS[1]);
+    expect((await heldBy(t, seat, 'Pierre'))?.ink).toBe(INK_BY_NATION.france);
+    expect((await heldBy(t, guest, 'Léa'))?.ink).toBe(INK_BY_NATION.ussr);
   });
 
   it('leaves a seat still choosing out of the answer entirely', async () => {

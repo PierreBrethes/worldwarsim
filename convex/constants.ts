@@ -110,6 +110,8 @@ export const BUILDING_SPEC: Readonly<
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
+  // La ville de la Blitz ne se bâtit pas (`BUILDABLE_BUILDINGS`) : le barème l'exige, rien ne le lit.
+  city: { cost: {}, minutes: 0 },
 };
 
 /**
@@ -141,6 +143,7 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   listening: 2,
   airfield: 2,
   port: 2,
+  city: 1,
 };
 
 /**
@@ -1076,3 +1079,65 @@ export const OBJECTIVE_HARD_MAX = 4;
  * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
  */
 export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;
+
+/**
+ * **L'économie de la Blitz, en une table** (lot 4 des deux modes, 14/10). Une seule ressource,
+ * les fonds, versée par minute par les villes et le QG tenus ; caserne, port et aérodrome
+ * forment, ils ne rapportent rien. La carte de départ se tire au lancement dans le théâtre
+ * (`src/domain/blitz-placement.ts`) : un QG et une caserne par joueur, le reste neutre.
+ *
+ * @a-mesurer toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule
+ * paie deux fantassins, une ville en paie un toutes les quatre minutes ; rien n'a été joué
+ */
+export const BLITZ = {
+  startingFunds: 200,
+  fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>,
+  rolePrice: {
+    infantry: 60,
+    landTransport: 90,
+    armor: 180,
+    fighter: 200,
+    bomber: 260,
+    airTransport: 150,
+    escort: 200,
+    cargo: 140,
+    carrier: 320,
+  } as Readonly<Record<UnitRole, number>>,
+  recruitMinutes: 1,
+  /** « À faire maintenant » montre les villes neutres à cette distance d'un de mes bâtiments. */
+  nearCityKm: 600,
+  /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
+  troopBound: 80,
+  mend: {
+    stepMinutes: 1,
+    /** La part de la force nominale rendue à chaque pas. */
+    sharePerStep: 0.1,
+    /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */
+    priceShare: 0.5,
+  },
+  map: {
+    /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
+    hqRing: 0.45,
+    /** Combien de tours de table on essaie (E6 : une douzaine) avant de refuser le lancement. */
+    hqTries: 12,
+    /** Combien de régions, des plus proches de la place du cercle, on éprouve pour un QG. */
+    hqScan: 40,
+    /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */
+    hqEvenness: 0.6,
+    /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */
+    tolerance: 0.35,
+    /** La caserne de départ, à soi, à cette distance de route du QG. */
+    starting: [{ key: 'barracks', km: 120 }],
+    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous. */
+    near: [
+      { key: 'city', km: 250 },
+      { key: 'city', km: 450 },
+      { key: 'port', km: 350 },
+      { key: 'airfield', km: 400 },
+    ],
+    /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */
+    disputed: ['city', 'airfield'],
+    spreadKm: 80,
+    fairness: 0.8,
+  } as const,
+} as const;

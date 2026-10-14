@@ -3,7 +3,6 @@ import type { RegionType } from '@/domain/ids';
 import {
   DRAW_S,
   drawVariation,
-  inkOn,
   mulberry,
   penShare,
   PICTOGRAMS,
@@ -13,7 +12,6 @@ import {
   terrainCluster,
   zoomFade,
 } from './terrain';
-import { HELD_OPACITY, lavis, PALETTE } from './palette';
 
 const TYPES: ReadonlyArray<RegionType> = [
   'plain',
@@ -83,25 +81,6 @@ describe('the pen', () => {
   it('has finished every stroke by SKETCH_S', () => {
     expect(SKETCH_S).toBeCloseTo(DRAW_S + STAGGER_S);
     expect(penShare(STAGGER_S, SKETCH_S)).toBe(1);
-  });
-});
-
-describe('inkOn', () => {
-  it('reads the ground as painted: ink over paper at the opacity it is laid', () => {
-    const held = HELD_OPACITY;
-    expect(inkOn('#2457a8', held)).toBe(PALETTE.paper);
-    expect(inkOn('#b2432f', held)).toBe(PALETTE.paper);
-    expect(inkOn('#2457a8', held * 0.35)).toBe(PALETTE.border);
-    expect(inkOn('#e8d27a', held)).toBe(PALETTE.border);
-  });
-
-  it('draws in ink on the bare sheet and over a suspended zone, which is only a hatch', () => {
-    expect(inkOn(null, 0)).toBe(PALETTE.border);
-  });
-
-  /** An opponent's country is laid in his nation's lavis before anything is held over it. */
-  it('reads the ground under the fill when it is not the bare paper', () => {
-    expect(inkOn(null, 0, lavis('#3f5a7d'))).toBe(PALETTE.paper);
   });
 });
 

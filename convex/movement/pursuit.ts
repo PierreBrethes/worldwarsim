@@ -283,7 +283,6 @@ async function strike(
     disabledUntil: null,
     at: now,
     mode,
-    blitz: true,
   });
   const standing = new Set(
     engagement.outcomes

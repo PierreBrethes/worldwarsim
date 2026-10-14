@@ -100,6 +100,7 @@ describe('maquettesOf', () => {
       name: 'Ferme',
       plate: 'farm.webp',
       washed: true,
+      neutral: null,
     };
     const objective: MapMarker = {
       kind: 'objective',

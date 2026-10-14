@@ -1,290 +1,486 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
-import type { Doc, Id } from './_generated/dataModel';
-import type { UnitRole } from '../src/domain/ids';
-import { distanceKm } from '../src/domain/geo';
-import { nominalStrength } from './constants';
+import type { Id } from './_generated/dataModel';
+import { BLITZ } from './constants';
+import { captureAimOf } from './movement/orders';
+import { pointOfBuilding, regionFacts } from './regions';
+import { routeKmFrom } from './routes';
+import { surveyFromPoint } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
-import { reassessDetection } from './movement/detection';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp, type Seat } from './seats.fixture';
+import { joinSeat, seatIn, signIn, TEST_SEASON_SEED, type Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
+/** La pose mesure des routes sur la grille : quelques secondes sous `convex-test`. */
+vi.setConfig({ testTimeout: 30_000 });
 type Bench = ReturnType<typeof boot>;
 const MIDDAY = Date.UTC(2026, 9, 14, 12);
-const PARIS = { lon: 2.35, lat: 48.85 };
-const LYON = { lon: 4.85, lat: 45.75 };
-const BERLIN = { lon: 13.4, lat: 52.5 };
+const MINUTE = 60_000;
 
-async function blitz(t: Bench) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
-  const guest = await joinSeat(t, code, 'Léa');
-  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
-  await t.mutation(api.players.declareReady, { ...seat, ready: true });
-  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { ...guest, ready: true });
-  await t.mutation(api.seasons.launch, seat);
-  await placeHq(t, seat);
-  await placeHq(t, guest);
-  await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
-  return { seat, guest };
-}
+const NATIONS = ['france', 'ussr', 'japan', 'usa'] as const;
 
-async function troop(
-  t: Bench,
-  seat: Seat,
-  stationedAt: { lon: number; lat: number },
-  role: UnitRole = 'infantry',
-) {
-  const player = await t.run((ctx) => seatIn(ctx, seat));
-  const strength = nominalStrength(role, 1);
-  return t.run((ctx) =>
-    ctx.db.insert('troops', {
-      seasonId: player.seasonId,
-      playerId: player._id,
-      role,
-      tier: 1,
-      nominalStrength: strength,
-      currentStrength: strength,
-      stationedAt,
-    }),
-  );
-}
-
-const movementOf = (t: Bench, troopId: Id<'troops'>) =>
-  t.run(async (ctx) =>
-    (await ctx.db.query('movements').collect()).find((one) => one.troopIds.includes(troopId)),
-  );
-
-/** Each look of every pursuit, in date order, until none is left. */
-async function runPursuits(t: Bench) {
-  for (let step = 0; step < 60; step += 1) {
-    const pending = (await t.run((ctx) => ctx.db.query('movements').collect()))
-      .flatMap((one) => (one.pursuit === undefined ? [] : [one]))
-      .sort((a, b) => a.pursuit!.checkAt - b.pursuit!.checkAt);
-    const next = pending[0];
-    if (next === undefined) return;
-    vi.setSystemTime(next.pursuit!.checkAt);
-    await t.mutation(internal.movements.pursue, {
-      movementId: next._id,
-      expectedAt: next.pursuit!.checkAt,
-    });
+async function blitzLaunchedOn(t: Bench, theatre: string, players: number) {
+  const token = await signIn(t, 'Pierre');
+  const { code, seasonId } = await t.mutation(api.seasons.create, {
+    token,
+    compensation: 0.5,
+    mode: 'blitz',
+    theatre,
+  });
+  await t.run((ctx) => ctx.db.patch(seasonId, { seed: TEST_SEASON_SEED }));
+  const seat: Seat = { token, seasonId };
+  const seats = [seat];
+  for (let rank = 1; rank < players; rank += 1) {
+    seats.push(await joinSeat(t, code, `Joueur ${String(rank)}`));
   }
-  throw new Error('a pursuit that never ends');
+  for (const [rank, who] of seats.entries()) {
+    await t.mutation(api.players.reserveNation, { ...who, nation: NATIONS[rank]! });
+    await t.mutation(api.players.declareReady, { ...who, ready: true });
+  }
+  await t.mutation(api.seasons.launch, seat);
+  await t.action(internal.blitz.place, { seasonId });
+  return seats;
 }
 
-const troopRow = (t: Bench, id: Id<'troops'>) => t.run((ctx) => ctx.db.get(id));
-const point = (troop: Doc<'troops'> | null) => {
-  const at = troop?.stationedAt;
-  if (at === null || at === undefined || typeof at === 'string') throw new Error('not posted');
-  return [at.lon, at.lat] as const;
-};
+async function blitzLaunched(t: Bench) {
+  const [seat, guest] = await blitzLaunchedOn(t, 'europe', 2);
+  return { seat: seat!, guest: guest! };
+}
 
-describe('a Blitz unit and its orders (lot 5)', () => {
+const playerOf = (t: Bench, seat: Seat) => t.run((ctx) => seatIn(ctx, seat));
+
+const buildingsOf = (t: Bench, playerId: Id<'players'>) =>
+  t.run((ctx) =>
+    ctx.db
+      .query('buildings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect(),
+  );
+
+const troopsOf = (t: Bench, playerId: Id<'players'>) =>
+  t.run((ctx) =>
+    ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect(),
+  );
+
+const neutralOf = (t: Bench, seasonId: Id<'seasons'>) =>
+  t.run(async (ctx) => {
+    const seats = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    return seats.find((candidate) => candidate.irregular === true)!;
+  });
+
+const fundsServed = async (t: Bench, seat: Seat) =>
+  (await t.query(api.view.playerView, seat)).me.funds;
+
+describe('la carte de départ de la Blitz', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
   });
   afterEach(() => vi.useRealTimers());
 
-  it('sends one troop, inside its theatre, with no slot to wait for', async () => {
+  it('donne à chacun un QG, une caserne, deux fantassins et un pécule ; le reste est neutre', async () => {
     const t = boot();
-    const { seat } = await blitz(t);
-    const one = await troop(t, seat, PARIS);
-    const two = await troop(t, seat, PARIS);
-    await expect(
-      t.mutation(api.movements.marchTo, {
-        ...seat,
-        origin: { kind: 'point', point: PARIS },
-        troopIds: [one, two],
-        point: BERLIN,
-      }),
-    ).rejects.toThrow(/ONE_UNIT_ONLY/);
-    await expect(
-      t.mutation(api.movements.marchTo, {
-        ...seat,
-        origin: { kind: 'point', point: PARIS },
-        troopIds: [one],
-        point: { lon: -74, lat: 40.7 },
-      }),
-    ).rejects.toThrow(/OUTSIDE_THEATRE/);
-
-    const third = await troop(t, seat, PARIS);
-    for (const troopId of [one, two, third]) {
-      await t.mutation(api.movements.marchTo, {
-        ...seat,
-        origin: { kind: 'point', point: PARIS },
-        troopIds: [troopId],
-        point: BERLIN,
-      });
+    const { seat, guest } = await blitzLaunched(t);
+    for (const who of [seat, guest]) {
+      const me = await playerOf(t, who);
+      const held = await buildingsOf(t, me._id);
+      expect(held.map((building) => building.key).sort()).toEqual(['barracks', 'hq']);
+      const hq = held.find((building) => building.key === 'hq')!;
+      expect((await troopsOf(t, me._id)).map((troop) => [troop.role, troop.stationedAt])).toEqual([
+        ['infantry', hq._id],
+        ['infantry', hq._id],
+      ]);
+      expect(me.funds).toBe(BLITZ.startingFunds);
     }
-    const filed = await movementOf(t, one);
-    const minutes = (filed!.arrivesAt - filed!.departedAt) / 60_000;
-    expect(minutes).toBeGreaterThan(2);
-    expect(minutes).toBeLessThan(8);
+    const neutral = await buildingsOf(t, (await neutralOf(t, seat.seasonId))._id);
+    expect(neutral.length).toBeGreaterThan(4);
+    expect(new Set(neutral.map((building) => building.key))).toContain('city');
+    for (const port of neutral.filter((building) => building.key === 'port')) {
+      expect(port.point).toBeDefined();
+    }
+    expect(await troopsOf(t, (await neutralOf(t, seat.seasonId))._id)).toEqual([]);
   });
 
-  it('keeps one unit per building', async () => {
+  it('ferme la porte au lancement : ni place, ni entrée en guerre (E4)', async () => {
     const t = boot();
-    const { seat } = await blitz(t);
-    const hq = await t.run(async (ctx) => {
-      const player = await seatIn(ctx, seat);
-      return (await ctx.db
-        .query('buildings')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .first())!;
-    });
-    const walker = await troop(t, seat, PARIS);
-    await expect(
-      t.mutation(api.movements.enterGarrison, {
-        ...seat,
-        origin: { kind: 'point', point: PARIS },
-        troopIds: [walker],
-        buildingId: hq._id,
-      }),
-    ).rejects.toThrow(/BUILDING_OCCUPIED/);
-  });
-
-  it('chases a camp in sight and strikes it at contact, then reloads', async () => {
-    const t = boot();
-    const { seat, guest } = await blitz(t);
-    const hunter = await troop(t, seat, PARIS);
-    const quarry = await troop(t, guest, LYON);
-    const campId = await surveyCamp(t, seat, LYON);
-
-    await t.mutation(api.movements.attack, {
-      ...seat,
-      origin: { kind: 'point', point: PARIS },
-      troopIds: [hunter],
-      target: { kind: 'camp', campId },
-    });
-    expect((await movementOf(t, hunter))?.pursuit?.troopId).toBe(quarry);
-    await runPursuits(t);
-
-    const engagements = await t.run((ctx) => ctx.db.query('engagements').collect());
-    expect(engagements).toHaveLength(1);
-    expect(engagements[0]!.shock).toBeUndefined();
-    const after = await troopRow(t, hunter);
-    expect(distanceKm(point(after), [LYON.lon, LYON.lat])).toBeLessThanOrEqual(26);
-    expect(after!.reloadUntil).toBeGreaterThan(Date.now());
-    expect(await movementOf(t, hunter)).toBeFalsy();
-
-    const again = await surveyCamp(t, seat, LYON);
-    await expect(
-      t.mutation(api.movements.attack, {
-        ...seat,
-        origin: { kind: 'point', point: { lon: point(after)[0], lat: point(after)[1] } },
-        troopIds: [hunter],
-        target: { kind: 'camp', campId: again },
-      }),
-    ).rejects.toThrow(/RELOADING/);
-  });
-
-  it('takes the road again when its route stops short of the target', async () => {
-    const t = boot();
-    const { seat, guest } = await blitz(t);
-    const hunter = await troop(t, seat, PARIS);
-    const quarry = await troop(t, guest, LYON);
-    const short = { lon: 4.85, lat: 46.15 };
-    await t.run(async (ctx) => {
-      const player = await seatIn(ctx, seat);
-      await ctx.db.insert('movements', {
-        seasonId: player.seasonId,
-        playerId: player._id,
-        type: 'attack',
-        fromBuildingId: null,
-        target: { kind: 'point', point: LYON },
-        from: PARIS,
-        to: LYON,
-        hostCountry: 'FRA',
-        points: [PARIS, short],
-        legs: [{ medium: 'land', distanceUnits: 1 }],
-        distanceUnits: 1,
-        costUnits: 1,
-        troopIds: [hunter],
-        departedAt: MIDDAY - 60_000,
-        arrivesAt: MIDDAY,
-        pursuit: { troopId: quarry, checkAt: MIDDAY },
-      });
-    });
-    await surveyCamp(t, seat, LYON);
-    await runPursuits(t);
-    expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
-  });
-
-  it('gives up on a target out of sight and stops at its last known position', async () => {
-    const t = boot();
-    const { seat, guest } = await blitz(t);
-    const hunter = await troop(t, seat, PARIS);
-    await troop(t, guest, BERLIN);
-    const campId = await surveyCamp(t, seat, BERLIN);
-
-    await t.mutation(api.movements.attack, {
-      ...seat,
-      origin: { kind: 'point', point: PARIS },
-      troopIds: [hunter],
-      target: { kind: 'camp', campId },
-    });
-    await runPursuits(t);
-    const lost = await movementOf(t, hunter);
-    expect(lost).toMatchObject({ type: 'march' });
-    expect(lost!.pursuit).toBeUndefined();
-    vi.setSystemTime(lost!.arrivesAt);
-    await t.mutation(internal.movements.arrive, { movementId: lost!._id });
-    expect(point(await troopRow(t, hunter))).toEqual([BERLIN.lon, BERLIN.lat]);
-    const player = await t.run((ctx) => seatIn(ctx, seat));
-    const notices = await t.run((ctx) =>
-      ctx.db
-        .query('notices')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect(),
+    const { seat } = await blitzLaunched(t);
+    const { code } = (await t.run((ctx) => ctx.db.get(seat.seasonId)))!;
+    const late = await signIn(t, 'Retard');
+    await expect(t.mutation(api.seasons.join, { token: late, code })).rejects.toThrow(
+      /BLITZ_STARTED/,
     );
-    expect(notices.some((notice) => notice.kind === 'pursuitLost')).toBe(true);
   });
 
-  it('resolves a charge against a charge as a shock', async () => {
+  it('revient au salon quand la pose échoue, au lieu de laisser une saison sans carte', async () => {
     const t = boot();
-    const { seat, guest } = await blitz(t);
-    const hunter = await troop(t, seat, PARIS);
-    const quarry = await troop(t, guest, LYON);
-    const campId = await surveyCamp(t, seat, LYON);
-    await t.mutation(api.movements.attack, {
-      ...seat,
-      origin: { kind: 'point', point: PARIS },
-      troopIds: [hunter],
-      target: { kind: 'camp', campId },
+    const token = await signIn(t, 'Pierre');
+    const { code, seasonId } = await t.mutation(api.seasons.create, {
+      token,
+      compensation: 0.5,
+      mode: 'blitz',
+      theatre: 'europe',
     });
-    const theirs = await t.run(async (ctx) => {
-      const player = await seatIn(ctx, guest);
-      return ctx.db.insert('movements', {
-        seasonId: player.seasonId,
-        playerId: player._id,
+    const seat: Seat = { token, seasonId };
+    const guest = await joinSeat(t, code, 'Léa');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    await t.run((ctx) => ctx.db.patch(seasonId, { theatre: 'atlantide' }));
+    await t.action(internal.blitz.place, { seasonId });
+    expect(await t.run((ctx) => ctx.db.get(seasonId))).toMatchObject({
+      status: 'lobby',
+      launchRefusal: 'BLITZ_MAP_FAILED',
+    });
+    expect((await t.query(api.seasons.lobby, seat)).launchRefusal).toBe('BLITZ_MAP_FAILED');
+  });
+
+  it('ne se pose qu’une fois', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const before = await t.run((ctx) => ctx.db.query('buildings').collect());
+    await t.action(internal.blitz.place, { seasonId: seat.seasonId });
+    expect(await t.run((ctx) => ctx.db.query('buildings').collect())).toHaveLength(before.length);
+  });
+
+  it('sert les neutres à tout le monde, sans aucune des huit ressources', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.neutralSites.length).toBeGreaterThan(4);
+    expect(view.me.foundation).toEqual([]);
+    expect(Object.values(view.me.resources).every((resource) => resource.stock === 0)).toBe(true);
+  });
+});
+
+describe('la carte de départ, théâtre par théâtre', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** **Le Pacifique à quatre est refusé** : le cercle passe sur l'océan, et les QG d'où l'on
+   *  marche (Japon, Philippines, Papouasie, Nouvelle-Zélande) sont à 0,31 d'équité. */
+  for (const [theatre, players, fair] of [
+    ['europe', 4, true],
+    ['pacific', 2, true],
+    ['pacific', 4, false],
+    ['americas', 3, true],
+    ['mediterranean', 3, true],
+  ] as const) {
+    it(`pose à pied dans la tolérance, ou revient au salon — ${theatre} à ${String(players)}`, async () => {
+      const t = boot();
+      const seats = await blitzLaunchedOn(t, theatre, players);
+      const season = (await t.run((ctx) => ctx.db.get(seats[0]!.seasonId)))!;
+      if (!fair) {
+        expect(season).toMatchObject({ status: 'lobby', launchRefusal: 'BLITZ_MAP_UNFAIR' });
+        expect(await t.run((ctx) => ctx.db.query('resources').collect())).toEqual([]);
+        return;
+      }
+      expect(season.status).toBe('launched');
+      const neutral = await neutralOf(t, season._id);
+      const neutrals = await buildingsOf(t, neutral._id);
+      const ports = neutrals.filter((building) => building.key === 'port');
+      expect(ports.length).toBeGreaterThanOrEqual(players);
+      for (const port of ports) expect(port.point).toBeDefined();
+      for (const who of seats) {
+        const me = await playerOf(t, who);
+        const held = await buildingsOf(t, me._id);
+        const hq = held.find((building) => building.key === 'hq')!;
+        const others = [...held.filter((building) => building.key !== 'hq'), ...neutrals];
+        const onFoot = routeKmFrom(
+          pointOfBuilding(hq)!,
+          others.map((building) => ({
+            id: building._id as string,
+            point: regionFacts(building.regionId)!.point,
+          })),
+          'land',
+        );
+        const barracks = held.find((building) => building.key === 'barracks')!;
+        const target = BLITZ.map.starting[0]!.km;
+        expect(Math.abs(onFoot.get(barracks._id)! - target)).toBeLessThanOrEqual(
+          target * BLITZ.map.tolerance,
+        );
+        const cities = neutrals.filter(
+          (building) =>
+            building.key === 'city' &&
+            Math.abs((onFoot.get(building._id) ?? Infinity) - 250) <= 250 * BLITZ.map.tolerance,
+        );
+        expect(cities.length).toBeGreaterThan(0);
+      }
+    });
+  }
+});
+
+describe('les fonds de la Blitz', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('tombent chaque minute pour le QG tenu', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    vi.setSystemTime(MIDDAY + 2 * MINUTE);
+    expect(await fundsServed(t, seat)).toEqual({
+      stock: BLITZ.startingFunds + 2 * BLITZ.fundsPerMinute.hq!,
+      perMinute: BLITZ.fundsPerMinute.hq,
+    });
+  });
+
+  it('suivent une ville neutre capturée, réglés à l’heure de la capture', async () => {
+    const t = boot();
+    const { seat, guest } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const neutral = await neutralOf(t, seat.seasonId);
+    const city = (await buildingsOf(t, neutral._id)).find((building) => building.key === 'city')!;
+    const aimed = await t.run((ctx) =>
+      captureAimOf(ctx, me, { kind: 'building', buildingId: city._id }),
+    );
+    expect(aimed.target).toEqual({ kind: 'building', buildingId: city._id });
+
+    const [infantry] = await troopsOf(t, me._id);
+    const [lon, lat] = pointOfBuilding(city)!;
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: seat.seasonId,
+        playerId: me._id,
         type: 'attack',
         fromBuildingId: null,
-        target: { kind: 'point', point: PARIS },
-        from: LYON,
-        to: PARIS,
-        hostCountry: 'FRA',
-        points: [LYON, PARIS],
+        target: { kind: 'building', buildingId: city._id },
+        from: { lon: lon - 1, lat },
+        to: { lon, lat },
+        hostCountry: '',
+        points: [
+          { lon: lon - 1, lat },
+          { lon, lat },
+        ],
         legs: [{ medium: 'land', distanceUnits: 1 }],
         distanceUnits: 1,
         costUnits: 1,
-        troopIds: [quarry],
+        troopIds: [infantry!._id],
         departedAt: MIDDAY,
-        arrivesAt: MIDDAY + 20 * 60_000,
-        pursuit: { troopId: hunter, checkAt: MIDDAY + 3_600_000 },
-      });
-    });
-    await t.run((ctx) => reassessDetection(ctx, seat.seasonId, MIDDAY));
-    await runPursuits(t);
+        arrivesAt: MIDDAY,
+        capture: { kind: 'building', buildingId: city._id },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+    expect(capture!.completesAt).toBe(MIDDAY + 3 * MINUTE);
 
-    const [engagement] = await t.run((ctx) => ctx.db.query('engagements').collect());
-    expect(engagement!.shock).toBe(true);
-    expect(await t.run((ctx) => ctx.db.get(theirs))).toBeNull();
-    for (const id of [hunter, quarry]) {
-      const row = await troopRow(t, id);
-      if (row !== null) expect(row.reloadUntil).toBeGreaterThan(Date.now());
+    vi.setSystemTime(capture!.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: capture!._id,
+      expectedAt: capture!.completesAt,
+    });
+    expect((await t.run((ctx) => ctx.db.get(city._id)))!.playerId).toBe(me._id);
+    vi.setSystemTime(MIDDAY + 4 * MINUTE);
+    const hq = BLITZ.fundsPerMinute.hq!;
+    const town = BLITZ.fundsPerMinute.city!;
+    expect(await fundsServed(t, seat)).toEqual({
+      stock: BLITZ.startingFunds + 4 * hq + town,
+      perMinute: hq + town,
+    });
+
+    /** **Le brouillard tient** : l'autre la voit neutre tant qu'il ne l'a pas relevée. */
+    const neutralFor = async (who: Seat) =>
+      (await t.query(api.view.playerView, who)).neutralSites.map((site) => site.id);
+    expect(await neutralFor(seat)).not.toContain(city._id);
+    expect(await neutralFor(guest)).toContain(city._id);
+    const other = await playerOf(t, guest);
+    /** L'ordre part sur la foi de ce qu'il voit : un refus lui apprendrait la prise. */
+    await expect(
+      t.run((ctx) => captureAimOf(ctx, other, { kind: 'building', buildingId: city._id })),
+    ).resolves.toMatchObject({ target: { kind: 'building', buildingId: city._id } });
+    await t.run((ctx) => surveyFromPoint(ctx, other._id, pointOfBuilding(city)!, Date.now()));
+    expect(await neutralFor(guest)).not.toContain(city._id);
+  });
+});
+
+describe('la capture d’un neutre', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('part de la rose sans relevé, et la vue s’ouvre sur le QG', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    const neutral = await neutralOf(t, seat.seasonId);
+    const city = (await buildingsOf(t, neutral._id)).find((building) => building.key === 'city')!;
+    const [infantry] = await troopsOf(t, me._id);
+    await expect(
+      t.mutation(api.movements.capture, {
+        ...seat,
+        origin: { kind: 'building', buildingId: hq._id },
+        troopIds: [infantry!._id],
+        target: { kind: 'building', buildingId: city._id },
+      }),
+    ).resolves.toMatchObject({ movementId: expect.any(String) });
+    expect((await t.query(api.view.playerView, seat)).me.openingPoint).toEqual(pointOfBuilding(hq));
+  });
+});
+
+describe('un site capturé avec sa file', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('rend au perdant les fonds d’une recrue qui n’a pas commencé, jamais de l’alliage', async () => {
+    const t = boot();
+    const { seat, guest } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const loser = await playerOf(t, guest);
+    const barracks = (await buildingsOf(t, loser._id)).find((b) => b.key === 'barracks')!;
+    for (let rank = 0; rank < 2; rank += 1) {
+      await t.mutation(api.troops.recruit, {
+        ...guest,
+        buildingId: barracks._id,
+        role: 'infantry',
+        tier: 1,
+      });
     }
+    const [infantry] = await troopsOf(t, me._id);
+    const [lon, lat] = pointOfBuilding(barracks)!;
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: seat.seasonId,
+        playerId: me._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'building', buildingId: barracks._id },
+        from: { lon: lon - 1, lat },
+        to: { lon, lat },
+        hostCountry: '',
+        points: [
+          { lon: lon - 1, lat },
+          { lon, lat },
+        ],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry!._id],
+        departedAt: MIDDAY,
+        arrivesAt: MIDDAY,
+        capture: { kind: 'building', buildingId: barracks._id },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
+    const before = (await playerOf(t, guest)).funds!;
+    vi.setSystemTime(capture!.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: capture!._id,
+      expectedAt: capture!.completesAt,
+    });
+    const minutes = (capture!.completesAt - MIDDAY) / MINUTE;
+    expect((await playerOf(t, guest)).funds).toBe(
+      before + BLITZ.rolePrice.infantry + minutes * BLITZ.fundsPerMinute.hq!,
+    );
+    const alloy = await t.run(async (ctx) =>
+      (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+          .collect()
+      ).find((row) => row.key === 'alloy'),
+    );
+    expect(alloy!.stock).toBe(0);
+  });
+});
+
+describe('le recrutement de la Blitz', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('forme une infanterie au QG en une minute, payée en fonds', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const hq = (await buildingsOf(t, me._id)).find((building) => building.key === 'hq')!;
+    const { recruitmentId } = await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: hq._id,
+      role: 'infantry',
+      tier: 1,
+    });
+    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - BLITZ.rolePrice.infantry);
+    const batch = await t.run((ctx) => ctx.db.get(recruitmentId));
+    expect(batch!.finishesAt).toBe(MIDDAY + BLITZ.recruitMinutes * MINUTE);
+
+    await t.mutation(internal.troops.deliver, { recruitmentId });
+    expect(await troopsOf(t, me._id)).toHaveLength(3);
+  });
+
+  it('refuse un blindé au QG, et ce que les fonds ne paient pas', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const held = await buildingsOf(t, me._id);
+    const hq = held.find((building) => building.key === 'hq')!;
+    const barracks = held.find((building) => building.key === 'barracks')!;
+    await expect(
+      t.mutation(api.troops.recruit, { ...seat, buildingId: hq._id, role: 'armor', tier: 1 }),
+    ).rejects.toThrow(/WRONG_PROJECTION_BUILDING/);
+    await t.run((ctx) => ctx.db.patch(me._id, { funds: 100 }));
+    await expect(
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks._id, role: 'armor', tier: 1 }),
+    ).rejects.toThrow(/INSUFFICIENT_FUNDS/);
+  });
+});
+
+describe('le soin et l’absence de chantier', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('soigne une troupe entamée sur son QG, contre des fonds', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const [wounded] = await troopsOf(t, me._id);
+    await t.run((ctx) => ctx.db.patch(wounded!._id, { currentStrength: 20 }));
+    expect(
+      (await t.query(api.view.playerView, seat)).me.troops.find(
+        (troop) => troop.id === wounded!._id,
+      )!.mending,
+    ).toBe(true);
+
+    await t.mutation(internal.blitz.mend, { seasonId: seat.seasonId });
+    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(25);
+    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 3);
+  });
+
+  it('refuse de démolir : en Blitz on ne bâtit rien', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const [first] = await buildingsOf(t, me._id);
+    await expect(
+      t.mutation(api.buildings.demolish, { ...seat, buildingId: first!._id }),
+    ).rejects.toThrow(/NOT_IN_BLITZ/);
   });
 });

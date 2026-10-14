@@ -206,6 +206,7 @@ export const fr = {
     billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
+    city: 'Ville',
   } satisfies Record<BuildingKey, string>,
 
   /**
@@ -230,6 +231,7 @@ export const fr = {
     billets: 'm',
     warehouse: 'm',
     depot: 'm',
+    city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
@@ -248,6 +250,7 @@ export const fr = {
     billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des huit ressources — se pille',
     depot: 'relève le plafond des huit ressources — se pille',
+    city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
@@ -255,6 +258,31 @@ export const fr = {
     'europe-med': 'Europe + Méditerranée + Moyen-Orient',
     world: 'Monde',
   } satisfies Record<PlayableRegion, string>,
+
+  /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
+  blitz: {
+    funds: 'fonds',
+    neutral: 'neutre',
+    neutralSite: (region: string) => `neutre · ${region}`,
+    unguarded: 'personne ne la tient — l’infanterie la capture',
+    perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
+    siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
+    fundsHeld: (funds: number) => `${num(funds)} fonds en caisse`,
+    price: (funds: number) => `${num(funds)} fonds`,
+    terms: (funds: number, minutes: number) => `${num(funds)} fonds · prêt en ${num(minutes)} min`,
+    recruit: (funds: number) => `former — ${num(funds)} fonds`,
+    short: (missing: number) => `il manque ${num(missing)} fonds`,
+    mend: 'soin',
+    formsIn: (sites: ReadonlyArray<string>) =>
+      `se forme dans ${sites.join(' ou dans ')}, contre des fonds`,
+    mending: (count: number) =>
+      count > 1 ? `${num(count)} troupes reprennent des forces` : 'reprend des forces',
+    mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
+    mendNote:
+      'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    fundsLabel: (stock: number, perMinute: number) =>
+      `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
+  },
 
   modes: {
     blitz: {
@@ -434,6 +462,7 @@ export const fr = {
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
+    BLITZ_STARTED: () => 'la Blitz est lancée — elle se joue entre ceux qui étaient là',
     BLITZ_FULL: (d) =>
       `cette Blitz est complète : elle se joue à ${num(d.maximum)} joueurs au plus`,
     THEATRE_REQUIRED: () => 'une Blitz demande un théâtre',
@@ -556,6 +585,15 @@ export const fr = {
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture pas encore',
+    INSUFFICIENT_FUNDS: (d) =>
+      d.needed === undefined
+        ? 'les fonds ne suffisent pas'
+        : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
+    TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
+    NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
+    BLITZ_MAP_UNFAIR: () =>
+      'aucune carte équitable sur ce théâtre pour ce nombre de joueurs — la partie revient au salon',
+    BLITZ_MAP_FAILED: () => 'la carte de départ n’a pas pu se poser — la partie revient au salon',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
@@ -1706,6 +1744,8 @@ export const fr = {
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
+    neutralCities: (count: number) =>
+      count > 1 ? `${count} villes neutres à prendre` : 'une ville neutre à prendre',
     /** **Une ligne par sorte** (décision Pierre, 05/10) : le lieu n'est dit qu'à une seule
      *  adresse, le total seul quand il y en a plusieurs. */
     troopWithoutOrder: (count: number, place: string | null) =>

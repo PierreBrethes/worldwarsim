@@ -43,6 +43,7 @@ export const BUILDING_KEY = v.union(
   v.literal('billets'),
   v.literal('warehouse'),
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
+  v.literal('city'),
 );
 
 /**
@@ -819,3 +820,6 @@ export const PUSH_PREFERENCES = v.object({
   season: v.boolean(),
   telegraph: v.boolean(),
 });
+
+/** Pourquoi une Blitz lancée est revenue au salon (`blitz.abandon`). */
+export const LAUNCH_REFUSAL = v.union(v.literal('BLITZ_MAP_UNFAIR'), v.literal('BLITZ_MAP_FAILED'));

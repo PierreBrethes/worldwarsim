@@ -101,6 +101,7 @@ export const BUILDINGS = [
   'billets',
   'warehouse',
   'depot',
+  'city',
 ] as const;
 
 export type BuildingKey = (typeof BUILDINGS)[number];
@@ -109,7 +110,10 @@ export type BuildingKey = (typeof BUILDINGS)[number];
 export const canonicalBuildingKey = (key: BuildingKey): Exclude<BuildingKey, 'depot'> =>
   key === 'depot' ? 'warehouse' : key;
 
-export const BUILDABLE_BUILDINGS = BUILDINGS.filter((key) => canonicalBuildingKey(key) === key);
+/** La ville n'existe qu'en Blitz, posée par la carte de départ : rien ne la bâtit. */
+export const BUILDABLE_BUILDINGS = BUILDINGS.filter(
+  (key) => key !== 'city' && canonicalBuildingKey(key) === key,
+);
 
 /**
  * **Ce qui se tarife au barème des chantiers** — les quinze bâtiments, et l'élévation d'un

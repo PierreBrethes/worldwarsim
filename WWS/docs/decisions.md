@@ -1,7 +1,7 @@
 ---
 type: index
 statut: en cours
-maj: 2026-10-04
+maj: 2026-10-14
 code: []
 decisions: []
 voir: [adr/README.md, ../QUESTIONS.md, RESTE-A-CODER.md, ../INDEX.md]
@@ -151,6 +151,7 @@ Les codes `1a` (terrain) et `2a` (retranchement) du 16/09 et le `2a` du 17/09 so
 | `pierre-2026-09-17-disque` | 2026-09-17 | Une région est tenue dès qu'une de ses cellules entre dans le disque (révise ADR 0020 §1). | en vigueur | [tenir-ce-que-le-cercle-touche](prompts/code/done/tenir-ce-que-le-cercle-touche.md), [ADR 0020](adr/0020-domination-par-couleur.md) |
 | `pierre-2026-09-17-objectifs-neutres` | 2026-09-17 | Objectifs neutres : palette d'archétypes, garnisons par paliers, siège irrégulier. | en vigueur (lot 1) | [objectifs-neutres](design/propositions/objectifs-neutres.md), [ADR 0024](adr/0024-engagement-intentionnel-et-forces-posees-visibles.md) |
 | `pierre-2026-09-18-cargo-en-mer` | 2026-09-18 | Un cargo peut rester en mer avec des unités dedans (révise `72a-2026-09-04`). | en vigueur | [rester-en-mer](prompts/code/done/rester-en-mer.md), [ADR 0019](adr/0019-mouvement-libre-et-troupes-posees.md) |
+| `pierre-2026-10-14-deux-modes` | 2026-10-14 | Deux modes sur un même support : Blitz (1-2 h, à la Advance Wars) et Mondiale (7 jours) ; capture à l'infanterie, combat à l'initiative, six ressources, points stratégiques. | décidé, non codé | [gameplay-deux-modes](design/propositions/gameplay-deux-modes-2026-10-14.md) |
 
 ## Les ADR et leurs révisions
 
