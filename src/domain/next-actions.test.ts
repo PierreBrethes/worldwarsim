@@ -81,7 +81,9 @@ describe('a capture', () => {
     expect(kinds(board({}, [], [capture('capturer')]))).toEqual([]);
     const [stopped] = nextActionsOf(board({}, [], [capture('capturer', 10)]));
     expect(stopped?.kind).toBe('captureStopped');
-    expect(stopped?.label).toBe('Capture de Fonderie de Lyon arrêtée : plus d’infanterie sur place');
+    expect(stopped?.label).toBe(
+      'Capture de Fonderie de Lyon arrêtée : plus d’infanterie sur place',
+    );
   });
 });
 

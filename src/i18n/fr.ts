@@ -254,6 +254,9 @@ export const fr = {
     stamp: 'capture',
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
     lostAt: (percent: number, hour: string) => `${percent} % · perdu vers ${hour}`,
+    underCapture: 'en cours de capture',
+    underCaptureWhy: (hour: string) =>
+      `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
   },
 
   loot: {

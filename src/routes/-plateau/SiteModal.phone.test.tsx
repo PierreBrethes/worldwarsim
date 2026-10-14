@@ -80,6 +80,7 @@ const workshopWith = (
   { inService = 3, cap = 12 }: { inService?: number; cap?: number } = {},
 ) => ({
   loadedAt: NOW,
+  captures: [],
   hqLevel: 1,
   tier2Unlocked: true,
   requiredHqLevel: 2,
@@ -95,6 +96,7 @@ const workshopWith = (
 const resource = (stock: number) => ({ stock, ratePerHour: 0, cap: 1_000 });
 const view = {
   loadedAt: NOW,
+  captures: [],
   arcs: [],
   me: {
     nation: 'france',
