@@ -148,6 +148,19 @@ export default defineSchema({
     theatre: v.optional(v.string()),
     /** Why the last launch of a Blitz came back to the lobby; cleared by the next launch. */
     launchRefusal: v.optional(LAUNCH_REFUSAL),
+    /** **L'ordre d'opérations**, réglé par le fondateur jusqu'au lancement
+     *  (`src/domain/operation-order.ts`). Absent se lit comme les défauts : pas de rendez-vous,
+     *  pas de rappel, prise d'un QG en 12 h, la table pleine. `scheduledAt: null` est une Blitz
+     *  « dès que la table est complète ». */
+    scheduledAt: v.optional(v.union(v.number(), v.null())),
+    remind: v.optional(v.boolean()),
+    /** Mondiale (M15) : stocké et affiché, la capture de QG Mondiale n'existe pas encore. */
+    hqCaptureHours: v.optional(v.number()),
+    seatCap: v.optional(v.number()),
+    /** Le travail du rappel en attente, qu'un changement de l'ordre annule (`planReminder`). */
+    reminderJobId: v.optional(v.id('_scheduled_functions')),
+    /** Le théâtre a été tiré au sort au lancement : un lancement défait le remet au sort. */
+    theatreDrawn: v.optional(v.boolean()),
   }).index('byCode', ['code']),
 
   players: defineTable({
@@ -274,6 +287,10 @@ export default defineSchema({
     /** L'heure du dernier télégraphe parti en notification pour cette place : le télégraphe
      *  n'en déclenche qu'une par heure (`convex/notifications.ts`). */
     telegraphPushedAt: v.optional(v.number()),
+    /** **À la table du salon d'une Blitz**, au dernier battement (`players.beatLobby`). Jamais
+     *  écrit ni servi en Mondiale : la présence y serait un canal sur les plages de repos
+     *  (ADR 0005). */
+    lobbySeenAt: v.optional(v.number()),
   })
     .index('byAccountSeason', ['accountId', 'seasonId'])
     .index('bySeason', ['seasonId']),
@@ -808,6 +825,18 @@ export default defineSchema({
     /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
      *  passe à l'initiative. */
     shock: v.optional(v.boolean()),
+    /**
+     * **Au feu, on voit l'ennemi** (F1, 14/10/2026) : la nation de chaque camp au moment de la
+     * passe — ses rôles et effectifs sont déjà dans `troops`. Servie à l'autre participant
+     * seulement, jamais à la cible d'un bombardement (`facedOf`, `convex/view.ts`). Absente sur
+     * un engagement d'avant ce lot, qui garde ses blocs et ses totaux.
+     */
+    nations: v.optional(
+      v.object({
+        attacker: v.union(v.string(), v.null()),
+        defender: v.union(v.string(), v.null()),
+      }),
+    ),
     /**
      * **Legacy, plus jamais écrit ni lu.** Le détail frappe par frappe est passé dans la table
      * `strikes` : gardé dans le document de l'engagement, il se relisait à chaque chargement du

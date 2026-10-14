@@ -1,316 +1,235 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
-import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, nationLabel, placeLabel } from '@/i18n/fr';
+import {
+  fr,
+  clockLabel,
+  nationLabel,
+  placeLabel,
+  rendezvousLabel,
+  countdownLabel,
+} from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
-import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
-import { SEASON_MODES, type SeasonMode } from '@/domain/season-mode';
-import { THEATRES, type Theatre, type TheatreId } from '@/domain/theatres';
-import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
-import { Masthead } from '@/shell/Masthead';
-import { TOUCH_TARGET } from '@/shell/EntrySheet';
+import { frontPageOrder } from '@/domain/front-page';
+import { normalizeGameCode } from '@/domain/off-season';
+import { presenceOf } from '@/domain/operation-order';
+import { theatreById } from '@/domain/theatres';
+import { Wordmark } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
-import { FlagWatermark } from '@/emblems/Flag';
-import { WORLD_LAND_PATH } from '@/emblems/world-land';
+import { EngravedMap } from '@/emblems/EngravedMap';
+import { FlagChip, OffSeasonPage, boxOf, romanDate } from '@/shell/OffSeason';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
-import { useSingleFlight } from '@/data/useSingleFlight';
-import { forgetSession, keepSeat, useSession } from '@/data/session';
+import { forgetSession, useSession } from '@/data/session';
 import { currentPushEndpoint } from '@/data/pushDevice';
+import { downloadRendezvous } from '@/data/rendezvous';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
 
-const WIDTH = 720;
-
 function Home() {
-  return convexClient ? <ConnectedHome /> : <OfflineHome />;
-}
-
-function OfflineHome() {
-  const { turning } = usePageTurn();
-  return (
-    <HomeSheet turning={turning}>
-      <NoBackend />
-    </HomeSheet>
+  return convexClient ? (
+    <ConnectedHome />
+  ) : (
+    <OffSeasonPage>
+      <p className="note" style={{ padding: 40, color: 'var(--paper)' }}>
+        {fr.auth.noBackend}
+      </p>
+    </OffSeasonPage>
   );
 }
 
-function HomeSheet({ turning, children }: { turning: Turning; children: ReactNode }) {
-  return (
-    <Newspaper width={WIDTH} turning={turning}>
-      <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] float">
-        <div className="flex items-baseline justify-between gap-5 px-(--sheet-pad) pt-[13px] pb-[9px]">
-          <span className="eyebrow">{fr.home.edition}</span>
-          <span className="eyebrow">{fr.home.audience}</span>
-        </div>
+export type Seat = FunctionReturnType<typeof api.accounts.seats>[number];
 
-        {/* La date a quitté l'oreille pour la ligne de date de la manchette, qui est sa place
-            dans un quotidien — et il n'y en a qu'une sur la page. */}
-        <div className="px-(--sheet-pad) pt-[6px] pb-[18px] text-center">
-          <Masthead date={romanDate(new Date())} wordmarkMax={54} />
-          <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
-            {fr.home.tagline}
-          </p>
-        </div>
+/** Un salon qui attend ce joueur : sa nation, son « prêt », ou — fondateur — son lancement. */
+const awaits = (seat: Seat): boolean => {
+  const me = seat.table.find((entry) => entry.mine);
+  if (me === undefined) return false;
+  if (me.nation === null || !me.ready) return true;
+  return seat.creator && seat.table.every((entry) => entry.ready);
+};
 
-        <ThickRuleInverse margin="var(--sheet-pad)" />
-
-        {children}
-
-        <div
-          aria-hidden
-          className="pointer-events-none absolute right-[26px] bottom-[46px] rotate-[-9deg] max-md:hidden border-2 border-[rgba(157,70,56,.55)] px-3 pt-[6px] pb-[5px] text-center text-[rgba(157,70,56,.62)]"
-        >
-          <div className="text-[10px] tracking-[.26em] uppercase">{fr.home.stampTitle}</div>
-          <div className="mt-px font-(family-name:--font-mono) text-[9px] tracking-[.14em]">
-            {fr.home.stampSub}
-          </div>
-        </div>
-      </div>
-    </Newspaper>
-  );
-}
-
+/**
+ * **La une de mon édition** (choix 13) : mes parties en articles triés par urgence, la plus
+ * pressante à la une, et deux petites annonces — composer une partie, ouvrir un code. Supprimer
+ * n'est plus ici : au salon pour un salon, au pli d'une partie conclue pour le reste.
+ */
 function ConnectedHome() {
   const navigate = useNavigate();
-  const { turning, turn } = usePageTurn();
-  const create = useMutation(api.seasons.create);
-  const join = useMutation(api.seasons.join);
   const destroy = useMutation(api.seasons.destroy);
   const logout = useMutation(api.accounts.logout);
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<SeasonMode>('mondiale');
-  const [theatre, setTheatre] = useState<TheatreId>('europe');
-  const [resuming, setResuming] = useState<Seat | null>(null);
-  /** Le compte est déjà garanti par la racine (`__root.tsx`) : sans session valide, cette
-   *  feuille n'est pas montée. La chaîne vide n'arme donc rien, elle satisfait le type. */
   const token = useSession() ?? '';
   const me = useQuery(api.accounts.me, { token });
-  /** **La liste des parties est à part de la porte** (révision du 12/09 de l'ADR 0022) : c'est
-   *  le seul écran qui la demande, et elle lit une table de jeu que le gardien racine n'a plus
-   *  à garder en vue. */
   const seats = useQuery(api.accounts.seats, { token });
-
-  // Newest first: the game one just founded is the one one comes back for.
-  const mine = useMemo(
-    () => [...(seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
-    [seats],
+  const [resuming, setResuming] = useState<Seat | null>(null);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const now = Date.now();
+  const ordered = frontPageOrder(
+    (seats ?? []).map((seat) => ({
+      ...seat,
+      scheduledAt: seat.orders.scheduledAt,
+      awaited: awaits(seat),
+    })),
+    now,
   );
+  const [lead, ...others] = ordered;
 
-  const toLobby = () => turn(() => void navigate({ to: '/salon' }));
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
-
-  /**
-   * A launched season has no lobby left to show **to a belligerent**: resuming means walking
-   * back onto the board. The sequence then serves as an airlock — it covers the map's loading.
-   *
-   * A concluded season walks back onto the board like a running one: the wipe is manual, and
-   * reading the game back is exactly what the season is kept for.
-   */
-  /** A seat on a running season whose owner has not entered the war goes back to the lobby
-   *  too: he holds no nation yet, and it is there that he enters (`seasons.enterWar`). */
   const resume = (seat: Seat) =>
-    resumeSeat(seat, { salon: toLobby, plateau: () => setResuming(seat) });
-
-  /** One answer awaited at a time: `seasons.create` refuses nothing, so a double press on
-   *  "fonder" would found two seasons. */
-  const { run: runOnce, pending } = useSingleFlight();
-
-  const submitCreate = async (event: FormEvent) => {
-    event.preventDefault();
-    await runOnce(async () => {
-      try {
-        const { seasonId } = await create({
-          token,
-          compensation: 0.5,
-          mode,
-          ...(mode === 'blitz' ? { theatre } : {}),
-        });
-        keepSeat(seasonId);
-        toLobby();
-      } catch (problem) {
-        handleError(problem, setError);
-      }
+    resumeSeat(seat, {
+      salon: () => void navigate({ to: '/salon' }),
+      plateau: () => setResuming(seat),
     });
+
+  const openCode = (event: FormEvent) => {
+    event.preventDefault();
+    const normalized = normalizeGameCode(code);
+    if (normalized === null) {
+      setError(fr.errors.UNKNOWN_GAME_CODE());
+      return;
+    }
+    void navigate({ to: '/rejoindre/$code', params: { code: normalized } });
   };
 
-  const submitJoin = async (event: FormEvent) => {
-    event.preventDefault();
-    await runOnce(async () => {
-      try {
-        const { seasonId } = await join({ token, code });
-        keepSeat(seasonId);
-        toLobby();
-      } catch (problem) {
-        handleError(problem, setError);
-      }
-    });
-  };
+  const signOut = () =>
+    void currentPushEndpoint()
+      .then((endpoint) => logout({ token, ...(endpoint === null ? {} : { endpoint }) }))
+      .finally(() => {
+        forgetSession();
+        void navigate({ to: '/connexion' });
+      });
 
   return (
-    <>
-      <HomeSheet turning={turning}>
-        {mine.length > 0 && (
-          <div className="mx-(--sheet-pad) mt-[20px]">
-            <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-              <span className="eyebrow">{fr.home.gamesHeader}</span>
-              <span className="text-[10.5px] text-[var(--ink-note)]">{fr.home.gamesNote}</span>
-            </div>
-            <ul className="mt-3 flex flex-col gap-3">
-              {mine.map((seat) => (
-                <GameRow
-                  key={seat.seasonId}
-                  seat={seat}
-                  onResume={() => resume(seat)}
-                  onDestroy={() =>
-                    void destroy({ token, seasonId: seat.seasonId }).catch((problem: unknown) =>
-                      handleError(problem, setError),
-                    )
-                  }
-                />
-              ))}
-            </ul>
+    <OffSeasonPage>
+      <div className="front-wrap">
+        <article className="sheet pile front" aria-labelledby="t-front">
+          <div className="ears">
+            <span className="eyebrow">
+              {fr.auth.signedIn(me?.nickname ?? '')} ·{' '}
+              <button type="button" className="link" style={EAR_LINK} onClick={signOut}>
+                {fr.auth.logout}
+              </button>
+            </span>
+            <span className="eyebrow">
+              {fr.front.date(new Date(now))} · {fr.home.gamesCount(ordered.length)}
+            </span>
           </div>
-        )}
-
-        {/* Les deux bureaux côte à côte tant que la page en a la largeur ; l'un sous l'autre
-            sous une feuille étroite, où chacun n'avait plus que cent trente pixels et débordait
-            de la page. */}
-        <div className="mx-(--sheet-pad) mt-6 flex flex-col items-stretch border-t border-[var(--ink)] @md:flex-row">
-          <form onSubmit={submitCreate} className="flex-1 pt-4 pb-1 @md:pr-[26px]">
-            <Title numeral="I" title={fr.home.foundTitle} />
-            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.foundNote}</p>
-
-            <div
-              role="radiogroup"
-              aria-label={fr.modes.modeLabel}
-              className="mt-3 flex flex-col gap-2"
-            >
-              {SEASON_MODES.map((candidate) => (
-                <ChoiceCard
-                  key={candidate}
-                  selected={mode === candidate}
-                  onSelect={() => setMode(candidate)}
-                  title={fr.modes[candidate].name}
-                  line={fr.modes[candidate].line}
-                />
-              ))}
+          <header className="mast">
+            <div className="top" />
+            <div className="top2" />
+            <div className="wm" id="t-front">
+              <Wordmark size={76} />
             </div>
+            <div className="rule" />
+            <div className="dl">
+              <span>{fr.home.edition(me?.nickname ?? '')}</span>
+              <span>{romanDate(new Date(now))}</span>
+            </div>
+          </header>
+          <p className="tag">{fr.home.tagline}</p>
+          <div className="rule double" />
 
-            {mode === 'blitz' && (
-              <div className="mt-3">
-                <div className="eyebrow">{fr.modes.theatreLabel}</div>
-                <div
-                  role="radiogroup"
-                  aria-label={fr.modes.theatreLabel}
-                  className="mt-[6px] grid grid-cols-2 gap-2"
-                >
-                  {THEATRES.map((candidate) => (
-                    <button
-                      key={candidate.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={theatre === candidate.id}
-                      onClick={() => setTheatre(candidate.id)}
-                      className={`cursor-pointer p-2 text-left ${choiceClass(theatre === candidate.id)}`}
-                    >
-                      <TheatreMap theatre={candidate} />
-                      <span className="mt-1 block text-[11px] tracking-[.14em] uppercase">
-                        {fr.modes.theatres[candidate.id]}
-                      </span>
-                      <span className="block font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
-                        {fr.modes.theatrePlayers(candidate.players.min, candidate.players.max)}
-                      </span>
-                    </button>
-                  ))}
+          <div className="front-grid">
+            {lead === undefined ? (
+              <section className="lead" aria-labelledby="t-lead">
+                <div>
+                  <h1 id="t-lead">{fr.home.emptyHeadline}</h1>
+                  <p className="italic stand">{fr.home.emptyStand}</p>
                 </div>
-                <p className="mt-1 text-[10.5px] text-[var(--ink-note)]">{fr.modes.theatreNote}</p>
-              </div>
+              </section>
+            ) : (
+              <Lead seat={lead} now={now} onResume={() => resume(lead)} />
             )}
 
-            <Commit active={!pending} type="submit">
-              {fr.home.foundSubmit}
-            </Commit>
-          </form>
+            <aside className="ads vrule" aria-label={fr.home.adsLabel}>
+              <div className="ad ad-found">
+                <span className="corner">{fr.home.adCorner}</span>
+                <div className="eyebrow">{fr.home.foundEyebrow}</div>
+                <h3>{fr.home.foundTitle}</h3>
+                <p className="note">{fr.home.foundNote}</p>
+                <Link className="btn primary wide" to="/fonder">
+                  {fr.home.foundSubmit}
+                </Link>
+              </div>
+              <form className="ad code" onSubmit={openCode}>
+                <div className="eyebrow">{fr.home.joinEyebrow}</div>
+                <h3>{fr.home.joinTitle}</h3>
+                <label className="sr" htmlFor="code">
+                  {fr.home.codeLabel}
+                </label>
+                <input
+                  id="code"
+                  value={code}
+                  maxLength={6}
+                  placeholder={fr.home.codePlaceholder}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="code-note"
+                  onChange={(event) =>
+                    setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
+                  }
+                />
+                <p className="note" id="code-note" style={{ margin: '8px 0 10px' }}>
+                  {fr.home.codeNote}
+                </p>
+                {error && (
+                  <p role="alert" className="wire-note" style={{ marginBottom: 10 }}>
+                    {error}
+                  </p>
+                )}
+                <button className="btn wide" type="submit">
+                  {fr.home.joinSubmit}
+                </button>
+              </form>
+            </aside>
 
-          <div
-            aria-hidden
-            className="hidden w-px @md:block"
-            style={{
-              background:
-                'repeating-linear-gradient(180deg, var(--ink) 0 4px, transparent 4px 9px)',
-            }}
-          />
-
-          <form
-            onSubmit={submitJoin}
-            className="flex-1 border-t border-dashed border-[var(--ink)] pt-4 pb-1 @md:border-t-0 @md:pl-[26px]"
-          >
-            <Title numeral="II" title={fr.home.joinTitle} />
-            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.joinNote}</p>
-
-            <div className="eyebrow mt-[14px]">{fr.home.codeLabel}</div>
-            <input
-              value={code}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-              maxLength={6}
-              className="mt-[6px] w-full border border-[var(--ink)] bg-transparent p-[14px] text-center font-(family-name:--font-mono) text-[22px] tracking-[.42em] text-[var(--ink)] uppercase outline-none"
-              placeholder={fr.home.codePlaceholder}
-            />
-            <p className="mt-2 text-[10.5px] text-[var(--ink-note)]">
-              {fr.home.joinHint(REGISTRATION_WINDOW_HOURS)}
-            </p>
-            <Commit active={code.length === 6 && !pending} type="submit">
-              {fr.home.joinSubmit}
-            </Commit>
-          </form>
-        </div>
-
-        {error && (
-          <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
-            {error}
-          </p>
-        )}
-
-        {/** **La déconnexion vit aussi ici**, et pas seulement dans les Réglages du plateau :
-         *   un compte sans partie n'a pas de plateau, et il serait enfermé sur cette feuille.
-         *   Collée au pseudo, pas au bord droit : le tampon d'état-major tient ce coin-là. */}
-        <div className="mx-(--sheet-pad) mt-[22px] flex items-baseline gap-4">
-          <span className="eyebrow">{fr.auth.signedIn(me?.nickname ?? '')}</span>
+            {others.length > 0 && (
+              <section className="others" aria-labelledby="t-others">
+                <div className="eyebrow h">
+                  <span id="t-others">{fr.home.othersHeader}</span>
+                  <span>{fr.home.othersNote}</span>
+                </div>
+                <div className="others-grid">
+                  {others.map((seat) => (
+                    <Story
+                      key={seat.seasonId}
+                      seat={seat}
+                      now={now}
+                      onResume={() => resume(seat)}
+                      onDestroy={() =>
+                        void destroy({ token, seasonId: seat.seasonId }).catch((problem: unknown) =>
+                          handleError(problem, setError),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+          <div className="colophon">
+            <span>{fr.home.footerLeft}</span>
+            <Link to="/credits">{fr.credits.open}</Link>
+            <span className="num">{fr.home.footerRight(romanDate(new Date(now)))}</span>
+          </div>
+        </article>
+        <div className="mbar">
+          <Link className="btn primary" to="/fonder">
+            {fr.home.compose}
+          </Link>
           <button
             type="button"
-            onClick={() =>
-              void currentPushEndpoint()
-                .then((endpoint) => logout({ token, ...(endpoint === null ? {} : { endpoint }) }))
-                .finally(() => {
-                  forgetSession();
-                  void navigate({ to: '/connexion' });
-                })
-            }
-            className={`cursor-pointer text-[11px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] max-md:min-h-11`}
+            className="btn"
+            onClick={() => document.getElementById('code')?.focus()}
           >
-            {fr.auth.logout}
+            {fr.home.haveCode}
           </button>
         </div>
-
-        <div className="mx-(--sheet-pad) mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
-          <span>{fr.home.footerLeft}</span>
-          <Link
-            to="/credits"
-            className={`underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
-          >
-            {fr.credits.open}
-          </Link>
-          <span className="font-(family-name:--font-mono) tracking-[.12em]">
-            {fr.home.footerRight}
-          </span>
-        </div>
-      </HomeSheet>
+      </div>
 
       {resuming && (
         <LaunchSequence
@@ -324,255 +243,239 @@ function ConnectedHome() {
           onEnd={toBoard}
         />
       )}
-    </>
+    </OffSeasonPage>
   );
 }
 
-type Seat = FunctionReturnType<typeof api.accounts.seats>[number];
+const EAR_LINK = { fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase' } as const;
 
-/** Une place, une ligne. Le fondateur seul y porte un geste : mettre la saison au rebut, pour
- *  tout le monde. */
-function GameRow({
+const regionNameOf = (region: string): string =>
+  fr.playableRegions[region as PlayableRegion] ?? region;
+
+const theatreName = (theatre: string | null): string =>
+  theatre === null ? '' : ((fr.modes.theatres as Record<string, string>)[theatre] ?? fr.table.draw);
+
+/** La une : une Blitz qui se prépare a son heure et sa table ; tout le reste, un titre et un geste. */
+function Lead({ seat, now, onResume }: { seat: Seat; now: number; onResume: () => void }) {
+  const theatre = theatreById(seat.theatre ?? '');
+  const blitzLobby = seat.mode === 'blitz' && seat.status === 'lobby';
+  const story = storyOf(seat, now);
+  const free = Math.max(0, seat.maximum - seat.table.length);
+  return (
+    <section className="lead" aria-labelledby="t-lead">
+      <div>
+        <div className="kicker">
+          <span className="chip solid">{fr.home.onTheFront}</span>
+          <span className="eyebrow">{story.kicker}</span>
+        </div>
+        <h1 id="t-lead">{story.headline}</h1>
+        {story.stand && <p className="italic stand">{story.stand}</p>}
+        {blitzLobby && seat.orders.scheduledAt !== null && (
+          <div className="countbox" role="group" aria-label={fr.table.rendezvous}>
+            <div>
+              <div className="eyebrow">{fr.table.rendezvous}</div>
+              <div className="big">{fr.table.hour(seat.orders.scheduledAt)}</div>
+            </div>
+            <div>
+              <div className="eyebrow">{fr.table.in}</div>
+              <div className="big">{countdownLabel(seat.orders.scheduledAt - now)}</div>
+            </div>
+          </div>
+        )}
+        {seat.status === 'lobby' && (
+          <div className="seatsmini" aria-label={fr.home.atTable}>
+            {seat.table.map((entry) => {
+              const presence = presenceOf(entry.seenAt, now);
+              return (
+                <span key={`${entry.nickname}${entry.mine}`}>
+                  <FlagChip nation={entry.nation} width={18} />
+                  {entry.mine ? fr.table.you : entry.nickname}
+                  {seat.mode === 'blitz' && !entry.mine && presence.kind !== 'unknown' && (
+                    <span
+                      className={`lamp ${presence.kind === 'present' ? 'on' : 'off'}`}
+                      title={presence.kind === 'present' ? fr.table.atTable : fr.table.away}
+                    />
+                  )}
+                </span>
+              );
+            })}
+            {free > 0 && <span className="free">{fr.home.freeSeats(free)}</span>}
+          </div>
+        )}
+        <div className="actions">
+          <button type="button" className="btn primary" onClick={onResume}>
+            {story.action}
+          </button>
+          {blitzLobby && seat.orders.scheduledAt !== null && (
+            <button
+              type="button"
+              className="link"
+              onClick={() =>
+                downloadRendezvous({
+                  at: seat.orders.scheduledAt!,
+                  title: fr.home.calendarTitle(theatreName(seat.theatre)),
+                  code: seat.code,
+                })
+              }
+            >
+              {fr.home.addToCalendar}
+            </button>
+          )}
+        </div>
+      </div>
+      <figure className="illus" style={{ margin: 0 }}>
+        <div className="mapbox">
+          {theatre !== null ? (
+            <EngravedMap
+              box={boxOf(theatre.box)}
+              px={420}
+              frame={boxOf(theatre.box)}
+              veil={0.25}
+              pad={0.02}
+              rings={[9, 6, 3.6, 1.6]}
+            />
+          ) : (
+            <EngravedMap
+              box={[-170, -56, 190, 76]}
+              px={420}
+              flat
+              gratStep={30}
+              rings={[5, 2.4]}
+              pad={0.01}
+            />
+          )}
+          <div
+            className="cartouche"
+            style={{ right: 8, top: 8, transform: 'scale(.78)', transformOrigin: 'top right' }}
+          >
+            <div className="eyebrow">
+              {seat.mode === 'blitz' ? fr.table.theatreSheet : fr.table.worldSheet}
+            </div>
+            <h4>{seat.mode === 'blitz' ? theatreName(seat.theatre) : fr.table.world}</h4>
+          </div>
+        </div>
+      </figure>
+    </section>
+  );
+}
+
+function Story({
   seat,
+  now,
   onResume,
   onDestroy,
 }: {
   seat: Seat;
+  now: number;
   onResume: () => void;
   onDestroy: () => void;
 }) {
+  const story = storyOf(seat, now);
   return (
-    /* La ligne se casse en deux sous une feuille étroite : à 164 px, le bouton du fondateur ne
-       laissait que soixante pixels au pays et sortait de la page. */
-    <li className="flex flex-col items-stretch gap-3 @md:flex-row @md:items-start">
-      <button
-        type="button"
-        onClick={onResume}
-        title={fr.home.resume}
-        className={`relative flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-2 overflow-hidden bg-[var(--ink)] py-[13px] pr-5 text-left @md:flex-row @md:items-center @md:gap-4 ${
-          seat.nation ? 'pl-[76px] @md:pl-[106px]' : 'pl-5'
-        }`}
-      >
-        <FlagWatermark nation={seat.nation} opacity={0.34} />
-        <span
-          className="relative min-w-0 flex-1"
-          style={{ textShadow: '0 1px 3px color-mix(in srgb, var(--map-desk) 90%, transparent)' }}
-        >
-          <span className="block text-[12px] tracking-[.22em] text-[var(--paper)] uppercase">
-            {nationLabel(seat.nation)}
-          </span>
-          <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
-            <span>
-              {standingOf(seat)} ·{' '}
-              {placeLabel(seat.mode, seat.theatre, regionNameOf(seat.playableRegion))}
-              {seat.mode === 'blitz' && ` · ${clockLabel(seat.durationHours)}`}
-            </span>
-            <span className="text-[var(--notable)]">
-              {seat.status === 'lobby'
-                ? fr.modes.seats(seat.players, seat.maximum)
-                : fr.common.players(seat.players)}
-            </span>
-            {seat.creator && (
-              <span className="text-[10px] tracking-[.14em] text-[var(--paper-dim)] uppercase">
-                {fr.lobby.founder}
-              </span>
-            )}
-          </span>
+    <div className="story">
+      {seat.status === 'concluded' && (
+        <span className="stamp ink" style={{ top: 4, right: 8 }} aria-hidden>
+          {fr.home.concluded}
         </span>
-        <span className="relative shrink-0 @md:text-right">
-          <span className="eyebrow-dark block">
-            {seat.status === 'launched' && seat.durationHours !== null
-              ? fr.home.endsIn
-              : fr.home.statusLabel}
-          </span>
-          <span className="block font-(family-name:--font-mono) text-[16px] text-[var(--paper)]">
-            {seat.status === 'lobby'
-              ? fr.home.open
-              : seat.status === 'concluded'
-                ? fr.home.finished
-                : remaining(seat.launchedAt, seat.durationHours)}
-          </span>
-        </span>
+      )}
+      <span className="kicker" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <FlagChip nation={seat.nation} width={22} />
+        <span className="eyebrow">{story.kicker}</span>
+      </span>
+      <h2>{story.headline}</h2>
+      {story.stand && <span className="meta">{story.stand}</span>}
+      <button type="button" className="go btn small" onClick={onResume}>
+        {story.action}
       </button>
-
-      {/** **Une place ne se range plus dans un coin** : elle appartient au compte, pas au
-       *   navigateur, et un bouton « retirer de ma liste » aurait effacé une ligne que la
-       *   prochaine lecture aurait ramenée. Seul le fondateur a encore un geste : mettre la
-       *   saison au rebut, pour tout le monde. */}
-      {seat.creator && (
-        <div className="w-full shrink-0 @md:w-[164px]">
+      {seat.status === 'concluded' && seat.creator && (
+        <details className="more-menu">
+          <summary className="link">{fr.home.moreMenu}</summary>
           <DestroyButton
             label={fr.lobby.destroy}
             confirm={fr.lobby.destroyConfirm}
             note={fr.lobby.destroyNote}
             onDestroy={onDestroy}
           />
-        </div>
+        </details>
       )}
-    </li>
-  );
-}
-
-function standingOf(seat: Seat): string {
-  if (seat.status === 'lobby') return fr.home.resumeLobby(seat.code);
-  if (seat.status === 'concluded' && seat.winnerNation) {
-    return fr.victory.homeConcluded(nationLabel(seat.winnerNation));
-  }
-  /** **La ligne dit la défaite avant le code**, et le bouton ouvre le même plateau : capituler
-   *  ne fait pas quitter une saison, il fait changer de siège — de joueur à observateur. */
-  if (seat.defeated) return `${fr.home.resumeDefeated} · ${seat.code}`;
-  return `${fr.home.resumeSeason} · ${seat.code}`;
-}
-
-const regionNameOf = (region: string): string =>
-  fr.playableRegions[region as PlayableRegion] ?? region;
-
-function Title({ numeral, title }: { numeral: string; title: string }) {
-  return (
-    <div className="flex items-baseline gap-[10px]">
-      <span className="font-(family-name:--font-mono) text-[11px] text-[var(--notable)]">
-        {numeral}
-      </span>
-      <h2 className="font-(family-name:--font-display) text-[21px] font-bold">{title}</h2>
     </div>
   );
 }
 
-const choiceClass = (selected: boolean): string =>
-  `border ${selected ? 'border-[var(--ink)] bg-(--ink)/10' : 'border-(color:--ink)/30'}`;
+type Told = { kicker: string; headline: string; stand: string | null; action: string };
 
-function ChoiceCard({
-  selected,
-  onSelect,
-  title,
-  line,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  title: string;
-  line: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={`cursor-pointer p-[10px] text-left ${choiceClass(selected)}`}
-    >
-      <span className="block text-[12px] tracking-[.2em] uppercase">{title}</span>
-      <span className="mt-[2px] block text-[11px] text-[var(--ink-note)]">{line}</span>
-    </button>
-  );
-}
-
-/** The world's coasts with the theatre's box inked on it; a box past 180° wraps to the west edge. */
-function TheatreMap({ theatre }: { theatre: Theatre }) {
-  const { west, south, east, north } = theatre.box;
-  const y = 90 - north;
-  const height = north - south;
-  const rects =
-    east > 180
-      ? [
-          [west + 180, 360 - (west + 180)],
-          [0, east - 180],
-        ]
-      : [[west + 180, east - west]];
-  return (
-    <svg viewBox="0 0 360 180" aria-hidden className="block w-full border border-(color:--ink)/30">
-      <path d={WORLD_LAND_PATH} fill="currentColor" fillOpacity={0.22} />
-      {rects.map(([x, width]) => (
-        <rect
-          key={x}
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill="currentColor"
-          fillOpacity={0.35}
-          stroke="currentColor"
-          strokeWidth={3}
-        />
-      ))}
-    </svg>
-  );
-}
-
-function Commit({
-  active,
-  type,
-  children,
-}: {
-  active: boolean;
-  type: 'submit' | 'button';
-  children: string;
-}) {
-  return (
-    <button
-      type={type}
-      disabled={!active}
-      className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
-        active
-          ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function NoBackend() {
-  return (
-    <p className="px-(--sheet-pad) pt-6 pb-4 text-[13.5px] leading-[1.55]">
-      {fr.home.noBackend.before}
-      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.env}</span>
-      {fr.home.noBackend.middle}
-      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.command}</span>
-      {fr.home.noBackend.after}
-      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.readme}</span>
-      {fr.home.noBackend.end}
-    </p>
-  );
-}
-
-const ROMAN_NUMERALS: ReadonlyArray<readonly [number, string]> = [
-  [1000, 'M'],
-  [900, 'CM'],
-  [500, 'D'],
-  [400, 'CD'],
-  [100, 'C'],
-  [90, 'XC'],
-  [50, 'L'],
-  [40, 'XL'],
-  [10, 'X'],
-  [9, 'IX'],
-  [5, 'V'],
-  [4, 'IV'],
-  [1, 'I'],
-];
-
-function roman(value: number): string {
-  return ROMAN_NUMERALS.reduce((accumulated, [amount, sign]) => {
-    while (value >= amount) {
-      accumulated += sign;
-      value -= amount;
+/** Ce qu'un article dit de la partie : de quoi décider, et rien d'autre. */
+function storyOf(seat: Seat, now: number): Told {
+  const place = seat.mode === 'blitz' ? theatreName(seat.theatre) : fr.table.world;
+  const mode = fr.modes[seat.mode].name;
+  if (seat.status === 'concluded') {
+    return {
+      kicker: `${mode} · ${place}${seat.concludedAt === null ? '' : ` · ${fr.home.day(seat.concludedAt)}`}`,
+      headline:
+        seat.winnerNation === null
+          ? fr.home.concludedNoWinner
+          : fr.home.won(nationLabel(seat.winnerNation)),
+      stand: seat.defeated ? fr.home.youWereDefeated : null,
+      action: fr.home.readBack,
+    };
+  }
+  if (seat.status === 'launched') {
+    if (!seat.atWar) {
+      return {
+        kicker: `${mode} · ${seat.code}`,
+        headline: fr.home.latecomerHeadline,
+        stand: null,
+        action: fr.home.toLobby,
+      };
     }
-    return accumulated;
-  }, '');
-}
-
-function romanDate(date: Date): string {
-  return [date.getDate(), date.getMonth() + 1, date.getFullYear()].map(roman).join(' · ');
-}
-
-/** **Aucun compte à rebours sans horloge** — ni « ∞ », ni « 0 h 00 » : la ligne dit ce que la
- *  saison est, pas un temps qu'elle n'a pas. */
-function remaining(launchedAt: number | null, durationHours: number | null): string {
-  if (durationHours === null) return fr.home.noClock;
-  if (launchedAt === null) return '—';
-  const milliseconds = launchedAt + durationHours * 3_600_000 - Date.now();
-  if (milliseconds <= 0) return fr.home.finished;
-  const minutes = Math.floor(milliseconds / 60_000);
-  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    const left =
+      seat.launchedAt === null || seat.durationHours === null
+        ? null
+        : seat.launchedAt + seat.durationHours * 3_600_000 - now;
+    return {
+      kicker:
+        seat.mode === 'blitz'
+          ? `${mode} · ${place}`
+          : `${mode} · ${fr.home.dayOf(seat.launchedAt ?? now, now)}`,
+      headline: seat.defeated
+        ? fr.home.observing(nationLabel(seat.nation))
+        : seat.mode === 'blitz'
+          ? fr.home.blitzRunning(place)
+          : fr.home.mondialeRunning(nationLabel(seat.nation)),
+      stand: left === null ? null : fr.home.endsIn(countdownLabel(Math.max(0, left))),
+      action: seat.defeated ? fr.home.observe : fr.home.resumeAs(nationLabel(seat.nation)),
+    };
+  }
+  const ready = seat.table.filter((entry) => entry.ready).length;
+  const me = seat.table.find((entry) => entry.mine);
+  const founder = seat.table.find((entry) => entry.creator);
+  const free = Math.max(0, seat.maximum - seat.table.length);
+  const waiting =
+    me?.nation === null
+      ? fr.home.waitingNation(seat.mode === 'blitz')
+      : me?.ready === false
+        ? fr.home.waitingReady
+        : seat.creator && ready === seat.table.length
+          ? fr.home.waitingLaunch
+          : fr.home.waitingOthers;
+  if (seat.mode === 'blitz') {
+    return {
+      kicker: `${mode} · ${
+        seat.orders.scheduledAt === null
+          ? fr.table.whenFull
+          : rendezvousLabel(seat.orders.scheduledAt, now)
+      }`,
+      headline: fr.home.blitzLobbyHeadline(seat.orders.scheduledAt, now, place, seat.maximum),
+      stand: seat.creator
+        ? fr.home.yourTable(free)
+        : fr.home.keptForYou(founder?.nickname ?? '', free),
+      action: fr.home.joinTable,
+    };
+  }
+  return {
+    kicker: `${mode} · ${fr.home.lobbyCode(seat.code)}`,
+    headline: fr.home.lobbyHeadline(seat.table.length, seat.maximum, ready, waiting),
+    stand: null,
+    action: fr.home.toLobby,
+  };
 }

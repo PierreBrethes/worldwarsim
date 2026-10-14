@@ -95,6 +95,9 @@ export class ReachRing {
   private readonly contact = new Ring(false);
   /** **L'artillerie** (B20) : sa portée en plein, sa zone morte à l'encre, hachurée dedans. */
   private readonly range = new Ring(false);
+  /** **Le liseré papier** de l'anneau de destination, même procédé : sous le voile de nuit, l'encre
+   *  seule se perd, et le papier dessous lui rend un bord. */
+  private readonly deadCasing = new Ring(false, PALETTE.paper, DEAD_THICKNESS + 3);
   private readonly deadZone = new Ring(false, DEAD_INK, DEAD_THICKNESS);
   private readonly deadFill = new Mesh(
     new BufferGeometry(),
@@ -118,9 +121,11 @@ export class ReachRing {
       this.detection.line,
       this.contact.line,
       this.range.line,
+      this.deadCasing.line,
       this.deadZone.line,
       this.deadFill,
     );
+    this.deadCasing.line.renderOrder = 2;
     this.deadFill.renderOrder = 3;
     this.deadFill.frustumCulled = false;
     this.object.visible = false;
@@ -138,6 +143,7 @@ export class ReachRing {
     this.detection.resize(width, height);
     this.contact.resize(width, height);
     this.range.resize(width, height);
+    this.deadCasing.resize(width, height);
     this.deadZone.resize(width, height);
   }
 
@@ -152,6 +158,7 @@ export class ReachRing {
     this.detection.dispose();
     this.contact.dispose();
     this.range.dispose();
+    this.deadCasing.dispose();
     this.deadZone.dispose();
     this.deadFill.geometry.dispose();
     (this.deadFill.material as MeshStandardMaterial).dispose();
@@ -161,11 +168,13 @@ export class ReachRing {
     this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
     const fire = reach.fire ?? null;
     this.range.line.visible = fire !== null;
+    this.deadCasing.line.visible = fire !== null;
     this.deadZone.line.visible = fire !== null;
     this.deadFill.visible = fire !== null;
     if (fire !== null) {
       this.range.write(circleAround(this.frame, reach.lonLat, fire.rangeKm));
       const dead = circleAround(this.frame, reach.lonLat, fire.deadZoneKm);
+      this.deadCasing.write(dead);
       this.deadZone.write(dead);
       this.deadFill.geometry.dispose();
       this.deadFill.geometry = discOf(this.frame, reach.lonLat, dead);

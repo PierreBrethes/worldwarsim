@@ -347,11 +347,13 @@ describe('posterOf', () => {
       identification: { pierced: false },
       estimatedMinutesLeft: 30,
       watchMinutesLeft: 10,
+      since: LOADED_AT - 40 * 60_000,
       progress: 0.5,
     };
     const poster = posterFor(view({ arcs: [arc] }), [], 'foe');
+    // In sight, the hour of its first observation — the camp's rule, and the annotation's (H3).
     expect(poster).toMatchObject({
-      eyebrow: 'relevé · en vue',
+      eyebrow: `relevé · ${asClockTime(LOADED_AT - 40 * 60_000)}`,
       washed: true,
       pile: null,
       bar: null,
@@ -375,6 +377,7 @@ describe('posterOf', () => {
       detectorRegion: null,
       headingDegrees: 0,
       seenMinutesAgo: 120,
+      lastSeenAt: LOADED_AT - 125 * 60_000,
       progress: 1,
     };
     const camp: MapMarker = {
@@ -386,6 +389,7 @@ describe('posterOf', () => {
       lastKnown: false,
       since: LOADED_AT - 60_000,
       seenMinutesAgo: null,
+      lastSeenAt: null,
     };
     const v = view({
       arcs: [lastKnown],
@@ -393,8 +397,9 @@ describe('posterOf', () => {
         { id: 'c1', since: LOADED_AT - 60_000, seenMinutesAgo: null },
       ] as unknown as PlayerView['camps'],
     });
+    // The served instant, never re-derived from an age against the load: the two drift apart.
     expect(posterFor(v, [], 'old')?.eyebrow).toBe(
-      `relevé · ${asClockTime(LOADED_AT - 120 * 60_000)}`,
+      `relevé · ${asClockTime(LOADED_AT - 125 * 60_000)}`,
     );
     expect(posterFor(v, [camp], 'camp')).toMatchObject({
       eyebrow: `relevé · ${asClockTime(LOADED_AT - 60_000)}`,

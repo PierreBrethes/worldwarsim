@@ -51,6 +51,28 @@ describe('ReplayScene', () => {
     expect(heightOf(theirs(3))).toBeLessThan(0.62 * FIGURINE_SCALE);
   });
 
+  it('stands an enemy seen at the fire as its role, not a block, and lays it down away from the eye (F1)', () => {
+    const faced: ReplayView = {
+      ...luxembourg,
+      faced: {
+        nation: null,
+        forces: [
+          { role: 'infantry', tier: 1, troops: 1, strength: 50, lost: 50, routed: 0, destroyed: 1 },
+        ],
+      },
+    };
+    const scene = new ReplayScene(null, replayAt(faced, 0).pieces, 'land', null, null);
+    const enemy = () => scene.object.children[3]!;
+    scene.show(replayAt(faced, 0), 0, true);
+    const standing = heightOf(enemy());
+    expect(standing).toBeLessThan(1.9 * FIGURINE_SCALE);
+    expect(standing).toBeGreaterThan(0);
+    scene.show(replayAt(faced, REPLAY_MS), 0, true);
+    expect(heightOf(enemy())).toBeLessThan(standing / 2);
+    const box = new Box3().setFromObject(enemy());
+    expect(box.getCenter(enemy().position.clone()).z).toBeLessThan(enemy().position.z);
+  });
+
   it('lays my destroyed troop down, and leaves the merely battered one standing', () => {
     const view: ReplayView = {
       ...luxembourg,

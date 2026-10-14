@@ -40,6 +40,7 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
   identification: { pierced: false },
   estimatedMinutesLeft: 100,
   watchMinutesLeft: 12,
+  since: 0,
   progress: 0.34,
   ...override,
 });
@@ -258,6 +259,7 @@ describe('buildLabels', () => {
           route: directRoute([0, 0], [1, 1], 'land', 10),
           headingDegrees: 10,
           seenMinutesAgo: 5,
+          lastSeenAt: 0,
           progress: 0.2,
         },
       ]),
@@ -307,6 +309,7 @@ describe('buildLabels', () => {
         route: directRoute([0, 0], [1, 1], 'sea', 10),
         headingDegrees: 10,
         seenMinutesAgo: 5,
+        lastSeenAt: 0,
         progress: 0.2,
       },
       {

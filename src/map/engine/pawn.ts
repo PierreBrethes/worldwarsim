@@ -19,6 +19,7 @@ import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
 import { gaitOf, swayOf, type Gait } from './sway';
 import { blacken } from './standing';
 import { pieceScale } from './piece-scale';
+import { releaseInk } from './annotations';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -261,6 +262,7 @@ export class Pawn {
 
   dispose(): void {
     this.object.removeFromParent();
+    for (const figurine of this.figurines.values()) releaseInk(figurine.object);
     for (const costume of this.costumes.values()) {
       for (const child of costume.children) {
         const mesh = child as Mesh<ShapeGeometry | PlaneGeometry, MeshBasicMaterial>;

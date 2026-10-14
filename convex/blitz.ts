@@ -12,6 +12,7 @@
  * on capture ceux d'un adversaire (`captures.ts`), et ils sont publics (`view.ts`).
  */
 
+import { THEATRE_DRAW } from '../src/domain/operation-order';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, internalQuery } from './_generated/server';
@@ -216,6 +217,7 @@ export const abandon = internalMutation({
       launchedAt: null,
       playableRegion: null,
       launchRefusal: refusal,
+      ...(season.theatreDrawn === true ? { theatre: THEATRE_DRAW, theatreDrawn: undefined } : {}),
     });
   },
 });

@@ -7,6 +7,18 @@ de la visée ; et la [fiche 10](../design/10-direction-artistique.md) sur les un
 (`src/domain/mouse-mapping.ts`), le brouillard (ADR 0005, 0021, 0024 §1), la rose qui sort de la
 même fonction que le refus du serveur (ADR 0015). **Aucune règle de jeu ne change.**
 
+> **Révisée le 14/10/2026 — « au feu, on voit l'ennemi »** (F1-F3,
+> [gameplay deux modes](../design/propositions/gameplay-deux-modes-2026-10-14.md)). Le §4 et le §7
+> ne tiennent plus tels quels. **§4** : une force adverse seulement relevée — camp, fil, dernière
+> position connue — n'est plus un bloc vu de dos mais une **annotation à l'encre** posée à plat :
+> cercle pointillé, domaine hachuré à la plume, « ? » rouge et l'heure du relevé, qui pâlit avec
+> son âge (`surveyInk`, `src/map/engine/annotations.ts`) ; elle glisse le long du tronçon pour un
+> fil. Elle ne dit toujours que ce que le relevé sait. Plus de main qui la pose. **§7** : qui a
+> pris part à une passe voit ce qu'il a eu en face — rôles, effectifs, nation (`engagements.nations`,
+> `facedOf`, servi aux deux participants seulement) ; le rejeu montre l'adversaire **en ses
+> figurines**, aux couleurs de sa nation (`figurineFor`), et la dépêche le nomme. Un bombardement
+> ne révèle pas le tireur à sa cible. Un engagement d'avant ce lot garde ses blocs et ses totaux.
+
 ## Contexte
 
 L'audit visuel du 12/10/2026 a relevé quatre registres d'image côte à côte sur le plateau : la

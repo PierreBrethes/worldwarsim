@@ -81,6 +81,53 @@ describe('the journal', () => {
     expect(taken!.kind).toBe('attacked');
   });
 
+  it('names the nation and the roles faced at the fire, on both sides (F1)', () => {
+    const fought: CombatReport = {
+      ...battle(NOON),
+      theirs: { troops: 3, lost: 30, routed: 0, destroyed: 0 },
+      faced: {
+        nation: 'germany',
+        forces: [
+          { role: 'armor', tier: 1, troops: 1, strength: 12, lost: 0, routed: 0, destroyed: 0 },
+          { role: 'infantry', tier: 1, troops: 1, strength: 50, lost: 20, routed: 0, destroyed: 0 },
+          { role: 'infantry', tier: 2, troops: 1, strength: 50, lost: 10, routed: 0, destroyed: 0 },
+        ],
+      },
+    };
+    const [said] = journalDispatches([fought], null, [], []);
+    expect(said!.text).toContain(
+      '2 contre 3 — en face, Allemagne : blindé ×1 (12 machines), infanterie ×2 (100 hommes)',
+    );
+    const [old] = journalDispatches([battle(NOON)], null, [], []);
+    expect(old!.text).toContain('2 contre 1, ');
+  });
+
+  it('names the target of a bombardment to the gunner, and the gunner to nobody (F1)', () => {
+    const shot: CombatReport = {
+      ...battle(NOON),
+      cause: 'bombardment',
+      faced: {
+        nation: 'ussr',
+        forces: [
+          { role: 'infantry', tier: 1, troops: 1, strength: 50, lost: 30, routed: 0, destroyed: 0 },
+        ],
+      },
+    };
+    const [fired] = journalDispatches([shot], null, [], []);
+    expect(fired!.text).toContain('sur URSS : infanterie ×1 (50 hommes)');
+  });
+
+  it('tells a reduction under bombardment without naming the gunner', () => {
+    const struck: CombatReport = {
+      ...battle(NOON),
+      cause: 'bombardment',
+      side: 'defender',
+      reduced: { by: null, whom: 'ussr' },
+    };
+    const said = journalDispatches([struck], null, [], []).find((d) => d.kind === 'reduction');
+    expect(said!.text).toBe('URSS est réduit, sous un bombardement');
+  });
+
   it('merges the two streams by hour, newest first', () => {
     const dispatches = journalDispatches(
       [battle(NOON - 2 * HOUR), battle(NOON)],

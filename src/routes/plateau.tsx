@@ -54,6 +54,7 @@ import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
+import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -1349,6 +1350,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         lastKnown: camp.lastKnown,
         since: camp.since,
         seenMinutesAgo: camp.seenMinutesAgo,
+        lastSeenAt: camp.lastSeenAt,
       }));
 
     /**
@@ -1555,7 +1557,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 id: marker.id,
                 lonLat: marker.lonLat,
                 medium: marker.medium,
-                washed: marker.lastKnown,
+                seenAt: surveyedAt(marker),
+                seenMinutesAgo: marker.seenMinutesAgo,
               },
             ]
           : [],
@@ -2040,6 +2043,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <ReplayLaunch.Provider value={launchReplay}>
           <div ref={board} className="relative min-w-0 flex-1">
+            {blitzTheatre !== null && view.me.hqLevel === 0 && !view.me.defeated && (
+              <div
+                role="status"
+                className="eyebrow-dark pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center"
+              >
+                {fr.lobby.preparingMap}
+              </div>
+            )}
             <WorldMap
               blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}

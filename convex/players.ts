@@ -41,6 +41,20 @@ export const touch = mutation({
 });
 
 /**
+ * **À la table** (choix 7) : le salon d'une Blitz bat toutes les `LOBBY_BEAT_SECONDS`, et la
+ * lampe de chaque carton se lit sur ce battement. Rien en Mondiale, ni avant ni après : la
+ * présence y serait un canal sur les plages de repos (ADR 0005).
+ */
+export const beatLobby = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    if (season.status !== 'lobby' || modeOf(season.mode) !== 'blitz') return;
+    await ctx.db.patch(player._id, { lobbySeenAt: Date.now() });
+  },
+});
+
+/**
  * **The choices of the lobby seal at the player's own entry into war**, not at the season's
  * launch. For everybody present at the launch the two hours are the same one; for a latecomer
  * they are not, and he has a nation to pick on a season already running

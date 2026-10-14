@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { readSession } from '@/data/session';
-import { FrontPage } from './-index/FrontPage';
+import { Landing } from './-index/Landing';
 
 /**
  * **L'adresse nue : l'accueil pour qui a un compte, la une pour les autres.** Le choix se fait
@@ -12,5 +12,5 @@ export const Route = createFileRoute('/')({
   beforeLoad: () => {
     if (readSession() !== null) throw redirect({ to: '/accueil' });
   },
-  component: FrontPage,
+  component: Landing,
 });

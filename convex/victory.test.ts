@@ -334,6 +334,23 @@ describe('the simplified Domination', () => {
     expect(await reducedBy('france')).toBe(0);
   });
 
+  /** **La cible d'un bombardement ne sait pas d'où vient le coup** (B20, A3) — pas même par la
+   *  dépêche de réduction, qui nommait le tireur. */
+  it('names the hand of a bombardment to the gunner only', async () => {
+    const t = boot();
+    const [attacker, victim] = await launchedSeason(t, 2);
+    await overrun(t, attacker!, victim!);
+    const [engagement] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    await t.run((ctx) => ctx.db.patch(engagement!._id, { cause: 'bombardment' }));
+
+    const reducedOf = async (seat: typeof attacker) =>
+      (await t.query(api.view.playerView, seat!)).reports.find(
+        (report) => report.id === engagement!._id,
+      )!.reduced;
+    expect(await reducedOf(attacker)).toEqual({ by: 'france', whom: expect.any(String) });
+    expect((await reducedOf(victim))!.by).toBeNull();
+  });
+
   it('reads a concluded season and plays nothing on it', async () => {
     const t = boot();
     const [attacker, victim] = await launchedSeason(t, 2);

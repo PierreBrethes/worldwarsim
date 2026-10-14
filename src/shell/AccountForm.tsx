@@ -5,30 +5,30 @@ import { fr } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { keepSession } from '@/data/session';
 import { nicknameRefusal, passwordRefusal } from '@/domain/account';
-import { TOUCH_TARGET } from './EntrySheet';
+import { spriteUrl } from '@/emblems/units/manifest';
 
 const ERROR_ID = 'auth-error';
-const NOTE_ID = 'auth-password-note';
+const NICK_HINT = 'auth-nickname-hint';
+const PASS_HINT = 'auth-password-hint';
 
 /**
- * **Deux champs, et rien d'autre** (ADR 0022) : pas d'e-mail, donc pas de vérification, pas de
- * lien de réinitialisation, pas de case à cocher. Un mot de passe perdu se remet à zéro par
- * l'administrateur du serveur — entre amis, c'est un message.
+ * **La carte d'accréditation** : deux champs, et rien d'autre (ADR 0022) — pas d'e-mail, donc
+ * pas de « mot de passe oublié ». Deux onglets pour les deux gestes, qui demandent la même chose ;
+ * à l'ouverture d'un dossier, les règles du pseudo et du mot de passe s'écrivent sous chaque champ
+ * pendant la frappe, par les fonctions mêmes du serveur (`src/domain/account.ts`). Le refus du
+ * serveur se lit sous le formulaire, là où est la main.
  *
- * Une seule forme pour les deux gestes : s'inscrire et se connecter demandent exactement la
- * même chose, et deux pages auraient fait choisir avant de savoir. Le refus se lit sous le
- * formulaire et jamais en notification — c'est là que la main est.
- *
- * Il est partagé par `/connexion` et par la feuille d'invitation : l'un et l'autre garde la
- * session dès que le serveur la donne, puis chacun enchaîne sa suite avec `onSignedIn` — qui
- * gère lui-même ses refus, parce que le compte, lui, est déjà né.
+ * Partagée par `/connexion` et l'invitation : la session est gardée dès que le serveur la donne,
+ * puis chacun enchaîne sa suite avec `onSignedIn`.
  */
 export function AccountForm({
   onSignedIn,
-  onModeChange,
+  invited = false,
+  portrait = 'france',
 }: {
   readonly onSignedIn: (token: string) => Promise<void> | void;
-  readonly onModeChange?: (registering: boolean) => void;
+  readonly invited?: boolean;
+  readonly portrait?: string | null;
 }) {
   const register = useAction(api.auth.register);
   const login = useAction(api.auth.login);
@@ -37,14 +37,23 @@ export function AccountForm({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [accredited, setAccredited] = useState(false);
+
+  const nickOk = nicknameRefusal(nickname) === null;
+  const passOk = passwordRefusal(password) === null;
+  const refused = registering
+    ? !nickOk || !passOk
+    : nickname.trim().length === 0 || password.length === 0;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (refused || pending) return;
     setError(null);
     setPending(true);
     try {
       const { token } = await (registering ? register : login)({ nickname, password });
       keepSession(token);
+      setAccredited(true);
       await onSignedIn(token);
     } catch (problem) {
       handleError(problem, setError);
@@ -53,84 +62,118 @@ export function AccountForm({
     }
   };
 
-  /** **Ce que le serveur refusera, dit avant l'aller-retour** — et par la même fonction que lui
-   *  (`src/domain/account.ts`), donc rien ne peut diverger. À la connexion on ne juge rien : un
-   *  ancien mot de passe trop court reste le sien, et c'est au serveur de le dire. */
-  const refused = registering
-    ? (nicknameRefusal(nickname) ?? passwordRefusal(password)) !== null
-    : nickname.trim().length === 0 || password.length === 0;
+  const switchTo = (next: boolean) => {
+    setRegistering(next);
+    setError(null);
+  };
+  const describedBy = (hint: string) => (error ? `${hint} ${ERROR_ID}` : hint);
+  const sprite = spriteUrl(portrait, 'infantry', 1);
 
   return (
     <>
-      <form onSubmit={submit} className="mx-(--sheet-pad) mt-[22px]">
-        <label htmlFor="auth-nickname" className="eyebrow block">
-          {fr.auth.nicknameLabel}
-        </label>
-        <input
-          id="auth-nickname"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? ERROR_ID : undefined}
-          value={nickname}
-          onChange={(event) => setNickname(event.target.value)}
-          autoComplete="username"
-          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)]"
-          placeholder={fr.auth.nicknamePlaceholder}
-        />
-
-        <label htmlFor="auth-password" className="eyebrow mt-[16px] block">
-          {fr.auth.passwordLabel}
-        </label>
-        <input
-          id="auth-password"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${ERROR_ID} ${NOTE_ID}` : NOTE_ID}
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete={registering ? 'new-password' : 'current-password'}
-          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)]"
-          placeholder={fr.auth.passwordPlaceholder}
-        />
-        <p id={NOTE_ID} className="mt-2 text-[10.5px] text-[var(--ink-note)]">
-          {fr.auth.passwordNote}
-        </p>
-
-        {error && (
-          <p
-            id={ERROR_ID}
-            role="alert"
-            className="mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]"
-          >
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={refused || pending}
-          className={`mt-[18px] min-h-11 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
-            !refused && !pending
-              ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-              : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
-          }`}
-        >
-          {pending ? fr.auth.pending : registering ? fr.auth.registerSubmit : fr.auth.loginSubmit}
-        </button>
-      </form>
-
-      <div className="mx-(--sheet-pad) mt-[18px] mb-[22px] border-t border-(color:--ink)/35 pt-[12px] text-center">
+      <div className="tabs" role="tablist" aria-label={fr.auth.tabs}>
         <button
           type="button"
-          onClick={() => {
-            onModeChange?.(!registering);
-            setRegistering(!registering);
-            setError(null);
-          }}
-          className={`cursor-pointer text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
+          role="tab"
+          aria-selected={!registering}
+          onClick={() => switchTo(false)}
         >
-          {registering ? fr.auth.toLogin : fr.auth.toRegister}
+          {fr.auth.haveFile}
+        </button>
+        <button type="button" role="tab" aria-selected={registering} onClick={() => switchTo(true)}>
+          {fr.auth.openFile}
         </button>
       </div>
+      <form className="pass" id="authform" onSubmit={submit} noValidate>
+        <div className="head">
+          <b>{registering ? fr.auth.requestTitle : fr.auth.cardTitle}</b>
+          <span className="eyebrow">
+            {registering ? fr.auth.newCorrespondent : fr.auth.cardNumber(nickname.trim().length)}
+          </span>
+        </div>
+        <figure className="portrait" style={{ margin: 0 }}>
+          {sprite !== null && <img src={sprite} alt="" />}
+          <figcaption>{fr.auth.portraitCaption}</figcaption>
+        </figure>
+        <div className="fields">
+          <div className="field">
+            <label htmlFor="auth-nickname">{fr.auth.nicknameLabel}</label>
+            <input
+              id="auth-nickname"
+              name="username"
+              autoComplete="username"
+              value={nickname}
+              maxLength={40}
+              placeholder={fr.auth.nicknamePlaceholder}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={describedBy(NICK_HINT)}
+              onChange={(event) => setNickname(event.target.value)}
+            />
+            <span
+              id={NICK_HINT}
+              className={`hint ${registering && nickname ? (nickOk ? 'ok' : 'bad') : ''}`}
+            >
+              {registering
+                ? nickname
+                  ? nickOk
+                    ? fr.auth.nicknameFree
+                    : fr.auth.nicknameRule
+                  : fr.auth.nicknameNote
+                : ' '}
+            </span>
+          </div>
+          <div className="field">
+            <label htmlFor="auth-password">{fr.auth.passwordLabel}</label>
+            <input
+              id="auth-password"
+              name="password"
+              type="password"
+              autoComplete={registering ? 'new-password' : 'current-password'}
+              value={password}
+              placeholder={fr.auth.passwordPlaceholder}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={describedBy(PASS_HINT)}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <span
+              id={PASS_HINT}
+              className={`hint ${registering && password && !passOk ? 'bad' : ''}`}
+            >
+              {registering
+                ? password && !passOk
+                  ? fr.auth.passwordRule
+                  : fr.auth.passwordNote
+                : ' '}
+            </span>
+          </div>
+        </div>
+        {accredited && (
+          <div className="stamp pop" aria-hidden>
+            {registering ? fr.auth.fileOpened : fr.auth.accredited}
+          </div>
+        )}
+      </form>
+      {error && (
+        <p id={ERROR_ID} role="alert" className="wire-note">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        form="authform"
+        className="btn primary wide"
+        aria-disabled={refused || pending ? true : undefined}
+      >
+        {pending
+          ? fr.auth.pending
+          : invited
+            ? registering
+              ? fr.auth.registerAndJoin
+              : fr.auth.loginAndJoin
+            : registering
+              ? fr.auth.registerSubmit
+              : fr.auth.loginSubmit}
+      </button>
     </>
   );
 }

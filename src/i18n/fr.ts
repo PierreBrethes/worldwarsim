@@ -9,13 +9,15 @@
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
-import { NATION_BY_ADM0 } from '../domain/nations';
+import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { DispatchKind, Faced, HomeSlotRelief } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
+import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
+import type { RacePoint } from '../domain/landing';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -36,6 +38,36 @@ import type {
   Specialization,
   UnitRole,
 } from '../domain/ids';
+
+const NUMBER_WORDS = [
+  'zéro',
+  'un',
+  'deux',
+  'trois',
+  'quatre',
+  'cinq',
+  'six',
+  'sept',
+  'huit',
+  'neuf',
+  'dix',
+];
+/** Un petit nombre en toutes lettres, comme un télégramme et une manchette l'écrivent. */
+const spelled = (count: number): string => NUMBER_WORDS[count] ?? num(count);
+
+const PLACE_OF: Readonly<Record<string, string>> = {
+  Europe: 'd’Europe',
+  Méditerranée: 'de la Méditerranée',
+  Pacifique: 'du Pacifique',
+  Amériques: 'des Amériques',
+};
+const ofPlace = (theatre: string): string => PLACE_OF[theatre] ?? `de ${theatre}`;
+
+type RefusalContext = {
+  readonly founder: string | null;
+  readonly maximum: number;
+  readonly theatre: string | null;
+};
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
 
@@ -91,6 +123,24 @@ const combatBeats = (
   return `${attacking ? 'notre' : 'leur'} frappe en abat ${strike}, ${answer}`;
 };
 
+/**
+ * **Ce qu'on a eu en face au feu** (F1) : la nation, puis chaque rôle, en hommes ou en machines
+ * (ADR 0014) — les marques se fondent, la phrase compte des rôles.
+ */
+const facedWords = (faced: Faced): string => {
+  const roles = [...new Set(faced.forces.map((force) => force.role))].map((role) => {
+    const of = faced.forces.filter((force) => force.role === role);
+    const troops = of.reduce((sum, force) => sum + force.troops, 0);
+    const strength = of.reduce((sum, force) => sum + force.strength, 0);
+    const unit = role === 'infantry' ? 'homme' : 'machine';
+    return `${roleLabel(role, 1)} ×${troops} (${strength} ${unit}${plural(strength, '', 's')})`;
+  });
+  return `${facedNation(faced.nation)} : ${roles.join(', ')}`;
+};
+
+const facedNation = (nation: string | null): string =>
+  nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
+
 export const fr = {
   nations: {
     france: 'France',
@@ -103,16 +153,35 @@ export const fr = {
     china: 'Chine',
   } satisfies Record<Nation, string>,
 
-  nationPowers: {
-    france: 'Projection outre-mer — avant-postes à n’importe quelle distance, coût croissant',
-    uk: 'Maîtrise des mers — voit tous les arcs maritimes, sans origine ni cargaison',
-    usa: 'Arsenal — convertit ravitaillement → acier, un sens, avec cooldown',
-    ussr: 'Profondeur stratégique — l’occupation ne réduit pas sa production',
-    germany: 'Guerre éclair — enchaîne deux mouvements offensifs sans cooldown de slot',
-    japan: 'Doctrine du porte-avions — réoriente un mouvement en vol, avant mi-parcours',
-    italy: 'Reconnaissance aérienne — voit la composition des piles détectées',
-    china: 'Masse — pas de plafond d’effectifs, entretien croissant en ravitaillement',
-  } satisfies Record<Nation, string>,
+  /** **L'atout d'une nation, en clair** (fiche 06, N3 du 14/10) : un nom et la règle qu'il casse. */
+  nationAssets: {
+    france: {
+      name: 'Le rayon impérial',
+      rule: 'vos avant-postes ouvrent un rayon plus large, sans contrainte d’adjacence',
+    },
+    uk: {
+      name: 'Maîtrise des mers',
+      rule: 'votre écoute relève tous les mouvements maritimes, sans origine ni destination',
+    },
+    usa: { name: 'Prêt-bail', rule: 'vos envois de ressources ne sont jamais relevés' },
+    ussr: {
+      name: 'Évacuation industrielle',
+      rule: 'vous démontez un bâtiment et le rebâtissez ailleurs, à coût réduit',
+    },
+    germany: {
+      name: 'Guerre éclair',
+      rule: 'deux mouvements offensifs s’enchaînent sans attendre de slot',
+    },
+    japan: { name: 'Banzaï', rule: 'votre infanterie capture à pleine vitesse, même entamée' },
+    italy: {
+      name: 'Mare Nostrum',
+      rule: 'un mouvement maritime part d’un avant-poste côtier, sans port',
+    },
+    china: {
+      name: 'Terre brûlée',
+      rule: 'un bâtiment chinois capturé est détruit au lieu d’être pris',
+    },
+  } satisfies Record<Nation, { name: string; rule: string }>,
 
   roles: {
     infantry: { one: 'infanterie', many: 'infanterie' },
@@ -292,25 +361,14 @@ export const fr = {
   },
 
   modes: {
-    blitz: {
-      name: 'Blitz',
-      line: '2 h · 2 à 4 joueurs présents ensemble · un théâtre, on prend le QG adverse',
-    },
-    mondiale: {
-      name: 'Mondiale',
-      line: '7 jours · 2 à 8 joueurs, deux ou trois visites par jour · le monde entier',
-    },
-    modeLabel: 'mode',
-    theatreLabel: 'théâtre',
-    theatreNote:
-      'La carte s’ouvre cadrée sur ce théâtre, et le salon n’y assoit pas plus de joueurs qu’il n’en tient.',
+    blitz: { name: 'Blitz' },
+    mondiale: { name: 'Mondiale' },
     theatres: {
       europe: 'Europe',
       mediterranean: 'Méditerranée',
       pacific: 'Pacifique',
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
-    seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
     theatrePlayers: (min: number, max: number) =>
       min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>
@@ -492,6 +550,14 @@ export const fr = {
     NOT_ENOUGH_PLAYERS: (d) => `il faut au moins ${num(d.minimum)} joueurs`,
     PLAYERS_NOT_READY: (d) =>
       `pas prêts : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'}`,
+    PLAYERS_ABSENT: (d) =>
+      `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans les attendre`,
+    SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
+    INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
+    RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
+    SEATS_OUT_OF_RANGE: () =>
+      'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
+    THEATRE_TOO_SMALL: () => 'ce théâtre n’assoit pas tous ceux qui sont déjà à table',
     INVALID_REST_WINDOW: () => 'plage invalide : minutes entre 0 et 1439',
     REST_WINDOW_FROZEN: () =>
       'la plage de repos se déclare au salon — elle est scellée pour toute la saison',
@@ -824,21 +890,35 @@ export const fr = {
 
   auth: {
     dateline: 'bureau des engagements',
-    loginTagline: 'reprendre ses parties',
-    registerTagline: 'ouvrir un dossier',
-    nicknameLabel: 'pseudo',
-    nicknamePlaceholder: 'votre nom de guerre',
+    tabs: 'accès au dossier',
+    haveFile: 'J’ai un dossier',
+    openFile: 'Ouvrir un dossier',
+    cardTitle: 'Carte d’accréditation',
+    requestTitle: 'Demande d’accréditation',
+    newCorrespondent: 'nouveau correspondant',
+    cardNumber: (length: number) => `n° ${length === 0 ? '····' : String(length * 731 + 1940)}`,
+    portraitCaption: 'photographie non exigée',
+    nicknameLabel: 'nom de guerre',
+    nicknamePlaceholder: 'le pseudo que la table lira',
+    nicknameNote: '3 à 16 caractères — public, il signe vos télégrammes',
+    nicknameFree: 'libre à l’écriture — le serveur tranchera',
+    nicknameRule: '3 à 16 caractères visibles',
     passwordLabel: 'mot de passe',
     passwordPlaceholder: '••••••••',
     /** **Il n'y a pas d'e-mail** (ADR 0022), donc pas de « mot de passe oublié » : la phrase
      *  le dit avant la perte, pas après. */
     passwordNote:
-      'aucun e-mail n’est demandé — un mot de passe perdu se remet à zéro par le tenancier du serveur',
+      'aucun e-mail : un mot de passe perdu se remet à zéro par le tenancier du serveur',
+    passwordRule: '8 caractères au moins',
     loginSubmit: 'entrer',
     registerSubmit: 'ouvrir le dossier',
+    loginAndJoin: 'entrer et répondre présent',
+    registerAndJoin: 'ouvrir le dossier et répondre présent',
+    accredited: 'accrédité',
+    fileOpened: 'dossier ouvert',
     pending: 'en ligne…',
-    toRegister: 'pas encore de dossier ? en ouvrir un',
-    toLogin: 'déjà un dossier ? se connecter',
+    after:
+      'Un compte, des places : vos parties vous suivent d’un appareil à l’autre. Une invitation reçue ? Ouvrez son lien, il mène droit à la table.',
     signedIn: (nickname: string) => `dossier de ${nickname}`,
     logout: 'se déconnecter',
     logoutNote:
@@ -853,6 +933,575 @@ export const fr = {
     noBackend:
       'Aucun backend configuré (VITE_CONVEX_URL absent). Lancez la pile locale avec docker compose up — voir deploiement/README.md.',
   },
+  /** **Le télégramme d'invitation** (`/rejoindre/CODE`) : qui invite, la table, l'ordre, la
+   *  réponse. Les refus sont des télégrammes « regrettons » (`fr.table.refusals`). */
+  invitation: {
+    opening: 'Ouverture de l’invitation…',
+    tagline: 'une place vous attend à la table',
+    readOrder: 'lire l’ordre d’opérations complet',
+    setBy: (founder: string) => `réglé par ${founder} — il peut encore changer`,
+    blitzOrder: (
+      theatre: string | null,
+      when: string | null,
+    ): ReadonlyArray<readonly [string, string]> => [
+      ['mode', 'Blitz — 2 h, tous ensemble'],
+      ['théâtre', theatre ?? 'tiré au sort au lancement'],
+      [
+        'rendez-vous',
+        when === null ? 'dès que la table est complète' : `${when}, dans votre heure`,
+      ],
+      ['nations', 'identiques : drapeau et figurines'],
+      ['victoire', 'prendre le QG adverse ; à 2 h, le plus gros revenu'],
+    ],
+    mondialeOrder: (capture: number): ReadonlyArray<readonly [string, string]> => [
+      ['mode', 'Mondiale — 7 jours, deux ou trois visites par jour'],
+      ['terrain', 'le monde entier'],
+      ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
+      ['vos engagements', 'une plage de repos de 7 h, publique'],
+      ['nations', 'une chacune, avec son atout'],
+    ],
+    reply: 'répondre',
+    takeSeat: (founder: string) =>
+      founder === '' ? 'Prendre place à la table' : `Prendre place à la table de ${founder}`,
+    alreadySeated: 'déjà à table',
+    yourSeat: (others: number) =>
+      others === 0
+        ? 'votre place, si vous la prenez'
+        : `votre place, si vous la prenez — et ${others === 1 ? 'une autre libre' : `${num(others)} autres libres`}`,
+    signedIn: (nickname: string) => `Vous entrez sous le nom de ${nickname}.`,
+    notYou: 'Ce n’est pas vous ?',
+    join: 'répondre présent — rejoindre la table',
+    resume: 'reprendre ma place',
+    oneFile:
+      'Un dossier suffit : un nom de guerre et un mot de passe, sans e-mail. Vous arriverez droit au salon.',
+    addRendezvous: 'ajouter le rendez-vous à l’agenda',
+    chooseAtLobby: 'Vous choisirez votre nation et votre plage de repos au salon.',
+    toHome: 'retour à l’accueil',
+    bureauAnswer: 'réponse du bureau des dépêches',
+    bureau: 'bureau des dépêches',
+    doorClosed: 'la porte est fermée',
+    myGames: 'à mes parties',
+    retype: 'ressaisir le code',
+    /** Le compte est né, la place non : le salon s'est rempli entre-temps. Le dossier est gardé. */
+    accountKept: 'Votre dossier est ouvert et gardé — il vous attend à l’accueil.',
+  },
+
+  /** **La une de mon édition** (`/accueil`) : mes parties en articles, triés par urgence. */
+  home: {
+    edition: (nickname: string) => `le monde en jeu — édition de ${nickname}`,
+    tagline: 'deux façons de faire la guerre entre amis — une soirée, ou une semaine',
+    gamesCount: (count: number) => `${num(count)} partie${plural(count, '', 's')}`,
+    onTheFront: 'à la une',
+    emptyHeadline: 'Aucune partie à votre nom',
+    emptyStand: 'Composez la vôtre, ou ouvrez le code qu’on vous a envoyé.',
+    adsLabel: 'petites annonces',
+    adCorner: 'petite annonce',
+    foundEyebrow: 'I · fonder',
+    foundTitle: 'Composer une partie',
+    foundNote: 'Une soirée en Blitz, ou une semaine en Mondiale.',
+    foundSubmit: 'composer l’ordre',
+    joinEyebrow: 'II · rejoindre',
+    joinTitle: 'J’ai un code',
+    codeLabel: 'code de partie',
+    codePlaceholder: 'K7P2QX',
+    codeNote: 'Six caractères, reçus avec l’invitation.',
+    joinSubmit: 'ouvrir le télégramme',
+    compose: 'composer',
+    haveCode: 'j’ai un code',
+    othersHeader: 'vos autres parties',
+    othersNote: 'de la plus pressante à la plus ancienne',
+    atTable: 'à table',
+    freeSeats: (count: number) => (count === 1 ? 'une place libre' : `${num(count)} places libres`),
+    blitzLobbyHeadline: (at: number | null, now: number, theatre: string, seats: number) =>
+      at === null
+        ? `La Blitz ${ofPlace(theatre)} se jouera à ${spelled(seats)}, dès que la table est complète`
+        : `${upperFirst(fr.table.dayWord(at, now))} à ${fr.table.shortHour(at)}, la Blitz ${ofPlace(theatre)} se joue à ${spelled(seats)}`,
+    keptForYou: (founder: string, free: number) =>
+      `${founder} vous a gardé une place.${free > 0 ? ` ${upperFirst(fr.home.freeSeats(free))}.` : ''}`,
+    yourTable: (free: number) =>
+      free === 0
+        ? 'Votre table est complète.'
+        : `Vous tenez la table : ${fr.home.freeSeats(free)}.`,
+    lobbyCode: (code: string) => `salon ${code}`,
+    lobbyHeadline: (seated: number, cap: number, ready: number, waiting: string) =>
+      `${upperFirst(spelled(seated))} à table sur ${spelled(cap)}, ${ready === 0 ? 'aucun prêt' : `${spelled(ready)} prêt${plural(ready, '', 's')}`} : ${waiting}`,
+    waitingNation: (blitz: boolean) =>
+      blitz ? 'on attend votre drapeau' : 'on attend votre nation',
+    waitingReady: 'on attend votre « prêt »',
+    waitingLaunch: 'on vous attend pour lancer',
+    waitingOthers: 'on attend les autres',
+    blitzRunning: (theatre: string) => `La Blitz ${ofPlace(theatre)} est en cours`,
+    mondialeRunning: (nation: string) => `La guerre court : ${nation} attend vos ordres`,
+    latecomerHeadline: 'La saison court sans vous : choisissez votre nation et entrez',
+    observing: (nation: string) => `Défaite : vous observez la fin, depuis ${nation}`,
+    endsIn: (left: string) => `fin dans ${left}`,
+    dayOf: (launchedAt: number, now: number) =>
+      `jour ${num(Math.min(7, Math.floor((now - launchedAt) / 86_400_000) + 1))} sur 7`,
+    day: (at: number) =>
+      new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(new Date(at)),
+    joinTable: 'rejoindre la table',
+    toLobby: 'au salon',
+    resumeAs: (nation: string) => `reprendre — ${nation}`,
+    observe: 'observer',
+    readBack: 'relire la partie',
+    concluded: 'conclue',
+    concludedNoWinner: 'Saison close, sans vainqueur',
+    won: (nation: string) => `${nation} l’emporte`,
+    youWereDefeated: 'vous aviez déposé les armes',
+    moreMenu: 'plus…',
+    addToCalendar: 'ajouter à l’agenda',
+    calendarTitle: (theatre: string) => `${fr.masthead.title} — Blitz ${ofPlace(theatre)}`,
+    footerLeft: 'entre amis · sur invitation',
+    footerRight: (date: string) => `édition ${date}`,
+  },
+
+  lobby: {
+    preparingMap: 'L’état-major prépare la carte…',
+    opening: 'Ouverture du salon…',
+    quit: 'quitter',
+    founder: 'fondateur',
+    toBalance: 'à équilibrer',
+    destroy: 'supprimer la partie',
+    destroyConfirm: 'confirmer — tout est effacé',
+    destroyCancel: 'annuler',
+    destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
+    /** Un retardataire d'une Mondiale lancée : rien à déclarer prêt, personne à attendre. */
+    enterWar: 'entrer en guerre — irréversible',
+    enterWarSeedNote:
+      'La saison court sans vous : vous entrez avec la dotation de départ, sans compensation pour les heures écoulées.',
+    pace2: '2 heures',
+    pace48: '48 heures',
+    pace168: '7 jours',
+    paceNone: 'sans horloge',
+  },
+
+  /** **L'ordre d'opérations** (`/fonder`) : la fondation d'une partie, et le télégramme en face. */
+  found: {
+    back: '← à la une',
+    number: 'ordre n° ····',
+    title: 'Ordre d’opérations',
+    sub: 'Le télégramme d’invitation s’écrit en face, mot pour mot. Tout se reprend au salon jusqu’au lancement.',
+    modeTitle: 'Le mode',
+    modeNote:
+      'Le même jeu, deux façons de le jouer : l’horloge, l’économie et la victoire en découlent.',
+    modes: {
+      blitz: {
+        span: 'une soirée',
+        facts: [
+          ['horloge', '2 h, tous présents à l’heure dite'],
+          ['table', '2 à 4 joueurs, nations identiques'],
+          ['terrain', 'un théâtre'],
+          ['victoire', 'prendre le QG adverse ; à 2 h, le plus gros revenu'],
+        ],
+      },
+      mondiale: {
+        span: 'une semaine',
+        facts: [
+          ['horloge', '7 jours, deux ou trois visites par jour'],
+          ['table', '2 à 8 joueurs, une nation et son atout'],
+          ['terrain', 'le monde entier'],
+          ['victoire', 'réduire la moitié des adversaires'],
+        ],
+      },
+    } satisfies Record<
+      SeasonMode,
+      { span: string; facts: ReadonlyArray<readonly [string, string]> }
+    >,
+    theatreTitle: 'Le théâtre',
+    theatreNote: 'On le traverse en vingt minutes. Il se change encore au salon.',
+    theatreTag: {
+      europe: 'plaines et détroits',
+      mediterranean: 'une mer à tenir',
+      pacific: 'des îles, des flottes',
+      americas: 'deux continents, un canal',
+    } satisfies Record<TheatreId, string>,
+    drawNote: 'tiré au lancement',
+    whenTitle: 'Le rendez-vous',
+    whenNote: 'Tout le monde à table en même temps ; chacun lit l’heure dans son fuseau.',
+    custom: 'autre heure',
+    toChoose: 'à choisir',
+    full: 'table complète',
+    noHour: 'sans heure',
+    customLabel: 'date et heure du rendez-vous',
+    localTime: 'votre heure locale',
+    remind: 'prévenir chaque joueur quinze minutes avant (notification)',
+    captureTitle: 'La capture d’un QG',
+    captureNote:
+      'Le temps de capturer un quartier général à pleine force. Elle s’arrête pendant le repos du défenseur.',
+    hours: (hours: number) => `${num(hours)} heures`,
+    captureTag: (hours: number) =>
+      hours === 12 ? 'par défaut — la semaine bouge' : 'une journée pour répondre',
+    seatsTitle: 'Les places',
+    seatsNote: (blitz: boolean, max: number) =>
+      blitz
+        ? `Jusqu’à ${spelled(max)}. La table se ferme au lancement.`
+        : `Jusqu’à ${spelled(max)}. Le monde entier ; vous lancez quand la table est prête.`,
+    seats: (count: number) => `${num(count)} places`,
+    nothingLeaves: 'Rien ne part avant que vous partagiez le lien.',
+    submit: 'fonder — obtenir le code',
+    preview: 'ce que vos invités recevront',
+    previewLabel: 'aperçu de l’invitation',
+    previewNote:
+      'Le même texte ouvre la page d’invitation, au-dessus de la table et de qui y est déjà assis.',
+  },
+
+  /** **La table d'état-major** (`/salon`) et ce qu'elle partage avec la une et le télégramme. */
+  table: {
+    you: 'vous',
+    draw: 'Au sort',
+    world: 'Le monde',
+    world1940: 'Le monde, 1940',
+    generalMap: 'carte générale',
+    worldSheet: 'carte générale',
+    theatreSheet: 'théâtre',
+    staffSheet: (sheet: string) => `état-major · ${sheet}`,
+    worldKm: '0 · 2500 · 5000 km',
+    worldSeas: [
+      ['Océan Pacifique', -128, 4, 1],
+      ['Atlantique', -38, 30, 1],
+      ['Océan Indien', 78, -20, 1],
+    ] as ReadonlyArray<readonly [string, number, number, number]>,
+    sheets: {
+      europe: {
+        title: 'Théâtre d’Europe',
+        sheet: 'feuille I',
+        km: '0 · 250 · 500 km',
+        seas: [
+          ['Atlantique', -7, 47, 1],
+          ['mer du Nord', 3.2, 56.5, 0.8],
+          ['Méditerranée', 18, 35.6, 0.8],
+          ['Baltique', 19.5, 57.8, 0.7],
+        ],
+      },
+      mediterranean: {
+        title: 'Théâtre de la Méditerranée',
+        sheet: 'feuille II',
+        km: '0 · 200 · 400 km',
+        seas: [
+          ['Méditerranée', 17, 34.2, 1],
+          ['mer Noire', 34, 43.3, 0.7],
+          ['Atlantique', -8, 33, 0.7],
+        ],
+      },
+      pacific: {
+        title: 'Théâtre du Pacifique',
+        sheet: 'feuille III',
+        km: '0 · 1000 · 2000 km',
+        seas: [
+          ['Océan Pacifique', 185, 10, 1.1],
+          ['mer de Corail', 156, -18, 0.7],
+          ['mer de Chine', 114, 14, 0.7],
+        ],
+      },
+      americas: {
+        title: 'Théâtre des Amériques',
+        sheet: 'feuille IV',
+        km: '0 · 1000 · 2000 km',
+        seas: [
+          ['Atlantique', -45, 25, 1],
+          ['Pacifique', -112, 2, 1],
+          ['mer des Caraïbes', -76, 14.5, 0.7],
+        ],
+      },
+    } satisfies Record<
+      TheatreId,
+      {
+        title: string;
+        sheet: string;
+        km: string;
+        seas: ReadonlyArray<readonly [string, number, number, number]>;
+      }
+    >,
+    shortNation: {
+      france: 'France',
+      uk: 'R.-Uni',
+      usa: 'É.-Unis',
+      ussr: 'URSS',
+      germany: 'Allemagne',
+      japan: 'Japon',
+      italy: 'Italie',
+      china: 'Chine',
+    } satisfies Record<Nation, string>,
+    lobbyOf: (mode: string, pace: string) => `salon · ${mode}, ${pace}`,
+    codeLabel: 'code de partie',
+    rendezvous: 'rendez-vous',
+    rendezvousOn: (theatre: string) => `rendez-vous · ${theatre}`,
+    rendezvousAria: (when: string, left: string) => `Rendez-vous ${when}, dans ${left}`,
+    in: 'dans',
+    whenFull: 'dès que la table est complète',
+    hour: (at: number) =>
+      new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(new Date(at)),
+    shortHour: (at: number) => {
+      const date = new Date(at);
+      const minutes = date.getMinutes();
+      return `${date.getHours()} h${minutes === 0 ? '' : ` ${String(minutes).padStart(2, '0')}`}`;
+    },
+    clock: (minutes: number) =>
+      `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
+    /** « ce soir », « demain », ou le jour en toutes lettres. */
+    dayWord: (at: number, now: number) => {
+      const day = (instant: number) => {
+        const date = new Date(instant);
+        return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
+      };
+      const gap = day(at) - day(now);
+      if (gap === 0) return new Date(at).getHours() >= 18 ? 'ce soir' : 'aujourd’hui';
+      if (gap === 1) return 'demain';
+      return new Intl.DateTimeFormat('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      }).format(new Date(at));
+    },
+    worldClock: 'le monde · sept jours',
+    captureLine: (hours: number) => `capture d’un QG en ${num(hours)} heures`,
+    invite: (free: number) => `inviter · ${num(free)} place${plural(free, '', 's')}`,
+    inviteLabel: 'inviter',
+    full: 'table complète',
+    onlySecret: 'code de partie — le seul secret',
+    copyLink: 'copier le lien',
+    copyCode: 'copier le code',
+    linkCopied: 'Lien d’invitation copié.',
+    codeCopied: (code: string) => `Code ${code} copié.`,
+    sections: 'sections du salon',
+    tabs: { table: 'table', ordre: 'ordre', wire: 'télégraphe' },
+    tableLabel: 'la table',
+    freeSeat: 'place libre',
+    offerLink: 'offrir le lien',
+    toChoose: (blitz: boolean) => (blitz ? 'drapeau à choisir' : 'nation à choisir'),
+    atTable: 'à la table',
+    away: 'absent',
+    awayFor: (minutes: number) =>
+      minutes < 1 ? 'vient de quitter la table' : `parti il y a ${num(minutes)} min`,
+    ready: 'prêt',
+    restRange: (start: number, end: number) =>
+      `repos ${fr.table.clock(start)}–${fr.table.clock(end)}`,
+    seatAria: (seat: {
+      nickname: string;
+      mine: boolean;
+      founder: boolean;
+      nation: string | null;
+      blitz: boolean;
+      presence: string;
+      ready: boolean;
+    }) =>
+      [
+        `${seat.nickname}${seat.mine ? ' (vous)' : ''}${seat.founder ? ', fondateur' : ''}`,
+        seat.nation ?? (seat.blitz ? 'sans drapeau' : 'sans nation'),
+        seat.presence,
+        seat.ready ? 'prêt' : 'pas prêt',
+      ].join(' — '),
+    postsDrawn: 'postes de départ tirés au lancement',
+    nationsInk: 'chaque nation retenue s’encre sur la carte',
+    yourFlag: 'votre drapeau',
+    yourNation: 'votre nation',
+    identical: 'en Blitz, les nations sont identiques : drapeau et figurines',
+    firstCome: 'premier arrivé, premier servi',
+    takenBy: (nickname: string) => `prise par ${nickname}`,
+    restFrom: 'repos dès',
+    restLabel: 'début de votre plage de repos, heure locale',
+    restUntil: (end: string) => `jusqu’à ${end} · publique`,
+    readyStamp: 'tamponner « prêt »',
+    readyLift: '× prêt — lever',
+    chooseFirst: (blitz: boolean) => (blitz ? 'choisir un drapeau' : 'choisir une nation'),
+    launchBlitz: 'lancer la partie — irréversible',
+    launchSeason: 'lancer la saison — irréversible',
+    allReadyYou: 'Toute la table est prête : à vous de lancer.',
+    allReadyFounder: (founder: string) => `Toute la table est prête : ${founder} peut lancer.`,
+    waitYourNation: (blitz: boolean) => (blitz ? 'votre drapeau' : 'votre nation'),
+    waitNationOf: (nickname: string, blitz: boolean) =>
+      `${blitz ? 'le drapeau' : 'la nation'} de ${nickname}`,
+    waitAtTable: (nickname: string) => `${nickname} à la table`,
+    waitReady: (count: number) => `${spelled(count)} « prêt »`,
+    waitSecond: 'un deuxième joueur',
+    waitingFor: (parts: ReadonlyArray<string>) =>
+      parts.length === 0 ? '' : `On attend ${parts.join(', ')}.`,
+    withoutAbsents: (hour: string) =>
+      ` À ${hour}, vous pourrez lancer sans attendre les absents : ils vous rejoindront en route.`,
+    hourCome: ' L’heure est passée : lancez, les absents vous rejoindront en route.',
+    setAnHour: ' Fixez une heure : passée, vous lancerez sans attendre les absents.',
+    orderChanged: (what: string) => `${what} : l’ordre a changé, les « prêt » sont levés.`,
+    edit: 'modifier',
+    done: 'terminer',
+    by: (founder: string) => `par ${founder}`,
+    theatre: 'théâtre',
+    onTheMap: 'se choisit sur la carte',
+    seatsTerm: 'places',
+    seatsOf: (seated: number, cap: number) => `${num(seated)} sur ${num(cap)}`,
+    seatLess: 'une place de moins',
+    seatMore: 'une place de plus',
+    victory: 'victoire',
+    blitzVictory: 'prendre le QG adverse',
+    hqCapture: 'capture d’un QG',
+    captureRest: 'suspendue pendant le repos du défenseur',
+    remindShort: 'rappel 15 min avant',
+    remindOn: 'Rappel 15 min avant',
+    remindOff: 'Sans rappel',
+    liftsReady: 'Chaque modification lève les « prêt ».',
+    wholeOrder: 'tout l’ordre',
+    blitzMore: [
+      ['horloge', '2 h, tous ensemble'],
+      ['nations', 'identiques : drapeau et figurines'],
+      ['départ', 'un QG, une caserne, un fantassin chacun ; postes tirés au lancement'],
+      ['à 2 h', 'le plus gros revenu l’emporte'],
+      [
+        'absent à l’heure',
+        'le fondateur peut lancer sans l’attendre ; il garde sa place et rejoint en route',
+      ],
+      ['après le lancement', 'la table se ferme'],
+    ] as ReadonlyArray<readonly [string, string]>,
+    mondialeMore: (founder: string | null): ReadonlyArray<readonly [string, string]> => [
+      ['horloge', '7 jours, deux ou trois visites par jour'],
+      ['terrain', 'le monde entier'],
+      ['nations', 'une chacune, avec son atout'],
+      ['victoire', 'réduire la moitié des adversaires'],
+      ['inscriptions', 'encore 2 h après le lancement'],
+      ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
+    ],
+    generalChannel: 'canal général',
+    privateWith: (nickname: string) => `conversation privée avec ${nickname}`,
+    fold: 'replier',
+    foldWire: 'replier le télégraphe',
+    open: 'ouvrir',
+    openWire: (unread: number) =>
+      unread === 0 ? 'ouvrir le télégraphe' : `ouvrir le télégraphe, ${num(unread)} non lus`,
+    wireSilent: 'La ligne est muette — personne n’a encore télégraphié.',
+    telegram: {
+      title: 'TÉLÉGRAMME',
+      number: (code: string) => `n° ${code}`,
+      stop: 'STOP',
+      service: 'la manchette · service des dépêches',
+      label: (text: string) => `Télégramme : ${text.replace(/ STOP/g, '.')}`,
+      origin: 'origine',
+      words: 'mots',
+      filed: 'déposé',
+      link: 'lien',
+      answer: 'réponse',
+      none: 'aucune',
+      paid: 'indications de service : réponse payée',
+      regrets: 'indications de service : regrets',
+      valid: 'valable jusqu’au lancement',
+      file: 'à classer',
+      tableOf: (founder: string) => `table de ${founder}`,
+      filedAt: (at: number) =>
+        new Intl.DateTimeFormat('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+          .format(new Date(at))
+          .replace('/', '·')
+          .replace(' ', ' '),
+      blitzLines: ({
+        from,
+        theatre,
+        when,
+        seats,
+      }: {
+        from: string;
+        theatre: string | null;
+        when: string | null;
+        seats: { taken: number | null; cap: number };
+      }) => [
+        `${from} vous convie à sa table`,
+        theatre === null
+          ? 'Blitz STOP théâtre tiré au sort STOP deux heures de jeu'
+          : `Blitz — ${theatre} STOP deux heures de jeu`,
+        when === null ? 'Rendez-vous dès que la table est complète' : `Rendez-vous ${when}`,
+        seats.taken === null
+          ? `${spelled(seats.cap)} places STOP nations identiques`
+          : `${spelled(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
+        'Soyez présent à l’heure',
+      ],
+      mondialeLines: ({
+        from,
+        capture,
+        seats,
+      }: {
+        from: string;
+        capture: number;
+        seats: { taken: number | null; cap: number };
+      }) => [
+        `${from} vous convie`,
+        'Mondiale STOP sept jours STOP le monde entier',
+        'Départ quand la table est prête',
+        `Capture d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
+        seats.taken === null
+          ? `Jusqu’à ${spelled(seats.cap)} places STOP choisissez votre nation`
+          : `${spelled(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
+      ],
+    },
+    /** **Chaque refus de `joinRefusalOf` a son télégramme et son issue** (choix 19). */
+    refusals: {
+      BLITZ_FULL: (c: RefusalContext) => ({
+        title: 'Table complète',
+        lines: [
+          'Regrettons',
+          `La table${c.founder === null ? '' : ` de ${c.founder}`} est complète`,
+          `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
+        ],
+        paragraph:
+          'Les chaises sont prises. Rien n’est perdu : composez la vôtre, avec les mêmes réglages.',
+        found:
+          c.theatre === null
+            ? 'fonder une Blitz à mon tour'
+            : `fonder une Blitz ${ofPlace(c.theatre)} à mon tour`,
+      }),
+      LOBBY_FULL: (c: RefusalContext) => ({
+        title: 'Salon complet',
+        lines: [
+          'Regrettons',
+          `Le salon${c.founder === null ? '' : ` de ${c.founder}`} est complet`,
+          `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
+        ],
+        paragraph: 'Toutes les places de cette Mondiale sont prises.',
+        found: 'composer une Mondiale',
+      }),
+      BLITZ_STARTED: (c: RefusalContext) => ({
+        title: 'Partie commencée',
+        lines: ['Regrettons', 'La Blitz a commencé', 'Elle ne se rejoint pas en cours'],
+        paragraph:
+          'Une Blitz se joue ensemble, du premier ordre au dernier : la table s’est fermée au lancement.',
+        found: c.theatre === null ? 'fonder une Blitz' : `fonder une Blitz ${ofPlace(c.theatre)}`,
+      }),
+      REGISTRATION_CLOSED: () => ({
+        title: 'Inscriptions closes',
+        lines: ['Regrettons', 'Les inscriptions sont closes', 'La Mondiale court déjà'],
+        paragraph:
+          'Une Mondiale admet les retardataires deux heures après son lancement, pas au-delà.',
+        found: 'composer une Mondiale',
+      }),
+      NO_FREE_NATION: () => ({
+        title: 'Plus de nation libre',
+        lines: ['Regrettons', 'Les huit nations sont prises', 'La saison est complète'],
+        paragraph: 'Toutes les nations sont tenues : il n’y a plus de drapeau à vous donner.',
+        found: null,
+      }),
+      SEASON_CONCLUDED: () => ({
+        title: 'Saison conclue',
+        lines: ['Regrettons', 'Cette saison est conclue'],
+        paragraph:
+          'Elle se relit, elle ne se joue plus — et seuls ceux qui y avaient une place la relisent.',
+        found: null,
+      }),
+      UNKNOWN_GAME_CODE: () => ({
+        title: 'Code inconnu',
+        lines: ['Code inconnu', 'Vérifiez les six caractères', 'Ni O ni 0 ni I ni 1'],
+        paragraph:
+          'Aucune partie ne porte ce code. Une faute de frappe, ou une partie mise au rebut par son fondateur.',
+        found: null,
+      }),
+    } satisfies Record<
+      Exclude<JoinRefusal, 'SEAT_TAKEN'> | 'UNKNOWN_GAME_CODE',
+      (c: RefusalContext) => {
+        title: string;
+        lines: string[];
+        paragraph: string;
+        found: string | null;
+      }
+    >,
+  },
 
   /** Le film de 30 s, à la demande : un lien discret sur les deux pages d'entrée. */
   film: {
@@ -861,8 +1510,9 @@ export const fr = {
     unavailable: 'Le film n’est pas disponible pour l’instant.',
   },
 
-  /** **La une** (`/` sans session, maquette 2a du 03/10) : une première page qui ne propose pas
-   *  de compte seul — on entre sur invitation (marque-1c). */
+  /** **La une** (`/` sans session, page publique du 14/10/2026) : une édition qu'on déplie — la
+   *  une, puis sa photographie, qui est la table, et des coupures que la table joue. On entre sur
+   *  invitation (marque-1c) : un code, ou un compte déjà ouvert. */
   front: {
     /** La date du jour en tête de page, longue au bureau, abrégée sur téléphone. */
     date: (at: Date) =>
@@ -872,178 +1522,262 @@ export const fr = {
         month: 'long',
         year: 'numeric',
       }).format(at),
-    shortDate: (at: Date) =>
-      new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(
-        at,
-      ),
-    shortDateline: 'édition de guerre',
-    film: 'voir le film (30 s)',
-    caption: 'Le plateau, à l’encre : des forces se déplacent sur la carte du monde.',
-    headline: 'Sept jours pour refaire le monde',
-    lede: 'Stratégie entre amis sur une carte du monde réel : 2 à 8 joueurs, une saison de sept jours.',
-    stamp: 'sur invitation',
-    codeTitle: 'J’ai un code d’invitation',
-    codeLabel: 'code d’invitation',
-    codeHint: 'Six caractères, reçus avec l’invitation',
-    open: 'ouvrir',
-    accountTitle: 'Déjà un compte ?',
-    signIn: 'se connecter',
-    haveCode: 'j’ai un code',
-    /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
-    back: 'retour à la une',
-    briefs: [
+    dateline: 'le monde en jeu',
+    datelineLong: ' — édition de guerre',
+    onInvitation: 'sur invitation',
+    film: 'voir le film (30 s)',
+    unfold: 'dépliez l’édition',
+    engraving: 'gravure de la carte…',
+    caption:
+      'Notre photographie : la table, ce matin, au-dessus de la Manche. Rien n’y est retouché : c’est le jeu.',
+    headline: 'Une soirée ou sept jours pour refaire le monde',
+    lede: 'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
+    editions: [
       {
-        kicker: 'la saison',
-        text: 'Une saison dure sept jours. On y passe quelques minutes, plusieurs fois par jour.',
+        kicker: 'L’édition du soir',
+        name: 'Blitz',
+        meta: '1 à 2 h · 2 à 4 joueurs présents · un théâtre',
+        text: 'On prend des villes, on forme ses troupes, on tombe le quartier général d’en face.',
       },
       {
-        kicker: 'la nation',
-        text: 'Chacun prend une nation de 1940, la développe, et envoie ses forces sur terre, en mer et dans les airs.',
-      },
-      {
-        kicker: 'les ordres',
-        text: 'Les ordres se donnent, puis la carte les exécute pendant qu’on vit sa vie. Une dépêche prévient quand il se passe quelque chose.',
+        kicker: 'L’hebdomadaire',
+        name: 'Mondiale',
+        meta: '7 jours · 2 à 8 joueurs · le monde',
+        text: 'Deux ou trois visites par jour, sept points à tenir, une presse toutes les trois heures.',
       },
     ],
-  },
+    haveCode: 'j’ai un code',
+    signIn: 'se connecter',
+    briefs: [
+      {
+        kicker: 'Le front',
+        text: 'Les pièces se lèvent et se posent comme aux échecs.',
+        page: 'Page 2',
+      },
+      {
+        kicker: 'Renseignement',
+        text: 'Ce que vous savez de l’ennemi pâlit à l’encre.',
+        page: 'Page 3',
+      },
+      {
+        kicker: 'L’assaut',
+        text: 'On frappe le premier ; l’infanterie capture Berne.',
+        page: 'Page 4',
+      },
+      { kicker: 'La course', text: 'Sept lieux réels, une règle cassée chacun.', page: 'Page 5' },
+    ],
 
-  /** **La feuille qu'ouvre un lien d'invitation** (`/rejoindre/CODE`). Les refus sont ceux du
-   *  serveur, dits par `fr.errors` : une phrase, jamais un bouton grisé (ADR 0015) — sauf
-   *  l'heure de clôture, que seule cette page sait donner. */
-  invitation: {
-    opening: 'Ouverture de l’invitation…',
-    invitedBy: (founder: string | null) =>
-      founder === null ? 'on vous invite à une partie' : `${founder} vous invite`,
-    tagline: 'une place vous attend à la table',
-    duration: (pace: string) => `saison : ${pace}`,
-    placesLeft: (count: number) =>
-      `${count} place${plural(count, '', 's')} restante${plural(count, '', 's')}`,
-    join: 'rejoindre la partie',
-    resume: 'reprendre',
-    toHome: 'retour à l’accueil',
-    closedSince: (date: string) => `Les nouvelles inscriptions ont été closes le ${date}.`,
-    signedIn: (nickname: string) => `vous entrez sous le nom de ${nickname}`,
-    /** Le compte est né, la place non : le salon s'est rempli entre-temps. Le dossier est gardé. */
-    accountKept: 'Votre dossier est ouvert et gardé — il vous attend à l’accueil.',
-  },
-
-  home: {
-    edition: 'édition du jour',
-    audience: '2 à 8 joueurs — entre amis',
-    tagline: 'projeter de la force — l’information est chère, tout engagement est irréversible',
-    stampTitle: 'état-major',
-    stampSub: 'bureau des cartes',
-    gamesHeader: 'mes parties',
-    gamesNote: 'les parties de votre dossier',
-    gamesCount: (count: number) => `${count} partie${plural(count, '', 's')}`,
-    resume: 'reprendre',
-    resumeLobby: (code: string) => `salon ${code}`,
-    resumeSeason: 'saison en cours',
-    /** L'entrée d'un défait : elle ouvre le même plateau, en l'état. Ce n'est pas une
-     *  partie qu'on reprend, c'est une guerre qu'on regarde finir. */
-    resumeDefeated: 'défaite : observer',
-    statusLabel: 'statut',
-    endsIn: 'fin dans',
-    open: 'ouvert',
-    finished: 'terminée',
-    foundTitle: 'Fonder une saison',
-    /** Fonder demande le mode ; l'horloge et le plafond de joueurs en découlent (`MODE_RULES`). */
-    foundNote: 'Choisissez le mode : l’horloge et le nombre de joueurs en découlent.',
-    noClock: 'sans horloge',
-    foundSubmit: 'fonder — obtenir un code',
-    joinTitle: 'Rejoindre par code',
-    joinNote: 'Six caractères reçus d’un fondateur. La cadence est déjà fixée.',
-    codeLabel: 'code de partie',
-    codePlaceholder: 'ABC234',
-    joinHint: (hours: number) =>
-      `Les nouvelles places sont admises avant le lancement et pendant les ${hours} premières heures.`,
-    joinSubmit: 'rejoindre le salon',
-    footerLeft: 'tour de jeu asynchrone · plage de repos respectée',
-    footerRight: 'région fixée au lancement',
-    noBackend: {
-      before: 'Aucun backend configuré (',
-      env: 'VITE_CONVEX_URL',
-      middle: ' absent). Lancez la pile locale avec ',
-      command: 'docker compose up',
-      after: ' — voir ',
-      readme: 'deploiement/README.md',
-      end: '.',
+    /** La feuille d'Europe : ce qui y est gravé, au crayon et à l'encre de mer. */
+    sheet: {
+      cartouche: 'ÉTAT-MAJOR  ·  FEUILLE  D’EUROPE',
+      seas: {
+        atlantic: 'Océan Atlantique',
+        mediterranean: 'Méditerranée',
+        northSea: 'Mer du Nord',
+        channel: 'La Manche',
+        blackSea: 'Mer Noire',
+      },
+      km: (km: number) => `${km} km`,
+      north: 'N',
     },
-  },
 
-  lobby: {
-    opening: 'Ouverture du salon…',
-    header: (pace: string) => `salon de saison — ${pace}`,
-    regionLabel: (region: string) => `région : ${region}`,
-    quit: 'quitter',
-    codeLabel: 'code de partie — à partager',
-    codeNote: 'Partagez ce code pour inviter vos amis tant que les inscriptions sont ouvertes.',
-    copyCode: 'copier le code',
-    codeCopied: 'code copié',
-    copyLink: 'copier le lien d’invitation',
-    linkCopied: 'lien copié',
-    participantCount: (count: number, maximum: number) =>
-      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur ${maximum}`,
-    registrationBeforeLaunch: (hours: number) =>
-      `Les inscriptions sont ouvertes avant le lancement, puis pendant les ${hours} premières heures.`,
-    registrationUntil: (date: string) => `Clôture des nouvelles inscriptions : ${date}.`,
-    registrationClosed: 'Les nouvelles inscriptions sont closes.',
-    registrationConcluded: 'La saison est conclue ; elle peut être relue.',
-    nationsHeader: 'nations — premier arrivé, premier servi',
-    nationsFree: (count: number) =>
-      `${count} nation${plural(count, '', 's')} libre${plural(count, '', 's')}`,
-    you: 'vous',
-    takenBy: (nickname: string) => `prise · ${nickname}`,
-    toBalance: 'à équilibrer',
-    free: 'libre',
-    reservationNote:
-      'La réservation se relâche d’un clic tant que la saison n’est pas lancée. La richesse des pays neutres (graine) ne sera révélée qu’au lancement.',
-    playersHeader: 'joueurs',
-    founder: 'fondateur',
-    ready: 'prêt',
-    waiting: 'en attente',
-    freeSeat: 'place libre',
-    restHeader: 'ma plage de repos — publique',
-    restFrom: 'à partir de',
-    restUntil: (end: string) => `jusqu’à ${end}`,
-    restNote:
-      'Sept heures par nuit, durée fixe : vous choisissez quand vous dormez, pas combien de temps. Vos adversaires la voient, et aucun mouvement ne peut arriver pendant — il attend à la frontière. Elle se scelle au lancement, comme la nation.',
-    restDeclare: 'déclarer',
-    restDeclared: 'déclarée ✓',
-    checkNation: 'une nation réservée',
-    checkAllReady: 'tous les joueurs déclarés prêts',
-    declareReady: 'me déclarer prêt',
-    declareNotReady: 'je ne suis plus prêt',
-    launch: 'lancer la saison — irréversible',
-    launchSeedNote: 'la graine des pays neutres sera tirée au lancement',
-    launchMissing: (count: number) => `il manque ${count} condition${plural(count, '', 's')}`,
-    creatorOnly: 'seul le fondateur lance la saison.',
-    destroy: 'supprimer la partie',
-    destroyConfirm: 'confirmer — tout est effacé',
-    destroyCancel: 'annuler',
-    destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
-    /**
-     * **Le salon a deux visages** : celui d'avant le lancement, et celui d'un retardataire qui
-     * rejoint une saison déjà en cours. Rien à y déclarer prêt, personne à attendre — la guerre
-     * a commencé sans lui et ne le rattrapera pas : il reçoit le kit de lancement tel quel.
-     */
-    enterWarHeader: 'entrée en guerre — la saison court déjà',
-    enterWarNote:
-      'La saison a été lancée sans vous. Votre siège est conservé : choisissez votre nation et terminez votre préparation quand vous le souhaitez. Vous entrez avec la dotation de départ, sans compensation pour les heures écoulées.',
-    enterWar: 'entrer en guerre — irréversible',
-    enterWarMissing: (count: number) =>
-      `il manque ${count} condition${plural(count, '', 's')} — une nation`,
-    enterWarSeedNote: 'votre nation apparaît au journal de tous les belligérants',
-    enterWarNationsHeader: 'nations encore libres',
-    belligerents: 'belligérants',
-    atWar: 'en guerre',
-    footerLeft: 'la partie commence quand le fondateur lance — pas avant',
-    footerEnterWar: 'la saison court — votre entrée est immédiate',
-    footerCode: (code: string) => `salon ${code}`,
-    pace2: '2 heures',
-    pace48: '48 heures',
-    pace168: '7 jours',
-    paceNone: 'sans horloge',
+    pieces: {
+      pile: 'pile · la mienne',
+      infantry: 'Infanterie',
+      post: 'avant-poste · le mien',
+      postLevel: 'Niv. 3',
+      reach: 'portée',
+      reachKm: '240 km',
+      surveyedAgo: (time: string, hours: number) =>
+        hours === 0 ? `relevé · ${time}` : `relevé de ${time} · il y a ${hours} h`,
+      estimatedHeading: 'cap estimé',
+      southWest: 'sud-ouest',
+      atContact: (time: string) => `au contact · ${time}`,
+      infantryOne: 'infanterie ×1',
+      men: (count: number) => `${count} hommes`,
+      armorOne: 'blindé ×1',
+      panzer: 'Panzer IV',
+      openField: 'rase campagne',
+      unsheltered: 'sans abri',
+      berne: 'Berne',
+      town: 'ville',
+      townMine: 'ville · la mienne',
+      capture: 'capture · infanterie',
+      capturing: 'En cours',
+      taken: 'Capturée',
+      forces: 'forces',
+      forcesValue: '10 / 10',
+      forceInField: 'la force devant Berne',
+      enemyForce: 'force relevée',
+    },
+
+    /** La carte d'envoi au point posé : ce que le serveur daterait, en jeu. */
+    send: {
+      toward: (place: string) => `vers ${place}`,
+      here: 'le point visé',
+      arrival: (time: string) => `arrivée ${time}`,
+      slots: '1 mouvement sur 2',
+    },
+
+    founded: 'fondé',
+
+    /** Les lieux où la compagnie se pose, et les villes que la nuit allume. */
+    places: {
+      verdun: 'Verdun',
+      metz: 'Metz',
+      nancy: 'Nancy',
+      reims: 'Reims',
+      strasbourg: 'Strasbourg',
+      saarbrucken: 'Sarrebruck',
+      brussels: 'Bruxelles',
+      lille: 'Lille',
+      lyon: 'Lyon',
+      paris: 'Paris',
+    },
+    cities: {
+      paris: 'Paris',
+      london: 'Londres',
+      berlin: 'Berlin',
+      rome: 'Rome',
+      madrid: 'Madrid',
+      moscow: 'Moscou',
+      warsaw: 'Varsovie',
+      cairo: 'Le Caire',
+      istanbul: 'Istanbul',
+      stockholm: 'Stockholm',
+    },
+
+    pages: {
+      front: {
+        folio: 'Page 2 · le front',
+        time: '14:05',
+        title: 'On lève la pièce, on la pose, l’ordre part',
+        chapo: 'Pas de menu : le mouvement s’ordonne sur la carte, et nulle part ailleurs.',
+        body: 'Levée, la compagnie suit la main ; posée, la rose dit ce qu’on peut faire là. La route et l’heure d’arrivée viennent du serveur. On envoie, un mouvement est pris — et c’est irréversible.',
+        steps: ['lever', 'poser', 'choisir', 'envoyer', 'arriver'],
+        legend: 'À vous : cliquez la compagnie, puis un point de la carte.',
+      },
+      fog: {
+        folio: 'Page 3 · renseignement',
+        time: '09:40',
+        title: 'L’ennemi n’a pas de visage, seulement une date',
+        chapo: 'Vous ne voyez de l’autre que ce que vos postes relèvent, et le relevé vieillit.',
+        body: 'Une colonne traverse la portée de votre avant-poste : on en garde le tronçon, le cap, une heure. Jamais la destination, la composition ni la nation — une annotation à l’encre, qui pâlit.',
+        age: 'âge du relevé',
+        ageNow: 'à jour',
+        ageAgo: (hours: number) =>
+          `il y a ${hours} h${hours >= 6 ? ' · dernière position connue' : ''}`,
+        statesLabel: 'Les trois états d’une région',
+        states: ['vierge, au crayon', 'relevée, gravée', 'à jour, à l’encre'],
+      },
+      battle: {
+        folio: 'Page 4 · l’assaut',
+        time: '15:12',
+        title: 'Berne change de main',
+        chapo:
+          'L’attaquant frappe le premier ; le défenseur riposte avec ce qui lui reste. À l’abri d’une garnison il encaisserait moins — en rase campagne, rien ne le couvre. Puis l’infanterie entre dans la ville, et la capture.',
+        steps: ['ordre', 'frappe', 'riposte', 'repli', 'capture'],
+        dispatch:
+          '15:12 — DEVANT BERNE. Notre assaut a frappé le premier ; l’adversaire a riposté puis s’est replié. 15:54 — BERNE EST À NOUS.',
+        legend:
+          'Seule l’infanterie capture, au rythme de ses forces. Au feu, on voit qui l’on affronte : rôles, effectifs, nation.',
+        replay: 'rejouer',
+        takenAt: '15:54',
+      },
+      race: {
+        folio: 'Page 5 · la course aux Sept',
+        day: (day: number) => `jour ${day}`,
+        title: 'La course aux Sept',
+        chapo:
+          'Sept lieux réels de 1940, tirés au sort à chaque saison. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
+        tableLabel: 'Points tenus',
+        belligerent: 'Belligérant',
+        points: 'points',
+        held: 'tenus',
+        waiting: 'Les Sept attendent leurs teneurs.',
+        takes: (nation: string, point: string) => `${nation} prend ${point}.`,
+        three: (nation: string) =>
+          `${nation} tient trois des Sept. Il lui en faut quatre, vingt-quatre heures durant.`,
+        winsIn: (nation: string) => `${nation} prend Malte et tient quatre des Sept. Victoire dans`,
+        ifNothingMoves: 'si rien ne bouge.',
+        countdown: (minutes: number) =>
+          `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`,
+        legend: 'Chaque lieu casse une règle pour qui le tient. Survolez ou touchez un jalon.',
+        /** Les nations de la course, avec leur article, en tête de phrase. */
+        nations: {
+          uk: 'Le Royaume-Uni',
+          germany: 'L’Allemagne',
+          italy: 'L’Italie',
+          ussr: 'L’U.R.S.S.',
+        } satisfies Partial<Record<Nation, string>>,
+        sites: {
+          gibraltar: ['Gibraltar', 'Le détroit est fermé à vos rivaux, sauf à qui vous l’ouvrez.'],
+          malta: ['Malte', 'Vos garnisons tirent avant l’assaillant.'],
+          suez: ['Suez', 'Une fois par jour, un de vos mouvements partis change de destination.'],
+          istanbul: [
+            'Istanbul',
+            'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
+          ],
+          narvik: ['Narvik', 'Vos exploitations produisent même hors réseau.'],
+          baku: ['Bakou', 'Vos motorisés font le plein partout.'],
+          lisbon: ['Lisbonne', 'Vous lisez la nation de tout ce que vous relevez.'],
+        } satisfies Record<RacePoint, readonly [string, string]>,
+      },
+      night: {
+        folio: 'Page 6 · chronique',
+        title: 'La nuit tombe sur l’Europe',
+        chapo: 'Le jour suit le vrai soleil : il fait nuit à Paris quand il fait nuit à Paris.',
+        body: 'Faites défiler : l’ombre gagne d’est en ouest, chaque ville s’allume à son crépuscule. Du décor — et l’heure à laquelle dorment vos adversaires.',
+        clock: (at: number, zone: string) =>
+          new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: zone })
+            .format(at)
+            .replace(':', ' h '),
+        cities: { london: 'Londres', paris: 'Paris', moscow: 'Moscou' },
+      },
+      press: {
+        folio: 'Page 7 · la presse',
+        edition: 'édition de 15:00',
+        title: 'La presse tient les comptes',
+        chapo: 'Toutes les trois heures, une édition. Entre deux, le classement ne bouge pas.',
+        tableLabel: 'Classement de l’édition',
+        rank: 'rang',
+        nation: 'nation',
+        territory: 'territoire',
+        general: 'général',
+        rows: [
+          { nation: 'uk', pseudo: 'Brisquard', territory: '31 %', general: '4 820' },
+          { nation: 'ussr', pseudo: 'Colonel Plume', territory: '27 %', general: '4 410' },
+          { nation: 'germany', pseudo: 'Mlle Sextant', territory: '24 %', general: '3 960' },
+          { nation: 'italy', pseudo: 'Le Doyen', territory: '18 %', general: '2 705' },
+        ] satisfies ReadonlyArray<{
+          nation: Nation;
+          pseudo: string;
+          territory: string;
+          general: string;
+        }>,
+        telegraph: 'télégraphe · canal général',
+        wires: [
+          ['Brisquard', 'Malte tombera avant l’édition de 18 h.'],
+          ['Mlle Sextant', 'On en reparle à Gibraltar.'],
+          ['Colonel Plume', 'Je ne dis rien. STOP.'],
+        ],
+      },
+    },
+
+    /** Les deux portes, au bout de l'édition : on n'entre pas seul. */
+    bureau: {
+      folio: 'Bureau des engagements',
+      title: 'Prenez votre place à la table',
+      chapo: 'On n’entre pas seul : un ami vous a envoyé un lien, ou un code.',
+      codeTitle: 'J’ai un code d’invitation',
+      codeHint: 'Six caractères, reçus avec l’invitation.',
+      open: 'ouvrir l’invitation',
+    },
+    footer: 'La Manchette · le monde en jeu, édition de guerre · Fond de carte : Natural Earth',
+    staged: 'Les scènes sont jouées : aucune partie réelle n’y figure.',
+    credits: 'crédits',
+    /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
+    back: 'retour à la une',
   },
 
   launchSequence: {
@@ -1321,6 +2055,7 @@ export const fr = {
       theirs,
       outpostDisabled,
       shock = false,
+      faced,
     }: {
       where: string;
       cause: 'arrival' | 'interception' | 'bombardment';
@@ -1330,13 +2065,14 @@ export const fr = {
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
       shock?: boolean;
+      faced?: Faced | undefined;
     }) => {
       /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
       if (cause === 'bombardment') {
         const lost = attacking ? theirs.lost : mine.lost;
         const fell = (attacking ? theirs : mine).destroyed > 0;
         return attacking
-          ? `bombardement ${where} — notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
+          ? `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
           : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
       }
       const opening =
@@ -1347,7 +2083,7 @@ export const fr = {
           : attacking
             ? `engagement ${where}`
             : `attaque reçue ${where}`;
-      const forces = `${mine.troops} contre ${theirs.troops}`;
+      const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
@@ -1357,10 +2093,12 @@ export const fr = {
           : null,
         outpostDisabled ? 'avant-poste désactivé' : null,
       ].filter((piece): piece is string => piece !== null);
-      return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
+      return `${opening} — ${forces} ${toll} · ${after.join(' · ')}`;
     },
     disabledUntil: (time: string) => `désactivé — retour à ${time}`,
     beats: combatBeats,
+    faced: facedWords,
+    facedNation,
   },
 
   /**
@@ -1372,7 +2110,8 @@ export const fr = {
   victory: {
     kicker: 'domination — victoire de test',
     scaffold: 'condition unique et publique, en attendant la part de carte',
-    dispatch: (by: string, whom: string) => `${by} a réduit ${whom}`,
+    dispatch: (by: string | null, whom: string) =>
+      by === null ? `${whom} est réduit, sous un bombardement` : `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
     reducedMark: 'réduit',
@@ -1995,6 +2734,7 @@ export const fr = {
       ]
         .filter((piece): piece is string => piece !== null)
         .join(' · '),
+    faced: 'au feu',
     theirs: 'en face',
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
@@ -2011,7 +2751,8 @@ export const fr = {
 
   /**
    * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
-   * secondes, et un cartouche à la fin — chez nous par rôle, en face des totaux (ADR 0005).
+   * secondes, et un cartouche à la fin — chez nous par rôle, en face par rôle sous sa nation (F1),
+   * ou des totaux sur un compte rendu d'avant le 14/10.
    */
   replay: {
     play: 'rejouer',
@@ -3272,7 +4013,6 @@ export const fr = {
     lot: 'lot',
     lotProgress: (produced: number, ordered: number) => `${produced} / ${ordered}`,
     surveyed: (time: string) => `relevé · ${time}`,
-    inSight: 'relevé · en vue',
     standing: 'force posée',
     moving: 'force en mouvement',
     unknown: 'composition inconnue, nation inconnue',
@@ -3514,6 +4254,19 @@ export function clockLabel(durationHours: number | null): string {
   if (durationHours === null) return fr.lobby.paceNone;
   if (durationHours === 2) return fr.lobby.pace2;
   return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
+}
+
+/** « ce soir, 21:00 » : le rendez-vous d'une Blitz, dans l'heure de qui le lit. */
+export const rendezvousLabel = (at: number, now: number): string =>
+  `${fr.table.dayWord(at, now)}, ${fr.table.hour(at)}`;
+
+/** « 2 h 14 », « 14 min », « 3 j 06 h » : ce qui reste avant une heure dite. */
+export function countdownLabel(milliseconds: number): string {
+  const minutes = Math.max(0, Math.floor(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
+  return `${Math.floor(hours / 24)} j ${String(hours % 24).padStart(2, '0')} h`;
 }
 
 /**

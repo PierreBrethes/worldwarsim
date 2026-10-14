@@ -92,6 +92,12 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     expect(gunner).toMatchObject({ bombardment: { from: PARIS } });
     expect(target).toMatchObject({ bombardment: {} });
     expect(JSON.stringify(target)).not.toContain(String(PARIS.lon));
+    expect(gunner).toMatchObject({ faced: { nation: 'ussr', forces: [{ role: 'infantry' }] } });
+    expect(target).not.toHaveProperty('faced');
+    const report = (await t.query(api.view.playerView, guest)).reports.find(
+      (account) => account.id === engagement!._id,
+    )!;
+    expect(report).not.toHaveProperty('faced');
   });
 
   it('strikes a seen unit from afar, takes no riposte, and reloads', async () => {
