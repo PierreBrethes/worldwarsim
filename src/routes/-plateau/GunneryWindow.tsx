@@ -10,11 +10,12 @@ import {
   detectionRangeOf,
 } from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
-import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
+import { TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
   gunneryRows,
   movementSheetOf,
   PROFILE_UNITS,
+  profilesFor,
   type Band,
   type GunneryShot,
 } from '@/domain/gunnery';
@@ -50,9 +51,9 @@ import { BLITZ } from '../../../convex/constants';
  * « 18 / 320 » y serait la réserve imprimée une fois de plus (contrat 06 P3).
  */
 export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & { seat: Seat }) {
-  const rows = gunneryRows(DAMAGE_TABLE);
-  const columns = COMBAT_PROFILES;
   const workshop = useQuery(api.troops.workshop, seat);
+  const columns = profilesFor(workshop?.blitz === true ? 'blitz' : 'mondiale');
+  const rows = gunneryRows(DAMAGE_TABLE, columns);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (
