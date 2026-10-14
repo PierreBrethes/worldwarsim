@@ -13,7 +13,7 @@ import {
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
-import { cancelRaisesOf, groundGarrison } from './outposts';
+import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
 import { regionFacts, pointOfBuilding } from './regions';
 import { clipToStorage } from './resources';
 import { reportChange, settleBeforeChange } from './production';
@@ -190,7 +190,14 @@ export async function arriveForCapture(
       now,
       routedCargo,
     );
-    if (!holds) {
+    /** Un chantier vidé de sa garnison tombe avec elle (révision du 15/09), comme sous une
+     *  attaque : il n'y a alors plus rien à capturer, et la colonne rentre. */
+    if (defence.outpostId !== null) await collapseIfAbandoned(ctx, defence.outpostId, now);
+    const still = await targetOf(ctx, aimed, movement.playerId, movement.seasonId);
+    if (!holds || still === null) {
+      if (holds) {
+        await walkHome(ctx, { winners: standing, beaten: [] }, pointOf(movement.to), now);
+      }
       await forgetMovement(ctx, movement._id);
       return;
     }

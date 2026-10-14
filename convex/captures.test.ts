@@ -436,6 +436,49 @@ describe('a site that changed hands while its column was away', () => {
   });
 });
 
+describe('capturing a foundation still under way', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('lets it fall with the garrison that held it, and captures nothing', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, guest);
+    const point = pointOfRegion(PRAHOVA);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point,
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 1,
+        specialization: 'relay',
+        foundedAt: MIDDAY - HOUR,
+        standsAt: MIDDAY + 5 * HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    const guard = await troop(t, guest, 'infantry', outpostId);
+    await t.run((ctx) => ctx.db.patch(guard, { currentStrength: 1 }));
+    const attackers = [
+      await troop(t, seat, 'infantry', null),
+      await troop(t, seat, 'infantry', null),
+      await troop(t, seat, 'armor', null),
+    ];
+
+    await captureArrival(t, seat, { kind: 'outpost', outpostId }, point, 'ROU', attackers);
+
+    expect(await t.run((ctx) => ctx.db.get(outpostId))).toBeNull();
+    expect(await capturesOf(t)).toEqual([]);
+    expect(await noticesOf(t, guest, 'foundationLost')).toHaveLength(1);
+  });
+});
+
 describe('ordering a capture', () => {
   it('is refused to a column without infantry, and on a headquarters', async () => {
     const t = boot();
