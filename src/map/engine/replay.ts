@@ -307,8 +307,8 @@ export class ReplayScene {
       if (figurine === null) {
         built.card = true;
         const plate = plateOf(spriteUrl(nation, piece.role, piece.tier));
-        // Upright to the eye, while the holder faces the enemy.
-        plate.rotation.y = -Math.PI / 2;
+        // Upright to the eye, whichever way the holder faces — a battery faces its target.
+        plate.rotation.y = -holder.rotation.y;
         built.body.add(plate, contactShadow());
       } else {
         built.body = figurine.object;
