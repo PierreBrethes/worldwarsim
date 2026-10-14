@@ -13,6 +13,8 @@ import {
 } from './construction';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
+import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
+import { theatreById } from './theatres';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
@@ -260,7 +262,9 @@ export type CompassPictogram =
   | 'aerial'
   /** Le métier d'écoute : le pavillon tendu, l'oreille du point. Même famille que l'antenne,
    *  et ce qui les sépare est le sens de l'onde : l'une part, l'autre arrive. */
-  | 'ear';
+  | 'ear'
+  /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
+  | 'shell';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -466,6 +470,22 @@ export type CompassAction =
       readonly transport: TroopStation;
     }
   /**
+   * **Bombarder** (B20, lot 6b) : sur-le-champ, comme embarquer — aucune colonne ne part, la pièce
+   * tire de sa batterie. Elle ne paraît que si `bombardRefusalOf`, la règle de
+   * `movements.bombard`, la laisse passer.
+   */
+  | {
+      readonly key: 'bombard';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly troopId: string;
+      readonly target:
+        | { readonly kind: 'camp'; readonly campId: string }
+        | { readonly kind: 'track'; readonly movementId: string };
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -496,7 +516,7 @@ export const isOrder = (action: CompassAction): action is OrderAction =>
 /** **Ce qui fait d'une étiquette une destination de la colonne armée** : un ordre, ou un
  *  embarquement — les deux se cerclent sur la carte et se listent sous le pouce. */
 export const isDestinationAction = (action: CompassAction): boolean =>
-  isOrder(action) || action.key === 'board';
+  isOrder(action) || action.key === 'board' || action.key === 'bombard';
 
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
@@ -891,7 +911,7 @@ export function compassOf(
     }
   }
   if (column !== null && target.kind !== 'force') {
-    return aim(target, view, column, freeCapacity, origin);
+    return aim(target, view, column, freeCapacity, origin, heldTroopIds);
   }
   const fan = build(
     target,
@@ -935,8 +955,11 @@ function aim(
   column: Column,
   freeCapacity: number,
   origin: TroopStation | null,
+  heldTroopIds: ReadonlyArray<string> | null,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
+  if ((target.kind === 'camp' || target.kind === 'track') && column.roles.some(firesIndirect))
+    return bombardFan(target, view, column, origin, heldTroopIds);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
     const aimed: MovementAim = {
@@ -1057,6 +1080,62 @@ function aim(
       surveyed: carriesSurveyedInstallation(target.regionId, view.surveyedInstallations),
     },
   ]);
+}
+
+/**
+ * **La pièce en main tire, ou dit pourquoi elle se tait** (B20) : une seule branche, et la même
+ * règle que le serveur. L'heure est celle du clic — batterie et rechargement s'égrènent.
+ */
+function bombardFan(
+  target: Extract<CompassTarget, { kind: 'camp' | 'track' }>,
+  view: PlayerView,
+  column: Column,
+  origin: TroopStation | null,
+  heldTroopIds: ReadonlyArray<string> | null,
+): Compass | null {
+  const from = origin === null ? null : stationPointOf(view.me, origin);
+  const troop = view.me.troops.find(
+    (candidate) => heldTroopIds?.includes(candidate.id) === true && firesIndirect(candidate.role),
+  );
+  if (from === null || troop === undefined) return null;
+  const now = Date.now();
+  const order = {
+    roles: column.roles,
+    from,
+    to: target.point,
+    theatre: view.theatre === null ? null : theatreById(view.theatre),
+    seen:
+      target.kind === 'track' ||
+      view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),
+    emplacedAt: troop.emplacedAt ?? 0,
+    reloadUntil: troop.reloadUntil ?? null,
+    now,
+  };
+  const refused = bombardRefusalOf(order);
+  return {
+    kicker: fr.compass.aiming(column.roles.length),
+    name: target.name,
+    actions:
+      refused !== null
+        ? []
+        : [
+            {
+              key: 'bombard',
+              pictogram: 'shell',
+              label: fr.compass.bombard,
+              cost: null,
+              consequence: fr.compass.bombardConsequence(
+                Math.round(distanceKm(from, target.point)),
+              ),
+              troopId: troop.id,
+              target:
+                target.kind === 'camp'
+                  ? { kind: 'camp', campId: target.id }
+                  : { kind: 'track', movementId: target.id },
+            },
+          ],
+    refusal: refused === null ? null : fr.errors[refused](bombardRefusalDetails(order)),
+  };
 }
 
 /**

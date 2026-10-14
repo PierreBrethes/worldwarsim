@@ -670,9 +670,14 @@ export const fr = {
     BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
     ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
     INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
-    NOT_EMPLACED: () => 'pas encore en batterie : elle doit rester immobile un instant',
-    TOO_CLOSE: () => 'trop près : la cible est dans la zone morte',
-    OUT_OF_RANGE: () => 'hors de portée',
+    NOT_EMPLACED: (details) =>
+      typeof details.seconds === 'number' && details.seconds > 0
+        ? `pas encore en batterie : prête dans ${details.seconds} s`
+        : 'pas encore en batterie : elle doit rester immobile un instant',
+    TOO_CLOSE: (details) =>
+      `trop près : ${num(details.km)} km, la zone morte en fait ${num(details.minimum)}`,
+    OUT_OF_RANGE: (details) =>
+      `hors de portée : ${num(details.km)} km pour ${num(details.maximum)}`,
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
     UNKNOWN_RECIPIENT: () => 'ce destinataire n’est pas à la table',
@@ -1425,6 +1430,7 @@ export const fr = {
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
     engaged: 'engagé',
+    shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
@@ -1907,6 +1913,11 @@ export const fr = {
   reload: {
     label: 'rechargement',
     prefix: 'rechargement ',
+  },
+  /** **La mise en batterie** (B20) : l'artillerie immobile ne tire qu'au bout de son attente. */
+  battery: {
+    label: 'en batterie dans',
+    prefix: 'en batterie dans ',
   },
 
   sent: {
@@ -2975,6 +2986,10 @@ export const fr = {
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
     enemyColumn: 'colonne ennemie',
+    /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
+    bombard: 'bombarder',
+    bombardConsequence: (km: number) =>
+      `Tir indirect à ${km} km, sur-le-champ : la cible ne peut pas répondre. Puis la pièce recharge.`,
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :

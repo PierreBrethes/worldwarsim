@@ -34,8 +34,8 @@ export type Bombardment = {
   readonly theatre: Theatre | null;
   /** La cible est dans les relevés du joueur à l'instant — on ne tire pas sur un souvenir. */
   readonly seen: boolean;
-  /** Depuis quand la pièce est immobile. */
-  readonly settledAt: number;
+  /** L'instant où la pièce est en batterie (`emplacedAt`). */
+  readonly emplacedAt: number;
   readonly reloadUntil: number | null;
   readonly now: number;
 };
@@ -47,9 +47,17 @@ export function bombardRefusalOf(order: Bombardment): BombardRefusal | null {
   if (roles[0] === undefined || !firesIndirect(roles[0])) return 'ARTILLERY_ONLY';
   if (!order.seen) return 'NOTHING_TO_ATTACK';
   if (!withinTheatre(theatre, order.to)) return 'OUTSIDE_THEATRE';
-  if (now < emplacedAt(order.settledAt)) return 'NOT_EMPLACED';
+  if (now < order.emplacedAt) return 'NOT_EMPLACED';
   if (order.reloadUntil !== null && now < order.reloadUntil) return 'RELOADING';
   const km = distanceKm(order.from, order.to);
   if (km < INDIRECT_FIRE.deadZoneKm) return 'TOO_CLOSE';
   return km > INDIRECT_FIRE.rangeKm ? 'OUT_OF_RANGE' : null;
 }
+
+/** Ce que la phrase du refus nomme — distance, bornes, attente —, la même des deux côtés. */
+export const bombardRefusalDetails = (order: Bombardment) => ({
+  km: Math.round(distanceKm(order.from, order.to)),
+  minimum: INDIRECT_FIRE.deadZoneKm,
+  maximum: INDIRECT_FIRE.rangeKm,
+  seconds: Math.max(0, Math.ceil((order.emplacedAt - order.now) / 1000)),
+});

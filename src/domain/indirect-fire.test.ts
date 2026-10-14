@@ -16,7 +16,7 @@ const ready = {
   to: east(100),
   theatre: europe,
   seen: true,
-  settledAt: NOW - 60_000,
+  emplacedAt: NOW - 30_000,
   reloadUntil: null,
   now: NOW,
 };
@@ -41,8 +41,8 @@ describe('a bombardment', () => {
 
   it('waits to be in battery after it stopped', () => {
     const settledAt = NOW - 10_000;
-    expect(bombardRefusalOf({ ...ready, settledAt })).toBe('NOT_EMPLACED');
     expect(emplacedAt(settledAt)).toBe(settledAt + INDIRECT_FIRE.emplaceSeconds * 1000);
+    expect(bombardRefusalOf({ ...ready, emplacedAt: emplacedAt(settledAt) })).toBe('NOT_EMPLACED');
   });
 
   it('waits for its reload', () => {

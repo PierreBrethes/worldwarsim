@@ -5,7 +5,11 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { bombardRefusalOf } from '../../src/domain/indirect-fire';
+import {
+  bombardRefusalDetails,
+  bombardRefusalOf,
+  emplacedAt,
+} from '../../src/domain/indirect-fire';
 import { RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
@@ -36,17 +40,19 @@ export async function bombard(
   const stance = moving ? null : await stanceOf(ctx, troop.stationedAt);
   const quarry = await quarryOf(ctx, player._id, target, now);
   /** Une pièce en route n'est pas en batterie : elle se compte immobile depuis maintenant. */
-  const refusal = bombardRefusalOf({
+  const order = {
     roles: [troop.role],
     from: stance?.point ?? quarry.point,
     to: quarry.point,
     theatre,
     seen: true,
-    settledAt: stance === null ? now : (troop.settledAt ?? troop._creationTime),
+    emplacedAt: emplacedAt(stance === null ? now : (troop.settledAt ?? troop._creationTime)),
     reloadUntil: troop.reloadUntil ?? null,
     now,
-  });
-  if (refusal !== null || stance === null) fail(refusal ?? 'NOT_EMPLACED');
+  };
+  const refusal = bombardRefusalOf(order);
+  if (refusal !== null || stance === null)
+    fail(refusal ?? 'NOT_EMPLACED', bombardRefusalDetails(order));
 
   const victim = (await ctx.db.get(quarry.troopId))!;
   const { engagementId, engagement } = await resolveContact(ctx, {

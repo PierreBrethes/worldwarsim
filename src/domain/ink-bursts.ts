@@ -17,6 +17,8 @@ export type InkBurst = {
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
+  /** **D'où ma batterie a tiré** (B20) : le trait d'encre du coup, jusqu'au tampon. */
+  readonly from?: LonLat;
 };
 
 /** The prototype's `stampAnim`: pressed from 1.7 to 1 in 0.14 s, held to 3 s, lifted at 1.5/s. */
@@ -62,12 +64,15 @@ export function inkBursts(
   const combats = fresh.flatMap((dispatch): InkBurst[] => {
     if (dispatch.combat === null) return [];
     const at: LonLat = [dispatch.combat.point.lon, dispatch.combat.point.lat];
+    const { firedFrom, cause } = dispatch.combat;
     const engaged: InkBurst = {
       kind: 'combat',
       at,
-      words: stamped(fr.stamps.engaged, dispatch.at),
+      ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
+      words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
     };
-    return dispatch.combat.won
+    /** Un bombardement ne tient aucun terrain : personne n'y est allé. */
+    return dispatch.combat.won && cause !== 'bombardment'
       ? [
           engaged,
           {

@@ -180,6 +180,17 @@ describe('posterOf', () => {
       tone: 'cut',
     });
     expect(posterFor(view(), [pile], 'pile')?.lines).toEqual([]);
+
+    const emplacing = {
+      ...me,
+      troops: [{ ...me.troops[0]!, role: 'artillery', emplacedAt: LOADED_AT + 12_000 }],
+    } as PlayerView['me'];
+    expect(posterFor(view({ me: emplacing }), [pile], 'pile')?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'en batterie dans',
+      chip: '0:12',
+      tone: 'ok',
+    });
   });
 
   it('dates my movement by its arrival and fills the bar to its progress', () => {
