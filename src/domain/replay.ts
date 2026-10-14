@@ -101,7 +101,11 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
       fate,
     })),
   );
-  const theirs = destinies(view.theirs.troops, view.theirs.destroyed, view.theirs.routed);
+  /** Bombardée, la cible ne voit pas d'où vient le coup : aucune batterie sur sa table. */
+  const unseen = view.bombardment !== undefined && view.side === 'defender';
+  const theirs = unseen
+    ? []
+    : destinies(view.theirs.troops, view.theirs.destroyed, view.theirs.routed);
 
   // Each side falls in the beat aimed at it, one piece at a time across what the shots leave of it.
   const struckIn = (side: 'mine' | 'theirs') => {
@@ -128,7 +132,9 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
     return progress > 0 ? { fate, progress } : { fate: 'standing' as const, progress: 0 };
   };
 
-  const firing = FIRING_SIDE[step];
+  /** Un bombardement n'a pas de riposte (B20). */
+  const firing =
+    view.bombardment !== undefined && step === 'riposte' ? undefined : FIRING_SIDE[step];
   return {
     step,
     progress,

@@ -381,6 +381,9 @@ export type ReplayView = {
   readonly won: boolean;
   readonly mine: ReadonlyArray<CombatTally & { readonly role: UnitRole; readonly tier: UnitTier }>;
   readonly theirs: CombatTally;
+  /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
+   *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */
+  readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
 };
 
 /**

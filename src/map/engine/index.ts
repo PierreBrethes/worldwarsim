@@ -83,7 +83,7 @@ import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { TheatreFrame } from './theatre';
 import type { Theatre } from '@/domain/theatres';
-import { ReplayScene, replayReach } from './replay';
+import { ReplayScene, replayReach, type ReplayFire } from './replay';
 import {
   REPLAY_MS,
   REPLAY_STEPS,
@@ -746,11 +746,14 @@ export class MapEngine {
             Math.sin(REPLAY_ELEVATION),
             (orientation.z / flat) * Math.cos(REPLAY_ELEVATION),
           );
+    const yaw = Math.atan2(tilted.x, tilted.z);
+    const fire = this.replayFire(view, center, yaw);
+    const reach = replayReach(view, fire);
     // Fitted to the height left above `below`, and to the width on a portrait screen.
     const aspect = this.screenWidth / this.screenHeight;
     const distance = Math.max(
       REPLAY_MIN_DISTANCE,
-      replayReach(view) * 2.2 * Math.max(1 / (1 - below), 1 / Math.min(1, aspect)),
+      reach * 2.2 * Math.max(1 / (1 - below), 1 / Math.min(1, aspect)),
     );
     // The eye aims nearer than the scene, on the ground towards itself, so that the scene rises
     // to the middle of the height left: by `below / 2` of the screen.
@@ -763,16 +766,17 @@ export class MapEngine {
       this.playerNation,
       replayAt(view, 0).pieces,
       onLand ? 'land' : 'sea',
+      fire,
     );
     scene.object.position.copy(center);
-    scene.object.rotation.y = Math.atan2(tilted.x, tilted.z);
+    scene.object.rotation.y = yaw;
     this.scene.add(scene.object);
     this.replay = {
       view,
       scene,
       saved,
       center,
-      reach: replayReach(view),
+      reach,
       t: 0,
       until: REPLAY_MS,
       clock: performance.now(),
@@ -781,6 +785,19 @@ export class MapEngine {
       onStep,
     };
     this.travel(aim, tilted, distance, stepBounds('voyage').end - stepBounds('voyage').start);
+  }
+
+  /** **Un bombardement** (B20, A4) : chez le tireur, sa batterie là où elle a tiré, dans le repère
+   *  de la scène ; chez la cible, rien d'où le coup parte. */
+  private replayFire(view: ReplayView, center: Vector3, yaw: number): ReplayFire {
+    if (view.bombardment === undefined) return null;
+    const from = view.bombardment.from;
+    if (from === undefined) return view.side === 'defender' ? 'unseen' : null;
+    const battery = this.frame
+      .projectLonLat([from.lon, from.lat], center.y)
+      .sub(center)
+      .applyAxisAngle(new Vector3(0, 1, 0), -yaw);
+    return { battery: [battery.x, battery.z] };
   }
 
   /** Off, the step under way plays to its end and the replay holds there; on, it reads on to the end. */

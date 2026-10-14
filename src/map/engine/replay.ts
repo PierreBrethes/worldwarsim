@@ -49,10 +49,20 @@ export function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[num
   });
 }
 
-/** The half width of what both sides take, to frame it and to clear the board around it. */
-export function replayReach(view: ReplayView): number {
+/**
+ * **D'où part le coup d'un bombardement** (B20, A4) : chez le tireur, la batterie à sa place, en
+ * unités de la scène ; chez la cible, `unseen` — aucune batterie, le coup tombe du ciel.
+ */
+export type ReplayFire = { readonly battery: readonly [number, number] } | 'unseen' | null;
+
+/** The half width of what both sides take, to frame it and to clear the board around it — the
+ *  battery's own place included, where its pile would otherwise stand twice. */
+export function replayReach(view: ReplayView, fire: ReplayFire = null): number {
   const troops = Math.max(view.theirs.troops, ...view.mine.map((entry) => entry.troops), 1);
-  return GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
+  const sides = GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
+  return fire !== null && fire !== 'unseen'
+    ? Math.max(sides, Math.hypot(...fire.battery) + COLUMN)
+    : sides;
 }
 
 const FIRING: Plume = {
@@ -139,7 +149,10 @@ const LINGER_MS = 900;
 /** ...and fades over the last of it, rather than being cut. */
 const LINGER_FADE_MS = 400;
 
-const SHOT = new BoxGeometry(0.02, 0.02, 0.24);
+const SHOT_LENGTH = 0.24;
+const SHOT = new BoxGeometry(0.02, 0.02, SHOT_LENGTH);
+/** How high above its target an unseen shell is first seen: it falls, it does not come from anyone. */
+const SKY = 1.6;
 const SHOT_INK = new MeshBasicMaterial({ color: '#2b2118' });
 const MUZZLE_HEIGHT = 0.12;
 const muzzle = new Vector3();
@@ -214,10 +227,18 @@ export class ReplayScene {
   private readonly pieces: Piece[];
 
   /** `medium` is the point's: the enemy's blocks wear its pictogram, never a role. */
-  constructor(nation: string | null, pieces: ReadonlyArray<ReplayPiece>, medium: Medium) {
+  constructor(
+    nation: string | null,
+    pieces: ReadonlyArray<ReplayPiece>,
+    medium: Medium,
+    private readonly fire: ReplayFire = null,
+  ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
     const spots = {
-      mine: replayLayout(mine, 'mine'),
+      mine:
+        fire !== null && fire !== 'unseen'
+          ? replayLayout(mine, 'mine').map(() => fire.battery)
+          : replayLayout(mine, 'mine'),
       theirs: replayLayout(pieces.length - mine, 'theirs'),
     };
     this.pieces = pieces.map((piece, k) =>
@@ -274,8 +295,11 @@ export class ReplayScene {
       built.body.position.z = BLOCK_HALF;
       marker.position.set(-0.75 * FIGURINE_SCALE, 0.3, BLOCK_HALF);
     } else {
-      // Its front, +z, towards the enemy on the right.
-      holder.rotation.y = Math.PI / 2;
+      // Its front, +z, towards the enemy on the right — or, a battery, towards its target.
+      holder.rotation.y =
+        this.fire !== null && this.fire !== 'unseen'
+          ? Math.atan2(GAP - home[0], -home[1])
+          : Math.PI / 2;
       marker.position.set(0, 0.25, 0.3);
       const infantry = piece.role === 'infantry';
       const figurine = figurineFor(
@@ -383,18 +407,51 @@ export class ReplayScene {
     // Aimed once every holder stands where this frame puts it.
     const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
     const volley = volleyOf(frame);
+    const battery = this.fire !== null && this.fire !== 'unseen';
     this.pieces.forEach((piece, k) => {
+      piece.shot.scale.z = 1;
+      if (this.fire === 'unseen') {
+        this.fall(
+          piece,
+          frame.firing === 'theirs' && volley !== null ? shotShare(volley, k, still) : null,
+        );
+        return;
+      }
       const target = this.pieces[salvoTarget(k, mine, count - mine) ?? -1];
       const fires = frame.firing === piece.side && frame.pieces[k]!.fate !== 'fallen';
-      const share = fires && (still || volley !== null) ? shotShare(volley ?? 0, k, still) : null;
+      /** **La batterie trace un trait** (A4) : il part d'elle, gagne la cible pendant la salve, et
+       *  reste posé jusqu'à la fin de la frappe — le coup se lit d'un bout à l'autre. */
+      const stroke = battery && piece.side === 'mine';
+      const share =
+        stroke && fires
+          ? still || volley === null
+            ? 1
+            : volley
+          : fires && (still || volley !== null)
+            ? shotShare(volley ?? 0, k, still)
+            : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
       muzzle.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
       aim.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
-      piece.shot.position.lerpVectors(muzzle, aim, share!);
+      if (stroke) {
+        aim.lerpVectors(muzzle, aim, share!);
+        piece.shot.position.lerpVectors(muzzle, aim, 0.5);
+        piece.shot.scale.z = Math.max(1e-3, muzzle.distanceTo(aim) / SHOT_LENGTH);
+      } else piece.shot.position.lerpVectors(muzzle, aim, share!);
       // In the scene's own frame: `lookAt` would read `to` as a world point.
       piece.shot.quaternion.setFromUnitVectors(FORWARD, aim.sub(muzzle).normalize());
     });
+  }
+
+  /** **Le coup sans origine** (A4) : bombardée, la cible voit l'obus tomber sur elle, du ciel. */
+  private fall(piece: Piece, share: number | null): void {
+    piece.shot.visible = piece.side === 'mine' && share !== null;
+    if (!piece.shot.visible) return;
+    aim.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
+    muzzle.copy(aim).setY(aim.y + SKY);
+    piece.shot.position.lerpVectors(muzzle, aim, share!);
+    piece.shot.quaternion.setFromUnitVectors(FORWARD, aim.sub(muzzle).normalize());
   }
 
   /** A hull burns on: its smoke wants frames after the replay is held. */
