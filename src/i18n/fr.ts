@@ -61,6 +61,9 @@ const startsWithVowel = (word: string): boolean => 'aeiouyâàéèêîôû'.incl
 /** One decimal at most, and never a trailing `.0`: rates come out of a settlement, not a table. */
 const tenths = (value: number): string => String(Math.round(value * 10) / 10);
 
+/** A factor as the table prints it: ×1.15 is not ×1.2, and the bonus is read before it is paid. */
+const factor = (value: number): string => String(Math.round(value * 100) / 100);
+
 /** "a, b et c" — the French list, the last conjunction spelled rather than commaed. */
 const andList = (items: ReadonlyArray<string>): string =>
   items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} et ${items.at(-1)}`;
@@ -1873,11 +1876,11 @@ export const fr = {
     /** Ce que la riposte porte, selon ce qu'on vise : le seul avantage de la défense est un mur. */
     cover: {
       sheltered: (bonus: number) =>
-        `La cible est en garnison : elle riposte avec ce qui lui reste, à ×${tenths(bonus)}.`,
+        `La cible est en garnison : elle riposte avec ce qui lui reste, à ×${factor(bonus)}.`,
       open: () =>
         'La cible est à découvert : elle riposte avec ce qui lui reste, sans bonus de bâtiment.',
       either: (bonus: number) =>
-        `La cible riposte avec ce qui lui reste — à ×${tenths(bonus)} si elle tient un bâtiment.`,
+        `La cible riposte avec ce qui lui reste — à ×${factor(bonus)} si elle tient un bâtiment.`,
     } satisfies Record<'sheltered' | 'open' | 'either', (bonus: number) => string>,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
@@ -1927,7 +1930,7 @@ export const fr = {
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
     before: (garrisonBonus: number, dryFactor: number) =>
-      `L’attaquant frappe en premier ; le défenseur riposte avec ce qui lui reste — à ×${tenths(garrisonBonus)} s’il tient un bâtiment. Un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+      `L’attaquant frappe en premier ; le défenseur riposte avec ce qui lui reste — à ×${factor(garrisonBonus)} s’il tient un bâtiment. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
