@@ -654,6 +654,8 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h et 2 à 4 joueurs avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create` en tire l'horloge — `durationHours` n'y compte plus qu'à défaut de `mode`, pour les anciens appelants. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.capitalPoint`). Le plafond de la Blitz est refusé par `joinRefusalOf` (`BLITZ_FULL`). **Pour l'instant une Blitz se joue comme une Mondiale** : ni économie, ni capture, ni refus hors théâtre.
+
 ## Schéma Convex
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut

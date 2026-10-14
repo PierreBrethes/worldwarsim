@@ -23,7 +23,7 @@ const NATIONS = ['france', 'ussr', 'germany'] as const;
 type Bench = ReturnType<typeof boot>;
 
 async function launched(t: Bench) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const seats = [seat, await joinSeat(t, code, 'Ivan'), await joinSeat(t, code, 'Hans')];
   for (const [rank, seated] of seats.entries()) {
     await t.mutation(api.players.reserveNation, { ...seated, nation: NATIONS[rank]! });

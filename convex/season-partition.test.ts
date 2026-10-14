@@ -39,7 +39,7 @@ const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 /** A whole season of its own, launched, with its two seats named — so that a test can hold two
  *  of them at once and tell every row apart by the season it was written in. */
 async function launchedSeason(t: ReturnType<typeof boot>, host: string, visitor: string) {
-  const { seat, code } = await foundSeat(t, host, 48, 0.5);
+  const { seat, code } = await foundSeat(t, host, 0.5);
   const guest = await joinSeat(t, code, visitor);
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });

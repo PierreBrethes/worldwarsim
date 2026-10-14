@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel } from '@/i18n/fr';
+import { fr, clockLabel, modeSummary } from '@/i18n/fr';
 import { AccountForm } from '@/shell/AccountForm';
 import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
@@ -130,7 +130,10 @@ export function InvitationPage({ code: raw }: { code: string }) {
         {fr.invitation.invitedBy(invitation.founder)}
       </h1>
       <p className="mt-3 text-[12px] text-[var(--ink-note)]">
+        {invitation.mode ? `${modeSummary(invitation.mode, invitation.theatre)} — ` : ''}
         {fr.invitation.duration(clockLabel(invitation.durationHours))}
+        {' — '}
+        {fr.modes.seats(invitation.players, invitation.maximum)}
         {' — '}
         {fr.invitation.placesLeft(Math.max(0, invitation.maximum - invitation.players))}
       </p>

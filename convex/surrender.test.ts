@@ -27,7 +27,7 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const seats = [seat];
   for (let rank = 1; rank < players; rank += 1) {
     seats.push(await joinSeat(t, code, `Joueur ${rank}`));
@@ -238,7 +238,7 @@ describe('capituler', () => {
 
   it('ne se capitule pas d’un salon, ni d’un siège encore à la porte', async () => {
     const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     await expect(t.mutation(api.players.surrender, seat)).rejects.toThrow('SEASON_NOT_LAUNCHED');
 
     const guest = await joinSeat(t, code, 'Léa');

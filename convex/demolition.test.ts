@@ -25,7 +25,7 @@ const MEURTHE = 'FRA-5325'; // ore
 const ARDENNES = 'FRA-5268'; // no deposit at all
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });

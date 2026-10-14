@@ -37,12 +37,12 @@ describe('une place par compte et par saison', () => {
     const token = await signIn(t, 'Pierre');
     const first = await t.mutation(api.seasons.create, {
       token,
-      durationHours: 48,
+      mode: 'mondiale',
       compensation: 0.5,
     });
     const second = await t.mutation(api.seasons.create, {
       token,
-      durationHours: null,
+      mode: 'mondiale',
       compensation: 0.5,
     });
 

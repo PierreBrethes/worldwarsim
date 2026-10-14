@@ -21,6 +21,7 @@ import type {
 } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
 import type { Conversion, FoundationDebt } from '../src/domain/economy';
+import { MODE_RULES } from '../src/domain/season-mode';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
 
@@ -813,8 +814,7 @@ export const MINUTES_PER_ROUTE_UNIT =
 export const routeMinutes = (costUnits: number): number =>
   Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
 
-export const MAX_PLAYERS = 8;
-export const MIN_PLAYERS_TO_LAUNCH = 2;
+export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
 
 /**
  * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the

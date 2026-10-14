@@ -71,12 +71,8 @@ const MOSELLE_POINT = regionFacts(MOSELLE)!.point;
  * décision 1b du 13/09. Tout ce qui mesure une économie passe par `launchedSeason`, qui pose le
  * quartier général aussitôt ; ce qui mesure la **pose elle-même** part d'ici.
  */
-async function launchedWithoutHq(
-  t: ReturnType<typeof boot>,
-  durationHours: 48 | 168 = 48,
-  nation = 'france',
-) {
-  const { seat, code } = await foundSeat(t, 'Pierre', durationHours, 0.5);
+async function launchedWithoutHq(t: ReturnType<typeof boot>, nation = 'france') {
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
@@ -95,12 +91,8 @@ async function launchedWithoutHq(
  * Rien d'autre ne se bâtit avant lui (`HQ_FIRST`), donc toute suite qui mesure autre chose le
  * veut debout, et au même endroit qu'avant pour que ses chiffres disent la même chose.
  */
-async function launchedSeason(
-  t: ReturnType<typeof boot>,
-  durationHours: 48 | 168 = 48,
-  nation = 'france',
-) {
-  const seat = await launchedWithoutHq(t, durationHours, nation);
+async function launchedSeason(t: ReturnType<typeof boot>, nation = 'france') {
+  const seat = await launchedWithoutHq(t, nation);
   await placeHq(t, seat);
   await disbandTheGift(t, seat);
   return seat;
@@ -1189,7 +1181,7 @@ describe('the foundation the season owes', () => {
   it('opens on exactly two free placements at home, whatever the ground is worth', async () => {
     for (const nation of NATIONS) {
       const t = boot();
-      const seat = await launchedSeason(t, 168, nation);
+      const seat = await launchedSeason(t, nation);
       await placeFoundation(t, seat);
 
       const view = await t.query(api.view.playerView, seat);
@@ -1715,7 +1707,7 @@ describe('one building per region, and a global ceiling', () => {
    */
   it('places every owed key on a national ground already full', async () => {
     const t = boot();
-    const seat = await launchedSeason(t, 168, 'usa');
+    const seat = await launchedSeason(t, 'usa');
 
     const slots = homeSlots(HQ_LEVEL_AT_LAUNCH);
 

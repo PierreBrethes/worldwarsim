@@ -19,7 +19,15 @@ import { routeBetween } from './routes';
 import { GAME_TABLES } from './dev';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, placeHq, seatIn, seatsOf } from './seats.fixture';
+import {
+  attacking,
+  foundSeat,
+  joinSeat,
+  placeHq,
+  seatIn,
+  seatsOf,
+  setClock,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -29,7 +37,7 @@ const KIT = STARTING_KIT;
 /** Moselle: French, inland, and a coal deposit — enough to build anything the tests raise. */
 const MOSELLE = 'FRA-5328';
 async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
-  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guestToken = await joinSeat(t, code, 'Léa');
   return { code, creator: seat, guest: guestToken };
 }
@@ -48,7 +56,7 @@ describe('creating and joining', () => {
 
   it('creates a season and hands out an unambiguous 6-character code', async () => {
     const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 168, 0);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0);
     expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
     const lobby = await t.query(api.seasons.lobby, seat);
     expect(lobby.me.creator).toBe(true);
@@ -73,7 +81,7 @@ describe('creating and joining', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
     const t = boot();
-    const { code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    const { code } = await foundSeat(t, 'Pierre', 0.5);
     vi.advanceTimersByTime(2 * 60 * 60 * 1000 + 1);
 
     await expect(joinSeat(t, code, 'Léa')).resolves.toHaveProperty('seasonId');
@@ -872,7 +880,8 @@ describe('a concluded season', () => {
 describe('a season without a clock', () => {
   it('is founded with no clock at all', async () => {
     const t = boot();
-    const { seat } = await foundSeat(t, 'Pierre', null, 0.5);
+    const { seat } = await foundSeat(t, 'Pierre', 0.5);
+    await setClock(t, seat.seasonId, null);
     const lobby = await t.query(api.seasons.lobby, seat);
     expect(lobby.durationHours).toBeNull();
   });
