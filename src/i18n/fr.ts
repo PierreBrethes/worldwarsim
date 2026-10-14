@@ -198,6 +198,7 @@ export const fr = {
     billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
+    city: 'Ville',
   } satisfies Record<BuildingKey, string>,
 
   /**
@@ -222,6 +223,7 @@ export const fr = {
     billets: 'm',
     warehouse: 'm',
     depot: 'm',
+    city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
@@ -240,6 +242,7 @@ export const fr = {
     billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des huit ressources — se pille',
     depot: 'relève le plafond des huit ressources — se pille',
+    city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
