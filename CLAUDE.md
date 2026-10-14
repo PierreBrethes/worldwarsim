@@ -720,20 +720,23 @@ et lu par `refusalOf` : **une troupe part seule** (`ONE_UNIT_ONLY`, et `clickPil
 en `single` ne lèvent que la figurine touchée, la pile ne se déploie pas), **une par bâtiment à
 soi** (`BUILDING_OCCUPIED`), **rien hors de la boîte du théâtre** (`OUTSIDE_THEATRE`, cadre et
 délavé dessinés par `TheatreFrame`, `map/engine/theatre.ts`), **l'attaque vise une unité**
-(`UNIT_TARGET_ONLY` : un camp relevé, ou un fil adverse en vue — visée `track`, cible
-`sighting`). Ni slots (`claimSlot`), ni plage de repos (`restHold`) ; la vitesse est celle du
+(`UNIT_TARGET_ONLY` : un camp relevé, ou un fil adverse en vue — visée et cible `track`, nommée
+par le mouvement de l'arc, le serveur relisant le relevé du joueur `byMovement`). Le cadre vaut
+pour toute visée côté serveur (`march`, sur `aim.point`), mât et région compris. Ni slots (`claimSlot`), ni plage de repos (`restHold`) ; la vitesse est celle du
 théâtre, qu'on traverse en 18 min (`theatreMinutesPer1000Km`, `pacedMinutes`, en secondes). **La
 poursuite n'a pas d'horloge globale** : le mouvement porte `pursuit.{troopId, checkAt}` et un seul
 rendez-vous, le contact daté entre deux regards (`contactAt`) ou le pas de `PURSUIT_STEP_SECONDS` ;
 à chaque regard elle frappe (≤ `ARRIVAL_RADIUS_KM`), recourbe sa route vers la position de la
-cible si elle a bougé de plus de 25 km, ou **abandonne** — cible hors de sa vue (relevé du joueur
-ou portée du poursuivant) : elle finit en marche vers la dernière position connue, dépêche
-`pursuitLost`. Au contact, passe 1 contre 1, **sans déroute** (`routThreshold` 0) ; **choc** si la
+cible si elle a bougé de plus de 25 km, ou **abandonne** — cible hors de sa vue — les relevés du joueur,
+réévalués à chaque regard, règle de milieu comprise, jamais une distance vraie : elle finit en marche vers la dernière position connue, dépêche
+`pursuitLost`. Au contact, passe 1 contre 1, **sans déroute** — aucune passe de Blitz ne déroute,
+`isBlitz` dans `resolveContact` ; **choc** si la
 cible poursuivait le poursuivant (`passModeOf`, `engagements.shock`, « choc » dans la dépêche),
 l'initiative sinon ; chacun se pose où il est. Qui a frappé sur ordre **recharge**
 (`troops.reloadUntil`, `RELOAD_SECONDS_BY_ROLE`, `@a-mesurer`, `RELOADING` à l'attaque, la marche
 reste libre ; la riposte ne recharge pas) — compte à rebours sur l'étiquette et l'affiche de la pile.
-Limite assumée : deux marches parties ensemble vers le même bâtiment vide y entrent toutes deux.
+De deux marches vers le même bâtiment vide, la seconde se pose à sa porte (`occupiedBuildingIds`,
+`convex/blitz.ts`, lu au départ et à l'arrivée) ; une route coupée arrête la poursuite sans dépêche.
 
 ## Schéma Convex
 
