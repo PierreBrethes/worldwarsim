@@ -27,9 +27,10 @@ export function TelegraphWindow({
   const markRead = useMutation(api.messages.markRead);
   const [active, setActive] = useState<Id<'players'> | null>(null);
   const channel = telegraph.direct.find((candidate) => candidate.with === active);
+  const title =
+    channel === undefined ? fr.telegraph.channel : fr.telegraph.privateChannel(channel.nickname);
 
-  /** Lu à la fermeture, comme le journal : ce qu'on a eu le temps de voir est lu. Chaque canal se
-   *  date quand on le quitte, par un autre onglet ou par la fermeture. */
+  // Each channel is stamped read when left, by another tab or by closing the window.
   const leave = useCallback(
     () => void markRead(active === null ? seat : { ...seat, with: active }).catch(() => undefined),
     [markRead, seat, active],
@@ -57,9 +58,7 @@ export function TelegraphWindow({
                 {fr.telegraph.header}
               </span>
               <span className="truncate font-(family-name:--font-display) text-[13px] leading-none text-[var(--ink-quiet)] italic">
-                {channel === undefined
-                  ? fr.telegraph.channel
-                  : fr.telegraph.privateChannel(channel.nickname)}
+                {title}
               </span>
             </span>
             <button
@@ -74,9 +73,7 @@ export function TelegraphWindow({
           <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
             <span className="eyebrow">{fr.telegraph.header}</span>
             <span className="font-(family-name:--font-display) text-[12px] text-[var(--ink-quiet)] italic">
-              {channel === undefined
-                ? fr.telegraph.channel
-                : fr.telegraph.privateChannel(channel.nickname)}
+              {title}
             </span>
             <button
               type="button"
@@ -115,7 +112,7 @@ export function TelegraphWindow({
         <div className={`flex min-h-0 flex-1 flex-col ${narrow ? '' : 'px-4 py-2'}`}>
           <TelegraphThread
             key={active ?? 'general'}
-            messages={channel === undefined ? telegraph.messages : channel.messages}
+            messages={channel === undefined ? telegraph.general : channel.messages}
             {...(channel === undefined ? {} : { to: channel.with })}
             seat={seat}
             height={sized ? 'fill' : 420}

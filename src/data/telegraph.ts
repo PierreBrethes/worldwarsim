@@ -27,16 +27,13 @@ export type DirectChannel = {
 };
 
 export type Telegraph = {
-  /** The general channel. */
-  readonly messages: ReadonlyArray<TelegraphMessage>;
+  readonly general: ReadonlyArray<TelegraphMessage>;
   readonly generalUnread: number;
   readonly direct: ReadonlyArray<DirectChannel>;
-  /** Every channel together: the rail's badge. Announcing his own messages to a player would
-   *  make the badge a counter of sendings. */
   readonly unread: number;
 };
 
-const QUIET: Telegraph = { messages: [], generalUnread: 0, direct: [], unread: 0 };
+const QUIET: Telegraph = { general: [], generalUnread: 0, direct: [], unread: 0 };
 
 /**
  * **Le fil vit dans l'écran, pas dans la fenêtre.** Au plateau, le badge du rail compte quand la
@@ -45,7 +42,7 @@ const QUIET: Telegraph = { messages: [], generalUnread: 0, direct: [], unread: 0
  * qu'un afficheur. Au salon il n'y a ni rail ni badge, mais le même abonnement et le même
  * tic-tac — d'où la remontée hors de `-plateau/`.
  */
-export function useTelegraph(seat: Seat): Telegraph {
+export function useTelegraph(seat: Seat, { generalOnly = false } = {}): Telegraph {
   const served = useQuery(api.messages.recent, seat);
   const telegraph = useMemo<Telegraph>(() => {
     if (served === undefined) return QUIET;
@@ -55,7 +52,7 @@ export function useTelegraph(seat: Seat): Telegraph {
       unread: unreadCount(channel.messages, channel.readAt),
     }));
     return {
-      messages: served.messages,
+      general: served.messages,
       generalUnread,
       direct,
       unread: direct.reduce((total, channel) => total + channel.unread, generalUnread),
@@ -63,21 +60,21 @@ export function useTelegraph(seat: Seat): Telegraph {
   }, [served]);
 
   /**
-   * **Le tic-tac ne sonne que pour ce qui arrive après qu'on est là.** La première réponse du
-   * serveur est l'arriéré des fils — la faire sonner accueillerait le joueur par des centaines de
-   * clics. D'où l'amorçage : le premier passage n'apprend que les messages déjà là, et tout canal
-   * confondu un message des autres qu'on n'a pas vu fait sonner.
+   * **The tick only rings for what arrives after the player is there.** The first server answer
+   * is the backlog of every thread, and ringing for it would greet the player with hundreds of
+   * clicks: the first pass only learns which messages already exist. After that, any message from
+   * another player on any channel that was not there rings. The lobby shows the general channel
+   * alone, so it must not ring for a private message it cannot display (`generalOnly`).
    */
   const heard = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (served === undefined) return;
-    const others = [...telegraph.messages, ...telegraph.direct.flatMap((c) => c.messages)].filter(
-      (message) => !message.mine,
-    );
+    const channels = generalOnly ? [] : telegraph.direct.flatMap((c) => c.messages);
+    const others = [...telegraph.general, ...channels].filter((message) => !message.mine);
     const before = heard.current;
     heard.current = new Set(others.map((message) => message.id));
     if (before !== null && others.some((message) => !before.has(message.id))) tick();
-  }, [served, telegraph]);
+  }, [served, telegraph, generalOnly]);
 
   return telegraph;
 }

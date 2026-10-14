@@ -42,7 +42,6 @@ export function TelegraphThread({
   autoFocus = false,
 }: {
   messages: ReadonlyArray<TelegraphMessage>;
-  /** The player a private channel writes to; absent on the general channel. */
   to?: Id<'players'>;
   seat: Seat;
   height: number | 'fill';
@@ -162,15 +161,14 @@ export function TelegraphThread({
 }
 
 /**
- * **Le fil, au bureau comme au téléphone** (refonte mobile, 1i, étendue au bureau le 14/10) : les
- * messages qui se suivent d'un même joueur se rangent sous un seul nom, en bandes serrées ; les
- * siens à droite, à l'encre ; ceux des autres à gauche, le nom teinté de leur nation. Une date
- * traverse le fil à chaque jour nouveau.
+ * **The thread, on desktop and phone alike** (mobile redesign 1i, extended to desktop on
+ * 14/10): consecutive messages from one player sit under one name in tight bands; one's own on
+ * the right in ink, the others on the left with the name tinted by their nation. A date crosses
+ * the thread at each new day.
  *
- * **Le texte est du texte.** React échappe ce qu'il rend et rien ici n'ajoute d'interprétation :
- * pas de markdown, pas de lien cliquable, pas de `dangerouslySetInnerHTML`. C'est la seule
- * défense dont ce canal ait besoin, et elle tient parce qu'on n'écrit pas la ligne qui la
- * contournerait.
+ * **Text is text.** React escapes what it renders and nothing here adds interpretation: no
+ * markdown, no clickable link, no `dangerouslySetInnerHTML`. That is the only defence this
+ * channel needs, and it holds as long as nobody writes the line that would bypass it.
  */
 function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
   return threadLayout(messages).map(({ entry: message, opensDay, opensRun }, index) => (
