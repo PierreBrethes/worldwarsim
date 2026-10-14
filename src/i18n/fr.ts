@@ -990,6 +990,7 @@ export const fr = {
   },
 
   lobby: {
+    preparingMap: 'L’état-major prépare la carte…',
     opening: 'Ouverture du salon…',
     header: (pace: string) => `salon de saison — ${pace}`,
     regionLabel: (region: string) => `région : ${region}`,
