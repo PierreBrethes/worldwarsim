@@ -60,24 +60,25 @@ export function journalDispatches(
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
   const verdict = reduction?.verdict ?? null;
+  const closing =
+    verdict !== null
+      ? fr.victory.blitzConcluded(
+          verdict.reason,
+          verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
+          verdict.perMinute,
+        )
+      : reduction === null || reduction.winnerNation === null
+        ? null
+        : fr.victory.concluded(nationName(reduction.winnerNation));
   const concluded: ReadonlyArray<Written> =
-    reduction === null ||
-    reduction.concludedAt === null ||
-    (reduction.winnerNation === null && verdict === null)
+    reduction === null || reduction.concludedAt === null || closing === null
       ? []
       : [
           {
             at: reduction.concludedAt,
             severity: 'critical',
             kind: 'seasonConcluded',
-            text:
-              verdict === null
-                ? fr.victory.concluded(nationName(reduction.winnerNation!))
-                : fr.victory.blitzConcluded(
-                    verdict.reason,
-                    verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
-                    verdict.perMinute,
-                  ),
+            text: closing,
           },
         ];
 

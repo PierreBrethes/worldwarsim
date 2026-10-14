@@ -113,10 +113,10 @@ export type VerdictReason = 'hqTaken' | 'lastStanding' | 'income' | 'draw';
  * **À deux heures, le plus gros revenu gagne** (B11) : les fonds par minute tenus à l'instant,
  * départagés par la caisse à l'unité près, puis l'égalité déclarée — personne ne gagne.
  */
-export function clockVerdict(
-  lines: ReadonlyArray<{ readonly id: string; readonly perMinute: number; readonly funds: number }>,
+export function clockVerdict<Id extends string>(
+  lines: ReadonlyArray<{ readonly id: Id; readonly perMinute: number; readonly funds: number }>,
 ): {
-  readonly winnerId: string | null;
+  readonly winnerId: Id | null;
   readonly reason: 'income' | 'draw';
   readonly perMinute: number | null;
 } {

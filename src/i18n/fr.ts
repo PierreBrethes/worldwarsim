@@ -308,7 +308,6 @@ export const fr = {
       americas: 'Amériques',
     } satisfies Record<TheatreId, string>,
     seats: (players: number, maximum: number) => `${players} / ${maximum} joueurs`,
-    /** Ce que la carte de départ du théâtre tient (T1), lu par la vignette. */
     theatrePlayers: (min: number, max: number) =>
       min === max ? `${min} joueurs` : `${min} à ${max} joueurs`,
     summary: (mode: string, theatre: string | null) =>

@@ -811,7 +811,6 @@ type NoticeBody =
   /** Une capitulation, et la main qu'elle passe (`convex/players.ts`, `surrender`). Publiques
    *  toutes les deux : elles changent la table, elles ne relèvent d'aucun brouillard. */
   | { readonly kind: 'playerSurrendered'; readonly at: number; readonly nation: string }
-  /** Un QG tombé en Blitz (B10) : `by` a capturé le QG de `nation`. */
   | {
       readonly kind: 'playerEliminated';
       readonly at: number;

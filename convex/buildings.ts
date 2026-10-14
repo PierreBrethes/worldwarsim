@@ -5,7 +5,7 @@ import type { MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { demolitionRefusalOf } from '../src/domain/construction';
-import { BLITZ, buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
+import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
 import { levelOf, playerBuildings } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
