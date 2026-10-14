@@ -3,6 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
   drownedOf,
   resolveEngagement,
+  winnerOf,
   type Combatant,
   type CombatantOutcome,
   type Engagement,
@@ -188,6 +189,9 @@ export async function resolveContact(
         ? { ...outcome, state: 'routed' as const }
         : outcome,
   );
+  /** **Le terrain se lit sur la liste amendée** : une cargaison noyée n'est plus debout, et la
+   *  passe qui a coulé le dernier banc a dégagé le terrain. */
+  const winner = winnerOf(outcomes);
   const routed = outcomes.flatMap((outcome) =>
     outcome.state === 'routed' ? [byId.get(outcome.id)!] : [],
   );
@@ -202,7 +206,7 @@ export async function resolveContact(
     point,
     hostCountry,
     at,
-    winner: engagement.winner,
+    winner,
     outpostId,
     disabledUntil,
     reducedDefender,
@@ -228,10 +232,8 @@ export async function resolveContact(
     at,
   });
 
-  const recoveringPlayerId =
-    engagement.winner === 'attacker' ? attacker.playerId : defender.playerId;
-  const dispossessedPlayerId =
-    engagement.winner === 'attacker' ? defender.playerId : attacker.playerId;
+  const recoveringPlayerId = winner === 'attacker' ? attacker.playerId : defender.playerId;
+  const dispossessedPlayerId = winner === 'attacker' ? defender.playerId : attacker.playerId;
   const cargoSettlement = await settleCombatCargo(
     ctx,
     cargoBefore,
@@ -245,7 +247,7 @@ export async function resolveContact(
     destroyed: cargoSettlement.destroyed,
     recoveringPlayerId,
     standingTroopIds: outcomes
-      .filter((outcome) => outcome.side === engagement.winner && outcome.state === 'standing')
+      .filter((outcome) => outcome.side === winner && outcome.state === 'standing')
       .map((outcome) => outcome.id),
     point,
     at,
@@ -297,7 +299,7 @@ export async function resolveContact(
 
   /** **Une seule liste d'issues sort d'ici** : l'appelant lit les survivants dessus pour les
    *  renvoyer chez eux (`engageAt`), et un noyé qui y serait encore `standing` marcherait. */
-  return { engagementId, engagement: { ...engagement, outcomes }, routed, routedCargo };
+  return { engagementId, engagement: { ...engagement, outcomes, winner }, routed, routedCargo };
 }
 
 /**

@@ -255,7 +255,7 @@ function draw(strengths: ReadonlyArray<number>, stock: number, rules: CombatRule
  * pass both sides usually walk away, and something has to say whether a raid deactivates the
  * outpost it came for — this is the reading that invents no number: clear the ground, or fail.
  */
-function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide {
+export function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide {
   const standing = (side: CombatSide) =>
     outcomes.some((one) => one.side === side && one.state === 'standing');
   return !standing('defender') && standing('attacker') ? 'attacker' : 'defender';

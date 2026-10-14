@@ -3955,6 +3955,30 @@ describe('rester en mer', () => {
     expect(account!.troops.find((one) => one.troopId === aboard)!.state).toBe('destroyed');
   });
 
+  /** **Le vainqueur se lit après le large** : une cargaison noyée n'est plus debout, et la passe
+   *  qui coule le dernier banc a dégagé le terrain. */
+  it('gives the field to the hunter whose strike drowned what it did not shoot', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const water = { lon: DOGGER[0], lat: DOGGER[1] };
+    await postAt(t, guest, 'cargo', water, 4 / 8);
+    const aboard = await postAt(t, guest, 'infantry', water);
+
+    const quay = await raise(t, seat, 'port', NORD);
+    const campId = await surveyCamp(t, seat, water);
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [await form(t, seat, 'escort', quay)],
+      target: { kind: 'camp', campId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [account] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(account!.troops.find((one) => one.troopId === aboard)!.state).toBe('destroyed');
+    expect(account!.winner).toBe('attacker');
+  });
+
   /**
    * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli, à sa
    * capacité**, et l'excédent coule. Douze bancs pour treize fantassins : un reste à l'eau.
