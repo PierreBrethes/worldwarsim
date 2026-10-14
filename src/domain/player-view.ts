@@ -142,6 +142,9 @@ export type ArcView =
       readonly detectorRegion: string | null;
       readonly headingDegrees: number;
       readonly seenMinutesAgo: number;
+      /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
+       *  écrivent, sans le redériver d'un âge. */
+      readonly lastSeenAt: number;
       readonly progress: number;
     }
   | {
@@ -183,6 +186,8 @@ export type CampView = {
   readonly medium: 'land' | 'sea' | 'air';
   readonly since: number;
   readonly seenMinutesAgo: number | null;
+  /** L'instant où il a été vu pour la dernière fois, `null` tant qu'il est en vue. */
+  readonly lastSeenAt: number | null;
   readonly detector: Detector;
   readonly detectorRegion: string | null;
   readonly lastKnown: boolean;

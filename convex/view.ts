@@ -985,6 +985,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               medium: camp.medium,
               since: camp.since,
               seenMinutesAgo: camp.until === null ? null : (now - camp.until) / 60_000,
+              lastSeenAt: camp.until,
               detector: camp.detector,
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,

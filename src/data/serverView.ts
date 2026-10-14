@@ -298,7 +298,12 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
   };
 
   if (now > seen.seenTo) {
-    return { ...shared, state: 'lastKnown', seenMinutesAgo: (now - seen.seenTo) / 60_000 };
+    return {
+      ...shared,
+      state: 'lastKnown',
+      seenMinutesAgo: (now - seen.seenTo) / 60_000,
+      lastSeenAt: seen.seenTo,
+    };
   }
   return {
     ...shared,

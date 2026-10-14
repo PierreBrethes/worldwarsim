@@ -64,6 +64,7 @@ export type MapMarker =
       readonly lastKnown: boolean;
       readonly since: number;
       readonly seenMinutesAgo: number | null;
+      readonly lastSeenAt: number | null;
     }
   | {
       /**

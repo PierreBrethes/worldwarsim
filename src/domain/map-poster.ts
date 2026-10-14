@@ -9,6 +9,7 @@ import { loadingUntilOf } from './loading';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import type { CargoView, PlayerView, TroopView } from './player-view';
+import { surveyedAt } from './survey-ink';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 
 export type PosterLine =
@@ -142,9 +143,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
   if (label.camp !== null) {
     const camp = view.camps.find((candidate) => candidate.id === label.camp?.id);
     if (camp === undefined) return null;
-    const seenAt =
-      camp.seenMinutesAgo === null ? camp.since : view.loadedAt - camp.seenMinutesAgo * 60_000;
-    return sighting(fr.posters.surveyed(asClockTime(seenAt)), fr.posters.standing, []);
+    return sighting(fr.posters.surveyed(asClockTime(surveyedAt(camp))), fr.posters.standing, []);
   }
   if (label.anchor.kind !== 'movementHead') return null;
   const arcId = label.anchor.arc;
@@ -172,11 +171,9 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         loading: loadingUntilOf(arc),
       };
     case 'lastKnown':
-      return sighting(
-        fr.posters.surveyed(asClockTime(view.loadedAt - arc.seenMinutesAgo * 60_000)),
-        fr.posters.moving,
-        [{ kind: 'text', text: fr.posters.unknown }],
-      );
+      return sighting(fr.posters.surveyed(asClockTime(arc.lastSeenAt)), fr.posters.moving, [
+        { kind: 'text', text: fr.posters.unknown },
+      ]);
     case 'enemyDetected': {
       const known = arc.identification;
       return sighting(fr.posters.inSight, fr.posters.moving, [

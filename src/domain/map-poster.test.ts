@@ -375,6 +375,7 @@ describe('posterOf', () => {
       detectorRegion: null,
       headingDegrees: 0,
       seenMinutesAgo: 120,
+      lastSeenAt: LOADED_AT - 125 * 60_000,
       progress: 1,
     };
     const camp: MapMarker = {
@@ -386,6 +387,7 @@ describe('posterOf', () => {
       lastKnown: false,
       since: LOADED_AT - 60_000,
       seenMinutesAgo: null,
+      lastSeenAt: null,
     };
     const v = view({
       arcs: [lastKnown],
@@ -393,8 +395,9 @@ describe('posterOf', () => {
         { id: 'c1', since: LOADED_AT - 60_000, seenMinutesAgo: null },
       ] as unknown as PlayerView['camps'],
     });
+    // The served instant, never re-derived from an age against the load: the two drift apart.
     expect(posterFor(v, [], 'old')?.eyebrow).toBe(
-      `relevé · ${asClockTime(LOADED_AT - 120 * 60_000)}`,
+      `relevé · ${asClockTime(LOADED_AT - 125 * 60_000)}`,
     );
     expect(posterFor(v, [camp], 'camp')).toMatchObject({
       eyebrow: `relevé · ${asClockTime(LOADED_AT - 60_000)}`,

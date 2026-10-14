@@ -218,11 +218,7 @@ export class ArcLayer {
       const lastLeg = thread.legs.at(-1);
       let relic: Group | null = null;
       if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
-        relic = inkAnnotation(
-          relicMedium,
-          clock - arc.seenMinutesAgo * 60_000,
-          arc.seenMinutesAgo,
-        ).object;
+        relic = inkAnnotation(relicMedium, arc.lastSeenAt, arc.seenMinutesAgo).object;
         pointOnLeg(lastLeg, 1, relic.position);
         relic.visible = false;
         this.group.add(relic);

@@ -54,6 +54,7 @@ import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
+import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -1349,6 +1350,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         lastKnown: camp.lastKnown,
         since: camp.since,
         seenMinutesAgo: camp.seenMinutesAgo,
+        lastSeenAt: camp.lastSeenAt,
       }));
 
     /**
@@ -1555,10 +1557,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 id: marker.id,
                 lonLat: marker.lonLat,
                 medium: marker.medium,
-                seenAt:
-                  marker.seenMinutesAgo === null
-                    ? marker.since
-                    : Date.now() - marker.seenMinutesAgo * 60_000,
+                seenAt: surveyedAt(marker),
                 seenMinutesAgo: marker.seenMinutesAgo,
               },
             ]
