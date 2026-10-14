@@ -1366,7 +1366,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
-    /** La seconde compagnie part entamée : à pleine force les deux salves effacent exactement
+    /** La seconde compagnie part entamée : à pleine force les deux frappes effacent exactement
      *  les cinquante hommes de la garnison, et c'est la déroute qu'on lit ici. */
     await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
@@ -2904,7 +2904,7 @@ describe('a rout refluxes to the nearest anchor', () => {
    */
   async function assault(t: ReturnType<typeof boot>, seat: Seat, at: LonLat, onto: LonLat) {
     const troopIds = [await post(t, seat, at), await post(t, seat, at)];
-    /** La seconde colonne part entamée : à pleine force les deux salves effacent exactement les
+    /** La seconde colonne part entamée : à pleine force les deux frappes effacent exactement les
      *  cinquante hommes du camp, et il n'y aurait plus de déroute à suivre. */
     await t.run(async (ctx) => ctx.db.patch(troopIds[1]!, { currentStrength: 30 }));
     const campId = await surveyCamp(t, seat, asPoint(onto));
