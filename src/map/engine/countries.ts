@@ -13,7 +13,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { ProjectedCountry, World } from '@/domain/world';
+import type { OutlineSample, ProjectedCountry, World } from '@/domain/world';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, LAND_STENCIL, RECESSION, type WorldFrame } from './frame';
 import { screenTrame } from './regions';
@@ -78,7 +78,10 @@ type Edge = readonly [Point, Point];
  * fois par pays, sur les mêmes sommets : une arête vue deux fois est une frontière, une arête
  * vue une fois borde la mer.
  */
-export function splitOutlines(countries: ReadonlyArray<ReadonlyArray<ReadonlyArray<Point>>>): {
+export function splitOutlines(
+  countries: ReadonlyArray<ReadonlyArray<ReadonlyArray<Point>>>,
+  sheet: ReadonlyArray<OutlineSample> = [],
+): {
   coast: Edge[];
   borders: Edge[];
 } {
@@ -96,8 +99,31 @@ export function splitOutlines(countries: ReadonlyArray<ReadonlyArray<ReadonlyArr
       }
   const coast: Edge[] = [];
   const borders: Edge[] = [];
-  for (const { edge, count } of seen.values()) (count > 1 ? borders : coast).push(edge);
+  for (const { edge, count } of seen.values()) {
+    if (count > 1) borders.push(edge);
+    else if (!edge.every((point) => onSheetEdge(point, sheet))) coast.push(edge);
+  }
   return { coast, borders };
+}
+
+/** Au-delà de deux décimales du `world.json`, sans toucher la vraie côte la plus proche du bord. */
+const SHEET_EDGE_TOLERANCE = 0.15;
+
+/**
+ * La Tchoukotka et les Fidji sont coupées à l'antiméridien : l'arête de coupe, vue une fois,
+ * passerait pour une côte et soulignerait le bord de la feuille de l'encre la plus grasse.
+ */
+function onSheetEdge([x, y]: Point, sheet: ReadonlyArray<OutlineSample>): boolean {
+  for (let i = 1; i < sheet.length; i++) {
+    const [, westA, eastA, yA] = sheet[i - 1]!;
+    const [, westB, eastB, yB] = sheet[i]!;
+    if ((y - yA) * (y - yB) > 0) continue;
+    const share = yA === yB ? 0 : (y - yA) / (yB - yA);
+    const west = westA + (westB - westA) * share;
+    const east = eastA + (eastB - eastA) * share;
+    return Math.abs(x - west) < SHEET_EDGE_TOLERANCE || Math.abs(x - east) < SHEET_EDGE_TOLERANCE;
+  }
+  return false;
 }
 
 /** Le plancher : de loin, la côte reste un trait gras et non le cheveu d'une ligne WebGL. */
@@ -163,6 +189,7 @@ export function buildCountries(
 
   const { coast: shore, borders: frontiers } = splitOutlines(
     world.countries.map((country) => country.rings),
+    world.outline,
   );
   const bordersGeometry = new BufferGeometry();
   bordersGeometry.setAttribute(

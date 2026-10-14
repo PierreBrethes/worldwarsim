@@ -28,6 +28,20 @@ describe('splitOutlines', () => {
     expect(coast).toHaveLength(6);
   });
 
+  it('the cut at the antimeridian, along the edge of the sheet, is no coast', () => {
+    const sheet = [
+      [-10, 0, 10, 0],
+      [10, 0, 10, 1],
+    ] as const;
+    const { coast, borders } = splitOutlines([[left]], sheet);
+    expect(borders).toHaveLength(0);
+    expect(coast).toHaveLength(3);
+    expect(coast).not.toContainEqual([
+      [0, 0],
+      [0, 1],
+    ]);
+  });
+
   it('a lone island is all coast', () => {
     const { coast, borders } = splitOutlines([[left]]);
     expect(borders).toHaveLength(0);
