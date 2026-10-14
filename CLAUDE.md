@@ -654,6 +654,30 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
+**Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure
+`src/domain/capture.ts`). « Capturer » est une branche de la rose sur un bâtiment adverse relevé
+ou un avant-poste adverse, refusée par `captureOrderRefusalOf` — la même fonction que
+`movements.capture` (`CAPTURE_NEEDS_INFANTRY`, `FRIENDLY_TARGET`, `HQ_NOT_CAPTURABLE` : le QG
+attend le lot de l'élimination). La colonne marche comme une attaque ; à l'arrivée une passe a lieu
+s'il reste des défenseurs, et si l'attaquant gagne avec de l'infanterie debout, **les troupes se
+posent au point du site** (pas de présence en mouvement comme le pillage : c'est ce qui laisse
+partir et laisse attaquer) et une ligne `captures` porte l'horloge — fait / instant / rythme,
+`progressAt` et `completesAt`. **Le rythme est la force de la meilleure infanterie présente**
+(`captureRate`, pas la somme), la plage de repos du défenseur ne compte pas en Mondiale, et les
+durées sont `CAPTURE_MINUTES` par mode (`seasons.mode ?? 'mondiale'`). **Rien ne la remet à
+zéro** : elle se relit avec la détection (`reassessCaptures`, appelée au bout de
+`reassessDetection`) — plus d'infanterie au point ou site changé de main, elle s'arrête ;
+force changée, l'échéance se reprend du fait. Au bout, **événement de couleur** : régler, donner,
+rapporter. Un bâtiment perd un niveau en Mondiale, passe sans file ni garnison (`releaseBuilding`,
+extrait de la démolition), porte `capturedAt` et **colore sa région pour son capteur, sol national
+compris** (`occupations` de `heldRegions`, index `bySeasonCaptured`) ; il n'occupe aucun
+emplacement, et le raser redevient un événement de couleur. Un avant-poste passe avec son niveau
+et ses bâtiments ancrés, et l'infanterie du capteur y entre en garnison. `control.held` ne montre
+une occupation qu'à son tenant et à qui a perdu ce sol. Au front : l'anneau qui se remplit et le
+tampon « capture » sur l'étiquette du site (`CaptureGauge`), « fin vers » chez le capteur, « perdu
+vers » à l'encre d'alerte chez le défenseur, qui ne voit jamais qui capture ; la ligne en tête de
+« à faire maintenant », l'affiche, la modale du site ; le tampon « capturé » des deux côtés à la
+prise. Hors lot : QG, points stratégiques, Blitz neutre, vivres à sec.
 ## Schéma Convex
 
 **Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
