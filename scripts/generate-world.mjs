@@ -167,6 +167,10 @@ await import('./generate-grid.mjs');
  *  server reads no polygon at all any more (ADR 0023). */
 await import('./generate-region-grid.mjs');
 
+/** The public front page's Europe sheet is a cut of this world: regenerated with it, or the une
+ *  would show yesterday's coasts. */
+await import('./generate-europe-sheet.mjs');
+
 /** The terrain classification reads the regions just baked; the rasters are outside the repo, so
  *  it only runs when `--terrain <dir>` says where they are. */
 if (process.argv.includes('--terrain')) await import('./generate-region-types.mjs');

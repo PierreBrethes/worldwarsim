@@ -8,7 +8,7 @@
  * them. Each ring is clipped to the box and a margin, at a hundredth of a unit, points closer
  * than `MIN_STEP` merged.
  *
- * Usage: node scripts/generate-europe-sheet.mjs — after generate-world.mjs.
+ * Usage: node scripts/generate-europe-sheet.mjs — also chained at the end of generate-world.mjs.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import polygonClipping from 'polygon-clipping';
