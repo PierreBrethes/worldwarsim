@@ -118,6 +118,34 @@ describe('la carte de départ de la Blitz', () => {
     );
   });
 
+  it('revient au salon quand la pose échoue, au lieu de laisser une saison sans carte', async () => {
+    const t = boot();
+    const token = await signIn(t, 'Pierre');
+    const { code, seasonId } = await t.mutation(api.seasons.create, {
+      token,
+      compensation: 0.5,
+      mode: 'blitz',
+      theatre: 'europe',
+    });
+    const seat: Seat = { token, seasonId };
+    const guest = await joinSeat(t, code, 'Léa');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    await t.run((ctx) => ctx.db.patch(seasonId, { theatre: 'atlantide' }));
+    await t.action(internal.blitz.place, { seasonId });
+    expect(await t.run((ctx) => ctx.db.get(seasonId))).toMatchObject({
+      status: 'lobby',
+      launchRefusal: 'BLITZ_MAP_FAILED',
+    });
+    expect((await t.query(api.seasons.lobby, seat)).launchRefusal).toBe('BLITZ_MAP_FAILED');
+  });
+
   it('ne se pose qu’une fois', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);

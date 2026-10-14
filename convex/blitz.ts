@@ -22,10 +22,11 @@ import {
   planBlitzMap,
   type BlitzCandidate,
   type BlitzMeasure,
+  type BlitzSite,
 } from '../src/domain/blitz-placement';
 import type { LonLat } from '../src/domain/geo';
 import { modeOf } from '../src/domain/season-mode';
-import { theatreById } from '../src/domain/theatres';
+import { theatreById, type Theatre } from '../src/domain/theatres';
 import { playerBuildings } from './buildingReads';
 import { BLITZ, nominalStrength } from './constants';
 import { fail } from './errors';
@@ -94,11 +95,13 @@ export const placementInput = internalQuery({
     if (season === null || season.status !== 'launched' || modeOf(season.mode) !== 'blitz') {
       return null;
     }
-    const theatre = theatreById(season.theatre ?? '');
-    if (theatre === null) return null;
     const seats = await seatsOf(ctx, seasonId);
     if (seats.length === 0) return null;
-    return { seed: season.seed, box: theatre.box, seats: seats.map((seat) => seat._id) };
+    return {
+      seed: season.seed,
+      box: theatreById(season.theatre ?? '')?.box ?? null,
+      seats: seats.map((seat) => seat._id),
+    };
   },
 });
 
@@ -107,39 +110,17 @@ export const place = internalAction({
   handler: async (ctx, { seasonId }): Promise<void> => {
     const input = await ctx.runQuery(internal.blitz.placementInput, { seasonId });
     if (input === null) return;
-
-    /** **Une côte n'est côte que si un quai s'y trouve** : la règle ne pose un port que là, et
-     *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
-    const quays = new Map<string, LonLat>();
-    const candidates = theatreGround(input.box).map((candidate) => {
-      const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
-      if (quay !== null) quays.set(candidate.regionId, quay);
-      return { ...candidate, coastal: quay !== null };
-    });
-    const places = candidates.map((candidate) => ({
-      id: candidate.regionId,
-      point: candidate.point,
-    }));
-    const pointOf = new Map(places.map((place) => [place.id, place.point]));
-    const fields = new Map<string, ReadonlyMap<string, number>>();
-    const measure: BlitzMeasure = (regionId, mode, maxKm) => {
-      const key = `${regionId}|${mode}|${String(Math.round(maxKm))}`;
-      let field = fields.get(key);
-      if (field === undefined) {
-        field = routeKmFrom(pointOf.get(regionId)!, places, mode, maxKm);
-        fields.set(key, field);
-      }
-      return field;
-    };
-
-    const plan = planBlitzMap({
-      seats: input.seats,
-      candidates,
-      box: input.box,
-      rules: BLITZ.map,
-      seed: input.seed,
-      measure,
-    });
+    /** **Une pose qui échoue ne laisse pas une saison lancée sans carte** : elle revient au salon,
+     *  qui le dit, et le fondateur relance. */
+    let plan: ReadonlyArray<BlitzSite> | null;
+    let quays: ReadonlyMap<string, LonLat>;
+    try {
+      if (input.box === null) throw new Error('theatre');
+      ({ plan, quays } = drawMap(input.box, input.seats, input.seed));
+    } catch {
+      await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_FAILED' });
+      return;
+    }
     if (plan === null) {
       await ctx.runMutation(internal.blitz.abandon, { seasonId, refusal: 'BLITZ_MAP_UNFAIR' });
       return;
@@ -159,6 +140,39 @@ export const place = internalAction({
     });
   },
 });
+
+function drawMap(
+  box: Theatre['box'],
+  seats: ReadonlyArray<string>,
+  seed: number,
+): { plan: ReadonlyArray<BlitzSite> | null; quays: ReadonlyMap<string, LonLat> } {
+  /** **Une côte n'est côte que si un quai s'y trouve** : la règle ne pose un port que là, et
+   *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
+  const quays = new Map<string, LonLat>();
+  const candidates = theatreGround(box).map((candidate) => {
+    const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
+    if (quay !== null) quays.set(candidate.regionId, quay);
+    return { ...candidate, coastal: quay !== null };
+  });
+  const places = candidates.map((candidate) => ({
+    id: candidate.regionId,
+    point: candidate.point,
+  }));
+  const pointOf = new Map(places.map((place) => [place.id, place.point]));
+  const fields = new Map<string, ReadonlyMap<string, number>>();
+  const measure: BlitzMeasure = (regionId, mode, maxKm) => {
+    const key = `${regionId}|${mode}|${String(Math.round(maxKm))}`;
+    let field = fields.get(key);
+    if (field === undefined) {
+      field = routeKmFrom(pointOf.get(regionId)!, places, mode, maxKm);
+      fields.set(key, field);
+    }
+    return field;
+  };
+
+  const plan = planBlitzMap({ seats, candidates, box, rules: BLITZ.map, seed, measure });
+  return { plan, quays };
+}
 
 /**
  * **La carte n'a pas pu se poser : la saison revient au salon**, plutôt que de servir une partie
