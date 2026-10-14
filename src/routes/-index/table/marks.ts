@@ -172,8 +172,9 @@ export class Moments {
     private readonly motion: MapMotion,
   ) {}
 
-  get busy(): boolean {
-    return this.stamps.length > 0 || this.puffs.length > 0;
+  /** A stamp is a moment and is drawn at full rate; smoke is ambience (`AMBIENT_HZ`). */
+  get stamping(): boolean {
+    return this.stamps.length > 0;
   }
 
   stamp(word: string, hour: string, at: Vector3, size = 1.6): void {

@@ -134,7 +134,10 @@ const NAMED: ReadonlyArray<keyof typeof fr.front.places> = [
   'paris',
 ];
 
-const PLAYING_SCENES = new Set<SceneName>(['front', 'fog', 'battle']);
+/** The ambience's pace: the board's sea and wind run at twelve, a hull and a plane want more. */
+const AMBIENT_HZ = 20;
+/** How long the survey's column takes to cross the reach and be left as a date. */
+const FOG_SECONDS = 7;
 /** The hour the folio of page 2 prints: the march is dated from it. */
 const FRONT_HOUR = 14 * 60 + 5;
 const MAQUETTE_ROOM = 0.63;
@@ -204,6 +207,9 @@ export class LandingTable {
   private current: SceneName | null = null;
   private running = true;
   private frameId = 0;
+  private lastAmbient = 0;
+  /** Something the camera does not show changed — the hand, a resize: one image is due. */
+  private poked = true;
   private cam = { x: 0, z: 0, dist: 60, phi: 0.9, theta: 0, fx: 0, fy: 0 };
   private camKnown = false;
   private lastCam = '';
@@ -1235,7 +1241,7 @@ export class LandingTable {
     this.renderer.setSize(innerWidth, innerHeight, false);
     this.camera.aspect = innerWidth / innerHeight;
     this.camera.updateProjectionMatrix();
-    this.lastCam = '';
+    this.poked = true;
   };
 
   private readonly tick = () => {
@@ -1275,21 +1281,37 @@ export class LandingTable {
 
     const camKey = [this.camera.position.toArray(), this.cam.fx, this.cam.fy, instant]
       .flat()
-      .map((n) => n.toFixed(3))
+      .map((n) => n.toFixed(2))
       .join();
     const moving = camKey !== this.lastCam;
     this.lastCam = camKey;
-    if (!this.still || moving || this.moments.busy || PLAYING_SCENES.has(name))
-      this.renderer.render(this.scene, this.camera);
-    this.placePins();
-
     const story: Story = { front: this.frontStory(), battle: this.battleStory() };
     const key = JSON.stringify(story);
-    if (key !== this.lastStory) {
+    const told = key !== this.lastStory;
+
+    // Frames on demand, as the board draws them (`frame-demand.ts`): what moves the camera, a
+    // played scene, a stamp, the visitor's hand — and the ambience (a hull, a plane, smoke) at
+    // its own pace, never at sixty images a second.
+    const now = performance.now();
+    const ambient = !this.still && now - this.lastAmbient >= 1000 / AMBIENT_HZ;
+    const playing = !this.still && this.isPlaying(name);
+    if (moving || told || this.poked || this.moments.stamping || playing || ambient) {
+      if (ambient) this.lastAmbient = now;
+      this.poked = false;
+      this.renderer.render(this.scene, this.camera);
+      this.placePins();
+    }
+    if (told) {
       this.lastStory = key;
       this.onStory(story);
     }
   };
+
+  /** A played scene runs at full rate while something in it moves. */
+  private isPlaying(name: SceneName): boolean {
+    if (name === 'front' || name === 'battle') return true;
+    return name === 'fog' && (this.fog?.t ?? 0) < FOG_SECONDS;
+  }
 
   /**
    * Moves each shown pin over its anchor. A poster that would leave the screen is held inside
@@ -1346,6 +1368,7 @@ export class LandingTable {
     const f = this.front;
     if (this.current !== 'front' || f === null) return;
     this.aim(event);
+    this.poked = true;
     if (f.state === 'carried' && !f.auto) this.ray.ray.intersectPlane(this.ground, f.target);
     this.canvas.style.cursor =
       f.state === 'carried' ? 'grabbing' : f.state === 'rest' && this.onPiece() ? 'grab' : '';
