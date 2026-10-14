@@ -353,9 +353,10 @@ async function startHead(
    * A batch **already** dated runs to its end: its time was bought before the reserve ran out,
    * and taking it back would be an attrition on the queue by another name.
    */
+  if ((await economyOf(ctx, head.playerId, now)).starving) return;
+
   const player = await ctx.db.get(head.playerId);
   const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
-  if (!blitz && (await economyOf(ctx, head.playerId, now)).starving) return;
 
   const minutes = blitz
     ? BLITZ.recruitMinutes
