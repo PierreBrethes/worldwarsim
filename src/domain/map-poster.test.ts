@@ -279,6 +279,31 @@ describe('posterOf', () => {
     });
   });
 
+  it('counts down the battery of a gun in garrison, on its building (B20)', () => {
+    const garrisoned = {
+      ...me,
+      troops: [
+        {
+          ...me.troops[0]!,
+          role: 'artillery',
+          stationedAt: { kind: 'building', buildingId: 'b-barracks' },
+          emplacedAt: LOADED_AT + 18_000,
+        },
+      ],
+    } as PlayerView['me'];
+    const barracks = posterFor(
+      view({ me: garrisoned }),
+      [building('b-barracks', 'barracks', 'r-plain', null, 1)],
+      'm-b-barracks',
+    );
+    expect(barracks?.lines).toContainEqual({
+      kind: 'chip',
+      label: 'en batterie dans',
+      chip: '0:18',
+      tone: 'ok',
+    });
+  });
+
   it('names a site where nothing stands yet: rising by what is left, queued by its rank', () => {
     const rising: WorkSite = {
       phase: 'rising',

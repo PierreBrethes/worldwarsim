@@ -4,7 +4,7 @@ import type { SeasonMode } from './season-mode';
 import { distanceKm, type LonLat } from './geo';
 import type { PassMode } from './combat';
 import { INTERCEPTION_SAMPLES, positionAt, type MarchingForce } from './interception';
-import type { Theatre } from './theatres';
+import { spanKm, type Theatre } from './theatres';
 
 /**
  * **L'économie de la Blitz** (lot 4 des deux modes, 14/10) : une ressource, les fonds, et des
@@ -157,15 +157,6 @@ export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   const { west, south, east, north } = theatre.box;
   if (lat < south || lat > north) return false;
   return [lon, lon + 360].some((candidate) => candidate >= west && candidate <= east);
-}
-
-function spanKm(theatre: Theatre): number {
-  const { west, south, east, north } = theatre.box;
-  const middle = (south + north) / 2;
-  return Math.max(
-    distanceKm([west, south], [west, north]),
-    distanceKm([west, middle], [west + (east - west) / 2, middle]) * 2,
-  );
 }
 
 /** What a thousand kilometres of land cost on this theatre's clock. */

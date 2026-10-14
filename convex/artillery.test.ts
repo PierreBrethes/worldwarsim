@@ -73,6 +73,27 @@ describe('the artillery and indirect fire (lot 6b)', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('replays from the battery for the gunner, and from nowhere for the target (A4)', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t);
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    await troop(t, guest, ROUEN);
+    const campId = await surveyCamp(t, seat, ROUEN);
+    emplaced();
+    await t.mutation(api.movements.bombard, {
+      ...seat,
+      troopId: gun,
+      target: { kind: 'camp', campId },
+    });
+    const [engagement] = await t.run((ctx) => ctx.db.query('engagements').collect());
+
+    const gunner = await t.query(api.replay.replayOf, { ...seat, combatId: engagement!._id });
+    const target = await t.query(api.replay.replayOf, { ...guest, combatId: engagement!._id });
+    expect(gunner).toMatchObject({ bombardment: { from: PARIS } });
+    expect(target).toMatchObject({ bombardment: {} });
+    expect(JSON.stringify(target)).not.toContain(String(PARIS.lon));
+  });
+
   it('strikes a seen unit from afar, takes no riposte, and reloads', async () => {
     const t = boot();
     const { seat, guest } = await season(t);

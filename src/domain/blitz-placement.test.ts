@@ -13,8 +13,6 @@ import {
  * partout. Ce qui se teste est la règle ; la pose réelle a ses tests (`convex/blitz.test.ts`).
  */
 
-const BOX = { west: 0, south: 40, east: 20, north: 52 };
-
 /** Un continent bordé de côtes. */
 const continent: ReadonlyArray<BlitzCandidate> = Array.from({ length: 21 * 13 }, (_, rank) => {
   const lon = rank % 21;
@@ -52,9 +50,10 @@ const measuring =
   };
 
 const RULES: BlitzMapRules = {
-  hqRing: 0.6,
+  hqRadiusKm: 600,
+  hqRadiusSpread: 0.5,
+  hqDraws: 60,
   hqTries: 12,
-  hqScan: 40,
   hqEvenness: 0.6,
   tolerance: 0.35,
   starting: [{ key: 'barracks', km: 120 }],
@@ -72,8 +71,7 @@ const plan = (
   seats: ReadonlyArray<string>,
   seed = 7,
   candidates: ReadonlyArray<BlitzCandidate> = world,
-) =>
-  planBlitzMap({ seats, candidates, box: BOX, rules: RULES, seed, measure: measuring(candidates) });
+) => planBlitzMap({ seats, candidates, rules: RULES, seed, measure: measuring(candidates) });
 const placed = (seats: ReadonlyArray<string>, seed = 7) => plan(seats, seed)!;
 
 const pointOf = new Map(world.map((candidate) => [candidate.regionId, candidate.point]));

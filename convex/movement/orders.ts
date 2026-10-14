@@ -25,7 +25,7 @@ import {
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
-import { MAX_HQ_LEVEL, detectionRangeOf } from '../constants';
+import { MAX_HQ_LEVEL } from '../constants';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -735,6 +735,6 @@ export async function march(
   await reassessDetection(ctx, filed.seasonId, now);
   /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
-  await surveyFromPoint(ctx, playerId, departure.point, now, detectionRangeOf(column.roles));
+  await surveyFromPoint(ctx, playerId, departure.point, now, column.roles);
   return { movementId, minutes, arrivesAt };
 }

@@ -25,6 +25,7 @@ import type { Conversion, FoundationDebt } from '../src/domain/economy';
 import { MODE_RULES } from '../src/domain/season-mode';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
+import { theatreKm, type Theatre } from '../src/domain/theatres';
 
 export { NATIONS } from '../src/domain/ids';
 
@@ -691,8 +692,17 @@ export const DETECTION_RANGE_KM: Readonly<Record<UnitRole, number>> = {
  * 08/09/2026). These are starting points inherited from the abandoned posture brief, not
  * balance claims: the first campaign still has to measure all nine.
  */
-export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
-  roles.reduce((best, role) => Math.max(best, DETECTION_RANGE_KM[role]), 0);
+export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>, theatre: Theatre | null): number =>
+  roles.reduce(
+    (best, role) =>
+      Math.max(
+        best,
+        theatre === null
+          ? DETECTION_RANGE_KM[role]
+          : theatreKm(theatre, BLITZ_SHARE.detection[role]),
+      ),
+    0,
+  );
 
 /**
  * **How close one has to stand to be found on arrival.** ADR 0019 §1: it replaces the containment
@@ -706,6 +716,38 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
  * @a-mesurer an assumed starting point; nothing measures how close is close enough on arrival
  */
 export const ARRIVAL_RADIUS_KM = 25;
+
+/**
+ * **The Blitz's distances, as shares of its theatre's span** (A2, `theatreKm`): cut so Europe
+ * (4 225 km) keeps the Mondiale's kilometres, and every wider theatre widens them all alike — a
+ * fixed 25 km of contact was a pinhead on the Pacific.
+ *
+ * @a-mesurer every share; nothing has played an evening
+ */
+export const BLITZ_SHARE = {
+  contact: 0.0059,
+  detection: {
+    infantry: 0.0142,
+    armor: 0.0142,
+    landTransport: 0.0095,
+    artillery: 0.0142,
+    fighter: 0.0355,
+    bomber: 0.0237,
+    airTransport: 0.0189,
+    escort: 0.0284,
+    cargo: 0.0142,
+    carrier: 0.0473,
+  } as Readonly<Record<UnitRole, number>>,
+  /** The artillery's reach, and the dead zone under it where it does not fire (B20). */
+  fireRange: 0.0355,
+  deadZone: 0.0118,
+  /** « À faire maintenant » montre les villes neutres à cette part d'un de mes bâtiments. */
+  nearCity: 0.142,
+} as const;
+
+/** **How close is contact**: the Mondiale's kilometres, or the Blitz's share of its theatre. */
+export const contactKm = (theatre: Theatre | null): number =>
+  theatre === null ? ARRIVAL_RADIUS_KM : theatreKm(theatre, BLITZ_SHARE.contact);
 
 /**
  * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
@@ -727,16 +769,14 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
 };
 
 /**
- * **Le tir indirect de l'artillerie** (B20) : portée, zone morte proche où l'on ne tire pas, et le
- * temps immobile qu'il faut pour être **en batterie**. À la vitesse d'une Blitz d'Europe (le
- * théâtre traversé en 18 min, ≈ 230 km/min), la portée vaut quarante secondes de marche adverse,
- * la zone morte treize, et la mise en batterie cent dix kilomètres : on voit venir, on tire une
- * fois, et le contact arrive. Au Pacifique et aux Amériques (≈ 650 km/min) tout tient en quinze
- * secondes — des kilomètres fixes y sont courts.
+ * **Le temps immobile qu'il faut à l'artillerie pour être en batterie** (B20) ; sa portée et sa
+ * zone morte sont des parts du théâtre (`BLITZ_SHARE`). Un théâtre se traverse en 18 min, donc
+ * partout la portée vaut quarante secondes de marche adverse, la zone morte treize, et la mise en
+ * batterie le double de la portée : on voit venir, on tire une fois, et le contact arrive.
  *
- * @a-mesurer toutes ; rien n'a encore joué une soirée
+ * @a-mesurer rien n'a encore joué une soirée
  */
-export const INDIRECT_FIRE = { rangeKm: 150, deadZoneKm: 50, emplaceSeconds: 30 } as const;
+export const INDIRECT_FIRE = { emplaceSeconds: 30 } as const;
 
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
@@ -1166,8 +1206,6 @@ export const BLITZ = {
     carrier: 320,
   } as Readonly<Record<UnitRole, number>>,
   recruitMinutes: 1,
-  /** « À faire maintenant » montre les villes neutres à cette distance d'un de mes bâtiments. */
-  nearCityKm: 600,
   /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
   troopBound: 80,
   mend: {
@@ -1178,28 +1216,33 @@ export const BLITZ = {
     priceShare: 0.5,
   },
   map: {
-    /** Le cercle où les QG se posent, en part de la demi-étendue du théâtre. */
-    hqRing: 0.45,
-    /** Combien de tours de table on essaie (E6 : une douzaine) avant de refuser le lancement. */
+    /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en
+     *  Europe —, et l'écart cible entre QG en est la corde. */
+    hqRadius: 0.225,
+    hqRadiusSpread: 0.5,
+    /** Combien de tablées on tire au plus, chacune d'une région au hasard. */
+    hqDraws: 1000,
+    /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */
     hqTries: 12,
-    /** Combien de régions, des plus proches de la place du cercle, on éprouve pour un QG. */
-    hqScan: 40,
     /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */
     hqEvenness: 0.6,
     /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */
     tolerance: 0.35,
-    /** La caserne de départ, à soi, à cette distance de route du QG. */
-    starting: [{ key: 'barracks', km: 120 }],
-    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous. */
+    /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km
+     *  en Europe. */
+    starting: [{ key: 'barracks', share: 0.0284 }],
+    /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450,
+     *  350 et 400 km en Europe. */
     near: [
-      { key: 'city', km: 250 },
-      { key: 'city', km: 450 },
-      { key: 'port', km: 350 },
-      { key: 'airfield', km: 400 },
+      { key: 'city', share: 0.0592 },
+      { key: 'city', share: 0.1065 },
+      { key: 'port', share: 0.0828 },
+      { key: 'airfield', share: 0.0947 },
     ],
     /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */
     disputed: ['city', 'airfield'],
-    spreadKm: 80,
+    /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */
+    spread: 0.0189,
     fairness: 0.8,
   } as const,
 } as const;

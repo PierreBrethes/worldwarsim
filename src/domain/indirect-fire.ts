@@ -1,8 +1,8 @@
-import { INDIRECT_FIRE } from '../../convex/constants';
+import { BLITZ_SHARE, INDIRECT_FIRE } from '../../convex/constants';
 import { withinTheatre } from './blitz';
 import { distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
-import type { Theatre } from './theatres';
+import { theatreKm, type Theatre } from './theatres';
 import { LIFT_CAPACITY } from './troops';
 
 /**
@@ -11,6 +11,12 @@ import { LIFT_CAPACITY } from './troops';
  * `movements.bombard` ; les nombres vivent dans `INDIRECT_FIRE`.
  */
 export const firesIndirect = (role: UnitRole): boolean => role === 'artillery';
+
+/** Où la pièce tire, en km de son théâtre (A2) : la règle, l'aperçu et les cercles le lisent. */
+export const fireReachOf = (theatre: Theatre) => ({
+  rangeKm: theatreKm(theatre, BLITZ_SHARE.fireRange),
+  deadZoneKm: theatreKm(theatre, BLITZ_SHARE.deadZone),
+});
 
 /** L'instant où une pièce posée à `settledAt` est en batterie. */
 export const emplacedAt = (settledAt: number): number =>
@@ -73,14 +79,18 @@ export function bombardRefusalOf(order: Bombardment): BombardRefusal | null {
   if (now < order.emplacedAt) return 'NOT_EMPLACED';
   if (order.reloadUntil !== null && now < order.reloadUntil) return 'RELOADING';
   const km = distanceKm(order.from, order.to);
-  if (km < INDIRECT_FIRE.deadZoneKm) return 'TOO_CLOSE';
-  return km > INDIRECT_FIRE.rangeKm ? 'OUT_OF_RANGE' : null;
+  const { rangeKm, deadZoneKm } = fireReachOf(theatre);
+  if (km < deadZoneKm) return 'TOO_CLOSE';
+  return km > rangeKm ? 'OUT_OF_RANGE' : null;
 }
 
 /** Ce que la phrase du refus nomme — distance, bornes, attente —, la même des deux côtés. */
-export const bombardRefusalDetails = (order: Bombardment) => ({
-  km: Math.round(distanceKm(order.from, order.to)),
-  minimum: INDIRECT_FIRE.deadZoneKm,
-  maximum: INDIRECT_FIRE.rangeKm,
-  seconds: Math.max(0, Math.ceil((order.emplacedAt - order.now) / 1000)),
-});
+export const bombardRefusalDetails = (order: Bombardment) => {
+  const reach = order.theatre === null ? null : fireReachOf(order.theatre);
+  return {
+    km: Math.round(distanceKm(order.from, order.to)),
+    minimum: reach?.deadZoneKm ?? 0,
+    maximum: reach?.rangeKm ?? 0,
+    seconds: Math.max(0, Math.ceil((order.emplacedAt - order.now) / 1000)),
+  };
+};

@@ -38,7 +38,7 @@ export type MovementAim =
   /**
    * **Un camp adverse relevé** (ADR 0024 §4) : le seul objet mobile qu'un ordre puisse viser, et
    * il est visé comme une **position**. La colonne marche au point relevé ; à l'arrivée elle
-   * engage ce qui s'y tient à `ARRIVAL_RADIUS_KM`, et si le camp est parti elle est bredouille.
+   * engage ce qui s'y tient à `contactKm(théâtre)`, et si le camp est parti elle est bredouille.
    * La poursuite est l'intention « intercepter » de la V1, pas celle-ci.
    */
   | {

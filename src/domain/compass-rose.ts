@@ -14,7 +14,7 @@ import {
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { aboardAt, bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
-import { theatreById } from './theatres';
+import { playedTheatre } from './theatres';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
@@ -1066,7 +1066,7 @@ function aim(
   }
   if (target.kind !== 'point') return null;
   /**
-   * The arrival reads what stands within `ARRIVAL_RADIUS_KM` of where the column stopped
+   * The arrival reads what stands within `contactKm(theatre)` of where the column stopped
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed
    * at and nothing rounds it to a centroid.
    */
@@ -1107,7 +1107,7 @@ function bombardFan(
     roles: column.roles,
     from,
     to: target.point,
-    theatre: view.theatre === null ? null : theatreById(view.theatre),
+    theatre: playedTheatre(view),
     seen:
       target.kind === 'track' ||
       view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),

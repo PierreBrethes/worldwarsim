@@ -9,7 +9,8 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { homeCountryOf, pointOfBuilding } from '../regions';
-import { ARRIVAL_RADIUS_KM, outpostReachKm } from '../constants';
+import { contactKm, outpostReachKm } from '../constants';
+import { seasonTheatre } from './theatre';
 import { anchorOf, isAnchored } from '../upkeep';
 
 export async function movementsOf(
@@ -147,8 +148,8 @@ type Defence = {
 
 /**
  * **Ce qu'un ordre d'attaque trouve au bout de son allonge** (ADR 0024 §4). Elle n'est plus lue
- * que là : une marche ne cherche plus personne (`standAt`), et `ARRIVAL_RADIUS_KM` a changé de
- * sens — de déclencheur il est devenu l'**allonge** de l'ordre.
+ * que là : une marche ne cherche plus personne (`standAt`), et le contact a changé de sens — de
+ * déclencheur il est devenu l'**allonge** de l'ordre, `contactKm(théâtre)`.
  *
  * Si plusieurs nations tiennent du sol au même endroit, celle qui a le plus de troupes répond :
  * ADR 0014, couper la colonne résoudrait deux fois la même passe.
@@ -196,6 +197,7 @@ async function defenceNear(
 ): Promise<Defence | null> {
   const movements = await seasonMovements(ctx, movement.seasonId);
   const marching = new Set<Id<'troops'>>(movements.flatMap((other) => other.troopIds));
+  const reachKm = contactKm(seasonTheatre(await ctx.db.get(movement.seasonId)));
   const byPlayer = new Map<
     Id<'players'>,
     {
@@ -210,7 +212,7 @@ async function defenceNear(
       present._id === movement._id ||
       present.playerId === movement.playerId ||
       present.plunder?.phase !== 'presence' ||
-      distanceKm(pointOf(present.to), arrival) > ARRIVAL_RADIUS_KM
+      distanceKm(pointOf(present.to), arrival) > reachKm
     ) {
       continue;
     }
@@ -236,7 +238,7 @@ async function defenceNear(
   for (const troop of await seasonTroops(ctx, movement.seasonId)) {
     if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
     const stance = await stanceAt(troop.stationedAt);
-    if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
+    if (stance === null || distanceKm(stance.point, arrival) > reachKm) continue;
     const kept = byPlayer.get(troop.playerId) ?? {
       troops: [],
       outposts: new Set(),

@@ -21,8 +21,7 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
-  ARRIVAL_RADIUS_KM,
-  INDIRECT_FIRE,
+  contactKm,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
@@ -76,7 +75,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
-import { theatreById } from '@/domain/theatres';
+import { playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
 import {
@@ -102,7 +101,7 @@ import {
   troopsAt,
   type MarchStation,
 } from '@/domain/troops';
-import { firesIndirect } from '@/domain/indirect-fire';
+import { fireReachOf, firesIndirect } from '@/domain/indirect-fire';
 import { pilePlace, placeLabel, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
@@ -384,10 +383,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const narrow = useNarrowScreen();
   const blitz = view.mode === 'blitz';
-  const blitzTheatre = useMemo(
-    () => (blitz && view.theatre !== null ? theatreById(view.theatre) : null),
-    [blitz, view.theatre],
-  );
+  const blitzTheatre = useMemo(() => playedTheatre(view), [view]);
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
@@ -1413,6 +1409,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       works.find((site) => site.regionId === regionId && site.key === key) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
+    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât. */
+    const garrisonCountdowns = (buildingId: string) => {
+      const held = troopsAt(view.me, stationKeyOf({ kind: 'building', buildingId }), marching);
+      return { ...reloadOf(held), ...emplacementOf(held) };
+    };
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: buildingLabelId(building),
@@ -1432,6 +1433,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
+      ...garrisonCountdowns(building.id),
       ink: view.me.ink,
     }));
 
@@ -1599,15 +1601,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     if (at === null) return null;
     return {
       lonLat: at,
-      detectionKm: detectionRangeOf(column.rule.roles),
+      detectionKm: detectionRangeOf(column.rule.roles, blitzTheatre),
       /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
-       *  une seule constante, celle que l'arrivée lit pour trouver qui se tient là. */
-      contactKm: firing ? null : ARRIVAL_RADIUS_KM,
-      ...(firing
-        ? { fire: { rangeKm: INDIRECT_FIRE.rangeKm, deadZoneKm: INDIRECT_FIRE.deadZoneKm } }
-        : {}),
+       *  une seule règle, celle que l'arrivée lit pour trouver qui se tient là. */
+      contactKm: firing ? null : contactKm(blitzTheatre),
+      ...(firing && blitzTheatre !== null ? { fire: fireReachOf(blitzTheatre) } : {}),
     };
-  }, [column, view.me]);
+  }, [column, view.me, blitzTheatre]);
   const movementReach = useMemo<Reach | null>(() => {
     const movement = view.arcs.find(
       (arc): arc is Extract<ArcView, { state: 'mine' }> =>
@@ -1639,10 +1639,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         },
         progress,
       ),
-      detectionKm: detectionRangeOf(roles),
-      contactKm: ARRIVAL_RADIUS_KM,
+      detectionKm: detectionRangeOf(roles, blitzTheatre),
+      contactKm: contactKm(blitzTheatre),
     };
-  }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
+  }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt, blitzTheatre]);
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
   const selectedObjectiveView =
@@ -1797,8 +1797,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const openedCombat = openedDispatch?.combat ?? null;
   /** Ce qui se tient encore à soi au lieu d'un combat : la garnison qu'ouvre sa dépêche. */
   const garrisonAtCombat = useCallback(
-    (combat: CombatReport) => stationAtCombat(view.me, combat, marching, ARRIVAL_RADIUS_KM),
-    [view.me, marching],
+    (combat: CombatReport) => stationAtCombat(view.me, combat, marching, contactKm(blitzTheatre)),
+    [view.me, marching, blitzTheatre],
   );
   const combatStation = openedCombat === null ? null : garrisonAtCombat(openedCombat);
   const locate = useCallback((place: { readonly lon: number; readonly lat: number }) => {
@@ -2478,7 +2478,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     />
                   );
                 case 'gunnery':
-                  return <GunneryWindow key={name} seat={seat} {...windowProps} />;
+                  return (
+                    <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />
+                  );
                 case 'press':
                   return (
                     <PressWindow
@@ -2504,6 +2506,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           </Suspense>
           {briefing && (
             <BriefingSheet
+              theatre={blitzTheatre}
               onDismiss={() => {
                 markBriefingSeen();
                 setBriefing(false);
@@ -2746,8 +2749,8 @@ function armedColumn(
 /** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
  *  bâtiments déjà tenus par une troupe posée. */
 function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
-  const theatre = view.theatre === null ? null : theatreById(view.theatre);
-  if (view.mode !== 'blitz' || theatre === null) return {};
+  const theatre = playedTheatre(view);
+  if (theatre === null) return {};
   const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
   const leaving = new Set(troops.map((troop) => troop.id));
   const now = Date.now();

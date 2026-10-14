@@ -45,6 +45,14 @@ export const replayOf = query({
         return { role: rows[0]!.role, tier: rows[0]!.tier, ...tallyOf(rows) };
       }),
       theirs: tallyOf(engagement.troops.filter((troop) => troop.side !== side)),
+      ...(engagement.cause === 'bombardment'
+        ? {
+            bombardment:
+              side === 'attacker' && engagement.firedFrom !== undefined
+                ? { from: engagement.firedFrom }
+                : {},
+          }
+        : {}),
     };
   },
 });

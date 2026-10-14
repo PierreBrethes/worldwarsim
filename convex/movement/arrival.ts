@@ -34,7 +34,6 @@ import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_IMMUNITY_HOURS,
-  detectionRangeOf,
 } from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -672,7 +671,7 @@ export async function walkHome(
       .map(({ troop }) => troop)
       .filter((troop) => troop.playerId === playerId)
       .map((troop) => troop.role);
-    await surveyFromPoint(ctx, playerId, from, now, detectionRangeOf(roles));
+    await surveyFromPoint(ctx, playerId, from, now, roles);
   }
 
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();

@@ -20,7 +20,6 @@ import { isStanding } from '../src/domain/outposts';
 import { playerBuildings, seasonBuildings } from './buildingReads';
 import {
   LISTENING_STATION_RADIUS_KM,
-  DETECTION_RANGE_KM,
   SURVEY_REFRESH_HOURS,
   detectionRangeOf,
   outpostReachKm,
@@ -29,6 +28,7 @@ import { heldOver } from './holding';
 import { regionsCoveredBy, regionsWithinReach } from './regionGeometry';
 import { movementsOf, outpostsOf, pointOf } from './movement/forces';
 import { seatsOf } from './seats';
+import { blitzTheatreOf } from './movement/theatre';
 import {
   allRegions,
   capitalRegionOf,
@@ -95,6 +95,7 @@ export async function standingObserversOf(
     }
   }
 
+  const theatre = await blitzTheatreOf(ctx, playerId);
   const marching = new Set<Id<'troops'>>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
@@ -124,7 +125,7 @@ export async function standingObserversOf(
       }
     }
     if (point !== null) {
-      observers.push({ point, radiusKm: detectionRangeOf([troop.role]) });
+      observers.push({ point, radiusKm: detectionRangeOf([troop.role], theatre) });
     }
   }
 
@@ -233,13 +234,19 @@ export async function fileSurvey(
 }
 
 /** Une troupe posée relève le sol autour d'elle, au même rayon qu'elle relève ce qui passe. */
-export const surveyFromPoint = (
+export const surveyFromPoint = async (
   ctx: MutationCtx,
   playerId: Id<'players'>,
   point: LonLat,
   at: number,
-  radiusKm = DETECTION_RANGE_KM.infantry,
-): Promise<number> => fileSurvey(ctx, playerId, [{ point, radiusKm }], at);
+  roles: ReadonlyArray<UnitRole> = ['infantry'],
+): Promise<number> =>
+  fileSurvey(
+    ctx,
+    playerId,
+    [{ point, radiusKm: detectionRangeOf(roles, await blitzTheatreOf(ctx, playerId)) }],
+    at,
+  );
 
 /**
  * **Ce qu'une colonne a vu du couloir qu'elle vient de marcher**, relevé à l'arrivée et pas au
@@ -257,7 +264,7 @@ export const surveyAlongRoute = async (
     const troop = await ctx.db.get(troopId);
     if (troop !== null) roles.push(troop.role);
   }
-  const radiusKm = detectionRangeOf(roles);
+  const radiusKm = detectionRangeOf(roles, await blitzTheatreOf(ctx, movement.playerId));
   return fileSurvey(
     ctx,
     movement.playerId,

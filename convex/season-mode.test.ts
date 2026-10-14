@@ -50,7 +50,7 @@ describe('seasons.create by mode', () => {
       mode: 'blitz',
       theatre: 'europe',
     });
-    for (let rank = 1; rank < 3; rank += 1) await joinSeat(t, code, `Joueur ${String(rank)}`);
+    for (let rank = 1; rank < 4; rank += 1) await joinSeat(t, code, `Joueur ${String(rank)}`);
     expect((await t.query(api.seasons.invitation, { code })).refusal).toBe('BLITZ_FULL');
     const late = await signIn(t, 'Retard');
     await expect(t.mutation(api.seasons.join, { token: late, code })).rejects.toThrow(/BLITZ_FULL/);

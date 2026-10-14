@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, type ReplayStep } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
-import { ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
+import { BATTERY_REACH, batteryAt, ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
 
 // The scene draws its pictograms and flashes on a canvas: a node run has none, a stub does.
 beforeAll(() => {
@@ -126,5 +126,51 @@ describe('the strike and the riposte', () => {
     const scene = new ReplayScene(null, replayAt(attacked, 0).pieces, 'land');
     scene.show(replayAt(attacked, inVolley('riposte')), 0, false);
     expect(scene.object.children.slice(3).some((shot) => shot.visible)).toBe(false);
+  });
+});
+
+describe('the replay of a bombardment (A4)', () => {
+  const gunner: ReplayView = {
+    ...luxembourg,
+    side: 'attacker',
+    mine: [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    theirs: { troops: 1, lost: 60, routed: 0, destroyed: 1 },
+    bombardment: { from: { lon: 4, lat: 49.6 } },
+  };
+  const target: ReplayView = {
+    ...luxembourg,
+    mine: [{ role: 'infantry', tier: 1, troops: 1, lost: 60, routed: 0, destroyed: 1 }],
+    bombardment: {},
+  };
+
+  it('keeps the battery where it fired from, and lays its ink stroke onto the target', () => {
+    const scene = new ReplayScene(null, replayAt(gunner, 0).pieces, 'land', { battery: [-3, 1] });
+    const [battery, block] = scene.object.children;
+    const stroke = scene.object.children[2] as Mesh;
+    expect([battery!.position.x, battery!.position.z]).toEqual([-3, 1]);
+    scene.show(replayAt(gunner, justLanded('frappe')), 0, false);
+    expect(stroke.visible).toBe(true);
+    const reach = Math.hypot(block!.position.x + 3, block!.position.z - 1);
+    expect(stroke.scale.z * 0.24).toBeCloseTo(reach, 1);
+    scene.show(replayAt(gunner, inVolley('riposte')), 0, false);
+    expect(stroke.visible).toBe(false);
+  });
+
+  it('draws nothing it fired from at the target: the shell falls on it from above', () => {
+    const scene = new ReplayScene(null, replayAt(target, 0).pieces, 'land', 'unseen');
+    expect(scene.object.children).toHaveLength(2);
+    const shell = scene.object.children[1]!;
+    scene.show(replayAt(target, inVolley('frappe')), 0, false);
+    expect(shell.visible).toBe(true);
+    expect(shell.position.y).toBeGreaterThan(scene.object.children[0]!.position.y + 0.12);
+  });
+});
+
+describe('the battery on a wide theatre (A2)', () => {
+  it('keeps its bearing and holds within reach of the scene', () => {
+    expect(batteryAt([1, -1])).toEqual([1, -1]);
+    const [x, z] = batteryAt([-24, 18]);
+    expect(Math.hypot(x, z)).toBeCloseTo(BATTERY_REACH);
+    expect(Math.atan2(z, x)).toBeCloseTo(Math.atan2(18, -24));
   });
 });

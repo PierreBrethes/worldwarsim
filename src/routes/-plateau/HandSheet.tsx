@@ -3,6 +3,7 @@ import { fr } from '@/i18n/fr';
 import type { CompassAction } from '@/domain/compass-rose';
 import type { MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
+import { playedTheatre } from '@/domain/theatres';
 import { useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
@@ -110,7 +111,12 @@ export function HandSheet({
         </p>
       )}
       <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-        {fr.hand.scouting(detectionRangeOf(inHand.map((troop) => troop.role)))}
+        {fr.hand.scouting(
+          detectionRangeOf(
+            inHand.map((troop) => troop.role),
+            playedTheatre(view),
+          ),
+        )}
       </p>
       {!narrow && (
         <>
