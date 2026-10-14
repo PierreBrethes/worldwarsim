@@ -403,6 +403,13 @@ function written(notice: Notice): Written {
               : said.campSighted(fr.detectors[notice.detector], country),
       };
     }
+    case 'pursuitLost':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.pursuitLost(countryLabel(notice.hostCountry)),
+      };
     case 'firedDry':
       return {
         at: notice.at,

@@ -266,7 +266,7 @@ async function defenceNear(
 
 /** A building answers by the point of its region, the only coordinate the index carries for it.
  *  `null` is a troop the game cannot place: at home, or hanging from something razed. */
-async function stanceOf(
+export async function stanceOf(
   ctx: MutationCtx,
   address: TroopAddress,
 ): Promise<{ point: LonLat; outpostId: Id<'outposts'> | null } | null> {

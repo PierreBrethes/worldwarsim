@@ -7,6 +7,7 @@ import {
   type Combatant,
   type CombatantOutcome,
   type Engagement,
+  type PassMode,
 } from '../src/domain/combat';
 import { landAtPoint } from './routes';
 import { movementsOf } from './movement/forces';
@@ -100,6 +101,8 @@ export async function resolveContact(
     outpostId,
     disabledUntil,
     at,
+    mode = 'initiative',
+    blitz = false,
   }: {
     seasonId: Id<'seasons'>;
     attacker: Engaged;
@@ -110,6 +113,9 @@ export async function resolveContact(
     outpostId: Id<'outposts'> | null;
     disabledUntil: number | null;
     at: number;
+    mode?: PassMode;
+    /** **Une Blitz ne déroute personne** (B15) : un pion seul à dix PV tient ou tombe. */
+    blitz?: boolean;
   },
 ): Promise<Resolution> {
   /**
@@ -129,7 +135,8 @@ export async function resolveContact(
       attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
       defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,
     },
-    rules: COMBAT_RULES,
+    rules: blitz ? { ...COMBAT_RULES, routThreshold: 0 } : COMBAT_RULES,
+    mode,
   });
 
   for (const side of ['attacker', 'defender'] as const) {
@@ -210,6 +217,7 @@ export async function resolveContact(
     outpostId,
     disabledUntil,
     reducedDefender,
+    ...(mode === 'shock' ? { shock: true } : {}),
     troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {

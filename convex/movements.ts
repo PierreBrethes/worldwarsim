@@ -68,6 +68,8 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { pursue as pursueStep, quarryOf } from './movement/pursuit';
+import { blitzTheatreOf } from './movement/theatre';
 import { arriveForCapture } from './captures';
 
 export { restHold } from './movement/rest';
@@ -437,6 +439,13 @@ export const attack = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
+    /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
+     *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
+    const hunted =
+      (await blitzTheatreOf(ctx, player._id)) !== null &&
+      (target.kind === 'camp' || target.kind === 'sighting')
+        ? await quarryOf(ctx, player._id, target, Date.now())
+        : null;
     return march(ctx, {
       playerId: player._id,
       season,
@@ -444,6 +453,7 @@ export const attack = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, target),
+      ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
     });
   },
 });
@@ -592,6 +602,11 @@ export const preview = query({
       destinationName: name,
       originName: departure.name,
       route: routeFacts(route),
+      /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
+      pursuit:
+        type === 'attack' &&
+        column.blitz !== undefined &&
+        (target.kind === 'camp' || target.kind === 'sighting'),
     };
   },
 });
@@ -927,6 +942,16 @@ export const arrive = internalMutation({
 
     await forgetMovement(ctx, movementId);
     await reassessDetection(ctx, movement.seasonId, now);
+  },
+});
+
+/** **Un regard de poursuite** (Blitz, B18) : frapper, abandonner, ou recourber la route. */
+export const pursue = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: async (ctx, { movementId, expectedAt }) => {
+    const movement = await ctx.db.get(movementId);
+    if (movement === null || !(await seasonStillPlays(ctx, movement.playerId))) return;
+    await pursueStep(ctx, movementId, expectedAt);
   },
 });
 

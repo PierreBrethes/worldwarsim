@@ -387,6 +387,14 @@ export const NOTICE = v.union(
   }),
   /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
    *  else on the board says it, and it is the difference between a defeat and a supply fault. */
+  /** **La poursuite abandonnée** (Blitz, B18) : la cible est sortie de notre vue, la colonne
+   *  s'arrête à sa dernière position connue. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pursuitLost'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+  }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('firedDry'),
@@ -724,6 +732,8 @@ export const ATTACK_TARGET = v.union(
    *  la colonne marche. Ce qui reste sur le document est `movements.objectiveId`, qui dit
    *  pourquoi elle y va. */
   v.object({ kind: v.literal('objective'), objectiveId: v.id('objectives') }),
+  /** **Une colonne adverse en vue**, que la Blitz seule poursuit (B18). */
+  v.object({ kind: v.literal('sighting'), sightingId: v.id('sightings') }),
 );
 
 /**

@@ -776,6 +776,8 @@ type NoticeBody =
       readonly detectorRegion: string | null;
     }
   | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
+  | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }
   /**
    * Les trois dépêches du leurre ont quitté cette union le 29/08/2026, avec le leurre lui-même.
    * Leurs littéraux restent dans le validateur Convex le temps d'un wipe, et `convex/view.ts`

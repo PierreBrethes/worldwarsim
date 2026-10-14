@@ -1589,6 +1589,8 @@ export const fr = {
       campOnOurSoil: (country: string) => `Un camp inconnu se tient sur notre sol — ${country}.`,
       stationCampSighted: (region: string, country: string) =>
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
+      pursuitLost: (country: string) =>
+        `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
       /**
