@@ -39,6 +39,7 @@ import { inkBursts } from '@/domain/ink-bursts';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useCameraLens } from '@/data/cameraLens';
 import { useDayCycle } from '@/data/dayCycle';
 import { useMapMotion } from '@/data/mapMotion';
 import { usePieceScale } from '@/data/pieceScale';
@@ -339,6 +340,7 @@ export function WorldMap({
   const mapping = useMouseMapping();
   const motion = useMapMotion();
   const dayCycle = useDayCycle();
+  const cameraLens = useCameraLens();
   const pieces = usePieceScale();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
@@ -687,6 +689,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setDayCycle(dayCycle);
   }, [readyEngine, dayCycle]);
+
+  useEffect(() => {
+    readyEngine?.setCameraLens(cameraLens);
+  }, [readyEngine, cameraLens]);
 
   useEffect(() => {
     readyEngine?.setEdgeInsets(insets);

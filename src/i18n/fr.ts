@@ -2488,6 +2488,10 @@ export const fr = {
     dayCycle: { real: 'réel', hour: 'accéléré — une heure' },
     dayCycleNote:
       'Réel : la nuit suit le vrai soleil. Accéléré : une journée entière en soixante minutes, pour juger la lumière sans attendre.',
+    cameraLensLabel: 'Objectif de la caméra',
+    cameraLens: { game: 'jeu', poc: 'prototype' },
+    cameraLensNote:
+      'Essai : le téléobjectif de 28° et les couleurs du prototype. La carte cadre la même chose, la perspective s’aplatit.',
     pieceScaleLabel: 'Taille des pièces',
     pieceScaleNote:
       'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',
