@@ -48,11 +48,17 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { captureRate } from '@/domain/capture';
-import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
+import {
+  buildLabels,
+  ownerFlags,
+  type MapLabel,
+  type MapMarker,
+  type Reach,
+} from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
+import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
@@ -1509,7 +1515,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     toggles.objectives,
   ]);
 
-  const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+  const labels = useMemo(() => {
+    const built = buildLabels(view, markers);
+    return view.mode === 'blitz'
+      ? ownerFlags(built, (regionId) => {
+          const held = knownRegionById.get(regionId);
+          return held === undefined ? null : nationInk(held.nation);
+        })
+      : built;
+  }, [view, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée.
    *  La garnison d'un bâtiment se lève par ses figurines comme une pile posée. */
