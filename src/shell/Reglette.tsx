@@ -107,10 +107,12 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
           className={`${CELL} gap-[9px] whitespace-nowrap`}
           title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
         >
-          <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1400px]:hidden">
+          <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
             {fr.resourceBand.slots}
           </span>
-          <SlotBoxes used={me.slots.used} total={me.slots.total} />
+          <span className="max-[1500px]:hidden">
+            <SlotBoxes used={me.slots.used} total={me.slots.total} />
+          </span>
           <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums">
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
@@ -119,7 +121,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       <div
         ref={reserves}
-        className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px] max-[1500px]:gap-[6px] max-[1500px]:px-[10px]"
+        className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px] max-[1500px]:gap-[4px] max-[1500px]:pl-[8px] max-[1500px]:pr-[12px] max-[1350px]:gap-[2px] max-[1350px]:pl-[4px] max-[1350px]:pr-[12px]"
         onPointerLeave={(event) => {
           if (event.pointerType !== 'touch') setShown(null);
         }}
@@ -155,7 +157,8 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
   );
 }
 
-const CELL = 'flex shrink-0 items-center border-r border-(color:--ink)/20 px-[13px]';
+const CELL =
+  'flex shrink-0 items-center border-r border-(color:--ink)/20 px-[13px] max-[1500px]:px-[9px] max-[1350px]:px-[6px]';
 
 const RULE_HEIGHT = 48;
 /** The watermark's box is the flag's own 3:2 at the rule's height: never a distorted flag. */
@@ -190,11 +193,11 @@ function SiteCell({ view, now }: { view: PlayerView; now: number }) {
       className={`${CELL} gap-[9px] whitespace-nowrap`}
       title={fr.banner.siteTitle(site.name, site.regionName)}
     >
-      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
         {fr.banner.site}
       </span>
       {!isOutpostWork(site.key) && <BuildingPlate building={site.key} height={20} />}
-      <span className="text-[12px] font-semibold max-[1400px]:hidden">{site.name}</span>
+      <span className="text-[12px] font-semibold max-[1500px]:hidden">{site.name}</span>
       <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {asDuration(currentMinutes(site.minutesLeft, view.loadedAt, now))}
       </span>
