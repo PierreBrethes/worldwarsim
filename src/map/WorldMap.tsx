@@ -278,7 +278,11 @@ const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set([
 ]);
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
-const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+const COUNTER_TEXTS = {
+  count: fr.troops.sheetCount,
+  more: fr.troops.moreRoles,
+  aboard: fr.troops.aboardCounter,
+};
 
 export function WorldMap({
   world,

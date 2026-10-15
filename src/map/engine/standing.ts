@@ -169,15 +169,25 @@ export function dressedGroups(nation: string | null, pieces: PilePieces): Figuri
 export type CounterTexts = {
   readonly count: (troops: number) => string;
   readonly more: (roles: number) => string;
+  /** **« N à bord »** (15/10), sur deux lignes : le compte, puis ce qu'il compte. */
+  readonly aboard: (riders: number) => string;
 };
 
-/** The one source of a pile's counter words: a ×N per group of several, then the +N. */
+/** The one source of a pile's counter words: a ×N per group of several, then the +N, and what
+ *  each group's transports carry. */
 function counterTexts(
   pieces: PilePieces,
   texts: CounterTexts,
-): { groups: ReadonlyArray<string | null>; more: string | null } {
+): {
+  groups: ReadonlyArray<string | null>;
+  aboard: ReadonlyArray<string | null>;
+  more: string | null;
+} {
   return {
     groups: pieces.groups.map((group) => (group.troops > 1 ? texts.count(group.troops) : null)),
+    aboard: [...pieces.groups, ...pieces.spread].map((piece) =>
+      piece.aboard === undefined ? null : texts.aboard(piece.aboard),
+    ),
     more: pieces.more > 0 ? texts.more(pieces.more) : null,
   };
 }
@@ -282,6 +292,9 @@ export function pileObject(
     targets.push(target);
     const text = words.groups[k];
     if (text) addCounter(counter(faces.of(text), slot.x + COUNTER_AT[0], slot.z + COUNTER_AT[1]));
+    const riders = words.aboard[k];
+    if (riders)
+      addCounter(counter(faces.of(riders), slot.x - COUNTER_AT[0], slot.z + COUNTER_AT[1]));
     const group = pieces.groups[k]!;
     // A plane that never lands hovers over its shadow, as it flew over it on its thread.
     if (group.aloft) {
@@ -370,13 +383,20 @@ export class Faces {
         ctx.arc(64, 64, radius, 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.font = `700 ${text.length > 2 ? 44 : 56}px "Bodoni Moda", Georgia, serif`;
+      // A second line is what the first counts, set small under it (« 2 / à bord »).
+      const [head = '', caption] = text.split('\n');
+      const y = caption === undefined ? 68 : 56;
+      ctx.font = `700 ${head.length > 2 ? 44 : caption === undefined ? 56 : 48}px "Bodoni Moda", Georgia, serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255, 250, 235, 0.7)';
-      ctx.fillText(text, 64, 70);
+      ctx.fillText(head, 64, y + 2);
       ctx.fillStyle = '#2a2118';
-      ctx.fillText(text, 64, 68);
+      ctx.fillText(head, 64, y);
+      if (caption !== undefined) {
+        ctx.font = `600 19px "Bodoni Moda", Georgia, serif`;
+        ctx.fillText(caption, 64, 90);
+      }
     };
     draw();
     const texture = new CanvasTexture(canvas);
@@ -576,6 +596,7 @@ function spreadObject(
   nation: string | null,
   pieces: PilePieces,
   pileId: string,
+  aboard: (piece: SpreadPiece) => MeshStandardMaterial | null,
 ): { object: Group; parts: Map<string, SpreadPart>; ready: Promise<unknown> } | null {
   const figurines: Figurine[] = [];
   for (const piece of pieces.spread) {
@@ -593,6 +614,8 @@ function spreadObject(
     target.userData.pileId = pileId;
     target.userData.troopId = piece.troopId;
     part.add(figurine.object, target, lifeBar(piece));
+    const riders = aboard(piece);
+    if (riders !== null) part.add(counter(riders, -COUNTER_AT[0], COUNTER_AT[1]));
     if (piece.wear === 'burning')
       void figurine.ready.then(
         () => blacken(figurine.object),
@@ -633,7 +656,11 @@ export type PiecePick = PieceHold & {
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
 export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
-  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.troops, g.wear]), more]);
+  JSON.stringify([
+    nation,
+    groups.map((g) => [g.role, g.figures, g.troops, g.wear, g.aboard]),
+    more,
+  ]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
@@ -660,7 +687,7 @@ export class StandingLayer {
   /** A pile regathered from its deployment, dropping onto the board. */
   private settle: { readonly pileId: string; readonly since: number } | null = null;
   /** Set by the first `display`; no pile exists before it. */
-  private texts: CounterTexts = { count: String, more: String };
+  private texts: CounterTexts = { count: String, more: String, aboard: String };
 
   constructor(
     private readonly frame: WorldFrame,
@@ -752,7 +779,7 @@ export class StandingLayer {
     for (const pile of piles) {
       if (!next.has(pile.id)) continue;
       const words = counterTexts(pile.pieces, this.texts);
-      for (const text of [...words.groups, words.more]) if (text) shown.add(text);
+      for (const text of [...words.groups, ...words.aboard, words.more]) if (text) shown.add(text);
     }
     this.faces.keepOnly(shown);
   }
@@ -960,7 +987,9 @@ export class StandingLayer {
     if (spread === null) {
       const entry = this.dressed.get(held.pileId);
       if (!entry?.ready || entry.pieces.spread.length < 2) return;
-      const built = spreadObject(this.nation, entry.pieces, held.pileId);
+      const built = spreadObject(this.nation, entry.pieces, held.pileId, (piece) =>
+        piece.aboard === undefined ? null : this.faces.of(this.texts.aboard(piece.aboard)),
+      );
       if (built === null) return;
       const fresh: Spread = {
         pileId: held.pileId,

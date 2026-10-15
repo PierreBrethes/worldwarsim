@@ -12,6 +12,32 @@ const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStreng
   nominalStrength,
 });
 
+/** **Ce qui est à bord ne se voit pas** (15/10) : le transport porte le compte, et ses passagers
+ *  partent avec lui quand on le prend. */
+describe('passengers on the board', () => {
+  it('hides what rides a transport and counts it on the transport', () => {
+    const cargo = troop('cargo');
+    const rifle = { ...troop('infantry'), carriedBy: cargo.id };
+    const walker = troop('infantry');
+    const { groups, spread, troopIds } = pilePieces([rifle, walker, cargo]);
+    expect(groups.map((group) => [group.role, group.troopIds, group.aboard])).toEqual([
+      ['infantry', [walker.id], undefined],
+      ['cargo', [cargo.id, rifle.id], 1],
+    ]);
+    expect(spread.map((piece) => [piece.troopId, piece.aboard])).toEqual([
+      [walker.id, undefined],
+      [cargo.id, 1],
+    ]);
+    expect(troopIds).toEqual([rifle.id, walker.id, cargo.id]);
+  });
+
+  it('counts a Blitz transport’s passengers on its piece', () => {
+    const truck = troop('landTransport');
+    const rifles = [truck.id, truck.id].map((carriedBy) => ({ ...troop('infantry'), carriedBy }));
+    expect(unitPieces([truck, ...rifles]).groups.map((group) => group.aboard)).toEqual([2]);
+  });
+});
+
 describe('pilePieces', () => {
   it('is empty for no troops', () => {
     expect(pilePieces([])).toEqual({ groups: [], more: 0, troopIds: [], spread: [] });
@@ -220,7 +246,14 @@ describe('unitPieces (Blitz: one piece per unit)', () => {
     const rider = { ...troop('infantry'), carriedBy: cargo.id };
     const { groups, troopIds } = unitPieces([rider, cargo]);
     expect(groups).toEqual([
-      { role: 'cargo', troops: 1, troopIds: [cargo.id, rider.id], figures: [1], wear: 'burning' },
+      {
+        role: 'cargo',
+        troops: 1,
+        troopIds: [cargo.id, rider.id],
+        figures: [1],
+        wear: 'burning',
+        aboard: 1,
+      },
     ]);
     expect(troopIds).toEqual([rider.id, cargo.id]);
   });

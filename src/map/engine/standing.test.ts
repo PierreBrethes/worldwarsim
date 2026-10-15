@@ -112,7 +112,7 @@ describe('drawnKey', () => {
 
 describe('picking a pile', () => {
   const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
-  const texts = { count: String, more: String };
+  const texts = { count: String, more: String, aboard: String };
   const pieces = pilePieces([
     { ...troop('armor'), id: 'a1' },
     { ...troop('armor'), id: 'a2' },
@@ -151,7 +151,12 @@ describe('pressing between the units of a Blitz pile', () => {
     { ...troop('infantry'), id: 'u2' },
     { ...troop('infantry'), id: 'u3' },
   ]);
-  const pile = pileObject('germany', pieces, { count: String, more: String }, faces)!;
+  const pile = pileObject(
+    'germany',
+    pieces,
+    { count: String, more: String, aboard: String },
+    faces,
+  )!;
   pile.ready.catch(() => {});
   pile.object.updateMatrixWorld(true);
   const slots = formationOf(['land', 'land', 'land'], false, null).groups;

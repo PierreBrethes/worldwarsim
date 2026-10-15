@@ -121,7 +121,11 @@ if (kind === 'buildings') {
     nominalStrength: 100,
   });
   const faces = new Faces(() => {});
-  const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+  const texts = {
+    count: fr.troops.sheetCount,
+    more: fr.troops.moreRoles,
+    aboard: fr.troops.aboardCounter,
+  };
   for (const [caption, troops] of [
     ['pile · 1 infanterie', [troop('infantry')]],
     ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],

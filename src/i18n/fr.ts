@@ -2522,6 +2522,8 @@ export const fr = {
     sheetNothingAboard: 'rien à bord',
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
+    /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
+    aboardCounter: (riders: number) => `${riders}\nà bord`,
   },
 
   /**
