@@ -13,7 +13,7 @@ partir de quatre flux servis par `convex/view.ts` :
 | Comptes rendus d'engagement (côté, gagné, cause, pays, pertes des deux camps, réduction) | `view.ts:reports` |
 | Dépêches d'événements (16 sortes, union fermée) | `view.ts:notices` (`convex/validators.ts:NOTICE`) |
 | Entrées en guerre (pseudo, nation, heure) | `view.ts:warEntries` |
-| Tableau de la victoire de test (cible, tenants réduits, vainqueur) | `view.ts:season.reduction` |
+| Tableau de la victoire de test (cible, tenants réduits) | `victory.board`, query à part ; vainqueur et clôture : `view.ts:season.reduction` |
 | Heure de dernière fermeture (décide `unread`) | `view.ts:journalReadAt` |
 | Jour de saison (élapsé / total, total `null` sans horloge) | `view.ts:season.elapsedHours`, `durationHours` |
 | Slots engagés | `view.ts:me.slots` |
@@ -40,7 +40,8 @@ Chaque dépêche finie porte : `at`, `t` (heure formatée), `severity`
   clic. Une dépêche lue s'estompe, elle ne disparaît pas.
 - **« Au réveil »** : la dépêche `movementStalled` et sa `resolutionAt` — la seule heure
   future du journal. Révélée dans l'encart dédié, pas mêlée au fil.
-- **Le tableau de la victoire de test** (`season.reduction.standings` : nation, réduit x/y,
+- **Le tableau de la victoire de test** (`victory.board`, query à part pour ne pas relancer la vue
+  aux écritures de troupe des autres ; `standings` : nation, réduit x/y,
   tampon réduit / debout) — en pied, au défilement. ⚠ échafaudage : disparaît entier avec la
   part de carte (ADR 0020), ne pas le raffiner.
 - **Slots engagés** (`me.slots.used / total`) dans l'encart latéral.

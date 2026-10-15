@@ -369,7 +369,8 @@ export default defineSchema({
     .index('bySeason', ['seasonId'])
     /** La couleur relit les bâtiments capturés à chaque lecture : un intervalle sur ce seul champ
      *  ne se réinvalide pas au moindre niveau gravi ailleurs dans la saison. */
-    .index('bySeasonCaptured', ['seasonId', 'capturedAt']),
+    .index('bySeasonCaptured', ['seasonId', 'capturedAt'])
+    .index('bySeasonStartedNeutral', ['seasonId', 'startedNeutral']),
 
   /**
    * **One row per troop** (ADR 0014): discrete, unique, never merged with another. Its hit

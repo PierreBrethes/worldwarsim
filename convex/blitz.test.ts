@@ -574,6 +574,24 @@ describe('le soin et l’absence de chantier', () => {
     expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 3);
   });
 
+  /** La ligne `players` est lue par toutes les vues : la réécrire sans rien soigner les
+   *  relançait toutes, chaque minute. */
+  it('ne touche pas au joueur quand ses fonds ne soignent rien', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const [wounded] = await troopsOf(t, me._id);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(wounded!._id, { currentStrength: 20 });
+      await ctx.db.patch(me._id, { funds: 0, fundsAt: Date.now() - 1_000 });
+    });
+    const before = await playerOf(t, seat);
+
+    await t.mutation(internal.blitz.mend, { seasonId: seat.seasonId });
+    expect(await playerOf(t, seat)).toEqual(before);
+    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(20);
+  });
+
   it('refuse de démolir : en Blitz on ne bâtit rien', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);

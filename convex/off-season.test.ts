@@ -260,11 +260,13 @@ describe('joining a running season', () => {
   it('endows the latecomer exactly as the launch endowed the others', async () => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
+    await expect(t.query(api.victory.board, creator)).rejects.toThrow('SEASON_NOT_LAUNCHED');
     await t.mutation(api.seasons.launch, creator);
     const opening = await t.query(api.view.playerView, creator);
 
     const late = await enlist(t, code, 'germany');
     await expect(t.query(api.view.playerView, late)).rejects.toThrow('NOT_AT_WAR');
+    await expect(t.query(api.victory.board, late)).rejects.toThrow('NOT_AT_WAR');
     vi.advanceTimersByTime(90 * 60_000);
     await t.mutation(api.seasons.enterWar, late);
 
@@ -355,7 +357,7 @@ describe('joining a running season', () => {
     const view = await t.query(api.view.playerView, creator);
     expect(view.opponents).toHaveLength(1);
     expect(view.season.players).toBe(2);
-    expect(view.season.reduction.standings).toHaveLength(2);
+    expect((await t.query(api.victory.board, creator)).standings).toHaveLength(2);
   });
 });
 

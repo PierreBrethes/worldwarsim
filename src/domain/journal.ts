@@ -54,7 +54,11 @@ const reachableSite = (
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
   /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
-  reduction: (ReductionBoard & { readonly verdict?: SeasonVerdict | null }) | null,
+  reduction:
+    | (Pick<ReductionBoard, 'concludedAt' | 'winnerNation'> & {
+        readonly verdict?: SeasonVerdict | null;
+      })
+    | null,
   entries: ReadonlyArray<WarEntry>,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
