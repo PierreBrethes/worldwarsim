@@ -480,12 +480,16 @@ export function MovementPreview({
     );
   }
 
-  const fromRight = at.x > window.innerWidth / 2;
+  /** **Away from the road**: the route comes in from the middle of the table, so the card goes
+   *  to the outer side of the pose whenever the screen has room for it. */
+  const outward =
+    at.x <= window.innerWidth / 2 ? at.x > CARD_ROOM : window.innerWidth - at.x > CARD_ROOM;
+  const fromRight = outward === at.x <= window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
 
   return (
     <div
-      className="absolute z-[var(--z-popin)] w-[262px] max-w-full"
+      className="absolute z-[var(--z-popin)] w-[236px] max-w-full"
       style={{
         left: fromRight ? undefined : at.x + 18,
         right: fromRight ? `calc(100% - ${at.x - 18}px)` : undefined,
@@ -494,7 +498,7 @@ export function MovementPreview({
       }}
     >
       <div className="float paper-grain border border-[var(--ink)] p-[3px]">
-        <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
+        <div className="border border-(color:--ink)/40 px-[10px] pt-[7px] pb-[9px] text-[var(--ink)]">
           {/* Wrapping rather than abbreviating: the cost says a whole sentence, and on a card
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
@@ -503,10 +507,10 @@ export function MovementPreview({
               <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
             )}
           </div>
-          <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
+          <h3 className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), choice.label)}
           </h3>
-          <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
+          <div className="my-[6px] h-px bg-[var(--ink)] opacity-55" />
 
           {status}
           {preview && (
@@ -584,6 +588,9 @@ function Timing({
 /** Ce que le doigt doit tenir pour qu'un ordre parte : assez pour qu'un toucher de passage ne
  *  l'envoie pas, assez peu pour ne pas se lire comme une panne (maquette 1c). */
 const HOLD_MS = 700;
+
+/** What the desk card needs beside the pose, its width and a gap, before it may go outward. */
+const CARD_ROOM = 262 + 18;
 
 /** Ce que met la jauge à se vider quand le doigt lâche avant la fin : visible, pas traînant. */
 const RELEASE_MS = 240;
