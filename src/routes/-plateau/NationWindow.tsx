@@ -13,8 +13,7 @@ import { marchingTroopIds, stationGroups, type StationGroup } from '@/domain/tro
 import { stationNames } from '@/domain/station-name';
 import { Flag } from '@/emblems/Flag';
 import { UnitSprite } from '@/emblems/UnitSprite';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
 
 /**
@@ -50,22 +49,15 @@ export function NationWindow({
   return (
     <FloatingWindow name="nation" onClose={onClose} {...windowProps} alignment="top" width={420}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 items-center gap-[11px] border-b-2 border-[var(--ink)] px-4 py-[10px]">
-          <Flag nation={view.me.nation} width={26} onPaper />
-          <h1 className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
-            {nationLabel(view.me.nation)}
-          </h1>
-          <span className="flex-1" />
-          <span className="eyebrow">{fr.nationSheet.kicker}</span>
+        <WindowHead
+          lead={<Flag nation={view.me.nation} width={26} onPaper />}
+          eyebrow={fr.nationSheet.kicker}
+          title={nationLabel(view.me.nation)}
+          heading="h1"
+          onClose={onClose}
+        >
           <HelpMark>{fr.nationSheet.readOnly}</HelpMark>
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
+        </WindowHead>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <Entry header={fr.nationSheet.powerHeader}>

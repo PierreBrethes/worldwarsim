@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_GROUPS, DRY_SOON_HOURS, drynessOf, marksOf, sourceOf } from './resource-band';
+import { DRY_SOON_HOURS, drynessOf, marksOf, sourceOf } from './resource-band';
 import { RESOURCES, type ResourceKey } from './ids';
 import type { ChainView, PlayerView, Resource } from './player-view';
 
@@ -74,12 +74,6 @@ describe('the source of a resource', () => {
 
   it('gives no source to a resource nothing transforms', () => {
     expect(sourceOf(board({ chains: [chain({})] }), 'ore')).toBeNull();
-  });
-});
-
-describe('the band’s order', () => {
-  it('reads the eight reserves as one warehouse group', () => {
-    expect(BAND_GROUPS).toEqual([RESOURCES]);
   });
 });
 

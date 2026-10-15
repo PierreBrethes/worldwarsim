@@ -112,7 +112,7 @@ export function Panel({
 
   return (
     <section
-      className={`float hud paper-grain z-10 border border-[var(--ink)] ${ANCHORING[position]} ${
+      className={`float hud paper-grain surface-in z-10 border border-[var(--ink)] ${ANCHORING[position]} ${
         height === undefined ? '' : 'flex flex-col'
       }`}
       style={{ width, height: collapsed ? undefined : height }}

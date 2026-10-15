@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import webpush from 'web-push';
 import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
-import { push } from '../src/domain/push';
+import { isPushEndpoint, push } from '../src/domain/push';
 
 const PUSH_TTL_SECONDS = 24 * 3600;
 const REVOKED = [404, 410];
@@ -41,6 +41,10 @@ export const deliver = internalAction({
       seasonId,
     });
     for (const subscription of subscriptions) {
+      if (!isPushEndpoint(subscription.endpoint)) {
+        await ctx.runMutation(internal.notifications.revoke, { endpoint: subscription.endpoint });
+        continue;
+      }
       try {
         await webpush.sendNotification(
           {

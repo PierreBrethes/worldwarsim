@@ -16,7 +16,7 @@ export type TelegraphMessage = {
   readonly mine: boolean;
 };
 
-export type DirectChannel = {
+type DirectChannel = {
   readonly with: Id<'players'>;
   readonly nickname: string;
   readonly nation: string | null;

@@ -9,7 +9,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
  * La carte, elle, ne lit pas ce seuil : le doigt s'y décide par événement, sur `pointerType`
  * (décision mobile-1c du 03/10, qui révise celle du 15/09 — `domain/mouse-mapping.ts`).
  */
-export const NARROW_MAX_WIDTH = 767;
+const NARROW_MAX_WIDTH = 767;
 
 const NARROW = `(max-width: ${NARROW_MAX_WIDTH}px)`;
 

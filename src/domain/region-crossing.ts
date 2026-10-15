@@ -5,7 +5,7 @@ export type RegionOutline = {
   readonly rings: ReadonlyArray<ReadonlyArray<PlanePoint>>;
 };
 
-export type PlaneBox = readonly [minX: number, minY: number, maxX: number, maxY: number];
+type PlaneBox = readonly [minX: number, minY: number, maxX: number, maxY: number];
 
 export type PreparedRegionOutline = RegionOutline & {
   readonly box: PlaneBox;

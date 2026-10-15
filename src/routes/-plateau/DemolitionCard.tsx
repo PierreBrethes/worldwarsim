@@ -138,7 +138,7 @@ export function DemolitionCard({
             type="button"
             disabled={razing}
             onClick={raze}
-            className="mt-[10px] w-full cursor-pointer border border-[var(--critical)] bg-[var(--critical)] px-[10px] py-[8px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
+            className="mt-[10px] w-full cursor-pointer border border-[var(--critical)] bg-[var(--critical)] px-[10px] py-[8px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {fr.demolition.submit}
           </button>

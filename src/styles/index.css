@@ -237,7 +237,7 @@ body {
 
 /* Le coin pivote, pas sa forme : un quart de cercle tourné montrerait ses bords droits. */
 .protractor-hub > * {
-  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 240ms var(--ease-out);
 }
 
 .protractor[data-open] .protractor-hub > * {
@@ -249,7 +249,7 @@ body {
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 200ms ease;
+  transition: opacity var(--dur-base) ease;
 }
 
 .protractor[data-open] .protractor-arc {
@@ -263,7 +263,7 @@ body {
   opacity: 0;
   transform: translate(0, 0) scale(0.35);
   transition:
-    transform 150ms cubic-bezier(0.4, 0, 1, 1) calc(var(--back) * 18ms),
+    transform 150ms var(--ease-in) calc(var(--back) * 18ms),
     opacity 150ms ease calc(var(--back) * 18ms);
 }
 
@@ -271,14 +271,14 @@ body {
   opacity: 1;
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y))) scale(1);
   transition:
-    transform 230ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--rank) * 30ms),
+    transform 230ms var(--ease-out) calc(var(--rank) * 30ms),
     opacity 180ms ease calc(var(--rank) * 30ms);
 }
 
 /* Réduites : les ronds sont à leur place et s'y fondent. Coupées : ils y sont, sans transition. */
 .protractor[data-motion='reduced'] .protractor-round {
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y)));
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-quick) ease;
 }
 
 .protractor[data-motion='reduced'] .protractor-hub > *,
@@ -405,19 +405,18 @@ body {
    sweep stops where the stock stops. */
 .gauge-inflow {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 26px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent) no-repeat;
+  background-size: 26px 100%;
   animation: gauge-inflow 1.8s linear infinite;
 }
 
 @keyframes gauge-inflow {
   from {
-    left: -26px;
+    background-position: -26px 0;
   }
   to {
-    left: 100%;
+    background-position: calc(100% + 26px) 0;
   }
 }
 
@@ -553,4 +552,73 @@ body {
   85% {
     opacity: 1;
   }
+}
+
+/* **Le réglage d'animations de la carte vaut pour l'interface** : « coupées » fige la rose et le
+   fondu des étiquettes, « réduites » et « coupées » arrêtent le battement d'alerte. */
+:root[data-motion='off'] :is(.rose-menu, .rose-tie, .rose-bubble, .label-block, .label-plate) {
+  animation: none;
+  transition: none;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off'])
+  .indicator--imminent
+  .indicator-triangle
+  svg {
+  animation: none;
+}
+
+/* **Ce qui s'ouvre se pose** : fenêtre, feuille et panneau arrivent en fondu, de quelques pixels
+   plus bas, au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter.
+   Réduites, le fondu reste sur place ; coupées, rien ne bouge. Pas de sortie : elle obligerait
+   à retenir le démontage. `translate` et non `transform`, que la fenêtre poussée et la feuille
+   tirée écrivent déjà. */
+@keyframes surface-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes surface-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.surface-in {
+  animation: surface-in var(--dur-base) var(--ease-out) both;
+}
+
+.sheet-return {
+  transition: transform var(--dur-quick) var(--ease-out);
+}
+
+:root[data-motion='reduced'] .surface-in {
+  animation-name: surface-fade;
+}
+
+:root[data-motion='off'] .surface-in {
+  animation: none;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .sheet-return {
+  transition: none;
+}
+
+/* G2: one keyboard focus for every paper button of the board. In the base layer, so that a
+   utility such as `outline-none` still wins where a surface wants none. */
+@layer base {
+  :where(:root.on-board) :focus-visible {
+    outline: 2px solid var(--interaction);
+    outline-offset: 2px;
+  }
+}
+
+/* G3: the paper square inks at the hover, like the rows of `NextActions`. */
+.paper-hover:hover {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--ink) 7%, transparent),
+    color-mix(in srgb, var(--ink) 7%, transparent)
+  );
 }

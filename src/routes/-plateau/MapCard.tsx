@@ -67,7 +67,7 @@ export function MapCard({
       }}
     >
       <section
-        className="hud paper-grain border border-[var(--ink)] bg-[var(--paper)] px-[10px] py-[8px]"
+        className="hud paper-grain surface-in border border-[var(--ink)] bg-[var(--paper)] px-[10px] py-[8px]"
         style={{ width }}
       >
         <DragHandle className="flex items-baseline gap-2">

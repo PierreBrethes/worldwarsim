@@ -46,7 +46,7 @@ changé dans 25 des 80 derniers commits, et 73 découpera `viewOf` : ce test ser
    `$integer`) y encode un scalaire et compte comme une feuille.
 3. Une liste blanche versionnée dans le test, `SERVED_ABOUT_OTHERS`, par section : `detected`,
    `camps`, `opponents`, `objectives`, `surveyedInstallations`, `lootSightings`, `press.others`,
-   `season.reduction.standings`, `reports`, `warEntries`, `notices` (par `kind`),
+   `victory.board.standings` (query à part), `reports`, `warEntries`, `notices` (par `kind`),
    `me.founderAbsence`, et les lignes des autres sièges dans `control.held`. En tête, le
    commentaire « information servie à un adversaire, ADR 0005 — un chemin ajouté ici est une
    décision, que le message de commit dit ». La comparaison est exacte, chemins triés, sur l'union

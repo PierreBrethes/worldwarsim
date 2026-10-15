@@ -7,19 +7,21 @@ import { ResourceAmounts } from './CargoReadout';
 
 const INK = { ink: 'var(--ink)', ochre: 'var(--notable)', red: 'var(--critical)' } as const;
 
-/** The body of a posted pile's poster (`MapPoster`): health in ten notches, then its load. */
+/** The body of a posted pile's poster (`MapPoster`): health in ten notches, then its load —
+ *  « à vide » included, as the table prototype reads it — unless the pile could never load. */
 export function PileSheet({
   lines,
   cargo,
+  capacity = null,
 }: {
   lines: ReadonlyArray<SheetLine>;
   cargo: ReadonlyArray<CargoView>;
+  capacity?: number | null;
 }) {
   const loot = Object.fromEntries(
     RESOURCES.map((r) => [r, cargo.reduce((sum, c) => sum + (c.loot[r] ?? 0), 0)]),
   ) as CargoView['loot'];
   const carried = RESOURCES.reduce((sum, r) => sum + loot[r], 0);
-  const capacity = cargo.reduce((sum, c) => sum + c.capacity, 0);
   return (
     <>
       {lines.map((line) => (
@@ -42,8 +44,12 @@ export function PileSheet({
           </div>
         </div>
       ))}
-      {carried > 0 && (
+      {capacity !== null && (capacity > 0 || carried > 0) && (
         <div className="map-poster-load">
+          <div className="map-poster-row">
+            <span className="map-poster-eyebrow">{fr.troops.sheetLoad(carried)}</span>
+            <b className="map-poster-num">{fr.troops.sheetLoadOf(carried, capacity)}</b>
+          </div>
           <div className="map-poster-load-bar">
             {RESOURCES.filter((r) => loot[r] > 0).map((r) => (
               <b
@@ -55,7 +61,11 @@ export function PileSheet({
               />
             ))}
           </div>
-          <ResourceAmounts amounts={loot} />
+          {carried > 0 ? (
+            <ResourceAmounts amounts={loot} />
+          ) : (
+            <span className="text-[var(--ink-soft)]">{fr.troops.sheetNothingAboard}</span>
+          )}
         </div>
       )}
     </>

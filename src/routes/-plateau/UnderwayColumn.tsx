@@ -44,13 +44,13 @@ export function UnderwayColumn({
           keepUnderwayFolded(!folded);
           setFolded(!folded);
         }}
-        className="flex h-[28px] cursor-pointer items-center gap-[7px] border border-[var(--ink-quiet)] bg-(--desk)/88 px-[9px] text-[9.5px] font-semibold tracking-[.18em] text-[var(--paper-dim-2)] uppercase"
+        className="paper-grain flex h-[28px] cursor-pointer items-center gap-[7px] border border-[var(--ink)] px-[9px] text-[9.5px] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase float"
       >
         {fr.underway.header}
-        <span className="font-(family-name:--font-mono) text-[11px] tracking-normal text-[var(--paper)]">
+        <span className="font-(family-name:--font-mono) text-[11px] tracking-normal text-[var(--ink)]">
           {lines.length}
         </span>
-        <span aria-hidden className="tracking-normal text-[var(--paper)]">
+        <span aria-hidden className="tracking-normal text-[var(--ink)]">
           {folded ? '›' : '‹'}
         </span>
       </button>

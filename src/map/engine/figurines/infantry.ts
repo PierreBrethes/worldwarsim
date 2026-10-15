@@ -6,16 +6,18 @@ import { Group, type Object3D } from 'three';
  * knee, `rifle` from its butt), so one set of poses serves every nation's sculpted soldier.
  * `left` is the soldier's own left: he faces +z, so it lies towards +x.
  */
-type Joint =
-  | 'arm_left'
-  | 'arm_right'
-  | 'forearm_left'
-  | 'forearm_right'
-  | 'leg_left'
-  | 'leg_right'
-  | 'shin_left'
-  | 'shin_right'
-  | 'rifle';
+export const JOINTS = [
+  'arm_left',
+  'arm_right',
+  'forearm_left',
+  'forearm_right',
+  'leg_left',
+  'leg_right',
+  'shin_left',
+  'shin_right',
+  'rifle',
+] as const;
+type Joint = (typeof JOINTS)[number];
 
 /** On the road: arms and legs swinging, the rifle on the shoulder. `phase` keeps three men out of step. */
 function marching(phase: number): Partial<Record<Joint, readonly [number, number, number]>> {

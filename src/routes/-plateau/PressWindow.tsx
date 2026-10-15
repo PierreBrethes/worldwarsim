@@ -6,8 +6,7 @@ import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 
 /**
  * **La page de presse : où en est chacun *à l'heure du dernier relevé*** — jamais « où en est
@@ -51,20 +50,15 @@ export function PressWindow({
   return (
     <FloatingWindow name="press" onClose={onClose} {...windowProps} alignment="top" width={1040}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          <span>
-            {press === null ? fr.press.kicker : fr.press.capturedAt(asLocalTime(press.at))}
-          </span>
-          {press?.next != null && <span>{fr.press.next(asLocalTime(press.next))}</span>}
-          <span className="flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
+        <WindowHead
+          eyebrow={
+            <>
+              {press === null ? fr.press.kicker : fr.press.capturedAt(asLocalTime(press.at))}
+              {press?.next != null && <> · {fr.press.next(asLocalTime(press.next))}</>}
+            </>
+          }
+          onClose={onClose}
+        />
 
         {/* La manchette : le titre au centre, le tampon d'édition finale à gauche, et LE chiffre
             à droite — mon rang, le seul nombre qui change ce que je fais dans la minute. */}

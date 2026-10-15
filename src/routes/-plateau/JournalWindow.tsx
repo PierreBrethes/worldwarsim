@@ -18,8 +18,7 @@ import {
 import { useNarrowScreen } from '@/shell/viewport';
 import { CombatLines } from './DispatchSheet';
 import { ReplayButton } from './ReplayDeck';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import type { Seat } from '@/data/session';
 
 const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
@@ -104,6 +103,7 @@ export function JournalWindow({
   const stalled = dispatches.filter((dispatch) => dispatch.resolutionAt !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const { day, totalDays } = seasonDayOf(view.season);
+  const blitz = view.mode === 'blitz';
   const seasonDay =
     totalDays === null
       ? fr.journal.seasonDayNoClock(view.season.number, day)
@@ -121,7 +121,9 @@ export function JournalWindow({
       <FloatingWindow name="journal" onClose={close} {...windowProps} width={1040}>
         <NarrowJournal
           view={view}
-          edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+          edition={
+            blitz ? fr.journal.editionOf(time) : `${fr.journal.editionOf(time)} · ${seasonDay}`
+          }
           lead={lead}
           stalled={stalled}
           garrisonAt={garrisonAt}
@@ -131,7 +133,7 @@ export function JournalWindow({
         >
           <div className="px-4 pb-6">
             <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-            <ReductionLine board={view.season.reduction} />
+            {!blitz && <ReductionLine board={view.season.reduction} />}
           </div>
         </NarrowJournal>
       </FloatingWindow>
@@ -150,7 +152,9 @@ export function JournalWindow({
     >
       <DeskJournal
         view={view}
-        edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+        edition={
+          blitz ? fr.journal.editionOf(time) : `${fr.journal.editionOf(time)} · ${seasonDay}`
+        }
         selected={leadReport === null ? null : lead}
         stalled={stalled}
         onLocate={onLocate}
@@ -158,7 +162,7 @@ export function JournalWindow({
       >
         <div className="px-5 pb-5">
           <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-          <ReductionLine board={view.season.reduction} />
+          {!blitz && <ReductionLine board={view.season.reduction} />}
         </div>
       </DeskJournal>
     </FloatingWindow>
@@ -207,12 +211,9 @@ function DeskJournal({
 
   return (
     <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] text-[var(--ink)]">
-      <DragHandle className="flex shrink-0 items-start gap-3 border-b-2 border-[var(--ink)] px-5 pt-[14px] pb-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
-          <h2 className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold tracking-[.04em]">
-            {fr.journal.masthead}
-          </h2>
-          <span className="font-(family-name:--font-mono) text-[11px] tracking-[.08em] text-[var(--ink-soft)] uppercase">
+      <WindowHead
+        eyebrow={
+          <>
             {edition} ·{' '}
             {unread > 0 ? (
               <span className="text-[var(--critical)]">
@@ -221,19 +222,15 @@ function DeskJournal({
             ) : (
               fr.journal.allRead
             )}
-          </span>
-        </div>
+          </>
+        }
+        title={fr.journal.masthead}
+        onClose={onClose}
+      >
         {view.season.reduction.concludedAt !== null && (
           <Stamp label={fr.stamps.seasonClosed} size="small" />
         )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
-      </DragHandle>
+      </WindowHead>
 
       {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. Une Blitz
           n'a ni slots ni plage de repos (B2, B5) : rien à y dire. */}

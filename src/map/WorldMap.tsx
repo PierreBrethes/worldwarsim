@@ -103,6 +103,9 @@ type Props = {
   indicators: IndicatorToggles;
   /** The id of the movement the timeline designates — the matching arc rises in intensity. */
   accentedMovement: string | null;
+  /** **Ce qui se range sous l'échelle du trajet**, au coin droit : un refus d'ordre s'empile sous
+   *  elle au lieu de la recouvrir. */
+  underRouteScale?: ReactNode;
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
@@ -291,6 +294,7 @@ export function WorldMap({
   playerNation,
   indicators,
   accentedMovement,
+  underRouteScale,
   onSelect,
   onOpenBuilding,
   onOpenStack,
@@ -984,9 +988,15 @@ export function WorldMap({
         toggles={indicators}
         destinations={edgeNames}
       />
-      {designatedArc && (
-        <div className="absolute z-10" style={{ top: insets.top + 16, left: insets.left + 16 }}>
-          <RouteScale arc={designatedArc} />
+      {/* Au coin droit, sous la réglette : au gauche, la fiche de la pièce en main la recouvrait.
+          Ce qu'on y range d'autre s'empile dessous, jamais par-dessus. */}
+      {(designatedArc !== null || underRouteScale) && (
+        <div
+          className="pointer-events-none absolute z-[var(--z-band)] flex flex-col items-end gap-2"
+          style={{ top: insets.top + 16, left: insets.left + 16, right: insets.right + 16 }}
+        >
+          {designatedArc && <RouteScale arc={designatedArc} />}
+          {underRouteScale}
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
@@ -1072,14 +1082,14 @@ function PlacingCard({
   if (at === null) return null;
   return (
     <div
-      className="hud pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--paper)]"
+      className="hud paper-grain pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)] float"
       style={{ left: at.x + PLACING_CARD_GAP, top: at.y + PLACING_CARD_GAP }}
     >
       <span className="block font-semibold">{placing.title}</span>
-      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
+      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {placing.figures}
       </span>
-      <span className="mt-[4px] block text-[11px] text-[var(--paper-dim)]">{fr.placing.hint}</span>
+      <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
     </div>
   );
 }
@@ -1097,11 +1107,11 @@ const PLACING_CARD_GAP = 22;
 function GestureHint({ mapping }: { mapping: MouseMapping }) {
   const hint = fr.mapUi.gestureHint(mapping);
   return (
-    <div className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--paper)]">
+    <div className="hud paper-grain pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--ink)] float">
       {hint.orient}
-      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      <span className="text-[var(--ink-soft)]">{hint.separator}</span>
       {hint.pan}
-      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      <span className="text-[var(--ink-soft)]">{hint.separator}</span>
       {hint.lift}
     </div>
   );

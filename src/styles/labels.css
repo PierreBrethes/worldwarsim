@@ -427,7 +427,7 @@
 }
 
 .label--urgent .label-line--mention {
-  color: #8a5a29;
+  color: var(--notable-paper);
 }
 
 /* Movement heads have no national bar: the text sits beside the sprite. */
@@ -473,7 +473,10 @@
   pointer-events: auto;
 }
 
-.label--building.label--glyph .label-plate {
+/* A surveyed or neutral installation is a building too: its plate shrinks the same way, or the
+   Blitz neutrals of one theatre pile into one giant building on the world map. */
+.label--building.label--glyph .label-plate,
+.label--installation.label--glyph .label-plate {
   height: calc(46px * var(--plate-scale, 1));
 }
 

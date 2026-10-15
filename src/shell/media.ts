@@ -8,7 +8,7 @@ export const LOOP_POSTER_URL = '/media/la-manchette-boucle-poster.jpg';
 export const FILM_URL = '/media/la-manchette-film-30s-leger.mp4';
 
 /** Sous cette largeur la feuille couvre l'écran : trois mégaoctets pour un fond qu'on ne voit pas. */
-export const FILM_BACKDROP_MIN_WIDTH = 900;
+const FILM_BACKDROP_MIN_WIDTH = 900;
 
 export type FilmBackdrop = 'video' | 'poster' | 'map';
 

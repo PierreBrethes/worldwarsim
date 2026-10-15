@@ -1,6 +1,6 @@
 import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
-import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
+import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
@@ -54,7 +54,11 @@ const reachableSite = (
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
   /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
-  reduction: (ReductionBoard & { readonly verdict?: SeasonVerdict | null }) | null,
+  reduction:
+    | (Pick<ReductionBoard, 'concludedAt' | 'winnerNation'> & {
+        readonly verdict?: SeasonVerdict | null;
+      })
+    | null,
   entries: ReadonlyArray<WarEntry>,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
@@ -339,10 +343,7 @@ function written(notice: Notice): Written {
     case 'captureCancelled': {
       const site =
         notice.site.kind === 'building'
-          ? fr.capture.buildingSite(
-              fr.buildings[canonicalBuildingKey(notice.site.building)],
-              notice.regionName ?? '',
-            )
+          ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
           : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {
@@ -656,8 +657,7 @@ const severityOf = (report: CombatReport): DispatchSeverity =>
 
 /** A player answers with his nation, or with his nickname when he never picked one — the server
  *  falls back to the nickname, and printing an internal key would be worse than either. */
-export const nationName = (nation: string): string =>
-  isNation(nation) ? fr.nations[nation] : nation;
+const nationName = (nation: string): string => (isNation(nation) ? fr.nations[nation] : nation);
 
 /**
  * **Ce qui prend l'encre rouge, et rien d'autre** (règle 3 du tampon, `shell/Stamp.tsx`). Quatre

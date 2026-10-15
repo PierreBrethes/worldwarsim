@@ -36,8 +36,7 @@ import {
   type MouseButton,
   type MouseMapping,
 } from '@/domain/mouse-mapping';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { forgetSession, type Seat } from '@/data/session';
 import { currentPushEndpoint } from '@/data/pushDevice';
 import { NotificationsSection } from './NotificationsSection';
@@ -46,6 +45,7 @@ export function SettingsWindow({
   seat,
   mayConclude,
   defeated,
+  blitz,
   onClose,
   onShowBriefing,
   ...windowProps
@@ -53,6 +53,7 @@ export function SettingsWindow({
   seat: Seat;
   mayConclude: boolean;
   defeated: boolean;
+  blitz: boolean;
   onShowBriefing: () => void;
 }) {
   const [scale, setScale] = useState(readHudScale);
@@ -79,16 +80,7 @@ export function SettingsWindow({
   return (
     <FloatingWindow name="settings" onClose={onClose} {...windowProps} width={420}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
-          <span className="eyebrow">{fr.settingsWindow.header}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
+        <WindowHead title={fr.settingsWindow.header} onClose={onClose} />
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
           <div className="flex items-baseline justify-between">
@@ -309,7 +301,7 @@ export function SettingsWindow({
             })}
           </div>
 
-          <NotificationsSection seat={seat} />
+          <NotificationsSection seat={seat} blitz={blitz} />
 
           {/* La feuille d'entrée en campagne ne se rouvre d'office jamais : c'est ici, et
               nulle part ailleurs, qu'un joueur la retrouve. */}

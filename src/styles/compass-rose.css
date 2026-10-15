@@ -27,7 +27,7 @@
   font-family: var(--font-body);
   font-variant-numeric: tabular-nums;
   transform: translate(-50%, -50%);
-  animation: rose-open 120ms cubic-bezier(0.2, 0.78, 0.35, 1) both;
+  animation: rose-open var(--dur-quick) cubic-bezier(0.2, 0.78, 0.35, 1) both;
 
   --radial-ink: #22475a;
   --spoke-ink: var(--sea-ink);

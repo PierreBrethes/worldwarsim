@@ -111,7 +111,7 @@ export type CounterTexts = {
 };
 
 /** The one source of a pile's counter words: a ×N per group of several, then the +N. */
-export function counterTexts(
+function counterTexts(
   pieces: PilePieces,
   texts: CounterTexts,
 ): { groups: ReadonlyArray<string | null>; more: string | null } {
@@ -394,6 +394,21 @@ type Carried = {
   back: { readonly from: Vector3; readonly since: number; readonly carried: number } | null;
 };
 
+/**
+ * **The copies a click is taken by**: set down under a rose, or on their way home, a click on them
+ * is a click on their pile, never on the board under them. The one following the pointer is not
+ * among them: it hangs where the pointer is, so it would take every putting down for a putting
+ * back, and the bare ground could never be aimed at.
+ */
+export function takenCopies<C extends { readonly down: unknown }>(
+  carried: C | null,
+  leaving: C | null,
+): C[] {
+  return [carried?.down === null ? null : carried, leaving].filter(
+    (copy): copy is C => copy !== null,
+  );
+}
+
 /** Its own copy of the contact discs: the board's are shared, and this one fades on its own. */
 function carriedShadow(): Carried['shadow'] {
   const object = contactShadow();
@@ -650,11 +665,9 @@ export class StandingLayer {
   /** The troops of the piece under `ray`, among the piles standing in sight — a troop of the
    *  deployed pile first: the pile it stands for has shrunk away under it. */
   pick(ray: Raycaster): PiecePick | null {
-    // The piece in hand, or on its way home, is taken where it is seen: a click on it is a click
-    // on its pile, never on the board under it.
     let copy: { distance: number; pick: PieceHold } | null = null;
-    for (const carried of [this.carried, this.leaving]) {
-      if (carried === null || carried.object.parent === null) continue;
+    for (const carried of takenCopies(this.carried, this.leaving)) {
+      if (carried.object.parent === null) continue;
       const distance = footedHit(ray, carried.object, carried.targets);
       if (distance !== null && (copy === null || distance < copy.distance))
         copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
