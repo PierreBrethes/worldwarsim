@@ -82,6 +82,7 @@ describe('every public method of the engine asks for a frame', () => {
     'regionAtLonLat',
     'coastAt',
     'landAt',
+    'consumeCarry',
     'dispose',
   ]);
 

@@ -1,6 +1,6 @@
 // The hand is the lifted piece (ADR 0026 §6): a click either takes, puts back, or names a
 // destination, so the map and the side sheet agree on one rule.
-import { stationKeyOf, type MarchStation } from './troops';
+import { cargoOf, seatsOf, stationKeyOf, type MarchStation, type Seated } from './troops';
 
 export type Hand =
   | { readonly kind: 'empty' }
@@ -32,11 +32,12 @@ const unchanged = (hand: Hand): HandMove =>
 
 /** Lifting takes the whole pile; held, the pile deploys and each of its troops goes into the
  *  hand or out of it — the last one out puts the piece back. In a Blitz, `units` says what a
- *  piece is (`clickUnit`). */
+ *  piece is (`clickUnit`). **A transport comes with what it carries** (15/10): `pile` says who
+ *  rides whom. */
 export function clickPile(
   hand: Hand,
   click: PileClick,
-  { units }: { units?: Units } = {},
+  { units, pile = [] }: { units?: Units; pile?: ReadonlyArray<Seated> } = {},
 ): HandMove {
   if (units !== undefined) return clickUnit(hand, click, units);
   const troopIds = click.kind === 'pile' ? click.troopIds : [click.troopId];
@@ -47,11 +48,50 @@ export function clickPile(
       : unchanged(hand);
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
   if (click.kind === 'pile') return { kind: 'drop' };
-  const rest = hand.troopIds.filter((id) => id !== click.troopId);
+  const toggled = withCargo([click.troopId], pile);
+  const rest = hand.troopIds.filter((id) => !toggled.includes(id));
   return composeHand(
     hand,
-    rest.length === hand.troopIds.length ? [...hand.troopIds, click.troopId] : rest,
+    rest.length === hand.troopIds.length ? [...hand.troopIds, ...toggled] : rest,
   );
+}
+
+/** A troop and what it carries, at every level: a passenger never leaves without its transport. */
+const withCargo = (troopIds: ReadonlyArray<string>, pile: ReadonlyArray<Seated>): string[] =>
+  troopIds.flatMap((id) => {
+    const troop = pile.find((one) => one.id === id);
+    return [id, ...(troop === undefined ? [] : cargoOf(troop, pile).map((rider) => rider.id))];
+  });
+
+/**
+ * **What a drag takes** (glisser-déposer, 15/10): a deployed troop alone — that is how a pile
+ * splits —, or the pile, unless the hand already holds part of it there.
+ */
+export function carry(hand: Hand, click: PileClick, pile: ReadonlyArray<Seated>): Hand {
+  if (click.kind === 'troop')
+    return { kind: 'held', station: click.station, troopIds: withCargo([click.troopId], pile) };
+  if (hand.kind === 'held' && stationKeyOf(hand.station) === stationKeyOf(click.station))
+    return hand;
+  return { kind: 'held', station: click.station, troopIds: click.troopIds };
+}
+
+export type HandDrop =
+  | { readonly kind: 'board'; readonly carrierId: string }
+  | { readonly kind: 'putBack' }
+  | { readonly kind: 'pose' };
+
+/**
+ * **Where the dragged piece lands** (15/10): on a transport of its own address it boards, on
+ * itself or on a troop that carries nobody it is put back, and anywhere else it is set down —
+ * the rose then says what can be done there.
+ */
+export function dropOn(hand: Hand, click: PileClick, pile: ReadonlyArray<Seated>): HandDrop {
+  if (hand.kind === 'empty') return { kind: 'putBack' };
+  if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
+  const aimed = click.kind === 'pile' ? click.troopIds : [click.troopId];
+  if (aimed.some((id) => hand.troopIds.includes(id))) return { kind: 'putBack' };
+  const carrier = pile.find((troop) => aimed.includes(troop.id) && seatsOf(troop.role) > 0);
+  return carrier === undefined ? { kind: 'putBack' } : { kind: 'board', carrierId: carrier.id };
 }
 
 /** The ticked troops are the hand; in a Blitz, the last one ticked says the unit (`tickedUnit`). */

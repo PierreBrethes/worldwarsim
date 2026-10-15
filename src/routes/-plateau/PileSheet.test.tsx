@@ -40,7 +40,7 @@ describe('PileSheet', () => {
     const empty = renderToStaticMarkup(<PileSheet cargo={[]} capacity={40} lines={[line]} />);
     expect(empty).toContain('à vide');
     expect(empty).toContain('0 / 40');
-    expect(empty).toContain('rien à bord');
+    expect(empty).toContain('aucun butin');
     expect(
       renderToStaticMarkup(<PileSheet cargo={[]} capacity={null} lines={[line]} />),
     ).not.toContain('à vide');

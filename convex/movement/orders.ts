@@ -588,6 +588,16 @@ const slotRelief = (hqLevel: number) =>
  * constant once capped this door at one while the banner promised `1 + hqLevel`. **A return does
  * not count**: holding a slot hostage while a beaten column walks back punishes one defeat twice.
  */
+/** **On monte dans le transport qui tient le bâtiment** (15/10) : en Blitz, un bâtiment n'abrite
+ *  qu'une unité, et celle qu'on rejoint pour embarquer ne ferme pas la porte. */
+function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Column {
+  if (boardsOn === undefined || column.blitz === undefined || aim.kind !== 'building')
+    return column;
+  const occupied = new Set(column.blitz.occupiedBuildingIds);
+  occupied.delete(aim.buildingId);
+  return { ...column, blitz: { ...column.blitz, occupiedBuildingIds: occupied } };
+}
+
 export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
   /** **Pas de slots en Blitz** (B5) : la cadence est le rechargement, pas le QG. */
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
@@ -671,7 +681,7 @@ export async function march(
 
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
-  const column = await columnOf(ctx, playerId, troops, departure);
+  const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
   const refusal =
     capture !== undefined
       ? captureOrderRefusalOf(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clickPile, composeHand, type Hand } from './hand';
+import { carry, clickPile, composeHand, dropOn, type Hand } from './hand';
 import type { MarchStation } from './troops';
 
 const A: MarchStation = { kind: 'building', buildingId: 'a' as never };
@@ -126,6 +126,53 @@ describe('clickPile in a Blitz: one piece per unit (15/10)', () => {
     expect(composeHand(held(['p1']), ['p1', 'i2'], units)).toEqual({
       kind: 'lift',
       hand: held(['i2']),
+    });
+  });
+});
+
+/** **Porter et lâcher la pièce** (glisser-déposer, 15/10) : on la prend en la tirant, on la lâche
+ *  où l'on veut. Sur un transport de la même adresse, elle embarque ; sur elle-même, elle se
+ *  repose ; ailleurs, c'est poser — la rose dit le reste. */
+describe('carrying and dropping the piece', () => {
+  const at = [
+    { id: 't1', role: 'infantry' as const },
+    { id: 't2', role: 'infantry' as const },
+    { id: 'c', role: 'cargo' as const },
+    { id: 'r', role: 'infantry' as const, carriedBy: 'c' },
+  ];
+
+  it('takes a deployed troop alone, and a transport with what it carries', () => {
+    expect(carry(held(['t1', 't2', 'c', 'r']), troop('t2'), at)).toEqual(held(['t2']));
+    expect(carry(empty, troop('c'), at)).toEqual(held(['c', 'r']));
+  });
+
+  it('takes the whole pile, and keeps the hand it already holds there', () => {
+    expect(carry(empty, pile(['t1', 't2', 'c', 'r']), at)).toEqual(held(['t1', 't2', 'c', 'r']));
+    expect(carry(held(['t1']), pile(['t1', 't2', 'c', 'r']), at)).toEqual(held(['t1']));
+  });
+
+  it('boards a transport of its own address', () => {
+    expect(dropOn(held(['t1']), troop('c'), at)).toEqual({ kind: 'board', carrierId: 'c' });
+    expect(dropOn(held(['t1']), pile(['c', 'r']), at)).toEqual({ kind: 'board', carrierId: 'c' });
+  });
+
+  it('puts the piece back on itself, or on a troop that carries nobody', () => {
+    expect(dropOn(held(['t1']), pile(['t1', 't2', 'c', 'r']), at)).toEqual({ kind: 'putBack' });
+    expect(dropOn(held(['t1']), troop('t2'), at)).toEqual({ kind: 'putBack' });
+  });
+
+  it('poses on another address', () => {
+    expect(dropOn(held(['t1']), pile(['t9'], B), at)).toEqual({ kind: 'pose' });
+  });
+
+  it('keeps a transport and its passengers together in the hand', () => {
+    expect(clickPile(held(['t1']), troop('c'), { pile: at })).toEqual({
+      kind: 'lift',
+      hand: held(['t1', 'c', 'r']),
+    });
+    expect(clickPile(held(['t1', 'c', 'r']), troop('c'), { pile: at })).toEqual({
+      kind: 'lift',
+      hand: held(['t1']),
     });
   });
 });

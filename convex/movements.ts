@@ -923,9 +923,11 @@ export const arrive = internalMutation({
     } else if (movement.type === 'march') {
       const door = await garrisonOf(ctx, movement);
       /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
-       *  celle-ci se pose à la porte. */
+       *  celle-ci se pose à la porte — sauf à venir monter dans le transport qui la tient. */
+      const carrier = movement.boardsOn === undefined ? null : await ctx.db.get(movement.boardsOn);
       const garrison =
         door !== null &&
+        carrier?.stationedAt !== door._id &&
         (await isBlitz(ctx, movement.seasonId)) &&
         (await occupiedBuildingIds(ctx, movement.playerId, movement.troopIds)).has(door._id)
           ? null

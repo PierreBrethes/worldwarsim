@@ -211,6 +211,41 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     ).rejects.toThrow(/BUILDING_OCCUPIED/);
   });
 
+  /** **On monte dans le camion qui tient le bâtiment** (15/10) : il ne ferme pas la porte. */
+  it('lets a troop march into a building to board the transport holding it', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const hq = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return (await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .first())!;
+    });
+    const truck = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        role: 'landTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('landTransport', 1),
+        currentStrength: nominalStrength('landTransport', 1),
+        stationedAt: hq._id,
+      });
+    });
+    const walker = await troop(t, seat, PARIS);
+    await t.mutation(api.movements.enterGarrison, {
+      ...seat,
+      origin: { kind: 'point', point: PARIS },
+      troopIds: [walker],
+      buildingId: hq._id,
+      boardsOn: truck,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await troopRow(t, walker))!.carriedBy).toBe(truck);
+  });
+
   it('lets the second of two marches to the same empty building stand at its door', async () => {
     const t = boot();
     const { seat } = await blitz(t);

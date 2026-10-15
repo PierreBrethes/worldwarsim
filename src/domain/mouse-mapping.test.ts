@@ -182,7 +182,9 @@ describe('les notices lisent le mappage', () => {
   it('nomme le clic gauche pour lever et poser, sous tout mappage', () => {
     for (const mapping of [CLASSIC_MAPPING, WHEEL_ACTS_MAPPING]) {
       expect(sentence(mapping)).toContain('clic gauche net sur une pile — la lever');
-      expect(fr.mapUi.gestureHint(mapping).lift).toContain('clic gauche net : lever une pile');
+      expect(fr.mapUi.gestureHint(mapping).lift).toContain(
+        'clic gauche net ou glisser : lever une pile',
+      );
     }
   });
 

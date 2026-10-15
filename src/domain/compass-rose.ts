@@ -1500,7 +1500,20 @@ function boardingAt(
       ],
       refusal: null,
     };
-  const fan = fanOf(name, view, column, [aimed]);
+  /** En Blitz, le bâtiment que tient le transport ne ferme pas la porte à qui vient y monter. */
+  const open =
+    column.blitz === undefined || aimed.kind !== 'building'
+      ? column
+      : {
+          ...column,
+          blitz: {
+            ...column.blitz,
+            occupiedBuildingIds: new Set(
+              [...column.blitz.occupiedBuildingIds].filter((id) => id !== aimed.buildingId),
+            ),
+          },
+        };
+  const fan = fanOf(name, view, open, [aimed]);
   const walk = fan.actions.find((action) => action.key === 'aim' && action.type === 'march');
   if (walk === undefined || walk.key !== 'aim') return { actions: [], refusal: fan.refusal };
   return {

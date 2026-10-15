@@ -157,6 +157,17 @@ export type PiecePress = {
 export type PointerStop = MapActClick & { labelId: string | null };
 
 /**
+ * **What a drag carries a piece from, or lets it go on** (glisser-déposer, 15/10): one of my
+ * pieces the canvas draws, or a label — the canvas does not see under a label.
+ */
+export type CarryTarget =
+  | { readonly kind: 'canvas'; readonly pick: PiecePick }
+  | { readonly kind: 'label'; readonly labelId: string };
+
+/** A finger holds this long on a piece before carrying it: a quicker finger pans the board. */
+const LONG_PRESS_MS = 300;
+
+/**
  * The trowel, hot spot on its point — top *right* of the drawing, hence `29 3`: at `0 0` the
  * click would land twenty-nine pixels away from the tool. The fallback keyword is not
  * decoration either — without it the whole declaration is invalid and silently dropped.
@@ -230,6 +241,13 @@ type Gesture = {
   x: number;
   y: number;
   pastThreshold: boolean;
+  /** The piece a drag would carry, pressed on: the press does not orient the board. */
+  carry: CarryTarget | null;
+  carrying: boolean;
+  /** Pressed on a label, which answers its own clean click. */
+  readonly fromLabel: boolean;
+  /** A finger's long press, waiting. */
+  hold: ReturnType<typeof setTimeout> | null;
 };
 
 /**
@@ -283,6 +301,10 @@ export class MapEngine {
   private selection: string | null = null;
   private animation = 0;
   private gesture: Gesture | null = null;
+  /** The orbit a carry switched off, given back on release. */
+  private orbitHeld = false;
+  /** The last gesture carried a piece: the label's click that follows it is not a click. */
+  private carried = false;
   private mapping: MouseMapping = CLASSIC_MAPPING;
   private spaceHeld = false;
   private building = false;
@@ -395,6 +417,12 @@ export class MapEngine {
   /** A clean press on a piece the canvas drew: its label answers it as if it had been pressed
    *  itself, and says whether it did — `false` lets the board read the press. */
   onPiecePress?: ((press: PiecePress) => boolean) | undefined;
+  /** **A drag takes a piece** (15/10): the host lifts it and says whether it is now in hand. */
+  onPieceCarry?: ((from: CarryTarget, clientX: number, clientY: number) => boolean) | undefined;
+  /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
+  onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
+  /** What the carried piece is over, at every move — the sign of what a drop would do. */
+  onCarryOver?: ((over: CarryTarget | null, clientX: number, clientY: number) => void) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -1204,6 +1232,7 @@ export class MapEngine {
       if (this.pointer.x !== -2) this.pointerMoved();
     });
     canvas.addEventListener('pointermove', (event) => {
+      if (this.gesture?.carrying === true) return;
       this.fingerOnBoard = event.pointerType === 'touch';
       this.aimPointer(event.clientX, event.clientY);
       this.lastPointer.clientX = event.clientX;
@@ -1237,7 +1266,16 @@ export class MapEngine {
         x: event.clientX,
         y: event.clientY,
         pastThreshold: false,
+        carry: null,
+        carrying: false,
+        fromLabel: false,
+        hold: null,
       };
+      this.armCarry(this.gesture, event, () => {
+        if (!this.castAt(event.clientX, event.clientY)) return null;
+        const pick = this.pieceToTake();
+        return pick === null || pick.carried ? null : { kind: 'canvas', pick };
+      });
       this.refreshCursor();
     });
     canvas.addEventListener('wheel', () => {
@@ -1272,11 +1310,125 @@ export class MapEngine {
     gesture.traveledPx += Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
     gesture.x = event.clientX;
     gesture.y = event.clientY;
+    if (gesture.carrying) {
+      this.carryMove(event.clientX, event.clientY);
+      return;
+    }
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;
     gesture.pastThreshold = true;
+    // A finger that moves before its long press pans the board, as it always did.
+    if (gesture.hold !== null) {
+      clearTimeout(gesture.hold);
+      gesture.hold = null;
+      gesture.carry = null;
+    } else if (gesture.carry !== null) this.beginCarry(gesture);
+    if (gesture.carrying || gesture.fromLabel) return;
     if (this.roleOf(gesture.pointerType, gesture.index) === 'orient' && !gesture.panning)
       this.onOrientationStarted();
   };
+
+  /**
+   * **Pressed on one of my pieces, a drag carries it** (glisser-déposer, 15/10) — the left button
+   * whatever the mapping, as the click that lifts, and a finger after a long press: a quick finger
+   * pans the board, as it always did. The orbit holds still from the press, so a mouse drag does
+   * not turn the table under the piece.
+   */
+  private armCarry(gesture: Gesture, event: PointerEvent, from: () => CarryTarget | null): void {
+    if (this.onPieceCarry === undefined || this.placing !== null || this.designating) return;
+    const finger = event.pointerType === 'touch';
+    if (!finger && (buttonAt(event.button) !== 'left' || this.spaceHeld)) return;
+    gesture.carry = from();
+    if (gesture.carry === null) return;
+    if (!finger) {
+      this.holdOrbit();
+      return;
+    }
+    gesture.hold = setTimeout(() => {
+      gesture.hold = null;
+      if (this.gesture === gesture) this.beginCarry(gesture);
+    }, LONG_PRESS_MS);
+  }
+
+  private beginCarry(gesture: Gesture): void {
+    if (gesture.carry === null) return;
+    gesture.carrying = this.onPieceCarry?.(gesture.carry, gesture.x, gesture.y) === true;
+    if (!gesture.carrying) {
+      gesture.carry = null;
+      this.releaseOrbit();
+      return;
+    }
+    this.holdOrbit();
+    if (gesture.pointerType === 'touch') navigator.vibrate?.(12);
+    this.carryMove(gesture.x, gesture.y);
+    this.refreshCursor();
+  }
+
+  /** The carried piece follows the pointer, a finger's too, and says what it is over. */
+  private carryMove(clientX: number, clientY: number): void {
+    this.invalidate();
+    this.fingerOnBoard = false;
+    this.aimPointer(clientX, clientY);
+    this.lastPointer.clientX = clientX;
+    this.lastPointer.clientY = clientY;
+    this.hoverDirty = true;
+    this.onCarryOver?.(this.carryTargetAt(clientX, clientY), clientX, clientY);
+  }
+
+  /** What stands under the pointer, a label first — never the carried copy, which is always there. */
+  private carryTargetAt(clientX: number, clientY: number): CarryTarget | null {
+    const label = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>('[data-label-id]')?.dataset.labelId;
+    if (label !== undefined) return { kind: 'label', labelId: label };
+    if (!this.castAt(clientX, clientY)) return null;
+    const pick = this.standing.pick(this.ray, { under: true });
+    return pick === null ? null : { kind: 'canvas', pick };
+  }
+
+  private holdOrbit(): void {
+    if (!this.controls.enabled || this.orbitHeld) return;
+    this.controls.enabled = false;
+    this.orbitHeld = true;
+  }
+
+  private releaseOrbit(): void {
+    if (!this.orbitHeld) return;
+    this.controls.enabled = true;
+    this.orbitHeld = false;
+  }
+
+  /**
+   * **A press on a label of mine** may become a drag that carries its pile: the engine follows it
+   * from there. A press that stays a click is the label's own (`consumeCarry`).
+   */
+  pressOnLabel(labelId: string, event: PointerEvent): void {
+    this.invalidate();
+    if (this.gesture !== null) return;
+    const gesture: Gesture = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      index: event.button,
+      button: buttonAt(event.button),
+      panning: false,
+      traveledPx: 0,
+      x: event.clientX,
+      y: event.clientY,
+      pastThreshold: false,
+      carry: null,
+      carrying: false,
+      fromLabel: true,
+      hold: null,
+    };
+    this.armCarry(gesture, event, () => ({ kind: 'label', labelId }));
+    if (gesture.carry !== null) this.gesture = gesture;
+  }
+
+  /** **Whether the click now arriving closes a carry** — read once, by the label it lands on. */
+  consumeCarry(): boolean {
+    const carried = this.carried;
+    this.carried = false;
+    return carried;
+  }
 
   /**
    * Two clean clicks, never a drag: **the left one reads whatever role its drag carries** — that
@@ -1292,11 +1444,20 @@ export class MapEngine {
     // Another finger of a pinch lifted: the press stays spoiled until its own finger goes.
     if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
+    if (gesture?.hold != null) clearTimeout(gesture.hold);
+    this.releaseOrbit();
     // A press hides the piece under the pointer: released, it is there again.
     this.hoverDirty = true;
     this.applyMapping();
     this.refreshCursor();
-    if (gesture === null || event.type !== 'pointerup') return;
+    if (gesture === null) return;
+    if (gesture.carrying) {
+      this.carried = true;
+      this.onCarryOver?.(null, event.clientX, event.clientY);
+      if (event.type === 'pointerup') this.dropCarried(event);
+      return;
+    }
+    if (event.type !== 'pointerup' || gesture.fromLabel) return;
     if (gesture.panning || gesture.pastThreshold) return;
     const press = cleanPressAt(
       this.mapping,
@@ -1316,6 +1477,18 @@ export class MapEngine {
     if (press.reads) this.readAt(event);
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
+
+  /** **The carried piece let go** (15/10): on a piece or a label, the host says what it does
+   *  there; on the ground it is put down, as a click in hand puts it down. */
+  private dropCarried(event: PointerEvent): void {
+    const on = this.carryTargetAt(event.clientX, event.clientY);
+    if (on !== null) {
+      this.onPieceDrop?.(on, event.clientX, event.clientY);
+      return;
+    }
+    if (!this.castAt(event.clientX, event.clientY)) return;
+    this.onAct(this.actClickAt(event.clientX, event.clientY));
+  }
 
   private actClickAt(clientX: number, clientY: number): MapActClick {
     return {

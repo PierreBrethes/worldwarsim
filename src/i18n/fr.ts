@@ -2519,7 +2519,8 @@ export const fr = {
     sheetHealth: (health: number) => `${health} / 100`,
     sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
     sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
-    sheetNothingAboard: 'rien à bord',
+    /** La charge de butin, pas les passagers : ceux-là ont leur jeton (15/10). */
+    sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
     /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
@@ -2534,8 +2535,8 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
-    hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
-    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
+    hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
+    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
     aboard: 'à bord',
     disembark: 'débarquer',
@@ -3613,7 +3614,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
+                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser — ou glissez-la. Lâchée sur un transport, elle embarque ; clic droit sur le transport pour débarquer. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -3747,7 +3748,7 @@ export const fr = {
       orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
       separator: '·',
       pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
-      lift: ` ${fr.mapUi.mouse.click.left} : lever une pile, puis la poser`,
+      lift: ` ${fr.mapUi.mouse.click.left} ou glisser : lever une pile, puis la poser`,
     }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
@@ -3761,6 +3762,10 @@ export const fr = {
       {
         gesture: `${fr.mapUi.mouse.click.left} sur une pile`,
         effect: 'la lever ; le suivant, sur la carte, la pose',
+      },
+      {
+        gesture: 'glisser une pile',
+        effect: 'la porter ; la lâcher la pose — sur un transport, elle embarque',
       },
       { gesture: 'échap', effect: 'reposer la pièce en main' },
       {
@@ -3778,6 +3783,7 @@ export const fr = {
     fingerGestures: [
       { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
       { gesture: 'toucher une pile', effect: 'la lever ; toucher la carte la pose' },
+      { gesture: 'appui long sur une pile', effect: 'la porter du doigt ; la lâcher la pose' },
       { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
       { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],

@@ -54,6 +54,8 @@ export type GarrisonAt = (
 const GROUP_SPACING = 0.5;
 /** The ×N counter stands at the front right foot of its group. */
 const COUNTER_AT = [0.2, 0.22] as const;
+/** « N à bord » stands at the front left, clear of a vehicle's bonnet. */
+const ABOARD_AT = [-0.24, 0.34] as const;
 
 /**
  * **Where each group stands around the pile's point**, side by side across the board and
@@ -293,8 +295,7 @@ export function pileObject(
     const text = words.groups[k];
     if (text) addCounter(counter(faces.of(text), slot.x + COUNTER_AT[0], slot.z + COUNTER_AT[1]));
     const riders = words.aboard[k];
-    if (riders)
-      addCounter(counter(faces.of(riders), slot.x - COUNTER_AT[0], slot.z + COUNTER_AT[1]));
+    if (riders) addCounter(counter(faces.of(riders), slot.x + ABOARD_AT[0], slot.z + ABOARD_AT[1]));
     const group = pieces.groups[k]!;
     // A plane that never lands hovers over its shadow, as it flew over it on its thread.
     if (group.aloft) {
@@ -615,7 +616,7 @@ function spreadObject(
     target.userData.troopId = piece.troopId;
     part.add(figurine.object, target, lifeBar(piece));
     const riders = aboard(piece);
-    if (riders !== null) part.add(counter(riders, -COUNTER_AT[0], COUNTER_AT[1]));
+    if (riders !== null) part.add(counter(riders, ABOARD_AT[0], ABOARD_AT[1]));
     if (piece.wear === 'burning')
       void figurine.ready.then(
         () => blacken(figurine.object),
@@ -803,9 +804,10 @@ export class StandingLayer {
 
   /** The troops of the piece under `ray`, among the piles standing in sight — a troop of the
    *  deployed pile first: the pile it stands for has shrunk away under it. */
-  pick(ray: Raycaster): PiecePick | null {
+  pick(ray: Raycaster, { under = false }: { under?: boolean } = {}): PiecePick | null {
     let copy: { distance: number; pick: PieceHold } | null = null;
-    for (const carried of takenCopies(this.carried, this.leaving)) {
+    // Carried, the copy is always under the pointer: what it is let go on stands beneath it.
+    for (const carried of under ? [] : takenCopies(this.carried, this.leaving)) {
       if (carried.object.parent === null) continue;
       const distance = footedHit(ray, carried.object, carried.targets);
       if (distance !== null && (copy === null || distance < copy.distance))

@@ -144,6 +144,35 @@ describe('picking a pile', () => {
   });
 });
 
+/** **Ce qui est à bord ne se voit pas** (15/10) : le transport porte son jeton, qu'un clic prend
+ *  comme la pile entière. */
+describe('a transport carrying passengers', () => {
+  const inked: string[] = [];
+  const faces = {
+    of: (text: string) => {
+      inked.push(text);
+      return new MeshStandardMaterial();
+    },
+  } as unknown as Faces;
+  const pieces = pilePieces([
+    { ...troop('landTransport'), id: 'l1' },
+    { ...troop('infantry'), id: 'i1', carriedBy: 'l1' },
+    { ...troop('infantry'), id: 'i2', carriedBy: 'l1' },
+  ]);
+  const pile = pileObject(
+    'germany',
+    pieces,
+    { count: String, more: String, aboard: (n) => `${n} à bord` },
+    faces,
+  )!;
+  pile.ready.catch(() => {});
+
+  it('draws the truck alone, with its « 2 à bord » counter', () => {
+    expect(pieces.groups.map((group) => group.role)).toEqual(['landTransport']);
+    expect(inked).toEqual(['2 à bord']);
+  });
+});
+
 describe('pressing between the units of a Blitz pile', () => {
   const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
   const pieces = unitPieces([

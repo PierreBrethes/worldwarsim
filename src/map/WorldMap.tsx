@@ -6,6 +6,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -51,9 +52,11 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
+import { DropHintChip, hintOfCompass, type DropHint, type PieceFrom } from './DropHint';
 import {
   MapEngine,
   type BuiltRegions,
+  type CarryTarget,
   type HeldClaim,
   type PieceClick,
   type PieceHold,
@@ -124,6 +127,14 @@ type Props = {
   departures?: number;
   /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
+  /** **Le glisser prend une pièce** (15/10) : vrai quand elle est en main. */
+  onPieceCarry?: ((from: PieceFrom) => boolean) | undefined;
+  /** **La pièce portée, lâchée sur une pile à moi** : vrai quand c'est poser — la rose s'ouvre
+   *  alors sur sa cible ; faux quand le lâcher a déjà répondu (embarquer, reposer). */
+  onPieceDrop?: ((on: PieceFrom) => boolean) | undefined;
+  /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose
+   *  le dit. */
+  dropHintOf?: ((on: PieceFrom) => DropHint | null | undefined) | undefined;
   /**
    * **Le pointeur s'est arrêté, pièce en main** : le premier ordre que la rose y offrirait, à
    * faire chiffrer par le serveur — `null` quand il n'y en a pas, ou que le pointeur repart.
@@ -310,6 +321,9 @@ export function WorldMap({
   holding = null,
   departures = 0,
   onPieceClick,
+  onPieceCarry,
+  onPieceDrop,
+  dropHintOf,
   onRestAim,
   onRoseDismiss,
   onHeldCompass,
@@ -626,6 +640,84 @@ export function WorldMap({
     },
     [onOpenStack, onLabelAct],
   );
+
+  /**
+   * **Porter une pièce, la lâcher** (glisser-déposer, 15/10). Le moteur dit d'où et sur quoi ; ici
+   * se lit ce que c'est — une de mes piles, sa garnison au pied d'un mât, ou une étiquette — et
+   * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
+   */
+  const [hint, setHint] = useState<DropHint | null>(null);
+  const hintNode = useRef<HTMLDivElement>(null);
+  const hintAt = useRef('');
+  /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur. */
+  useLayoutEffect(() => {
+    if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
+  }, [hint]);
+  useEffect(() => {
+    if (!readyEngine) return;
+    const read = (
+      target: CarryTarget,
+      clientX: number,
+      clientY: number,
+    ): { from: PieceFrom | null; label: MapLabel | undefined } => {
+      if (target.kind === 'canvas') {
+        // A garrison is aimed at by its building's mast.
+        const at = standing.find((pile) => pile.id === target.pick.pileId)?.at;
+        const labelId = at !== undefined && 'beside' in at ? at.beside : target.pick.pileId;
+        return {
+          from: { kind: 'piece', hit: { ...target.pick, clientX, clientY } },
+          label: labels.find((candidate) => candidate.id === labelId),
+        };
+      }
+      const label = labels.find((candidate) => candidate.id === target.labelId);
+      return {
+        from:
+          label?.type === 'stack' && label.station !== null
+            ? { kind: 'stack', station: label.station }
+            : null,
+        label,
+      };
+    };
+    readyEngine.onPieceCarry =
+      onPieceCarry &&
+      ((target, clientX, clientY) => {
+        const { from } = read(target, clientX, clientY);
+        return from !== null && onPieceCarry(from);
+      });
+    readyEngine.onPieceDrop =
+      onPieceDrop &&
+      ((target, clientX, clientY) => {
+        const { from, label } = read(target, clientX, clientY);
+        if (from !== null && !onPieceDrop(from)) return;
+        if (label !== undefined) onLabelAct(label, clientX, clientY);
+      });
+    readyEngine.onCarryOver = (target, clientX, clientY) => {
+      hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
+      if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
+      if (target === null) {
+        setHint(null);
+        return;
+      }
+      const { from, label } = read(target, clientX, clientY);
+      const here = from === null ? undefined : dropHintOf?.(from);
+      if (here !== undefined) {
+        setHint(here);
+        return;
+      }
+      const aimed = label === undefined ? null : labelTarget(label, clientX, clientY);
+      setHint(aimed === null ? null : hintOfCompass(compassOf(aimed)));
+    };
+  }, [
+    readyEngine,
+    standing,
+    labels,
+    onPieceCarry,
+    onPieceDrop,
+    dropHintOf,
+    onLabelAct,
+    labelTarget,
+    compassOf,
+  ]);
 
   useEffect(() => {
     if (!readyEngine) return;
@@ -1017,6 +1109,7 @@ export function WorldMap({
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
       {placing && <PlacingCard placing={placing} container={container} />}
+      {hint !== null && <DropHintChip ref={hintNode} hint={hint} />}
       {rose && (
         <CompassRose
           key={rose.opening}
