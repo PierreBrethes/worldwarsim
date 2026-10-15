@@ -395,7 +395,12 @@ export function unitsOf<T extends { readonly id: string; readonly role: UnitRole
   troops: ReadonlyArray<T>,
 ): ReadonlyArray<ReadonlyArray<T>> {
   const units: T[][] = [];
-  for (const row of stackRows(troops, new Set(troops.map((troop) => troop.id)))) {
+  // One canonical order: the first hull listed takes the passengers, so the map and the hand
+  // must list them alike.
+  const ranked = [...troops].sort(
+    (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
+  );
+  for (const row of stackRows(ranked, new Set(troops.map((troop) => troop.id)))) {
     if (row.carrier === null) units.push([row.troop]);
     else units.find((unit) => unit[0] === row.carrier)?.push(row.troop);
   }

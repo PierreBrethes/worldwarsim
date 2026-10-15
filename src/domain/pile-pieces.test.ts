@@ -227,8 +227,8 @@ describe('unitPieces (Blitz: one piece per unit)', () => {
   it('keeps a plane in the air, and only a plane', () => {
     const { groups } = unitPieces([troop('bomber'), troop('infantry')]);
     expect(groups.map((group) => [group.role, group.aloft])).toEqual([
-      ['bomber', true],
       ['infantry', undefined],
+      ['bomber', true],
     ]);
   });
 });

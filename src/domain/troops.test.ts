@@ -253,10 +253,14 @@ describe('unitsOf', () => {
     unitsOf(roles.map((role, k) => ({ id: `${role}-${k}`, role }))).map((unit) =>
       unit.map((member) => member.id),
     );
+  const shapes = (...roles: ReadonlyArray<UnitRole>) =>
+    unitsOf(roles.map((role, k) => ({ id: String(k), role }))).map((unit) =>
+      unit.map((member) => member.role),
+    );
 
-  it('makes each combat troop its own unit', () => {
+  it('makes each combat troop its own unit, in the order of the roles', () => {
     expect(units('infantry', 'infantry')).toEqual([['infantry-0'], ['infantry-1']]);
-    expect(units('escort', 'bomber')).toEqual([['escort-0'], ['bomber-1']]);
+    expect(units('escort', 'bomber')).toEqual([['bomber-1'], ['escort-0']]);
   });
 
   it('makes a transport and what it carries one unit, the transport first', () => {
@@ -267,16 +271,21 @@ describe('unitsOf', () => {
   });
 
   it('leaves alone what no transport seats, and an escort beside a cargo', () => {
-    expect(units('airTransport', 'armor')).toEqual([['airTransport-0'], ['armor-1']]);
-    expect(units('cargo', 'escort', 'infantry')).toEqual([['cargo-0', 'infantry-2'], ['escort-1']]);
+    expect(units('airTransport', 'armor')).toEqual([['armor-1'], ['airTransport-0']]);
+    expect(units('cargo', 'escort', 'infantry')).toEqual([['escort-1'], ['cargo-0', 'infantry-2']]);
+  });
+
+  it('cuts the same units whatever order the troops come in', () => {
+    expect(shapes('carrier', 'cargo', 'infantry')).toEqual(shapes('infantry', 'cargo', 'carrier'));
+    expect(shapes('carrier', 'cargo', 'infantry')).toEqual([['cargo', 'infantry'], ['carrier']]);
   });
 
   it('seats infantry in a truck, two to a truck', () => {
-    expect(units('landTransport', 'infantry', 'infantry', 'infantry')).toEqual([
-      ['landTransport-0', 'infantry-1', 'infantry-2'],
-      ['infantry-3'],
+    expect(shapes('landTransport', 'infantry', 'infantry', 'infantry')).toEqual([
+      ['infantry'],
+      ['landTransport', 'infantry', 'infantry'],
     ]);
-    expect(units('landTransport', 'armor')).toEqual([['landTransport-0'], ['armor-1']]);
+    expect(shapes('landTransport', 'armor')).toEqual([['armor'], ['landTransport']]);
   });
 });
 
