@@ -4,7 +4,7 @@ import type { Telegraph } from '@/data/telegraph';
 import { TelegraphPanel, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
+import { FloatingWindow, useWindowSized, type WindowProps, CloseButton } from './Window';
 import type { Seat } from '@/data/session';
 
 /**
@@ -60,13 +60,7 @@ export function TelegraphWindow({
             <span className="font-(family-name:--font-display) text-[12px] text-[var(--ink-quiet)] italic">
               {title}
             </span>
-            <button
-              type="button"
-              onClick={close}
-              className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-            >
-              {fr.common.close}
-            </button>
+            <CloseButton onClick={close} />
           </DragHandle>
         )}
 

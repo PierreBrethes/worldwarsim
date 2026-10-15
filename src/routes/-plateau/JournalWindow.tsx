@@ -19,7 +19,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { CombatLines } from './DispatchSheet';
 import { ReplayButton } from './ReplayDeck';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 import type { Seat } from '@/data/session';
 
 const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
@@ -226,13 +226,7 @@ function DeskJournal({
         {view.season.reduction.concludedAt !== null && (
           <Stamp label={fr.stamps.seasonClosed} size="small" />
         )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
+        <CloseButton onClick={onClose} />
       </DragHandle>
 
       {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. Une Blitz

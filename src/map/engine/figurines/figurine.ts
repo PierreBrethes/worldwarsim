@@ -14,13 +14,25 @@ import { squadOf } from './infantry';
  */
 export const FIGURINE_SCALE = 0.26;
 
+let nearFloor = 0;
+/**
+ * The camera-to-target distance, set once a frame: a tilted far view puts the bottom of the
+ * screen much nearer the camera than the target, and the regions, shadows and seas all fade on
+ * the target distance — so must the pieces, or giants stand on a world map.
+ */
+export function setNearFloor(distance: number): void {
+  nearFloor = distance;
+}
+
 /**
  * **How much figurine, rather than plate, a pawn wears at this camera distance**: 1 at the
  * country level and closer, 0 beyond the region fade, eased between. One distance says « we
  * are down at the country » for both layers (ADR 0026 §3).
  */
 export function nearWeight(distance: number): number {
-  const t = (REGIONS_GONE_DISTANCE - distance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE);
+  const t =
+    (REGIONS_GONE_DISTANCE - Math.max(distance, nearFloor)) /
+    (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE);
   const k = Math.min(1, Math.max(0, t));
   return k * k * (3 - 2 * k);
 }

@@ -31,7 +31,7 @@ import { RaiseControl } from './RaiseControl';
 import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
-import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
+import { FloatingWindow, useWindowSized, type WindowProps, CloseButton } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
 import type { Seat } from '@/data/session';
 
@@ -223,13 +223,7 @@ function Site({
         <span className="order-last w-full min-w-0 md:order-none md:w-auto">
           <UpgradeControl building={building} view={view} seat={seat} now={now} />
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
+        <CloseButton onClick={onClose} />
       </DragHandle>
       <UnderCapture view={view} buildingId={building.id} />
 
@@ -438,13 +432,7 @@ function BlitzSite({
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
           {fr.blitz.fundsHeld(funds)}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
+        <CloseButton onClick={onClose} />
       </DragHandle>
       <UnderCapture view={view} buildingId={building.id} />
       {error && (
@@ -1130,7 +1118,7 @@ function RoleSheetCard({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-40 ${
                     tier === level ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
                   }`}
                 >
@@ -1449,7 +1437,7 @@ function RoleCard({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
                     tier === level
                       ? 'bg-[var(--ink)] text-[var(--paper)]'
                       : 'bg-[var(--paper)] text-[var(--ink)]'

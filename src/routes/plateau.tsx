@@ -365,7 +365,7 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
       {interrupted && (
         <div
           role="status"
-          className="hud fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 z-50 -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
+          className="hud fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 z-[var(--z-notice)] -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
         >
           {fr.board.linkLost}
         </div>
@@ -2653,7 +2653,7 @@ function MapButtons({
 }
 
 const MAP_BUTTON =
-  'paper-grain flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
+  'paper-grain paper-hover flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
 
 function Loading() {
   return (

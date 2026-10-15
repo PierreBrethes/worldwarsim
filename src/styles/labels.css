@@ -427,7 +427,7 @@
 }
 
 .label--urgent .label-line--mention {
-  color: #8a5a29;
+  color: var(--notable-paper);
 }
 
 /* Movement heads have no national bar: the text sits beside the sprite. */
