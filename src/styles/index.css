@@ -405,19 +405,18 @@ body {
    sweep stops where the stock stops. */
 .gauge-inflow {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 26px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent) no-repeat;
+  background-size: 26px 100%;
   animation: gauge-inflow 1.8s linear infinite;
 }
 
 @keyframes gauge-inflow {
   from {
-    left: -26px;
+    background-position: -26px 0;
   }
   to {
-    left: 100%;
+    background-position: 100% 0;
   }
 }
 
