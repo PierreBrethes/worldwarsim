@@ -97,6 +97,19 @@ export async function playingSeason(
 
 /** What a season has to be to be **looked at**. A concluded one passes: it is the game one
  *  reads back before the wipe, and a board that shuts the moment it is won says nothing. */
+/**
+ * **La porte de ce qu'on sert à un belligérant** : la vue et le tableau de la victoire d'essai
+ * passent les mêmes refus, sans quoi la query à part en dirait plus que la vue.
+ */
+export async function belligerentOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
+  const seated = await playerOf(ctx, token, seasonId);
+  requireStarted(seated.season);
+  /** A seat taken on a running season is not a nation yet: its owner holds no flag, and the
+   *  board has nothing to draw. He is sent back to the lobby, to enter the war (`enterWar`). */
+  if (!isAtWar(seated.player, seated.season)) fail('NOT_AT_WAR');
+  return seated;
+}
+
 export function requireStarted(season: Doc<'seasons'>): void {
   if (season.status === 'lobby') fail('SEASON_NOT_LAUNCHED');
 }

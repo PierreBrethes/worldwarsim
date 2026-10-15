@@ -28,7 +28,7 @@ import { equipmentLabel } from '@/emblems/units/equipment';
 import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 import { rolesFormingSites } from '@/domain/blitz';
@@ -68,13 +68,7 @@ export function GunneryWindow({
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.gunnery.header}</span>
           <span className="flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
+          <CloseButton onClick={onClose} />
         </DragHandle>
 
         {/* Ce que la table garantit, imprimé : c'est le garde-fou du projet (fiche 08 §9), et

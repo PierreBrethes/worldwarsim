@@ -76,7 +76,7 @@ const PREVIEW = {
   },
 } as unknown as Previewed;
 
-function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK) {
+function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK, neutralTarget = false) {
   render(
     <ConvexProvider client={client}>
       <MovementPreview
@@ -90,6 +90,7 @@ function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK) {
         }}
         troopIds={['T-1']}
         strength={50}
+        neutralTarget={neutralTarget}
         choice={choice}
         choices={[ATTACK, RAID]}
         onChoose={onChoose}
@@ -166,6 +167,16 @@ describe('what the riposte will carry', () => {
   it("tells him a point's garrison has walls only if it stands and serves", () => {
     mount();
     screen.getByText(fr.aim.cover.point(0.7));
+  });
+
+  it('tells him a neutral site has no garrison, instead of announcing a riposte', () => {
+    const site: OrderChoice = {
+      ...ATTACK,
+      aim: { kind: 'building', buildingId: 'N-1', key: 'airfield' } as OrderChoice['aim'],
+    };
+    mount(vi.fn(), vi.fn(), site, true);
+    screen.getByText(fr.aim.neutralCover);
+    expect(screen.queryByText(fr.aim.initiative)).toBeNull();
   });
 
   it('tells him a camp in the open ripostes bare', () => {

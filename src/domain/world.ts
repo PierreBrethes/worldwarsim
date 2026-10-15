@@ -20,7 +20,7 @@ export type World = {
   readonly countries: ReadonlyArray<ProjectedCountry>;
 };
 
-export type RegionLine = ReadonlyArray<readonly [x: number, y: number]>;
+type RegionLine = ReadonlyArray<readonly [x: number, y: number]>;
 
 /**
  * A region, as anything outside the map layer names it. The id travels with the name because

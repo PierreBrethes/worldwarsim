@@ -327,8 +327,10 @@ servir** (`SESSION_IDLE_MS`) ; c'est le plateau ouvert qui la tient en vie (`pla
 leurs abonnements aux notifications (`accounts.logoutOthers`). La connexion n'examine qu'**une
 tentative toutes les trois secondes par pseudo** (`LOGIN_TOO_FAST`, `LOGIN_MIN_INTERVAL_MS`) :
 une pause et jamais un verrouillage — les pseudos sont publics, et une tentative refusée ne
-repousse pas la suivante. Elle ne protège pas le CPU d'essais sur des pseudos inconnus : cela
-reste l'affaire d'une limite par IP au proxy.
+repousse pas la suivante. Un pseudo inconnu ne coûte aucune dérivation (refus immédiat, les pseudos
+sont publics) ; l'inscription est bornée globalement, une toutes les 250 ms (`REGISTER_TOO_FAST`,
+`accounts.claimRegistrationSlot`, une ligne de `authThrottle`). Une récupération de mot de passe ferme aussi les abonnements push,
+et un endpoint de push doit être d'un service connu (`isPushEndpoint`, liste blanche de domaines).
 
 **Et une invitation est un lien** (02/10/2026, lot A du plan marque et site) : `/rejoindre/CODE`,
 publique — la porte de `__root.tsx` l'ouvre par la **même** condition que `/connexion`
@@ -392,7 +394,7 @@ articulations nommées (`squadOf`), un modèle pour le reste — ou `null` dès 
 de fichier : rien plutôt que la mauvaise figurine. Les GLB sortent de Claude Design sur un
 gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la planche, pièces
 nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de triangles et
-aux noms de son rôle. Les huit nations sont sculptées, à quelques trous près : le R35
+aux noms de son rôle. **Leurs textures se compressent en WebP avant commit** (`npx @gltf-transform/cli webp <in.glb> <out.glb> --quality 90`, lancé hors du dépôt, rien ne s'ajoute aux dépendances ; géométrie et noms intacts, pas de meshopt ni de quantification qui casseraient `bakedParts` et `footprintOf`) ; `GLTFLoader` lit `EXT_texture_webp` sans décodeur. Les huit nations sont sculptées, à quelques trous près : le R35
 (blindé MK1 français), le Ju 52 allemand, l'infanterie MK2 japonaise et les cargos, porte-avions
 et transports qui n'ont pas non plus de planche. Seul le MK1 de l'infanterie
 marche : un MK2 garde la pose où il a été sculpté (le bazooka français à genou). Le **pion d'un mouvement `mien`** porte sa figurine sur le fil, tournée vers sa
@@ -626,7 +628,8 @@ et la feuille la reçoit : pays, mer et encres de région. La carte d'ombres (20
 **recalée sur ce que la caméra regarde** à chaque image, par crans de 2^¼ et calée au texel pour
 ne pas scintiller, et **éteinte au-delà du fondu des régions** (`shadowReach`) : à la vue monde
 aucune pièce ne tient debout, et l'ombre ne coûte rien. Elle ne demande aucune image — elle se
-rend avec celles que la carte doit déjà. Les disques de contact restent, très légers : ils posent
+rend avec les images **complètes** que la carte doit déjà (remuée, battement), jamais avec une
+image d'ambiance, qui ne touche que des uniformes. Les disques de contact restent, très légers : ils posent
 la pièce sous ses pieds quand l'ombre de la lampe tombe à côté. **Et un flou tilt-shift léger** (1,5 px au plus, `tiltShiftOf`, `camera-tilt.ts`) borde le haut et le bas de la carte : nul à l'aplomb, plein à la pente la plus rasante, nul au-delà du fondu des régions et coupé par « animations coupées » ; deux bandes DOM `backdrop-filter` sous les étiquettes, force écrite par le moteur dans `--tilt-shift` (`onTiltShift`).
 
 **La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
@@ -644,7 +647,9 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 - une **ambiance** qui tourne sans fin (mer, vent) est une couche d'`Ambience` (`ambience.ts`) :
   elle déclare sa cadence (`hz`, 12 par défaut), reçoit un temps quantifié à ce pas, figé hors
   `full`, et le socle demande **une** image par pas (`FrameDemand.request`) — jamais
-  `invalidate()`, qui tiendrait la carte à 60 i/s ;
+  `invalidate()`, qui tiendrait la carte à 60 i/s. **Cette image est partielle** (15/10/2026,
+  `FrameDemand.due` rend `'ambient'`) : ni carte d'ombres ni étiquettes refaites — une ambiance
+  ne change que des uniformes ou des sprites, jamais une pièce qui porte ombre ni une étiquette ;
 - un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
   `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
   `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
@@ -727,7 +732,7 @@ caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 1
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.
 
-**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur le centre du sien (`me.openingPoint`, lu par le seul cadrage d'ouverture ; `capitalPoint` reste la capitale). **Chaque théâtre déclare son nombre de joueurs** (T1, `Theatre.players`, lu par `seatRangeOf`) : Europe, Méditerranée et Amériques 2-4, Pacifique 2-3 — un plafond tient sur six graines ou il descend d'un cran (`convex/blitz.test.ts`, `SIX_SEEDS` ; mesuré après A2, le Pacifique à 4 échoue sur les six). Le salon refuse au-delà (`joinRefusalOf`, `BLITZ_FULL`), le lancement en deçà comme au-delà, et la vignette de création affiche la fourchette. Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
+**Une saison a un mode — Blitz ou Mondiale** (lot 1, 14/10/2026, `WWS/docs/design/propositions/gameplay-deux-modes-2026-10-14.md`). `seasons.mode` et `seasons.theatre` sont optionnels ; absent vaut Mondiale (`modeOf`). La règle est pure (`src/domain/season-mode.ts` : Blitz 2 h avec un théâtre, Mondiale 7 jours et 8 joueurs) et `seasons.create`, qui exige le mode, en tire l'horloge. Les théâtres sont une table (`src/domain/theatres.ts`, boîtes lon/lat, `east` > 180 pour le Pacifique) ; le plateau d'une Blitz s'ouvre cadré sur son QG, un quart du théâtre autour (`me.openingPoint`, que le serveur sert au QG posé par la carte de départ — au centre du théâtre faute de QG —, lu par le seul cadrage d'ouverture, `openingFrameOf` ; `capitalPoint` reste la capitale). **Chaque théâtre déclare son nombre de joueurs** (T1, `Theatre.players`, lu par `seatRangeOf`) : Europe, Méditerranée et Amériques 2-4, Pacifique 2-3 — un plafond tient sur six graines ou il descend d'un cran (`convex/blitz.test.ts`, `SIX_SEEDS` ; mesuré après A2, le Pacifique à 4 échoue sur les six). Le salon refuse au-delà (`joinRefusalOf`, `BLITZ_FULL`), le lancement en deçà comme au-delà, et la vignette de création affiche la fourchette. Son économie et sa carte de départ sont le lot 4 (ci-dessous)  ; ses ordres — unité seule, poursuite, théâtre — sont le lot 5 (ci-dessous).
 
 
 **Et l'infanterie capture — 14/10/2026** (lot 3 des deux modes, `convex/captures.ts`, règle pure

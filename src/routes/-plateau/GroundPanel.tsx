@@ -142,10 +142,16 @@ export function GroundPanel({
   const held = heldBy !== null && <Line label={fr.selectedCountry.heldBy} value={heldBy} />;
   const ground = (
     <>
-      <p className={QUIET}>
-        {deposit === null ? fr.board.regionNoDeposit : fr.board.regionDeposit(fr.deposits[deposit])}
-      </p>
-      {coastal.has(hovered.id) && <p className={QUIET}>{fr.board.regionCoastal}</p>}
+      {view.mode !== 'blitz' && (
+        <>
+          <p className={QUIET}>
+            {deposit === null
+              ? fr.board.regionNoDeposit
+              : fr.board.regionDeposit(fr.deposits[deposit])}
+          </p>
+          {coastal.has(hovered.id) && <p className={QUIET}>{fr.board.regionCoastal}</p>}
+        </>
+      )}
       {suspendedUntil !== null && (
         <Line
           label={fr.selectedCountry.suspended}

@@ -74,7 +74,7 @@ export function UpgradeControl({
               (problem: unknown) => handleError(problem, setError),
             );
           }}
-          className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
+          className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
         >
           {fr.upgrade.action}
         </button>
@@ -151,7 +151,7 @@ function WhenAffordable({
  * A plate carries its own ink and takes no tint, so only the figure turns critical. That is
  * the half that has to: the resource is *what* is missing, the number is *how much*.
  */
-function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
+export function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
       className="flex items-center justify-end gap-[10px] font-(family-name:--font-mono) text-[12.5px]"

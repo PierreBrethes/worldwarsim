@@ -405,19 +405,18 @@ body {
    sweep stops where the stock stops. */
 .gauge-inflow {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 26px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent) no-repeat;
+  background-size: 26px 100%;
   animation: gauge-inflow 1.8s linear infinite;
 }
 
 @keyframes gauge-inflow {
   from {
-    left: -26px;
+    background-position: -26px 0;
   }
   to {
-    left: 100%;
+    background-position: calc(100% + 26px) 0;
   }
 }
 
@@ -553,4 +552,35 @@ body {
   85% {
     opacity: 1;
   }
+}
+
+/* **Le réglage d'animations de la carte vaut pour l'interface** : « coupées » fige la rose et le
+   fondu des étiquettes, « réduites » et « coupées » arrêtent le battement d'alerte. */
+:root[data-motion='off'] :is(.rose-menu, .rose-tie, .rose-bubble, .label-block, .label-plate) {
+  animation: none;
+  transition: none;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off'])
+  .indicator--imminent
+  .indicator-triangle
+  svg {
+  animation: none;
+}
+
+/* G2: one keyboard focus for every paper button of the board. In the base layer, so that a
+   utility such as `outline-none` still wins where a surface wants none. */
+@layer base {
+  :where(:root.on-board) :focus-visible {
+    outline: 2px solid var(--interaction);
+    outline-offset: 2px;
+  }
+}
+
+/* G3: the paper square inks at the hover, like the rows of `NextActions`. */
+.paper-hover:hover {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--ink) 7%, transparent),
+    color-mix(in srgb, var(--ink) 7%, transparent)
+  );
 }

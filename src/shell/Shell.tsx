@@ -5,6 +5,7 @@ import { Protractor } from './Protractor';
 import { Reglette } from './Reglette';
 import { SoleSurfaceProvider } from './sole-surface';
 import { SurfaceColumn } from './SurfaceColumn';
+import { useMapMotion } from '@/data/mapMotion';
 import { BoardInsetsContext, useNarrowScreen, type BoardInsets } from './viewport';
 
 export function Shell({
@@ -37,6 +38,15 @@ export function Shell({
     document.documentElement.classList.add('on-board');
     return () => document.documentElement.classList.remove('on-board');
   }, []);
+
+  /** Le réglage d'animations sur la racine, pour le CSS des portails comme des étiquettes. */
+  const motion = useMapMotion();
+  useEffect(() => {
+    document.documentElement.dataset.motion = motion;
+    return () => {
+      delete document.documentElement.dataset.motion;
+    };
+  }, [motion]);
 
   if (narrow) {
     return (

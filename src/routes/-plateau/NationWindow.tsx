@@ -14,7 +14,7 @@ import { stationNames } from '@/domain/station-name';
 import { Flag } from '@/emblems/Flag';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 import { HelpMark } from './HelpMark';
 
 /**
@@ -58,13 +58,7 @@ export function NationWindow({
           <span className="flex-1" />
           <span className="eyebrow">{fr.nationSheet.kicker}</span>
           <HelpMark>{fr.nationSheet.readOnly}</HelpMark>
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
+          <CloseButton onClick={onClose} />
         </DragHandle>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">

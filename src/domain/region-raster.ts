@@ -103,7 +103,7 @@ function fill(runs: ReadonlyArray<number>, cells: number): Uint16Array {
 
 /* ------------------------------ lectures ------------------------------ */
 
-export function cellAtPlanePoint(raster: RegionRaster, point: PlanePoint): number {
+function cellAtPlanePoint(raster: RegionRaster, point: PlanePoint): number {
   const span = raster.sphere.maxX - raster.sphere.minX;
   const x = raster.sphere.minX + ((((point[0] - raster.sphere.minX) % span) + span) % span);
   const column = Math.min(
@@ -120,7 +120,7 @@ export function cellAtPlanePoint(raster: RegionRaster, point: PlanePoint): numbe
 export const cellAt = (raster: RegionRaster, lonLat: LonLat): number =>
   cellAtPlanePoint(raster, projectLonLat(raster.outline, raster.sphere, lonLat));
 
-export const regionAtCell = (raster: RegionRaster, cell: number): string | null =>
+const regionAtCell = (raster: RegionRaster, cell: number): string | null =>
   raster.ids[raster.regions[cell]! - 1] ?? null;
 
 export const regionAt = (raster: RegionRaster, lonLat: LonLat): string | null =>

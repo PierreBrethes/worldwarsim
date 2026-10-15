@@ -18,7 +18,7 @@ import { ARC_COLORS, PALETTE } from './palette';
 import { Ribbon, RibbonMaterial } from './route-ribbon';
 import { threadWidth, type ThreadLeg } from './thread';
 
-export const TRACE_MS = 800;
+const TRACE_MS = 800;
 const TRACE_RANK = 12.4;
 const TRACE_PX = 2.5;
 

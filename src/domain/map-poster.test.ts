@@ -339,7 +339,6 @@ describe('posterOf', () => {
       from: [0, 0],
       to: [1, 1],
       route,
-      suspectedNation: null,
       detector: 'troop',
       detectorRegion: null,
       headingDegrees: 90,

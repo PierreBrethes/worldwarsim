@@ -3,8 +3,8 @@
  * down, carried back, and how it hangs from the hand while carried. Heights are in whatever unit
  * the caller lifts in; the bounce is a tenth of the drop, as there.
  */
-export const FALL = 0.14;
-export const BOUNCE = 0.12;
+const FALL = 0.14;
+const BOUNCE = 0.12;
 /** The way back to where the piece was taken, before it is set down there (`returning`). */
 export const GLIDE = 0.4;
 

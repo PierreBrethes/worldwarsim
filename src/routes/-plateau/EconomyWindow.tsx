@@ -35,7 +35,7 @@ import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl, type Queued } from './RaiseControl';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 
@@ -119,13 +119,7 @@ export function EconomyWindow({
           {/* L'arbitrage le plus structurant de la saison (ADR 0020 §10) monte au bandeau-titre :
               plus bas, il se lisait après la décision qu'il gouverne. */}
           <SiteBudget view={view} site={HOME_SITE} label={fr.economy.budgetHome} relief={true} />
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
+          <CloseButton onClick={onClose} />
         </DragHandle>
 
         <RunningWork view={view} seat={seat} now={now} />
@@ -1519,7 +1513,7 @@ function LotControl({
               type="button"
               disabled={wanted <= 0}
               onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
-              className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-35"
+              className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
             >
               {fr.economy.lot.launch}
             </button>

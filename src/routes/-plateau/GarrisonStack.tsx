@@ -292,7 +292,7 @@ export function GarrisonStack({
               type="button"
               disabled={picked.size === 0}
               onClick={() => onPrepare(station, [...picked])}
-              className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
+              className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
             >
               {fr.garrison.prepare}
             </button>
@@ -310,7 +310,7 @@ export function GarrisonStack({
               type="button"
               disabled={picked.size === 0}
               onClick={() => onPrepare(station, [...picked])}
-              className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+              className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {fr.garrison.prepare}
             </button>

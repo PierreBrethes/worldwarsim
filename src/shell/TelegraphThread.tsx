@@ -134,7 +134,7 @@ export function TelegraphThread({
             className={`telegraph-field min-w-0 flex-1 border text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] ${
               narrow
                 ? 'min-h-[46px] border-[var(--ink)] bg-(--paper)/50 px-3 focus:outline-2 focus:outline-[var(--interaction)]'
-                : 'border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] focus:border-[var(--ink)]'
+                : 'border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] focus:border-[var(--ink)] focus:outline-2 focus:outline-[var(--interaction)]'
             }`}
           />
           <button

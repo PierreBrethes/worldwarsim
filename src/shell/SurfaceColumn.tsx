@@ -126,4 +126,4 @@ export function SurfaceColumn({
 export const SQUARE_FRAME =
   'float relative flex h-[46px] w-[46px] cursor-pointer flex-col items-center justify-center gap-[4px] border border-[var(--ink)]';
 
-export const SQUARE = `paper-grain ${SQUARE_FRAME} text-[var(--ink)]`;
+export const SQUARE = `paper-grain paper-hover ${SQUARE_FRAME} text-[var(--ink)]`;

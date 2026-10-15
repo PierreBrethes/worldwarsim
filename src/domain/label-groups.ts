@@ -9,7 +9,7 @@ import { fr } from '@/i18n/fr';
  * Tout se mesure en pixels d'écran : c'est le chevauchement à l'écran qui rend illisible, pas la
  * distance au sol, et la même paire se sépare d'elle-même quand la caméra s'approche.
  */
-export type GroupKind = 'stack' | 'building';
+type GroupKind = 'stack' | 'building';
 
 export type ScreenBox = {
   readonly left: number;

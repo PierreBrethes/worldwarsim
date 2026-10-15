@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
+import { mulberry } from '@/domain/mulberry';
 import {
   DRAW_S,
   drawVariation,
-  mulberry,
   penShare,
   PICTOGRAMS,
   SKETCH_S,

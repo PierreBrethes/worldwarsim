@@ -103,6 +103,9 @@ type Props = {
   indicators: IndicatorToggles;
   /** The id of the movement the timeline designates — the matching arc rises in intensity. */
   accentedMovement: string | null;
+  /** **Ce qui se range sous l'échelle du trajet**, au coin droit : un refus d'ordre s'empile sous
+   *  elle au lieu de la recouvrir. */
+  underRouteScale?: ReactNode;
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
@@ -291,6 +294,7 @@ export function WorldMap({
   playerNation,
   indicators,
   accentedMovement,
+  underRouteScale,
   onSelect,
   onOpenBuilding,
   onOpenStack,
@@ -984,9 +988,15 @@ export function WorldMap({
         toggles={indicators}
         destinations={edgeNames}
       />
-      {designatedArc && (
-        <div className="absolute z-10" style={{ top: insets.top + 16, left: insets.left + 16 }}>
-          <RouteScale arc={designatedArc} />
+      {/* Au coin droit, sous la réglette : au gauche, la fiche de la pièce en main la recouvrait.
+          Ce qu'on y range d'autre s'empile dessous, jamais par-dessus. */}
+      {(designatedArc !== null || underRouteScale) && (
+        <div
+          className="pointer-events-none absolute z-[var(--z-band)] flex flex-col items-end gap-2"
+          style={{ top: insets.top + 16, left: insets.left + 16, right: insets.right + 16 }}
+        >
+          {designatedArc && <RouteScale arc={designatedArc} />}
+          {underRouteScale}
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}

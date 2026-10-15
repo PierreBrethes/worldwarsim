@@ -198,7 +198,7 @@ describe('the operation order', () => {
       const { founder } = await blitz(t, { remind });
       await t.mutation(api.notifications.subscribe, {
         token: founder.token,
-        endpoint: 'https://push.example/koval',
+        endpoint: 'https://fcm.googleapis.com/koval',
         p256dh: 'p256dh',
         auth: 'auth',
         userAgent: 'Mozilla/5.0 Chrome/126.0',
@@ -215,7 +215,7 @@ describe('the operation order', () => {
     const { founder } = await blitz(t);
     await t.mutation(api.notifications.subscribe, {
       token: founder.token,
-      endpoint: 'https://push.example/koval',
+      endpoint: 'https://fcm.googleapis.com/koval',
       p256dh: 'p256dh',
       auth: 'auth',
       userAgent: 'Mozilla/5.0 Chrome/126.0',

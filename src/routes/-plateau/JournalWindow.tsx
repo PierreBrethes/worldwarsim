@@ -19,7 +19,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { CombatLines } from './DispatchSheet';
 import { ReplayButton } from './ReplayDeck';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 import type { Seat } from '@/data/session';
 
 const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
@@ -104,6 +104,7 @@ export function JournalWindow({
   const stalled = dispatches.filter((dispatch) => dispatch.resolutionAt !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const { day, totalDays } = seasonDayOf(view.season);
+  const blitz = view.mode === 'blitz';
   const seasonDay =
     totalDays === null
       ? fr.journal.seasonDayNoClock(view.season.number, day)
@@ -121,7 +122,9 @@ export function JournalWindow({
       <FloatingWindow name="journal" onClose={close} {...windowProps} width={1040}>
         <NarrowJournal
           view={view}
-          edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+          edition={
+            blitz ? fr.journal.editionOf(time) : `${fr.journal.editionOf(time)} · ${seasonDay}`
+          }
           lead={lead}
           stalled={stalled}
           garrisonAt={garrisonAt}
@@ -131,7 +134,7 @@ export function JournalWindow({
         >
           <div className="px-4 pb-6">
             <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-            <ReductionLine board={view.season.reduction} />
+            {!blitz && <ReductionLine board={view.season.reduction} />}
           </div>
         </NarrowJournal>
       </FloatingWindow>
@@ -150,7 +153,9 @@ export function JournalWindow({
     >
       <DeskJournal
         view={view}
-        edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+        edition={
+          blitz ? fr.journal.editionOf(time) : `${fr.journal.editionOf(time)} · ${seasonDay}`
+        }
         selected={leadReport === null ? null : lead}
         stalled={stalled}
         onLocate={onLocate}
@@ -158,7 +163,7 @@ export function JournalWindow({
       >
         <div className="px-5 pb-5">
           <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-          <ReductionLine board={view.season.reduction} />
+          {!blitz && <ReductionLine board={view.season.reduction} />}
         </div>
       </DeskJournal>
     </FloatingWindow>
@@ -226,13 +231,7 @@ function DeskJournal({
         {view.season.reduction.concludedAt !== null && (
           <Stamp label={fr.stamps.seasonClosed} size="small" />
         )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
+        <CloseButton onClick={onClose} />
       </DragHandle>
 
       {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. Une Blitz
