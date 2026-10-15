@@ -19,6 +19,7 @@ import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
 import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
+import { useLayerSize } from './layer-size';
 import {
   URGENCY_MS,
   cartoucheShown,
@@ -184,6 +185,8 @@ export function MapLabels({
   const pointed = useRef<string | null>(null);
   const showPoster = useRef<(id: string | null) => void>(() => {});
   const posterAnchor = useRef<HTMLDivElement | null>(null);
+  const layer = useRef<HTMLDivElement>(null);
+  const layerSize = useLayerSize(layer);
   const posterPlace = useRef<PosterPlace | null>(null);
   const posterSide = useRef<{ id: string; side: PosterSpot['side'] } | null>(null);
   const point = useCallback(
@@ -520,7 +523,7 @@ export function MapLabels({
           const spot = posterPlacement(
             rect,
             { width: place.width, height: place.height },
-            { width: layerWidth(poster), height: poster.parentElement?.clientHeight ?? Infinity },
+            layerSize.current,
             {
               top: place.insetTop,
               bottom: place.insetBottom,
@@ -535,7 +538,7 @@ export function MapLabels({
           const top = under.y - place.lift;
           side = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX ? 'below' : 'above';
           const half = place.width / 2 + POSTER_MARGIN_PX;
-          x = Math.min(Math.max(under.x + place.shift, half), layerWidth(poster) - half);
+          x = Math.min(Math.max(under.x + place.shift, half), layerSize.current.width - half);
           y = side === 'below' ? under.y : top;
         }
         for (const each of POSTER_SIDES)
@@ -571,7 +574,7 @@ export function MapLabels({
       if (pendingDegrade.current !== 0) cancelAnimationFrame(pendingDegrade.current);
       pendingDegrade.current = 0;
     };
-  }, [engine, apply, degrade, scheduleDegrade]);
+  }, [engine, apply, degrade, scheduleDegrade, layerSize]);
 
   // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
   // rend plus sans raison (`engine/frame-demand.ts`) : chaque rendu de ce composant en demande
@@ -670,7 +673,7 @@ export function MapLabels({
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
-    <div className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
+    <div ref={layer} className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
       {labels.map((label) => (
         <div
           key={label.id}
@@ -956,8 +959,6 @@ type PosterPlace = {
 };
 
 const POSTER_SIDES = ['above', 'below', 'left', 'right'] as const;
-
-const layerWidth = (poster: HTMLElement): number => poster.parentElement?.clientWidth ?? Infinity;
 
 /** The 15 px stem of `poster.css`, under the HUD zoom. */
 const POSTER_STEM_PX = 18;

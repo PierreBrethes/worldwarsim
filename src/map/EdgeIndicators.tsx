@@ -21,6 +21,7 @@ import {
 import { IndicatorGlyph } from '@/shell/IndicatorGlyph';
 import type { LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
+import { useLayerSize } from './layer-size';
 
 /**
  * The screen edge. An entity out of frame is not lost: its label folds onto the rim,
@@ -70,10 +71,10 @@ export function EdgeIndicators({
   const latest = useRef<ReadonlyArray<LabelProjection>>([]);
   const named = useRef(new Map<string, HTMLElement>());
   const layer = useRef<HTMLDivElement>(null);
+  const size = useLayerSize(layer);
 
   const compose = useCallback(() => {
-    const width = layer.current?.clientWidth ?? 0;
-    const height = layer.current?.clientHeight ?? 0;
+    const { width, height } = size.current;
     const raw = latest.current.flatMap<RawIndicator>((projection) => {
       const label = kept.get(projection.id);
       if (!projection.atEdge || label === undefined) return [];
@@ -92,7 +93,7 @@ export function EdgeIndicators({
     });
     const composed = cluster(raw, width, height);
     setGroups((previous) => (sameGroups(previous, composed) ? previous : composed));
-  }, [kept]);
+  }, [kept, size]);
 
   // A category just turned on cannot wait for the next camera rest: the toggle is a
   // gesture, and a gesture without an immediate effect reads as a failed gesture.
@@ -117,10 +118,7 @@ export function EdgeIndicators({
     if (!engine) return;
     engine.onEdges = (projections) => {
       latest.current = projections;
-      /** Le cadre se mesure **une fois par passe**, avant toute écriture : relu pour chaque
-       *  cartouche, il forçait une mise en page après chaque écriture de style. */
-      const width = layer.current?.clientWidth ?? 0;
-      const height = layer.current?.clientHeight ?? 0;
+      const { width, height } = size.current;
       for (const projection of projections) {
         const tag = named.current.get(projection.id);
         if (tag === undefined) continue;
@@ -176,7 +174,7 @@ export function EdgeIndicators({
     return () => {
       engine.onEdges = () => {};
     };
-  }, [engine, groups, sums, membership]);
+  }, [engine, groups, sums, membership, size]);
 
   // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
   // rend plus sans raison (`engine/frame-demand.ts`) : chaque rendu de ce composant en demande
