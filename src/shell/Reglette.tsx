@@ -328,7 +328,7 @@ export function BlitzClock({
 }) {
   const { season } = view;
   const ended = season.reduction.concludedAt !== null;
-  const out = !ended && view.me.defeated;
+  const out = !ended && view.me.eliminatedAt !== null;
   const minutesLeft = Math.max(
     0,
     ((season.durationHours ?? 0) - season.elapsedHours) * 60 - (now - view.loadedAt) / 60_000,

@@ -366,6 +366,7 @@ export const fr = {
       home: 'retour à l’accueil',
       watch: 'regarder la carte',
       observe: 'observer',
+      outcome: { winner: 'vainqueur', loser: 'vaincu', out: 'éliminé', draw: 'égalité' },
     },
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,

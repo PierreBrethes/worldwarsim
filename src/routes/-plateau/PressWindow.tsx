@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
+import { outcomeOf, type EndingFacts } from '@/domain/ending';
 import type { PressEdition, PressLine, PressOwnLine, SeasonVerdict } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
@@ -30,15 +31,30 @@ export function PressWindow({
   press,
   verdict,
   ending,
+  blitz,
   onClose,
   ...windowProps
 }: WindowProps & {
   press: PressEdition | null;
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
+  blitz: boolean;
 }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
+
+  if (blitz)
+    return (
+      <FloatingWindow
+        name="press"
+        onClose={onClose}
+        {...windowProps}
+        {...(narrow ? {} : { alignment: 'top' as const })}
+        width={1040}
+      >
+        <BlitzEnding press={press} verdict={verdict} ending={ending} onClose={onClose} />
+      </FloatingWindow>
+    );
 
   if (narrow)
     return (
@@ -107,11 +123,59 @@ export function PressWindow({
   );
 }
 
-/** Ce que la fin d'une Blitz doit savoir de moi : qui je suis, si je suis tombé et à quelle heure. */
-export type EndingFacts = {
-  readonly nation: string;
-  readonly eliminatedAt: string | null;
-};
+/**
+ * **La presse d'une Blitz n'a pas de classement** : territoire, industrie et puissance militaire
+ * n'y veulent rien dire, et un rang contredirait l'égalité. La manchette dit le verdict, la liste
+ * dit l'issue de chacun — et rien d'autre. Éliminé en cours de partie, aucune édition n'existe :
+ * la page ne dit que l'heure de la chute.
+ */
+function BlitzEnding({
+  press,
+  verdict,
+  ending,
+  onClose,
+}: {
+  press: PressEdition | null;
+  verdict: SeasonVerdict | null;
+  ending: EndingFacts;
+  onClose: () => void;
+}) {
+  const final = press?.final === true ? press : null;
+  return (
+    <div className="paper-grain flex min-h-0 w-full flex-1 flex-col overflow-y-auto border border-[var(--ink)] text-[var(--ink)]">
+      <WindowHead
+        eyebrow={final === null ? fr.press.kicker : fr.press.capturedAt(asLocalTime(final.at))}
+        onClose={onClose}
+      />
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-4 border-b border-[var(--ink)] px-4 py-[14px]">
+        {final !== null && <Stamp label={fr.press.final} />}
+        <h1 className="font-(family-name:--font-display) text-[34px] leading-none font-extrabold tracking-[.12em] uppercase">
+          {fr.press.title}
+        </h1>
+      </div>
+      <Ending verdict={final === null ? null : verdict} ending={ending} onClose={onClose} />
+      {final !== null && verdict !== null && (
+        <ul className="px-4 py-2">
+          {rowsOf(final).map((line) => (
+            <li
+              key={line.playerId}
+              className="flex items-center gap-3 border-b border-[var(--ink-faint)] py-[10px] last:border-b-0"
+            >
+              <Flag nation={line.nation} width={28} onPaper />
+              <span className="font-(family-name:--font-display) text-[20px] font-extrabold">
+                {nationLabel(line.nation)}
+              </span>
+              <span className="flex-1 truncate text-[12.5px] text-[var(--ink-soft)]">
+                {line.nickname}
+              </span>
+              <Stamp label={fr.blitz.ending.outcome[outcomeOf(line, verdict)]} size="small" />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /**
  * **L'édition finale d'une Blitz dit le vainqueur et pourquoi** (B10, B11) : c'est l'écran de

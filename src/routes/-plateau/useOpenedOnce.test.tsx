@@ -2,14 +2,14 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerView } from '@/domain/player-view';
-import { endingOf, useOpenedOnce } from './ending';
+import { endingOf } from '@/domain/ending';
+import { useOpenedOnce } from './useOpenedOnce';
 
 const view = (patch: Record<string, unknown>) =>
   ({
     mode: 'blitz',
     press: { final: false },
-    me: { nation: 'france', defeated: false },
-    journal: [],
+    me: { nation: 'france', defeated: false, eliminatedAt: null },
     ...patch,
   }) as unknown as PlayerView;
 
@@ -44,20 +44,25 @@ describe('endingOf', () => {
     expect(endingOf(view({ press: { final: true } })).key).toBe('final');
   });
 
-  it('says when a defeated player fell', () => {
+  it('says when the headquarters fell', () => {
     const ending = endingOf(
-      view({
-        me: { nation: 'france', defeated: true },
-        journal: [{ kind: 'elimination', text: 'FRANCE HORS DE COMBAT', at: 1_000 }],
-      }),
+      view({ me: { nation: 'france', defeated: true, eliminatedAt: 1_000 } }),
     );
     expect(ending.key).toBe('out');
     expect(ending.facts.eliminatedAt).not.toBeNull();
   });
 
+  it('takes a surrender for no elimination', () => {
+    expect(
+      endingOf(view({ me: { nation: 'france', defeated: true, eliminatedAt: null } })).key,
+    ).toBeNull();
+  });
+
   it('leaves a Mondiale alone', () => {
     expect(
-      endingOf(view({ mode: 'mondiale', me: { nation: 'france', defeated: true } })).key,
+      endingOf(
+        view({ mode: 'mondiale', me: { nation: 'france', defeated: true, eliminatedAt: 1 } }),
+      ).key,
     ).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import { BlitzClock } from './Reglette';
 const view = (elapsedHours: number, concludedAt: number | null) =>
   ({
     loadedAt: 0,
-    me: { defeated: false },
+    me: { eliminatedAt: null },
     season: { durationHours: 2, elapsedHours, reduction: { concludedAt } },
   }) as unknown as PlayerView;
 

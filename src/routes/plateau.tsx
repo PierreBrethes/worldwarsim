@@ -41,7 +41,8 @@ import {
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
-import { endingOf, useOpenedOnce } from './-plateau/ending';
+import { endingOf } from '@/domain/ending';
+import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { useClock } from '@/shell/clock';
@@ -2543,6 +2544,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       press={view.press}
                       verdict={view.season.verdict}
                       ending={ending.facts}
+                      blitz={blitz}
                       {...windowProps}
                     />
                   );

@@ -66,6 +66,7 @@ export function adaptServerView(
       /** Un déploiement d'une version en retard ne connaît pas la capitulation : personne
        *  n'a déposé les armes, et le plateau garde tous ses boutons. */
       defeated: server.me.defeated ?? false,
+      eliminatedAt: server.me.eliminatedAt ?? null,
       homePosition,
       /** Un déploiement d'une version en retard n'en sert aucune : le plateau s'ouvre alors
        *  comme il l'a toujours fait, sur le monde. */
