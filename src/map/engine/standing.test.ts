@@ -6,6 +6,7 @@ import {
   drawnKey,
   dressedGroups,
   type Faces,
+  formationOf,
   pileLayout,
   pileObject,
   pickedIn,
@@ -26,6 +27,41 @@ describe('pileLayout', () => {
     expect(pileLayout(1, false)).toEqual({ groups: [0], more: null });
     expect(pileLayout(2, false)).toEqual({ groups: [-0.25, 0.25], more: null });
     expect(pileLayout(3, true)).toEqual({ groups: [-0.75, -0.25, 0.25], more: 0.75 });
+  });
+});
+
+describe('formationOf', () => {
+  const gap = (a: { x: number; z: number }, b: { x: number; z: number }) =>
+    Math.hypot(a.x - b.x, a.z - b.z);
+
+  it('stands a pile of up to four slots in its row, inland', () => {
+    const { groups, more } = formationOf(['land', 'land', 'land'], true, null);
+    expect(groups.map(({ x, z }) => [x, z])).toEqual(pileLayout(3, true).groups.map((x) => [x, 0]));
+    expect(more).toEqual({ x: pileLayout(3, true).more, z: 0 });
+  });
+
+  it('ranks many units in a tight formation around the point, none in another', () => {
+    const { groups } = formationOf(Array<'land'>(9).fill('land'), false, null);
+    for (let i = 0; i < groups.length; i++) {
+      expect(Math.hypot(groups[i]!.x, groups[i]!.z)).toBeLessThan(1);
+      for (let j = i + 1; j < groups.length; j++)
+        expect(gap(groups[i]!, groups[j]!)).toBeGreaterThanOrEqual(0.5 - 1e-9);
+    }
+  });
+
+  it('stands hulls on the sea side and land troops on the land side of a shore', () => {
+    const { groups } = formationOf(['land', 'sea', 'land', 'sea'], false, [1, 0]);
+    expect(groups[0]!.x).toBeLessThan(0);
+    expect(groups[2]!.x).toBeLessThan(0);
+    expect(groups[1]!.x).toBeGreaterThan(0);
+    expect(groups[3]!.x).toBeGreaterThan(0);
+    for (const land of [groups[0]!, groups[2]!])
+      for (const sea of [groups[1]!, groups[3]!]) expect(gap(land, sea)).toBeGreaterThan(0.5);
+  });
+
+  it('keeps land troops on a shore off the water', () => {
+    const { groups } = formationOf(['land', 'land'], false, [0, 1]);
+    for (const { z } of groups) expect(z).toBeLessThan(0);
   });
 });
 

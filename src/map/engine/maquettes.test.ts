@@ -57,8 +57,8 @@ describe('clusterFootprints', () => {
         S,
       ),
     ).toEqual([
-      { at: [0, 0], ring: [0, 0] },
-      { at: [3 * S, 0], ring: [0, 0] },
+      { at: [0, 0], ring: [0, 0], facing: 0, scale: 1 },
+      { at: [3 * S, 0], ring: [0, 0], facing: 0, scale: 1 },
     ]);
   });
 
@@ -115,6 +115,74 @@ describe('clusterFootprints', () => {
       for (const other of placed)
         if (other !== site) expect(gap(at, other.at)).toBeGreaterThan(S / 2);
     }
+  });
+
+  describe('within bounds', () => {
+    const everywhere = { maxShift: S / 2, onLand: () => true };
+
+    it('never stands a maquette further from its point than the bound, and shrinks the group instead', () => {
+      const points = Array.from({ length: 6 }, (_, k) => [k * 0.1, 0] as const);
+      const free = clusterFootprints(points, S);
+      expect(Math.max(...free.map(({ at }, k) => gap(at, points[k]!)))).toBeGreaterThan(S / 2);
+      const bounded = clusterFootprints(points, S, S / 2, everywhere);
+      bounded.forEach(({ at, scale }, k) => {
+        expect(gap(at, points[k]!)).toBeLessThanOrEqual(S / 2 + 1e-9);
+        expect(scale).toBeLessThan(1);
+      });
+    });
+
+    it('leaves a pair that fits the bound at full size', () => {
+      const bounded = clusterFootprints(
+        [
+          [0, 0],
+          [0, 0],
+        ],
+        S,
+        S / 2,
+        everywhere,
+      );
+      for (const { scale } of bounded) expect(scale).toBe(1);
+    });
+
+    it('never stands a site on land, nor its garrison, off the land', () => {
+      // Land is x <= 0: two sites on the shore would ring out over the sea.
+      const onLand = (x: number) => x <= 1e-9;
+      const bounded = clusterFootprints(
+        [
+          [0, 0],
+          [0, 0.1],
+        ],
+        S,
+        GARRISON_FOOT,
+        { maxShift: S, onLand },
+      );
+      for (const { at, facing, scale } of bounded) {
+        expect(onLand(at[0])).toBe(true);
+        expect(onLand(at[0] + GARRISON_FOOT * scale * Math.sin(facing))).toBe(true);
+      }
+    });
+
+    it('turns a lone garrison inland when its front is the sea', () => {
+      const [lone] = clusterFootprints([[0, 0]], S, GARRISON_FOOT, {
+        maxShift: S,
+        onLand: (_x, z) => z <= 1e-9,
+      });
+      expect(lone!.at).toEqual([0, 0]);
+      expect(Math.cos(lone!.facing)).toBeLessThanOrEqual(1e-9);
+    });
+
+    it('turns it away from the next site too', () => {
+      const [lone] = clusterFootprints(
+        [
+          [0, 0],
+          [3 * S, -1],
+        ],
+        S,
+        GARRISON_FOOT,
+        { maxShift: S, onLand: (_x, z) => z <= 1e-9 },
+      );
+      expect(Math.sin(lone!.facing)).toBeLessThan(0);
+    });
   });
 });
 
