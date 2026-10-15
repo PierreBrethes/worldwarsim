@@ -44,5 +44,9 @@ describe('PileSheet', () => {
     expect(
       renderToStaticMarkup(<PileSheet cargo={[]} capacity={null} lines={[line]} />),
     ).not.toContain('à vide');
+    // fighters, armour: a pile that can never load has no load to show
+    expect(
+      renderToStaticMarkup(<PileSheet cargo={[]} capacity={0} lines={[line]} />),
+    ).not.toContain('à vide');
   });
 });

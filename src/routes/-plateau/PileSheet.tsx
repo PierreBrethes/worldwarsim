@@ -8,7 +8,7 @@ import { ResourceAmounts } from './CargoReadout';
 const INK = { ink: 'var(--ink)', ochre: 'var(--notable)', red: 'var(--critical)' } as const;
 
 /** The body of a posted pile's poster (`MapPoster`): health in ten notches, then its load —
- *  always, « à vide » included, as the table prototype reads it. */
+ *  « à vide » included, as the table prototype reads it — unless the pile could never load. */
 export function PileSheet({
   lines,
   cargo,
@@ -44,7 +44,7 @@ export function PileSheet({
           </div>
         </div>
       ))}
-      {capacity !== null && (
+      {capacity !== null && (capacity > 0 || carried > 0) && (
         <div className="map-poster-load">
           <div className="map-poster-row">
             <span className="map-poster-eyebrow">{fr.troops.sheetLoad(carried)}</span>
