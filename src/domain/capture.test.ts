@@ -87,4 +87,11 @@ describe('captureRefusalOf', () => {
     expect(captureRefusalOf(hq, ['infantry'], false, 'blitz')).toBeNull();
     expect(captureRefusalOf(hq, ['armor'], false, 'blitz')).toBe('CAPTURE_NEEDS_INFANTRY');
   });
+
+  it('wants the infantry off its transport in a Blitz, and only there', () => {
+    expect(captureRefusalOf(site, ['landTransport', 'infantry'], false, 'blitz')).toBe(
+      'CAPTURE_ON_FOOT',
+    );
+    expect(captureRefusalOf(site, ['landTransport', 'infantry'], false, 'mondiale')).toBeNull();
+  });
 });

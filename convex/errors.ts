@@ -100,6 +100,7 @@ export type ErrorCode =
   | 'WAREHOUSE_TARGET_ONLY'
   /** La capture (14/10) : seule l'infanterie capture, et le QG attend son lot. */
   | 'CAPTURE_NEEDS_INFANTRY'
+  | 'CAPTURE_ON_FOOT'
   | 'HQ_NOT_CAPTURABLE'
   /** L'économie de la Blitz (14/10) : on y paie en fonds, et on n'y bâtit rien. */
   | 'INSUFFICIENT_FUNDS'
