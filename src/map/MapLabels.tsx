@@ -290,7 +290,10 @@ export function MapLabels({
     // rendrait en la quittant : on mesure la carte au repos, et on la renomme après.
     const held = pointed.current;
     point(null);
-    const site = (label: MapLabel) => label.type === 'building' || label.type === 'installation';
+    // Une installation relevée n'entre dans « N sites » qu'en Blitz : en Mondiale elle garde sa
+    // planche et sa rose, que le cartouche réuni ne sait pas ouvrir.
+    const site = (label: MapLabel) =>
+      label.type === 'building' || (groupFar && label.type === 'installation');
     const candidates = labels
       .filter((label) => {
         const state = states.current.get(label.id);
@@ -338,6 +341,9 @@ export function MapLabels({
       return [{ label, state, rect }];
     });
 
+    const installations = new Set(
+      labels.flatMap((label) => (label.type === 'installation' ? [label.id] : [])),
+    );
     const formed = groupOverlapping(
       measured.flatMap<GroupCandidate>(({ label, state, rect }) =>
         label.type === 'stack' || site(label)
@@ -353,6 +359,12 @@ export function MapLabels({
             ]
           : [],
       ),
+    ).map((group) =>
+      // La liste d'une pile de mâts n'ouvre qu'un bâtiment à moi : une installation y serait
+      // comptée sans être joignable. Un tel groupe rapproche la caméra.
+      group.coincident && group.members.some((member) => installations.has(member))
+        ? { ...group, coincident: false }
+        : group,
     );
     const groupOf = new Map(
       formed.flatMap((group) => group.members.map((member) => [member, group] as const)),
