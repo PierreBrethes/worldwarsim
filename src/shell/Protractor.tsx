@@ -46,6 +46,7 @@ export function Protractor({
   const frame = useRef<HTMLElement>(null);
   const hub = useRef<HTMLButtonElement>(null);
   const blitz = view.mode === 'blitz';
+  const playing = view.season.reduction.concludedAt === null;
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = view.press?.mine?.rank ?? null;
@@ -133,7 +134,8 @@ export function Protractor({
   ];
   /** La Blitz n'a ni réserve ni chantier ni presse : son économie se lit sur la réglette, en fonds. */
   const rounds = all.filter(
-    (round) => view.mode !== 'blitz' || (round.key !== 'economy' && round.key !== 'press'),
+    (round) =>
+      view.mode !== 'blitz' || (round.key !== 'economy' && (round.key !== 'press' || !playing)),
   );
 
   function windowRound(

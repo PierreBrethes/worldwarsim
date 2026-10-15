@@ -34,6 +34,7 @@ export function SurfaceColumn({
   const search = useSearch({ strict: false }) as BoardSearch;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const blitz = view.mode === 'blitz';
+  const playing = view.season.reduction.concludedAt === null;
   const rank = view.press?.mine?.rank ?? null;
 
   const square = (
@@ -98,7 +99,7 @@ export function SurfaceColumn({
         undefined,
         unread,
       )}
-      {!blitz &&
+      {!(blitz && playing) &&
         square(
           'press',
           fr.rail.press,
