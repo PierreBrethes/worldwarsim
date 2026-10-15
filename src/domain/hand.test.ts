@@ -83,35 +83,6 @@ describe('composeHand', () => {
   });
 });
 
-describe('clickPile in a Blitz (one unit at a time)', () => {
-  const single = { single: true };
-
-  it('lifts the troop clicked, never the whole pile', () => {
-    expect(clickPile(empty, pile(['t1', 't2']), single)).toEqual({
-      kind: 'lift',
-      hand: held(['t1']),
-    });
-  });
-
-  it('puts it back on a second click', () => {
-    expect(clickPile(held(['t1']), pile(['t1', 't2']), single)).toEqual({ kind: 'drop' });
-  });
-
-  it('swaps for another troop standing at the same address', () => {
-    expect(clickPile(held(['t1']), pile(['t2']), single)).toEqual({
-      kind: 'lift',
-      hand: held(['t2']),
-    });
-  });
-
-  it('composes nothing', () => {
-    expect(composeHand(held(['t1']), ['t1', 't2'], single)).toEqual({
-      kind: 'lift',
-      hand: held(['t2']),
-    });
-  });
-});
-
 describe('clickPile in a Blitz: one piece per unit (15/10)', () => {
   /** Deux fantassins côte à côte, et un cargo avec son passager. */
   const units = { units: [['i1'], ['i2'], ['c1', 'p1']] };

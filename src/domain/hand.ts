@@ -31,26 +31,21 @@ const unchanged = (hand: Hand): HandMove =>
   hand.kind === 'held' ? { kind: 'lift', hand } : { kind: 'drop' };
 
 /** Lifting takes the whole pile; held, the pile deploys and each of its troops goes into the
- *  hand or out of it — the last one out puts the piece back. */
+ *  hand or out of it — the last one out puts the piece back. In a Blitz, `units` says what a
+ *  piece is (`clickUnit`). */
 export function clickPile(
   hand: Hand,
   click: PileClick,
-  { single = false, units }: { single?: boolean; units?: Units } = {},
+  { units }: { units?: Units } = {},
 ): HandMove {
   if (units !== undefined) return clickUnit(hand, click, units);
-  const all = click.kind === 'pile' ? click.troopIds : [click.troopId];
-  /** **En Blitz une troupe part seule** (B15) : le clic prend la figurine touchée, jamais la pile. */
-  const troopIds = single ? all.slice(0, 1) : all;
+  const troopIds = click.kind === 'pile' ? click.troopIds : [click.troopId];
   if (troopIds.length === 0) return unchanged(hand);
   if (hand.kind === 'empty')
     return click.kind === 'pile'
       ? { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds } }
       : unchanged(hand);
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
-  if (single)
-    return hand.troopIds.includes(troopIds[0]!)
-      ? { kind: 'drop' }
-      : { kind: 'lift', hand: { ...hand, troopIds } };
   if (click.kind === 'pile') return { kind: 'drop' };
   const rest = hand.troopIds.filter((id) => id !== click.troopId);
   return composeHand(
@@ -59,22 +54,16 @@ export function clickPile(
   );
 }
 
-/** En Blitz, cocher une autre case change de troupe au lieu d'en ajouter une : la dernière
- *  cochée est celle qu'on tient. */
+/** The ticked troops are the hand; in a Blitz, the last one ticked says the unit (`tickedUnit`). */
 export function composeHand(
   hand: Hand,
   troopIds: ReadonlyArray<string>,
-  { single = false, units }: { single?: boolean; units?: Units } = {},
+  { units }: { units?: Units } = {},
 ): HandMove {
-  if (units !== undefined && hand.kind === 'held' && troopIds.length > 0)
-    return { kind: 'lift', hand: { ...hand, troopIds: tickedUnit(hand, troopIds, units) } };
-  const kept = single
-    ? troopIds.filter((id) => hand.kind === 'empty' || !hand.troopIds.includes(id)).slice(-1)
-    : troopIds;
   if (hand.kind === 'empty' || troopIds.length === 0) return { kind: 'drop' };
   return {
     kind: 'lift',
-    hand: { ...hand, troopIds: kept.length === 0 ? troopIds.slice(0, 1) : kept },
+    hand: { ...hand, troopIds: units === undefined ? troopIds : tickedUnit(hand, troopIds, units) },
   };
 }
 
