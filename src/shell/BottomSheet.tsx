@@ -146,7 +146,9 @@ export function BottomSheet({
         aria-label={title}
         data-height={height}
         data-hug={hug ? '' : undefined}
-        className="hud board-sheet paper-grain z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]"
+        className={`hud board-sheet paper-grain surface-in z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)] ${
+          pull > 0 ? '' : 'sheet-return'
+        }`}
         style={
           pull > 0 ? { transform: `translateY(${pull / scaleOf(sheet.current)}px)` } : undefined
         }

@@ -568,6 +568,44 @@ body {
   animation: none;
 }
 
+/* **Ce qui s'ouvre se pose** : fenêtre, feuille et panneau arrivent en fondu, de quelques pixels
+   plus bas, au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter.
+   Réduites, le fondu reste sur place ; coupées, rien ne bouge. Pas de sortie : elle obligerait
+   à retenir le démontage. `translate` et non `transform`, que la fenêtre poussée et la feuille
+   tirée écrivent déjà. */
+@keyframes surface-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes surface-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.surface-in {
+  animation: surface-in var(--dur-base) var(--ease-out) both;
+}
+
+.sheet-return {
+  transition: transform var(--dur-quick) var(--ease-out);
+}
+
+:root[data-motion='reduced'] .surface-in {
+  animation-name: surface-fade;
+}
+
+:root[data-motion='off'] .surface-in {
+  animation: none;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .sheet-return {
+  transition: none;
+}
+
 /* G2: one keyboard focus for every paper button of the board. In the base layer, so that a
    utility such as `outline-none` still wins where a surface wants none. */
 @layer base {
