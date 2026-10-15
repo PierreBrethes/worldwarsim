@@ -7,7 +7,7 @@ import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, type WindowProps, CloseButton } from './Window';
 
 /**
  * **La page de presse : où en est chacun *à l'heure du dernier relevé*** — jamais « où en est
@@ -57,13 +57,7 @@ export function PressWindow({
           </span>
           {press?.next != null && <span>{fr.press.next(asLocalTime(press.next))}</span>}
           <span className="flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
+          <CloseButton onClick={onClose} />
         </DragHandle>
 
         {/* La manchette : le titre au centre, le tampon d'édition finale à gauche, et LE chiffre

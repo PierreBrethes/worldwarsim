@@ -295,3 +295,16 @@ function useEscapeToClose(onClose: () => void, inFront: boolean): void {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, inFront]);
 }
+
+/** The desktop « fermer » of every window header, one size for all. */
+export function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+    >
+      {fr.common.close}
+    </button>
+  );
+}
