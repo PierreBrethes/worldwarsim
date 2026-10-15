@@ -346,7 +346,9 @@ export function MapLabels({
     );
     const formed = groupOverlapping(
       measured.flatMap<GroupCandidate>(({ label, state, rect }) =>
-        label.type === 'stack' || site(label)
+        // En Blitz, des piles en figurines se lisent pièce par pièce : un cartouche « 2 piles »
+        // posé dessus couvrait les pièces qu'il résumait. Au loin, leurs planches, si.
+        (label.type === 'stack' && !(groupFar && state.dressed >= 0.5)) || site(label)
           ? [
               {
                 id: label.id,
