@@ -150,6 +150,8 @@ describe('posterOf', () => {
     const poster = posterFor(view(), [pile], 'pile');
     expect(poster?.title).toBe('Marne · 1');
     expect(poster?.eyebrow).toBe('troupe seule · entamée');
+    expect(poster?.pile?.capacity).toBe(20);
+    expect(posterFor(view({ mode: 'blitz' }), [pile], 'pile')?.pile?.capacity).toBeNull();
     expect(poster?.pile?.lines).toEqual([
       expect.objectContaining({ role: 'infantry', troops: 1, health: 50, notches: 5 }),
     ]);

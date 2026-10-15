@@ -1,3 +1,4 @@
+import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { fr, stackLabel } from '@/i18n/fr';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
@@ -6,6 +7,7 @@ import { isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
+import { carryCapacityOf } from './loot';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import type { CargoView, PlayerView, TroopView } from './player-view';
@@ -39,6 +41,9 @@ export type Poster = {
   readonly pile: {
     readonly lines: ReadonlyArray<SheetLine>;
     readonly cargo: ReadonlyArray<CargoView>;
+    /** What the pile can carry, empty or not; `null` (or absent, on the landing's table) where
+     *  nothing is carried, as in Blitz. */
+    readonly capacity?: number | null;
   } | null;
 };
 
@@ -115,6 +120,8 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         cargo: view.me.stationedCargo
           .filter((group) => group.troopIds.some((id) => ids.has(id)))
           .map((group) => group.cargo),
+        capacity:
+          view.mode === 'blitz' ? null : Math.floor(carryCapacityOf(held, CARRY_CAPACITY_BY_ROLE)),
       },
     };
   }

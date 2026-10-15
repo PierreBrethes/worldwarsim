@@ -2502,6 +2502,9 @@ export const fr = {
     sheetKicker: (troops: number, worn: boolean) =>
       troops > 1 ? `pile · ${troops} troupes` : worn ? 'troupe seule · entamée' : 'troupe seule',
     sheetHealth: (health: number) => `${health} / 100`,
+    sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
+    sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
+    sheetNothingAboard: 'rien à bord',
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
   },
