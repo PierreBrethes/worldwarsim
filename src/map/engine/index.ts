@@ -1141,6 +1141,7 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
+    this.regions.resize(clientWidth, clientHeight);
     this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;

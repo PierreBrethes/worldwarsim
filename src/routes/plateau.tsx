@@ -1148,8 +1148,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   const inkByCountry = useMemo(
-    () => inkByClaimedCountry([view.me, ...view.opponents]),
-    [view.me, view.opponents],
+    () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
+    [blitz, view.me, view.opponents],
   );
 
   // Nothing filters here: `me.buildings` is the player's own list and there is no other, so
@@ -1172,6 +1172,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () =>
       (heldRaw ?? []).map(({ ink, regions }) => ({
         ink,
+        outlined: blitz,
         regions: regions.map((region) => ({
           id: region.id,
           /** **Une zone suspendue est au plancher, et elle y reste** (ADR 0020 §7) : elle ne
@@ -1186,7 +1187,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           state: region.state,
         })),
       })),
-    [heldRaw, surveyClock],
+    [blitz, heldRaw, surveyClock],
   );
 
   /**

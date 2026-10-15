@@ -109,7 +109,7 @@ export function contrastRatio(first: string, second: string): number {
 
 /** How far the pen's ink goes toward the black: dark enough to read on the nation's own wash,
  *  enough of the nation left that the drawing stays in its family. */
-const PEN_DEPTH = 0.75;
+export const PEN_DEPTH = 0.75;
 
 /** The hover's contour is laid at this, thin enough to read as a pen stroke and not as a second
  *  border; the pictograms land fuller. The pen is chosen for its contrast as it lands. */

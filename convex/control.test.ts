@@ -188,6 +188,16 @@ describe('the home ground is coloured from the launch', () => {
   });
 });
 
+describe('a Blitz has no home ground', () => {
+  it('colours nothing of the caller national ground', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+    expect(await t.query(api.control.held, seat)).toEqual([]);
+    expect(await knownOf(t, seat, PARIS)).toBeNull();
+  });
+});
+
 describe('an outpost colours what it reaches', () => {
   it('takes the neutral regions inside the reach and none beyond it', async () => {
     const t = boot();

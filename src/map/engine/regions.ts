@@ -9,12 +9,25 @@ import {
   MeshStandardMaterial,
   Shape,
   ShapeGeometry,
+  Vector2,
   Vector3,
 } from 'three';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { HELD_OPACITY, lavis, nationShades, PALETTE, PEN_OPACITY, penOn } from './palette';
+import {
+  HELD_OPACITY,
+  lavis,
+  nationShades,
+  PALETTE,
+  PEN_DEPTH,
+  PEN_OPACITY,
+  penOn,
+} from './palette';
+import { splitOutlines } from './countries';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
 
@@ -38,6 +51,8 @@ const STROKE_LIFT = 0.003;
 /** Under everything else the layer draws: possession is the ground the rest is laid on, and a
  *  region that carries a building must still show the denser built ink over its holder's. */
 const HELD_LIFT = 0.0005;
+const OUTLINE_LIFT = STROKE_LIFT;
+const OUTLINE_PX = 2;
 /** **La hachure passe sous la couleur pleine** (ADR 0020 §7) : une région disputée revenue au
  *  voisin pendant la désactivation est pleine chez lui et suspendue chez moi, les deux à la fois,
  *  et c'est la possession réelle qui doit se lire par-dessus le souvenir. */
@@ -63,6 +78,8 @@ const DESIGNATED_OPACITY = 0.62;
  */
 export type HeldClaim = {
   readonly ink: string;
+  /** The up-to-date holding is traced in a solid pen contour, so a lone territory never reads as a lake. */
+  readonly outlined?: boolean;
   readonly regions: ReadonlyArray<{
     readonly id: string;
     readonly wash: number;
@@ -410,6 +427,7 @@ export class RegionLayer {
       (mesh.material as MeshStandardMaterial).dispose();
     }
     this.held.clear();
+    this.outlineMaterials.clear();
     const sheets = wholeSheets(
       this.claims,
       this.prepared.map(({ region }) => region),
@@ -459,7 +477,44 @@ export class RegionLayer {
         fill.receiveShadow = true;
         this.held.add(fill);
       }
+      if (claim.outlined === true) {
+        const current = new Set(
+          claim.regions.filter(({ state }) => state === 'current').map(({ id }) => id),
+        );
+        if (current.size > 0) this.held.add(this.holdOutline(claim.ink, current));
+      }
     }
+  }
+
+  private readonly outlineMaterials = new Set<LineMaterial>();
+  private readonly screen = new Vector2(1, 1);
+
+  resize(width: number, height: number): void {
+    this.screen.set(width, height);
+    for (const material of this.outlineMaterials) material.resolution.copy(this.screen);
+  }
+
+  private holdOutline(ink: string, ids: ReadonlySet<string>): LineSegments2 {
+    const rings = this.prepared.flatMap(({ region }) => (ids.has(region.id) ? [region.rings] : []));
+    const points = splitOutlines(rings).coast.flatMap(([from, to]) => [
+      ...this.frame.toWorld(from[0], from[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
+      ...this.frame.toWorld(to[0], to[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
+    ]);
+    const geometry = new LineSegmentsGeometry();
+    geometry.setPositions(points);
+    const material = onLand(
+      new LineMaterial({
+        color: lavis('#000000', PEN_DEPTH, ink),
+        linewidth: OUTLINE_PX,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    material.resolution.copy(this.screen);
+    this.outlineMaterials.add(material);
+    const outline = new LineSegments2(geometry, material);
+    outline.renderOrder = 1;
+    return outline;
   }
 
   private fill(mesh: Mesh, ids: ReadonlySet<string>, lift: number): void {
