@@ -13,25 +13,23 @@ import {
 } from './construction';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
-import { aboardAt, bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
+import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
 import { playedTheatre } from './theatres';
 import { captureDurationAt } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
-  boardingPile,
   boardingRefusalDetails,
   boardingRefusalOf,
+  disembarkRefusalOf,
   foundingRefusal,
   legalMovementTypes,
-  liftOf,
   lootCollectionOrderRefusalOf,
   ORDERABLE_TYPES,
   captureOrderRefusalOf,
   plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
-  type Boarding,
   type Column,
   type MovementAim,
   type OrderRefusal,
@@ -40,10 +38,11 @@ import {
 import { NATION_BY_ADM0 } from './nations';
 import { carriesSurveyedInstallation } from './objectives';
 import {
-  LAND_SEATS_PER_TRANSPORT,
-  LIFT_CAPACITY,
+  carrierIn,
+  fareOf,
   marchingTroopIds,
   PROJECTION_BY_DOMAIN,
+  seatsOf,
   stationKeyOf,
   stationPointOf,
   troopsAt,
@@ -285,6 +284,8 @@ export type CompassAction =
       readonly consequence: string;
       readonly aim: MovementAim;
       readonly type: MovementType;
+      /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque. */
+      readonly boardsOn?: string;
     }
   | {
       readonly key: 'build';
@@ -457,9 +458,9 @@ export type CompassAction =
       readonly outpostId: string;
     }
   /**
-   * **Embarquer** (ADR 0025 §3) : sur-le-champ, sans slot, et seulement là où
-   * `boardingRefusalOf` — la règle même de `movements.board` — laisse passer. Ce n'est pas un
-   * ordre de la feuille : rien ne part, une adresse change.
+   * **Embarquer au point du transport** (révision de l'ADR 0025, 15/10) : sur-le-champ, sans
+   * slot, et seulement là où `boardingRefusalOf` — la règle même de `movements.board` — laisse
+   * passer. Ce n'est pas un ordre de la feuille : rien ne part, on monte à bord.
    */
   | {
       readonly key: 'board';
@@ -467,7 +468,19 @@ export type CompassAction =
       readonly label: string;
       readonly cost: string | null;
       readonly consequence: string;
-      readonly transport: TroopStation;
+      readonly carrierId: string;
+    }
+  /**
+   * **Débarquer** (15/10) : mettre pied à terre au point du transport. Une troupe à bord descend
+   * d'un clic ; plusieurs, une fenêtre demande lesquelles.
+   */
+  | {
+      readonly key: 'disembark';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly troopIds: ReadonlyArray<string>;
     }
   /**
    * **Bombarder** (B20, lot 6b) : sur-le-champ, comme embarquer — aucune colonne ne part, la pièce
@@ -905,36 +918,30 @@ export function compassOf(
    */
   if (column !== null && target.kind === 'force' && origin !== null) {
     const station = posted(target);
-    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin)) {
-      return (
-        boardFan(target.name, station, view, column, origin) ??
-        joinTransport(target, station, view, column)
-      );
-    }
+    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin))
+      return towardsMyPile(target, station, view, column, heldTroopIds ?? []);
   }
   if (column !== null && target.kind !== 'force') {
     return aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
   }
-  const fan = build(
-    target,
-    view,
+  const here =
     origin !== null &&
-      target.kind === 'force' &&
-      posted(target) !== null &&
-      stationKeyOf(posted(target)!) === stationKeyOf(origin)
-      ? heldTroopIds
-      : null,
-  );
+    target.kind === 'force' &&
+    posted(target) !== null &&
+    stationKeyOf(posted(target)!) === stationKeyOf(origin);
+  const fan = build(target, view, here ? heldTroopIds : null);
   /**
-   * **La pile qu'on tient liste les transports où elle peut monter** (ADR 0025 §3) : quand les
-   * étiquettes se serrent, viser la bonne coque au pixel près n'est plus le seul chemin.
+   * **La pile qu'on tient monte dans un transport de sa propre pile** (15/10) : le clic droit sur
+   * elle le propose à côté de « fonder » — la voie clavier du glisser sur le transport.
    */
-  const near =
-    column !== null && origin !== null && target.kind === 'force'
-      ? nearbyBoardings(view, column, origin)
-      : [];
+  const aboard =
+    column !== null && here
+      ? boardingAt(origin, null, target.name, view, column, heldTroopIds ?? [])
+      : null;
   const all =
-    near.length === 0 ? fan : { ...fan, actions: [...fan.actions, ...near], refusal: null };
+    aboard === null || aboard.actions.length === 0
+      ? fan
+      : { ...fan, actions: [...aboard.actions, ...fan.actions], refusal: null };
   /** Un motif sans branche reste une rose : c'est ce qui sépare « rien à faire ici » — le clic
    *  droit inerte — de « pas maintenant, et voilà pourquoi ». */
   return all.actions.length === 0 && all.refusal === null ? null : all;
@@ -1044,24 +1051,25 @@ function aim(
     if (standing === undefined) return null;
     const here: TroopStation = { kind: 'building', buildingId: standing.id };
     /** **Son propre mât n'est pas une garnison où entrer** : la colonne s'y tient déjà. Il ne
-     *  sert qu'à lister les transports proches, comme la pile qu'on tient. */
-    if (origin !== null && stationKeyOf(origin) === stationKeyOf(here)) {
-      const near = nearbyBoardings(view, column, origin);
-      return near.length === 0
+     *  sert qu'à monter dans un transport de la même garnison. */
+    const same = origin !== null && stationKeyOf(origin) === stationKeyOf(here);
+    const aimed: MovementAim = { kind: 'building', buildingId: standing.id, key: standing.key };
+    const onto =
+      origin === null
+        ? null
+        : boardingAt(here, same ? null : aimed, standing.name, view, column, heldTroopIds ?? []);
+    if (same)
+      return onto === null || (onto.actions.length === 0 && onto.refusal === null)
         ? null
         : {
             kicker: fr.compass.aiming(column.roles.length),
             name: standing.name,
-            actions: near,
-            refusal: null,
+            actions: onto.actions,
+            refusal: onto.refusal,
           };
-    }
-    const fan = fanOf(standing.name, view, column, [
-      { kind: 'building', buildingId: standing.id, key: standing.key },
-    ]);
-    const onto = origin === null ? null : boardFan(standing.name, here, view, column, origin);
+    const fan = fanOf(standing.name, view, column, [aimed]);
     if (onto === null) return fan;
-    const actions = [...fan.actions, ...onto.actions];
+    const actions = [...onto.actions, ...fan.actions];
     return { ...fan, actions, refusal: actions.length === 0 ? onto.refusal : null };
   }
   if (target.kind !== 'point') return null;
@@ -1114,13 +1122,9 @@ function bombardFan(
     emplacedAt: troop.emplacedAt ?? 0,
     reloadUntil: troop.reloadUntil ?? null,
     moving: marching.has(troop.id),
-    aboard: aboardAt({
-      onPoint: origin.kind === 'point',
-      afloat: origin.kind === 'point' && origin.afloat,
-      roles: troopsAt(view.me, stationKeyOf(origin), marching)
-        .filter((one) => one.id !== troop.id)
-        .map((one) => one.role),
-    }),
+    aboard:
+      (origin.kind === 'point' && origin.afloat) ||
+      carrierIn(troop, troopsAt(view.me, stationKeyOf(origin), marching)) !== null,
     now,
   };
   const refused = bombardRefusalOf(order);
@@ -1368,10 +1372,13 @@ function build(
        */
       const razes =
         standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
+      /** Un transport garé là débarque ce qu'il porte, au clic droit sur sa figurine (15/10). */
+      const off = disembarkAt({ kind: 'building', buildingId: target.id }, view, composition);
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
         actions: [
+          ...(off?.action == null ? [] : [off.action]),
           ...(raise?.action == null ? [] : [raise.action]),
           ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
@@ -1392,11 +1399,15 @@ function build(
      */
     case 'force': {
       const found = foundHere(target, view, composition);
+      const off = target.station === null ? null : disembarkAt(target.station, view, composition);
+      const actions = [off?.action, found.action].flatMap((action) =>
+        action == null ? [] : [action],
+      );
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions: found.action === null ? [] : [found.action],
-        refusal: found.refusal,
+        actions,
+        refusal: actions.length > 0 ? null : (off?.refusal ?? found.refusal),
       };
     }
     /**
@@ -1435,138 +1446,174 @@ function build(
   }
 }
 
-/** Le même embarquement que `movements.board` lira, mais lu de la vue du joueur. */
-function boarding(view: PlayerView, column: Column, origin: TroopStation, transport: TroopStation) {
+/**
+ * **Embarquer, depuis la rose** (révision de l'ADR 0025, 15/10) : le premier transport de cette
+ * adresse qui prend ce que la main tient. Au même point, c'est sur-le-champ (`movements.board`) ;
+ * plus loin, la marche même que `aimed` donnerait, qui monte à bord en arrivant (`boardsOn`).
+ * `null` quand rien n'y porte personne.
+ */
+function boardingAt(
+  station: TroopStation,
+  aimed: MovementAim | null,
+  name: string,
+  view: PlayerView,
+  column: Column,
+  heldTroopIds: ReadonlyArray<string>,
+): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } | null {
+  const marching = marchingTroopIds(view.arcs);
+  const pile = troopsAt(view.me, stationKeyOf(station), marching);
+  const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
+  const carriers = pile.filter(
+    (troop) => !heldTroopIds.includes(troop.id) && fareOf(troop.role, PROBE, []) !== null,
+  );
+  if (carriers.length === 0) return null;
   const site =
-    transport.kind === 'building'
-      ? view.me.buildings.find((building) => building.id === transport.buildingId)
+    station.kind === 'building'
+      ? view.me.buildings.find((building) => building.id === station.buildingId)
       : undefined;
-  const from = stationPointOf(view.me, origin);
-  const to = stationPointOf(view.me, transport);
-  const seen: Boarding = {
-    passengers: column.roles,
-    aboard: troopsAt(view.me, stationKeyOf(transport), marchingTroopIds(view.arcs)).map(
-      (troop) => troop.role,
-    ),
-    distanceKm: from === null || to === null ? Infinity : distanceKm(from, to),
+  const boardings = carriers.map((carrier) => ({
+    carrier,
+    riders: held.filter((troop) => carrierIn(troop, held) === null),
+    pile: aimed === null ? pile : [...pile, ...held],
     atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
-    onQuay: site !== undefined,
-  };
+  }));
+  const fit = boardings.find((boarding) => boardingRefusalOf(boarding) === null);
+  if (fit === undefined) {
+    const first = boardings[0]!;
+    return {
+      actions: [],
+      refusal: fr.errors[boardingRefusalOf(first)!](boardingRefusalDetails(first)),
+    };
+  }
+  const { needed, offered } = boardingRefusalDetails(fit);
+  const seats = seatsOf(fit.carrier.role);
+  const label = fr.compass.boardOnto(fr.compass.transports([fit.carrier.role]));
+  const places = fr.compass.boardPlaces(seats - offered + needed, seats);
+  if (aimed === null)
+    return {
+      actions: [
+        {
+          key: 'board',
+          pictogram: 'anchor',
+          label,
+          cost: fr.compass.boardNow,
+          consequence: places,
+          carrierId: fit.carrier.id,
+        },
+      ],
+      refusal: null,
+    };
+  /** En Blitz, le bâtiment que tient le transport ne ferme pas la porte à qui vient y monter. */
+  const open =
+    column.blitz === undefined || aimed.kind !== 'building'
+      ? column
+      : {
+          ...column,
+          blitz: {
+            ...column.blitz,
+            occupiedBuildingIds: new Set(
+              [...column.blitz.occupiedBuildingIds].filter((id) => id !== aimed.buildingId),
+            ),
+          },
+        };
+  const fan = fanOf(name, view, open, [aimed]);
+  const walk = fan.actions.find((action) => action.key === 'aim' && action.type === 'march');
+  if (walk === undefined || walk.key !== 'aim') return { actions: [], refusal: fan.refusal };
   return {
-    seen,
-    lifting: boardingPile(seen).filter((role) => (LIFT_CAPACITY[role] ?? 0) > 0),
-    refusal: boardingRefusalOf(seen),
+    actions: [
+      {
+        ...walk,
+        label,
+        pictogram: 'anchor',
+        consequence: `${fr.compass.boardOnArrival} ${places}`,
+        boardsOn: fit.carrier.id,
+      },
+    ],
+    refusal: null,
   };
 }
 
-function boardAction(
-  { seen, lifting }: ReturnType<typeof boarding>,
-  transport: TroopStation,
-  named: boolean,
-): CompassAction {
-  const { needed, offered } = liftOf(boardingPile(seen));
-  return {
-    key: 'board',
-    pictogram: 'anchor',
-    label: named ? fr.compass.boardOnto(fr.compass.transports(lifting)) : fr.compass.board,
-    cost: fr.compass.boardCost(Math.round(seen.distanceKm)),
-    consequence: fr.compass.boardPlaces(needed, offered),
-    transport,
-  };
-}
+/** Une recrue d'infanterie : ce qu'un transport prend au moins, s'il prend quelqu'un. */
+const PROBE = { id: '', role: 'infantry' as const };
 
 /**
- * **La rose d'un lieu qui porte un transport** : une branche « embarquer », ou le motif du
- * serveur en clair. `null` quand rien n'y emporte personne — le camion a son propre rendez-vous.
+ * **Une autre pile à moi, visée** : y embarquer si un transport s'y tient, ou la rejoindre — une
+ * marche jusqu'à son point exact, qui ne fait plus qu'une pile des deux. En Blitz, une unité de
+ * combat ne se joint pas à une autre (règle de Pierre, 15/10) : seul un transport en porte.
  */
-function boardFan(
-  name: string,
-  transport: TroopStation,
-  view: PlayerView,
-  column: Column,
-  origin: TroopStation,
-): Compass | null {
-  const read = boarding(view, column, origin, transport);
-  if (!read.seen.aboard.some((role) => (LIFT_CAPACITY[role] ?? 0) > 0)) return null;
-  return {
-    kicker: fr.compass.aiming(column.roles.length),
-    name: read.lifting.length === 0 ? name : fr.compass.transports(read.lifting),
-    actions: read.refusal === null ? [boardAction(read, transport, false)] : [],
-    refusal:
-      read.refusal === null ? null : fr.errors[read.refusal](boardingRefusalDetails(read.seen)),
-  };
-}
-
-/** Une branche par lieu proche où la colonne armée peut monter, du plus proche au plus loin. */
-function nearbyBoardings(
-  view: PlayerView,
-  column: Column,
-  origin: TroopStation,
-): ReadonlyArray<CompassAction> {
-  const marching = marchingTroopIds(view.arcs);
-  const transports = new Map<string, TroopStation>();
-  for (const troop of view.me.troops)
-    if (!marching.has(troop.id) && (LIFT_CAPACITY[troop.role] ?? 0) > 0)
-      transports.set(stationKeyOf(troop.stationedAt), troop.stationedAt);
-  transports.delete(stationKeyOf(origin));
-  return [...transports.values()]
-    .map((transport) => ({ transport, read: boarding(view, column, origin, transport) }))
-    .filter(({ read }) => read.refusal === null)
-    .sort((a, b) => a.read.seen.distanceKm - b.read.seen.distanceKm)
-    .map(({ transport, read }) => boardAction(read, transport, true));
-}
-
-/** **Le rendez-vous du camion**, le seul qui reste une marche : il motorise, il ne fait rien
- *  traverser (ADR 0025 §6), donc il n'a pas de rayon d'embarquement. */
-function joinTransport(
+function towardsMyPile(
   target: Extract<CompassTarget, { kind: 'force' }>,
   station: Extract<TroopStation, { kind: 'point' }>,
   view: PlayerView,
   column: Column,
-): Compass | null {
-  const held = heldAt(station, view);
-  const trucks = held.filter((troop) => troop.role === 'landTransport').length;
-  if (trucks === 0) return null;
-
-  const fits =
-    column.roles.length > 0 &&
-    column.roles.every((role) => role === 'infantry') &&
-    [...held.map((troop) => troop.role), ...column.roles].filter((role) => role === 'infantry')
-      .length <=
-      trucks * LAND_SEATS_PER_TRANSPORT;
-  if (!fits)
-    return {
-      kicker: fr.compass.aiming(column.roles.length),
-      name: target.name,
-      actions: [],
-      refusal: fr.compass.transportFull,
-    };
-
-  // A transport is a rendezvous at its current address. Keeping the exact point lets the
-  // arriving troops compose one pile with it; its later orders never redirect this march.
-  const fan = fanOf(target.name, view, column, [
-    {
-      kind: 'point',
-      lon: station.lonLat[0],
-      lat: station.lonLat[1],
-      coastal: station.coastal,
-      onLand: target.onLand,
-      /** Un rendez-vous est une marche, jamais un assaut : le relevé n'y décide de rien. */
-      surveyed: false,
-    },
-  ]);
+  heldTroopIds: ReadonlyArray<string>,
+): Compass {
+  const aimed: MovementAim = {
+    kind: 'point',
+    lon: station.lonLat[0],
+    lat: station.lonLat[1],
+    coastal: station.coastal,
+    onLand: target.onLand,
+    /** Rejoindre est une marche, jamais un assaut : le relevé n'y décide de rien. */
+    surveyed: false,
+  };
+  const onto = boardingAt(station, aimed, target.name, view, column, heldTroopIds);
+  const fan = fanOf(target.name, view, column, [aimed]);
+  const join =
+    column.blitz === undefined
+      ? fan.actions.flatMap((action) =>
+          action.key === 'aim' && action.type === 'march'
+            ? [{ ...action, label: fr.compass.join, consequence: fr.compass.joinConsequence }]
+            : [],
+        )
+      : [];
+  const actions = [...(onto?.actions ?? []), ...join];
   return {
-    ...fan,
-    actions: fan.actions.map((action) =>
-      action.key !== 'aim'
-        ? action
-        : {
-            ...action,
-            label: fr.compass.garrison,
-            pictogram: 'doorway',
-            consequence: fr.compass.joinTransport,
-          },
-    ),
+    kicker: fr.compass.aiming(column.roles.length),
+    name: target.name,
+    actions,
+    refusal:
+      actions.length > 0
+        ? null
+        : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad)),
+  };
+}
+
+/**
+ * **Débarquer** (15/10) : ce qui est à bord à cette adresse — ce que la main tient, ou toute la
+ * pile —, ou le motif qui l'en empêche. `null` quand personne n'y est à bord.
+ */
+function disembarkAt(
+  station: TroopStation,
+  view: PlayerView,
+  heldTroopIds: ReadonlyArray<string> | null,
+): { readonly action: CompassAction | null; readonly refusal: string | null } | null {
+  const pile = troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));
+  const passengers = pile.filter(
+    (troop) =>
+      (heldTroopIds === null || heldTroopIds.includes(troop.id)) && carrierIn(troop, pile) !== null,
+  );
+  if (passengers.length === 0) return null;
+  const site =
+    station.kind === 'building'
+      ? view.me.buildings.find((building) => building.id === station.buildingId)
+      : undefined;
+  const refusal = disembarkRefusalOf({
+    carrier: carrierIn(passengers[0]!, pile)!.role,
+    afloat: station.kind === 'point' && station.afloat,
+    atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
+  });
+  if (refusal !== null) return { action: null, refusal: fr.errors[refusal]() };
+  return {
+    action: {
+      key: 'disembark',
+      pictogram: 'helmet',
+      label: fr.compass.disembark,
+      cost: null,
+      consequence: fr.compass.disembarkConsequence(passengers.length),
+      troopIds: passengers.map((troop) => troop.id),
+    },
+    refusal: null,
   };
 }
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boards,
   marchingTroopIds,
   representativeRole,
   stackRows,
@@ -8,6 +7,7 @@ import {
   stationAtCombat,
   stationGroups,
   troopsAt,
+  seatLoose,
   unitsOf,
 } from './troops';
 import type { UnitRole } from './ids';
@@ -218,11 +218,7 @@ describe('representativeRole', () => {
   });
 });
 
-/**
- * Being aboard is computed and never stored: the picture follows the tick of a box, and a
- * transport without a capacity carries nobody — the day the pace gives the truck one, these
- * cases change answer without a line changing here.
- */
+/** The seating a crossing is weighed on before it leaves (`strandedIn`): greedy, hulls only. */
 describe('stackRows', () => {
   const pile: ReadonlyArray<TroopView> = [
     troop('I-1', 'infantry', { kind: 'home' }),
@@ -231,8 +227,8 @@ describe('stackRows', () => {
     troop('L-1', 'landTransport', { kind: 'home' }),
     troop('C-1', 'cargo', { kind: 'home' }),
   ];
-  const shape = (picked: ReadonlyArray<string>, placements: ReadonlyArray<[string, string]> = []) =>
-    stackRows(pile, new Set(picked), new Map(placements)).map(
+  const shape = (picked: ReadonlyArray<string>) =>
+    stackRows(pile, new Set(picked)).map(
       (row) => `${row.carrier === null ? '' : '  '}${row.troop.id}`,
     );
 
@@ -262,104 +258,98 @@ describe('stackRows', () => {
 });
 
 /** **Une unité** (règle de Pierre, 15/10) : une troupe de combat seule, ou un transport et ce
- *  qu'il porte — jamais deux troupes de combat ensemble. */
+ *  qu'il porte — jamais deux troupes de combat ensemble. **Être à bord est un état** (révision
+ *  de l'ADR 0025, 15/10) : on y est parce qu'on a embarqué, pas parce qu'on se tient là. */
 describe('unitsOf', () => {
-  const units = (...roles: ReadonlyArray<UnitRole>) =>
-    unitsOf(roles.map((role, k) => ({ id: `${role}-${k}`, role }))).map((unit) =>
-      unit.map((member) => member.id),
-    );
-  const shapes = (...roles: ReadonlyArray<UnitRole>) =>
-    unitsOf(roles.map((role, k) => ({ id: String(k), role }))).map((unit) =>
-      unit.map((member) => member.role),
-    );
+  type Seat = { id: string; role: UnitRole; carriedBy?: string | undefined };
+  const units = (...pile: ReadonlyArray<Seat>) =>
+    unitsOf(pile).map((unit) => unit.map((member) => member.id));
 
-  it('makes each combat troop its own unit, in the order of the roles', () => {
-    expect(units('infantry', 'infantry')).toEqual([['infantry-0'], ['infantry-1']]);
-    expect(units('escort', 'bomber')).toEqual([['bomber-1'], ['escort-0']]);
+  it('makes each troop its own unit when nobody has boarded', () => {
+    expect(
+      units(
+        { id: 'I', role: 'infantry' },
+        { id: 'T', role: 'landTransport' },
+        { id: 'C', role: 'cargo' },
+      ),
+    ).toEqual([['I'], ['T'], ['C']]);
   });
 
-  it('makes a transport and what it carries one unit, the transport first', () => {
-    expect(units('infantry', 'cargo')).toEqual([['cargo-1', 'infantry-0']]);
-    expect(units('airTransport', 'infantry', 'infantry')).toEqual([
-      ['airTransport-0', 'infantry-1', 'infantry-2'],
-    ]);
+  it('makes a transport and what boarded it one unit, the transport first', () => {
+    expect(
+      units(
+        { id: 'I-1', role: 'infantry', carriedBy: 'T' },
+        { id: 'I-2', role: 'infantry' },
+        { id: 'T', role: 'landTransport' },
+      ),
+    ).toEqual([['I-2'], ['T', 'I-1']]);
   });
 
-  it('leaves alone what no transport seats, and an escort beside a cargo', () => {
-    expect(units('airTransport', 'armor')).toEqual([['armor-1'], ['airTransport-0']]);
-    expect(units('cargo', 'escort', 'infantry')).toEqual([['escort-1'], ['cargo-0', 'infantry-2']]);
+  it('carries a loaded truck aboard a cargo with its riflemen', () => {
+    expect(
+      units(
+        { id: 'I', role: 'infantry', carriedBy: 'T' },
+        { id: 'T', role: 'landTransport', carriedBy: 'C' },
+        { id: 'C', role: 'cargo' },
+      ),
+    ).toEqual([['C', 'T', 'I']]);
   });
 
-  it('cuts the same units whatever order the troops come in', () => {
-    expect(shapes('carrier', 'cargo', 'infantry')).toEqual(shapes('infantry', 'cargo', 'carrier'));
-    expect(shapes('carrier', 'cargo', 'infantry')).toEqual([['cargo', 'infantry'], ['carrier']]);
-  });
-
-  it('seats infantry in a truck, two to a truck', () => {
-    expect(shapes('landTransport', 'infantry', 'infantry', 'infantry')).toEqual([
-      ['infantry'],
-      ['landTransport', 'infantry', 'infantry'],
-    ]);
-    expect(shapes('landTransport', 'armor')).toEqual([['armor'], ['landTransport']]);
+  it('sets on foot a passenger whose transport is not there', () => {
+    expect(units({ id: 'I', role: 'infantry', carriedBy: 'gone' })).toEqual([['I']]);
   });
 });
 
-/**
- * The gesture is the other door on one state, not a second logic: what it writes is where a
- * troop is drawn, and a transport with no berth left refuses it by the same count the counter
- * prints.
- */
-describe('the drop, against the tick box', () => {
-  const pile: ReadonlyArray<TroopView> = [
-    troop('I-1', 'infantry', { kind: 'home' }),
-    troop('I-2', 'infantry', { kind: 'home' }),
-    troop('I-3', 'infantry', { kind: 'home' }),
-    troop('T-1', 'airTransport', { kind: 'home' }),
-    troop('C-1', 'cargo', { kind: 'home' }),
-  ];
-  const shape = (picked: ReadonlyArray<string>, placements: ReadonlyArray<[string, string]> = []) =>
-    stackRows(pile, new Set(picked), new Map(placements)).map(
-      (row) => `${row.carrier === null ? '' : '  '}${row.troop.id}`,
-    );
+/** **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte
+ *  à bord s'il y a de la place — le camion d'abord, qui motorise, puis les coques. */
+describe('seatLoose', () => {
+  type Seat = { id: string; role: UnitRole; carriedBy?: string | undefined };
+  const seats = (...pile: ReadonlyArray<Seat>) => Object.fromEntries(seatLoose(pile));
 
-  it('honours the named berth before serving the greedy ones', () => {
-    // Greedy would have seated both infantry in the wing, which comes first in the list.
-    expect(shape(['I-1', 'I-2', 'T-1', 'C-1'], [['I-1', 'C-1']])).toEqual([
-      'I-3',
-      'T-1',
-      '  I-2',
-      'C-1',
-      '  I-1',
-    ]);
+  it('seats two riflemen in a truck and leaves the third on foot', () => {
+    expect(
+      seats(
+        { id: 'T', role: 'landTransport' },
+        { id: 'I-1', role: 'infantry' },
+        { id: 'I-2', role: 'infantry' },
+        { id: 'I-3', role: 'infantry' },
+      ),
+    ).toEqual({ 'I-1': 'T', 'I-2': 'T' });
   });
 
-  it('refuses a drop on a transport whose berths are taken', () => {
-    // The wing lifts two, and two infantry already ride it: nobody is bumped to make room.
-    const picked = new Set(['I-1', 'I-2', 'T-1']);
-    const placements = new Map([
-      ['I-1', 'T-1'],
-      ['I-2', 'T-1'],
-    ]);
-    expect(boards(pile, picked, placements, 'I-3', 'T-1')).toBe(false);
+  it('counts who already rides, and moves nobody', () => {
+    expect(
+      seats(
+        { id: 'T', role: 'landTransport' },
+        { id: 'I-1', role: 'infantry', carriedBy: 'T' },
+        { id: 'I-2', role: 'infantry' },
+        { id: 'I-3', role: 'infantry' },
+      ),
+    ).toEqual({ 'I-2': 'T' });
   });
 
-  it('takes a passenger back onto the transport it already rides', () => {
-    const picked = new Set(['I-1', 'I-2', 'T-1']);
-    const placements = new Map([['I-1', 'T-1']]);
-    expect(boards(pile, picked, placements, 'I-1', 'T-1')).toBe(true);
+  it('puts a loaded truck aboard a cargo with its riflemen, and a tank beside it', () => {
+    expect(
+      seats(
+        { id: 'C', role: 'cargo' },
+        { id: 'T', role: 'landTransport' },
+        { id: 'I-1', role: 'infantry' },
+        { id: 'I-2', role: 'infantry' },
+        { id: 'A', role: 'armor' },
+      ),
+    ).toEqual({ 'I-1': 'T', 'I-2': 'T', T: 'C', A: 'C' });
   });
 
-  it('takes a drop the transport still has room for', () => {
-    expect(boards(pile, new Set(['T-1']), new Map(), 'I-1', 'T-1')).toBe(true);
-  });
-
-  it('leaves the pile exactly where the tick box would have left it', () => {
-    // The drop checks the troop and says where to draw it — the stack itself is the same set.
-    const ticked = stackRows(pile, new Set(['I-1', 'C-1']), new Map());
-    const dropped = stackRows(pile, new Set(['I-1', 'C-1']), new Map([['I-1', 'C-1']]));
-    expect(dropped.map((row) => row.troop.id).sort()).toEqual(
-      ticked.map((row) => row.troop.id).sort(),
-    );
+  it('never flies a tank, and seats no more than a wing lifts', () => {
+    expect(
+      seats(
+        { id: 'W', role: 'airTransport' },
+        { id: 'A', role: 'armor' },
+        { id: 'I-1', role: 'infantry' },
+        { id: 'I-2', role: 'infantry' },
+        { id: 'I-3', role: 'infantry' },
+      ),
+    ).toEqual({ 'I-1': 'W', 'I-2': 'W' });
   });
 });
 

@@ -1,10 +1,12 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 import { heldOf } from './control';
 import { settle } from './resources';
 import { viewOf } from './view';
+import { seatedOf } from './movement/forces';
+import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
 
 /**
@@ -130,6 +132,38 @@ export const backfillSeasonPreview = internalMutation({
       seasons += 1;
     }
     return { seasons };
+  },
+});
+
+/**
+ * **Qui est à bord, écrit une fois** (révision de l'ADR 0025, 15/10). Être à bord se calculait :
+ * une troupe au point d'un transport y montait. C'est désormais un état (`troops.carriedBy`), et
+ * une partie en cours garde ce qu'elle voyait — chaque pile posée sur un point, et chaque colonne
+ * en route, s'assoit comme le calcul l'asseyait. Sans elle, un convoi en mer n'aurait plus personne à bord.
+ * Idempotente : qui est déjà assis ne bouge pas.
+ *
+ * `npx convex run dev:backfillCarriedBy`
+ */
+export const backfillCarriedBy = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const groups = new Map<string, Array<Doc<'troops'>>>();
+    const riding = new Map<string, string>();
+    for (const movement of await ctx.db.query('movements').collect())
+      for (const troopId of movement.troopIds) riding.set(troopId, movement._id);
+    for (const troop of await ctx.db.query('troops').collect()) {
+      /** À quai, dans un bâtiment, personne n'était à bord (`boardingPile` d'avant). */
+      if (!riding.has(troop._id) && typeof troop.stationedAt === 'string') continue;
+      const key = riding.get(troop._id) ?? `${troop.playerId}:${JSON.stringify(troop.stationedAt)}`;
+      groups.set(key, [...(groups.get(key) ?? []), troop]);
+    }
+    let seated = 0;
+    for (const group of groups.values())
+      for (const [riderId, carrierId] of seatLoose(group.map(seatedOf))) {
+        await ctx.db.patch(riderId as Id<'troops'>, { carriedBy: carrierId as Id<'troops'> });
+        seated += 1;
+      }
+    return { seated };
   },
 });
 

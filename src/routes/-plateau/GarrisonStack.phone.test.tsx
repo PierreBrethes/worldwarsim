@@ -74,12 +74,12 @@ describe('the garrison on a phone', () => {
   });
 
   /** Le retrait sous la coque n'existe pas en cartes : le passager la nomme (noyé, il coule avec). */
-  it('names the hull a ticked passenger rides', () => {
+  it('names the hull a passenger rides', () => {
     render(
       <GarrisonStack
         view={view}
         station={station}
-        held={[troop('c-1', 'cargo'), troop('i-1', 'infantry')]}
+        held={[troop('c-1', 'cargo'), { ...troop('i-1', 'infantry'), carriedBy: 'c-1' }]}
         preselect={['c-1', 'i-1']}
         canPrepare
         observing={false}

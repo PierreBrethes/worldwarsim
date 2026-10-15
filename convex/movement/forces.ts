@@ -12,6 +12,7 @@ import { homeCountryOf, pointOfBuilding } from '../regions';
 import { contactKm, outpostReachKm } from '../constants';
 import { seasonTheatre } from './theatre';
 import { anchorOf, isAnchored } from '../upkeep';
+import { PROJECTION_BY_DOMAIN, type Seated } from '../../src/domain/troops';
 
 export async function movementsOf(
   ctx: QueryCtx,
@@ -89,6 +90,36 @@ export const asPoint = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
 
 /** A troop's address as the row stores it. Named because one of its three forms is not an id. */
 export type TroopAddress = Doc<'troops'>['stationedAt'];
+
+/** Une troupe telle que la règle des transports la lit (`src/domain/troops.ts`). */
+export const seatedOf = (troop: Doc<'troops'>): Seated => ({
+  id: troop._id,
+  role: troop.role,
+  carriedBy: troop.carriedBy,
+});
+
+/** **Mes troupes posées à cette adresse** : ce qui s'y dispute les places d'un transport, et
+ *  d'où un transport part avec sa cargaison. */
+export async function standingPile(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  address: TroopAddress,
+): Promise<Array<Doc<'troops'>>> {
+  const marching = new Set((await movementsOf(ctx, playerId)).flatMap((one) => one.troopIds));
+  return (
+    await ctx.db
+      .query('troops')
+      .withIndex('byStation', (q) => q.eq('stationedAt', address))
+      .collect()
+  ).filter((troop) => troop.playerId === playerId && !marching.has(troop._id));
+}
+
+/** Un aérodrome, la seule adresse où un avion prend ou dépose des passagers (ADR 0025 §4). */
+export async function onAirfield(ctx: QueryCtx, address: TroopAddress): Promise<boolean> {
+  if (typeof address !== 'string') return false;
+  const buildingId = ctx.db.normalizeId('buildings', address);
+  return buildingId !== null && (await ctx.db.get(buildingId))?.key === PROJECTION_BY_DOMAIN.air;
+}
 
 /** Who a contact is with. `CONTACT_FORCE` is the same union in the shape Convex checks at run
  *  time; this is the one TypeScript reads. */

@@ -54,6 +54,8 @@ export type GarrisonAt = (
 const GROUP_SPACING = 0.5;
 /** The ×N counter stands at the front right foot of its group. */
 const COUNTER_AT = [0.2, 0.22] as const;
+/** « N à bord » stands at the front left, clear of a vehicle's bonnet. */
+const ABOARD_AT = [-0.24, 0.34] as const;
 
 /**
  * **Where each group stands around the pile's point**, side by side across the board and
@@ -169,15 +171,25 @@ export function dressedGroups(nation: string | null, pieces: PilePieces): Figuri
 export type CounterTexts = {
   readonly count: (troops: number) => string;
   readonly more: (roles: number) => string;
+  /** **« N à bord »** (15/10), sur deux lignes : le compte, puis ce qu'il compte. */
+  readonly aboard: (riders: number) => string;
 };
 
-/** The one source of a pile's counter words: a ×N per group of several, then the +N. */
+/** The one source of a pile's counter words: a ×N per group of several, then the +N, and what
+ *  each group's transports carry. */
 function counterTexts(
   pieces: PilePieces,
   texts: CounterTexts,
-): { groups: ReadonlyArray<string | null>; more: string | null } {
+): {
+  groups: ReadonlyArray<string | null>;
+  aboard: ReadonlyArray<string | null>;
+  more: string | null;
+} {
   return {
     groups: pieces.groups.map((group) => (group.troops > 1 ? texts.count(group.troops) : null)),
+    aboard: [...pieces.groups, ...pieces.spread].map((piece) =>
+      piece.aboard === undefined ? null : texts.aboard(piece.aboard),
+    ),
     more: pieces.more > 0 ? texts.more(pieces.more) : null,
   };
 }
@@ -282,6 +294,8 @@ export function pileObject(
     targets.push(target);
     const text = words.groups[k];
     if (text) addCounter(counter(faces.of(text), slot.x + COUNTER_AT[0], slot.z + COUNTER_AT[1]));
+    const riders = words.aboard[k];
+    if (riders) addCounter(counter(faces.of(riders), slot.x + ABOARD_AT[0], slot.z + ABOARD_AT[1]));
     const group = pieces.groups[k]!;
     // A plane that never lands hovers over its shadow, as it flew over it on its thread.
     if (group.aloft) {
@@ -370,13 +384,20 @@ export class Faces {
         ctx.arc(64, 64, radius, 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.font = `700 ${text.length > 2 ? 44 : 56}px "Bodoni Moda", Georgia, serif`;
+      // A second line is what the first counts, set small under it (« 2 / à bord »).
+      const [head = '', caption] = text.split('\n');
+      const y = caption === undefined ? 68 : 56;
+      ctx.font = `700 ${head.length > 2 ? 44 : caption === undefined ? 56 : 48}px "Bodoni Moda", Georgia, serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255, 250, 235, 0.7)';
-      ctx.fillText(text, 64, 70);
+      ctx.fillText(head, 64, y + 2);
       ctx.fillStyle = '#2a2118';
-      ctx.fillText(text, 64, 68);
+      ctx.fillText(head, 64, y);
+      if (caption !== undefined) {
+        ctx.font = `600 19px "Bodoni Moda", Georgia, serif`;
+        ctx.fillText(caption, 64, 90);
+      }
     };
     draw();
     const texture = new CanvasTexture(canvas);
@@ -495,8 +516,17 @@ type Carried = {
   readonly since: number;
   clock: number;
   down: { readonly at: Vector3; readonly since: number; readonly from: number } | null;
-  back: { readonly from: Vector3; readonly since: number; readonly carried: number } | null;
+  back: {
+    readonly from: Vector3;
+    readonly since: number;
+    readonly carried: number;
+    /** **Into its transport** (15/10): it glides there and shrinks away, rather than home. */
+    readonly into: Vector3 | null;
+  } | null;
 };
+
+/** A boarding is announced before the hand empties: past this, the next putting back is one. */
+const BOARDING_MS = 3000;
 
 /**
  * **The copies a click is taken by**: set down under a rose, or on their way home, a click on them
@@ -576,6 +606,7 @@ function spreadObject(
   nation: string | null,
   pieces: PilePieces,
   pileId: string,
+  aboard: (piece: SpreadPiece) => MeshStandardMaterial | null,
 ): { object: Group; parts: Map<string, SpreadPart>; ready: Promise<unknown> } | null {
   const figurines: Figurine[] = [];
   for (const piece of pieces.spread) {
@@ -593,6 +624,8 @@ function spreadObject(
     target.userData.pileId = pileId;
     target.userData.troopId = piece.troopId;
     part.add(figurine.object, target, lifeBar(piece));
+    const riders = aboard(piece);
+    if (riders !== null) part.add(counter(riders, ABOARD_AT[0], ABOARD_AT[1]));
     if (piece.wear === 'burning')
       void figurine.ready.then(
         () => blacken(figurine.object),
@@ -633,7 +666,11 @@ export type PiecePick = PieceHold & {
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
 export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
-  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.troops, g.wear]), more]);
+  JSON.stringify([
+    nation,
+    groups.map((g) => [g.role, g.figures, g.troops, g.wear, g.aboard]),
+    more,
+  ]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
@@ -655,12 +692,14 @@ export class StandingLayer {
   motion: MapMotion = 'full';
   /** The copy of what is in hand; `null` when the pile is not dressed. */
   private carried: Carried | null = null;
+  /** A boarding announced, waiting for the hand to empty (`boardInto`). */
+  private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
   private leaving: Carried | null = null;
   /** A pile regathered from its deployment, dropping onto the board. */
   private settle: { readonly pileId: string; readonly since: number } | null = null;
   /** Set by the first `display`; no pile exists before it. */
-  private texts: CounterTexts = { count: String, more: String };
+  private texts: CounterTexts = { count: String, more: String, aboard: String };
 
   constructor(
     private readonly frame: WorldFrame,
@@ -752,7 +791,7 @@ export class StandingLayer {
     for (const pile of piles) {
       if (!next.has(pile.id)) continue;
       const words = counterTexts(pile.pieces, this.texts);
-      for (const text of [...words.groups, words.more]) if (text) shown.add(text);
+      for (const text of [...words.groups, ...words.aboard, words.more]) if (text) shown.add(text);
     }
     this.faces.keepOnly(shown);
   }
@@ -776,9 +815,10 @@ export class StandingLayer {
 
   /** The troops of the piece under `ray`, among the piles standing in sight — a troop of the
    *  deployed pile first: the pile it stands for has shrunk away under it. */
-  pick(ray: Raycaster): PiecePick | null {
+  pick(ray: Raycaster, { under = false }: { under?: boolean } = {}): PiecePick | null {
     let copy: { distance: number; pick: PieceHold } | null = null;
-    for (const carried of takenCopies(this.carried, this.leaving)) {
+    // Carried, the copy is always under the pointer: what it is let go on stands beneath it.
+    for (const carried of under ? [] : takenCopies(this.carried, this.leaving)) {
       if (carried.object.parent === null) continue;
       const distance = footedHit(ray, carried.object, carried.targets);
       if (distance !== null && (copy === null || distance < copy.distance))
@@ -861,10 +901,27 @@ export class StandingLayer {
     const lifted = this.carried;
     this.carried = null;
     // Put back, the copy goes home and drops there; sent, its pawn takes over; deployed, the
-    // troops regather into the pile, which drops in its turn.
-    if (lifted !== null && held === null && !sent && !deployed && this.motion !== 'off') {
-      const now = performance.now();
-      lifted.back = { from: lifted.object.position.clone(), since: now, carried: lifted.lift };
+    // troops regather into the pile, which drops in its turn; boarded, it glides into its
+    // transport.
+    const released = performance.now();
+    const into =
+      this.boarding !== null && released - this.boarding.since < BOARDING_MS
+        ? this.boarding.at
+        : null;
+    this.boarding = null;
+    if (
+      lifted !== null &&
+      held === null &&
+      !sent &&
+      (!deployed || into !== null) &&
+      this.motion !== 'off'
+    ) {
+      lifted.back = {
+        from: lifted.object.position.clone(),
+        since: released,
+        carried: lifted.lift,
+        into,
+      };
       lifted.down = null;
       this.leaving = lifted;
     } else {
@@ -960,7 +1017,9 @@ export class StandingLayer {
     if (spread === null) {
       const entry = this.dressed.get(held.pileId);
       if (!entry?.ready || entry.pieces.spread.length < 2) return;
-      const built = spreadObject(this.nation, entry.pieces, held.pileId);
+      const built = spreadObject(this.nation, entry.pieces, held.pileId, (piece) =>
+        piece.aboard === undefined ? null : this.faces.of(this.texts.aboard(piece.aboard)),
+      );
       if (built === null) return;
       const fresh: Spread = {
         pileId: held.pileId,
@@ -1092,16 +1151,18 @@ export class StandingLayer {
     const scale = near * pieceScale.troops;
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };
+    let shrink = 1;
     if (back !== null) {
       const t = this.seconds(back.since, now);
       if (t >= RETURN_DONE) {
         this.dropLeaving();
         return;
       }
-      const home = this.dressed.get(carried.pileId)?.object.position ?? back.from;
+      const home = back.into ?? this.dressed.get(carried.pileId)?.object.position ?? back.from;
       const at = returnAt(t, back.carried, RETURN_HOP);
       object.position.lerpVectors(back.from, home, at.share);
       carried.lift = at.lift;
+      if (back.into !== null) shrink = 1 - at.share * 0.9;
     } else if (down !== null) {
       object.position.lerp(down.at, full ? followShare(dt, 20) : 1);
       const t = this.seconds(down.since, now);
@@ -1125,7 +1186,12 @@ export class StandingLayer {
       (material, k) => (material.opacity = [0.12, 0.06][k]! * fade * 1.5),
     );
     object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
-    object.scale.setScalar(scale);
+    object.scale.setScalar(scale * shrink);
+  }
+
+  /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away. */
+  boardInto(at: Vector3): void {
+    this.boarding = { at, since: performance.now() };
   }
 
   /** A regathered pile drops onto its point, or its maquette's foot. */

@@ -674,7 +674,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
-    CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : faites-la descendre du transport',
+    CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
@@ -718,8 +718,10 @@ export const fr = {
     LAND_TROOPS_ONLY: () => 'seules les troupes terrestres embarquent',
     NO_TRANSPORT_HERE: () => 'aucun cargo ni porte-avions ici pour vous prendre à bord',
     AIRFIELD_BOARDING_ONLY: () => 'un avion n’embarque personne hors d’un aérodrome',
-    TOO_FAR_TO_BOARD: (d) =>
-      `trop loin pour embarquer : ${num(d.km)} km, ${num(d.maximum)} au plus — approchez-vous`,
+    TRUCK_SEATS_INFANTRY: () => 'un camion ne porte que l’infanterie',
+    NOT_ABOARD: () => 'cette troupe n’est à bord d’aucun transport',
+    DISEMBARK_AT_SEA: () => 'on ne débarque pas au large — gagnez une côte ou un port',
+    STILL_ABOARD: () => 'cette troupe est à bord : débarquez-la d’abord',
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
@@ -2517,9 +2519,12 @@ export const fr = {
     sheetHealth: (health: number) => `${health} / 100`,
     sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
     sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
-    sheetNothingAboard: 'rien à bord',
+    /** La charge de butin, pas les passagers : ceux-là ont leur jeton (15/10). */
+    sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
+    /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
+    aboardCounter: (riders: number) => `${riders}\nà bord`,
   },
 
   /**
@@ -2530,11 +2535,11 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
-    hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
-    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
+    hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
+    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
     aboard: 'à bord',
-    getOff: 'faire descendre',
+    disembark: 'débarquer',
   },
 
   /**
@@ -3609,7 +3614,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
+                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser — ou glissez-la. Lâchée sur un transport, elle embarque ; clic droit sur le transport pour débarquer. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -3743,7 +3748,7 @@ export const fr = {
       orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
       separator: '·',
       pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
-      lift: ` ${fr.mapUi.mouse.click.left} : lever une pile, puis la poser`,
+      lift: ` ${fr.mapUi.mouse.click.left} ou glisser : lever une pile, puis la poser`,
     }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
@@ -3757,6 +3762,10 @@ export const fr = {
       {
         gesture: `${fr.mapUi.mouse.click.left} sur une pile`,
         effect: 'la lever ; le suivant, sur la carte, la pose',
+      },
+      {
+        gesture: 'glisser une pile',
+        effect: 'la porter ; la lâcher la pose — sur un transport, elle embarque',
       },
       { gesture: 'échap', effect: 'reposer la pièce en main' },
       {
@@ -3774,6 +3783,7 @@ export const fr = {
     fingerGestures: [
       { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
       { gesture: 'toucher une pile', effect: 'la lever ; toucher la carte la pose' },
+      { gesture: 'appui long sur une pile', effect: 'la porter du doigt ; la lâcher la pose' },
       { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
       { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],
@@ -3811,16 +3821,26 @@ export const fr = {
     /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
      *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
     garrison: 'entrer en garnison',
-    transportFull: 'ces troupes ne tiennent pas dans le camion disponible ici',
-    joinTransport:
-      'rejoindre sa position actuelle pour composer une pile — le camion doit vous y attendre',
-    /** **Embarquer** (ADR 0025 §3) : sur-le-champ et sans slot — la bulle le dit avant le prix,
-     *  parce que c'est ce qui sépare ce geste d'une marche. */
+    /** **Rejoindre une autre de mes piles** (15/10) : une marche jusqu'à son point exact. */
+    join: 'rejoindre',
+    joinConsequence:
+      'Marche jusqu’à cette pile et s’y pose à son point exact : les deux n’en font plus qu’une.',
+    /** **En Blitz, pas de groupe d'unités de combat** (règle de Pierre, 15/10). */
+    noSquad: 'pas de groupe d’unités de combat — seul un transport en porte d’autres',
+    /** **Embarquer** (révision de l'ADR 0025, 15/10) : au point du transport, sur-le-champ et
+     *  sans slot ; de plus loin, une marche qui monte à bord en arrivant. */
     board: 'embarquer',
-    boardOnto: (transports: string) => `embarquer · ${transports}`,
-    boardCost: (km: number) => `immédiat · sans slot · ${km} km`,
+    boardOnto: (transport: string) => `embarquer · ${transport}`,
+    boardNow: 'immédiat · sans slot',
+    boardOnArrival: 'Marche jusqu’au transport et monte à bord en arrivant, s’il y est encore.',
     boardPlaces: (used: number, capacity: number) =>
-      `à bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}`,
+      `À bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}.`,
+    /** **Débarquer** (15/10) : pied à terre au point du transport. */
+    disembark: 'débarquer',
+    disembarkConsequence: (count: number) =>
+      count === 1
+        ? 'Met pied à terre à côté du transport.'
+        : `${count} troupes à bord : choisissez qui met pied à terre.`,
     /** « Cargo ×2 · porte-avions » : ce qui emporte, jamais l'abréviation de la pile. */
     transports: (roles: ReadonlyArray<UnitRole>) =>
       [...new Set(roles)]
@@ -3918,6 +3938,14 @@ export const fr = {
    * sol, il ancre des mâts, il héberge une garnison. Deux de ces trois pertes ne se lisent nulle
    * part ailleurs sur le plateau, donc elles se lisent ici ou jamais.
    */
+  /** **Qui met pied à terre** (15/10) : la carte que « débarquer » ouvre quand plusieurs troupes
+   *  sont à bord. */
+  disembark: {
+    kicker: 'pied à terre',
+    heading: (count: number) => `${count} troupe${plural(count, '', 's')} à bord`,
+    aboardOf: (carrier: string) => `à bord · ${carrier.toLowerCase()}`,
+    submit: (count: number) => (count <= 1 ? 'débarquer' : `débarquer ${count} troupes`),
+  },
   dismantle: {
     kicker: 'démantèlement',
     heading: (place: string, level: number) => `Avant-poste de ${place} — niveau ${level}`,

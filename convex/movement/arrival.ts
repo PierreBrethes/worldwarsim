@@ -42,11 +42,16 @@ import { hostAtPoint, routeBetween } from '../routes';
 import {
   asPoint,
   defenceOf,
+  onAirfield,
   outpostsOf,
   pointOf,
+  seatedOf,
+  standingPile,
   troopsCarriedBy,
   type TroopAddress,
 } from './forces';
+import { boardingRefusalOf } from '../../src/domain/movement-orders';
+import { carrierIn } from '../../src/domain/troops';
 import { surveyFromPoint } from '../surveys';
 import { seatsOf } from '../seats';
 import { notifyPlayer } from '../notifications';
@@ -385,7 +390,33 @@ export async function standAt(
   await settle(ctx, movement.playerId, Date.now());
   for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
   await stationMovementLoot(ctx, movement, address);
+  if (movement.boardsOn !== undefined)
+    await boardOnArrival(ctx, movement.boardsOn, marching, address);
   return marching.length;
+}
+
+/** **Lâchée de loin sur un transport** (15/10), la colonne monte à bord en arrivant — s'il se
+ *  tient encore là et qu'il a la place, sans quoi elle reste à pied où elle est arrivée. */
+async function boardOnArrival(
+  ctx: MutationCtx,
+  carrierId: Id<'troops'>,
+  arrived: ReadonlyArray<Doc<'troops'>>,
+  address: TroopAddress,
+): Promise<void> {
+  const carrier = await ctx.db.get(carrierId);
+  if (carrier === null) return;
+  const standing = await standingPile(ctx, carrier.playerId, address);
+  if (!standing.some((troop) => troop._id === carrierId)) return;
+  const column = arrived.map(seatedOf);
+  const boarding = {
+    riders: column.filter((troop) => carrierIn(troop, column) === null),
+    carrier: seatedOf(carrier),
+    pile: [...standing.map(seatedOf), ...column],
+    atAirfield: await onAirfield(ctx, address),
+  };
+  if (boardingRefusalOf(boarding) !== null) return;
+  for (const rider of boarding.riders)
+    await ctx.db.patch(rider.id as Id<'troops'>, { carriedBy: carrierId });
 }
 
 async function retainStandingDefence(

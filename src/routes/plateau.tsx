@@ -83,10 +83,11 @@ import {
   type OrderAction,
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
-import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
+import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
+import type { DropHint, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
-import type { Column } from '@/domain/movement-orders';
+import { boardingRefusalDetails, boardingRefusalOf, type Column } from '@/domain/movement-orders';
 import {
   PREVIEW_ARC_ID,
   type ArcView,
@@ -101,12 +102,14 @@ import {
 } from '@/domain/player-view';
 import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underway';
 import {
+  carrierIn,
   PROJECTION_BY_DOMAIN,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
   stationKeyOf,
   stationPointOf,
+  seatsOf,
   troopsAt,
   unitsOf,
   type MarchStation,
@@ -131,6 +134,7 @@ import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
+import { DisembarkCard } from './-plateau/DisembarkCard';
 import {
   MovementPreview,
   wireOrigin,
@@ -171,6 +175,7 @@ type Demolition = { buildingId: string; x: number; y: number };
 /** **Le point qu'on s'apprête à démonter**, et l'endroit du geste — même contrat que `Demolition`
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
+type Disembarking = { troopIds: ReadonlyArray<string>; x: number; y: number };
 
 /** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
  *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
@@ -405,6 +410,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
+  const [disembarking, setDisembarking] = useState<Disembarking | null>(null);
   /**
    * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
    * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
@@ -655,15 +661,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
+  /** Ce que les règles de la main lisent à une adresse : la pile, qui dit qui porte qui, et en
+   *  Blitz ses unités. */
   const unitsAt = useCallback(
-    (station: MarchStation) =>
-      blitz
-        ? {
-            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
-              unit.map((troop) => troop.id),
-            ),
-          }
-        : {},
+    (station: MarchStation) => {
+      const pile = troopsAt(view.me, stationKeyOf(station), marching);
+      return blitz
+        ? { pile, units: unitsOf(pile).map((unit) => unit.map((troop) => troop.id)) }
+        : { pile };
+    },
     [blitz, view.me, marching],
   );
 
@@ -856,6 +862,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
   const respecialize = useMutation(api.movements.respecialize);
   const boardTransport = useMutation(api.movements.board);
+  const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
 
   const actOnCompass = useCallback(
@@ -926,16 +933,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           setOrderError(null);
           setDismantling({ outpostId: action.outpostId, x: at.x, y: at.y });
           return;
-        /** **Embarquer est immédiat** (ADR 0025 §3) : pas d'aperçu ni de slot, la pile armée
-         *  prend l'adresse du transport et la visée se referme. */
+        /** **Embarquer au point du transport est immédiat** (révision de l'ADR 0025, 15/10) : pas
+         *  d'aperçu ni de slot, la pile armée monte à bord et la visée se referme. */
         case 'board':
-          if (column === null || action.transport.kind === 'home') return;
+          if (column === null) return;
           setOrderError(null);
           boardTransport({
             ...seat,
-            origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            transport: wireOrigin(action.transport),
+            carrierId: action.carrierId as Id<'troops'>,
+          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          return;
+        /** **Débarquer** (15/10) : une troupe à bord descend d'un clic ; plusieurs, une carte
+         *  demande lesquelles. */
+        case 'disembark':
+          setOrderError(null);
+          if (action.troopIds.length > 1) {
+            setDisembarking({ troopIds: action.troopIds, x: at.x, y: at.y });
+            return;
+          }
+          disembark({
+            ...seat,
+            troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
@@ -985,6 +1004,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       raiseOutpost,
       respecialize,
       boardTransport,
+      disembark,
       bombard,
       dropHand,
       column,
@@ -1067,6 +1087,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setBuildingSite(null);
       setDemolition(null);
       setDismantling(null);
+      setDisembarking(null);
       setSelectedLoot(null);
       setSelectedCamp(null);
       setSelectedObjective(null);
@@ -1562,8 +1583,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée.
    *  La garnison d'un bâtiment se lève par ses figurines comme une pile posée. */
-  const pieceClick = useCallback(
-    (hit: PieceClick): boolean => {
+  const pileClickOf = useCallback(
+    (hit: PieceClick): PileClick | null => {
       const pile = markers.find(
         (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
           marker.kind === 'stack' && marker.id === hit.pileId,
@@ -1573,26 +1594,126 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       );
       const station: TroopStation | undefined =
         pile?.station ?? (building && { kind: 'building', buildingId: building.id });
-      if (station === undefined || station.kind === 'home') return false;
+      if (station === undefined || station.kind === 'home') return null;
       const troopId = hit.troopIds[0];
-      return applyPileClick(
-        hit.spread && troopId !== undefined
-          ? { kind: 'troop', station, troopId }
-          : {
-              kind: 'pile',
-              station,
-              /** En Blitz, la figurine touchée est une unité (15/10) : `clickPile` la lève entière. */
-              troopIds:
-                blitz && hit.troopIds.length > 0
-                  ? hit.troopIds
-                  : (pile?.pieces.troopIds ??
-                    troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
-            },
-        hit.clientX,
-        hit.clientY,
-      );
+      return hit.spread && troopId !== undefined
+        ? { kind: 'troop', station, troopId }
+        : {
+            kind: 'pile',
+            station,
+            /** En Blitz, la figurine touchée est une unité (15/10) : `clickPile` la lève entière. */
+            troopIds:
+              blitz && hit.troopIds.length > 0
+                ? hit.troopIds
+                : (pile?.pieces.troopIds ??
+                  troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
+          };
     },
-    [markers, view.me, marching, applyPileClick, blitz],
+    [markers, view.me, marching, blitz],
+  );
+  const pieceClick = useCallback(
+    (hit: PieceClick): boolean => {
+      const click = pileClickOf(hit);
+      return click !== null && applyPileClick(click, hit.clientX, hit.clientY);
+    },
+    [pileClickOf, applyPileClick],
+  );
+
+  /** Une pièce dessinée, ou l'étiquette d'une de mes piles posées : la pile qu'elle désigne. */
+  const clickOfFrom = useCallback(
+    (from: PieceFrom): PileClick | null => {
+      if (from.kind === 'piece') return pileClickOf(from.hit);
+      if (from.station.kind !== 'point') return null;
+      const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
+        (troop) => troop.id,
+      );
+      return { kind: 'pile', station: from.station, troopIds };
+    },
+    [pileClickOf, view.me, marching],
+  );
+
+  /**
+   * **Le glisser prend la pièce** (15/10) : une troupe déployée seule — c'est ainsi qu'une pile se
+   * scinde —, ou la pile ; en Blitz, l'unité touchée, ou la première de l'étiquette.
+   */
+  const carryPiece = useCallback(
+    (from: PieceFrom): boolean => {
+      const click = clickOfFrom(from);
+      if (click === null) return false;
+      const rules = unitsAt(click.station);
+      const next: Hand =
+        rules.units !== undefined && from.kind === 'stack'
+          ? (() => {
+              const move = clickPile(EMPTY_HAND, click, rules);
+              return move.kind === 'lift' ? move.hand : EMPTY_HAND;
+            })()
+          : carry(hand, click, rules.pile);
+      if (next.kind === 'empty') return false;
+      if (next !== hand) liftHand(next);
+      return true;
+    },
+    [clickOfFrom, unitsAt, hand, liftHand],
+  );
+
+  /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
+   *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
+  const dropPiece = useCallback(
+    (on: PieceFrom): 'pose' | 'board' | 'back' => {
+      const click = clickOfFrom(on);
+      if (click === null || hand.kind !== 'held') return 'pose';
+      const drop = dropOn(hand, click, unitsAt(click.station).pile);
+      if (drop.kind === 'pose') return 'pose';
+      if (drop.kind === 'putBack') {
+        dropHand();
+        return 'back';
+      }
+      setOrderError(null);
+      boardTransport({
+        ...seat,
+        troopIds: hand.troopIds.map((troopId) => troopId as Id<'troops'>),
+        carrierId: drop.carrierId as Id<'troops'>,
+      }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+      return 'board';
+    },
+    [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat],
+  );
+
+  /** **Le signe d'embarquement**, sous le pointeur, sur un transport de la même adresse — les
+   *  places d'après, ou le motif. Ailleurs, la rose le dit (`undefined`). */
+  const dropHintOf = useCallback(
+    (on: PieceFrom): DropHint | null | undefined => {
+      const click = clickOfFrom(on);
+      if (click === null || hand.kind !== 'held') return undefined;
+      const { pile } = unitsAt(click.station);
+      const drop = dropOn(hand, click, pile);
+      if (drop.kind === 'pose') return undefined;
+      if (drop.kind === 'putBack') return null;
+      const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
+      const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
+      const station = click.station;
+      const boarding = {
+        riders: held.filter((troop) => carrierIn(troop, held) === null),
+        carrier,
+        pile,
+        atAirfield:
+          station.kind === 'building' &&
+          view.me.buildings.find((building) => building.id === station.buildingId)?.key ===
+            PROJECTION_BY_DOMAIN.air,
+      };
+      const refusal = boardingRefusalOf(boarding);
+      const { needed, offered } = boardingRefusalDetails(boarding);
+      const seats = seatsOf(carrier.role);
+      return {
+        title: fr.compass.boardOnto(fr.compass.transports([carrier.role])),
+        detail:
+          refusal === null
+            ? fr.compass.boardPlaces(seats - offered + needed, seats)
+            : fr.errors[refusal](boardingRefusalDetails(boarding)),
+        boards: true,
+        refused: refusal !== null,
+      };
+    },
+    [clickOfFrom, hand, unitsAt, view.me.buildings],
   );
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
@@ -2169,6 +2290,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               holding={holding}
               departures={departures}
               onPieceClick={view.me.defeated ? undefined : pieceClick}
+              onPieceCarry={view.me.defeated ? undefined : carryPiece}
+              onPieceDrop={dropPiece}
+              dropHintOf={dropHintOf}
               onRestAim={restAt}
               onRoseDismiss={dropHand}
               onHeldCompass={setHeldCompass}
@@ -2282,6 +2406,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onClose={() => setDismantling(null)}
               />
             )}
+            {disembarking !== null && (
+              <DisembarkCard
+                key={disembarking.troopIds.join()}
+                seat={seat}
+                view={view}
+                troopIds={disembarking.troopIds}
+                at={disembarking}
+                onClose={() => setDisembarking(null)}
+              />
+            )}
             {garrison && (
               <GarrisonPanel
                 /* The pre-check is part of the panel's identity, not only its address: a second
@@ -2313,6 +2447,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
                 troopIds={hand.troopIds}
                 onCompose={compose}
+                onDisembark={(troopIds) =>
+                  disembark({
+                    ...seat,
+                    troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+                  }).then(
+                    () => compose(hand.troopIds.filter((troopId) => !troopIds.includes(troopId))),
+                    (problem: unknown) => handleError(problem, setOrderError),
+                  )
+                }
                 founding={
                   heldCompass === null
                     ? null
@@ -2807,7 +2950,15 @@ function choiceOf(action: OrderAction): OrderChoice {
   const said = { label: action.label, consequence: action.consequence };
   switch (action.key) {
     case 'aim':
-      return { ...said, aim: action.aim, type: action.type, mission: { kind: 'march' } };
+      return {
+        ...said,
+        aim: action.aim,
+        type: action.type,
+        mission:
+          action.boardsOn === undefined
+            ? { kind: 'march' }
+            : { kind: 'march', boardsOn: action.boardsOn },
+      };
     case 'plunder':
       return {
         ...said,

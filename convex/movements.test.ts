@@ -2302,6 +2302,7 @@ describe('the door of the sea, read on the pile', () => {
       point: beach,
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.mutation(api.movements.disembark, { ...seat, troopIds: [infantry] });
     return { infantry, cargo, beach };
   };
 
@@ -2413,43 +2414,118 @@ describe('the door of the sea, read on the pile', () => {
     });
   });
 
-  /** ADR 0025 §3 : à moins de `BOARDING_RADIUS_KM`, on monte à bord sur-le-champ, sans slot. */
-  it('boards two armour from the barracks onto the cargo at the quay, at once', async () => {
+  /** **On embarque dans un transport, et on y reste** (révision de l'ADR 0025, 15/10) : au point
+   *  du transport, sur-le-champ, sans slot ni mouvement. */
+  it('boards two armour standing at the quay onto the cargo, at once', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const quay = await raise(t, seat, 'port', NORD);
+    const armour = [await form(t, seat, 'armor', quay), await form(t, seat, 'armor', quay)];
+    const cargo = await form(t, seat, 'cargo', quay);
+
+    await t.mutation(api.movements.board, { ...seat, troopIds: armour, carrierId: cargo });
+
+    const aboard = await t.run(async (ctx) => Promise.all(armour.map((id) => ctx.db.get(id))));
+    expect(aboard.map((troop) => troop!.carriedBy)).toEqual([cargo, cargo]);
+    expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
+  });
+
+  it('boards nobody who stands at another address', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', NORD);
     const quay = await raise(t, seat, 'port', NORD);
-    const armour = [await form(t, seat, 'armor', barracks), await form(t, seat, 'armor', barracks)];
-    await form(t, seat, 'cargo', quay);
+    const armour = await form(t, seat, 'armor', barracks);
+    const cargo = await form(t, seat, 'cargo', quay);
 
-    await t.mutation(api.movements.board, {
-      ...seat,
-      origin: { kind: 'building', buildingId: barracks },
-      troopIds: armour,
-      transport: { kind: 'building', buildingId: quay },
-    });
-
-    const aboard = await t.run(async (ctx) => Promise.all(armour.map((id) => ctx.db.get(id))));
-    expect(aboard.map((troop) => troop!.stationedAt)).toEqual([quay, quay]);
-    expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
+    await expect(
+      t.mutation(api.movements.board, { ...seat, troopIds: [armour], carrierId: cargo }),
+    ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
   });
 
-  it('refuses a cargo beyond the boarding radius', async () => {
+  it('sets passengers ashore at the quay, and never on the open sea', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const quay = await raise(t, seat, 'port', NORD);
+    const cargo = await form(t, seat, 'cargo', quay);
+    const rifle = await form(t, seat, 'infantry', quay);
+    await t.run((ctx) => ctx.db.patch(rifle, { carriedBy: cargo }));
+
+    await t.mutation(api.movements.disembark, { ...seat, troopIds: [rifle] });
+    expect((await t.run((ctx) => ctx.db.get(rifle)))!.carriedBy).toBeUndefined();
+
+    const sea = { lon: DOGGER[0], lat: DOGGER[1] };
+    const hull = await postAt(t, seat, 'cargo', sea);
+    const swimmer = await postAt(t, seat, 'infantry', sea);
+    await t.run((ctx) => ctx.db.patch(swimmer, { carriedBy: hull }));
+    await expect(
+      t.mutation(api.movements.disembark, { ...seat, troopIds: [swimmer] }),
+    ).rejects.toThrow('DISEMBARK_AT_SEA');
+  });
+
+  /** **Les passagers suivent leur transport** : il part avec sa cargaison, et un passager ne
+   *  part pas sans lui. */
+  it('takes a transport’s cargo along, and keeps a passenger from leaving without it', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const quay = await raise(t, seat, 'port', NORD);
+    const cargo = await form(t, seat, 'cargo', quay);
+    const rifle = await form(t, seat, 'infantry', quay);
+    await t.run((ctx) => ctx.db.patch(rifle, { carriedBy: cargo }));
+    const origin = { kind: 'building' as const, buildingId: quay };
+    const point = { lon: DOGGER[0], lat: DOGGER[1] };
+
+    await expect(
+      t.mutation(api.movements.marchTo, { ...seat, origin, troopIds: [rifle], point }),
+    ).rejects.toThrow('STILL_ABOARD');
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds: [cargo], point });
+    const [movement] = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    expect([...movement!.troopIds].sort()).toEqual([cargo, rifle].sort());
+  });
+
+  /** **Une colonne mixte embarque au départ** : ses fusiliers montent dans son camion. */
+  it('seats a column’s riflemen in its truck as it leaves', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const truck = await form(t, seat, 'landTransport', barracks);
+    const riflemen = [
+      await form(t, seat, 'infantry', barracks),
+      await form(t, seat, 'infantry', barracks),
+    ];
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [truck, ...riflemen],
+      point: { lon: 4.0, lat: 49.0 },
+    });
+
+    const seated = await t.run(async (ctx) => Promise.all(riflemen.map((id) => ctx.db.get(id))));
+    expect(seated.map((troop) => troop!.carriedBy)).toEqual([truck, truck]);
+  });
+
+  /** **Lâchée de loin sur un transport**, la troupe y marche et monte en arrivant. */
+  it('boards the transport it marched to, on arrival', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const quay = await raise(t, seat, 'port', NORD);
-    const armour = await form(t, seat, 'armor', barracks);
-    await form(t, seat, 'cargo', quay);
+    const rifle = await form(t, seat, 'infantry', barracks);
+    const cargo = await form(t, seat, 'cargo', quay);
 
-    await expect(
-      t.mutation(api.movements.board, {
-        ...seat,
-        origin: { kind: 'building', buildingId: barracks },
-        troopIds: [armour],
-        transport: { kind: 'building', buildingId: quay },
-      }),
-    ).rejects.toThrow('TOO_FAR_TO_BOARD');
+    await t.mutation(api.movements.enterGarrison, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [rifle],
+      buildingId: quay,
+      boardsOn: cargo,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const arrived = (await t.run((ctx) => ctx.db.get(rifle)))!;
+    expect(arrived.stationedAt).toBe(quay);
+    expect(arrived.carriedBy).toBe(cargo);
   });
 
   /**
@@ -2748,6 +2824,7 @@ describe('the door of the sea, read on the pile', () => {
       point: beach,
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.mutation(api.movements.disembark, { ...seat, troopIds: [infantry] });
 
     const inland = regionFacts('RUS-2616')!.point;
     expect(landAtPoint(inland)).toBe(true);
@@ -3991,8 +4068,8 @@ describe('rester en mer', () => {
   });
 
   /**
-   * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli, à sa
-   * capacité**, et l'excédent coule. Douze bancs pour treize fantassins : un reste à l'eau.
+   * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli**, et
+   * ce qu'aucune coque ne porte coule. Douze à bord, un treizième à l'eau.
    */
   it('takes twelve aboard the routed hull and drowns the thirteenth', async () => {
     const t = boot();
@@ -4002,6 +4079,10 @@ describe('rester en mer', () => {
     const cargo = await postAt(t, guest, 'cargo', water, 7 / 8);
     const riders: Array<Id<'troops'>> = [];
     for (let rank = 0; rank < 13; rank += 1) riders.push(await postAt(t, guest, 'infantry', water));
+    /** Douze à bord, le treizième sans banc — on est à bord parce qu'on a embarqué (15/10). */
+    await t.run(async (ctx) => {
+      for (const rider of riders.slice(0, 12)) await ctx.db.patch(rider, { carriedBy: cargo });
+    });
 
     const quay = await raise(t, seat, 'port', NORD);
     const campId = await surveyCamp(t, seat, water);

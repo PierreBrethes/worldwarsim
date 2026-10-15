@@ -39,7 +39,16 @@ import { pacedMinutes } from './pace';
 import { blitzTheatreOf } from './theatre';
 import { quarryOf, schedulePursuit } from './pursuit';
 import { occupiedBuildingIds } from '../blitz';
-import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
+import {
+  asPoint,
+  movementsOf,
+  outpostsOf,
+  pointOf,
+  seatedOf,
+  standingPile,
+  type TroopAddress,
+} from './forces';
+import { carrierIn, cargoOf, seatLoose } from '../../src/domain/troops';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
@@ -579,6 +588,16 @@ const slotRelief = (hqLevel: number) =>
  * constant once capped this door at one while the banner promised `1 + hqLevel`. **A return does
  * not count**: holding a slot hostage while a beaten column walks back punishes one defeat twice.
  */
+/** **On monte dans le transport qui tient le bâtiment** (15/10) : en Blitz, un bâtiment n'abrite
+ *  qu'une unité, et celle qu'on rejoint pour embarquer ne ferme pas la porte. */
+function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Column {
+  if (boardsOn === undefined || column.blitz === undefined || aim.kind !== 'building')
+    return column;
+  const occupied = new Set(column.blitz.occupiedBuildingIds);
+  occupied.delete(aim.buildingId);
+  return { ...column, blitz: { ...column.blitz, occupiedBuildingIds: occupied } };
+}
+
 export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
   /** **Pas de slots en Blitz** (B5) : la cadence est le rechargement, pas le QG. */
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
@@ -604,6 +623,7 @@ export async function march(
     plunder,
     capture,
     pursuit,
+    boardsOn,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -620,6 +640,8 @@ export async function march(
     /** **La troupe poursuivie** (Blitz, B18) : la colonne n'a alors pas d'arrivée, elle a des
      *  regards (`schedulePursuit`). */
     pursuit?: { readonly troopId: Id<'troops'> };
+    /** **Le transport où elle monte en arrivant** (15/10). */
+    boardsOn?: Id<'troops'> | undefined;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -645,10 +667,21 @@ export async function march(
     }
     troops.push(troop);
   }
+  /** **Les passagers suivent leur transport** (15/10) : un transport part avec sa cargaison, et
+   *  un passager ne part pas sans lui — on le débarque d'abord. */
+  const pile = (await standingPile(ctx, playerId, departure.stationId)).map(seatedOf);
+  for (const troop of [...troops]) {
+    const carrier = carrierIn(seatedOf(troop), pile);
+    if (carrier !== null && !troops.some((one) => one._id === carrier.id))
+      fail('STILL_ABOARD', { troopId: troop._id });
+    for (const rider of cargoOf(seatedOf(troop), pile))
+      if (!troops.some((one) => one._id === rider.id))
+        troops.push((await ctx.db.get(rider.id as Id<'troops'>))!);
+  }
 
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
-  const column = await columnOf(ctx, playerId, troops, departure);
+  const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
   const refusal =
     capture !== undefined
       ? captureOrderRefusalOf(
@@ -701,7 +734,7 @@ export async function march(
     distanceUnits: route.distanceUnits,
     costUnits: route.costUnits,
     landCost: route.landCost,
-    troopIds: [...troopIds],
+    troopIds: troops.map((troop) => troop._id),
     departedAt: now,
     arrivesAt,
     ...(plunder === undefined
@@ -720,8 +753,13 @@ export async function march(
       : {}),
     ...(capture === undefined ? {} : { capture }),
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
+    ...(boardsOn === undefined ? {} : { boardsOn }),
     ...movementCargoFields(cargo),
   });
+  /** **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte
+   *  s'il y a de la place, et le reste à bord à l'arrivée. */
+  for (const [riderId, carrierId] of seatLoose(troops.map(seatedOf)))
+    await ctx.db.patch(riderId as Id<'troops'>, { carriedBy: carrierId as Id<'troops'> });
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
   const filed = (await ctx.db.get(movementId))!;

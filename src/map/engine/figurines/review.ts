@@ -121,7 +121,11 @@ if (kind === 'buildings') {
     nominalStrength: 100,
   });
   const faces = new Faces(() => {});
-  const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+  const texts = {
+    count: fr.troops.sheetCount,
+    more: fr.troops.moreRoles,
+    aboard: fr.troops.aboardCounter,
+  };
   for (const [caption, troops] of [
     ['pile · 1 infanterie', [troop('infantry')]],
     ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
@@ -132,6 +136,16 @@ if (kind === 'buildings') {
     // MK2: France has no R35 yet. Smoke at half strength, thick smoke and a burnt hull at a quarter.
     ['pile · 2 blindés à 50 %', [1, 2].map(() => troop('armor', 50, 2))],
     ['pile · 2 blindés à 25 %', [1, 2].map(() => troop('armor', 25, 2))],
+    // What rides a transport is not drawn: the truck carries its « N à bord » counter (15/10).
+    [
+      'pile · camion, 2 fantassins à bord',
+      [
+        troop('landTransport'),
+        { ...troop('infantry'), id: 'aboard-1', carriedBy: 'landTransport' },
+        { ...troop('infantry'), id: 'aboard-2', carriedBy: 'landTransport' },
+        troop('armor'),
+      ],
+    ],
   ] as const) {
     const pile = pileObject(nation, pilePieces(troops), texts, faces);
     if (pile) smokes.push(...pile.smokes);

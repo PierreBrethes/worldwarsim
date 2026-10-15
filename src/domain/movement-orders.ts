@@ -8,15 +8,18 @@ import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
 import type { UnitDomain } from './troops';
 import {
-  BOARDING_RADIUS_KM,
+  boardedAll,
   DOMAIN_BY_ROLE,
+  fareOf,
   garrisons,
   LAND_SEATS_PER_TRANSPORT,
   LIFT_CAPACITY,
   LIFT_COST,
   PROJECTION_BY_DOMAIN,
+  seatsLeft,
   stackRows,
   unitsOf,
+  type Seated,
 } from './troops';
 
 /**
@@ -512,9 +515,11 @@ const mine = (aim: MovementAim, column: Column): boolean =>
  */
 const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   if (column.blitz !== undefined) {
-    /** **Une unité part seule** (B15, révisé le 15/10) : un transport part avec ce qu'il porte ;
-     *  et nulle part hors de la boîte du théâtre (B1). */
-    if (unitsOf(column.roles.map((role, rank) => ({ id: String(rank), role }))).length > 1)
+    /** **Une unité part seule** (B15, révisé le 15/10) : un transport part avec ce qu'il porte,
+     *  ou qu'il prend au départ ; et nulle part hors de la boîte du théâtre (B1). */
+    if (
+      unitsOf(boardedAll(column.roles.map((role, rank) => ({ id: String(rank), role })))).length > 1
+    )
       return 'ONE_UNIT_ONLY';
     const at = pointOfAim(aim);
     if (at !== null && !withinTheatre(column.blitz.theatre, at)) return 'OUTSIDE_THEATRE';
@@ -672,53 +677,63 @@ export type BoardingRefusal =
   | 'LAND_TROOPS_ONLY'
   | 'NO_TRANSPORT_HERE'
   | 'AIRFIELD_BOARDING_ONLY'
-  | 'TOO_FAR_TO_BOARD'
+  | 'TRUCK_SEATS_INFANTRY'
   | 'NOT_ENOUGH_LIFT';
 
-/** Un embarquement tel que la rose et `movements.board` le lisent, chacun de son côté. */
-export type Boarding = {
-  readonly passengers: ReadonlyArray<UnitRole>;
-  /** Ce qui se tient déjà, posé, à l'adresse du transport. */
-  readonly aboard: ReadonlyArray<UnitRole>;
-  readonly distanceKm: number;
+/** Un embarquement tel que la rose et le serveur le lisent, chacun de son côté : ces troupes,
+ *  dans ce transport, au point où il se tient. */
+export type Boarding<T extends Seated = Seated> = {
+  readonly riders: ReadonlyArray<T>;
+  readonly carrier: T;
+  /** Tout ce qui se tient au point du transport, les passagers déjà à bord et la colonne. */
+  readonly pile: ReadonlyArray<T>;
   readonly atAirfield: boolean;
-  /** L'adresse est un bâtiment : sa garnison se tient à quai, elle n'occupe aucun siège. */
-  readonly onQuay: boolean;
 };
 
-/**
- * **Ce qui se dispute les sièges** : les transports utilisables ici — un avion n'emporte personne
- * hors d'un aérodrome —, les passagers déjà posés sur eux, et la colonne. Au large ou sur une
- * plage, ceux qui sont là sont à bord ; à quai, une garnison au repos mangerait les places d'un
- * avion vide.
- */
-export const boardingPile = ({ passengers, aboard, atAirfield, onQuay }: Boarding) => [
-  ...aboard.filter((role) =>
-    DOMAIN_BY_ROLE[role] === 'land' ? !onQuay : atAirfield || role !== 'airTransport',
-  ),
-  ...passengers,
-];
+const faresOf = ({ riders, carrier, pile }: Boarding) =>
+  riders.map((rider) => fareOf(carrier.role, rider, pile));
 
 /**
- * **Embarquer, la règle entière** (ADR 0025 §3) — lue par la rose avant le clic et par la
- * mutation après lui.
+ * **Embarquer, la règle entière** (ADR 0025, révisée le 15/10) — lue par la rose avant le geste
+ * et par le serveur après lui. Un passager emporte sa propre cargaison : un camion chargé pèse
+ * ses fusiliers.
  */
 export function boardingRefusalOf(boarding: Boarding): BoardingRefusal | null {
-  const { passengers, aboard, distanceKm } = boarding;
-  if (passengers.length === 0) return 'EMPTY_MOVEMENT';
-  if (passengers.some((role) => DOMAIN_BY_ROLE[role] !== 'land')) return 'LAND_TROOPS_ONLY';
-  const pile = boardingPile(boarding);
-  if (!pile.some((role) => (LIFT_CAPACITY[role] ?? 0) > 0))
-    return aboard.includes('airTransport') ? 'AIRFIELD_BOARDING_ONLY' : 'NO_TRANSPORT_HERE';
-  if (distanceKm > BOARDING_RADIUS_KM) return 'TOO_FAR_TO_BOARD';
-  return strandedIn(pile) ? 'NOT_ENOUGH_LIFT' : null;
+  const { riders, carrier, pile, atAirfield } = boarding;
+  if (riders.length === 0) return 'EMPTY_MOVEMENT';
+  if (riders.some((rider) => DOMAIN_BY_ROLE[rider.role] !== 'land')) return 'LAND_TROOPS_ONLY';
+  if (fareOf(carrier.role, { id: '', role: 'infantry' }, pile) === null) return 'NO_TRANSPORT_HERE';
+  if (carrier.role === 'airTransport' && !atAirfield) return 'AIRFIELD_BOARDING_ONLY';
+  const fares = faresOf(boarding);
+  if (fares.some((fare) => fare === null)) return 'TRUCK_SEATS_INFANTRY';
+  return boardingRefusalDetails(boarding).needed > seatsLeft(carrier, pile)
+    ? 'NOT_ENOUGH_LIFT'
+    : null;
 }
 
-/** Ce que la phrase du refus nomme — places, distance, rayon —, la même des deux côtés. */
+export type DisembarkRefusal = 'NOT_ABOARD' | 'DISEMBARK_AT_SEA' | 'AIRFIELD_TARGET_REQUIRED';
+
+/** **On débarque où l'on est** (15/10) : à terre ou à quai, jamais au large — il n'y a rien où
+ *  poser le pied —, et d'un avion dans un de ses aérodromes seulement (ADR 0025 §4). */
+export function disembarkRefusalOf({
+  carrier,
+  afloat,
+  atAirfield,
+}: {
+  readonly carrier: UnitRole | null;
+  readonly afloat: boolean;
+  readonly atAirfield: boolean;
+}): DisembarkRefusal | null {
+  if (carrier === null) return 'NOT_ABOARD';
+  if (afloat) return 'DISEMBARK_AT_SEA';
+  return carrier === 'airTransport' && !atAirfield ? 'AIRFIELD_TARGET_REQUIRED' : null;
+}
+
+/** Ce que la phrase du refus nomme, et ce que le geste montre : les places demandées, et
+ *  celles qui restent. */
 export const boardingRefusalDetails = (boarding: Boarding) => ({
-  ...liftOf(boardingPile(boarding)),
-  km: Math.round(boarding.distanceKm),
-  maximum: BOARDING_RADIUS_KM,
+  needed: faresOf(boarding).reduce<number>((sum, fare) => sum + (fare ?? 0), 0),
+  offered: seatsLeft(boarding.carrier, boarding.pile),
 });
 
 /**

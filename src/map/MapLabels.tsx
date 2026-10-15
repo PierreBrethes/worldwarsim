@@ -780,15 +780,18 @@ export function MapLabels({
               if (over.current.label === label.id) over.current.label = null;
               hover(true);
             }}
-            onClick={(event) =>
+            data-label-id={label.id}
+            onClick={(event) => {
+              // A drag that carried a pile ends here too: it was not a click.
+              if (engine?.consumeCarry() === true) return;
               pressLabel(
                 label,
                 cleanPressAt(mapping, pressedWith.current, event.button, holding),
                 pressedWith.current,
                 event.clientX,
                 event.clientY,
-              )
-            }
+              );
+            }}
             onKeyDown={(event) => {
               if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
                 event.preventDefault();
@@ -802,6 +805,9 @@ export function MapLabels({
             }}
             onPointerDown={(event) => {
               pressedWith.current = event.pointerType;
+              // Une de mes piles se porte aussi depuis son étiquette (glisser-déposer, 15/10).
+              if (label.type === 'stack' && label.station !== null && !muted)
+                engine?.pressOnLabel(label.id, event.nativeEvent);
               // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
               // doublerait. Elle revient au survol suivant.
               showPoster.current(null);

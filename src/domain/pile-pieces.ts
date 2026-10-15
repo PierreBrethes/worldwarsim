@@ -1,13 +1,16 @@
 import type { UnitRole, UnitTier } from './ids';
 import type { ArcView, TroopView } from './player-view';
-import { DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
+import { cargoOf, carrierIn, DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
 
 /**
  * Une pile posée se lit en groupes de figurines (ADR 0026 §5). La règle vit ici, pure, pour que
  * le moteur et la feuille de lecture partagent un seul avis sur ce qui se montre et ce qui s'use.
  */
 
-type PileTroop = Pick<TroopView, 'id' | 'role' | 'tier' | 'strength' | 'nominalStrength'>;
+type PileTroop = Pick<
+  TroopView,
+  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy'
+>;
 
 export type Wear = 'whole' | 'smoking' | 'burning';
 
@@ -22,6 +25,9 @@ type PieceGroup = {
   readonly wear: Wear;
   /** **En Blitz, un avion reste en l'air** (décision de Pierre, 15/10) : posé, il plane. */
   readonly aloft?: true;
+  /** **Ce que ses transports portent** (15/10), à tous les étages : les passagers ne se voient
+   *  pas, le jeton « N à bord » les compte. Absent sans passager. */
+  readonly aboard?: number;
 };
 
 export type PilePieces = {
@@ -35,7 +41,7 @@ export type PilePieces = {
   readonly spread: ReadonlyArray<SpreadPiece>;
 };
 
-export type SpreadPiece = Pick<PieceGroup, 'role' | 'figures' | 'wear'> &
+export type SpreadPiece = Pick<PieceGroup, 'role' | 'figures' | 'wear' | 'aboard'> &
   Pick<SheetLine, 'notches' | 'ink'> & { readonly troopId: string };
 
 export type SheetLine = {
@@ -91,14 +97,24 @@ function figuresOf({ role, troops, ratio }: Bucket): UnitTier[] {
 }
 
 export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
-  const buckets = bucketsOf(troops);
+  /** **Ce qui est à bord ne se voit pas** (15/10) : seul ce qui se tient debout se dessine, et
+   *  un transport emmène ce qu'il porte. */
+  const standing = troops.filter((troop) => carrierIn(troop, troops) === null);
+  const cargo = (members: ReadonlyArray<PileTroop>) =>
+    members.flatMap((member) => cargoOf(member, troops));
+  const aboard = (members: ReadonlyArray<PileTroop>) => {
+    const riders = cargo(members).length;
+    return riders === 0 ? {} : { aboard: riders };
+  };
+  const buckets = bucketsOf(standing);
   return {
     groups: buckets.slice(0, SHOWN_GROUPS).map((bucket) => ({
       role: bucket.role,
       troops: bucket.troops.length,
-      troopIds: bucket.troops.map((t) => t.id),
+      troopIds: [...bucket.troops, ...cargo(bucket.troops)].map((t) => t.id),
       figures: figuresOf(bucket),
       wear: wearOf(bucket.ratio),
+      ...aboard(bucket.troops),
     })),
     more: Math.max(0, buckets.length - SHOWN_GROUPS),
     troopIds: troops.map((t) => t.id),
@@ -113,6 +129,7 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
           wear: wearOf(alone.ratio),
           notches: line.notches,
           ink: line.ink,
+          ...aboard([troop]),
         };
       }),
     ),
@@ -135,6 +152,7 @@ export function unitPieces(troops: ReadonlyArray<PileTroop>): PilePieces {
         figures: figuresOf(face),
         wear: wearOf(face.ratio),
         ...(DOMAIN_BY_ROLE[face.role] === 'air' ? { aloft: true as const } : {}),
+        ...(unit.length > 1 ? { aboard: unit.length - 1 } : {}),
       };
     }),
     more: 0,

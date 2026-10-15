@@ -7,13 +7,12 @@ import {
 import { fr, roleLabel } from '@/i18n/fr';
 import { carryCapacityOf } from '@/domain/loot';
 import {
-  boards,
-  stackRows,
+  cargoOf,
+  carrierIn,
   stationKeyOf,
   tierLabel,
+  unitsOf,
   DOMAIN_BY_ROLE,
-  LIFT_CAPACITY,
-  LIFT_COST,
   ROLE_ORDER,
   type StackRow,
 } from '@/domain/troops';
@@ -42,6 +41,7 @@ export function GarrisonStack({
   observing,
   onPrepare,
   onPickedChange,
+  onDisembark,
 }: {
   view: PlayerView;
   station: TroopStation;
@@ -56,6 +56,8 @@ export function GarrisonStack({
   /** Absent, la pile est déjà en main (fiche latérale, ADR 0026 §6) : on compose sans préparer. */
   onPrepare?: ((station: TroopStation, troopIds: ReadonlyArray<string>) => void) | undefined;
   onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** **Débarquer** (15/10) : la voie clavier de la branche de la rose ; absent, pas de bouton. */
+  onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
 }) {
   const narrow = useNarrowScreen();
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
@@ -64,16 +66,15 @@ export function GarrisonStack({
   useEffect(() => {
     onPickedChange?.([...picked]);
   }, [picked, onPickedChange]);
-  /**
-   * **Ce que le geste a dit, et rien de plus.** Purement client, jamais envoyé, jamais stocké :
-   * il déplace une troupe d'un transport à l'autre dans l'image, il ne change pas la pile — la
-   * coche produit exactement le même état (note « à bord », arbitrage du 19/08).
-   */
-  const [placements, setPlacements] = useState<ReadonlyMap<string, string>>(() => new Map());
-  const [dragged, setDragged] = useState<string | null>(null);
-  /** Le survol d'un transport pendant le geste : `taken` faux, c'est le refus qui se voit. */
-  const [over, setOver] = useState<{ carrier: string; taken: boolean } | null>(null);
-  const rows = useMemo(() => stackRows(held, picked, placements), [held, picked, placements]);
+  /** **Les passagers sous leur transport** (révision de l'ADR 0025, 15/10) : on est à bord parce
+   *  qu'on a embarqué, et un passager suit son transport — il ne se coche pas seul. */
+  const rows = useMemo(
+    () =>
+      unitsOf(held).flatMap((unit) =>
+        unit.map((troop) => ({ troop, carrier: carrierIn(troop, held) })),
+      ),
+    [held],
+  );
   /**
    * **Le refus se lit avant la visée, jamais après.** `liftOf` est la fonction que le serveur
    * appelle pour refuser (`NOT_ENOUGH_LIFT`) : une seconde table de ce qui tient à bord serait
@@ -108,26 +109,18 @@ export function GarrisonStack({
     [held, station, view.me.stationedCargo],
   );
 
+  /** Cocher un transport coche ce qu'il porte : la pile ne part pas sans ses passagers. */
   const toggle = (troopId: string) => {
+    const troop = held.find((one) => one.id === troopId);
+    const ids = [troopId, ...(troop === undefined ? [] : cargoOf(troop, held).map((t) => t.id))];
     setPicked((previous) => {
       const next = new Set(previous);
-      if (next.has(troopId)) next.delete(troopId);
-      else next.add(troopId);
+      for (const id of ids) {
+        if (previous.has(troopId)) next.delete(id);
+        else next.add(id);
+      }
       return next;
     });
-    // Un rang qu'on décoche oublie où le geste l'avait posé : le recocher repart de l'affectation
-    // gloutonne, comme s'il n'avait jamais été glissé.
-    setPlacements((previous) => {
-      const next = new Map(previous);
-      next.delete(troopId);
-      return next;
-    });
-  };
-
-  /** L'autre porte du même état : le geste coche la troupe et dit sous quel transport la lire. */
-  const drop = (passengerId: string, carrierId: string) => {
-    setPicked((previous) => new Set([...previous, passengerId]));
-    setPlacements((previous) => new Map([...previous, [passengerId, carrierId]]));
   };
 
   if (held.length === 0) {
@@ -136,9 +129,9 @@ export function GarrisonStack({
 
   return (
     <>
+      {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
       {narrow ? (
         <>
-          {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
           <TroopCards
             nation={view.me.nation}
             blitz={view.mode === 'blitz'}
@@ -152,58 +145,24 @@ export function GarrisonStack({
         <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto">
           {rows.map(({ troop, carrier }) => {
             const on = picked.has(troop.id);
-            const rides = (LIFT_COST[troop.role] ?? 0) > 0;
-            const lifts = (LIFT_CAPACITY[troop.role] ?? 0) > 0;
-            const aimed = over?.carrier === troop.id;
+            /** Un passager suit son transport : il se lit, il ne se coche pas seul. */
+            const ticks = composes && carrier === null;
             return (
-              /* Un rang, pas un `<button>` : Chromium ne démarre pas de glisser natif depuis
-                 un bouton, et le geste est l'autre porte de la même coche. Le rôle et le
-                 `tabIndex` gardent ce qu'un bouton donnait — la même paire que la carte des
-                 mouvements du widget. */
               <div
                 key={troop.id}
-                role={composes ? 'checkbox' : undefined}
-                aria-checked={composes ? on : undefined}
-                tabIndex={composes ? 0 : -1}
-                onClick={() => composes && toggle(troop.id)}
+                role={ticks ? 'checkbox' : undefined}
+                aria-checked={ticks ? on : undefined}
+                tabIndex={ticks ? 0 : -1}
+                onClick={() => ticks && toggle(troop.id)}
                 onKeyDown={(key) =>
-                  composes && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
+                  ticks && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
                 }
-                draggable={composes && rides}
-                onDragStart={() => setDragged(troop.id)}
-                onDragEnd={() => {
-                  setDragged(null);
-                  setOver(null);
-                }}
-                /* Le refus se voit **et** se sent : sans `preventDefault`, le curseur du
-                   navigateur porte déjà l'interdit et le lâcher ne part jamais. */
-                onDragOver={(gesture) => {
-                  if (!lifts || dragged === null || dragged === troop.id) return;
-                  const taken = boards(held, picked, placements, dragged, troop.id);
-                  if (taken) gesture.preventDefault();
-                  setOver({ carrier: troop.id, taken });
-                }}
-                onDragLeave={() =>
-                  setOver((previous) => (previous?.carrier === troop.id ? null : previous))
-                }
-                onDrop={(gesture) => {
-                  gesture.preventDefault();
-                  if (dragged !== null) drop(dragged, troop.id);
-                  setOver(null);
-                }}
-                style={{
-                  marginLeft: carrier === null ? undefined : 18,
-                  borderColor: aimed
-                    ? over?.taken
-                      ? 'var(--notable)'
-                      : 'var(--critical)'
-                    : undefined,
-                }}
+                style={{ marginLeft: carrier === null ? undefined : 18 }}
                 className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
-                  composes ? 'cursor-pointer' : 'opacity-70'
+                  ticks ? 'cursor-pointer' : composes ? '' : 'opacity-70'
                 } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
               >
-                {composes && (
+                {ticks && (
                   <span
                     className="flex h-[13px] w-[13px] shrink-0 items-center justify-center border border-[var(--ink)] text-[9px] leading-none"
                     style={{
@@ -220,10 +179,24 @@ export function GarrisonStack({
                     {roleLabel(troop.role, 1)}
                   </span>
                   <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                    {fr.troops.strength(troop.strength, troop.nominalStrength)}
+                    {carrier === null
+                      ? fr.troops.strength(troop.strength, troop.nominalStrength)
+                      : fr.garrison.aboard(roleLabel(carrier.role, 1))}
                   </span>
-                  <Upkeep troop={troop} blitz={view.mode === 'blitz'} />
+                  {carrier === null && <Upkeep troop={troop} blitz={view.mode === 'blitz'} />}
                 </span>
+                {carrier !== null && onDisembark !== undefined && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDisembark([troop.id]);
+                    }}
+                    className="cursor-pointer border border-[var(--ink)] px-[8px] py-[3px] text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                  >
+                    {fr.hand.disembark}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -372,16 +345,25 @@ function RoleShortcuts({
   picked: ReadonlySet<string>;
   onPick: (picked: ReadonlySet<string>) => void;
 }) {
+  /** Un raccourci prend ce qui se tient debout, et ce que ses transports portent avec eux. */
+  const standing = held.filter((troop) => carrierIn(troop, held) === null);
+  const withCargo = (troops: ReadonlyArray<TroopView>) =>
+    troops.flatMap((troop) => [troop, ...cargoOf(troop, held)]);
   const same = (troops: ReadonlyArray<TroopView>) =>
     troops.length === picked.size && troops.every((troop) => picked.has(troop.id));
   const shortcuts = [
     { label: fr.garrison.pickAll, troops: held },
     { label: fr.garrison.pickNone, troops: [] },
     ...ROLE_ORDER.flatMap((role) => {
-      const ofRole = held.filter((troop) => troop.role === role);
-      return ofRole.length === 0 || ofRole.length === held.length
+      const ofRole = standing.filter((troop) => troop.role === role);
+      return ofRole.length === 0 || ofRole.length === standing.length
         ? []
-        : [{ label: fr.garrison.pickRole(roleLabel(role, 1), ofRole.length), troops: ofRole }];
+        : [
+            {
+              label: fr.garrison.pickRole(roleLabel(role, 1), ofRole.length),
+              troops: withCargo(ofRole),
+            },
+          ];
     }),
   ];
   return (
@@ -394,7 +376,7 @@ function RoleShortcuts({
             type="button"
             aria-pressed={on}
             onClick={() => onPick(new Set(troops.map((troop) => troop.id)))}
-            className={`min-h-[36px] cursor-pointer border border-[var(--ink)] px-[11px] text-[10.5px] font-semibold tracking-[.12em] uppercase ${
+            className={`min-h-[30px] cursor-pointer border border-[var(--ink)] px-[11px] text-[10.5px] font-semibold tracking-[.12em] uppercase ${
               on ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
             }`}
           >
@@ -435,9 +417,9 @@ function TroopCards({
           <button
             key={troop.id}
             type="button"
-            role={composes ? 'checkbox' : undefined}
-            aria-checked={composes ? on : undefined}
-            disabled={!composes}
+            role={composes && carrier === null ? 'checkbox' : undefined}
+            aria-checked={composes && carrier === null ? on : undefined}
+            disabled={!composes || carrier !== null}
             onClick={() => onToggle(troop.id)}
             className={`relative flex min-h-[104px] cursor-pointer gap-[9px] px-[10px] py-[9px] text-left disabled:cursor-default ${
               on
@@ -466,7 +448,7 @@ function TroopCards({
                 <StrengthBar strength={troop.strength} nominal={troop.nominalStrength} />
               </span>
             </span>
-            {composes && (
+            {composes && carrier === null && (
               <span
                 aria-hidden
                 className={`absolute top-2 right-2 flex h-[24px] w-[24px] items-center justify-center border-[1.5px] border-[var(--ink)] text-[14px] text-[var(--paper)] ${

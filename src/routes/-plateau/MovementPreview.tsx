@@ -41,7 +41,8 @@ export type Previewed =
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
 type PreviewMission =
-  | { readonly kind: 'march' }
+  /** `boardsOn` : lâchée sur un transport, la colonne y monte en arrivant (15/10). */
+  | { readonly kind: 'march'; readonly boardsOn?: string }
   | { readonly kind: 'plunder'; readonly buildingId: string }
   | {
       readonly kind: 'capture';
@@ -190,6 +191,10 @@ export function MovementPreview({
     // them: the call itself.
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
     const from = wireOrigin(origin);
+    const boarding =
+      mission.kind === 'march' && mission.boardsOn !== undefined
+        ? { boardsOn: mission.boardsOn as Id<'troops'> }
+        : {};
     /** **La mission décide de la mutation avant le type** : l'expédition et le ramassage
      *  marchent tous deux, et c'est leur cible — un mât adverse, un relevé de caisse — qui les
      *  sépare, jamais un type de plus sur le fil. Reste la fondation, qui n'est plus un ordre
@@ -222,6 +227,7 @@ export function MovementPreview({
                   origin: from,
                   troopIds: ids,
                   point: { lon: aim.lon, lat: aim.lat },
+                  ...boarding,
                 })
               : type === 'march' && aim.kind === 'building'
                 ? enterGarrison({
@@ -229,6 +235,7 @@ export function MovementPreview({
                     origin: from,
                     troopIds: ids,
                     buildingId: aim.buildingId as Id<'buildings'>,
+                    ...boarding,
                   })
                 : /** **Une marche sur un avant-poste ne vise que le sien** (décision du 16/09) :
                    *  `refusalOf` le garantit, et la colonne y devient garnison à l'arrivée. */
@@ -238,6 +245,7 @@ export function MovementPreview({
                       origin: from,
                       troopIds: ids,
                       outpostId: aim.outpostId as Id<'outposts'>,
+                      ...boarding,
                     })
                   : type === 'raid' && aim.kind === 'outpost'
                     ? raid({

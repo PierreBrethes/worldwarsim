@@ -1,6 +1,13 @@
 import type { UnitRole, UnitTier } from './ids';
 import { firesIndirect } from './indirect-fire';
-import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from './troops';
+import {
+  carrierIn,
+  LIFT_CAPACITY,
+  LIFT_COST,
+  ROLE_ORDER,
+  TIERS_BY_ROLE,
+  type Seated,
+} from './troops';
 
 /**
  * **One engagement is one resolution pass, and the attacker has the initiative** (grilling of
@@ -340,16 +347,14 @@ function hit(
  * ancrage serait une nage de mille kilomètres. C'est le prix de rester au large, et la raison
  * d'une escorte.
  *
- * **Le siège est celui du panneau de garnison**, `stackRows` et pas une seconde arithmétique de
- * places : la place que le joueur a vue au départ est la place qui sauve à l'arrivée, et deux
- * lectures de `LIFT_CAPACITY` auraient fini par diverger sur exactement la règle que personne ne
- * relit. Les coques **debout** sont servies d'abord — un passager sauvé sur place ne part pas
- * avec un replié — puis les coques déroutées, qui emportent les leurs dans leur repli.
+ * **On est à bord d'un transport, pas d'une place** (révision de l'ADR 0025, 15/10) : la noyade
+ * lit qui porte qui, comme le joueur l'a vu — personne ne change de coque au milieu d'une passe, et
+ * le camion chargé coule avec son cargo et ses fusiliers.
  *
  * Pure et sans base : elle reçoit les **survivants** de la passe, jamais le plateau. Une coque
- * coulée n'est donc pas dans ses listes, et c'est ce qui rend ses bancs absents plutôt que nuls.
+ * coulée n'est donc pas dans ses listes, et c'est ce qui laisse ses passagers sans banc.
  */
-export type SeaUnit = { readonly id: string; readonly role: UnitRole };
+export type SeaUnit = Seated;
 
 export type SeaFate = {
   /** Les passagers que plus aucun banc ne porte : détruits, et jamais déroutés. */
@@ -362,30 +367,20 @@ export function drownedOf(
   standing: ReadonlyArray<SeaUnit>,
   routed: ReadonlyArray<SeaUnit>,
 ): SeaFate {
-  const hulls = (units: ReadonlyArray<SeaUnit>) =>
-    units.filter((unit) => (LIFT_CAPACITY[unit.role] ?? 0) > 0);
-  const afloat = hulls(standing);
-  const leaving = hulls(routed);
-  /** L'ordre canonique des rôles, puis l'identifiant : deux lectures de la même passe doivent
-   *  noyer les deux mêmes hommes, et rien d'autre ici ne tranche entre deux fantassins. */
-  const riders = [...standing, ...routed]
-    .filter((unit) => (LIFT_COST[unit.role] ?? 0) > 0)
-    .sort(
-      (a, b) =>
-        ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) ||
-        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-    );
-
-  const pile = [...afloat, ...leaving, ...riders];
-  const seated = stackRows(pile, new Set(pile.map((unit) => unit.id)));
-  const withdrawing = new Set(leaving.map((hull) => hull.id));
-
+  const all = [...standing, ...routed];
+  const leaving = new Set(routed.map((unit) => unit.id));
+  /** La coque au bout de la chaîne : un fusilier est à bord d'un camion, lui-même à bord. */
+  const hullOf = (unit: SeaUnit): SeaUnit | null => {
+    let at = carrierIn(unit, all);
+    while (at !== null && (LIFT_CAPACITY[at.role] ?? 0) === 0) at = carrierIn(at, all);
+    return at;
+  };
   const drowned: Array<string> = [];
   const withdrawn: Array<string> = [];
-  for (const rider of riders) {
-    const berth = seated.find((row) => row.troop.id === rider.id)?.carrier ?? null;
-    if (berth === null) drowned.push(rider.id);
-    else if (withdrawing.has(berth.id)) withdrawn.push(rider.id);
+  for (const rider of all.filter((unit) => (LIFT_COST[unit.role] ?? 0) > 0)) {
+    const hull = hullOf(rider);
+    if (hull === null) drowned.push(rider.id);
+    else if (leaving.has(hull.id)) withdrawn.push(rider.id);
   }
   return { drowned, withdrawn };
 }

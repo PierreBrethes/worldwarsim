@@ -10,7 +10,7 @@ import {
   type PassMode,
 } from '../src/domain/combat';
 import { landAtPoint } from './routes';
-import { movementsOf } from './movement/forces';
+import { movementsOf, seatedOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
 import { COMBAT_RULES } from './constants';
@@ -368,14 +368,11 @@ async function drownAtSea(
     const survivors = outcomes.filter(
       (outcome) => outcome.side === side && outcome.state !== 'destroyed',
     );
-    const unit = (outcome: CombatantOutcome) => ({
-      id: outcome.id,
-      role: byId.get(outcome.id)!.role,
-    });
+    const unit = (outcome: CombatantOutcome) => seatedOf(byId.get(outcome.id)!);
     const fate = drownedOf(
       [
         ...survivors.filter((outcome) => outcome.state === 'standing').map(unit),
-        ...(side === 'defender' ? aboard.map(({ _id, role }) => ({ id: _id, role })) : []),
+        ...(side === 'defender' ? aboard.map(seatedOf) : []),
       ],
       survivors.filter((outcome) => outcome.state === 'routed').map(unit),
     );

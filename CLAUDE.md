@@ -80,17 +80,17 @@ restant des blocs).
 **Et un cargo peut rester en mer avec des unités dedans** (décision de Pierre, 18/09/2026, qui
 révise la 72a du 04/09 — bannières dans les ADR 0019 §2 et 0012). Une colonne embarquée
 (terre + mer) vise **un point de mer** comme elle vise une plage : elle y arrive, coques et
-passagers à la même adresse, et elle y reste — être à bord demeure un état calculé
-(`StackRow.carrier`), aucun champ de plus. L'intérieur des terres reste refusé
+passagers à la même adresse, et elle y reste — à bord, dans `troops.carriedBy` (15/10, plus
+bas). L'intérieur des terres reste refusé
 (`LANDING_NEEDS_A_COAST`) parce que la jambe terrestre après la mer n'existe toujours pas, et le
 débarquement reste une opération qu'on vise. **Elle repart par sa coque, ou elle ne repart pas** :
 sans rien qui flotte sous elle, `NO_HULL_AT_SEA` — le *mouvement fantôme* dit à voix haute faute
 de pouvoir être empêché, puisque c'est le joueur qui fait partir son transport seul. **Le large
 prend ce qu'il n'y a plus de banc pour porter** : après toute passe à un point de mer, une troupe
-terrestre que la capacité des coques **debout** ne couvre plus est **détruite** — pas déroutée, il
-n'y a rien où se replier ; une coque déroutée emporte ses passagers à sa capacité et l'excédent
-coule (`drownedOf`, `src/domain/combat.ts`, pure et testée seule ; le siège est celui de
-`stackRows`, pas une seconde arithmétique de places). Les issues de la passe sont **amendées une
+terrestre dont la coque n'est plus **debout** est **détruite** — pas déroutée, il n'y a rien où se
+replier ; une coque déroutée emporte ses passagers, et personne ne change de coque au milieu d'une
+passe (`drownedOf`, `src/domain/combat.ts`, pure et testée seule, lit `carriedBy` à tous les
+étages : un camion chargé coule avec son cargo et ses fusiliers). Les issues de la passe sont **amendées une
 fois** dans `convex/combat.ts` et c'est la liste amendée qui descend partout — compte de
 l'engagement, charges, réduction, repliés —, sans quoi un noyé marcherait jusqu'à son ancrage.
 Dépêche `drownedAtSea` chez le seul propriétaire, en hommes et en machines, la place nommée en
@@ -103,17 +103,24 @@ du noyé n'avait aucune passe où s'appliquer. Ce que la carte en dit est une si
 rien de la cargaison (ADR 0024 §1) — **un cargo vide et un cargo plein sont indiscernables du
 dehors**, le gain de leurre que l'ADR 0014 annonçait et que ce lot rend réel.
 
-**Et l'on embarque par proximité — 08/10/2026** (ADR 0025). Un transport a une **capacité**
-(cargo 12, porte-avions 6, transport aérien 2), une troupe terrestre un **encombrement**
-(infanterie 1, camion 2, blindé 3), en places ; une troupe s'assoit dans **un seul** transport
-(`strandedIn`, lu sur `stackRows`), donc un blindé ne vole jamais. **Embarquer n'est pas un
-mouvement** : la troupe prend l'adresse d'un transport posé à moins de `BOARDING_RADIUS_KM` (50),
-sur-le-champ et sans slot (`movements.board`) — par air dans un aérodrome seulement, et une colonne
-qui vole des passagers ne descend que dans un de ses aérodromes (`AIRFIELD_TARGET_REQUIRED`). La
-rose et la mutation lisent `boardingRefusalOf`. La branche « embarquer » (l'ancre) s'ouvre sur le
-transport, sur son mât, et sur la pile qu'on tient : ce dernier chemin sert quand les étiquettes
-se serrent. Le port et l'aérodrome s'ouvrent à toute troupe terrestre ; le camion garde son
-rendez-vous en marche (`joinTransport`), parce qu'il motorise et ne fait rien traverser.
+**Et l'on est à bord parce qu'on a embarqué — 15/10/2026** (révision de l'ADR 0025, grilling de
+Pierre « comme dans un RTS »). Un transport a une **capacité** (cargo 12, porte-avions 6, transport
+aérien 2, **camion 2 fantassins**), une troupe terrestre un **encombrement** (infanterie 1, camion
+2 plus ses passagers, blindé 3) ; une troupe s'assoit dans **un seul** transport, donc un blindé ne
+vole jamais. **Être à bord est un état**, `troops.carriedBy` (optionnel, le transport qui la porte),
+qui ne vaut qu'à la même adresse que son transport (`carrierIn`, `cargoOf`, `unitsOf`,
+`src/domain/troops.ts`) : se tenir au point d'un transport ne fait plus monter personne.
+**Embarquer** : au point du transport, sur-le-champ et sans slot (`movements.board`) ; de plus loin,
+une marche qui monte en arrivant s'il y est encore et a la place (`movements.boardsOn`,
+`boardOnArrival`) — en Blitz elle entre dans le bâtiment que tient ce transport. Règle unique
+`boardingRefusalOf` (`src/domain/movement-orders.ts`), par air dans un aérodrome seulement.
+**Débarquer** : sur place, jamais au large, d'un avion dans un aérodrome (`movements.disembark`,
+`disembarkRefusalOf`) ; clic droit sur le transport — une troupe descend d'un clic, plusieurs ouvrent
+`DisembarkCard` —, ou le bouton de la fiche. **Les passagers suivent leur transport** : un transport
+part avec sa cargaison, un passager ne part pas sans lui (`STILL_ABOARD`), et une colonne mixte
+embarque au départ (`seatLoose`) et reste à bord à l'arrivée. Sur la carte, **ce qui est à bord ne
+se dessine pas** : le transport porte un jeton de bois « N à bord » (`pilePieces`, `aboard`), chez
+moi seulement — en face, une coque. `dev:backfillCarriedBy` a écrit l'état des parties d'avant.
 
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
 dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — quatre-vingt-treize
@@ -128,7 +135,14 @@ posséder**. En lecture seule, et il tient l'entrée de rail que l'onglet « pro
 **Le mouvement s'ordonne depuis la carte, et de nulle part ailleurs** (décisions 12a et 13a,
 ADR 0026 §6). On **lève** une pile, on la **pose** : une seule main au plateau (`Hand`), dont
 dérivent la colonne armée et la pièce que porte le moteur, et une seule règle pour les clics sur
-ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). La garnison d'un
+ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). **Ou on la
+glisse** (15/10) : pressée sur une de mes pièces — figurine ou étiquette —, un glisser gauche,
+quel que soit le mappage, ou un appui long du doigt (`LONG_PRESS_MS`) la porte (`carry` : une
+troupe déployée seule, c'est ainsi qu'une pile se scinde, ou la pile), l'orbite tenue ; lâchée
+(`dropOn`), sur un transport de son adresse elle embarque, sur elle-même elle se repose, ailleurs
+elle se pose et la rose répond — dont « rejoindre » une autre de mes piles, une marche à son point
+exact, refusée en Blitz entre unités de combat. Sous le pointeur, une puce dit ce que ferait le
+lâcher (`DropHint.tsx`, moteur `onCarryOver`). La garnison d'un
 **bâtiment** se lève aussi par ses figurines, au pied de sa maquette, comme une pile posée ; celle
 d'un avant-poste, qui n'en a pas, ne se lève pas sur la carte. Les deux gardent leur **panneau de
 garnison**, qui compose la pile et dont « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
