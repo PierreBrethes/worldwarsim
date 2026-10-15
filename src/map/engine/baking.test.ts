@@ -33,4 +33,18 @@ describe('bakedParts', () => {
     expect(size.x).toBeCloseTo(1);
     expect(size.z).toBeCloseTo(2);
   });
+
+  it('turns a mirrored mesh right side out, as three draws it unbaked', () => {
+    const geometry = new BoxGeometry(1, 1, 1);
+    const mesh = new Mesh(geometry, new MeshStandardMaterial());
+    mesh.scale.set(-1, 1, 1);
+    const scene = new Group().add(mesh);
+    const [part] = bakedParts(scene);
+    const index = part!.geometry.index!;
+    expect([index.getX(0), index.getX(1), index.getX(2)]).toEqual([
+      geometry.index!.getX(0),
+      geometry.index!.getX(2),
+      geometry.index!.getX(1),
+    ]);
+  });
 });

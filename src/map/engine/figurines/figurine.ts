@@ -1,11 +1,12 @@
-import { CircleGeometry, Group, Mesh, MeshBasicMaterial, type Object3D } from 'three';
+import { CircleGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
 import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
-import { squadOf } from './infantry';
+import { mergedByMaterial } from '../baking';
+import { JOINTS, squadOf } from './infantry';
 
 /**
  * Model units to board units. The brief sizes a tank at 2.6, so it stands about two thirds of
@@ -61,6 +62,68 @@ export function sceneOf(url: string): Promise<Object3D> {
   return scene;
 }
 
+const MOVING = new Set<string>(JOINTS);
+
+/** What the code turns, poses or hangs on by name: a joint, a hub, a marker (`fx_smoke`…). */
+function movesOnItsOwn(node: Object3D): boolean {
+  if (MOVING.has(node.name) || node.name.startsWith('fx_')) return true;
+  return node.name.startsWith('prop') && !node.parent?.name.startsWith('prop');
+}
+
+/**
+ * **A figurine drawn in a handful of calls**: the meshes under each part that moves on its own
+ * merged per material, and every other node gone. A soldier is some sixty meshes, one draw
+ * call each and as many again for the lamp's shadow; his joints keep their names, their pivot
+ * and what hangs from them, so `squadOf` poses him and `spin` turns his propellers as before.
+ */
+export function bakedFigurine(scene: Object3D): Group {
+  scene.updateMatrixWorld(true);
+  const root = new Group();
+  root.name = scene.name;
+  const pivots = new Map<Object3D, { group: Group; meshes: Mesh[] }>([
+    [scene, { group: root, meshes: [] }],
+  ]);
+  const pivotOf = (node: Object3D): Object3D => {
+    let at = node;
+    while (!pivots.has(at)) at = at.parent!;
+    return at;
+  };
+  scene.traverse((node) => {
+    if (node === scene) return;
+    if (movesOnItsOwn(node)) {
+      const above = pivotOf(node.parent!);
+      const group = new Group();
+      group.name = node.name;
+      new Matrix4()
+        .copy(above.matrixWorld)
+        .invert()
+        .multiply(node.matrixWorld)
+        .decompose(group.position, group.quaternion, group.scale);
+      pivots.get(above)!.group.add(group);
+      pivots.set(node, { group, meshes: [] });
+    }
+    if ((node as Mesh).isMesh) pivots.get(pivotOf(node))!.meshes.push(node as Mesh);
+  });
+  for (const [node, { group, meshes }] of pivots)
+    for (const { geometry, material } of mergedByMaterial(
+      meshes,
+      new Matrix4().copy(node.matrixWorld).invert(),
+    ))
+      group.add(new Mesh(geometry, material));
+  return root;
+}
+
+const baked = new Map<string, Promise<Group>>();
+/** Baked once per file, cloned per figurine: the clones share its geometry and materials. */
+function bakedOf(url: string): Promise<Group> {
+  let figurine = baked.get(url);
+  if (!figurine) {
+    figurine = sceneOf(url).then(bakedFigurine);
+    baked.set(url, figurine);
+  }
+  return figurine;
+}
+
 function fileOf(nation: Nation, role: UnitRole, tier: UnitTier): string | null {
   const entry = FIGURINE_FILES[nation]?.[role];
   if (entry === undefined) return null;
@@ -92,7 +155,7 @@ export function figurineFor(
   object.add(model);
   if (DOMAIN_BY_ROLE[role] !== 'air') object.add(contactShadow());
 
-  const ready = Promise.all(files.map((file) => sceneOf(file!))).then(
+  const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
       const makers = scenes.map((scene, k) => ({
         make: () => scene.clone(true),

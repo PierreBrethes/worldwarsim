@@ -26,6 +26,9 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
     if (Array.isArray(mesh.material)) throw new Error(`${mesh.name}: several materials`);
     const placement = new Matrix4().multiplyMatrices(fromWorld, mesh.matrixWorld);
     const geometry = mesh.geometry.clone().applyMatrix4(placement);
+    // A mirrored node (a flag's right half) is turned inside out once baked: three flips the
+    // face order of a mirrored mesh, and the merged one no longer knows it was.
+    if (placement.determinant() < 0) reverseWinding(geometry);
     const key = [
       mesh.material.uuid,
       geometry.index === null,
@@ -41,4 +44,26 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
       ? geometries.map((geometry) => ({ geometry, material }))
       : [{ geometry: merged, material }];
   });
+}
+
+function reverseWinding(geometry: BufferGeometry): void {
+  const index = geometry.index;
+  if (index !== null) {
+    for (let k = 0; k + 2 < index.count; k += 3) {
+      const second = index.getX(k + 1);
+      index.setX(k + 1, index.getX(k + 2));
+      index.setX(k + 2, second);
+    }
+    return;
+  }
+  for (const attribute of Object.values(geometry.attributes)) {
+    const size = attribute.itemSize;
+    const array = attribute.array;
+    for (let k = 0; k + 2 < attribute.count; k += 3)
+      for (let c = 0; c < size; c++) {
+        const second = array[(k + 1) * size + c]!;
+        array[(k + 1) * size + c] = array[(k + 2) * size + c]!;
+        array[(k + 2) * size + c] = second;
+      }
+  }
 }
