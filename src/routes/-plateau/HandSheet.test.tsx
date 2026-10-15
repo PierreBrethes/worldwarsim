@@ -88,6 +88,27 @@ describe('HandSheet in a Blitz', () => {
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByText(/relève à/)).toBeNull();
   });
+
+  it('gets the infantry off its truck alone', () => {
+    const onCompose = vi.fn();
+    render(
+      <HandSheet
+        view={
+          { mode: 'blitz', me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView
+        }
+        station={station}
+        place="Portugal"
+        held={[troop('inf', 'infantry'), troop('truck', 'landTransport')]}
+        troopIds={['inf', 'truck']}
+        onCompose={onCompose}
+        founding={null}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+      />,
+    );
+    act(() => screen.getByRole('button', { name: fr.hand.getOff }).click());
+    expect(onCompose).toHaveBeenLastCalledWith(['inf']);
+  });
 });
 
 /** **Fonder d'ici** : la branche de la rose, ou son motif — jamais un bouton grisé (ADR 0015). */

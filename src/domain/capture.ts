@@ -13,10 +13,15 @@ export type CaptureTarget =
   { readonly kind: 'building'; readonly key: BuildingKey } | { readonly kind: 'outpost' };
 
 export type CaptureRefusal =
-  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'HQ_NOT_CAPTURABLE' | 'CAPTURE_NEEDS_INFANTRY';
+  | 'EMPTY_MOVEMENT'
+  | 'FRIENDLY_TARGET'
+  | 'HQ_NOT_CAPTURABLE'
+  | 'CAPTURE_NEEDS_INFANTRY'
+  | 'CAPTURE_ON_FOOT';
 
 /** **Le QG ne se capture qu'en Blitz**, où sa chute élimine (B10) ; en Mondiale il attend la
- *  victoire par les QG. */
+ *  victoire par les QG. **En Blitz l'infanterie capture à pied** (retour de Pierre, 15/10) : une
+ *  unité est un transport et ce qu'il porte, et on fait descendre l'infanterie avant. */
 export function captureRefusalOf(
   target: CaptureTarget,
   roles: ReadonlyArray<UnitRole>,
@@ -26,7 +31,8 @@ export function captureRefusalOf(
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (isMine) return 'FRIENDLY_TARGET';
   if (isHq(target) && mode === 'mondiale') return 'HQ_NOT_CAPTURABLE';
-  return roles.includes('infantry') ? null : 'CAPTURE_NEEDS_INFANTRY';
+  if (!roles.includes('infantry')) return 'CAPTURE_NEEDS_INFANTRY';
+  return mode === 'blitz' && roles.some((role) => role !== 'infantry') ? 'CAPTURE_ON_FOOT' : null;
 }
 
 const isHq = (target: CaptureTarget): boolean => target.kind === 'building' && target.key === 'hq';

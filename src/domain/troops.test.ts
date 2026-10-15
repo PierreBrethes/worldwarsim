@@ -201,6 +201,21 @@ describe('representativeRole', () => {
     expect(representativeRole({ cargo: 0 })).toBeNull();
     expect(representativeRole({})).toBeNull();
   });
+
+  it('shows the truck when it carries all the infantry', () => {
+    expect(representativeRole({ infantry: 1, landTransport: 1 })).toBe('landTransport');
+    expect(representativeRole({ infantry: 2, landTransport: 1 })).toBe('landTransport');
+    expect(representativeRole({ infantry: 3, landTransport: 2 })).toBe('landTransport');
+  });
+
+  it('shows the boots when some of the infantry walks', () => {
+    expect(representativeRole({ infantry: 3, landTransport: 1 })).toBe('infantry');
+    expect(representativeRole({ infantry: 20, landTransport: 1 })).toBe('infantry');
+  });
+
+  it('keeps the majority when the truck rides with anything but infantry', () => {
+    expect(representativeRole({ infantry: 1, armor: 2, landTransport: 1 })).toBe('armor');
+  });
 });
 
 /**

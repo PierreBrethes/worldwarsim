@@ -674,6 +674,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : faites-la descendre du transport',
     HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
@@ -2532,6 +2533,8 @@ export const fr = {
     hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
     found: 'fonder un avant-poste ici',
+    aboard: 'à bord',
+    getOff: 'faire descendre',
   },
 
   /**

@@ -2,7 +2,7 @@ import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import type { CompassAction } from '@/domain/compass-rose';
-import type { MarchStation } from '@/domain/troops';
+import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { playedTheatre } from '@/domain/theatres';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -77,8 +77,10 @@ export function HandSheet({
       )}
     </>
   );
-  const [unit] = inHand;
-  /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more. */
+  const [unit, ...aboard] = unitsOf(inHand)[0] ?? [];
+  /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more.
+   *  What rides a transport is listed under it, and « faire descendre » takes it alone — the one
+   *  way off a truck, since a capture is made on foot. */
   if (view.mode === 'blitz' && unit !== undefined) {
     return (
       <MapCard
@@ -98,6 +100,24 @@ export function HandSheet({
             </span>
           </span>
         </div>
+        {aboard.length > 0 && (
+          <ul className="mt-[6px] border-t border-[var(--ink)] pt-[4px]">
+            {aboard.map((passenger) => (
+              <li key={passenger.id} className="flex items-center gap-[8px] py-[2px]">
+                <span className="min-w-0 flex-1 truncate text-[11.5px]">
+                  {fr.hand.aboard} · {roleLabel(passenger.role, 1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onCompose([passenger.id])}
+                  className={`cursor-pointer border border-[var(--ink)] px-[8px] ${narrow ? 'min-h-[44px]' : 'py-[3px]'} text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]`}
+                >
+                  {fr.hand.getOff}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {!supplied && (
           <p className="mt-[4px] font-(family-name:--font-mono) text-[10.5px] text-[var(--critical)]">
             {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}

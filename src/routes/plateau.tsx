@@ -654,6 +654,27 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view],
   );
 
+  /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
+  const unitsAt = useCallback(
+    (station: MarchStation) =>
+      blitz
+        ? {
+            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
+              unit.map((troop) => troop.id),
+            ),
+          }
+        : {},
+    [blitz, view.me, marching],
+  );
+
+  const liftHand = useCallback((next: Hand) => {
+    setHand(next);
+    setLifts((count) => count + 1);
+    setGarrison(null);
+    setOrder(null);
+    setOrderError(null);
+  }, []);
+
   /**
    * **Un clic sur un mât ouvre ce à quoi ce bâtiment sert**, et il n'y a plus qu'une réponse par
    * bâtiment (61a). Pour un site de projection c'est sa modale — ce qu'il forme et ce qu'il tient
@@ -677,6 +698,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  la modale fermait la visée qu'il venait de diriger sur ce mât — un port ne pouvait plus
        *  être visé du doigt. */
       if (narrow && column !== null) return;
+      /** **En Blitz, un bâtiment qui tient une de mes unités la lève** (retour de Pierre, 15/10) :
+       *  il ne recrute pas tant qu'elle y est (U6), et l'unité sortie d'une formation n'avait
+       *  qu'une porte, la modale, ses cases puis « préparer ». */
+      if (blitz && !view.me.defeated) {
+        const station: TroopStation = { kind: 'building', buildingId };
+        const unit = unitsAt(station).units?.[0];
+        if (unit !== undefined) {
+          liftHand({ kind: 'held', station, troopIds: unit });
+          return;
+        }
+      }
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
@@ -705,7 +737,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, view.mode, marching, narrow, column],
+    [
+      navigate,
+      openGarrison,
+      boardPoint,
+      view.me,
+      view.mode,
+      marching,
+      narrow,
+      column,
+      blitz,
+      liftHand,
+      unitsAt,
+    ],
   );
 
   /**
@@ -722,32 +766,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [openGarrison],
   );
 
-  const liftHand = useCallback((next: Hand) => {
-    setHand(next);
-    setLifts((count) => count + 1);
-    setGarrison(null);
-    setOrder(null);
-    setOrderError(null);
-  }, []);
-
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
     setOrder(null);
     setResting(null);
   }, []);
-
-  /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
-  const unitsAt = useCallback(
-    (station: MarchStation) =>
-      blitz
-        ? {
-            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
-              unit.map((troop) => troop.id),
-            ),
-          }
-        : {},
-    [blitz, view.me, marching],
-  );
 
   /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
    *  plateau rend vrai quand la pile cliquée devient la destination. */
