@@ -18,8 +18,7 @@ import {
 import { useNarrowScreen } from '@/shell/viewport';
 import { CombatLines } from './DispatchSheet';
 import { ReplayButton } from './ReplayDeck';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps, CloseButton } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import type { Seat } from '@/data/session';
 
 const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
@@ -212,12 +211,9 @@ function DeskJournal({
 
   return (
     <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] text-[var(--ink)]">
-      <DragHandle className="flex shrink-0 items-start gap-3 border-b-2 border-[var(--ink)] px-5 pt-[14px] pb-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
-          <h2 className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold tracking-[.04em]">
-            {fr.journal.masthead}
-          </h2>
-          <span className="font-(family-name:--font-mono) text-[11px] tracking-[.08em] text-[var(--ink-soft)] uppercase">
+      <WindowHead
+        eyebrow={
+          <>
             {edition} ·{' '}
             {unread > 0 ? (
               <span className="text-[var(--critical)]">
@@ -226,13 +222,15 @@ function DeskJournal({
             ) : (
               fr.journal.allRead
             )}
-          </span>
-        </div>
+          </>
+        }
+        title={fr.journal.masthead}
+        onClose={onClose}
+      >
         {view.season.reduction.concludedAt !== null && (
           <Stamp label={fr.stamps.seasonClosed} size="small" />
         )}
-        <CloseButton onClick={onClose} />
-      </DragHandle>
+      </WindowHead>
 
       {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. Une Blitz
           n'a ni slots ni plage de repos (B2, B5) : rien à y dire. */}

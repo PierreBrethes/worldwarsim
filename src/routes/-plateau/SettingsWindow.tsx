@@ -36,8 +36,7 @@ import {
   type MouseButton,
   type MouseMapping,
 } from '@/domain/mouse-mapping';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps, CloseButton } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { forgetSession, type Seat } from '@/data/session';
 import { currentPushEndpoint } from '@/data/pushDevice';
 import { NotificationsSection } from './NotificationsSection';
@@ -81,10 +80,7 @@ export function SettingsWindow({
   return (
     <FloatingWindow name="settings" onClose={onClose} {...windowProps} width={420}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
-          <span className="eyebrow">{fr.settingsWindow.header}</span>
-          <CloseButton onClick={onClose} />
-        </DragHandle>
+        <WindowHead title={fr.settingsWindow.header} onClose={onClose} />
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
           <div className="flex items-baseline justify-between">

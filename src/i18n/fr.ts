@@ -2498,8 +2498,14 @@ export const fr = {
      * que D3 refusait pour l'attrition.
      */
     unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
-    sheetKicker: 'fiche de pile',
+    /** Ce que la pile est, d'un coup d'œil (prototype de la table) : le compte, ou la troupe seule
+     *  et si elle est entamée. */
+    sheetKicker: (troops: number, worn: boolean) =>
+      troops > 1 ? `pile · ${troops} troupes` : worn ? 'troupe seule · entamée' : 'troupe seule',
     sheetHealth: (health: number) => `${health} / 100`,
+    sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
+    sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
+    sheetNothingAboard: 'rien à bord',
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
   },

@@ -149,12 +149,50 @@ describe('posterOf', () => {
     };
     const poster = posterFor(view(), [pile], 'pile');
     expect(poster?.title).toBe('Marne · 1');
+    expect(poster?.eyebrow).toBe('troupe seule · entamée');
+    expect(poster?.pile?.capacity).toBe(20);
+    expect(posterFor(view({ mode: 'blitz' }), [pile], 'pile')?.pile?.capacity).toBeNull();
     expect(poster?.pile?.lines).toEqual([
       expect.objectContaining({ role: 'infantry', troops: 1, health: 50, notches: 5 }),
     ]);
 
     const empty = { ...pile, station: { kind: 'building', buildingId: 'b-foundry' } } as MapMarker;
     expect(posterFor(view(), [empty], 'pile')).toBeNull();
+  });
+
+  it('says on its kicker what the pile is: how many troops, or one, whole or worn', () => {
+    const at = { kind: 'point', lonLat: [3, 3] } as const;
+    const troop = (id: string, strength: number) => ({
+      id,
+      role: 'infantry',
+      tier: 1,
+      strength,
+      nominalStrength: 100,
+      stationedAt: at,
+      supplied: true,
+    });
+    const pile = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [3, 3],
+      station: at,
+      stack: { infantry: 1 },
+      place: 'Aisne',
+      plate: null,
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      ink: '#2f4f78',
+    } as unknown as MapMarker;
+    const holding = (...troops: ReturnType<typeof troop>[]) =>
+      view({ me: { ...me, troops } as unknown as PlayerView['me'] });
+
+    expect(posterFor(holding(troop('a', 100)), [pile], 'pile')?.eyebrow).toBe('troupe seule');
+    expect(
+      posterFor(
+        holding(troop('a', 100), troop('b', 40), troop('c', 100), troop('d', 100)),
+        [pile],
+        'pile',
+      )?.eyebrow,
+    ).toBe('pile · 4 troupes');
   });
 
   it('counts down the reload of a Blitz troop that struck', () => {

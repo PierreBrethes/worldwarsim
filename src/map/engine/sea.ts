@@ -1,10 +1,12 @@
 import {
+  CanvasTexture,
   Color,
   DataTexture,
   LinearFilter,
   MeshStandardMaterial,
   RedFormat,
   SRGBColorSpace,
+  type Texture,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain/routing';
@@ -110,6 +112,11 @@ const GRATICULE_OPACITY = 0.22;
 const ROSE_AT: LonLat = [-33, 44];
 const ROSE_RADIUS = 3.2;
 const ROSE_OPACITY = 0.55;
+/** The prototype's Bodoni « N », above the north point: its centre and its box, in rose radii. */
+const ROSE_LETTER_AT = 1.42;
+const ROSE_LETTER_SIZE = 0.6;
+const ROSE_LETTER_PX = 128;
+const ROSE_LETTER_FONT = `700 ${ROSE_LETTER_PX * 0.72}px "Bodoni Moda", Georgia, serif`;
 const SURF_REACH = 1.25;
 const SURF_PERIOD_S = 12;
 const SURF_RINGS = 2;
@@ -139,6 +146,9 @@ export class SeaLayer implements AmbientLayer {
   private readonly coastStep = { value: 1 };
   // Radius zero until the frame is known: no rose rather than a rose at the origin.
   private readonly rose = { value: [0, 0, 0] };
+  private readonly roseLetter: { value: Texture } = {
+    value: coastTexture(new Uint8Array([0]), 1, 1),
+  };
   private readonly glow = { value: SHEET_GLOW };
   private readonly paper = { value: new Color(PALETTE.foam) };
   private disposed = false;
@@ -162,6 +172,11 @@ export class SeaLayer implements AmbientLayer {
     this.coastStep.value = grid.step;
     const rose = frame.projectLonLat(ROSE_AT);
     this.rose.value = [rose.x, rose.z, ROSE_RADIUS];
+    const letter = roseLetterTexture();
+    if (letter !== null) {
+      this.roseLetter.value.dispose();
+      this.roseLetter.value = letter;
+    }
     return grid;
   }
 
@@ -179,6 +194,7 @@ export class SeaLayer implements AmbientLayer {
   dispose(): void {
     this.disposed = true;
     this.coast.value.dispose();
+    this.roseLetter.value.dispose();
   }
 
   swell(material: MeshStandardMaterial): MeshStandardMaterial {
@@ -192,6 +208,7 @@ export class SeaLayer implements AmbientLayer {
       shader.uniforms.seaPaper = this.paper;
       shader.uniforms.seaInk = { value: new Color(PALETTE.seaInk) };
       shader.uniforms.seaRose = this.rose;
+      shader.uniforms.seaRoseLetter = this.roseLetter;
       shader.uniforms.seaGlow = this.glow;
       shader.vertexShader = shader.vertexShader
         .replace(
@@ -214,6 +231,7 @@ export class SeaLayer implements AmbientLayer {
           uniform vec3 seaPaper;
           uniform vec3 seaInk;
           uniform vec3 seaRose;
+          uniform sampler2D seaRoseLetter;
           uniform float seaGlow;
           varying vec2 vSeaBoard;
           varying vec2 vSeaLonLat;
@@ -282,6 +300,12 @@ export class SeaLayer implements AmbientLayer {
               rose = max(rose, seaRosePoint(roseAt, turn, k == 0 ? 1.15 : 1.0, 0.13, rosePx));
               rose = max(rose, seaRosePoint(roseAt, turn + 0.7854, 0.55, 0.08, rosePx));
             }
+            // North is -y on the board: the letter's top faces it, and reads upright from the south.
+            vec2 letterUv = vec2(0.5, 0.5) + vec2(roseAt.x, -(roseAt.y + ${glsl(ROSE_LETTER_AT)}))
+              / ${glsl(ROSE_LETTER_SIZE)};
+            if (all(greaterThan(letterUv, vec2(0.0))) && all(lessThan(letterUv, vec2(1.0)))) {
+              rose = max(rose, texture2D(seaRoseLetter, letterUv).r);
+            }
             seaEngraving = max(seaEngraving, ${glsl(ROSE_OPACITY)} * rose);
           }
           diffuseColor.rgb = mix(diffuseColor.rgb, seaInk, seaEngraving);`,
@@ -348,6 +372,37 @@ function coastBytes(distance: Float32Array, width: number): Uint8Array<ArrayBuff
   const bytes = new Uint8Array(smooth.length);
   for (let i = 0; i < smooth.length; i++) bytes[i] = (smooth[i]! / COAST_CAP_CELLS) * 255 + 0.5;
   return bytes;
+}
+
+/** White on black, read as coverage: redrawn once Bodoni has loaded, Georgia until then. */
+function roseLetterTexture(): CanvasTexture | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = ROSE_LETTER_PX;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) return null;
+  const draw = (): void => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, ROSE_LETTER_PX, ROSE_LETTER_PX);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = ROSE_LETTER_FONT;
+    // Centred on its ink, not its line box: the cap sits mid-square whatever the face.
+    const ink = ctx.measureText('N');
+    const middle = (ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2;
+    ctx.fillText('N', ROSE_LETTER_PX / 2, ROSE_LETTER_PX / 2 + middle);
+    // Bodoni's hairlines vanish once laid flat and seen at a slant: a stroke gives them the
+    // weight of the face at a small optical size.
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = ROSE_LETTER_PX * 0.025;
+    ctx.strokeText('N', ROSE_LETTER_PX / 2, ROSE_LETTER_PX / 2 + middle);
+  };
+  draw();
+  const texture = new CanvasTexture(canvas);
+  void document.fonts?.load(ROSE_LETTER_FONT).then(() => {
+    draw();
+    texture.needsUpdate = true;
+  });
+  return texture;
 }
 
 function coastTexture(bytes: Uint8Array<ArrayBuffer>, width: number, height: number): DataTexture {

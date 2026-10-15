@@ -99,6 +99,9 @@ export function BottomSheet({
 }) {
   const [height, setHeight] = useState<KeepingHeight>(initial);
   const [pull, setPull] = useState(0);
+  /** Released short of a step, the sheet glides back; one that changed step is already where it
+   *  belongs, and a glide from the finger's offset would carry it the wrong way first. */
+  const [glide, setGlide] = useState(false);
   const sheet = useRef<HTMLElement>(null);
   /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
    *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
@@ -123,9 +126,13 @@ export function BottomSheet({
 
   const steps: ReadonlyArray<KeepingHeight> = keepsSelection ? KEEPING_HEIGHTS : SHEET_HEIGHTS;
   const grip = useSwipe(
-    (travel) => setPull(Math.max(0, travel)),
+    (travel) => {
+      setGlide(false);
+      setPull(Math.max(0, travel));
+    },
     (travel) => {
       setPull(0);
+      setGlide(Math.abs(travel) <= STEP_PX);
       swiped.current = Math.abs(travel) > STEP_PX;
       const rank = steps.indexOf(height);
       if (travel > STEP_PX) {
@@ -146,7 +153,9 @@ export function BottomSheet({
         aria-label={title}
         data-height={height}
         data-hug={hug ? '' : undefined}
-        className="hud board-sheet paper-grain z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]"
+        className={`hud board-sheet paper-grain surface-in z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)] ${
+          glide ? 'sheet-return' : ''
+        }`}
         style={
           pull > 0 ? { transform: `translateY(${pull / scaleOf(sheet.current)}px)` } : undefined
         }
