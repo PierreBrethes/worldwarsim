@@ -7,36 +7,58 @@ import { FrameDemand, HEARTBEAT_MS, SETTLE_MS } from './frame-demand';
 describe('FrameDemand', () => {
   it('renders through the whole settle window after a stir, then rests', () => {
     const demand = new FrameDemand(0);
-    expect(demand.due(0)).toBe(true);
-    expect(demand.due(SETTLE_MS)).toBe(true);
-    expect(demand.due(SETTLE_MS + 16)).toBe(false);
+    expect(demand.due(0)).toBe('stirred');
+    expect(demand.due(SETTLE_MS)).toBe('stirred');
+    expect(demand.due(SETTLE_MS + 16)).toBeNull();
 
     demand.stir(SETTLE_MS + 32);
-    expect(demand.due(SETTLE_MS + 32)).toBe(true);
-    expect(demand.due(2 * SETTLE_MS + 32)).toBe(true);
-    expect(demand.due(2 * SETTLE_MS + 48)).toBe(false);
+    expect(demand.due(SETTLE_MS + 32)).toBe('stirred');
+    expect(demand.due(2 * SETTLE_MS + 32)).toBe('stirred');
+    expect(demand.due(2 * SETTLE_MS + 48)).toBeNull();
   });
 
-  it('renders one frame for a single request without opening the window', () => {
+  it('renders one ambient frame for a single request without opening the window', () => {
     const demand = new FrameDemand(0);
-    expect(demand.due(SETTLE_MS + 100)).toBe(true);
-    expect(demand.due(SETTLE_MS + 116)).toBe(false);
+    expect(demand.due(SETTLE_MS + 100)).toBe('heartbeat');
+    expect(demand.due(SETTLE_MS + 116)).toBeNull();
     demand.request();
-    expect(demand.due(SETTLE_MS + 132)).toBe(true);
-    expect(demand.due(SETTLE_MS + 148)).toBe(false);
+    expect(demand.due(SETTLE_MS + 132)).toBe('ambient');
+    expect(demand.due(SETTLE_MS + 148)).toBeNull();
   });
 
   it('never stays frozen: a heartbeat frame is due even when nothing stirred', () => {
     const demand = new FrameDemand(0);
     const lastStirred = SETTLE_MS;
-    expect(demand.due(lastStirred)).toBe(true);
+    expect(demand.due(lastStirred)).toBe('stirred');
 
     let rendered = 0;
     for (let now = lastStirred + 16; now <= lastStirred + 10 * HEARTBEAT_MS; now += 16) {
-      if (demand.due(now)) rendered += 1;
+      if (demand.due(now) === 'heartbeat') rendered += 1;
     }
     expect(rendered).toBeGreaterThanOrEqual(9);
     expect(rendered).toBeLessThanOrEqual(10);
+  });
+
+  it('keeps the heartbeat whole under an ambience that asks at thirty frames a second', () => {
+    const demand = new FrameDemand(0);
+    const lastStirred = SETTLE_MS;
+    demand.due(lastStirred);
+
+    const reasons: string[] = [];
+    for (let now = lastStirred + 33; now <= lastStirred + 10 * HEARTBEAT_MS; now += 33) {
+      demand.request();
+      reasons.push(demand.due(now) ?? 'none');
+    }
+    expect(reasons).not.toContain('none');
+    const whole = reasons.filter((reason) => reason === 'heartbeat').length;
+    expect(whole).toBeGreaterThanOrEqual(9);
+    expect(whole).toBeLessThanOrEqual(10);
+  });
+
+  it('renders a stirred frame whole even when the ambience asked for it too', () => {
+    const demand = new FrameDemand(0);
+    demand.request();
+    expect(demand.due(16)).toBe('stirred');
   });
 });
 
