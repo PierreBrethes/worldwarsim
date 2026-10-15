@@ -2393,8 +2393,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               {!aimingOnPhone && (
                 <GroundPanel
                   selected={country ?? null}
-                  hoveredCountry={hoveredCountry}
-                  hoveredRegion={hoveredRegion}
+                  hoveredCountry={blitz ? null : hoveredCountry}
+                  hoveredRegion={blitz ? null : hoveredRegion}
                   holding={
                     hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
                   }

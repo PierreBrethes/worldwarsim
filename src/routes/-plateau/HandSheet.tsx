@@ -1,5 +1,6 @@
 import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
-import { fr } from '@/i18n/fr';
+import { fr, roleLabel } from '@/i18n/fr';
+import { UnitSprite } from '@/emblems/UnitSprite';
 import type { CompassAction } from '@/domain/compass-rose';
 import type { MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
@@ -76,6 +77,36 @@ export function HandSheet({
       )}
     </>
   );
+  const [unit] = inHand;
+  /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more. */
+  if (view.mode === 'blitz' && unit !== undefined) {
+    return (
+      <MapCard
+        kicker={fr.hand.kicker(place)}
+        at={edge()}
+        gap={{ x: 0, y: 0 }}
+        width={240}
+        hug={false}
+        onClose={onDrop}
+      >
+        <div className="mt-[6px] flex items-center gap-[8px]">
+          <UnitSprite nation={view.me.nation} role={unit.role} height={28} width={40} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-bold">{roleLabel(unit.role, 1)}</span>
+            <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+              {fr.troops.strength(unit.strength, unit.nominalStrength)}
+            </span>
+          </span>
+        </div>
+        {!supplied && (
+          <p className="mt-[4px] font-(family-name:--font-mono) text-[10.5px] text-[var(--critical)]">
+            {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+          </p>
+        )}
+        {hint}
+      </MapCard>
+    );
+  }
   return (
     <MapCard
       kicker={fr.hand.kicker(place)}
