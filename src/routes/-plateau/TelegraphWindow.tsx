@@ -3,8 +3,7 @@ import { fr } from '@/i18n/fr';
 import type { Telegraph } from '@/data/telegraph';
 import { TelegraphPanel, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import { useNarrowScreen } from '@/shell/viewport';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, useWindowSized, type WindowProps, CloseButton } from './Window';
+import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import type { Seat } from '@/data/session';
 
 /**
@@ -55,13 +54,7 @@ export function TelegraphWindow({
             </button>
           </div>
         ) : (
-          <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
-            <span className="eyebrow">{fr.telegraph.header}</span>
-            <span className="font-(family-name:--font-display) text-[12px] text-[var(--ink-quiet)] italic">
-              {title}
-            </span>
-            <CloseButton onClick={close} />
-          </DragHandle>
+          <WindowHead eyebrow={title} title={fr.telegraph.header} onClose={close} />
         )}
 
         <TelegraphPanel
