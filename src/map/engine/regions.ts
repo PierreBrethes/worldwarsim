@@ -461,12 +461,12 @@ export class RegionLayer {
         fill.receiveShadow = true;
         this.held.add(fill);
         if (claim.outlined === true && state !== 'suspended')
-          this.held.add(this.outlineOf(claim.ink, ids));
+          this.held.add(this.holdOutline(claim.ink, ids));
       }
     }
   }
 
-  private outlineOf(ink: string, ids: ReadonlySet<string>): LineSegments {
+  private holdOutline(ink: string, ids: ReadonlySet<string>): LineSegments {
     const points: number[] = [];
     for (const { region } of this.prepared) {
       if (!ids.has(region.id)) continue;
