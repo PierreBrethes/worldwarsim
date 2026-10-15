@@ -318,9 +318,6 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
   return {
     ...shared,
     state: 'enemyDetected',
-    /** A sentry sees a column go past, not a flag: nothing about the owner is served, and the
-     *  card says nothing rather than guessing. */
-    suspectedNation: null,
     headingAtMe: seen.headingAtMe,
     identification: { pierced: false },
     estimatedMinutesLeft: Math.max(0, (seen.arrivesAt - now) / 60_000),

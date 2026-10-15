@@ -219,16 +219,6 @@ function TableShade() {
   );
 }
 
-/** The newspaper's strong rule: three points of lead then one — never the reverse. */
-export function ThickRule({ margin = 30 }: { margin?: number | string }) {
-  return (
-    <div aria-hidden style={{ margin: `0 ${gutter(margin)}` }}>
-      <div className="h-[3px] bg-[var(--ink)]" />
-      <div className="mt-[2px] h-px bg-[var(--ink)]" />
-    </div>
-  );
-}
-
 export function ThickRuleInverse({ margin = 30 }: { margin?: number | string }) {
   return (
     <div aria-hidden style={{ margin: `0 ${gutter(margin)}` }}>

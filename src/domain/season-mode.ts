@@ -1,6 +1,6 @@
 import { theatreById } from './theatres';
 
-export const SEASON_MODES = ['blitz', 'mondiale'] as const;
+const SEASON_MODES = ['blitz', 'mondiale'] as const;
 export type SeasonMode = (typeof SEASON_MODES)[number];
 
 export const MODE_RULES = {

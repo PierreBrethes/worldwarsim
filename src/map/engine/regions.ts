@@ -12,17 +12,11 @@ import {
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import { HELD_OPACITY, lavis, nationShades, PALETTE, PEN_OPACITY, penOn } from './palette';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
-import {
-  mulberry,
-  seed,
-  sketchRegion,
-  TerrainSketches,
-  zoomFade,
-  type PenStrands,
-} from './terrain';
+import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
 
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;

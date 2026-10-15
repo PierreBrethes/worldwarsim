@@ -111,7 +111,7 @@ export type CounterTexts = {
 };
 
 /** The one source of a pile's counter words: a ×N per group of several, then the +N. */
-export function counterTexts(
+function counterTexts(
   pieces: PilePieces,
   texts: CounterTexts,
 ): { groups: ReadonlyArray<string | null>; more: string | null } {

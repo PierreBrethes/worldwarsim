@@ -4,7 +4,7 @@
  * shell can read and change it without importing the board itself.
  */
 
-export const WINDOWS = [
+const WINDOWS = [
   'journal',
   'telegraph',
   /** **Pas d'entrée de rail** : la modale d'un site s'ouvre au clic gauche sur son mât, et de

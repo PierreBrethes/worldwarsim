@@ -234,16 +234,6 @@ export const fr = {
     return: 'retour',
   } satisfies Record<MovementType, string>,
 
-  movementTypesPlural: {
-    march: 'marches',
-    attack: 'attaques',
-    raid: 'raids',
-    outpost: 'avant-postes',
-    recall: 'rappels',
-    agent: 'agents',
-    return: 'retours',
-  } satisfies Record<MovementType, string>,
-
   resources: {
     food: 'nourriture',
     textile: 'tissus',
@@ -336,7 +326,6 @@ export const fr = {
   blitz: {
     funds: 'fonds',
     neutral: 'neutre',
-    neutralSite: (region: string) => `neutre · ${region}`,
     unguarded: 'personne ne la tient — l’infanterie la capture',
     perMinute: (perMinute: number) => `+${num(perMinute)}/min`,
     siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
@@ -2117,7 +2106,6 @@ export const fr = {
     tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
     reducedMark: 'réduit',
     standingMark: 'debout',
-    homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
     /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
     blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
       reason === 'draw'
@@ -2883,7 +2871,6 @@ export const fr = {
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
     before: (garrisonDamageTaken: number, dryFactor: number) =>
       `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
-    firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
      *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */
@@ -3041,7 +3028,6 @@ export const fr = {
     trainingLabel: 'formation',
     troopCapNote:
       'Les hommes ne sont pas une ressource : une troupe coûte des matières, et l’armée est bornée en nombre de troupes par les baraquements. La file compte dans le plafond.',
-    perTroop: '/ troupe',
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
@@ -3206,7 +3192,6 @@ export const fr = {
     projectionHeader: 'la projection — ce qui arme',
     worksHeader: 'commandement et ouvrages',
     built: 'bâti',
-    builtIn: (region: string) => `bâti · ${region}`,
 
     chainStates: {
       off: 'éteinte',
@@ -3224,8 +3209,6 @@ export const fr = {
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
       awaiting: 'en attente d’ordre',
-      awaitingNote: 'rien n’est consommé',
-      nothingOrdered: 'aucune commande en cours',
       keepsAvailable: (resource: string) =>
         `${startsWithVowel(resource) ? 'L’' : 'Le '}${resource} reste disponible pour les bâtiments et les troupes.`,
       commandsItself: 'se commande',
@@ -3235,7 +3218,6 @@ export const fr = {
       close: 'refermer',
       quantity: (output: string) => output,
       maxOf: (maximum: number, resource: string) => `max ${maximum} — le stock d’${resource}`,
-      inReserve: (quantity: number, resource: string) => `${quantity} ${resource} en réserve`,
       costs: 'coûte',
       costOf: (quantity: number, resource: string) => `${quantity} ${resource}`,
       duration: 'durée',
@@ -3315,8 +3297,6 @@ export const fr = {
     hqTier2: 'palier 2 ouvert en production',
     hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
     cappedByHq: 'plafonné par le QG',
-    nothingBuilt:
-      'Rien de bâti. On pose une bâtisse sur la carte : clic droit sur une région à soi, au zoom rapproché.',
     inRegion: (region: string) => `en ${region}`,
   },
 
@@ -3963,7 +3943,6 @@ export const fr = {
      *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
      *  le premier de la file démarre, et l'avis ne doit pas mentir sur le cas le plus courant. */
     queued: (building: string) => `${building} : chantier commandé — voir Économie.`,
-    foundationCount: (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name),
     free: 'offert',
     immediate: 'immédiat',
     /**
@@ -4237,7 +4216,7 @@ export function countryLabel(adm0: string): string {
 }
 
 /** « Blitz · Europe » ou « Mondiale » : le mode d'une saison, et son théâtre quand elle en a un. */
-export const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
+const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
   fr.modes.summary(
     fr.modes[mode].name,
     theatre === null ? null : ((fr.modes.theatres as Record<string, string>)[theatre] ?? theatre),

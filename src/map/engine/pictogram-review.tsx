@@ -6,7 +6,8 @@ import { fr } from '@/i18n/fr';
 import '@/styles/index.css';
 import { INK_BY_NATION } from '@/domain/nations';
 import { lit, nationShades, PALETTE, penOn } from './palette';
-import { mulberry, terrainCluster } from './terrain';
+import { mulberry } from '@/domain/mulberry';
+import { terrainCluster } from './terrain';
 
 /**
  * **The dev review page** (`/pictograms.html`): every terrain drawing and every deposit mark,

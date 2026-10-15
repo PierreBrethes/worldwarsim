@@ -5,9 +5,6 @@ import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
 import { currentStock } from './player-view';
 
-/** The warehouse raises all eight national ceilings, so the band reads them as one group. */
-export const BAND_GROUPS: ReadonlyArray<ReadonlyArray<ResourceKey>> = [RESOURCES];
-
 /**
  * **One mark, and only one.** *Full* is production thrown away every hour: the one fact a
  * permanent line owes a player, and the one that names a move he can make right now. Everything

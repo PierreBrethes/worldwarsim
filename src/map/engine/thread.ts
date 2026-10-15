@@ -61,7 +61,7 @@ export const threadWidth = (thickness: number): number => thickness * WIDTH_PER_
  * keeps the hierarchy between movements (mine over the others) at a share above the thickness.
  */
 const THREAD_FLOOR_BOOST = 1.6;
-export const threadFloorPx = (thickness: number): number => thickness * THREAD_FLOOR_BOOST;
+const threadFloorPx = (thickness: number): number => thickness * THREAD_FLOOR_BOOST;
 
 /**
  * The remainder's dash drift, in **board units per second** — never in pixels, whatever the
@@ -144,7 +144,7 @@ type ThreadStrand = {
   readonly lengths: ReadonlyArray<number>;
 };
 
-export type Dock = {
+type Dock = {
   readonly position: Vector3;
   readonly embarking: boolean;
   /** The thread's heading at the crossing, in radians: the coastline draws across it. */

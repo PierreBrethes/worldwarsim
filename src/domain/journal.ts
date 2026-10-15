@@ -660,8 +660,7 @@ const severityOf = (report: CombatReport): DispatchSeverity =>
 
 /** A player answers with his nation, or with his nickname when he never picked one — the server
  *  falls back to the nickname, and printing an internal key would be worse than either. */
-export const nationName = (nation: string): string =>
-  isNation(nation) ? fr.nations[nation] : nation;
+const nationName = (nation: string): string => (isNation(nation) ? fr.nations[nation] : nation);
 
 /**
  * **Ce qui prend l'encre rouge, et rien d'autre** (règle 3 du tampon, `shell/Stamp.tsx`). Quatre

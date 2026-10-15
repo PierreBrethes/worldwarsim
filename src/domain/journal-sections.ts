@@ -1,6 +1,6 @@
 import type { DispatchSeverity, JournalDispatch } from './player-view';
 
-export type JournalLine = {
+type JournalLine = {
   readonly dispatch: JournalDispatch;
   /** Les dépêches plus anciennes que cette ligne remplace — seulement les éditions, aujourd'hui. */
   readonly earlier: number;

@@ -40,7 +40,7 @@ export type Previewed =
   MovementPreviewed | PlunderPreviewed | CapturePreviewed | LootCollectionPreviewed;
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
-export type PreviewMission =
+type PreviewMission =
   | { readonly kind: 'march' }
   | { readonly kind: 'plunder'; readonly buildingId: string }
   | {

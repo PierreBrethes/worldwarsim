@@ -1,5 +1,6 @@
 import { destinationPoint, distanceKm, type LonLat } from './geo';
 import type { BuildingKey } from './ids';
+import { mulberry } from './mulberry';
 import { neighbourPairs } from './objective-placement';
 import { theatreKm, type Theatre } from './theatres';
 
@@ -238,7 +239,7 @@ function headquartersTries(
     return known;
   };
 
-  const random = mulberry32(seed);
+  const random = mulberry(seed);
   const tries: Array<ReadonlyArray<string>> = [];
   const seen = new Set<string>();
   for (let draw = 0; draw < rules.hqDraws && tries.length < rules.hqTries; draw += 1) {
@@ -268,17 +269,6 @@ function headquartersTries(
     if (Math.min(...gaps) >= rules.hqEvenness * Math.max(...gaps)) tries.push(ids);
   }
   return tries;
-}
-
-/** Une graine, une suite : la même partie rejoue la même carte. */
-function mulberry32(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
-    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
-    return ((mixed ^ (mixed >>> 14)) >>> 0) / 2 ** 32;
-  };
 }
 
 type ShareRing = { readonly key: BuildingKey; readonly share: number };

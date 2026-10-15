@@ -17,7 +17,7 @@ import type { ChainState } from './economy';
 import type { ComputedRoute } from './routing';
 import type { ResourceAmounts } from './loot';
 
-export type { ChainState, MovementType, UnitRole };
+export type { UnitRole };
 
 export type Stack = Partial<Record<UnitRole, number>>;
 
@@ -28,7 +28,7 @@ export type CargoView = {
   readonly free: number;
 };
 
-export type OwnMovementMission =
+type OwnMovementMission =
   | {
       readonly kind: 'plunder';
       readonly phase: 'outbound' | 'presence';
@@ -46,7 +46,7 @@ export type OwnMovementMission =
  * with optional fields: until the breakthrough happens, the card structurally has neither a
  * type nor a composition to leak.
  */
-export type MovementIdentification =
+type MovementIdentification =
   | { readonly pierced: false }
   | { readonly pierced: true; readonly type: MovementType; readonly stack: Stack };
 
@@ -108,7 +108,6 @@ export type ArcView =
       readonly from: LonLat;
       readonly to: LonLat;
       readonly route: ComputedRoute;
-      readonly suspectedNation: string | null;
       /** **What of mine caught it**, and the region of the station when it was one. It says
        *  nothing about the column — it is a fact about my own board — and it is what turns a
        *  sighting into a reason to have built the thing that made it. */
@@ -422,7 +421,7 @@ export type ReplayView = {
  * already **net** of it — a player producing 40 and eating 45 reads −5, never 40 — so this is the
  * breakdown of a number he already sees, never a second one to reconcile.
  */
-export type UpkeepView = {
+type UpkeepView = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, at the raised rate. */
   readonly unsupplied: number;
@@ -507,7 +506,7 @@ export type ChainView = {
 
 /** One exploitation and its yield. `deposit` is what the region holds — a building over a
  *  deposit it cannot work reads with a rate of zero, never as an absent line. */
-export type ExtractionSiteView = {
+type ExtractionSiteView = {
   readonly key: BuildingKey;
   readonly regionId: string;
   readonly level: number;
@@ -556,7 +555,7 @@ export type RegionView = {
   readonly linked: boolean;
 };
 
-export type Opponent = {
+type Opponent = {
   readonly nation: string;
   readonly ink: string;
   readonly power: string;
@@ -570,7 +569,7 @@ export type Opponent = {
  */
 export type HomeSlotRelief = { readonly nextHqLevel: number; readonly nextSlots: number } | null;
 
-export type RunningWork = {
+type RunningWork = {
   readonly id: string;
   readonly name: string;
   readonly key: BuildCostKey;
@@ -955,7 +954,7 @@ export type CaptureView = {
 };
 
 /** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */
-export type CaptureSite =
+type CaptureSite =
   | { readonly kind: 'building'; readonly building: BuildingKey; readonly regionId: string }
   | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number };
 
@@ -1006,7 +1005,7 @@ export type ReductionBoard = {
   readonly standings: ReadonlyArray<ReductionStanding>;
 };
 
-export type ReductionStanding = {
+type ReductionStanding = {
   readonly nation: string | null;
   readonly nickname: string;
   readonly isMine: boolean;
@@ -1071,7 +1070,7 @@ export type PressOwnLine = Omit<PressLine, 'playerId' | 'general'> & {
   readonly delta: PressDelta | null;
 };
 
-export type PressDelta = {
+type PressDelta = {
   readonly territory: number;
   readonly industry: number;
   readonly military: number;

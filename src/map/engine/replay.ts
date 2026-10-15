@@ -39,7 +39,7 @@ const BLOCK_HALF = 0.3 * FIGURINE_SCALE;
  * **Where the `count` pieces of a side stand**, in the replay's frame: x across the screen, z
  * towards the eye. Mine on the left, theirs on the right; the first piece in the front rank.
  */
-export function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[number, number]> {
+function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[number, number]> {
   const sign = side === 'mine' ? -1 : 1;
   return Array.from({ length: count }, (_, k) => {
     const column = Math.floor(k / PER_COLUMN);

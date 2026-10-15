@@ -96,7 +96,7 @@ export type CombatRules = {
  * invented here. Either the magazine covers the pass, or the whole side fires at `dryFactor`
  * and spends what little it had.
  */
-export type Magazine = {
+type Magazine = {
   readonly needed: number;
   /** `needed`, or everything that was left — this debit clamps, it never refuses. */
   readonly spent: number;
@@ -121,9 +121,9 @@ export type PassMode = 'initiative' | 'shock' | 'indirect';
 
 export type CombatSide = 'attacker' | 'defender';
 
-export type TroopState = 'standing' | 'routed' | 'destroyed';
+type TroopState = 'standing' | 'routed' | 'destroyed';
 
-export type Strike = {
+type Strike = {
   /** `'riposte'` is the defender's answer under the initiative; a shock writes `'strike'` twice. */
   readonly phase: 'strike' | 'riposte';
   readonly by: string;
@@ -154,7 +154,7 @@ const damageOf = (rules: CombatRules, from: Combatant, to: Combatant): number | 
  * one is never a tie-break anybody will notice — it is there so that two troops formed in the
  * same millisecond cannot resolve in two different orders on two readings.
  */
-export const byStrikeOrder = (a: Combatant, b: Combatant): number =>
+const byStrikeOrder = (a: Combatant, b: Combatant): number =>
   ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) ||
   a.formedAt - b.formedAt ||
   (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
