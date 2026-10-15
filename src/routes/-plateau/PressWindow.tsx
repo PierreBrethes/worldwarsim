@@ -159,7 +159,7 @@ function BlitzEnding({
           {rowsOf(final).map((line) => (
             <li
               key={line.playerId}
-              className="flex items-center gap-3 border-b border-[var(--ink-faint)] py-[10px] last:border-b-0"
+              className="flex items-center gap-3 border-b border-[var(--ink)] py-[10px] last:border-b-0"
             >
               <Flag nation={line.nation} width={28} onPaper />
               <span className="font-(family-name:--font-display) text-[20px] font-extrabold">
