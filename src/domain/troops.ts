@@ -238,9 +238,16 @@ export function stackInDomain(stack: Stack, domain: UnitDomain): Stack {
 /**
  * The role that gives a movement its face on the map: the most numerous of the stack, ties
  * broken by the canonical role order. An empty stack has no face — it is the renderer's job
- * to decide what to show, not the domain's to invent a unit.
+ * to decide what to show, not the domain's to invent a unit. **A truck carrying infantry wears
+ * it** (retour de Pierre, 15/10) : the riflemen are aboard, the road sees the vehicle.
  */
 export function representativeRole(stack: Stack): UnitRole | null {
+  const riding = Object.entries(stack).filter(([, count]) => (count ?? 0) > 0);
+  if (
+    (stack.landTransport ?? 0) > 0 &&
+    riding.every(([role]) => role === 'landTransport' || role === 'infantry')
+  )
+    return 'landTransport';
   let kept: UnitRole | null = null;
   let maximum = 0;
   for (const role of ROLE_ORDER) {

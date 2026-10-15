@@ -201,6 +201,15 @@ describe('representativeRole', () => {
     expect(representativeRole({ cargo: 0 })).toBeNull();
     expect(representativeRole({})).toBeNull();
   });
+
+  it('shows the truck that carries the infantry, however many ride', () => {
+    expect(representativeRole({ infantry: 1, landTransport: 1 })).toBe('landTransport');
+    expect(representativeRole({ infantry: 3, landTransport: 1 })).toBe('landTransport');
+  });
+
+  it('keeps the majority when the truck rides with anything but infantry', () => {
+    expect(representativeRole({ infantry: 1, armor: 2, landTransport: 1 })).toBe('armor');
+  });
 });
 
 /**
