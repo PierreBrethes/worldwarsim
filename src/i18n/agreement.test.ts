@@ -92,3 +92,11 @@ describe('a capture notice declines the site', () => {
     expect(fr.capture.buildingSite('Port', '')).toBe('Port');
   });
 });
+
+describe('a nickname after "de" elides before a vowel', () => {
+  it('elides in the account dossier, the invitation and the full table', () => {
+    expect(fr.auth.signedIn('essai-md-a')).toBe('dossier d’essai-md-a');
+    expect(fr.auth.signedIn('Paul')).toBe('dossier de Paul');
+    expect(fr.invitation.signedIn('Élodie')).toBe('Vous entrez sous le nom d’Élodie.');
+  });
+});

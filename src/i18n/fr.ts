@@ -921,7 +921,7 @@ export const fr = {
     pending: 'en ligne…',
     after:
       'Un compte, des places : vos parties vous suivent d’un appareil à l’autre. Une invitation reçue ? Ouvrez son lien, il mène droit à la table.',
-    signedIn: (nickname: string) => `dossier de ${nickname}`,
+    signedIn: (nickname: string) => `dossier ${ofName(nickname)}`,
     logout: 'se déconnecter',
     logoutNote:
       'la place reste au compte — on ferme un appareil, on ne rend pas son siège. Reconnectez-vous et la partie est là.',
@@ -970,7 +970,7 @@ export const fr = {
       others === 0
         ? 'votre place, si vous la prenez'
         : `votre place, si vous la prenez — et ${others === 1 ? 'une autre libre' : `${num(others)} autres libres`}`,
-    signedIn: (nickname: string) => `Vous entrez sous le nom de ${nickname}.`,
+    signedIn: (nickname: string) => `Vous entrez sous le nom ${ofName(nickname)}.`,
     notYou: 'Ce n’est pas vous ?',
     join: 'répondre présent — rejoindre la table',
     resume: 'reprendre ma place',
@@ -1440,7 +1440,7 @@ export const fr = {
         title: 'Table complète',
         lines: [
           'Regrettons',
-          `La table${c.founder === null ? '' : ` de ${c.founder}`} est complète`,
+          `La table${c.founder === null ? '' : ` ${ofName(c.founder)}`} est complète`,
           `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
         ],
         paragraph:
@@ -1454,7 +1454,7 @@ export const fr = {
         title: 'Salon complet',
         lines: [
           'Regrettons',
-          `Le salon${c.founder === null ? '' : ` de ${c.founder}`} est complet`,
+          `Le salon${c.founder === null ? '' : ` ${ofName(c.founder)}`} est complet`,
           `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
         ],
         paragraph: 'Toutes les places de cette Mondiale sont prises.',
