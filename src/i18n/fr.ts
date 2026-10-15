@@ -357,6 +357,16 @@ export const fr = {
     clock: 'fin',
     clockLabel: (left: string) => `fin de la Blitz dans ${left} — le plus gros revenu l’emporte`,
     clockEnded: 'terminée',
+    clockOut: 'éliminé',
+    ending: {
+      won: 'VICTOIRE',
+      lost: 'DÉFAITE',
+      draw: 'ÉGALITÉ',
+      eliminated: (time: string) => `ÉLIMINÉ À ${time} — votre quartier général est tombé`,
+      home: 'retour à l’accueil',
+      watch: 'regarder la carte',
+      observe: 'observer',
+    },
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },

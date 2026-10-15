@@ -97,7 +97,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
 
       {view.mode === 'blitz' && (
         <div className={`${CELL} whitespace-nowrap`}>
-          <BlitzClock view={view} now={now} />
+          <BlitzClock view={view} now={now} openEnding={search} />
         </div>
       )}
 
@@ -316,14 +316,24 @@ export function ResourceCell({
  * **Le compte à rebours de la Blitz** (B11) : à zéro, le plus gros revenu gagne. Il se lit à la
  * seconde parce que la soirée se joue à la minute ; conclue, la case le dit en un mot.
  */
-export function BlitzClock({ view, now }: { view: PlayerView; now: number }) {
+export function BlitzClock({
+  view,
+  now,
+  openEnding,
+}: {
+  view: PlayerView;
+  now: number;
+  /** La recherche courante du plateau : donnée, la case ouvre l'édition finale au clic. */
+  openEnding?: BoardSearch;
+}) {
   const { season } = view;
   const ended = season.reduction.concludedAt !== null;
+  const out = !ended && view.me.defeated;
   const minutesLeft = Math.max(
     0,
     ((season.durationHours ?? 0) - season.elapsedHours) * 60 - (now - view.loadedAt) / 60_000,
   );
-  return (
+  const clock = (
     <span
       role="timer"
       aria-label={ended ? fr.blitz.clockEnded : fr.blitz.clockLabel(asDuration(minutesLeft))}
@@ -333,9 +343,16 @@ export function BlitzClock({ view, now }: { view: PlayerView; now: number }) {
         {fr.blitz.clock}
       </span>
       <span className="font-(family-name:--font-mono) text-[15px] leading-none font-medium tabular-nums">
-        {ended ? fr.blitz.clockEnded : asDuration(minutesLeft)}
+        {ended ? fr.blitz.clockEnded : out ? fr.blitz.clockOut : asDuration(minutesLeft)}
       </span>
     </span>
+  );
+  return openEnding !== undefined && (ended || out) ? (
+    <Link to="/plateau" search={withWindow(openEnding, 'press')} className="hover:underline">
+      {clock}
+    </Link>
+  ) : (
+    clock
   );
 }
 
