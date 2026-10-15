@@ -107,7 +107,8 @@ export type { SurveyedCamp } from './annotations';
  */
 export type { HeldClaim } from './regions';
 
-/** A shore is read around a pile's point this far out, in board units — about a pile's reach. */
+/** A shore is read around a pile's point this far out, in board units at full piece size —
+ *  about a pile's reach. */
 const SHORE_REACH = 0.6;
 const SHORE_PROBES = 8;
 
@@ -1639,14 +1640,16 @@ export class MapEngine {
    *  out at sea: a pile there has no land side (`formationOf`). */
   private seawardOf(lonLat: LonLat): readonly [number, number] | null {
     const point = this.frame.projectLonLat(lonLat);
+    // The pile is drawn at the troops' size: its blocks reach as far as that, and so does the probe.
+    const reach = SHORE_REACH * pieceScale.troops;
     let [x, z] = [0, 0];
     let wet = 0;
     for (let k = 0; k < SHORE_PROBES; k++) {
       const angle = (2 * Math.PI * k) / SHORE_PROBES;
       const [dx, dz] = [Math.sin(angle), Math.cos(angle)];
       const probe = this.frame.lonLatAt(
-        point.x + dx * SHORE_REACH + this.frame.centerX,
-        point.z + dz * SHORE_REACH + this.frame.centerY,
+        point.x + dx * reach + this.frame.centerX,
+        point.z + dz * reach + this.frame.centerY,
       );
       if (this.landAt(probe)) continue;
       wet++;
