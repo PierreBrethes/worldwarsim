@@ -1,24 +1,21 @@
 import {
   Box3,
-  type BufferGeometry,
   Group,
   InstancedMesh,
   type Material,
   Matrix4,
-  Mesh,
-  type Object3D,
   type Plane,
   Quaternion,
   type Raycaster,
   Vector3,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { LonLat } from '@/domain/geo';
 import type { StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { nearWeight, sceneOf } from './figurines/figurine';
 import { washedOf } from './standing';
+import { bakedParts, type Part } from './baking';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
@@ -72,40 +69,6 @@ export function yawOf(id: string): number {
   let hash = 2166136261;
   for (let k = 0; k < id.length; k++) hash = Math.imul(hash ^ id.charCodeAt(k), 16777619);
   return ((hash >>> 0) / 2 ** 32) * 2 * Math.PI;
-}
-
-type Part = { readonly geometry: BufferGeometry; readonly material: Material };
-
-/**
- * **A sculpted scene flattened into one geometry per material**, every node's placement baked
- * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
- * draw calls. Meshes whose attributes do not match stay apart.
- */
-export function bakedParts(scene: Object3D): Part[] {
-  scene.updateMatrixWorld(true);
-  const groups = new Map<string, { material: Material; geometries: BufferGeometry[] }>();
-  scene.traverse((object) => {
-    const mesh = object as Mesh;
-    if (!mesh.isMesh) return;
-    // glTF gives one material per primitive, and the loader one mesh per primitive: an array
-    // here is a file that broke the brief, and it keeps its plates rather than half its walls.
-    if (Array.isArray(mesh.material)) throw new Error(`${mesh.name}: several materials`);
-    const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-    const key = [
-      mesh.material.uuid,
-      geometry.index === null,
-      ...Object.keys(geometry.attributes).sort(),
-    ].join();
-    const group = groups.get(key) ?? { material: mesh.material, geometries: [] };
-    group.geometries.push(geometry);
-    groups.set(key, group);
-  });
-  return [...groups.values()].flatMap(({ material, geometries }) => {
-    const merged = geometries.length === 1 ? geometries[0]! : mergeGeometries(geometries);
-    return merged === null
-      ? geometries.map((geometry) => ({ geometry, material }))
-      : [{ geometry: merged, material }];
-  });
 }
 
 type Model = {
