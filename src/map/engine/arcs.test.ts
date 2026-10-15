@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { Group } from 'three';
-import type { ArcView } from '@/domain/player-view';
+import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
 import { ArcLayer, lastKnownMedium } from './arcs';
@@ -53,7 +53,41 @@ const mine = (id: string, to: readonly [number, number] = [10, 5], progress = 0.
   progress,
 });
 
-const layer = () => new ArcLayer(new WorldFrame(world), { trace: () => 0 } as unknown as InkLayer);
+const layer = (trace: () => number = () => 0) =>
+  new ArcLayer(new WorldFrame(world), { trace } as unknown as InkLayer);
+
+/** The same stretch, watched then lost: only the state and its dates change. */
+const sighted = (state: 'enemyDetected' | 'lastKnown'): ArcView =>
+  ({
+    state,
+    id: 'e',
+    from: [0, 0],
+    to: [10, 5],
+    route: directRoute([0, 0], [10, 5], 'land', 10),
+    detector: 'outpost',
+    detectorRegion: null,
+    headingDegrees: 90,
+    since: 0,
+    watchMinutesLeft: 30,
+    seenMinutesAgo: 5,
+    lastSeenAt: 0,
+    progress: 0.5,
+  }) as unknown as ArcView;
+
+const armor = (id: string, strength: number): TroopView =>
+  ({ id, role: 'armor', tier: 1, strength, nominalStrength: 12 }) as unknown as TroopView;
+
+beforeAll(() => {
+  const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
+  Object.assign(globalThis, {
+    document: { createElement: () => ({ getContext: () => ctx }) },
+    Path2D: class {
+      moveTo() {}
+      lineTo() {}
+      closePath() {}
+    },
+  });
+});
 
 const pawnOf = (arcs: ArcLayer, index: number) => arcs.pawns[index];
 
@@ -110,5 +144,35 @@ describe('ArcLayer.display', () => {
       arcs.display([mine('a', [10, 5], k / 40), mine('b', [10, 5], k / 40), mine('c', [10, 5])]);
     // An infantry column dresses one medium: three pawns, three figurines, whatever the updates.
     expect(vi.mocked(figurineFor).mock.calls.length - before).toBe(3);
+  });
+
+  it('rebuilds a sighting lost from view into its last known position', () => {
+    const arcs = layer();
+    arcs.display([sighted('enemyDetected')]);
+    const [watched] = arcs.pawns;
+    arcs.display([sighted('lastKnown')]);
+    expect(arcs.pawns[0]).not.toBe(watched);
+    expect(watched!.parent).toBeNull();
+  });
+
+  it('rebuilds my column when its wear changes, read on my troops', () => {
+    const arcs = layer();
+    const column = { ...mine('a'), stack: { armor: 1 }, troopIds: ['t'] } as ArcView;
+    arcs.troops = [armor('t', 12)];
+    arcs.display([column]);
+    const [whole] = arcs.pawns;
+    arcs.troops = [armor('t', 3)];
+    arcs.display([{ ...column }]);
+    expect(arcs.pawns[0]).not.toBe(whole);
+  });
+
+  it('inks a thread once, when it appears, and not when its drawing changes', () => {
+    const trace = vi.fn(() => 1000);
+    const arcs = layer(trace);
+    arcs.display([mine('a')]);
+    arcs.display([mine('a'), mine('b')]);
+    expect(trace).toHaveBeenCalledTimes(1);
+    arcs.display([mine('a'), mine('b', [20, 5])]);
+    expect(trace).toHaveBeenCalledTimes(1);
   });
 });
