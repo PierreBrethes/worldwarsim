@@ -3621,9 +3621,9 @@ export const fr = {
           ? {
               title: 'Vos bureaux',
               lines: [
-                `Au pied de l’écran : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe. Une entrée ouverte se referme d’un second toucher.`,
-                'Le drapeau du bandeau ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
-                '« En cours », sous le bandeau : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
+                `Dans le coin bas droit, le rapporteur : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe, réglages. Une entrée ouverte se referme d’un second toucher.`,
+                'Le drapeau de la réglette ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
+                '« En cours », sous la réglette : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
                 blitz
                   ? '« À faire » : tout ce qui attend un ordre.'
                   : '« À faire » : vos poses offertes et tout ce qui attend un ordre.',
@@ -3637,8 +3637,8 @@ export const fr = {
                   : [
                       'Économie, dans la colonne de gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
                     ]),
-                `« À faire maintenant », en bas à gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
-                'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
+                `« À faire maintenant », au carré « N à faire » en tête de la colonne de gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
+                'Journal, dans la colonne de gauche : tout ce qui s’est passé depuis votre dernier passage.',
                 'Télégraphe, dans la colonne de gauche : le canal général de la saison — tout le monde y lit tout le monde.',
               ],
             },

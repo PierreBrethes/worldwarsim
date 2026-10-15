@@ -100,3 +100,15 @@ describe('a nickname after "de" elides before a vowel', () => {
     expect(fr.invitation.signedIn('Élodie')).toBe('Vous entrez sous le nom d’Élodie.');
   });
 });
+
+describe('the briefing places the journal where the table puts it', () => {
+  it('says the left column, never the old strip', () => {
+    const hand = { finger: false, phone: false, mapping: CLASSIC_MAPPING };
+    const text = fr.briefing
+      .columns(60, 25, 120, hand, false)
+      .flatMap((column) => column.lines)
+      .join(' ');
+    expect(text).toContain('Journal, dans la colonne de gauche');
+    expect(text).not.toContain('bandeau');
+  });
+});
