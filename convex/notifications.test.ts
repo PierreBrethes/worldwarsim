@@ -500,6 +500,22 @@ describe('ce qui entre dans la file', () => {
 });
 
 describe('le vidage', () => {
+  it('révoque sans l’appeler un abonnement dont l’adresse n’est plus d’un service connu', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      const [device] = await ctx.db.query('pushSubscriptions').collect();
+      await ctx.db.patch(device!._id, { endpoint: 'https://127.0.0.1.nip.io/x' });
+    });
+    webpush.sent.length = 0;
+    await enqueue(t, seat, 'attack');
+    await advance(t, MINUTE);
+
+    expect(webpush.sent.map((entry) => entry.endpoint)).not.toContain('https://127.0.0.1.nip.io/x');
+    const left = await t.run((ctx) => ctx.db.query('pushSubscriptions').collect());
+    expect(left.map((row) => row.endpoint)).not.toContain('https://127.0.0.1.nip.io/x');
+  });
+
   it('groupe ce qui arrive dans la même minute en une seule notification', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
