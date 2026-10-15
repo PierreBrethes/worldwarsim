@@ -63,6 +63,7 @@ export function CaptureGauge({
     <div
       className={`label-line capture-gauge capture-gauge--${side}`}
       data-testid="capture-gauge"
+      role="img"
       aria-label={
         side === 'capturer'
           ? fr.capture.endsAt(percent, hour)

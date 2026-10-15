@@ -857,7 +857,7 @@
   pointer-events: auto;
 }
 
-/* La capture (14/10) : l'anneau qui se remplit, le tampon, l'heure. Chez le défenseur, l'encre
+/* La capture (14/10) : l'anneau qui se remplit et le tampon ; l'heure est à l'affiche. Chez le défenseur, l'encre
    d'alerte — c'est un site qu'il est en train de perdre. */
 .capture-gauge {
   --capture-ink: var(--ink);
