@@ -9,6 +9,7 @@ import {
   pileLayout,
   pileObject,
   pickedIn,
+  takenCopies,
   spreadLayout,
 } from './standing';
 
@@ -103,5 +104,21 @@ describe('picking a pile', () => {
 
   it('takes nothing beside the pile', () => {
     expect(picked(3)).toBeNull();
+  });
+});
+
+describe('the piece in hand answering a click', () => {
+  type Copy = { readonly down: { readonly since: number } | null };
+  const following: Copy = { down: null };
+  const setDown: Copy = { down: { since: 0 } };
+  const homeward: Copy = { down: null };
+
+  it('lets the click through the copy that follows the pointer, which stands under it', () => {
+    expect(takenCopies(following, null)).toEqual([]);
+  });
+
+  it('takes the copy set down under a rose, and the one on its way home', () => {
+    expect(takenCopies(setDown, homeward)).toEqual([setDown, homeward]);
+    expect(takenCopies(null, homeward)).toEqual([homeward]);
   });
 });
