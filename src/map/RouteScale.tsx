@@ -22,8 +22,16 @@ const MEDIUM_RULE: Readonly<Record<Medium, 'solid' | 'dashed' | 'dotted'>> = {
 /** Below this share, a section's label no longer fits: it falls back to the rule alone. */
 const READABLE_SHARE = 0.09;
 
-export function RouteScale({ arc }: { arc: ArcView }) {
+export function RouteScale({
+  arc,
+  hideSingleMedium = false,
+}: {
+  arc: ArcView;
+  hideSingleMedium?: boolean;
+}) {
   const segments = useMemo(() => unrollRoute(arc.route), [arc.route]);
+  /** A scale with one section says nothing the order card has not said already. */
+  if (hideSingleMedium && !segments.some((segment) => segment.kind === 'dock')) return null;
   const durationMinutes = totalDuration(arc);
   if (segments.length === 0) return null;
 

@@ -106,6 +106,8 @@ type Props = {
   /** **Ce qui se range sous l'échelle du trajet**, au coin droit : un refus d'ordre s'empile sous
    *  elle au lieu de la recouvrir. */
   underRouteScale?: ReactNode;
+  /** A Blitz keeps the scale for crossings only: a one-medium route is on the order card. */
+  quietRouteScale?: boolean;
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
@@ -295,6 +297,7 @@ export function WorldMap({
   indicators,
   accentedMovement,
   underRouteScale,
+  quietRouteScale = false,
   onSelect,
   onOpenBuilding,
   onOpenStack,
@@ -995,7 +998,7 @@ export function WorldMap({
           className="pointer-events-none absolute z-[var(--z-band)] flex flex-col items-end gap-2"
           style={{ top: insets.top + 16, left: insets.left + 16, right: insets.right + 16 }}
         >
-          {designatedArc && <RouteScale arc={designatedArc} />}
+          {designatedArc && <RouteScale arc={designatedArc} hideSingleMedium={quietRouteScale} />}
           {underRouteScale}
         </div>
       )}
