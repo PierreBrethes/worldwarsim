@@ -107,7 +107,6 @@ const arcs: ReadonlyArray<ArcView> = [
     from: [0, 0],
     to: [1, 1],
     route: directRoute([0, 0], [1, 1], 'land', 10),
-    suspectedNation: null,
     headingDegrees: 142,
     headingAtMe: false,
     identification: { pierced: false },

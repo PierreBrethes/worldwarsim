@@ -108,7 +108,6 @@ export type ArcView =
       readonly from: LonLat;
       readonly to: LonLat;
       readonly route: ComputedRoute;
-      readonly suspectedNation: string | null;
       /** **What of mine caught it**, and the region of the station when it was one. It says
        *  nothing about the column — it is a fact about my own board — and it is what turns a
        *  sighting into a reason to have built the thing that made it. */
