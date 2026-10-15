@@ -53,6 +53,7 @@ export function NationWindow({
           lead={<Flag nation={view.me.nation} width={26} onPaper />}
           eyebrow={fr.nationSheet.kicker}
           title={nationLabel(view.me.nation)}
+          heading="h1"
           onClose={onClose}
         >
           <HelpMark>{fr.nationSheet.readOnly}</HelpMark>

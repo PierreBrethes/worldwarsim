@@ -320,10 +320,13 @@ export function WindowHead({
   eyebrow,
   title,
   lead,
+  heading: Heading = 'h2',
   onClose,
   children,
 }: {
   eyebrow?: ReactNode;
+  /** The nation sheet keeps the `h1` it always had. */
+  heading?: 'h1' | 'h2';
   title?: ReactNode;
   lead?: ReactNode;
   onClose: () => void;
@@ -335,9 +338,9 @@ export function WindowHead({
       <div className="flex min-w-0 flex-col gap-[5px]">
         {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
         {title !== undefined && (
-          <h2 className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
+          <Heading className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
             {title}
-          </h2>
+          </Heading>
         )}
       </div>
       <span className="flex-1" />
