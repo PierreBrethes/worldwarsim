@@ -1434,9 +1434,11 @@ async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: 
   const starting = (
     await ctx.db
       .query('buildings')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .withIndex('bySeasonStartedNeutral', (q) =>
+        q.eq('seasonId', seasonId).eq('startedNeutral', true),
+      )
       .collect()
-  ).filter((building) => building.startedNeutral === true && building.playerId !== playerId);
+  ).filter((building) => building.playerId !== playerId);
   const served = [];
   for (const building of starting) {
     const survey = await ctx.db
