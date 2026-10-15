@@ -2,7 +2,6 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   clusterFootprints,
-  footOf,
   GARRISON_FOOT,
   MAQUETTE_SPAN,
   ringOffsets,
@@ -10,6 +9,13 @@ import {
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
+
+/** Where a placement's garrison stands: `GARRISON_FOOT` along its facing. */
+const footOf = ({ at, facing }: { at: readonly [number, number]; facing: number }) => ({
+  x: at[0] + GARRISON_FOOT * Math.sin(facing),
+  z: at[1] + GARRISON_FOOT * Math.cos(facing),
+  facing,
+});
 
 describe('yawOf', () => {
   it('turns a building the same way at every display, and two buildings apart', () => {
@@ -110,8 +116,8 @@ describe('clusterFootprints', () => {
       GARRISON_FOOT,
     );
     for (const site of placed) {
-      const foot = footOf(site.ring);
-      const at = [site.at[0] - site.ring[0] + foot.x, site.at[1] - site.ring[1] + foot.z] as const;
+      const foot = footOf(site);
+      const at = [foot.x, foot.z] as const;
       for (const other of placed)
         if (other !== site) expect(gap(at, other.at)).toBeGreaterThan(S / 2);
     }
@@ -189,16 +195,25 @@ describe('clusterFootprints', () => {
 /** The widest pile's half-width: three groups and the +N, half a squad past the last slot. */
 const PILE_REACH = pileLayout(3, true).more! + 0.1;
 
-describe('footOf', () => {
+describe('the garrison foot', () => {
   it('stands a lone garrison in front of its maquette, facing the front', () => {
-    expect(footOf([0, 0])).toEqual({ x: 0, z: GARRISON_FOOT, facing: 0 });
+    expect(footOf(clusterFootprints([[0, 0]], MAQUETTE_SPAN)[0]!)).toEqual({
+      x: 0,
+      z: GARRISON_FOOT,
+      facing: 0,
+    });
   });
 
   it('stands a ring garrison outward, never nearer a maquette than its own', () => {
     for (let count = 2; count <= 8; count++) {
-      const ring = ringOffsets(count);
-      for (const offset of ring) {
-        const foot = footOf(offset);
+      const placed = clusterFootprints(
+        Array.from({ length: count }, () => [0, 0] as const),
+        MAQUETTE_SPAN,
+      );
+      const ring = placed.map(({ at }) => at);
+      for (const site of placed) {
+        const offset = site.at;
+        const foot = footOf(site);
         expect(Math.hypot(foot.x - offset[0], foot.z - offset[1])).toBeCloseTo(GARRISON_FOOT);
         expect(foot.x - offset[0]).toBeCloseTo(GARRISON_FOOT * Math.sin(foot.facing));
         // The row runs across the facing, its widest pile reaching the +N counter's edge.

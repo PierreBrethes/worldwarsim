@@ -301,28 +301,6 @@ export const RING_GAP = 1.25;
  *  size: under a span, so the site reads where it is. `@a-mesurer` on the board. */
 export const MAX_SHIFT = 0.55;
 
-/**
- * **Where a building's garrison stands, from the maquette's place on its ring**: outward from the
- * ring's centre, so that it never stands nearer another maquette than its own; a lone one has its
- * garrison in front, towards +z. Fixed by the ring, never by the camera — a pile that slid with
- * the view would read as moving. `facing` turns the pile's row to stand across that line.
- */
-export function footOf(
-  [x, z]: readonly [number, number],
-  scale = 1,
-): {
-  x: number;
-  z: number;
-  facing: number;
-} {
-  const facing = Math.atan2(x, z);
-  return {
-    x: x + GARRISON_FOOT * scale * Math.sin(facing),
-    z: z + GARRISON_FOOT * scale * Math.cos(facing),
-    facing,
-  };
-}
-
 type Placed = {
   readonly id: string;
   readonly ground: Vector3;
