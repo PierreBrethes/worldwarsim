@@ -1,12 +1,13 @@
 import { MeshStandardMaterial, Raycaster, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
-import { pilePieces } from '@/domain/pile-pieces';
+import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import {
   drawnKey,
   dressedGroups,
   type Faces,
   formationOf,
+  nearestGroup,
   pileLayout,
   pileObject,
   pickedIn,
@@ -140,6 +141,26 @@ describe('picking a pile', () => {
 
   it('takes nothing beside the pile', () => {
     expect(picked(3)).toBeNull();
+  });
+});
+
+describe('pressing between the units of a Blitz pile', () => {
+  const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
+  const pieces = unitPieces([
+    { ...troop('infantry'), id: 'u1' },
+    { ...troop('infantry'), id: 'u2' },
+    { ...troop('infantry'), id: 'u3' },
+  ]);
+  const pile = pileObject('germany', pieces, { count: String, more: String }, faces)!;
+  pile.ready.catch(() => {});
+  pile.object.updateMatrixWorld(true);
+  const slots = formationOf(['land', 'land', 'land'], false, null).groups;
+
+  it('gives the unit nearest the pointer, never the whole pile', () => {
+    slots.forEach(({ x, z }, k) => {
+      const beside = new Vector3(x + 0.1, 0, z + 0.3);
+      expect(nearestGroup(beside, pile.targets, pieces)).toEqual([`u${k + 1}`]);
+    });
   });
 });
 
