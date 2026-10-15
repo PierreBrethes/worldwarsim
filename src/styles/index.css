@@ -416,7 +416,7 @@ body {
     background-position: -26px 0;
   }
   to {
-    background-position: 100% 0;
+    background-position: calc(100% + 26px) 0;
   }
 }
 
@@ -568,11 +568,13 @@ body {
   animation: none;
 }
 
-/* G2: one keyboard focus for every paper button of the board, at no specificity. */
-:where(.board-frame) :focus-visible,
-:where(:root.on-board) :focus-visible {
-  outline: 2px solid var(--interaction);
-  outline-offset: 2px;
+/* G2: one keyboard focus for every paper button of the board. In the base layer, so that a
+   utility such as `outline-none` still wins where a surface wants none. */
+@layer base {
+  :where(:root.on-board) :focus-visible {
+    outline: 2px solid var(--interaction);
+    outline-offset: 2px;
+  }
 }
 
 /* G3: the paper square inks at the hover, like the rows of `NextActions`. */
