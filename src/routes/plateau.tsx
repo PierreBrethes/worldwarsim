@@ -1658,14 +1658,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
    *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
   const dropPiece = useCallback(
-    (on: PieceFrom): boolean => {
+    (on: PieceFrom): 'pose' | 'board' | 'back' => {
       const click = clickOfFrom(on);
-      if (click === null || hand.kind !== 'held') return true;
+      if (click === null || hand.kind !== 'held') return 'pose';
       const drop = dropOn(hand, click, unitsAt(click.station).pile);
-      if (drop.kind === 'pose') return true;
+      if (drop.kind === 'pose') return 'pose';
       if (drop.kind === 'putBack') {
         dropHand();
-        return false;
+        return 'back';
       }
       setOrderError(null);
       boardTransport({
@@ -1673,7 +1673,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         troopIds: hand.troopIds.map((troopId) => troopId as Id<'troops'>),
         carrierId: drop.carrierId as Id<'troops'>,
       }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
-      return false;
+      return 'board';
     },
     [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat],
   );

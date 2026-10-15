@@ -166,6 +166,8 @@ export type CarryTarget =
 
 /** A finger holds this long on a piece before carrying it: a quicker finger pans the board. */
 const LONG_PRESS_MS = 300;
+/** The click a browser sends after a release arrives within this, the same turn of its loop. */
+const CARRY_CLICK_MS = 250;
 
 /**
  * The trowel, hot spot on its point — top *right* of the drawing, hence `29 3`: at `0 0` the
@@ -303,8 +305,8 @@ export class MapEngine {
   private gesture: Gesture | null = null;
   /** The orbit a carry switched off, given back on release. */
   private orbitHeld = false;
-  /** The last gesture carried a piece: the label's click that follows it is not a click. */
-  private carried = false;
+  /** When the last carry ended: the label's click that follows it at once is not a click. */
+  private carriedAt = -Infinity;
   private mapping: MouseMapping = CLASSIC_MAPPING;
   private spaceHeld = false;
   private building = false;
@@ -1423,11 +1425,18 @@ export class MapEngine {
     if (gesture.carry !== null) this.gesture = gesture;
   }
 
-  /** **Whether the click now arriving closes a carry** — read once, by the label it lands on. */
+  /** **The piece let go boards a transport there** (15/10): it glides into it rather than home. */
+  boardInto(clientX: number, clientY: number): void {
+    this.invalidate();
+    if (!this.castAt(clientX, clientY)) return;
+    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    if (ground !== undefined) this.standing.boardInto(ground);
+  }
+
+  /** **Whether the click now arriving closes a carry** — the browser sends it at once after the
+   *  release, so a click later than that is a click. */
   consumeCarry(): boolean {
-    const carried = this.carried;
-    this.carried = false;
-    return carried;
+    return performance.now() - this.carriedAt < CARRY_CLICK_MS;
   }
 
   /**
@@ -1452,7 +1461,7 @@ export class MapEngine {
     this.refreshCursor();
     if (gesture === null) return;
     if (gesture.carrying) {
-      this.carried = true;
+      this.carriedAt = performance.now();
       this.onCarryOver?.(null, event.clientX, event.clientY);
       if (event.type === 'pointerup') this.dropCarried(event);
       return;

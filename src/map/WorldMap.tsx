@@ -129,9 +129,9 @@ type Props = {
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
   /** **Le glisser prend une pièce** (15/10) : vrai quand elle est en main. */
   onPieceCarry?: ((from: PieceFrom) => boolean) | undefined;
-  /** **La pièce portée, lâchée sur une pile à moi** : vrai quand c'est poser — la rose s'ouvre
-   *  alors sur sa cible ; faux quand le lâcher a déjà répondu (embarquer, reposer). */
-  onPieceDrop?: ((on: PieceFrom) => boolean) | undefined;
+  /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
+   *  cible —, embarquer, ou reposer. */
+  onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back') | undefined;
   /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose
    *  le dit. */
   dropHintOf?: ((on: PieceFrom) => DropHint | null | undefined) | undefined;
@@ -688,8 +688,9 @@ export function WorldMap({
       onPieceDrop &&
       ((target, clientX, clientY) => {
         const { from, label } = read(target, clientX, clientY);
-        if (from !== null && !onPieceDrop(from)) return;
-        if (label !== undefined) onLabelAct(label, clientX, clientY);
+        const outcome = from === null ? 'pose' : onPieceDrop(from);
+        if (outcome === 'board') readyEngine.boardInto(clientX, clientY);
+        if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });
     readyEngine.onCarryOver = (target, clientX, clientY) => {
       hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;

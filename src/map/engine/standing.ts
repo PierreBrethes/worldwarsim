@@ -516,8 +516,17 @@ type Carried = {
   readonly since: number;
   clock: number;
   down: { readonly at: Vector3; readonly since: number; readonly from: number } | null;
-  back: { readonly from: Vector3; readonly since: number; readonly carried: number } | null;
+  back: {
+    readonly from: Vector3;
+    readonly since: number;
+    readonly carried: number;
+    /** **Into its transport** (15/10): it glides there and shrinks away, rather than home. */
+    readonly into: Vector3 | null;
+  } | null;
 };
+
+/** A boarding is announced before the hand empties: past this, the next putting back is one. */
+const BOARDING_MS = 3000;
 
 /**
  * **The copies a click is taken by**: set down under a rose, or on their way home, a click on them
@@ -683,6 +692,8 @@ export class StandingLayer {
   motion: MapMotion = 'full';
   /** The copy of what is in hand; `null` when the pile is not dressed. */
   private carried: Carried | null = null;
+  /** A boarding announced, waiting for the hand to empty (`boardInto`). */
+  private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
   private leaving: Carried | null = null;
   /** A pile regathered from its deployment, dropping onto the board. */
@@ -890,10 +901,27 @@ export class StandingLayer {
     const lifted = this.carried;
     this.carried = null;
     // Put back, the copy goes home and drops there; sent, its pawn takes over; deployed, the
-    // troops regather into the pile, which drops in its turn.
-    if (lifted !== null && held === null && !sent && !deployed && this.motion !== 'off') {
-      const now = performance.now();
-      lifted.back = { from: lifted.object.position.clone(), since: now, carried: lifted.lift };
+    // troops regather into the pile, which drops in its turn; boarded, it glides into its
+    // transport.
+    const released = performance.now();
+    const into =
+      this.boarding !== null && released - this.boarding.since < BOARDING_MS
+        ? this.boarding.at
+        : null;
+    this.boarding = null;
+    if (
+      lifted !== null &&
+      held === null &&
+      !sent &&
+      (!deployed || into !== null) &&
+      this.motion !== 'off'
+    ) {
+      lifted.back = {
+        from: lifted.object.position.clone(),
+        since: released,
+        carried: lifted.lift,
+        into,
+      };
       lifted.down = null;
       this.leaving = lifted;
     } else {
@@ -1123,16 +1151,18 @@ export class StandingLayer {
     const scale = near * pieceScale.troops;
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };
+    let shrink = 1;
     if (back !== null) {
       const t = this.seconds(back.since, now);
       if (t >= RETURN_DONE) {
         this.dropLeaving();
         return;
       }
-      const home = this.dressed.get(carried.pileId)?.object.position ?? back.from;
+      const home = back.into ?? this.dressed.get(carried.pileId)?.object.position ?? back.from;
       const at = returnAt(t, back.carried, RETURN_HOP);
       object.position.lerpVectors(back.from, home, at.share);
       carried.lift = at.lift;
+      if (back.into !== null) shrink = 1 - at.share * 0.9;
     } else if (down !== null) {
       object.position.lerp(down.at, full ? followShare(dt, 20) : 1);
       const t = this.seconds(down.since, now);
@@ -1156,7 +1186,12 @@ export class StandingLayer {
       (material, k) => (material.opacity = [0.12, 0.06][k]! * fade * 1.5),
     );
     object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
-    object.scale.setScalar(scale);
+    object.scale.setScalar(scale * shrink);
+  }
+
+  /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away. */
+  boardInto(at: Vector3): void {
+    this.boarding = { at, since: performance.now() };
   }
 
   /** A regathered pile drops onto its point, or its maquette's foot. */
