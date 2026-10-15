@@ -2416,7 +2416,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     </CornerCard>
                   )}
                   {replay === null && (
-                    <MapButtons narrow={false} onRecenter={recenterOnHome} onCorner={setCorner} />
+                    <MapButtons
+                      narrow={false}
+                      layers={view.mode !== 'blitz'}
+                      onRecenter={recenterOnHome}
+                      onCorner={setCorner}
+                    />
                   )}
                 </div>
               )}
@@ -2426,7 +2431,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             cartouche « transmis » le temps qu'il se lit. */}
             {narrow && sent === null && replay === null && (
               <div className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]">
-                <MapButtons narrow onRecenter={recenterOnHome} onCorner={setCorner} />
+                <MapButtons
+                  narrow
+                  layers={view.mode !== 'blitz'}
+                  onRecenter={recenterOnHome}
+                  onCorner={setCorner}
+                />
               </div>
             )}
             {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
@@ -2606,10 +2616,13 @@ type Corner = 'layers' | 'controls';
  */
 function MapButtons({
   narrow,
+  layers,
   onRecenter,
   onCorner,
 }: {
   narrow: boolean;
+  /** A Blitz has no deposits: nothing for the layers to switch. */
+  layers: boolean;
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
 }) {
@@ -2649,15 +2662,17 @@ function MapButtons({
           <path d="M10 1.5v4.2M10 14.3v4.2M1.5 10h4.2M14.3 10h4.2" />
         </Glyph>
       </button>
-      <button
-        type="button"
-        title={fr.foot.layersTitle}
-        aria-label={fr.foot.layersTitle}
-        onClick={() => toggle('layers')}
-        className={`${MAP_BUTTON} ${size}`}
-      >
-        <LayersGlyph size={glyph} />
-      </button>
+      {layers && (
+        <button
+          type="button"
+          title={fr.foot.layersTitle}
+          aria-label={fr.foot.layersTitle}
+          onClick={() => toggle('layers')}
+          className={`${MAP_BUTTON} ${size}`}
+        >
+          <LayersGlyph size={glyph} />
+        </button>
+      )}
       {!narrow && (
         <button
           type="button"

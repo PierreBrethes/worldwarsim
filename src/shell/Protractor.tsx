@@ -131,8 +131,10 @@ export function Protractor({
     ),
     windowRound('settings', fr.rail.settings, fr.rail.settingsShort, <SettingsGlyph size={18} />),
   ];
-  /** La Blitz n'a ni réserve ni chantier : son économie se lit sur la réglette, en fonds. */
-  const rounds = all.filter((round) => view.mode !== 'blitz' || round.key !== 'economy');
+  /** La Blitz n'a ni réserve ni chantier ni presse : son économie se lit sur la réglette, en fonds. */
+  const rounds = all.filter(
+    (round) => view.mode !== 'blitz' || (round.key !== 'economy' && round.key !== 'press'),
+  );
 
   function windowRound(
     name: BoardWindow,

@@ -227,16 +227,18 @@ function NationDossier({
           fr.dossier.nationNote(me.troops.length),
         )}
         {toWindow('gunnery', <AbacusMark size={22} />, fr.dossier.gunnery, fr.dossier.gunneryNote)}
-        <button type="button" onClick={onLayers} className={ROW}>
-          <DossierLine
-            icon={<LayersGlyph size={24} />}
-            title={fr.dossier.layers}
-            note={fr.dossier.layersNote(
-              CATEGORIES.filter((category) => toggles[category]).length,
-              CATEGORIES.length,
-            )}
-          />
-        </button>
+        {view.mode !== 'blitz' && (
+          <button type="button" onClick={onLayers} className={ROW}>
+            <DossierLine
+              icon={<LayersGlyph size={24} />}
+              title={fr.dossier.layers}
+              note={fr.dossier.layersNote(
+                CATEGORIES.filter((category) => toggles[category]).length,
+                CATEGORIES.length,
+              )}
+            />
+          </button>
+        )}
         {toWindow(
           'settings',
           <SettingsGlyph size={24} />,

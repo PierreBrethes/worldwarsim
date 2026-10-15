@@ -1959,7 +1959,7 @@ export const fr = {
   protractor: {
     label: 'menu du plateau',
     open: (waiting: number, blitz = false) =>
-      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, presse, télégraphe, réglages`,
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, ${blitz ? '' : 'presse, '}télégraphe, réglages`,
     close: 'refermer le menu',
     closeShort: 'fermer',
     works: 'chant.',
@@ -3627,8 +3627,8 @@ export const fr = {
           ? {
               title: 'Vos bureaux',
               lines: [
-                `Dans le coin bas droit, le rapporteur : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe, réglages. Une entrée ouverte se referme d’un second toucher.`,
-                'Le drapeau de la réglette ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
+                `Dans le coin bas droit, le rapporteur : ${blitz ? '' : 'chantiers, '}journal, « à faire », ${blitz ? '' : 'presse, '}télégraphe, réglages. Une entrée ouverte se referme d’un second toucher.`,
+                `Le drapeau de la réglette ouvre le dossier de la nation : sa fiche, l’abaque de tir, ${blitz ? '' : 'les calques de la carte, '}les réglages, et cette feuille.`,
                 '« En cours », sous la réglette : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
                 blitz
                   ? '« À faire » : tout ce qui attend un ordre.'
