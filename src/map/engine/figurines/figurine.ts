@@ -30,7 +30,9 @@ export function setNearFloor(distance: number): void {
  * are down at the country » for both layers (ADR 0026 §3).
  */
 export function nearWeight(distance: number): number {
-  const t = (REGIONS_GONE_DISTANCE - Math.max(distance, nearFloor)) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE);
+  const t =
+    (REGIONS_GONE_DISTANCE - Math.max(distance, nearFloor)) /
+    (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE);
   const k = Math.min(1, Math.max(0, t));
   return k * k * (3 - 2 * k);
 }

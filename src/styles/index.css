@@ -561,7 +561,10 @@ body {
   transition: none;
 }
 
-:root:is([data-motion='reduced'], [data-motion='off']) .indicator--imminent .indicator-triangle svg {
+:root:is([data-motion='reduced'], [data-motion='off'])
+  .indicator--imminent
+  .indicator-triangle
+  svg {
   animation: none;
 }
 
