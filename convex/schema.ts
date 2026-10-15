@@ -225,6 +225,8 @@ export default defineSchema({
      * d'ordonner, pas s'évaporer.
      */
     defeated: v.optional(v.boolean()),
+    /** **L'heure où son QG de départ est tombé** (Blitz) : jamais écrite par une capitulation. */
+    eliminatedAt: v.optional(v.number()),
     /**
      * **Les dettes du socle qu'un bâtiment rasé avait acquittées** (décision 6a du 15/09). Le
      * socle se lit sur le sol — `foundationOwed` retranche de la liste due ce qui est debout —,

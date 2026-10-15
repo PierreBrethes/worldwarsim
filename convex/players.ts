@@ -169,7 +169,10 @@ export async function leaveTheWar(
         readonly capturerId: Id<'players'>;
       },
 ): Promise<void> {
-  await ctx.db.patch(player._id, { defeated: true });
+  await ctx.db.patch(
+    player._id,
+    exit.kind === 'playerEliminated' ? { defeated: true, eliminatedAt: now } : { defeated: true },
+  );
 
   const present = await seatsOf(ctx, season._id);
   const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
