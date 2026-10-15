@@ -46,8 +46,8 @@ export function adaptServerView(
   return {
     season: {
       ...server.season,
-      // A deployment one version behind knows no test victory: an empty board rather than an
-      // `undefined` the journal would then index into.
+      // Tant que `victory.board` n'est pas arrivé : un tableau vide, que `ReductionLine` tait,
+      // et une cible que personne ne lit sans tableau.
       reduction: {
         target: board?.target ?? 1,
         standings: board?.standings ?? [],
