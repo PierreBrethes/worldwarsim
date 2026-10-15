@@ -2422,9 +2422,13 @@
       display: grid;
       grid-template-rows: minmax(0, 1fr);
     }
+    /* Trois enfants : la barre, le canal, et le widget (onglets, fil, champ) qui prend le reste —
+       sans quoi le champ remonte sous le dernier message. La colonne ne s'élargit pas sur son
+       contenu : « conversation privée avec … », sans retour à la ligne, poussait tout à droite. */
     .wirewin {
       display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
       min-height: 0;
       background: var(--paper);
       border: 1px solid var(--ink);

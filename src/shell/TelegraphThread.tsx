@@ -210,7 +210,7 @@ function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
           </div>
         )}
         <p
-          className={`border px-2 pt-1 pb-[5px] text-[14.5px] leading-[1.3] break-words ${
+          className={`border px-2 pt-1 pb-[5px] text-[14.5px] leading-[1.3] wrap-anywhere ${
             message.mine
               ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
               : 'border-(color:--ink)/35 bg-(--paper)/45 text-[var(--ink)]'
