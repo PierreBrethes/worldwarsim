@@ -107,10 +107,11 @@ export type { SurveyedCamp } from './annotations';
  */
 export type { HeldClaim } from './regions';
 
-/** How much of its own colour a country gives off under the pointer, and once selected. */
 /** A shore is read around a pile's point this far out, in board units — about a pile's reach. */
 const SHORE_REACH = 0.6;
 const SHORE_PROBES = 8;
+
+/** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
 const SELECTED_LIFT = 0.75;
 
