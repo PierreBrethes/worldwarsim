@@ -70,7 +70,7 @@ export function HandSheet({
         </button>
       )}
       {founding?.action == null && founding?.refusal != null && (
-        <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--lacking-ink)]">
+        <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
           {founding.refusal}
         </p>
       )}
