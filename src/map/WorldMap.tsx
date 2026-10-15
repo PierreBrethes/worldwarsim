@@ -1072,14 +1072,14 @@ function PlacingCard({
   if (at === null) return null;
   return (
     <div
-      className="hud pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--paper)]"
+      className="hud paper-grain pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)] float"
       style={{ left: at.x + PLACING_CARD_GAP, top: at.y + PLACING_CARD_GAP }}
     >
       <span className="block font-semibold">{placing.title}</span>
-      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
+      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {placing.figures}
       </span>
-      <span className="mt-[4px] block text-[11px] text-[var(--paper-dim)]">{fr.placing.hint}</span>
+      <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
     </div>
   );
 }
@@ -1097,11 +1097,11 @@ const PLACING_CARD_GAP = 22;
 function GestureHint({ mapping }: { mapping: MouseMapping }) {
   const hint = fr.mapUi.gestureHint(mapping);
   return (
-    <div className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--paper)]">
+    <div className="hud paper-grain pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--ink)] float">
       {hint.orient}
-      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      <span className="text-[var(--ink-soft)]">{hint.separator}</span>
       {hint.pan}
-      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      <span className="text-[var(--ink-soft)]">{hint.separator}</span>
       {hint.lift}
     </div>
   );

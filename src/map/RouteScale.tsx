@@ -10,10 +10,13 @@ import type { ArcView } from '@/domain/player-view';
  * duration, docks included. It only shows on hover or selection — permanent, it would
  * double the timeline and eat the contrast budget that belongs to the board.
  */
-const MEDIUM_INK: Readonly<Record<Medium, string>> = {
-  land: 'var(--arc-mine)',
-  sea: 'color-mix(in srgb, var(--arc-mine) 55%, transparent)',
-  air: '#e0a552',
+/** On paper the three shades of the arc's amber fell under 3:1 (the lightest at 1.5): the
+ *  medium is told by the rule's stroke instead, as an engraved map tells road, sea lane and
+ *  flight path, in the one amber that holds on paper. */
+const MEDIUM_RULE: Readonly<Record<Medium, 'solid' | 'dashed' | 'dotted'>> = {
+  land: 'solid',
+  sea: 'dashed',
+  air: 'dotted',
 };
 
 /** Below this share, a section's label no longer fits: it falls back to the rule alone. */
@@ -25,11 +28,11 @@ export function RouteScale({ arc }: { arc: ArcView }) {
   if (segments.length === 0) return null;
 
   return (
-    <div className="hud pointer-events-none w-[520px] max-w-full border border-[var(--ink-quiet)] bg-[rgba(15,10,4,.86)] px-3 pt-[7px] pb-[9px]">
+    <div className="hud paper-grain pointer-events-none w-[520px] max-w-full border border-[var(--ink)] px-3 pt-[7px] pb-[9px] text-[var(--ink)] float">
       <div className="flex items-baseline justify-between pb-[7px]">
-        <span className="eyebrow-dark">{fr.mapUi.routeScale}</span>
+        <span className="eyebrow">{fr.mapUi.routeScale}</span>
         {durationMinutes !== null && (
-          <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim)]">
+          <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
             {asDuration(durationMinutes)}
           </span>
         )}
@@ -38,15 +41,16 @@ export function RouteScale({ arc }: { arc: ArcView }) {
         {segments.map((segment, rank) => {
           const dock = segment.kind === 'dock';
           const label = dock ? fr.mapUi.dock : fr.mediums[segment.medium];
-          const ink = dock ? 'var(--paper)' : MEDIUM_INK[segment.medium];
           return (
             <div
               key={rank}
               className="overflow-hidden pt-[5px] font-(family-name:--font-mono) text-[9px] tracking-[.14em] text-ellipsis whitespace-nowrap uppercase"
               style={{
                 flex: `${Math.max(0.02, segment.share)} 1 0`,
-                borderTop: `2px solid ${ink}`,
-                color: dock ? 'var(--paper)' : 'var(--paper-dim)',
+                borderTop: dock
+                  ? '2px solid var(--ink)'
+                  : `2px ${MEDIUM_RULE[segment.medium]} var(--notable-paper)`,
+                color: dock ? 'var(--ink)' : 'var(--ink-soft)',
               }}
             >
               {segment.share < READABLE_SHARE

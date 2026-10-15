@@ -365,7 +365,7 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
       {interrupted && (
         <div
           role="status"
-          className="hud fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 z-[var(--z-notice)] -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
+          className="hud paper-grain fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 z-[var(--z-notice)] -translate-x-1/2 border border-l-[3px] border-[var(--critical)] px-3 py-2 text-[11px] text-[var(--ink)] float"
         >
           {fr.board.linkLost}
         </div>
@@ -2247,7 +2247,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 className="pointer-events-none absolute z-10"
                 style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
               >
-                <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper)]">
+                <div className="hud paper-grain border border-[var(--ink)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink)] float">
                   {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
                 </div>
               </div>
@@ -2310,7 +2310,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
             {orderError !== null && (
               <div
-                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                className={`hud paper-grain absolute z-[var(--z-band)] border border-l-[3px] border-[var(--critical)] px-3 py-2 text-[11px] text-[var(--ink)] float ${
                   narrow
                     ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)] left-1/2 -translate-x-1/2'
                     : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
