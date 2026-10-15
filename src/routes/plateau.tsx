@@ -1518,10 +1518,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const labels = useMemo(() => {
     const built = buildLabels(view, markers);
     return view.mode === 'blitz'
-      ? ownerFlags(built, (regionId) => {
-          const held = knownRegionById.get(regionId);
-          return held === undefined ? null : nationInk(held.nation);
-        })
+      ? ownerFlags(
+          built,
+          (regionId) => {
+            const held = knownRegionById.get(regionId);
+            return held === undefined ? null : nationInk(held.nation);
+          },
+          view.me.ink,
+        )
       : built;
   }, [view, markers, knownRegionById]);
 

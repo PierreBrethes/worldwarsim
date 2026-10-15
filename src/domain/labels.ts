@@ -500,7 +500,14 @@ export const NEUTRAL_FLAG = 'neutral';
 export function ownerFlags(
   labels: ReadonlyArray<MapLabel>,
   holderInk: (regionId: string) => string | null,
+  myInk: string | null,
 ): ReadonlyArray<MapLabel> {
+  /** Le tenant de la région, pas celui du site : quand c'est moi, un autre site de la région
+   *  porte la couleur, et ce site d'un autre n'a pas de tenant que je sache dire. */
+  const holderOf = (regionId: string) => {
+    const ink = holderInk(regionId);
+    return ink === myInk ? null : ink;
+  };
   return labels.map((label) => {
     const flag =
       label.type === 'building' || label.type === 'stack'
@@ -509,7 +516,7 @@ export function ownerFlags(
           ? null
           : label.installation.neutral
             ? NEUTRAL_FLAG
-            : holderInk(label.installation.regionId);
+            : holderOf(label.installation.regionId);
     return flag === null ? label : { ...label, flag };
   });
 }

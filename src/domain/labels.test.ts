@@ -484,7 +484,11 @@ describe('ownerFlags', () => {
   const label = (over: Partial<MapLabel>): MapLabel =>
     ({ id: 'x', type: 'building', ink: null, installation: null, ...over }) as MapLabel;
   const flagOf = (over: Partial<MapLabel>) =>
-    ownerFlags([label(over)], (regionId) => (regionId === 'ESP-1' ? '#a83f68' : null))[0]!.flag;
+    ownerFlags(
+      [label(over)],
+      (regionId) => (regionId === 'ESP-1' ? '#a83f68' : regionId === 'FRA-1' ? '#2a5ba8' : null),
+      '#2a5ba8',
+    )[0]!.flag;
 
   it('plants my ink under my sites and my piles', () => {
     expect(flagOf({ type: 'building', ink: '#2a5ba8' })).toBe('#2a5ba8');
@@ -503,6 +507,15 @@ describe('ownerFlags', () => {
       flagOf({
         type: 'installation',
         installation: { ...site, regionId: 'ESP-2', neutral: false },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('plants none under a site of another whose region my colour holds', () => {
+    expect(
+      flagOf({
+        type: 'installation',
+        installation: { id: 'b', key: 'city', regionId: 'FRA-1', neutral: false },
       }),
     ).toBeUndefined();
   });
