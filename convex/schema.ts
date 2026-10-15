@@ -422,6 +422,10 @@ export default defineSchema({
     /** **L'artillerie** (B20) : l'heure où elle s'est posée, d'où se compte sa mise en batterie.
      *  Absent, depuis sa formation (`_creationTime`). */
     settledAt: v.optional(v.number()),
+    /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10) : on est à bord parce qu'on
+     *  a embarqué, plus parce qu'on se tient au point d'un transport. Absent, à pied. Il ne vaut
+     *  qu'à la même adresse que son transport (`carrierIn`). */
+    carriedBy: v.optional(v.id('troops')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -579,6 +583,9 @@ export default defineSchema({
      * cible stockée n'est que sa dernière position connue.
      */
     pursuit: v.optional(v.object({ troopId: v.id('troops'), checkAt: v.number() })),
+    /** **Le transport où la colonne monte en arrivant** (15/10) : lâchée de loin sur un
+     *  transport, elle y marche et embarque s'il y est encore et s'il a de la place. */
+    boardsOn: v.optional(v.id('troops')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

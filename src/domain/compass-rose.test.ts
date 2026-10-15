@@ -2,7 +2,7 @@ import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
 import { compassOf, soleOrderOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
-import type { BuildSpec, Cost, PlayerView } from './player-view';
+import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
 
 const view = {
@@ -734,7 +734,7 @@ describe('aiming at a point', () => {
  * garnison, qui sert à composer une pile et non à donner un ordre. La branche vit sur la pile
  * elle-même, parce qu'on fonde où l'on se tient (ADR 0019 §1).
  */
-describe('boarding a transport from the map (ADR 0025 §3)', () => {
+describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)', () => {
   const beach = {
     kind: 'point',
     lonLat: [142.1, 47],
@@ -761,98 +761,103 @@ describe('boarding a transport from the map (ADR 0025 §3)', () => {
     afloat: false,
     coastal: false,
   };
-  const withTransport = (role = 'cargo', passengers = 0): PlayerView =>
+  const europe = theatreById('europe')!;
+  const blitz = {
+    ...column,
+    blitz: { theatre: europe, reloading: false, occupiedBuildingIds: new Set<string>() },
+  };
+  const at = (
+    role: string,
+    passengers = 0,
+    { held = 'infantry', station = beach as TroopStation } = {},
+  ): PlayerView =>
     ({
       ...view,
       me: {
         ...view.me,
         troops: [
-          { id: 'transport', role, stationedAt: beach },
+          { id: 'rifle', role: held, stationedAt: origin },
+          { id: 'transport', role, stationedAt: station },
           ...Array.from({ length: passengers }, (_, rank) => ({
             id: `passenger-${rank}`,
             role: 'infantry',
-            stationedAt: beach,
+            stationedAt: station,
+            carriedBy: 'transport',
           })),
         ],
       },
     }) as unknown as PlayerView;
+  const aim = (seen: PlayerView, armed = column) =>
+    compassOf(target, seen, armed, origin, 0, ['rifle']);
+  const anchor = (seen: PlayerView, armed = column) =>
+    aim(seen, armed)?.actions.find((action) => action.pictogram === 'anchor');
 
-  it('offers to board a friendly cargo a few kilometres off, at once', () => {
-    const compass = compassOf(target, withTransport(), column, origin);
-    expect(compass?.name).toBe('Cargo');
-    expect(compass?.actions).toHaveLength(1);
+  it('marches to a cargo elsewhere and boards it on arrival, or rejoins its pile', () => {
+    const compass = aim(at('cargo'));
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'embarquer · Cargo',
+      'rejoindre',
+    ]);
+    expect(compass?.actions[0]).toMatchObject({ key: 'aim', type: 'march', boardsOn: 'transport' });
+  });
+
+  it('counts those aboard, not those who only stand there', () => {
+    expect(anchor(at('cargo', 12))).toBeUndefined();
+    expect(aim(at('cargo', 12), blitz)?.refusal).toContain('il en manque 1');
+    expect(anchor(at('cargo', 11))).toBeDefined();
+  });
+
+  it('boards a transport of the pile one holds at once, without a march', () => {
+    const own = { ...target, id: 'own-stack', station: origin };
+    const compass = compassOf(own, at('cargo', 0, { station: origin }), column, origin, 0, [
+      'rifle',
+    ]);
     expect(compass?.actions[0]).toMatchObject({
       key: 'board',
-      pictogram: 'anchor',
-      label: 'embarquer',
-      transport: beach,
-    });
-  });
-
-  it('boards a cargo moored offshore as well — the littoral, not the quay', () => {
-    const compass = compassOf({ ...target, onLand: false }, withTransport(), column, origin);
-    expect(compass?.actions[0]).toMatchObject({ key: 'board' });
-  });
-
-  it('says how many places are missing when the cargo is full', () => {
-    const compass = compassOf(target, withTransport('cargo', 12), column, origin);
-    expect(compass?.actions).toEqual([]);
-    expect(compass?.refusal).toContain('il en manque 1');
-  });
-
-  it('says it is too far beyond the boarding radius', () => {
-    const far = { ...origin, lonLat: [144, 47] } as const;
-    const compass = compassOf(target, withTransport(), column, far);
-    expect(compass?.actions).toEqual([]);
-    expect(compass?.refusal).toContain('trop loin pour embarquer');
-  });
-
-  it('lists the transports in reach on the pile one holds, so a crowd is no obstacle', () => {
-    const own = { ...target, id: 'own-stack', station: origin };
-    const compass = compassOf(own, withTransport(), column, origin);
-    expect(compass?.actions.find((action) => action.key === 'board')).toMatchObject({
       label: 'embarquer · Cargo',
-      transport: beach,
+      carrierId: 'transport',
     });
   });
 
-  it('offers infantry a truck with a free seat, but never puts armour in it', () => {
-    expect(
-      compassOf(target, withTransport('landTransport', 1), column, origin)?.actions,
-    ).toHaveLength(1);
-    expect(compassOf(target, withTransport('landTransport', 2), column, origin)?.actions).toEqual(
-      [],
+  it('seats infantry in a truck with a free seat, and never armour', () => {
+    expect(anchor(at('landTransport', 1))).toBeDefined();
+    expect(anchor(at('landTransport', 2))).toBeUndefined();
+    expect(anchor(at('landTransport', 0, { held: 'armor' }))).toBeUndefined();
+    expect(aim(at('landTransport', 0, { held: 'armor' }), blitz)?.refusal).toBe(
+      'un camion ne porte que l’infanterie',
     );
-    expect(
-      compassOf(target, withTransport('landTransport'), { ...column, roles: ['armor'] }, origin)
-        ?.actions,
-    ).toEqual([]);
   });
 
-  /** La pile qu'on tient garde son éventail ordinaire : viser la sienne n'est pas un embarquement,
-   *  et ce qu'elle rend est ce qu'un clic droit au repos rendrait — ici le motif de la fondation,
-   *  puisqu'un cargo ne plante rien. */
-  it('offers no transport action on an escort, an unknown stack, or the origin itself', () => {
-    expect(compassOf(target, withTransport('escort'), column, origin)).toBeNull();
-    expect(
-      compassOf(target, { ...view, me: { ...view.me, troops: [] } }, column, origin),
-    ).toBeNull();
-    const itself = compassOf(target, withTransport(), column, beach);
-    expect(itself?.actions).toEqual([]);
-    expect(itself?.refusal).toBe('un cargo ne fonde pas — seule l’infanterie plante un point');
-  });
-
-  it('can rejoin a nearby transport without treating it as the origin', () => {
-    const nearby = { ...beach, lonLat: [142.101, 47.001] } as const;
-    expect(compassOf(target, withTransport(), column, nearby)?.actions).toHaveLength(1);
-  });
-
-  it('never offers to board a transport already moving', () => {
+  it('boards nothing on an escort nor on a transport already moving', () => {
+    expect(anchor(at('escort'))).toBeUndefined();
     const moving = {
-      ...withTransport(),
+      ...at('cargo'),
       arcs: [{ state: 'mine', troopIds: ['transport'] }],
     } as unknown as PlayerView;
-    expect(compassOf(target, moving, column, origin)).toBeNull();
+    expect(anchor(moving)).toBeUndefined();
+  });
+
+  /** **En Blitz, pas de groupe d'unités de combat** (règle de Pierre, 15/10). */
+  it('never groups two combat units in a Blitz', () => {
+    const compass = aim(at('armor'), blitz);
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe(fr.compass.noSquad);
+  });
+
+  it('sets one passenger ashore from my pile, and asks for several', () => {
+    const own = { ...target, station: beach };
+    expect(compassOf(own, at('cargo', 1))?.actions[0]).toMatchObject({
+      key: 'disembark',
+      troopIds: ['passenger-0'],
+      consequence: 'Met pied à terre à côté du transport.',
+    });
+    expect(compassOf(own, at('cargo', 2))?.actions[0]).toMatchObject({
+      key: 'disembark',
+      troopIds: ['passenger-0', 'passenger-1'],
+    });
+    const offshore = { ...beach, afloat: true } as const;
+    const sea = compassOf({ ...own, station: offshore }, at('cargo', 1, { station: offshore }));
+    expect(sea?.refusal).toBe('on ne débarque pas au large — gagnez une côte ou un port');
   });
 });
 

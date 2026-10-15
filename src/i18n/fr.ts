@@ -674,7 +674,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
-    CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : faites-la descendre du transport',
+    CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
@@ -718,8 +718,10 @@ export const fr = {
     LAND_TROOPS_ONLY: () => 'seules les troupes terrestres embarquent',
     NO_TRANSPORT_HERE: () => 'aucun cargo ni porte-avions ici pour vous prendre à bord',
     AIRFIELD_BOARDING_ONLY: () => 'un avion n’embarque personne hors d’un aérodrome',
-    TOO_FAR_TO_BOARD: (d) =>
-      `trop loin pour embarquer : ${num(d.km)} km, ${num(d.maximum)} au plus — approchez-vous`,
+    TRUCK_SEATS_INFANTRY: () => 'un camion ne porte que l’infanterie',
+    NOT_ABOARD: () => 'cette troupe n’est à bord d’aucun transport',
+    DISEMBARK_AT_SEA: () => 'on ne débarque pas au large — gagnez une côte ou un port',
+    STILL_ABOARD: () => 'cette troupe est à bord : débarquez-la d’abord',
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
@@ -2534,7 +2536,7 @@ export const fr = {
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
     found: 'fonder un avant-poste ici',
     aboard: 'à bord',
-    getOff: 'faire descendre',
+    disembark: 'débarquer',
   },
 
   /**
@@ -3811,16 +3813,26 @@ export const fr = {
     /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
      *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
     garrison: 'entrer en garnison',
-    transportFull: 'ces troupes ne tiennent pas dans le camion disponible ici',
-    joinTransport:
-      'rejoindre sa position actuelle pour composer une pile — le camion doit vous y attendre',
-    /** **Embarquer** (ADR 0025 §3) : sur-le-champ et sans slot — la bulle le dit avant le prix,
-     *  parce que c'est ce qui sépare ce geste d'une marche. */
+    /** **Rejoindre une autre de mes piles** (15/10) : une marche jusqu'à son point exact. */
+    join: 'rejoindre',
+    joinConsequence:
+      'Marche jusqu’à cette pile et s’y pose à son point exact : les deux n’en font plus qu’une.',
+    /** **En Blitz, pas de groupe d'unités de combat** (règle de Pierre, 15/10). */
+    noSquad: 'pas de groupe d’unités de combat — seul un transport en porte d’autres',
+    /** **Embarquer** (révision de l'ADR 0025, 15/10) : au point du transport, sur-le-champ et
+     *  sans slot ; de plus loin, une marche qui monte à bord en arrivant. */
     board: 'embarquer',
-    boardOnto: (transports: string) => `embarquer · ${transports}`,
-    boardCost: (km: number) => `immédiat · sans slot · ${km} km`,
+    boardOnto: (transport: string) => `embarquer · ${transport}`,
+    boardNow: 'immédiat · sans slot',
+    boardOnArrival: 'Marche jusqu’au transport et monte à bord en arrivant, s’il y est encore.',
     boardPlaces: (used: number, capacity: number) =>
-      `à bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}`,
+      `À bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}.`,
+    /** **Débarquer** (15/10) : pied à terre au point du transport. */
+    disembark: 'débarquer',
+    disembarkConsequence: (count: number) =>
+      count === 1
+        ? 'Met pied à terre à côté du transport.'
+        : `${count} troupes à bord : choisissez qui met pied à terre.`,
     /** « Cargo ×2 · porte-avions » : ce qui emporte, jamais l'abréviation de la pile. */
     transports: (roles: ReadonlyArray<UnitRole>) =>
       [...new Set(roles)]
@@ -3918,6 +3930,14 @@ export const fr = {
    * sol, il ancre des mâts, il héberge une garnison. Deux de ces trois pertes ne se lisent nulle
    * part ailleurs sur le plateau, donc elles se lisent ici ou jamais.
    */
+  /** **Qui met pied à terre** (15/10) : la carte que « débarquer » ouvre quand plusieurs troupes
+   *  sont à bord. */
+  disembark: {
+    kicker: 'pied à terre',
+    heading: (count: number) => `${count} troupe${plural(count, '', 's')} à bord`,
+    aboardOf: (carrier: string) => `à bord · ${carrier.toLowerCase()}`,
+    submit: (count: number) => (count <= 1 ? 'débarquer' : `débarquer ${count} troupes`),
+  },
   dismantle: {
     kicker: 'démantèlement',
     heading: (place: string, level: number) => `Avant-poste de ${place} — niveau ${level}`,

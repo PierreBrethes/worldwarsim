@@ -53,6 +53,7 @@ describe('HandSheet', () => {
         held={held}
         troopIds={['inf', 'tank']}
         onCompose={onCompose}
+        onDisembark={() => {}}
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
@@ -79,6 +80,7 @@ describe('HandSheet in a Blitz', () => {
         held={[troop('inf', 'infantry')]}
         troopIds={['inf']}
         onCompose={() => {}}
+        onDisembark={() => {}}
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
@@ -89,8 +91,8 @@ describe('HandSheet in a Blitz', () => {
     expect(screen.queryByText(/relève à/)).toBeNull();
   });
 
-  it('gets the infantry off its truck alone', () => {
-    const onCompose = vi.fn();
+  it('sets the infantry ashore beside its truck', () => {
+    const onDisembark = vi.fn();
     render(
       <HandSheet
         view={
@@ -98,16 +100,20 @@ describe('HandSheet in a Blitz', () => {
         }
         station={station}
         place="Portugal"
-        held={[troop('inf', 'infantry'), troop('truck', 'landTransport')]}
+        held={[
+          { ...troop('inf', 'infantry'), carriedBy: 'truck' },
+          troop('truck', 'landTransport'),
+        ]}
         troopIds={['inf', 'truck']}
-        onCompose={onCompose}
+        onCompose={() => {}}
+        onDisembark={onDisembark}
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
       />,
     );
-    act(() => screen.getByRole('button', { name: fr.hand.getOff }).click());
-    expect(onCompose).toHaveBeenLastCalledWith(['inf']);
+    act(() => screen.getByRole('button', { name: fr.hand.disembark }).click());
+    expect(onDisembark).toHaveBeenLastCalledWith(['inf']);
   });
 });
 
@@ -122,6 +128,7 @@ describe('HandSheet founding', () => {
         held={[troop('inf', 'infantry')]}
         troopIds={['inf']}
         onCompose={() => {}}
+        onDisembark={() => {}}
         founding={founding}
         onOpenGunnery={() => {}}
         onDrop={() => {}}

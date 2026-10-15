@@ -3,7 +3,6 @@ import { withinTheatre } from './blitz';
 import { distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
 import { theatreKm, type Theatre } from './theatres';
-import { LIFT_CAPACITY } from './troops';
 
 /**
  * **Le tir indirect** (B20, lot 6b) : l'artillerie frappe de loin une unité en vue, sans riposte
@@ -48,24 +47,10 @@ export type Bombardment = {
   readonly reloadUntil: number | null;
   /** Dans un mouvement : elle est en route, et ne se met pas en batterie. */
   readonly moving: boolean;
-  /** À bord d'un transport (`aboardAt`) : une pièce transportée n'agit pas. */
+  /** Au large, ou à bord d'un transport : une pièce transportée n'agit pas. */
   readonly aboard: boolean;
   readonly now: number;
 };
-
-/**
- * **À bord** : sur un point, au large, ou avec une coque ou une aile à soi à la même adresse —
- * la règle des sièges (`boardingPile`) : à quai, dans un bâtiment, personne n'est à bord.
- */
-export const aboardAt = ({
-  onPoint,
-  afloat,
-  roles,
-}: {
-  readonly onPoint: boolean;
-  readonly afloat: boolean;
-  readonly roles: ReadonlyArray<UnitRole>;
-}): boolean => onPoint && (afloat || roles.some((role) => (LIFT_CAPACITY[role] ?? 0) > 0));
 
 export function bombardRefusalOf(order: Bombardment): BombardRefusal | null {
   const { roles, theatre, now } = order;

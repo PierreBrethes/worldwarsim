@@ -655,6 +655,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now

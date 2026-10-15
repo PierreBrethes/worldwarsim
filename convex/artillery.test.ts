@@ -142,6 +142,7 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     /** Formé avant sa coque : c'est lui que le relevé désigne, seul dans la passe. */
     const rider = await troop(t, guest, CHANNEL_EAST);
     const cargo = await troop(t, guest, CHANNEL_EAST, 'cargo');
+    await t.run((ctx) => ctx.db.patch(rider, { carriedBy: cargo }));
     emplaced();
     for (const place of [CHANNEL, CHANNEL_EAST]) {
       await t.mutation(api.movements.bombard, {

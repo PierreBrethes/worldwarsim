@@ -6,7 +6,6 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import {
-  aboardAt,
   bombardRefusalDetails,
   bombardRefusalOf,
   emplacedAt,
@@ -17,7 +16,8 @@ import { fail } from '../errors';
 import { hostAtPoint, landAtPoint } from '../routes';
 import { forgetMovement } from './arrival';
 import { reassessDetection } from './detection';
-import { asPoint, movementsOf, stanceOf } from './forces';
+import { asPoint, movementsOf, seatedOf, stanceOf } from './forces';
+import { carrierIn } from '../../src/domain/troops';
 import { quarryOf } from './pursuit';
 import { blitzTheatreOf } from './theatre';
 
@@ -78,11 +78,8 @@ export async function bombard(
     moving,
     aboard:
       !moving &&
-      aboardAt({
-        onPoint,
-        afloat: onPoint && !landAtPoint([address.lon, address.lat]),
-        roles: (await pileOf(ctx, troop)).map((one) => one.role),
-      }),
+      ((onPoint && !landAtPoint([address.lon, address.lat])) ||
+        carrierIn(seatedOf(troop), (await pileOf(ctx, troop)).map(seatedOf)) !== null),
     now,
   };
   const refusal = bombardRefusalOf(order);

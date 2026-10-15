@@ -252,6 +252,9 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
+   *  qu'à la même adresse que lui (`carrierIn`). */
+  readonly carriedBy?: string;
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
   /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */

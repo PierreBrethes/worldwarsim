@@ -113,20 +113,12 @@ export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
  * medium that is not yours*: it gates `NOT_ENOUGH_LIFT`, it prints the « places » counter, and it
  * draws who is aboard whom. A truck listed there would ferry infantry over the Channel, would be
  * offered an armour to seat, and would be both a carrier and a passenger inside one crossing.
- * Land seats answer a different question — who rolls and who walks — and it is read by
- * `motorized` alone.
+ * Land seats answer a different question — who rolls and who walks — read by `motorized`, and
+ * since 15/10 by the truck's own seats (`seatsOf`): infantry boards it, and only infantry.
  *
  * @a-mesurer two seats, assumed; at four, motorizing an army would be nearly free
  */
 export const LAND_SEATS_PER_TRANSPORT = 2;
-
-/**
- * **How far a land troop walks aboard without a movement** (ADR 0025 §3): within it, boarding is
- * immediate and costs no slot. At 14 minutes per 1 000 km, the hop is under a minute of march.
- *
- * @a-mesurer 50 km, chosen so a barracks set at its region's centre still reaches the coast
- */
-export const BOARDING_RADIUS_KM = 50;
 
 /**
  * How many equipment tiers a role knows. Two for those whose gear gets replaced mid-season,
@@ -396,36 +388,104 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
   );
 }
 
+/** Une troupe et ce qui la porte : **être à bord est un état** (révision de l'ADR 0025, 15/10) —
+ *  on y est parce qu'on a embarqué, plus parce qu'on se tient au point d'un transport. */
+export type Seated = {
+  readonly id: string;
+  readonly role: UnitRole;
+  readonly carriedBy?: string | undefined;
+};
+
+/** Le transport qui porte cette troupe, s'il se tient dans la même pile — un transport parti
+ *  sans elle ne la porte plus. */
+export const carrierIn = <T extends Seated>(troop: T, pile: ReadonlyArray<T>): T | null =>
+  troop.carriedBy === undefined
+    ? null
+    : (pile.find((other) => other.id === troop.carriedBy) ?? null);
+
+/** Ce qu'un transport porte, à tous les étages : un camion chargé à bord d'un cargo y est avec
+ *  ses fusiliers. */
+export function cargoOf<T extends Seated>(carrier: T, pile: ReadonlyArray<T>): T[] {
+  return pile
+    .filter((troop) => carrierIn(troop, pile)?.id === carrier.id)
+    .flatMap((rider) => [rider, ...cargoOf(rider, pile)]);
+}
+
+/** Les places d'un transport : une coque ou une aile (`LIFT_CAPACITY`), ou le camion, qui
+ *  n'assoit que l'infanterie (`LAND_SEATS_PER_TRANSPORT`). */
+export const seatsOf = (role: UnitRole): number =>
+  role === 'landTransport' ? LAND_SEATS_PER_TRANSPORT : (LIFT_CAPACITY[role] ?? 0);
+
+/** Ce que coûte une troupe à bord de ce transport, sa propre cargaison comprise ; `null` quand il
+ *  ne la prend pas — un camion ne porte que l'infanterie, une coque que ce qui marche. */
+export function fareOf<T extends Seated>(
+  carrier: UnitRole,
+  rider: T,
+  pile: ReadonlyArray<T>,
+): number | null {
+  if (carrier === 'landTransport')
+    return rider.role === 'infantry' ? (LIFT_COST.infantry ?? 0) : null;
+  if (seatsOf(carrier) === 0 || (LIFT_COST[rider.role] ?? 0) === 0) return null;
+  return [rider, ...cargoOf(rider, pile)].reduce(
+    (sum, troop) => sum + (LIFT_COST[troop.role] ?? 0),
+    0,
+  );
+}
+
+export const seatsLeft = <T extends Seated>(carrier: T, pile: ReadonlyArray<T>): number =>
+  seatsOf(carrier.role) -
+  pile
+    .filter((troop) => carrierIn(troop, pile)?.id === carrier.id)
+    .reduce((sum, rider) => sum + (fareOf(carrier.role, rider, pile) ?? 0), 0);
+
 /**
- * **Les unités d'une pile, en Blitz** (règle de Pierre, 15/10) : une troupe de combat seule, ou
- * un transport et ce qu'il porte, le transport en tête — deux troupes de combat ne font jamais
- * une unité. Les sièges sont ceux de `stackRows`, plus ceux du camion (`motorized`) : on n'invente
- * pas une seconde arithmétique de places.
+ * **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte
+ * s'il y a de la place, et personne ne change de banc. Le camion d'abord, qui motorise ; puis les
+ * coques et les ailes, le plus lourd d'abord — servi dans l'ordre de la liste, un fantassin
+ * prendrait les dernières places d'une coque qu'un blindé attendait.
  */
-export function unitsOf<T extends { readonly id: string; readonly role: UnitRole }>(
+export function seatLoose<T extends Seated>(pile: ReadonlyArray<T>): ReadonlyMap<string, string> {
+  const work = pile.map((troop) => ({ ...troop }) as T & { carriedBy?: string });
+  const seated = new Map<string, string>();
+  const fill = (carriers: ReadonlyArray<T & { carriedBy?: string }>) => {
+    const loose = work
+      .filter((troop) => carrierIn(troop, work) === null)
+      .map((troop) => ({ troop, weight: fareOf('cargo', troop, work) ?? 0 }))
+      .sort((a, b) => b.weight - a.weight);
+    for (const { troop } of loose)
+      for (const carrier of carriers) {
+        const fare = carrier === troop ? null : fareOf(carrier.role, troop, work);
+        if (fare === null || seatsLeft(carrier, work) < fare) continue;
+        troop.carriedBy = carrier.id;
+        seated.set(troop.id, carrier.id);
+        break;
+      }
+  };
+  fill(work.filter((troop) => troop.role === 'landTransport'));
+  fill(work.filter((troop) => (LIFT_CAPACITY[troop.role] ?? 0) > 0));
+  return seated;
+}
+
+/** La pile telle qu'elle part : ses troupes à pied montent où il y a de la place. */
+export function boardedAll<T extends Seated>(pile: ReadonlyArray<T>): T[] {
+  const seats = seatLoose(pile);
+  return pile.map((troop) => {
+    const carrier = seats.get(troop.id);
+    return carrier === undefined ? troop : { ...troop, carriedBy: carrier };
+  });
+}
+
+/**
+ * **Les unités d'une pile** (règle de Pierre, 15/10) : une troupe seule, ou un transport et ce
+ * qu'il porte, le transport en tête — deux troupes de combat ne font jamais une unité.
+ */
+export function unitsOf<T extends Seated>(
   troops: ReadonlyArray<T>,
 ): ReadonlyArray<ReadonlyArray<T>> {
-  const units: T[][] = [];
-  // One canonical order: the first hull listed takes the passengers, so the map and the hand
-  // must list them alike.
-  const ranked = [...troops].sort(
-    (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
-  );
-  for (const row of stackRows(ranked, new Set(troops.map((troop) => troop.id)))) {
-    if (row.carrier === null) units.push([row.troop]);
-    else units.find((unit) => unit[0] === row.carrier)?.push(row.troop);
-  }
-  const walkers = units.filter((unit) => unit.length === 1 && unit[0]!.role === 'infantry');
-  for (const truck of units.filter((unit) => unit[0]!.role === 'landTransport')) {
-    let seats = LAND_SEATS_PER_TRANSPORT;
-    while (walkers.length > 0 && seats >= (LIFT_COST.infantry ?? 0)) {
-      const walker = walkers.shift()!;
-      truck.push(walker[0]!);
-      units.splice(units.indexOf(walker), 1);
-      seats -= LIFT_COST.infantry ?? 0;
-    }
-  }
-  return units;
+  return troops
+    .filter((troop) => carrierIn(troop, troops) === null)
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+    .map((head) => [head, ...cargoOf(head, troops)]);
 }
 
 /**

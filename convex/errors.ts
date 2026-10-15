@@ -121,7 +121,12 @@ export type ErrorCode =
   | 'LAND_TROOPS_ONLY'
   | 'NO_TRANSPORT_HERE'
   | 'AIRFIELD_BOARDING_ONLY'
-  | 'TOO_FAR_TO_BOARD'
+  /** Les transports à bord (15/10) : on embarque dans un transport, on en débarque, et un
+   *  passager ne part pas sans lui. */
+  | 'TRUCK_SEATS_INFANTRY'
+  | 'NOT_ABOARD'
+  | 'DISEMBARK_AT_SEA'
+  | 'STILL_ABOARD'
   | 'NO_CARGO_CAPACITY'
   | 'UNKNOWN_OUTPOST'
   | 'UNKNOWN_OBJECTIVE'

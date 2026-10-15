@@ -216,7 +216,8 @@ describe('unitPieces (Blitz: one piece per unit)', () => {
   });
 
   it('draws a transport for its passengers, which go with it', () => {
-    const [rider, cargo] = [troop('infantry'), troop('cargo', 1, 20)];
+    const cargo = troop('cargo', 1, 20);
+    const rider = { ...troop('infantry'), carriedBy: cargo.id };
     const { groups, troopIds } = unitPieces([rider, cargo]);
     expect(groups).toEqual([
       { role: 'cargo', troops: 1, troopIds: [cargo.id, rider.id], figures: [1], wear: 'burning' },

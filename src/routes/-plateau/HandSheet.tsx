@@ -22,6 +22,7 @@ export function HandSheet({
   held,
   troopIds,
   onCompose,
+  onDisembark,
   founding,
   onOpenGunnery,
   onDrop,
@@ -35,6 +36,8 @@ export function HandSheet({
   /** Ce qu'on tient. */
   troopIds: ReadonlyArray<string>;
   onCompose: (troopIds: ReadonlyArray<string>) => void;
+  /** **Débarquer** (15/10) : la voie clavier de la branche de la rose. */
+  onDisembark: (troopIds: ReadonlyArray<string>) => void;
   /**
    * **Fonder, d'ici** : au doigt la pile ne fait plus que se lever, et la fiche porte l'ordre que
    * sa rose porterait sur place — la même branche, le même prix, le même motif (ADR 0015).
@@ -79,8 +82,8 @@ export function HandSheet({
   );
   const [unit, ...aboard] = unitsOf(inHand)[0] ?? [];
   /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more.
-   *  What rides a transport is listed under it, and « faire descendre » takes it alone — the one
-   *  way off a truck, since a capture is made on foot. */
+   *  What rides a transport is listed under it, and « débarquer » sets it ashore beside it — a
+   *  capture is made on foot. */
   if (view.mode === 'blitz' && unit !== undefined) {
     return (
       <MapCard
@@ -109,10 +112,10 @@ export function HandSheet({
                 </span>
                 <button
                   type="button"
-                  onClick={() => onCompose([passenger.id])}
+                  onClick={() => onDisembark([passenger.id])}
                   className={`cursor-pointer border border-[var(--ink)] px-[8px] ${narrow ? 'min-h-[44px]' : 'py-[3px]'} text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]`}
                 >
-                  {fr.hand.getOff}
+                  {fr.hand.disembark}
                 </button>
               </li>
             ))}

@@ -131,6 +131,7 @@ import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
+import { DisembarkCard } from './-plateau/DisembarkCard';
 import {
   MovementPreview,
   wireOrigin,
@@ -171,6 +172,7 @@ type Demolition = { buildingId: string; x: number; y: number };
 /** **Le point qu'on s'apprête à démonter**, et l'endroit du geste — même contrat que `Demolition`
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
+type Disembarking = { troopIds: ReadonlyArray<string>; x: number; y: number };
 
 /** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
  *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
@@ -405,6 +407,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
+  const [disembarking, setDisembarking] = useState<Disembarking | null>(null);
   /**
    * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
    * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
@@ -856,6 +859,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
   const respecialize = useMutation(api.movements.respecialize);
   const boardTransport = useMutation(api.movements.board);
+  const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
 
   const actOnCompass = useCallback(
@@ -926,16 +930,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           setOrderError(null);
           setDismantling({ outpostId: action.outpostId, x: at.x, y: at.y });
           return;
-        /** **Embarquer est immédiat** (ADR 0025 §3) : pas d'aperçu ni de slot, la pile armée
-         *  prend l'adresse du transport et la visée se referme. */
+        /** **Embarquer au point du transport est immédiat** (révision de l'ADR 0025, 15/10) : pas
+         *  d'aperçu ni de slot, la pile armée monte à bord et la visée se referme. */
         case 'board':
-          if (column === null || action.transport.kind === 'home') return;
+          if (column === null) return;
           setOrderError(null);
           boardTransport({
             ...seat,
-            origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            transport: wireOrigin(action.transport),
+            carrierId: action.carrierId as Id<'troops'>,
+          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          return;
+        /** **Débarquer** (15/10) : une troupe à bord descend d'un clic ; plusieurs, une carte
+         *  demande lesquelles. */
+        case 'disembark':
+          setOrderError(null);
+          if (action.troopIds.length > 1) {
+            setDisembarking({ troopIds: action.troopIds, x: at.x, y: at.y });
+            return;
+          }
+          disembark({
+            ...seat,
+            troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
@@ -985,6 +1001,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       raiseOutpost,
       respecialize,
       boardTransport,
+      disembark,
       bombard,
       dropHand,
       column,
@@ -1067,6 +1084,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setBuildingSite(null);
       setDemolition(null);
       setDismantling(null);
+      setDisembarking(null);
       setSelectedLoot(null);
       setSelectedCamp(null);
       setSelectedObjective(null);
@@ -2282,6 +2300,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onClose={() => setDismantling(null)}
               />
             )}
+            {disembarking !== null && (
+              <DisembarkCard
+                key={disembarking.troopIds.join()}
+                seat={seat}
+                view={view}
+                troopIds={disembarking.troopIds}
+                at={disembarking}
+                onClose={() => setDisembarking(null)}
+              />
+            )}
             {garrison && (
               <GarrisonPanel
                 /* The pre-check is part of the panel's identity, not only its address: a second
@@ -2313,6 +2341,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
                 troopIds={hand.troopIds}
                 onCompose={compose}
+                onDisembark={(troopIds) =>
+                  disembark({
+                    ...seat,
+                    troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+                  }).then(
+                    () => compose(hand.troopIds.filter((troopId) => !troopIds.includes(troopId))),
+                    (problem: unknown) => handleError(problem, setOrderError),
+                  )
+                }
                 founding={
                   heldCompass === null
                     ? null
@@ -2807,7 +2844,15 @@ function choiceOf(action: OrderAction): OrderChoice {
   const said = { label: action.label, consequence: action.consequence };
   switch (action.key) {
     case 'aim':
-      return { ...said, aim: action.aim, type: action.type, mission: { kind: 'march' } };
+      return {
+        ...said,
+        aim: action.aim,
+        type: action.type,
+        mission:
+          action.boardsOn === undefined
+            ? { kind: 'march' }
+            : { kind: 'march', boardsOn: action.boardsOn },
+      };
     case 'plunder':
       return {
         ...said,

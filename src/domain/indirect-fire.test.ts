@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INDIRECT_FIRE } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import { aboardAt, bombardRefusalOf, emplacedAt, fireReachOf } from './indirect-fire';
+import { bombardRefusalOf, emplacedAt, fireReachOf } from './indirect-fire';
 import { THEATRES } from './theatres';
 
 const europe = THEATRES.find((theatre) => theatre.id === 'europe')!;
@@ -57,15 +57,6 @@ describe('a bombardment', () => {
   it('fires at a halt, never on the road nor from aboard a transport', () => {
     expect(bombardRefusalOf({ ...ready, moving: true })).toBe('ON_THE_MOVE');
     expect(bombardRefusalOf({ ...ready, aboard: true })).toBe('ABOARD');
-  });
-
-  it('is aboard on a point where a hull of its own stands, or at sea', () => {
-    expect(aboardAt({ onPoint: true, afloat: true, roles: ['artillery'] })).toBe(true);
-    expect(aboardAt({ onPoint: true, afloat: false, roles: ['artillery', 'cargo'] })).toBe(true);
-    expect(aboardAt({ onPoint: true, afloat: false, roles: ['artillery', 'infantry'] })).toBe(
-      false,
-    );
-    expect(aboardAt({ onPoint: false, afloat: false, roles: ['artillery', 'cargo'] })).toBe(false);
   });
 
   it('waits for its reload', () => {

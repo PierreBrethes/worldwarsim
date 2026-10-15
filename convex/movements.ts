@@ -5,6 +5,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
+  disembarkRefusalOf,
   foundingRefusal,
   landCostOf,
   plunderRefusalOf,
@@ -15,8 +16,7 @@ import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
-import { distanceKm } from '../src/domain/geo';
-import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
+import { carrierIn } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildingReads';
 import {
@@ -34,7 +34,7 @@ import {
   routeMinutes,
 } from './constants';
 import { foundationMinutes, scheduleStand } from './outposts';
-import { debit, settle } from './resources';
+import { debit } from './resources';
 import { fail } from './errors';
 import {
   attachHome,
@@ -45,7 +45,16 @@ import {
   recallAt,
   standAt,
 } from './movement/arrival';
-import { asPoint, movementsOf, pointOf, recognises, specializationServed } from './movement/forces';
+import {
+  asPoint,
+  movementsOf,
+  onAirfield,
+  pointOf,
+  recognises,
+  seatedOf,
+  specializationServed,
+  standingPile,
+} from './movement/forces';
 import {
   aimOf,
   captureAimOf,
@@ -61,7 +70,7 @@ import {
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
-import { surveyAlongRoute, surveyFromPoint } from './surveys';
+import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
@@ -267,9 +276,10 @@ export const marchTo = mutation({
     seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
+    boardsOn: v.optional(v.id('troops')),
     point: LON_LAT,
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, point }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, point, boardsOn }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
@@ -279,98 +289,83 @@ export const marchTo = mutation({
       type: 'march',
       origin,
       troopIds,
+      boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'point', point }),
     });
   },
 });
 
 /**
- * **Embarquer** (ADR 0025 §3) : des troupes terrestres posées prennent l'adresse d'un transport
- * posé à moins de `BOARDING_RADIUS_KM`, sur-le-champ — aucun mouvement, aucun slot. La règle est
- * `boardingRefusalOf`, celle que la rose a lue avant le clic. Ce qui suit les troupes les suit
- * comme à une arrivée : l'entretien réglé à l'ancienne adresse, la charge de butin, les relevés.
+ * **Embarquer** (ADR 0025, révisée le 15/10) : des troupes terrestres posées au point d'un
+ * transport y montent, sur-le-champ — aucun mouvement, aucun slot. De plus loin, c'est une marche
+ * qui embarque en arrivant (`boardsOn`). La règle est `boardingRefusalOf`, celle que le geste a
+ * lue avant le lâcher.
  */
 export const board = mutation({
   args: {
     token: v.string(),
     seasonId: v.id('seasons'),
-    origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
-    transport: MOVEMENT_ORIGIN,
+    carrierId: v.id('troops'),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, transport }) => {
+  handler: async (ctx, { token, seasonId, troopIds, carrierId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
-
-    const from = await departureOf(ctx, player._id, origin);
-    const to = await departureOf(ctx, player._id, transport);
-    if (from === null || to === null) fail('UNKNOWN_BUILDING');
-
-    const marching = new Set(
-      (await movementsOf(ctx, player._id)).flatMap((movement) => movement.troopIds),
-    );
-    const passengers = [];
-    for (const troopId of troopIds) {
-      const troop = await ctx.db.get(troopId);
-      if (!troop || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
-      if (!sameStation(troop.stationedAt, from.stationId) || marching.has(troopId))
-        fail('TROOP_NOT_AT_ORIGIN', { troopId });
-      passengers.push(troop);
-    }
-    const aboard = (
-      await ctx.db
-        .query('troops')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect()
-    ).filter(
-      (troop) =>
-        sameStation(troop.stationedAt, to.stationId) &&
-        !marching.has(troop._id) &&
-        !troopIds.includes(troop._id),
-    );
-    const site = to.fromBuildingId === null ? null : await ctx.db.get(to.fromBuildingId);
+    const carrier = await ctx.db.get(carrierId);
+    if (!carrier || carrier.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId: carrierId });
+    const pile = await standingPile(ctx, player._id, carrier.stationedAt);
+    const standing = (troopId: Id<'troops'>) =>
+      pile.find((troop) => troop._id === troopId) ?? fail('TROOP_NOT_AT_ORIGIN', { troopId });
+    standing(carrierId);
+    const riders = troopIds.map(standing);
     const boarding = {
-      passengers: passengers.map((troop) => troop.role),
-      aboard: aboard.map((troop) => troop.role),
-      distanceKm: distanceKm(from.point, to.point),
-      atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
-      onQuay: site !== null,
+      riders: riders.map(seatedOf),
+      carrier: seatedOf(carrier),
+      pile: pile.map(seatedOf),
+      atAirfield: await onAirfield(ctx, carrier.stationedAt),
     };
     const refusal = boardingRefusalOf(boarding);
     if (refusal !== null) fail(refusal, boardingRefusalDetails(boarding));
-
-    /** What they ate until now, they ate where they stood (the same reason as `standAt`). */
-    await settle(ctx, player._id, Date.now());
-    const loads = await takeStationedCargo(ctx, {
-      seasonId: season._id,
-      playerId: player._id,
-      stationedAt: from.stationId,
-      troops: passengers,
-    });
     /** Monter à bord déplace la pièce : sa mise en batterie repart (B20). */
-    for (const troop of passengers)
-      await ctx.db.patch(troop._id, {
-        stationedAt: to.stationId,
-        ...(firesIndirect(troop.role) ? { settledAt: Date.now() } : {}),
+    for (const rider of riders)
+      await ctx.db.patch(rider._id, {
+        carriedBy: carrierId,
+        ...(firesIndirect(rider.role) ? { settledAt: Date.now() } : {}),
       });
-    await stationCargoLoads(ctx, {
-      seasonId: season._id,
-      playerId: player._id,
-      troopIds,
-      stationedAt: to.stationId,
-      loads,
-    });
-    /** Une pose de troupe relève le sol autour d'elle, ici comme à une arrivée. */
-    await surveyFromPoint(
-      ctx,
-      player._id,
-      to.point,
-      Date.now(),
-      passengers.map((troop) => troop.role),
-    );
-    await reassessDetection(ctx, season._id);
-    return { boarded: passengers.length };
+    return { boarded: riders.length };
+  },
+});
+
+/**
+ * **Débarquer** (15/10) : des passagers mettent pied à terre au point de leur transport, et y
+ * restent — à côté de lui, libres. Jamais au large, et d'un avion dans un aérodrome seulement
+ * (`disembarkRefusalOf`, la règle même de la rose).
+ */
+export const disembark = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), troopIds: v.array(v.id('troops')) },
+  handler: async (ctx, { token, seasonId, troopIds }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
+    for (const troopId of troopIds) {
+      const troop = await ctx.db.get(troopId);
+      if (!troop || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
+      const pile = await standingPile(ctx, player._id, troop.stationedAt);
+      if (!pile.some((one) => one._id === troopId)) fail('TROOP_NOT_AT_ORIGIN', { troopId });
+      const address = troop.stationedAt;
+      const refusal = disembarkRefusalOf({
+        carrier: carrierIn(seatedOf(troop), pile.map(seatedOf))?.role ?? null,
+        afloat:
+          address !== null &&
+          typeof address !== 'string' &&
+          !landAtPoint([address.lon, address.lat]),
+        atAirfield: await onAirfield(ctx, address),
+      });
+      if (refusal !== null) fail(refusal, { troopId });
+      await ctx.db.patch(troopId, { carriedBy: undefined });
+    }
+    return { disembarked: troopIds.length };
   },
 });
 
@@ -388,9 +383,10 @@ export const enterGarrison = mutation({
     seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
+    boardsOn: v.optional(v.id('troops')),
     buildingId: v.id('buildings'),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId, boardsOn }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
@@ -400,6 +396,7 @@ export const enterGarrison = mutation({
       type: 'march',
       origin,
       troopIds,
+      boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'building', buildingId }),
     });
   },
@@ -418,9 +415,10 @@ export const enterOutpost = mutation({
     seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
+    boardsOn: v.optional(v.id('troops')),
     outpostId: v.id('outposts'),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, outpostId }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, outpostId, boardsOn }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
@@ -430,6 +428,7 @@ export const enterOutpost = mutation({
       type: 'march',
       origin,
       troopIds,
+      boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
     });
   },

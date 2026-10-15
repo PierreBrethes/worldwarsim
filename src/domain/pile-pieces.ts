@@ -7,7 +7,10 @@ import { DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
  * le moteur et la feuille de lecture partagent un seul avis sur ce qui se montre et ce qui s'use.
  */
 
-type PileTroop = Pick<TroopView, 'id' | 'role' | 'tier' | 'strength' | 'nominalStrength'>;
+type PileTroop = Pick<
+  TroopView,
+  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy'
+>;
 
 export type Wear = 'whole' | 'smoking' | 'burning';
 

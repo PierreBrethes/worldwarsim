@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   barredFrom,
+  boardingRefusalDetails,
   boardingRefusalOf,
+  disembarkRefusalOf,
   foundingRefusal,
   landCostOf,
   legalMovementTypes,
@@ -18,7 +20,6 @@ import {
   type MovementAim,
 } from './movement-orders';
 import { COST_BY_MEDIUM } from './routing';
-import { BOARDING_RADIUS_KM } from './troops';
 import { theatreById } from './theatres';
 
 const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Column => ({
@@ -753,57 +754,87 @@ describe('a march aimed at a building of mine', () => {
 });
 
 /**
- * **On embarque par proximité, sur-le-champ** (ADR 0025 §3) : une troupe terrestre prend
- * l'adresse d'un transport posé à moins de `BOARDING_RADIUS_KM`, par mer n'importe où, par air
- * dans un aérodrome seulement — et elle doit y trouver un siège.
+ * **On embarque dans un transport, et on y reste** (ADR 0025, révisée le 15/10) : une troupe
+ * terrestre monte dans **ce** transport s'il a de la place — par mer n'importe où, par air dans
+ * un aérodrome seulement, et dans un camion si elle est d'infanterie.
  */
 describe('boarding a transport', () => {
-  const board = (held: Partial<Parameters<typeof boardingRefusalOf>[0]> = {}) =>
-    boardingRefusalOf({
-      passengers: ['armor', 'armor'],
-      aboard: ['cargo'],
-      distanceKm: 12,
-      atAirfield: false,
-      onQuay: false,
-      ...held,
-    });
+  type Seat = { id: string; role: UnitRole; carriedBy?: string | undefined };
+  const cargo: Seat = { id: 'C', role: 'cargo' };
+  const board = (
+    riders: ReadonlyArray<Seat>,
+    carrier: Seat = cargo,
+    others: ReadonlyArray<Seat> = [],
+    atAirfield = false,
+  ) => boardingRefusalOf({ riders, carrier, pile: [carrier, ...riders, ...others], atAirfield });
+  const armor = (id: string, carriedBy?: string): Seat => ({ id, role: 'armor', carriedBy });
+  const rifle = (id: string, carriedBy?: string): Seat => ({ id, role: 'infantry', carriedBy });
 
-  it('seats two armour on a cargo a few kilometres off', () => {
-    expect(board()).toBeNull();
+  it('seats two armour on a cargo', () => {
+    expect(board([armor('A-1'), armor('A-2')])).toBeNull();
   });
 
-  it('refuses beyond the boarding radius', () => {
-    expect(board({ distanceKm: BOARDING_RADIUS_KM + 1 })).toBe('TOO_FAR_TO_BOARD');
+  it('counts the passengers already aboard, and not those who only stand there', () => {
+    const riding = [armor('A-3', 'C'), armor('A-4', 'C'), armor('A-5', 'C')];
+    expect(board([armor('A-1'), armor('A-2')], cargo, riding)).toBe('NOT_ENOUGH_LIFT');
+    expect(
+      board([armor('A-1'), armor('A-2')], cargo, [armor('A-3'), armor('A-4'), armor('A-5')]),
+    ).toBeNull();
   });
 
-  it('counts the passengers already aboard', () => {
-    expect(board({ aboard: ['cargo', 'armor', 'armor', 'armor'] })).toBe('NOT_ENOUGH_LIFT');
-    expect(board({ aboard: ['cargo', 'armor', 'armor', 'armor', 'carrier'] })).toBeNull();
+  it('weighs a loaded truck with its riflemen', () => {
+    const truck: Seat = { id: 'T', role: 'landTransport' };
+    const wing: Seat = { id: 'W', role: 'airTransport' };
+    expect(board([truck], wing, [rifle('I', 'T')], true)).toBe('NOT_ENOUGH_LIFT');
+    expect(
+      boardingRefusalDetails({
+        riders: [truck],
+        carrier: wing,
+        pile: [wing, truck, rifle('I', 'T')],
+        atAirfield: true,
+      }),
+    ).toEqual({ needed: 3, offered: 2 });
   });
 
   it('boards an air transport only on an aerodrome, and never an armour', () => {
-    const infantry = {
-      passengers: ['infantry', 'infantry'] as const,
-      aboard: ['airTransport'] as const,
-    };
-    expect(board({ ...infantry, atAirfield: true })).toBeNull();
-    expect(board(infantry)).toBe('AIRFIELD_BOARDING_ONLY');
-    expect(board({ aboard: ['airTransport', 'airTransport'], atAirfield: true })).toBe(
-      'NOT_ENOUGH_LIFT',
-    );
+    const wing: Seat = { id: 'W', role: 'airTransport' };
+    expect(board([rifle('I-1'), rifle('I-2')], wing, [], true)).toBeNull();
+    expect(board([rifle('I-1')], wing)).toBe('AIRFIELD_BOARDING_ONLY');
+    expect(board([armor('A')], wing, [], true)).toBe('NOT_ENOUGH_LIFT');
   });
 
-  it('leaves a garrison on the quay out of the count — it stands ashore', () => {
-    const field = { aboard: ['airTransport', 'infantry', 'infantry', 'infantry'] as const };
-    const two = { passengers: ['infantry', 'infantry'] as const, atAirfield: true };
-    expect(board({ ...field, ...two, onQuay: true })).toBeNull();
-    expect(board({ ...field, ...two })).toBe('NOT_ENOUGH_LIFT');
+  it('seats only riflemen in a truck, two of them', () => {
+    const truck: Seat = { id: 'T', role: 'landTransport' };
+    expect(board([rifle('I-1'), rifle('I-2')], truck)).toBeNull();
+    expect(board([rifle('I-1')], truck, [rifle('I-2', 'T'), rifle('I-3', 'T')])).toBe(
+      'NOT_ENOUGH_LIFT',
+    );
+    expect(board([armor('A')], truck)).toBe('TRUCK_SEATS_INFANTRY');
   });
 
   it('needs something that lifts, and only land troops board', () => {
-    expect(board({ aboard: ['escort'] })).toBe('NO_TRANSPORT_HERE');
-    expect(board({ passengers: ['fighter'] })).toBe('LAND_TROOPS_ONLY');
-    expect(board({ passengers: [] })).toBe('EMPTY_MOVEMENT');
+    expect(board([armor('A')], { id: 'E', role: 'escort' })).toBe('NO_TRANSPORT_HERE');
+    expect(board([{ id: 'F', role: 'fighter' }])).toBe('LAND_TROOPS_ONLY');
+    expect(board([])).toBe('EMPTY_MOVEMENT');
+  });
+});
+
+/** **On débarque où l'on est** (15/10) : à terre ou à quai, jamais au large, et d'un avion dans un
+ *  de ses aérodromes seulement. */
+describe('disembarking', () => {
+  const off = (held: Partial<Parameters<typeof disembarkRefusalOf>[0]> = {}) =>
+    disembarkRefusalOf({ carrier: 'cargo', afloat: false, atAirfield: false, ...held });
+
+  it('sets a passenger ashore where its transport stands', () => {
+    expect(off()).toBeNull();
+    expect(off({ carrier: 'landTransport' })).toBeNull();
+    expect(off({ carrier: 'airTransport', atAirfield: true })).toBeNull();
+  });
+
+  it('refuses the open sea, a wing off its field, and a troop on foot', () => {
+    expect(off({ afloat: true })).toBe('DISEMBARK_AT_SEA');
+    expect(off({ carrier: 'airTransport' })).toBe('AIRFIELD_TARGET_REQUIRED');
+    expect(off({ carrier: null })).toBe('NOT_ABOARD');
   });
 });
 
