@@ -654,6 +654,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view],
   );
 
+  const liftHand = useCallback((next: Hand) => {
+    setHand(next);
+    setLifts((count) => count + 1);
+    setGarrison(null);
+    setOrder(null);
+    setOrderError(null);
+  }, []);
+
   /**
    * **Un clic sur un mât ouvre ce à quoi ce bâtiment sert**, et il n'y a plus qu'une réponse par
    * bâtiment (61a). Pour un site de projection c'est sa modale — ce qu'il forme et ce qu'il tient
@@ -721,14 +729,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [openGarrison],
   );
-
-  const liftHand = useCallback((next: Hand) => {
-    setHand(next);
-    setLifts((count) => count + 1);
-    setGarrison(null);
-    setOrder(null);
-    setOrderError(null);
-  }, []);
 
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
