@@ -99,7 +99,7 @@ describe('HandSheet in a Blitz', () => {
         station={station}
         place="Portugal"
         held={[troop('inf', 'infantry'), troop('truck', 'landTransport')]}
-        troopIds={['truck', 'inf']}
+        troopIds={['inf', 'truck']}
         onCompose={onCompose}
         founding={null}
         onOpenGunnery={() => {}}

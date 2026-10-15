@@ -2,7 +2,7 @@ import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import type { CompassAction } from '@/domain/compass-rose';
-import type { MarchStation } from '@/domain/troops';
+import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { playedTheatre } from '@/domain/theatres';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -77,7 +77,7 @@ export function HandSheet({
       )}
     </>
   );
-  const [unit, ...aboard] = troopIds.flatMap((id) => held.filter((troop) => troop.id === id));
+  const [unit, ...aboard] = unitsOf(inHand)[0] ?? [];
   /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more.
    *  What rides a transport is listed under it, and « faire descendre » takes it alone — the one
    *  way off a truck, since a capture is made on foot. */
