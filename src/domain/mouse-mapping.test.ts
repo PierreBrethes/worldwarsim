@@ -211,7 +211,7 @@ describe('l’aide-mémoire au doigt', () => {
       .flatMap((column) => column.lines)
       .join(' ');
     expect(notice).toContain('deux doigts pincent pour zoomer');
-    expect(notice).toContain('Le drapeau du bandeau ouvre le dossier de la nation');
+    expect(notice).toContain('Le drapeau de la réglette ouvre le dossier de la nation');
     expect(notice).toContain('Toucher net sur un avant-poste à vous');
     expect(notice).not.toMatch(/clic|souris|molette|rail/);
   });

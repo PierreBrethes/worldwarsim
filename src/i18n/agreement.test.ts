@@ -92,3 +92,23 @@ describe('a capture notice declines the site', () => {
     expect(fr.capture.buildingSite('Port', '')).toBe('Port');
   });
 });
+
+describe('a nickname after "de" elides before a vowel', () => {
+  it('elides in the account dossier, the invitation and the full table', () => {
+    expect(fr.auth.signedIn('essai-md-a')).toBe('dossier d’essai-md-a');
+    expect(fr.auth.signedIn('Paul')).toBe('dossier de Paul');
+    expect(fr.invitation.signedIn('Élodie')).toBe('Vous entrez sous le nom d’Élodie.');
+  });
+});
+
+describe('the briefing places the journal where the table puts it', () => {
+  it('says the left column, never the old strip', () => {
+    const hand = { finger: false, phone: false, mapping: CLASSIC_MAPPING };
+    const text = fr.briefing
+      .columns(60, 25, 120, hand, false)
+      .flatMap((column) => column.lines)
+      .join(' ');
+    expect(text).toContain('Journal, dans la colonne de gauche');
+    expect(text).not.toContain('bandeau');
+  });
+});

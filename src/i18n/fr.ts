@@ -921,7 +921,7 @@ export const fr = {
     pending: 'en ligne…',
     after:
       'Un compte, des places : vos parties vous suivent d’un appareil à l’autre. Une invitation reçue ? Ouvrez son lien, il mène droit à la table.',
-    signedIn: (nickname: string) => `dossier de ${nickname}`,
+    signedIn: (nickname: string) => `dossier ${ofName(nickname)}`,
     logout: 'se déconnecter',
     logoutNote:
       'la place reste au compte — on ferme un appareil, on ne rend pas son siège. Reconnectez-vous et la partie est là.',
@@ -970,7 +970,7 @@ export const fr = {
       others === 0
         ? 'votre place, si vous la prenez'
         : `votre place, si vous la prenez — et ${others === 1 ? 'une autre libre' : `${num(others)} autres libres`}`,
-    signedIn: (nickname: string) => `Vous entrez sous le nom de ${nickname}.`,
+    signedIn: (nickname: string) => `Vous entrez sous le nom ${ofName(nickname)}.`,
     notYou: 'Ce n’est pas vous ?',
     join: 'répondre présent — rejoindre la table',
     resume: 'reprendre ma place',
@@ -1440,7 +1440,7 @@ export const fr = {
         title: 'Table complète',
         lines: [
           'Regrettons',
-          `La table${c.founder === null ? '' : ` de ${c.founder}`} est complète`,
+          `La table${c.founder === null ? '' : ` ${ofName(c.founder)}`} est complète`,
           `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
         ],
         paragraph:
@@ -1454,7 +1454,7 @@ export const fr = {
         title: 'Salon complet',
         lines: [
           'Regrettons',
-          `Le salon${c.founder === null ? '' : ` de ${c.founder}`} est complet`,
+          `Le salon${c.founder === null ? '' : ` ${ofName(c.founder)}`} est complet`,
           `${spelled(c.maximum)} joueurs sur ${spelled(c.maximum)}`,
         ],
         paragraph: 'Toutes les places de cette Mondiale sont prises.',
@@ -3621,9 +3621,9 @@ export const fr = {
           ? {
               title: 'Vos bureaux',
               lines: [
-                `Au pied de l’écran : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe. Une entrée ouverte se referme d’un second toucher.`,
-                'Le drapeau du bandeau ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
-                '« En cours », sous le bandeau : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
+                `Dans le coin bas droit, le rapporteur : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe, réglages. Une entrée ouverte se referme d’un second toucher.`,
+                'Le drapeau de la réglette ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
+                '« En cours », sous la réglette : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
                 blitz
                   ? '« À faire » : tout ce qui attend un ordre.'
                   : '« À faire » : vos poses offertes et tout ce qui attend un ordre.',
@@ -3637,8 +3637,8 @@ export const fr = {
                   : [
                       'Économie, dans la colonne de gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
                     ]),
-                `« À faire maintenant », en bas à gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
-                'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
+                `« À faire maintenant », au carré « N à faire » en tête de la colonne de gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
+                'Journal, dans la colonne de gauche : tout ce qui s’est passé depuis votre dernier passage.',
                 'Télégraphe, dans la colonne de gauche : le canal général de la saison — tout le monde y lit tout le monde.',
               ],
             },
