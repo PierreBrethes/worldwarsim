@@ -137,8 +137,6 @@ export type PlacementBounds = {
 
 export type Placement = {
   readonly at: Point;
-  /** Its offset from its ring's centre. */
-  readonly ring: Point;
   /** Where its garrison stands from it: outward from the ring, inland when the front is sea. */
   readonly facing: number;
   /** A group too tight for its bound shrinks rather than spreads. */
@@ -166,7 +164,8 @@ export function clusterFootprints(
   bounds?: PlacementBounds,
 ): Placement[] {
   const first = ringed(points, span, footprint);
-  if (bounds === undefined) return first.placed.map((place) => ({ ...place, scale: 1 }));
+  if (bounds === undefined)
+    return first.placed.map(({ at, ring }) => ({ at, facing: outwardOf(ring), scale: 1 }));
   const placed = new Array<Placement>(points.length);
   for (const members of first.clusters) {
     const own = members.map((k) => points[k]!);
@@ -212,14 +211,14 @@ function fitting(
 ): Placement | null {
   if (Math.hypot(at[0] - point[0], at[1] - point[1]) > maxShift + 1e-9) return null;
   const lone = ring[0] === 0 && ring[1] === 0;
-  const outward = lone ? 0 : Math.atan2(ring[0], ring[1]);
-  if (!onLand(...point)) return { at, ring, facing: outward, scale };
+  const outward = outwardOf(ring);
+  if (!onLand(...point)) return { at, facing: outward, scale };
   if (!onLand(...at)) return null;
   const footAt = (facing: number): Point => [
     at[0] + foot * Math.sin(facing),
     at[1] + foot * Math.cos(facing),
   ];
-  if (onLand(...footAt(outward))) return { at, ring, facing: outward, scale };
+  if (onLand(...footAt(outward))) return { at, facing: outward, scale };
   if (!lone) return null;
   const clearance = (facing: number) => {
     const [x, z] = footAt(facing);
@@ -232,14 +231,17 @@ function fitting(
     (best, each) => (best === null || clearance(each) > clearance(best) ? each : best),
     null,
   );
-  return { at, ring, facing: facing ?? outward, scale };
+  return { at, facing: facing ?? outward, scale };
 }
+
+/** Away from its ring's centre; a lone site faces the front, towards +z. */
+const outwardOf = ([x, z]: Point): number => (x === 0 && z === 0 ? 0 : Math.atan2(x, z));
 
 function ringed(
   points: ReadonlyArray<Point>,
   span: number,
   footprint: number,
-): { placed: Array<Omit<Placement, 'scale'>>; clusters: number[][] } {
+): { placed: Array<{ at: Point; ring: Point }>; clusters: number[][] } {
   type Cluster = { members: number[]; centre: Point; reach: number };
   const clusterOf = (members: number[]): Cluster => {
     const sum = members.reduce<Point>(
@@ -268,7 +270,7 @@ function ringed(
     clusters.splice(j, 1);
     clusters[i] = clusterOf(members);
   }
-  const placed = new Array<Omit<Placement, 'scale'>>(points.length);
+  const placed = new Array<{ at: Point; ring: Point }>(points.length);
   for (const { members, centre } of clusters) {
     const offsets = ringOffsets(members.length, span);
     members.forEach((k, rank) => {
@@ -276,7 +278,6 @@ function ringed(
       placed[k] = {
         at: members.length < 2 ? points[k]! : [centre[0] + ring[0], centre[1] + ring[1]],
         ring,
-        facing: members.length < 2 ? 0 : Math.atan2(ring[0], ring[1]),
       };
     });
   }

@@ -63,8 +63,8 @@ describe('clusterFootprints', () => {
         S,
       ),
     ).toEqual([
-      { at: [0, 0], ring: [0, 0], facing: 0, scale: 1 },
-      { at: [3 * S, 0], ring: [0, 0], facing: 0, scale: 1 },
+      { at: [0, 0], facing: 0, scale: 1 },
+      { at: [3 * S, 0], facing: 0, scale: 1 },
     ]);
   });
 
@@ -78,7 +78,8 @@ describe('clusterFootprints', () => {
     );
     expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo(S);
     expect((placed[0]!.at[0] + placed[1]!.at[0]) / 2).toBeCloseTo(S / 4);
-    expect(placed[0]!.ring).toEqual(ringOffsets(2)[0]);
+    const [ox, oz] = ringOffsets(2)[0]!;
+    expect(placed[0]!.facing).toBeCloseTo(Math.atan2(ox, oz));
   });
 
   it('takes in a site the grown ring reaches', () => {
@@ -93,7 +94,8 @@ describe('clusterFootprints', () => {
       S,
     );
     const radius = Math.hypot(...ringOffsets(4)[0]!);
-    for (const { ring } of placed) expect(Math.hypot(...ring)).toBeCloseTo(radius);
+    const centre = placed.reduce((sum, { at }) => sum + at[0], 0) / placed.length;
+    for (const { at } of placed) expect(Math.hypot(at[0] - centre, at[1])).toBeCloseTo(radius);
   });
 
   it('stands no two maquettes nearer than a span, wherever the sites fall', () => {
