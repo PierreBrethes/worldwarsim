@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole, UnitTier } from './ids';
 import type { ArcView } from './player-view';
-import { movementWear, pilePieces, pileSheet } from './pile-pieces';
+import { movementWear, pilePieces, pileSheet, unitPieces } from './pile-pieces';
 
 let serial = 0;
 const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStrength = 100) => ({
@@ -200,5 +200,35 @@ describe('movementWear', () => {
     const hull = troop('cargo', 1, 10);
     const enemy = { state: 'enemyDetected', troopIds: [hull.id] } as unknown as ArcView;
     expect(movementWear(enemy, [hull])).toBeNull();
+  });
+});
+
+describe('unitPieces (Blitz: one piece per unit)', () => {
+  it('stands two infantry side by side, each its own piece', () => {
+    const [a, b] = [troop('infantry'), troop('infantry', 1, 40)];
+    const { groups, more, spread } = unitPieces([a, b]);
+    expect(groups.map((group) => group.troopIds)).toEqual([[a.id], [b.id]]);
+    expect(groups.map((group) => [group.troops, group.figures.length])).toEqual([
+      [1, 3],
+      [1, 2],
+    ]);
+    expect([more, spread]).toEqual([0, []]);
+  });
+
+  it('draws a transport for its passengers, which go with it', () => {
+    const [rider, cargo] = [troop('infantry'), troop('cargo', 1, 20)];
+    const { groups, troopIds } = unitPieces([rider, cargo]);
+    expect(groups).toEqual([
+      { role: 'cargo', troops: 1, troopIds: [cargo.id, rider.id], figures: [1], wear: 'burning' },
+    ]);
+    expect(troopIds).toEqual([rider.id, cargo.id]);
+  });
+
+  it('keeps a plane in the air, and only a plane', () => {
+    const { groups } = unitPieces([troop('bomber'), troop('infantry')]);
+    expect(groups.map((group) => [group.role, group.aloft])).toEqual([
+      ['infantry', undefined],
+      ['bomber', true],
+    ]);
   });
 });

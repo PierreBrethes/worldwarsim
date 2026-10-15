@@ -49,7 +49,7 @@ import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { captureRate } from '@/domain/capture';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
-import { pilePieces } from '@/domain/pile-pieces';
+import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
@@ -100,6 +100,7 @@ import {
   stationKeyOf,
   stationPointOf,
   troopsAt,
+  unitsOf,
   type MarchStation,
 } from '@/domain/troops';
 import { fireReachOf, firesIndirect } from '@/domain/indirect-fire';
@@ -722,11 +723,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setResting(null);
   }, []);
 
+  /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
+  const unitsAt = useCallback(
+    (station: MarchStation) =>
+      blitz
+        ? {
+            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
+              unit.map((troop) => troop.id),
+            ),
+          }
+        : {},
+    [blitz, view.me, marching],
+  );
+
   /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
    *  plateau rend vrai quand la pile cliquée devient la destination. */
   const applyPileClick = useCallback(
     (click: PileClick, clientX: number, clientY: number): boolean => {
-      const move = clickPile(hand, click, { single: blitz });
+      const move = clickPile(hand, click, unitsAt(click.station));
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
       else {
@@ -744,7 +758,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint, blitz],
+    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt],
   );
 
   /**
@@ -987,7 +1001,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const compose = useCallback(
     (troopIds: ReadonlyArray<string>) => {
       if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
-      const move = composeHand(hand, troopIds, { single: blitz });
+      const move = composeHand(hand, troopIds, hand.kind === 'held' ? unitsAt(hand.station) : {});
       if (move.kind !== 'lift') {
         dropHand();
         return;
@@ -995,7 +1009,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setHand(move.hand);
       setOrder(null);
     },
-    [hand, dropHand, blitz],
+    [hand, dropHand, unitsAt],
   );
 
   const restAt = useCallback(
@@ -1518,7 +1532,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : {
               kind: 'pile',
               station,
-              /** En Blitz, la figurine touchée et non la pile (B15) : `clickPile` n'en lève qu'une. */
+              /** En Blitz, la figurine touchée est une unité (15/10) : `clickPile` la lève entière. */
               troopIds:
                 blitz && hit.troopIds.length > 0
                   ? hit.troopIds
@@ -1531,7 +1545,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [markers, view.me, marching, applyPileClick, blitz],
   );
-  /** **Une pile de Blitz ne se déploie pas** (B15) : on y lève une figurine, pas une pile. */
+  /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
+   *  déploie — la pièce est déjà l'unité. */
   const standing = useMemo(
     (): ReadonlyArray<StandingPile> =>
       [
@@ -1541,7 +1556,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             : [],
         ),
         ...garrisonPiles(view.me, marching),
-      ].map((pile) => (blitz ? { ...pile, pieces: { ...pile.pieces, spread: [] } } : pile)),
+      ].map((pile) => (blitz ? blitzPile(pile, view.me.troops) : pile)),
     [markers, view.me, marching, blitz],
   );
   const maquettes = useMemo(() => {
@@ -2948,6 +2963,11 @@ function garrisonPiles(
       ? []
       : [{ id, at: { beside: buildingLabelId(building) }, pieces: pilePieces(troops) }];
   });
+}
+
+function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
+  const here = new Set(pile.pieces.troopIds);
+  return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
 }
 
 /** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché. */

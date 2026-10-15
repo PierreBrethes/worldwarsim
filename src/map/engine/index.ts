@@ -1497,6 +1497,7 @@ export class MapEngine {
   setTheatre(theatre: Theatre | null): void {
     this.invalidate();
     this.theatreFrame.show(theatre);
+    this.arcs.setAloft(theatre !== null);
   }
 
   /** Percentages from the settings; the pieces re-measure on the next frame. */
