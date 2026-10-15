@@ -94,6 +94,7 @@ function mount(onChoose = vi.fn(), onSent = vi.fn(), choice = ATTACK, neutralTar
         choice={choice}
         choices={[ATTACK, RAID]}
         onChoose={onChoose}
+        from={null}
         at={{ x: 0, y: 0 }}
         preview={PREVIEW}
         slots={{ used: 1, total: 3 }}

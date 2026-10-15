@@ -46,9 +46,10 @@ export function Protractor({
   const frame = useRef<HTMLElement>(null);
   const hub = useRef<HTMLButtonElement>(null);
   const blitz = view.mode === 'blitz';
+  const playing = view.season.reduction.concludedAt === null;
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
-  const rank = view.press?.mine?.rank ?? null;
+  const rank = blitz ? null : (view.press?.mine?.rank ?? null);
   const work = view.me.construction;
 
   const close = (refocus: boolean) => {
@@ -131,8 +132,11 @@ export function Protractor({
     ),
     windowRound('settings', fr.rail.settings, fr.rail.settingsShort, <SettingsGlyph size={18} />),
   ];
-  /** La Blitz n'a ni réserve ni chantier : son économie se lit sur la réglette, en fonds. */
-  const rounds = all.filter((round) => view.mode !== 'blitz' || round.key !== 'economy');
+  /** La Blitz n'a ni réserve ni chantier ni presse : son économie se lit sur la réglette, en fonds. */
+  const rounds = all.filter(
+    (round) =>
+      view.mode !== 'blitz' || (round.key !== 'economy' && (round.key !== 'press' || !playing)),
+  );
 
   function windowRound(
     name: BoardWindow,

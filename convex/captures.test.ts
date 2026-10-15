@@ -328,7 +328,7 @@ describe('capturing a building', () => {
       [infantry],
     );
 
-    expect(await capturesOf(t)).toMatchObject([{ completesAt: MIDDAY + 3 * 60_000 }]);
+    expect(await capturesOf(t)).toMatchObject([{ completesAt: MIDDAY + 2.4 * 60_000 }]);
   });
 });
 

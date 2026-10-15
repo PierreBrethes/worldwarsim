@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
+import { outcomeOf, type EndingFacts } from '@/domain/ending';
 import type { PressEdition, PressLine, PressOwnLine, SeasonVerdict } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
@@ -28,11 +30,31 @@ import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 export function PressWindow({
   press,
   verdict,
+  ending,
+  blitz,
   onClose,
   ...windowProps
-}: WindowProps & { press: PressEdition | null; verdict: SeasonVerdict | null }) {
+}: WindowProps & {
+  press: PressEdition | null;
+  verdict: SeasonVerdict | null;
+  ending: EndingFacts;
+  blitz: boolean;
+}) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
+
+  if (blitz)
+    return (
+      <FloatingWindow
+        name="press"
+        onClose={onClose}
+        {...windowProps}
+        {...(narrow ? {} : { alignment: 'top' as const })}
+        width={1040}
+      >
+        <BlitzEnding press={press} verdict={verdict} ending={ending} onClose={onClose} />
+      </FloatingWindow>
+    );
 
   if (narrow)
     return (
@@ -40,6 +62,7 @@ export function PressWindow({
         <NarrowPress
           press={press}
           verdict={verdict}
+          ending={ending}
           sort={sort}
           onSort={setSort}
           onClose={onClose}
@@ -83,7 +106,11 @@ export function PressWindow({
           </div>
         </div>
 
-        {press?.final === true && <Verdict verdict={verdict} />}
+        <Ending
+          verdict={press?.final === true ? verdict : null}
+          ending={ending}
+          onClose={onClose}
+        />
         {press === null ? (
           <p className="mx-auto max-w-[62ch] px-6 py-[56px] text-center font-(family-name:--font-display) text-[20px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.press.none}
@@ -96,18 +123,115 @@ export function PressWindow({
   );
 }
 
-/** **L'édition finale d'une Blitz dit le vainqueur et pourquoi** (B10, B11) : c'est l'écran de
- *  fin. Une Mondiale n'a pas de verdict, et la manchette reste la sienne. */
-function Verdict({ verdict }: { verdict: SeasonVerdict | null }) {
-  if (verdict === null) return null;
+/**
+ * **La presse d'une Blitz n'a pas de classement** : territoire, industrie et puissance militaire
+ * n'y veulent rien dire, et un rang contredirait l'égalité. La manchette dit le verdict, la liste
+ * dit l'issue de chacun — et rien d'autre. Éliminé en cours de partie, aucune édition n'existe :
+ * la page ne dit que l'heure de la chute.
+ */
+function BlitzEnding({
+  press,
+  verdict,
+  ending,
+  onClose,
+}: {
+  press: PressEdition | null;
+  verdict: SeasonVerdict | null;
+  ending: EndingFacts;
+  onClose: () => void;
+}) {
+  const final = press?.final === true ? press : null;
   return (
-    <p className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px] text-center font-(family-name:--font-display) text-[19px] leading-[1.3] font-bold text-[var(--ink)]">
-      {fr.victory.blitzConcluded(
-        verdict.reason,
-        verdict.winnerNation === null ? null : nationLabel(verdict.winnerNation),
-        verdict.perMinute,
+    <div className="paper-grain flex min-h-0 w-full flex-1 flex-col overflow-y-auto border border-[var(--ink)] text-[var(--ink)]">
+      <WindowHead
+        eyebrow={final === null ? fr.press.kicker : fr.press.capturedAt(asLocalTime(final.at))}
+        onClose={onClose}
+      />
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-4 border-b border-[var(--ink)] px-4 py-[14px]">
+        {final !== null && <Stamp label={fr.press.final} />}
+        <h1 className="font-(family-name:--font-display) text-[34px] leading-none font-extrabold tracking-[.12em] uppercase">
+          {fr.press.title}
+        </h1>
+      </div>
+      <Ending verdict={final === null ? null : verdict} ending={ending} onClose={onClose} />
+      {final !== null && verdict !== null && (
+        <ul className="px-4 py-2">
+          {rowsOf(final).map((line) => (
+            <li
+              key={line.playerId}
+              className="flex items-center gap-3 border-b border-[var(--ink)] py-[10px] last:border-b-0"
+            >
+              <Flag nation={line.nation} width={28} onPaper />
+              <span className="font-(family-name:--font-display) text-[20px] font-extrabold">
+                {nationLabel(line.nation)}
+              </span>
+              <span className="flex-1 truncate text-[12.5px] text-[var(--ink-soft)]">
+                {line.nickname}
+              </span>
+              <Stamp label={fr.blitz.ending.outcome[outcomeOf(line, verdict)]} size="small" />
+            </li>
+          ))}
+        </ul>
       )}
-    </p>
+    </div>
+  );
+}
+
+/**
+ * **L'édition finale d'une Blitz dit le vainqueur et pourquoi** (B10, B11) : c'est l'écran de
+ * fin, avec ses deux issues. Éliminé en cours de partie, la même page me dit l'heure de la chute
+ * et me laisse observer. Une Mondiale n'a ni l'un ni l'autre : la manchette reste la sienne.
+ */
+function Ending({
+  verdict,
+  ending,
+  onClose,
+}: {
+  verdict: SeasonVerdict | null;
+  ending: EndingFacts;
+  onClose: () => void;
+}) {
+  if (verdict === null && ending.eliminatedAt === null) return null;
+  const outcome =
+    verdict === null
+      ? null
+      : verdict.winnerNation === null
+        ? fr.blitz.ending.draw
+        : verdict.winnerNation === ending.nation
+          ? fr.blitz.ending.won
+          : fr.blitz.ending.lost;
+  return (
+    <div className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px] text-center">
+      {outcome !== null && (
+        <p className="font-(family-name:--font-display) text-[13px] leading-none font-extrabold tracking-[.3em] text-[var(--critical)]">
+          {outcome}
+        </p>
+      )}
+      <p className="mt-[6px] font-(family-name:--font-display) text-[19px] leading-[1.3] font-bold text-[var(--ink)]">
+        {verdict !== null
+          ? fr.victory.blitzConcluded(
+              verdict.reason,
+              verdict.winnerNation === null ? null : nationLabel(verdict.winnerNation),
+              verdict.perMinute,
+            )
+          : fr.blitz.ending.eliminated(ending.eliminatedAt ?? '')}
+      </p>
+      <div className="mt-[10px] flex justify-center gap-3">
+        <Link
+          to="/accueil"
+          className="border border-[var(--ink)] px-3 py-[6px] text-[10px] font-semibold tracking-[.18em] uppercase"
+        >
+          {fr.blitz.ending.home}
+        </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-3 py-[6px] text-[10px] font-semibold tracking-[.18em] text-[var(--paper)] uppercase"
+        >
+          {verdict === null ? fr.blitz.ending.observe : fr.blitz.ending.watch}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -368,12 +492,14 @@ const MINUTE = 60_000;
 function NarrowPress({
   press,
   verdict,
+  ending,
   sort,
   onSort,
   onClose,
 }: {
   press: PressEdition | null;
   verdict: SeasonVerdict | null;
+  ending: EndingFacts;
   sort: SortKey;
   onSort: (key: SortKey) => void;
   onClose: () => void;
@@ -419,7 +545,7 @@ function NarrowPress({
         )}
       </div>
 
-      {press?.final === true && <Verdict verdict={verdict} />}
+      <Ending verdict={press?.final === true ? verdict : null} ending={ending} onClose={onClose} />
       {press === null ? (
         <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
           {fr.press.none}

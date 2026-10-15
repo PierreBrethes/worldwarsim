@@ -41,6 +41,8 @@ import {
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
+import { endingOf } from '@/domain/ending';
+import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { useClock } from '@/shell/clock';
@@ -48,11 +50,17 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { captureRate } from '@/domain/capture';
-import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
+import {
+  buildLabels,
+  ownerFlags,
+  type MapLabel,
+  type MapMarker,
+  type Reach,
+} from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
+import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
@@ -385,7 +393,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const narrow = useNarrowScreen();
   const blitz = view.mode === 'blitz';
+  /** A Blitz shows no ground card on hover alone; a country picked by click keeps its whole card. */
+  const quietHover = blitz && country == null;
   const blitzTheatre = useMemo(() => playedTheatre(view), [view]);
+  const ending = endingOf(view);
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
@@ -452,6 +463,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
   /** De quoi nommer la région d'une pile, dès que la carte a chargé ses régions. */
   const [regionAt, setRegionAt] = useState<RegionAt | null>(null);
+  const [screenOf, setScreenOf] = useState<ScreenOf | null>(null);
+  const keepScreenOf = useCallback((lookup: ScreenOf) => setScreenOf(() => lookup), []);
   const keepRegionAt = useCallback((lookup: RegionAt) => setRegionAt(() => lookup), []);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
@@ -1144,8 +1157,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   const inkByCountry = useMemo(
-    () => inkByClaimedCountry([view.me, ...view.opponents]),
-    [view.me, view.opponents],
+    () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
+    [blitz, view.me, view.opponents],
   );
 
   // Nothing filters here: `me.buildings` is the player's own list and there is no other, so
@@ -1168,6 +1181,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () =>
       (heldRaw ?? []).map(({ ink, regions }) => ({
         ink,
+        outlined: blitz,
         regions: regions.map((region) => ({
           id: region.id,
           /** **Une zone suspendue est au plancher, et elle y reste** (ADR 0020 §7) : elle ne
@@ -1182,7 +1196,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           state: region.state,
         })),
       })),
-    [heldRaw, surveyClock],
+    [blitz, heldRaw, surveyClock],
   );
 
   /**
@@ -1509,7 +1523,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     toggles.objectives,
   ]);
 
-  const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+  const labels = useMemo(() => {
+    const built = buildLabels(view, markers);
+    return view.mode === 'blitz'
+      ? ownerFlags(
+          built,
+          (regionId) => {
+            const held = knownRegionById.get(regionId);
+            return held === undefined ? null : nationInk(held.nation);
+          },
+          view.me.ink,
+        )
+      : built;
+  }, [view, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée.
    *  La garnison d'un bâtiment se lève par ses figurines comme une pile posée. */
@@ -1693,6 +1719,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       void navigate({ search: (previous) => withWindow(previous, name) });
     },
     [navigate],
+  );
+
+  useOpenedOnce(ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`, () =>
+    openWindow('press'),
   );
 
   /**
@@ -2102,6 +2132,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               playerNation={view.me.nation}
               indicators={toggles}
               accentedMovement={hoveredMovement}
+              quietRouteScale={blitz}
               underRouteScale={
                 orderError !== null && !narrow && !windows.includes('journal') ? (
                   <div className="hud paper-grain float border border-l-[3px] border-[var(--critical)] px-3 py-2 text-[11px] text-[var(--ink)]">
@@ -2128,6 +2159,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCountryHover={setHoveredCountry}
               onRegionHover={setHoveredRegion}
               onRegionsLoaded={keepRegionAt}
+              onScreenOf={keepScreenOf}
               onArcHover={setHoveredArc}
               onLabelHover={setHoveredLabel}
               poster={poster}
@@ -2314,6 +2346,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   )
                 }
                 at={order}
+                from={
+                  screenOf === null
+                    ? null
+                    : screenOf(stationPointOf(view.me, column.station) ?? view.me.homePosition)
+                }
                 preview={preview}
                 slots={blitz ? null : view.me.slots}
                 originName={stationNames(view).place(column.station)}
@@ -2393,8 +2430,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               {!aimingOnPhone && (
                 <GroundPanel
                   selected={country ?? null}
-                  hoveredCountry={hoveredCountry}
-                  hoveredRegion={hoveredRegion}
+                  hoveredCountry={quietHover ? null : hoveredCountry}
+                  hoveredRegion={quietHover ? null : hoveredRegion}
                   holding={
                     hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
                   }
@@ -2416,7 +2453,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     </CornerCard>
                   )}
                   {replay === null && (
-                    <MapButtons narrow={false} onRecenter={recenterOnHome} onCorner={setCorner} />
+                    <MapButtons
+                      narrow={false}
+                      layers={view.mode !== 'blitz'}
+                      onRecenter={recenterOnHome}
+                      onCorner={setCorner}
+                    />
                   )}
                 </div>
               )}
@@ -2426,7 +2468,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             cartouche « transmis » le temps qu'il se lit. */}
             {narrow && sent === null && replay === null && (
               <div className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]">
-                <MapButtons narrow onRecenter={recenterOnHome} onCorner={setCorner} />
+                <MapButtons
+                  narrow
+                  layers={view.mode !== 'blitz'}
+                  onRecenter={recenterOnHome}
+                  onCorner={setCorner}
+                />
               </div>
             )}
             {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
@@ -2536,6 +2583,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       key={name}
                       press={view.press}
                       verdict={view.season.verdict}
+                      ending={ending.facts}
+                      blitz={blitz}
                       {...windowProps}
                     />
                   );
@@ -2606,10 +2655,13 @@ type Corner = 'layers' | 'controls';
  */
 function MapButtons({
   narrow,
+  layers,
   onRecenter,
   onCorner,
 }: {
   narrow: boolean;
+  /** A Blitz has no deposits: nothing for the layers to switch. */
+  layers: boolean;
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
 }) {
@@ -2649,15 +2701,17 @@ function MapButtons({
           <path d="M10 1.5v4.2M10 14.3v4.2M1.5 10h4.2M14.3 10h4.2" />
         </Glyph>
       </button>
-      <button
-        type="button"
-        title={fr.foot.layersTitle}
-        aria-label={fr.foot.layersTitle}
-        onClick={() => toggle('layers')}
-        className={`${MAP_BUTTON} ${size}`}
-      >
-        <LayersGlyph size={glyph} />
-      </button>
+      {layers && (
+        <button
+          type="button"
+          title={fr.foot.layersTitle}
+          aria-label={fr.foot.layersTitle}
+          onClick={() => toggle('layers')}
+          className={`${MAP_BUTTON} ${size}`}
+        >
+          <LayersGlyph size={glyph} />
+        </button>
+      )}
       {!narrow && (
         <button
           type="button"
@@ -3011,3 +3065,5 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
   key === 'listening' && point !== undefined
     ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
     : null;
+
+type ScreenOf = (lonLat: LonLat) => { x: number; y: number } | null;

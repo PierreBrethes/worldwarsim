@@ -3,6 +3,7 @@ import { asClockTime } from '@/domain/duration';
 import { loadingAt } from '@/domain/loading';
 import { fr } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
+import { useNarrowScreen } from '@/shell/viewport';
 
 /**
  * **The load bar of my expedition on site** (table d'état-major, 14). The loot is only taken
@@ -40,9 +41,9 @@ export function MarchGauge({ since, dueAt }: { since: number; dueAt: number }) {
 
 /**
  * **L'anneau d'une capture** (14/10) : il se remplit à l'horloge que le serveur a servie
- * (`progressAt`, la règle même qui date l'échéance), le tampon « capture » à côté et l'heure de
- * fin — de victoire chez le capteur, de perte chez le défenseur, à l'encre d'alerte. Sa propre
- * horloge, comme la barre du pillage : la carte ne rend pas une image pour lui.
+ * (`progressAt`, la règle même qui date l'échéance) avec le tampon « capture » ; l'heure de fin —
+ * de victoire chez le capteur, de perte chez le défenseur, à l'encre d'alerte — se lit à l'affiche, et sur
+ * l'étiquette au téléphone, sans survol. Sa propre horloge, comme la barre du pillage : la carte ne rend pas une image pour lui.
  */
 export function CaptureGauge({
   side,
@@ -59,8 +60,17 @@ export function CaptureGauge({
   const share = progressAt(clock, useClock());
   const percent = Math.floor(share * 100);
   const hour = asClockTime(completesAt);
+  const said =
+    side === 'capturer' ? fr.capture.endsAt(percent, hour) : fr.capture.lostAt(percent, hour, hq);
+  /** No hover on a phone: the poster never opens, so the label keeps its words there. */
+  const narrow = useNarrowScreen();
   return (
-    <div className={`label-line capture-gauge capture-gauge--${side}`} data-testid="capture-gauge">
+    <div
+      className={`label-line capture-gauge capture-gauge--${side}`}
+      data-testid="capture-gauge"
+      role="img"
+      aria-label={said}
+    >
       <svg className="capture-ring" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9" pathLength={1} className="capture-ring-track" />
         <circle
@@ -73,11 +83,7 @@ export function CaptureGauge({
         />
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
-      <span>
-        {side === 'capturer'
-          ? fr.capture.endsAt(percent, hour)
-          : fr.capture.lostAt(percent, hour, hq)}
-      </span>
+      {narrow && <span>{said}</span>}
     </div>
   );
 }

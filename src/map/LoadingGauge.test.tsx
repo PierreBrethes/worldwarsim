@@ -1,8 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
 
+const phone = (narrow: boolean) =>
+  vi.stubGlobal('matchMedia', () => ({
+    matches: narrow,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+
 describe('LoadingGauge', () => {
+  beforeEach(() => phone(false));
   afterEach(() => vi.useRealTimers());
 
   const at32Left = () => {
@@ -39,7 +47,16 @@ describe('MarchGauge', () => {
 });
 
 describe('CaptureGauge', () => {
+  beforeEach(() => phone(false));
   afterEach(() => vi.useRealTimers());
+
+  it('keeps its words on a phone, which has no poster', () => {
+    phone(true);
+    const clock = { progress: 0.5, at: 0, rate: 1, durationMs: 3_600_000, rest: null };
+    expect(
+      renderToStaticMarkup(<CaptureGauge side="capturer" clock={clock} completesAt={3_600_000} />),
+    ).toContain('fin vers');
+  });
 
   it('fills the ring with the capture done, and says when the defender loses the site', () => {
     vi.useFakeTimers();
@@ -55,7 +72,7 @@ describe('CaptureGauge', () => {
       <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
     );
     expect(markup).toContain('stroke-dasharray="0.75 1"');
-    expect(markup).toContain('75 % · perdu vers');
+    expect(markup).toContain('aria-label="75 % · perdu vers');
     expect(markup).toContain('capture-gauge--defender');
     expect(
       renderToStaticMarkup(
@@ -66,6 +83,6 @@ describe('CaptureGauge', () => {
           completesAt={Date.UTC(2026, 9, 14, 12, 30)}
         />,
       ),
-    ).toContain('75 % · QG perdu vers');
+    ).toContain('aria-label="75 % · QG perdu vers');
   });
 });

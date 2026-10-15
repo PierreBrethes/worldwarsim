@@ -39,6 +39,7 @@ export function NarrowBand({
   ref?: Ref<HTMLElement>;
 }) {
   const now = useClock();
+  const search = useSearch({ strict: false }) as BoardSearch;
   const [shown, setShown] = useState<{ resource: ResourceKey; left: number } | null>(null);
   const [surface, setSurface] = useState<'dossier' | 'layers' | null>(null);
   const columns = useRef<HTMLDivElement>(null);
@@ -95,7 +96,7 @@ export function NarrowBand({
       {me.funds !== null ? (
         <div className="flex h-[38px] items-center justify-between px-[12px]">
           <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
-          <BlitzClock view={view} now={now} />
+          <BlitzClock view={view} now={now} openEnding={search} />
         </div>
       ) : (
         <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
@@ -227,16 +228,18 @@ function NationDossier({
           fr.dossier.nationNote(me.troops.length),
         )}
         {toWindow('gunnery', <AbacusMark size={22} />, fr.dossier.gunnery, fr.dossier.gunneryNote)}
-        <button type="button" onClick={onLayers} className={ROW}>
-          <DossierLine
-            icon={<LayersGlyph size={24} />}
-            title={fr.dossier.layers}
-            note={fr.dossier.layersNote(
-              CATEGORIES.filter((category) => toggles[category]).length,
-              CATEGORIES.length,
-            )}
-          />
-        </button>
+        {view.mode !== 'blitz' && (
+          <button type="button" onClick={onLayers} className={ROW}>
+            <DossierLine
+              icon={<LayersGlyph size={24} />}
+              title={fr.dossier.layers}
+              note={fr.dossier.layersNote(
+                CATEGORIES.filter((category) => toggles[category]).length,
+                CATEGORIES.length,
+              )}
+            />
+          </button>
+        )}
         {toWindow(
           'settings',
           <SettingsGlyph size={24} />,

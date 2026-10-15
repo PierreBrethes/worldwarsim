@@ -128,30 +128,140 @@ const ringRadius = (count: number, span: number): number =>
 
 type Point = readonly [x: number, z: number];
 
+/** **What a placement may not do** (retours du 15/10): stray far from its own point, or step a
+ *  site on land — or its garrison — off the land. */
+export type PlacementBounds = {
+  readonly maxShift: number;
+  readonly onLand: (x: number, z: number) => boolean;
+};
+
+export type Placement = {
+  readonly at: Point;
+  /** Where its garrison stands from it: outward from the ring, inland when the front is sea. */
+  readonly facing: number;
+  /** A group too tight for its bound shrinks rather than spreads. */
+  readonly scale: number;
+};
+
+/** The group's sizes tried in turn, before every site falls back on its own point. */
+const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
+
 /**
  * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
  * disc of radius `footprint`, half a span at least — overlap are gathered on a ring around their barycentre, and a ring that
  * grows into another site, or another ring, takes it in. Whether their labels fold into one
  * cartouche is the screen's affair: off screen, or before the labels touch, the maquettes
- * already do. Per site, in the order given (the caller sorts, so a ring keeps its order): where
- * it stands, and its offset from the ring's centre, where its garrison's foot is read from.
+ * already do. Per site, in the order given (the caller sorts, so a ring keeps its order).
+ *
+ * **Within `bounds`, a ring never carries a maquette far from its point** (the city of Coimbra
+ * drawn in Porto, 15/10): a group that would spread past `maxShift`, or off the land, is ringed
+ * again smaller — its maquettes shrink instead of standing away.
  */
 export function clusterFootprints(
   points: ReadonlyArray<Point>,
   span: number,
   footprint = span / 2,
-): Array<{ at: Point; ring: Point }> {
+  bounds: PlacementBounds = { maxShift: Infinity, onLand: () => true },
+): Placement[] {
+  const placed = new Array<Placement>(points.length);
+  for (const members of ringed(points, span).clusters) {
+    const own = members.map((k) => points[k]!);
+    let fitted: Placement[] | null = null;
+    for (const scale of SHRINK_STEPS) {
+      const trial = ringed(own, span * scale).placed.map((place, r) =>
+        fitting(own[r]!, place, footprint * scale, span * scale, scale, bounds, points),
+      );
+      if (trial.every((place) => place !== null)) {
+        fitted = trial as Placement[];
+        break;
+      }
+    }
+    const smallest = SHRINK_STEPS.at(-1)!;
+    members.forEach((k, r) => {
+      placed[k] =
+        fitted?.[r] ??
+        fitting(
+          points[k]!,
+          { at: points[k]!, ring: [0, 0] },
+          footprint * smallest,
+          span * smallest,
+          smallest,
+          { ...bounds, onLand: () => true },
+          points,
+        )!;
+    });
+  }
+  return placed;
+}
+
+const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
+
+/** The placement as it may stand, `null` when it strays or steps off the land. A lone site turns
+ *  its garrison when its front is the sea or a neighbour's maquette — inland, away from the other
+ *  sites; a ring's keeps its outward facing. */
+function fitting(
+  point: Point,
+  { at, ring }: { at: Point; ring: Point },
+  foot: number,
+  span: number,
+  scale: number,
+  { maxShift, onLand }: PlacementBounds,
+  sites: ReadonlyArray<Point>,
+): Placement | null {
+  if (Math.hypot(at[0] - point[0], at[1] - point[1]) > maxShift + 1e-9) return null;
+  const lone = ring[0] === 0 && ring[1] === 0;
+  const outward = outwardOf(ring);
+  if (!onLand(...point)) return { at, facing: outward, scale };
+  if (!onLand(...at)) return null;
+  const footAt = (facing: number): Point => [
+    at[0] + foot * Math.sin(facing),
+    at[1] + foot * Math.cos(facing),
+  ];
+  const clearance = (facing: number) => {
+    const [x, z] = footAt(facing);
+    return Math.min(
+      Infinity,
+      ...sites.filter((site) => site !== point).map(([sx, sz]) => Math.hypot(sx - x, sz - z)),
+    );
+  };
+  const clear = (facing: number) =>
+    onLand(...footAt(facing)) && (!lone || clearance(facing) >= span);
+  if (clear(outward)) return { at, facing: outward, scale };
+  if (!lone) return null;
+  const inland = FACINGS.filter((facing) => onLand(...footAt(facing)));
+  const facing = inland.reduce<number | null>(
+    (best, each) => (best === null || clearance(each) > clearance(best) ? each : best),
+    null,
+  );
+  return { at, facing: facing ?? outward, scale };
+}
+
+/** Away from its ring's centre; a lone site faces the front, towards +z. */
+const outwardOf = ([x, z]: Point): number => (x === 0 && z === 0 ? 0 : Math.atan2(x, z));
+
+/**
+ * **Sites whose maquettes touch, at their own points, ring together** — and only those (retours
+ * du 15/10 : un QG et sa caserne à une envergure et demie l'un de l'autre se dessinaient l'un
+ * dans l'autre). A ring keeps its members in their order around it, and **never draws one nearer
+ * its centre than its own point**: it can only push apart. A ring that grows into another site,
+ * or another ring, takes it in.
+ */
+function ringed(
+  points: ReadonlyArray<Point>,
+  span: number,
+): { placed: Array<{ at: Point; ring: Point }>; clusters: number[][] } {
   type Cluster = { members: number[]; centre: Point; reach: number };
   const clusterOf = (members: number[]): Cluster => {
     const sum = members.reduce<Point>(
       ([x, z], k) => [x + points[k]![0], z + points[k]![1]],
       [0, 0],
     );
-    return {
-      members,
-      centre: [sum[0] / members.length, sum[1] / members.length],
-      reach: ringRadius(members.length, span) + Math.max(footprint, span / 2),
-    };
+    const centre: Point = [sum[0] / members.length, sum[1] / members.length];
+    const radius = Math.max(
+      members.length < 2 ? 0 : ringRadius(members.length, span),
+      ...members.map((k) => Math.hypot(points[k]![0] - centre[0], points[k]![1] - centre[1])),
+    );
+    return { members, centre, reach: radius + span / 2 };
   };
   const clusters = points.map((_, k) => clusterOf([k]));
   const overlapping = (): [number, number] | null => {
@@ -159,7 +269,7 @@ export function clusterFootprints(
       for (let j = i + 1; j < clusters.length; j++) {
         const [a, b] = [clusters[i]!, clusters[j]!];
         const gap = Math.hypot(a.centre[0] - b.centre[0], a.centre[1] - b.centre[1]);
-        if (gap < a.reach + b.reach) return [i, j];
+        if (gap < a.reach + b.reach - 1e-9) return [i, j];
       }
     return null;
   };
@@ -171,16 +281,25 @@ export function clusterFootprints(
   }
   const placed = new Array<{ at: Point; ring: Point }>(points.length);
   for (const { members, centre } of clusters) {
-    const offsets = ringOffsets(members.length, span);
-    members.forEach((k, rank) => {
-      const ring = members.length < 2 ? ([0, 0] as const) : offsets[rank]!;
-      placed[k] = {
-        at: members.length < 2 ? points[k]! : [centre[0] + ring[0], centre[1] + ring[1]],
-        ring,
-      };
+    if (members.length < 2) {
+      placed[members[0]!] = { at: points[members[0]!]!, ring: [0, 0] };
+      continue;
+    }
+    const radius = ringRadius(members.length, span);
+    const offsetOf = (k: number): Point => [points[k]![0] - centre[0], points[k]![1] - centre[1]];
+    // Round the ring in the order the sites stand around it, from the first one's own bearing.
+    const around = members
+      .map((k) => ({ k, bearing: outwardOf(offsetOf(k)), away: Math.hypot(...offsetOf(k)) }))
+      .sort((a, b) => a.bearing - b.bearing);
+    const start = around[0]!.bearing;
+    around.forEach(({ k, away }, rank) => {
+      const bearing = start + (2 * Math.PI * rank) / members.length;
+      const out = Math.max(radius, away);
+      const ring: Point = [out * Math.sin(bearing), out * Math.cos(bearing)];
+      placed[k] = { at: [centre[0] + ring[0], centre[1] + ring[1]], ring };
     });
   }
-  return placed;
+  return { placed, clusters: clusters.map(({ members }) => members) };
 }
 
 /**
@@ -191,34 +310,25 @@ export function clusterFootprints(
 export const GARRISON_FOOT = 0.8;
 
 /**
- * **Where a building's garrison stands, from the maquette's place on its ring**: outward from the
- * ring's centre, so that it never stands nearer another maquette than its own; a lone one has its
- * garrison in front, towards +z. Fixed by the ring, never by the camera — a pile that slid with
- * the view would read as moving. `facing` turns the pile's row to stand across that line.
+ * **Two maquettes of a ring stand this many spans apart**, centre to centre: a model turned any
+ * way reaches past half a span at its corners, and a span apart a headquarters and its barracks
+ * still stood in one another (retours du 15/10). `@a-mesurer` on the board.
  */
-export function footOf(
-  [x, z]: readonly [number, number],
-  scale = 1,
-): {
-  x: number;
-  z: number;
-  facing: number;
-} {
-  const facing = Math.atan2(x, z);
-  return {
-    x: x + GARRISON_FOOT * scale * Math.sin(facing),
-    z: z + GARRISON_FOOT * scale * Math.cos(facing),
-    facing,
-  };
-}
+export const RING_GAP = 1.25;
+
+/** **How far a ring may carry a maquette from its own point**, in board units at full piece
+ *  size: under a span, so the site reads where it is. `@a-mesurer` on the board. */
+export const MAX_SHIFT = 0.55;
 
 type Placed = {
   readonly id: string;
   readonly ground: Vector3;
   /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
-  /** Its offset from its ring's centre, where its garrison's foot is read from. */
-  ring: readonly [number, number];
+  /** Where its garrison stands from it (`Placement.facing`). */
+  facing: number;
+  /** Its group's size against a lone maquette's: a tight group shrinks rather than spreads. */
+  scale: number;
   readonly turn: Quaternion;
   /** Inside a replay's ground: it steps aside, and its plate with it. */
   cleared: boolean;
@@ -269,6 +379,8 @@ export class MaquetteLayer {
     private readonly changed: () => void,
     /** A site seen at work has stood up under the player's eyes: the board stamps it. */
     private readonly posed: (at: Vector3, words: StampWords) => void,
+    /** Whether a board point is land: a site on land never stands off it. */
+    private readonly onLand: (x: number, z: number) => boolean,
   ) {}
 
   /** Re-served at every step of any column: says whether anything changed, and only then
@@ -338,7 +450,8 @@ export class MaquetteLayer {
         id: maquette.id,
         ground,
         at: ground.clone(),
-        ring: [0, 0],
+        facing: 0,
+        scale: 1,
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
@@ -364,13 +477,15 @@ export class MaquetteLayer {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      MAQUETTE_SPAN * pieceScale.buildings,
+      MAQUETTE_SPAN * RING_GAP * pieceScale.buildings,
       // A lone site's garrison stands this far in front: its footprint reaches it.
       GARRISON_FOOT * pieceScale.buildings,
+      { maxShift: MAX_SHIFT * pieceScale.buildings, onLand: this.onLand },
     );
     items.forEach((item, k) => {
-      const { at, ring } = placed[k]!;
-      item.ring = ring;
+      const { at, facing, scale } = placed[k]!;
+      item.facing = facing;
+      item.scale = scale;
       item.at.set(at[0], item.ground.y, at[1]);
       item.near = -1;
     });
@@ -438,7 +553,7 @@ export class MaquetteLayer {
     matrix.compose(
       item.at,
       item.turn,
-      scale.setScalar(item.near * model.scale * pieceScale.buildings),
+      scale.setScalar(item.near * model.scale * pieceScale.buildings * item.scale),
     );
     placedBox.copy(model.box).applyMatrix4(matrix);
     // A rising site is drawn up to its cut only, a plan lies flat: the box the poster clears
@@ -488,9 +603,19 @@ export class MaquetteLayer {
   garrisonAt(id: string): { at: Vector3; step: readonly [number, number]; facing: number } | null {
     const dressed = this.byId.get(id);
     if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
-    const { at, ring } = dressed.item;
-    const foot = footOf(ring, pieceScale.buildings);
-    return { at, step: [foot.x - ring[0], foot.z - ring[1]], facing: foot.facing };
+    const { at, facing, scale } = dressed.item;
+    const foot = GARRISON_FOOT * pieceScale.buildings * scale;
+    return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
+  }
+
+  /** **Where a maquette is drawn when a ring carried it off its point** — the label's fanion stays
+   *  on the point, a thread of ink runs to here. `null` while it stands on its point, or is not
+   *  drawn. */
+  drawnAt(id: string): Vector3 | null {
+    const dressed = this.byId.get(id);
+    if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
+    const { at, ground } = dressed.item;
+    return at.x === ground.x && at.z === ground.z ? null : at;
   }
 
   /** `cleared` is a replay's ground: what stands inside it steps aside while it plays. */
@@ -514,12 +639,12 @@ export class MaquetteLayer {
         if (near === item.near && item.settledAt === null && !ending) return;
         item.near = near;
         moved = true;
-        const size = near * lot.model!.scale * pieceScale.buildings;
+        const size = near * lot.model!.scale * pieceScale.buildings * item.scale;
         matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
         item.smokes.forEach((smoke, c) => {
           smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
-          smoke.object.scale.setScalar(near * pieceScale.buildings);
+          smoke.object.scale.setScalar(near * pieceScale.buildings * item.scale);
         });
       });
       const site = lot.items[0];
@@ -527,7 +652,7 @@ export class MaquetteLayer {
         lot.atWork.dressing.place(
           site.at,
           site.turn,
-          Math.max(site.near, 0) * lot.model.scale * pieceScale.buildings,
+          Math.max(site.near, 0) * lot.model.scale * pieceScale.buildings * site.scale,
           now,
         );
       if (!moved) continue;

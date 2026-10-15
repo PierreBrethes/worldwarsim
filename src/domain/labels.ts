@@ -329,6 +329,9 @@ export type MapLabel = {
   readonly reach: Reach | null;
   /** The owning nation's ink; `null` when the label is not mine. */
   readonly ink: string | null;
+  /** **The fanion planted at its point under its piece** (Blitz, retours du 15/10): whose it is,
+   *  as I see it — an ink, `NEUTRAL_FLAG`, or none (`ownerFlags`). */
+  readonly flag?: string;
   /** The ground pictogram; `null` for a movement head, whose 3D sprite stands in. */
   readonly pictogram: LabelPictogram | null;
   /**
@@ -485,6 +488,38 @@ export function abbreviateStack(stack: Stack): string {
 
 const stackHeadcount = (stack: Stack): number =>
   Object.values(stack).reduce((sum, count) => sum + count, 0);
+
+export const NEUTRAL_FLAG = 'neutral';
+
+/**
+ * **À qui est quoi, d'un coup d'œil** (Blitz, retours du 15/10) : mes piles et mes sites à mon
+ * encre, un site tenu par un autre à l'encre que mon relevé voit sur sa région, un neutre en
+ * blanc. **Une pièce adverse jamais** — un camp relevé n'a pas de nation hors du feu, et il n'a
+ * donc pas de fanion.
+ */
+export function ownerFlags(
+  labels: ReadonlyArray<MapLabel>,
+  holderInk: (regionId: string) => string | null,
+  myInk: string | null,
+): ReadonlyArray<MapLabel> {
+  /** Le tenant de la région, pas celui du site : quand c'est moi, un autre site de la région
+   *  porte la couleur, et ce site d'un autre n'a pas de tenant que je sache dire. */
+  const holderOf = (regionId: string) => {
+    const ink = holderInk(regionId);
+    return ink === myInk ? null : ink;
+  };
+  return labels.map((label) => {
+    const flag =
+      label.type === 'building' || label.type === 'stack'
+        ? label.ink
+        : label.installation === null
+          ? null
+          : label.installation.neutral
+            ? NEUTRAL_FLAG
+            : holderOf(label.installation.regionId);
+    return flag === null ? label : { ...label, flag };
+  });
+}
 
 export function buildLabels(
   view: PlayerView,

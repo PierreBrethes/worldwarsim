@@ -99,7 +99,7 @@ export function NextActions({
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
    *  sans plus rien à l'écran pour dire pourquoi. */
   const [unfolded, setUnfolded] = useState(true);
-  const [folded, setFolded] = useState(readNextActionsFolded);
+  const [folded, setFolded] = useState(() => readNextActionsFolded(view.mode === 'blitz'));
   const closeSheet = useSheetClose();
   const actions = nextActionsOf(view);
   useRanks();
@@ -160,7 +160,7 @@ export function NextActions({
     // Folding hides an armed key's rows: it disarms, like the foundation's own fold.
     onArm(null);
     setFolded(!folded);
-    keepNextActionsFolded(!folded);
+    keepNextActionsFolded(!folded, view.mode === 'blitz');
   };
 
   /* **Au bureau, un carré d'encre en tête de la colonne** (table plein écran, 13/10) : le compte,

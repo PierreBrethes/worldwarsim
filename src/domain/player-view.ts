@@ -1110,6 +1110,9 @@ export type PlayerView = {
      *  ses boutons — la vue elle-même est inchangée, portée par ses détecteurs restants
      *  (décision 47a). Rien ici ne se déduit d'une capacité : réduit n'est pas défait. */
     readonly defeated: boolean;
+    /** **Son QG de départ est tombé, à cette heure** (Blitz) ; `null` s'il n'est pas éliminé —
+     *  une capitulation n'en écrit pas. */
+    readonly eliminatedAt: number | null;
     readonly homePosition: LonLat;
     /** **La capitale de 1940**, servie pour une seule chose : cadrer le plateau d'un joueur qui
      *  n'a pas encore posé son quartier général (décision 1b du 13/09) — sans lui, la carte

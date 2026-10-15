@@ -138,6 +138,7 @@ export function MovementPreview({
   choices,
   onChoose,
   at,
+  from,
   preview,
   slots,
   originName,
@@ -156,6 +157,8 @@ export function MovementPreview({
   choices: ReadonlyArray<OrderChoice>;
   onChoose: (choice: OrderChoice) => void;
   at: { x: number; y: number };
+  /** Where the pile stands on the screen: the card keeps to the far side of it. */
+  from: { x: number; y: number } | null;
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
   preview: Previewed | undefined;
   /** `null` en Blitz : il n'y a pas de slots (B5). */
@@ -395,16 +398,16 @@ export function MovementPreview({
         hug
       >
         <div className="px-4 pt-[4px] text-[var(--ink)]">
-          <h3 className="font-(family-name:--font-display) text-[25px] leading-[1.05] font-extrabold">
+          <h3 className="font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold">
             {destinationOf(aim, preview)}
           </h3>
-          <p className="mt-[3px] text-[13px] text-[var(--ink-soft)]">
+          <p className="mt-[1px] text-[12px] text-[var(--ink-soft)]">
             {fr.orderSheet.from(troopIds.length, originName)}
           </p>
           {choices.length > 1 && (
             <div
               role="radiogroup"
-              className="mt-[11px] grid border border-[var(--ink)]"
+              className="mt-[7px] grid border border-[var(--ink)]"
               style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}
             >
               {choices.map((option) => {
@@ -426,18 +429,18 @@ export function MovementPreview({
               })}
             </div>
           )}
-          <p className="mt-[8px] font-(family-name:--font-text) text-[13.5px] text-[var(--ink-quiet)] italic">
+          <p className="mt-[4px] font-(family-name:--font-text) text-[12px] leading-[1.3] text-[var(--ink-quiet)] italic">
             {choice.consequence}
           </p>
           {preview && (
             <>
-              <div className="mt-[10px] grid grid-cols-2 border-t border-b border-[var(--ink)] border-b-(color:--ink)/20">
+              <div className="mt-[6px] grid grid-cols-2 border-t border-b border-[var(--ink)] border-b-(color:--ink)/20">
                 <Timing label={fr.orderSheet.duration}>{asDuration(preview.minutes)}</Timing>
                 <Timing label={fr.orderSheet.arrival} ruled>
                   {asClockTime(preview.arrivesAt)}
                 </Timing>
               </div>
-              <p className="mt-[7px] text-[12.5px] text-[var(--ink-quiet)]">
+              <p className="mt-[4px] text-[12px] text-[var(--ink-quiet)]">
                 {fr.orderSheet.route(
                   legOf(preview.route),
                   Math.round(
@@ -463,7 +466,7 @@ export function MovementPreview({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[56px] w-[92px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] font-semibold tracking-[.16em] uppercase"
+            className="min-h-[48px] w-[84px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] font-semibold tracking-[.16em] uppercase"
           >
             {fr.aim.cancel}
           </button>
@@ -480,12 +483,19 @@ export function MovementPreview({
     );
   }
 
-  const fromRight = at.x > window.innerWidth / 2;
-  const fromBottom = at.y > window.innerHeight / 2;
+  /** **Away from the road**: the card sits on the side of the pose opposite the pile, so the
+   *  thread between them stays in view, and flips only where the screen has no room. */
+  const farSide = from ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const roomLeft = at.x > CARD_ROOM;
+  const roomRight = window.innerWidth - at.x > CARD_ROOM;
+  const fromRight = farSide.x > at.x ? roomLeft || !roomRight : !roomRight && roomLeft;
+  const roomAbove = at.y > CARD_HEIGHT;
+  const roomBelow = window.innerHeight - at.y > CARD_HEIGHT;
+  const fromBottom = farSide.y > at.y ? roomAbove || !roomBelow : !roomBelow && roomAbove;
 
   return (
     <div
-      className="absolute z-[var(--z-popin)] w-[262px] max-w-full"
+      className="absolute z-[var(--z-popin)] w-[236px] max-w-full"
       style={{
         left: fromRight ? undefined : at.x + 18,
         right: fromRight ? `calc(100% - ${at.x - 18}px)` : undefined,
@@ -494,7 +504,7 @@ export function MovementPreview({
       }}
     >
       <div className="float paper-grain border border-[var(--ink)] p-[3px]">
-        <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
+        <div className="border border-(color:--ink)/40 px-[10px] pt-[7px] pb-[9px] text-[var(--ink)]">
           {/* Wrapping rather than abbreviating: the cost says a whole sentence, and on a card
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
@@ -503,10 +513,10 @@ export function MovementPreview({
               <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
             )}
           </div>
-          <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
+          <h3 className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), choice.label)}
           </h3>
-          <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
+          <div className="my-[6px] h-px bg-[var(--ink)] opacity-55" />
 
           {status}
           {preview && (
@@ -574,9 +584,11 @@ function Timing({
   children: ReactNode;
 }) {
   return (
-    <div className={`py-[7px] ${ruled ? 'border-l border-(color:--ink)/20 pl-3' : ''}`}>
+    <div className={`py-[4px] ${ruled ? 'border-l border-(color:--ink)/20 pl-3' : ''}`}>
       <div className="text-[9.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">{label}</div>
-      <div className="mt-1 font-(family-name:--font-mono) text-[16px] font-medium">{children}</div>
+      <div className="mt-[1px] font-(family-name:--font-mono) text-[14px] font-medium">
+        {children}
+      </div>
     </div>
   );
 }
@@ -584,6 +596,12 @@ function Timing({
 /** Ce que le doigt doit tenir pour qu'un ordre parte : assez pour qu'un toucher de passage ne
  *  l'envoie pas, assez peu pour ne pas se lire comme une panne (maquette 1c). */
 const HOLD_MS = 700;
+
+/** What the desk card needs beside the pose, its width and a gap, before it may go outward. */
+const CARD_ROOM = 236 + 18;
+
+/** What its height takes under or over the pose, the room the vertical side needs. */
+const CARD_HEIGHT = 320;
 
 /** Ce que met la jauge à se vider quand le doigt lâche avant la fin : visible, pas traînant. */
 const RELEASE_MS = 240;
@@ -675,7 +693,7 @@ function HoldButton({
         if (isHoldKey(event)) release();
       }}
       onContextMenu={(event) => event.preventDefault()}
-      className="relative min-h-[56px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-40"
+      className="relative min-h-[48px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-40"
       style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
     >
       <span

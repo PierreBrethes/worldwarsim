@@ -1,5 +1,6 @@
 import { fr } from '@/i18n/fr';
 import { asClockTime } from './duration';
+import { capturingAt } from './capture';
 import { captureSiteName } from './labels';
 import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
@@ -340,7 +341,9 @@ const troopsWithoutOrder = (
     names,
     view,
     standing,
-    (troop) => troop.stationedAt.kind === 'point',
+    (troop) =>
+      troop.stationedAt.kind === 'point' &&
+      capturingAt(view.captures, troop.stationedAt.lonLat) === undefined,
   );
 
 const unsuppliedTroops = (

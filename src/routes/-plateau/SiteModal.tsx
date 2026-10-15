@@ -462,7 +462,7 @@ function BlitzSite({
                       {roleLabel(role, 1)}
                     </div>
                     <div className="mt-[3px] font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
-                      {fr.blitz.terms(price, BLITZ.recruitMinutes)}
+                      {fr.blitz.terms(price, asDuration(BLITZ.recruitMinutes))}
                     </div>
                   </div>
                   <div className="px-4 pt-[9px] pb-[14px]">
@@ -540,7 +540,7 @@ function BlitzSite({
             />
             {held.length > 0 && (
               <p className="mt-2 text-[11.5px] text-[var(--ink-quiet)] italic">
-                {fr.blitz.mendNote}
+                {fr.blitz.mendNote(BLITZ.mend.sharePerStep, BLITZ.mend.stepMinutes * 60)}
               </p>
             )}
           </div>

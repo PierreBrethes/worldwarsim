@@ -59,6 +59,10 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** **From the anchor to where its piece is drawn**, in pixels, when a ring carried it off its
+   *  point: the fanion stays on the point and a thread of ink runs there. `0, 0` otherwise. */
+  drawnX: number;
+  drawnY: number;
   /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
   distance: number;
   /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
@@ -122,6 +126,8 @@ export class LabelLayer {
     private readonly regionShare: () => number,
     /** Whether my figurines stand at this label's point, rather than its plate. */
     private readonly isDressed: (id: string) => boolean,
+    /** Where its piece is drawn when it stands off the label's point, `null` on it. */
+    private readonly drawnAt: (id: string) => Vector3 | null = () => null,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -147,6 +153,8 @@ export class LabelLayer {
         lod: 'glyph',
         fade: withRegionLayer ? 0 : 1,
         dressed: 0,
+        drawnX: 0,
+        drawnY: 0,
         distance: 0,
         plateScale: 1,
         atEdge: false,
@@ -211,6 +219,15 @@ export class LabelLayer {
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
       projection.plateScale = plateScale(distance);
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
+      const drawn = projection.dressed > 0 ? this.drawnAt(projection.id) : null;
+      if (drawn === null) {
+        projection.drawnX = 0;
+        projection.drawnY = 0;
+      } else {
+        this.normalized.copy(drawn).project(camera);
+        projection.drawnX = (this.normalized.x * 0.5 + 0.5) * width - x;
+        projection.drawnY = (-this.normalized.y * 0.5 + 0.5) * height - y;
+      }
 
       projection.atEdge = !projection.visible;
       if (projection.atEdge) {

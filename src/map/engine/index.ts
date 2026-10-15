@@ -107,6 +107,11 @@ export type { SurveyedCamp } from './annotations';
  */
 export type { HeldClaim } from './regions';
 
+/** A shore is read around a pile's point this far out, in board units at full piece size —
+ *  about a pile's reach. */
+const SHORE_REACH = 0.6;
+const SHORE_PROBES = 8;
+
 /** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
 const SELECTED_LIFT = 0.75;
@@ -507,6 +512,7 @@ export class MapEngine {
       this.frame,
       () => this.invalidate(),
       (id) => this.maquettes.garrisonAt(id),
+      (lonLat) => this.seawardOf(lonLat),
     );
     this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
@@ -521,6 +527,7 @@ export class MapEngine {
           at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
           words,
         }),
+      (x, z) => this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
     );
     this.scene.add(this.maquettes.group);
     this.ambience.add(this.maquettes.smoke);
@@ -541,6 +548,7 @@ export class MapEngine {
       () => (this.regions.isActive ? this.regions.fade : 0),
       (id) =>
         this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
+      (id) => this.maquettes.drawnAt(id),
     );
 
     this.scene.add(this.regions.lines);
@@ -1141,6 +1149,7 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
+    this.regions.resize(clientWidth, clientHeight);
     this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
@@ -1361,6 +1370,16 @@ export class MapEngine {
    * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
    * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
    */
+  screenOf(lonLat: LonLat): { x: number; y: number } | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const at = this.frame.projectLonLat(lonLat).project(this.eye);
+    if (at.z > 1) return null;
+    return {
+      x: rect.left + ((at.x + 1) / 2) * this.screenWidth,
+      y: rect.top + ((1 - at.y) / 2) * this.screenHeight,
+    };
+  }
+
   pieceRect(labelId: string): Rect | null {
     const box =
       this.standing.boxOf(labelId) ??
@@ -1626,6 +1645,30 @@ export class MapEngine {
   landAt(lonLat: LonLat): boolean {
     this.routeGrid ??= buildGrid(this.world);
     return isLandCell(this.routeGrid, lonLat);
+  }
+
+  /** **Toward the water from a point on a shore**, a unit vector on the board — `null` inland, or
+   *  out at sea: a pile there has no land side (`formationOf`). */
+  private seawardOf(lonLat: LonLat): readonly [number, number] | null {
+    const point = this.frame.projectLonLat(lonLat);
+    // The pile is drawn at the troops' size: its blocks reach as far as that, and so does the probe.
+    const reach = SHORE_REACH * pieceScale.troops;
+    let [x, z] = [0, 0];
+    let wet = 0;
+    for (let k = 0; k < SHORE_PROBES; k++) {
+      const angle = (2 * Math.PI * k) / SHORE_PROBES;
+      const [dx, dz] = [Math.sin(angle), Math.cos(angle)];
+      const probe = this.frame.lonLatAt(
+        point.x + dx * reach + this.frame.centerX,
+        point.z + dz * reach + this.frame.centerY,
+      );
+      if (this.landAt(probe)) continue;
+      wet++;
+      x += dx;
+      z += dz;
+    }
+    const length = Math.hypot(x, z);
+    return wet === 0 || wet === SHORE_PROBES || length === 0 ? null : [x / length, z / length];
   }
 
   private coastOfRegion(regionId: string): ReadonlyArray<CoastSpot> {

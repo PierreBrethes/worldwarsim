@@ -33,7 +33,9 @@ export function SurfaceColumn({
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
-  const rank = view.press?.mine?.rank ?? null;
+  const blitz = view.mode === 'blitz';
+  const playing = view.season.reduction.concludedAt === null;
+  const rank = blitz ? null : (view.press?.mine?.rank ?? null);
 
   const square = (
     name: BoardWindow,
@@ -78,9 +80,11 @@ export function SurfaceColumn({
       className="hud absolute bottom-[calc(var(--table-margin)/var(--hud-scale))] left-[calc(var(--table-margin)/var(--hud-scale))] z-[var(--z-band)] flex flex-col gap-[calc(var(--table-gap)/var(--hud-scale))] text-[var(--ink)]"
     >
       {todo}
-      {square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
-      {/* La Blitz n'a ni réserve ni chantier : l'économie s'y lit sur la réglette, en fonds. */}
-      {view.mode !== 'blitz' && square('economy', fr.rail.economy, <IndustryGlyph size={18} />)}
+      {/* La Blitz n'a ni nation à lire, ni réserve, ni chantier, ni presse : l'économie s'y lit
+          sur la réglette, en fonds, et l'édition finale s'ouvre à l'horloge. */}
+      {!blitz &&
+        square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
+      {!blitz && square('economy', fr.rail.economy, <IndustryGlyph size={18} />)}
       {square('gunnery', fr.rail.gunnery, <AbacusMark size={17} />)}
       {square(
         'journal',
@@ -95,16 +99,17 @@ export function SurfaceColumn({
         undefined,
         unread,
       )}
-      {square(
-        'press',
-        fr.rail.press,
-        <PressGlyph size={18} />,
-        rank !== null && (
-          <span className="absolute top-[4px] right-[4px] font-(family-name:--font-mono) text-[7.5px] leading-none text-[var(--ink-soft)]">
-            {fr.press.ordinal(rank)}
-          </span>
-        ),
-      )}
+      {!(blitz && playing) &&
+        square(
+          'press',
+          fr.rail.press,
+          <PressGlyph size={18} />,
+          rank !== null && (
+            <span className="absolute top-[4px] right-[4px] font-(family-name:--font-mono) text-[7.5px] leading-none text-[var(--ink-soft)]">
+              {fr.press.ordinal(rank)}
+            </span>
+          ),
+        )}
       {square(
         'telegraph',
         {

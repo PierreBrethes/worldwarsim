@@ -67,6 +67,29 @@ describe('HandSheet', () => {
   });
 });
 
+describe('HandSheet in a Blitz', () => {
+  it('shows the one unit in a strip, without the pile or its range', () => {
+    render(
+      <HandSheet
+        view={
+          { mode: 'blitz', me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView
+        }
+        station={station}
+        place="Portugal"
+        held={[troop('inf', 'infantry')]}
+        troopIds={['inf']}
+        onCompose={() => {}}
+        founding={null}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+      />,
+    );
+    expect(screen.getByText(fr.troops.strength(50, 50))).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByText(/relève à/)).toBeNull();
+  });
+});
+
 /** **Fonder d'ici** : la branche de la rose, ou son motif — jamais un bouton grisé (ADR 0015). */
 describe('HandSheet founding', () => {
   const sheet = (founding: Parameters<typeof HandSheet>[0]['founding']) =>

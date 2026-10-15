@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { abbreviateStack, buildLabels, cartoucheShown, type MapMarker } from './labels';
+import {
+  abbreviateStack,
+  buildLabels,
+  cartoucheShown,
+  NEUTRAL_FLAG,
+  ownerFlags,
+  type MapLabel,
+  type MapMarker,
+} from './labels';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
 import { asLocalTime } from './duration';
@@ -469,5 +477,50 @@ describe('cartoucheShown', () => {
   it('never quiets a movement head', () => {
     expect(cartoucheShown({ type: 'my-movement', lines: [named] }, rest)).toBe(true);
     expect(cartoucheShown({ type: 'inbound-movement', lines: [named] }, rest)).toBe(true);
+  });
+});
+
+describe('ownerFlags', () => {
+  const label = (over: Partial<MapLabel>): MapLabel =>
+    ({ id: 'x', type: 'building', ink: null, installation: null, ...over }) as MapLabel;
+  const flagOf = (over: Partial<MapLabel>) =>
+    ownerFlags(
+      [label(over)],
+      (regionId) => (regionId === 'ESP-1' ? '#a83f68' : regionId === 'FRA-1' ? '#2a5ba8' : null),
+      '#2a5ba8',
+    )[0]!.flag;
+
+  it('plants my ink under my sites and my piles', () => {
+    expect(flagOf({ type: 'building', ink: '#2a5ba8' })).toBe('#2a5ba8');
+    expect(flagOf({ type: 'stack', ink: '#2a5ba8' })).toBe('#2a5ba8');
+  });
+
+  it('plants a neutral white, and the holder my survey saw on a site of another', () => {
+    const site = { id: 'b', key: 'city', regionId: 'ESP-1' } as const;
+    expect(flagOf({ type: 'installation', installation: { ...site, neutral: true } })).toBe(
+      NEUTRAL_FLAG,
+    );
+    expect(flagOf({ type: 'installation', installation: { ...site, neutral: false } })).toBe(
+      '#a83f68',
+    );
+    expect(
+      flagOf({
+        type: 'installation',
+        installation: { ...site, regionId: 'ESP-2', neutral: false },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('plants none under a site of another whose region my colour holds', () => {
+    expect(
+      flagOf({
+        type: 'installation',
+        installation: { id: 'b', key: 'city', regionId: 'FRA-1', neutral: false },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('never plants a flag under an enemy piece', () => {
+    expect(flagOf({ type: 'camp', ink: null })).toBeUndefined();
   });
 });
