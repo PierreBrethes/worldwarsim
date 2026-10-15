@@ -7,6 +7,27 @@ transports sont des troupes » (cinq nombres, cargo 6 et transport aérien 2), e
 mer (révision du 18/09), le noyé, `LANDING_NEEDS_A_COAST`, et l'allure du transport terrestre
 (note « le transport terrestre et l'allure »).
 
+> **Révision du 15/10/2026 — on est à bord parce qu'on a embarqué** (grilling de Pierre, « comme
+> dans un RTS »). Être à bord n'est plus calculé : c'est un état, `troops.carriedBy`, le transport
+> qui porte la troupe, valable à la même adresse que lui. Ce qui change ici :
+>
+> - **§3, la proximité disparaît** : on embarque au point du transport, sur-le-champ ; de plus loin,
+>   c'est une marche qui monte à bord en arrivant (`movements.boardsOn`). `BOARDING_RADIUS_KM` et
+>   `TOO_FAR_TO_BOARD` sont retirés.
+> - **On débarque** sur place (`movements.disembark`), jamais au large, d'un avion dans un
+>   aérodrome ; les débarqués se tiennent à côté du transport, libres.
+> - **Le camion est un transport comme les autres** : deux fantassins, qui embarquent ; son
+>   rendez-vous en marche (§6) est remplacé par la marche qui embarque. Un camion chargé monte à
+>   bord d'un cargo avec ses passagers, qui comptent leurs places.
+> - **Les passagers suivent leur transport** : il part avec sa cargaison, un passager ne part pas
+>   sans lui (`STILL_ABOARD`) ; une colonne mixte embarque au départ (`seatLoose`) et reste à bord.
+> - **Le noyé lit l'état** : une troupe dont la coque n'est plus debout coule, sans changer de coque
+>   au milieu d'une passe.
+> - **Ce qui est à bord ne se dessine pas** : le transport porte un jeton « N à bord », chez son
+>   propriétaire seulement ; l'adversaire voit une coque.
+>
+> Les capacités et encombrements du §1 tiennent ; le combat ne change pas.
+
 ## Contexte
 
 Audit du 08/10/2026 sur une partie locale : le Royaume-Uni, deux blindés à la caserne, un cargo

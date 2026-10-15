@@ -97,6 +97,15 @@ hors main, elle se délave. Ce geste remplace Maj + clic, qui disparaît. Pièce
 s'ouvre **sur le côté**, avec les cases du panneau de garnison : cocher ou décocher y ajuste la
 même composition, sans lâcher la pièce. Reposer la pièce, ou l'envoyer, referme le déploiement.
 
+**On la glisse — 15/10/2026** (grilling de Pierre). Pressée sur une de ses pièces, figurine ou
+étiquette, la pièce se porte d'un glisser gauche — quel que soit le mappage, comme le clic qui
+lève — ou d'un appui long du doigt (300 ms ; un doigt plus vif déplace la carte). Le glisser prend
+une troupe déployée seule, et c'est ainsi qu'une pile se scinde ; sinon toute la pile. Lâchée sur
+un transport de son adresse, elle **embarque** sur-le-champ ; sur elle-même, elle se repose ;
+ailleurs, c'est poser, et la rose répond — « embarquer » sur un transport plus loin (une marche
+qui monte en arrivant), « rejoindre » une autre de ses piles. Sous le pointeur, une puce dit ce
+que ferait le lâcher, places comprises, ou son motif en rouge. Le clic-clic reste.
+
 **La route est celle du serveur, jamais une courbe à part.** Tant que le pointeur bouge, aucun
 trait n'est montré. Quand il s'arrête un court instant, la route et l'heure de
 `movements.preview` s'affichent. Une seule demande est en vol, et une réponse périmée est
