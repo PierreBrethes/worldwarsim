@@ -343,7 +343,7 @@ function written(notice: Notice): Written {
     case 'captureCancelled': {
       const site =
         notice.site.kind === 'building'
-          ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`
+          ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
           : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {

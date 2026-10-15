@@ -18,9 +18,11 @@ import { useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
  */
 export function BriefingSheet({
   theatre,
+  blitz,
   onDismiss,
 }: {
   theatre: Theatre | null;
+  blitz: boolean;
   onDismiss: () => void;
 }) {
   // Le mappage de la souris est la seconde exception, et de la même famille que les rayons :
@@ -75,7 +77,7 @@ export function BriefingSheet({
                   phone,
                   mapping,
                 },
-                theatre !== null,
+                blitz,
               )
               .map((column) => (
                 <Column key={column.title} title={column.title} lines={column.lines} />

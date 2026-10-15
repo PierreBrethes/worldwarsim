@@ -11,6 +11,7 @@ describe('de before a free-form name', () => {
     ['Ysée', 'd’Ysée'],
     ['Œdipe', 'd’Œdipe'],
     ['Sør-Trøndelag', 'de Sør-Trøndelag'],
+    ['', ''],
   ])('writes %s as %s', (name, expected) => {
     expect(ofName(name)).toBe(expected);
   });
@@ -69,5 +70,25 @@ describe('the Mondiale texts a Blitz does not show', () => {
   it('keeps the protractor label from naming a desk that is not there', () => {
     expect(fr.protractor.open(0, true)).not.toContain('chantiers');
     expect(fr.protractor.open(0)).toContain('chantiers');
+  });
+});
+
+describe('a capture notice declines the site', () => {
+  const said = fr.journal.notices;
+  it('contracts de + le, keeps la and l’', () => {
+    expect(said.captureLifted('le port de Bergen')).toBe('La capture du port de Bergen est levée.');
+    expect(said.captureAbandoned('le quartier général de X')).toContain(
+      'Capture du quartier général de X abandonnée',
+    );
+    expect(said.captureVoid('la caserne d’Oslo')).toContain(
+      'Capture de la caserne d’Oslo sans objet',
+    );
+    expect(said.captureLifted('l’aérodrome de Y')).toBe(
+      'La capture de l’aérodrome de Y est levée.',
+    );
+  });
+  it('elides the region in the capture label and drops an empty one', () => {
+    expect(fr.capture.buildingSite('Caserne', 'Île-de-France')).toBe('Caserne d’Île-de-France');
+    expect(fr.capture.buildingSite('Port', '')).toBe('Port');
   });
 });

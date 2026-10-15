@@ -45,6 +45,7 @@ export function Protractor({
   const [todoOpen, setTodoOpen] = useState(false);
   const frame = useRef<HTMLElement>(null);
   const hub = useRef<HTMLButtonElement>(null);
+  const blitz = view.mode === 'blitz';
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = view.press?.mine?.rank ?? null;
@@ -189,8 +190,8 @@ export function Protractor({
         type="button"
         aria-expanded={open}
         aria-controls={ROUNDS_ID}
-        aria-label={open ? fr.protractor.close : fr.protractor.open(waiting, view.mode === 'blitz')}
-        title={open ? fr.protractor.close : fr.protractor.open(waiting, view.mode === 'blitz')}
+        aria-label={open ? fr.protractor.close : fr.protractor.open(waiting, blitz)}
+        title={open ? fr.protractor.close : fr.protractor.open(waiting, blitz)}
         onClick={() => setOpen((shown) => !shown)}
         className="protractor-hub float flex cursor-pointer flex-col items-center justify-center gap-[3px] bg-[var(--ink)] text-[var(--paper)]"
       >

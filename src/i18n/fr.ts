@@ -96,7 +96,11 @@ const startsWithVowel = (word: string): boolean =>
 
 /** `de Paris`, `d’essai-nuit-a` — a free-form name (nickname, region) after `de`. */
 export const ofName = (name: string): string =>
-  startsWithVowel(name) ? `d’${name}` : `de ${name}`;
+  name === '' ? '' : startsWithVowel(name) ? `d’${name}` : `de ${name}`;
+
+/** `de` before a designated site: `du port`, `de la caserne`, `de l’aérodrome`. */
+const ofSite = (site: string): string =>
+  site.startsWith('le ') ? `du ${site.slice(3)}` : `de ${site}`;
 
 /** `une` before a feminine noun, where `spelled(1)` says `un`. */
 const spelledFeminine = (count: number): string => (count === 1 ? 'une' : spelled(count));
@@ -399,7 +403,7 @@ export const fr = {
 
   /** **La capture** (décision du 14/10) — jamais « prise ». */
   capture: {
-    buildingSite: (building: string, region: string) => `${building} de ${region}`,
+    buildingSite: (building: string, region: string) => `${building} ${ofName(region)}`.trim(),
     outpostSite: (level: number, country: string) =>
       `l’avant-poste de niveau ${level} — ${country}`,
     /** Le tampon sur le site, et la ligne sous l'anneau — « 14 h 20 » est l'heure de fin. */
@@ -2411,10 +2415,10 @@ export const fr = {
       captured: (site: string) => `${upperFirst(site)} est à nous : capture achevée.`,
       siteLost: (site: string) => `${upperFirst(site)} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>
-        `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
-      captureLifted: (site: string) => `La capture de ${site} est levée.`,
+        `Capture ${ofSite(site)} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureLifted: (site: string) => `La capture ${ofSite(site)} est levée.`,
       captureVoid: (site: string) =>
-        `Capture de ${site} sans objet : le site n’est plus à celui qu’on visait.`,
+        `Capture ${ofSite(site)} sans objet : le site n’est plus à celui qu’on visait.`,
       productionCut: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
       productionRestored: (sites: number, country: string) =>
@@ -2832,7 +2836,7 @@ export const fr = {
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
     initiative: 'vous frappez en premier',
     neutralCover:
-      'Site neutre : personne n’y est relevé en garnison, donc aucune passe. L’infanterie le tient à l’arrivée et la capture commence.',
+      'Site neutre au dernier relevé : aucune garnison connue. L’infanterie le tient à l’arrivée et la capture commence ; s’il a été pris entre-temps, une passe aura lieu.',
     /** Ce que la cible encaissera, selon ce qu'on vise : le seul avantage de la défense est un
      *  mur (C1), et il protège sans tirer. */
     cover: {

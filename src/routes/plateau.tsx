@@ -2520,6 +2520,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}
+              blitz={blitz}
               onDismiss={() => {
                 markBriefingSeen();
                 setBriefing(false);
