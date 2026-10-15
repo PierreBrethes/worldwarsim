@@ -554,3 +554,29 @@ body {
     opacity: 1;
   }
 }
+
+/* **Le réglage d'animations de la carte vaut pour l'interface** : « coupées » fige la rose et le
+   fondu des étiquettes, « réduites » et « coupées » arrêtent le battement d'alerte. */
+:root[data-motion='off'] :is(.rose-menu, .rose-tie, .rose-bubble, .label-block, .label-plate) {
+  animation: none;
+  transition: none;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .indicator--imminent .indicator-triangle svg {
+  animation: none;
+}
+
+/* G2: one keyboard focus for every paper button of the board, at no specificity. */
+:where(.board-frame) :focus-visible,
+:where(:root.on-board) :focus-visible {
+  outline: 2px solid var(--interaction);
+  outline-offset: 2px;
+}
+
+/* G3: the paper square inks at the hover, like the rows of `NextActions`. */
+.paper-hover:hover {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--ink) 7%, transparent),
+    color-mix(in srgb, var(--ink) 7%, transparent)
+  );
+}

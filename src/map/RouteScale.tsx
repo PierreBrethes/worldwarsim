@@ -42,7 +42,7 @@ export function RouteScale({ arc }: { arc: ArcView }) {
           return (
             <div
               key={rank}
-              className="overflow-hidden pt-[5px] font-(family-name:--font-mono) text-[9px] tracking-[.14em] whitespace-nowrap uppercase"
+              className="overflow-hidden pt-[5px] font-(family-name:--font-mono) text-[9px] tracking-[.14em] text-ellipsis whitespace-nowrap uppercase"
               style={{
                 flex: `${Math.max(0.02, segment.share)} 1 0`,
                 borderTop: `2px solid ${ink}`,
