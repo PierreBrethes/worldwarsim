@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Group } from 'three';
 import type { ArcView } from '@/domain/player-view';
-import { lastKnownMedium } from './arcs';
+import type { World } from '@/domain/world';
+import { directRoute } from '@/domain/routing';
+import { ArcLayer, lastKnownMedium } from './arcs';
+import { figurineFor } from './figurines/figurine';
+import { WorldFrame } from './frame';
+import type { InkLayer } from './ink';
+import { Pawn } from './pawn';
+
+vi.mock('./figurines/figurine', async (original) => ({
+  ...(await original<typeof import('./figurines/figurine')>()),
+  figurineFor: vi.fn(() => ({ object: new Group(), ready: Promise.resolve(), spin() {} })),
+}));
 
 const arc = (state: ArcView['state'], mediums: ReadonlyArray<string>) =>
   ({ state, route: { legs: mediums.map((medium) => ({ medium })) } }) as unknown as ArcView;
@@ -13,5 +25,90 @@ describe('lastKnownMedium', () => {
   it('stands none for a column still watched, nor for mine', () => {
     for (const state of ['mine', 'enemyDetected', 'seaControl'] as const)
       expect(lastKnownMedium(arc(state, ['land']))).toBeNull();
+  });
+});
+
+const world: World = {
+  sphere: { minX: 0, maxX: 100, minY: 0, maxY: 50 },
+  outline: Array.from({ length: 181 }, (_, k) => [k - 90, 0, 100, ((180 - k) / 180) * 50] as const),
+  countries: [],
+} as unknown as World;
+
+/** Every view re-serves fresh objects: the same movement comes back equal, never identical. */
+const mine = (id: string, to: readonly [number, number] = [10, 5], progress = 0.2): ArcView => ({
+  state: 'mine',
+  id,
+  from: [0, 0],
+  to,
+  route: directRoute([0, 0], to, 'land', 10),
+  originCountry: 'A',
+  destinationCountry: 'B',
+  originLabel: 'A',
+  destinationLabel: 'B',
+  type: 'march',
+  stack: { infantry: 2 },
+  troopIds: [`${id}-troop`],
+  minutesLeft: 30,
+  borderWait: null,
+  progress,
+});
+
+const layer = () => new ArcLayer(new WorldFrame(world), { trace: () => 0 } as unknown as InkLayer);
+
+const pawnOf = (arcs: ArcLayer, index: number) => arcs.pawns[index];
+
+describe('ArcLayer.display', () => {
+  it('keeps every object when the view comes back unchanged', () => {
+    const arcs = layer();
+    arcs.display([mine('a'), mine('b')]);
+    const before = arcs.pawns.slice();
+    const built = vi.mocked(figurineFor).mock.calls.length;
+    const disposed = vi.spyOn(Pawn.prototype, 'dispose');
+    arcs.display([mine('a', [10, 5], 0.3), mine('b', [10, 5], 0.3)]);
+    expect(arcs.pawns).toEqual(before);
+    expect(arcs.pawns[0]).toBe(before[0]);
+    expect(vi.mocked(figurineFor).mock.calls.length).toBe(built);
+    expect(disposed).not.toHaveBeenCalled();
+    disposed.mockRestore();
+  });
+
+  it('builds only the movement that appeared', () => {
+    const arcs = layer();
+    arcs.display([mine('a')]);
+    const kept = pawnOf(arcs, 0);
+    const built = vi.mocked(figurineFor).mock.calls.length;
+    arcs.display([mine('a'), mine('b')]);
+    expect(pawnOf(arcs, 0)).toBe(kept);
+    expect(arcs.pawns).toHaveLength(2);
+    expect(vi.mocked(figurineFor).mock.calls.length).toBe(built + 1);
+  });
+
+  it('rebuilds a movement whose route changed', () => {
+    const arcs = layer();
+    arcs.display([mine('a'), mine('b')]);
+    const [a, b] = arcs.pawns;
+    arcs.display([mine('a'), mine('b', [20, 5])]);
+    expect(arcs.pawns[0]).toBe(a);
+    expect(arcs.pawns[1]).not.toBe(b);
+    expect(b!.parent).toBeNull();
+  });
+
+  it('frees a movement that left', () => {
+    const arcs = layer();
+    arcs.display([mine('a'), mine('b')]);
+    const [, b] = arcs.pawns;
+    arcs.display([mine('a')]);
+    expect(arcs.pawns).toHaveLength(1);
+    expect(b!.parent).toBeNull();
+    expect(arcs.headPositions.has('b')).toBe(false);
+  });
+
+  it('builds twenty view updates of three movements once', () => {
+    const arcs = layer();
+    const before = vi.mocked(figurineFor).mock.calls.length;
+    for (let k = 0; k < 20; k++)
+      arcs.display([mine('a', [10, 5], k / 40), mine('b', [10, 5], k / 40), mine('c', [10, 5])]);
+    // An infantry column dresses one medium: three pawns, three figurines, whatever the updates.
+    expect(vi.mocked(figurineFor).mock.calls.length - before).toBe(3);
   });
 });
