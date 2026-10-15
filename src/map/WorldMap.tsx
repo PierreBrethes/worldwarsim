@@ -984,8 +984,12 @@ export function WorldMap({
         toggles={indicators}
         destinations={edgeNames}
       />
+      {/* Au coin droit, sous la réglette : au gauche, la fiche de la pièce en main la recouvrait. */}
       {designatedArc && (
-        <div className="absolute z-10" style={{ top: insets.top + 16, left: insets.left + 16 }}>
+        <div
+          className="pointer-events-none absolute z-10 flex justify-end"
+          style={{ top: insets.top + 16, left: insets.left + 16, right: insets.right + 16 }}
+        >
           <RouteScale arc={designatedArc} />
         </div>
       )}
