@@ -30,19 +30,22 @@ describe('une distance de Blitz, part de l’étendue de son théâtre (A2)', ()
 });
 
 describe('le cadrage d’ouverture du plateau', () => {
-  it('cadre tout le théâtre d’une Blitz, QG posé ou non', () => {
-    expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: [16.5, 53] })).toEqual([
-      [-12, 34],
-      [45, 34],
-      [-12, 72],
-      [45, 72],
+  it('cadre le QG d’une Blitz, servi par le serveur, avec un quart du théâtre autour', () => {
+    expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: [16, 53] })).toEqual([
+      [16, 53],
+      [1.75, 43.5],
+      [30.25, 62.5],
     ]);
   });
 
-  it('garde l’est déroulé du Pacifique, pour que le cadre tienne sur l’antiméridien', () => {
-    expect(openingFrameOf({ theatre: pacific, hqLevel: 1, openingPoint: null })).toContainEqual([
-      240, 55,
-    ]);
+  it('reste centré sur le QG de part et d’autre de l’antiméridien', () => {
+    const [hq, low, high] = openingFrameOf({
+      theatre: pacific,
+      hqLevel: 1,
+      openingPoint: [170, 0],
+    })!;
+    expect([(low![0] + high![0]) / 2, (low![1] + high![1]) / 2]).toEqual(hq);
+    expect(high![0]).toBeGreaterThan(180);
   });
 
   it('va à la capitale d’une Mondiale sans QG, et nulle part une fois le QG posé', () => {
@@ -50,6 +53,6 @@ describe('le cadrage d’ouverture du plateau', () => {
       [2.35, 48.85],
     ]);
     expect(openingFrameOf({ theatre: null, hqLevel: 1, openingPoint: [2.35, 48.85] })).toBeNull();
-    expect(openingFrameOf({ theatre: null, hqLevel: 0, openingPoint: null })).toBeNull();
+    expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: null })).toBeNull();
   });
 });

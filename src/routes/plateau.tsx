@@ -1729,8 +1729,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * entier : il lui faudrait trouver son pays avant de pouvoir poser quoi que ce soit. La caméra
    * va donc à `me.openingPoint` — la capitale de 1940, seul point qu'on connaisse de lui tant
    * qu'il n'a rien bâti (décision 1b du 13/09) —, servi par le serveur parce que la table vit
-   * avec l'index des régions, côté serveur. **Une Blitz cadre son théâtre entier**, QG posé au
-   * lancement compris (`openingFrameOf`) : la distance nulle laisse le cadre décider.
+   * avec l'index des régions, côté serveur. **Une Blitz cadre son QG**, que le serveur sert au
+   * même champ et que la carte de départ pose au lancement, un quart du théâtre autour
+   * (`openingFrameOf`) : la distance nulle laisse ce cadre décider.
    *
    * Une seule fois, et jamais après la pose : un recadrage qui reviendrait à chaque vue reprendrait
    * la caméra des mains du joueur.

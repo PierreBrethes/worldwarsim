@@ -56,26 +56,24 @@ export function theatreCenter(theatre: Theatre): LonLat {
 }
 
 /**
- * **What the board frames when it opens**: a Blitz its whole theatre, the HQ placed or not — the
- * evening is played inside that box, and it is the box the player must find first —; a Mondiale
- * the capital of 1940 as long as nothing is built, and nothing once the HQ stands. The corners
- * keep the Pacific's east unwrapped, so their middle is the theatre's even across the antimeridian.
+ * **What the board frames when it opens**: a Blitz its HQ — the point the server serves as
+ * `openingPoint` (`convex/view.ts`) — with a quarter of its theatre around it each way, enough
+ * to read the neutrals and the road to the enemy at the theatre's own scale; a Mondiale the
+ * capital of 1940 as long as nothing is built, and nothing once the HQ stands. The two points
+ * around the HQ are symmetric, so the frame stays centred on it; left unwrapped past 180°, they
+ * frame the Pacific across the antimeridian.
  */
 export function openingFrameOf(board: {
   readonly theatre: Theatre | null;
   readonly hqLevel: number;
   readonly openingPoint: LonLat | null;
 }): ReadonlyArray<LonLat> | null {
-  if (board.theatre !== null) {
-    const { west, south, east, north } = board.theatre.box;
-    return [
-      [west, south],
-      [east, south],
-      [west, north],
-      [east, north],
-    ];
-  }
-  return board.hqLevel > 0 || board.openingPoint === null ? null : [board.openingPoint];
+  const point = board.openingPoint;
+  if (point === null) return null;
+  if (board.theatre === null) return board.hqLevel > 0 ? null : [point];
+  const { west, south, east, north } = board.theatre.box;
+  const [dLon, dLat] = [(east - west) / 4, (north - south) / 4];
+  return [point, [point[0] - dLon, point[1] - dLat], [point[0] + dLon, point[1] + dLat]];
 }
 
 /** The longer of its two crossings: the distance every Blitz clock and reach is cut from. */
