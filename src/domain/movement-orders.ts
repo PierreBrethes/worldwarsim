@@ -520,10 +520,11 @@ const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
     if (at !== null && !withinTheatre(column.blitz.theatre, at)) return 'OUTSIDE_THEATRE';
   }
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
-  /** **En Blitz l'avion reste en l'air** (décision de Pierre, 15/10) : il repart d'où il est. */
+  /** **En Blitz l'avion reste en l'air** (décision de Pierre, 15/10) : il repart d'où il est.
+   *  Des passagers, eux, ne montent à bord que dans un aérodrome (ADR 0025). */
   if (
     domains.has('air') &&
-    column.blitz === undefined &&
+    (column.blitz === undefined || domains.has('land')) &&
     !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)
   ) {
     return 'NO_AIRFIELD_AT_DEPARTURE';

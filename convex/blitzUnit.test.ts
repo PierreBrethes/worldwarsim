@@ -175,6 +175,21 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(await movementOf(t, bomber)).toBeDefined();
   });
 
+  it('flies no passenger off a field: one boards by air at an airfield only', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const plane = await troop(t, seat, PARIS, 'airTransport');
+    const rider = await troop(t, seat, PARIS, 'infantry');
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'point', point: PARIS },
+        troopIds: [plane, rider],
+        point: LYON,
+      }),
+    ).rejects.toThrow(/NO_AIRFIELD_AT_DEPARTURE/);
+  });
+
   it('keeps one unit per building', async () => {
     const t = boot();
     const { seat } = await blitz(t);

@@ -852,10 +852,21 @@ describe('a Blitz order (lot 5)', () => {
     expect(refusalOf('march', paris, column(['bomber']))).toBe('NO_AIRFIELD_AT_DEPARTURE');
   });
 
-  it('still sets its passengers down at an airfield only', () => {
-    expect(refusalOf('march', paris, blitz(['airTransport', 'infantry']))).toBe(
-      'AIRFIELD_TARGET_REQUIRED',
+  it('still takes its passengers aboard and sets them down at an airfield only', () => {
+    const airfield: MovementAim = { kind: 'building', buildingId: 'b1', key: 'airfield' };
+    expect(refusalOf('march', airfield, blitz(['airTransport', 'infantry']))).toBe(
+      'NO_AIRFIELD_AT_DEPARTURE',
     );
+    const fromAirfield = blitz(
+      ['airTransport', 'infantry'],
+      {},
+      {
+        departureBuildings: new Set<BuildingKey>(['airfield']),
+      },
+    );
+    expect(refusalOf('march', paris, fromAirfield)).toBe('AIRFIELD_TARGET_REQUIRED');
+    expect(refusalOf('march', airfield, fromAirfield)).toBeNull();
+    expect(refusalOf('march', paris, blitz(['airTransport']))).toBeNull();
   });
 
   it('aims nowhere outside its theatre', () => {
