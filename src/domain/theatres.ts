@@ -55,6 +55,29 @@ export function theatreCenter(theatre: Theatre): LonLat {
   return [lon > 180 ? lon - 360 : lon, (south + north) / 2];
 }
 
+/**
+ * **What the board frames when it opens**: a Blitz its whole theatre, the HQ placed or not — the
+ * evening is played inside that box, and it is the box the player must find first —; a Mondiale
+ * the capital of 1940 as long as nothing is built, and nothing once the HQ stands. The corners
+ * keep the Pacific's east unwrapped, so their middle is the theatre's even across the antimeridian.
+ */
+export function openingFrameOf(board: {
+  readonly theatre: Theatre | null;
+  readonly hqLevel: number;
+  readonly openingPoint: LonLat | null;
+}): ReadonlyArray<LonLat> | null {
+  if (board.theatre !== null) {
+    const { west, south, east, north } = board.theatre.box;
+    return [
+      [west, south],
+      [east, south],
+      [west, north],
+      [east, north],
+    ];
+  }
+  return board.hqLevel > 0 || board.openingPoint === null ? null : [board.openingPoint];
+}
+
 /** The longer of its two crossings: the distance every Blitz clock and reach is cut from. */
 export function spanKm(theatre: Theatre): number {
   const { west, south, east, north } = theatre.box;
