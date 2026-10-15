@@ -40,7 +40,7 @@ export type Previewed =
   MovementPreviewed | PlunderPreviewed | CapturePreviewed | LootCollectionPreviewed;
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
-export type PreviewMission =
+type PreviewMission =
   | { readonly kind: 'march' }
   | { readonly kind: 'plunder'; readonly buildingId: string }
   | {
@@ -133,6 +133,7 @@ export function MovementPreview({
   origin,
   troopIds,
   strength,
+  neutralTarget,
   choice,
   choices,
   onChoose,
@@ -148,6 +149,8 @@ export function MovementPreview({
   troopIds: ReadonlyArray<string>;
   /** L'effectif de la pile, que la feuille du téléphone imprime avec la route. */
   strength: number;
+  /** Un site neutre de Blitz : sans garnison, il n'y a pas de passe à annoncer. */
+  neutralTarget: boolean;
   choice: OrderChoice;
   /** Tout ce que la cible accepte de cette pile ; un seul au bureau, où la rose a déjà choisi. */
   choices: ReadonlyArray<OrderChoice>;
@@ -265,15 +268,21 @@ export function MovementPreview({
     <>
       {/* **L'initiative, dite avant de payer** (B16) : qui frappe d'abord, et ce que les murs
           d'en face rendront — la seule chose que l'attaquant puisse savoir de la riposte. */}
-      {cover !== null && (
-        <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
-          <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
-            {fr.aim.initiative}
+      {neutralTarget ? (
+        <p className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+          {fr.aim.neutralCover}
+        </p>
+      ) : (
+        cover !== null && (
+          <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
+            <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+              {fr.aim.initiative}
+            </div>
+            <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {fr.aim.cover[cover](GARRISON_DAMAGE_TAKEN)}
+            </p>
           </div>
-          <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-            {fr.aim.cover[cover](GARRISON_DAMAGE_TAKEN)}
-          </p>
-        </div>
+        )
       )}
       {/* **Une poursuite** (Blitz, B18) : l'heure est celle d'une position, pas d'une prise. */}
       {'pursuit' in preview && preview.pursuit && (

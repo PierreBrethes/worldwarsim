@@ -323,8 +323,10 @@ export const mend = internalMutation({
         (troop) => troop.currentStrength < troop.nominalStrength,
       );
       if (wounded.length === 0) continue;
+      // Rien ne s'écrit sans soin : la ligne `players` est lue par toutes les vues.
+      const plan = mendPlan(wounded.map(asWounded), fundsAt(await fundsOf(ctx, seat, now), now));
+      if (plan.length === 0) continue;
       const funds = await settleFunds(ctx, seat._id, now);
-      const plan = mendPlan(wounded.map(asWounded), funds);
       for (const { troop, strength } of plan) {
         healed = true;
         await ctx.db.patch(troop.doc._id, { currentStrength: strength });

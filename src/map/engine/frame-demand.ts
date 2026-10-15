@@ -12,13 +12,20 @@
  *   alors comme un retard d'une demi-seconde, jamais comme une carte gelée.
  *
  * Pure et sans horloge propre — l'instant est donné — pour se tester sans navigateur.
+ *
+ * **Elle dit aussi pourquoi l'image est due** : une image d'ambiance ne change que des uniformes
+ * de shader (mer, vent, fumées), donc la carte d'ombres et les étiquettes de l'image d'avant
+ * valent encore — les refaire trente fois par seconde ne servait à rien. Le battement se compte
+ * depuis la dernière image complète, sans quoi l'ambiance le repousserait sans fin.
  */
 export const SETTLE_MS = 1500;
 export const HEARTBEAT_MS = 500;
 
+export type FrameReason = 'stirred' | 'heartbeat' | 'ambient';
+
 export class FrameDemand {
   private stirredAt: number;
-  private renderedAt = Number.NEGATIVE_INFINITY;
+  private fullAt = Number.NEGATIVE_INFINITY;
   private requested = false;
 
   constructor(now: number) {
@@ -35,12 +42,19 @@ export class FrameDemand {
     this.requested = true;
   }
 
-  /** Cette image est-elle due ? Répondre oui la compte comme rendue. */
-  due(now: number): boolean {
-    const due =
-      this.requested || now - this.stirredAt <= SETTLE_MS || now - this.renderedAt >= HEARTBEAT_MS;
+  /** Pourquoi cette image est due, ou `null` ; une image remuée ou de battement compte comme complète. */
+  due(now: number): FrameReason | null {
+    const requested = this.requested;
     this.requested = false;
-    if (due) this.renderedAt = now;
-    return due;
+    const reason: FrameReason | null =
+      now - this.stirredAt <= SETTLE_MS
+        ? 'stirred'
+        : now - this.fullAt >= HEARTBEAT_MS
+          ? 'heartbeat'
+          : requested
+            ? 'ambient'
+            : null;
+    if (reason === 'stirred' || reason === 'heartbeat') this.fullAt = now;
+    return reason;
   }
 }

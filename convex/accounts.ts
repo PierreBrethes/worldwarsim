@@ -94,6 +94,25 @@ export const claimLoginAttempt = internalMutation({
   },
 });
 
+/**
+ * **Une inscription par intervalle, tous pseudos confondus** : chacune dérive un PBKDF2 dans le
+ * pool d'actions, qu'un script saturerait. Une seule ligne, réécrite.
+ */
+export const claimRegistrationSlot = internalMutation({
+  args: { intervalMs: v.number() },
+  handler: async (ctx, { intervalMs }) => {
+    const now = Date.now();
+    const row = await ctx.db
+      .query('authThrottle')
+      .withIndex('byKey', (q) => q.eq('key', 'register'))
+      .unique();
+    if (row !== null && now - row.at < intervalMs) return false;
+    if (row === null) await ctx.db.insert('authThrottle', { key: 'register', at: now });
+    else await ctx.db.patch(row._id, { at: now });
+    return true;
+  },
+});
+
 export const createSession = internalMutation({
   args: {
     accountId: v.id('accounts'),
@@ -135,6 +154,12 @@ export const resetPassword = internalMutation({
       .withIndex('byAccount', (q) => q.eq('accountId', account._id))
       .collect();
     for (const session of sessions) await ctx.db.delete(session._id);
+
+    const devices = await ctx.db
+      .query('pushSubscriptions')
+      .withIndex('byAccount', (q) => q.eq('accountId', account._id))
+      .collect();
+    for (const device of devices) await ctx.db.delete(device._id);
   },
 });
 

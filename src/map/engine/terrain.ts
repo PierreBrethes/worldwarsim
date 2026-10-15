@@ -4,6 +4,7 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { RegionType } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
+import { mulberry } from '@/domain/mulberry';
 import { onLand } from './frame';
 import { inkedStrands } from './ink';
 import { PALETTE } from './palette';
@@ -454,17 +455,6 @@ export function seed(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return hash;
-}
-
-export function mulberry(seedValue: number): () => number {
-  let state = seedValue >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 const FADE_OUT_S = 0.4;

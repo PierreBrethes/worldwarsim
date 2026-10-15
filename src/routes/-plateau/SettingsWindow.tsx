@@ -45,6 +45,7 @@ export function SettingsWindow({
   seat,
   mayConclude,
   defeated,
+  blitz,
   onClose,
   onShowBriefing,
   ...windowProps
@@ -52,6 +53,7 @@ export function SettingsWindow({
   seat: Seat;
   mayConclude: boolean;
   defeated: boolean;
+  blitz: boolean;
   onShowBriefing: () => void;
 }) {
   const [scale, setScale] = useState(readHudScale);
@@ -299,7 +301,7 @@ export function SettingsWindow({
             })}
           </div>
 
-          <NotificationsSection seat={seat} />
+          <NotificationsSection seat={seat} blitz={blitz} />
 
           {/* La feuille d'entrée en campagne ne se rouvre d'office jamais : c'est ici, et
               nulle part ailleurs, qu'un joueur la retrouve. */}

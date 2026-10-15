@@ -19,11 +19,12 @@ import {
   type Site,
 } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
-import { RESOURCES, type BuildingKey } from '@/domain/ids';
-import type { Cost, PlayerView, SiteRef } from '@/domain/player-view';
-import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
+import type { BuildingKey } from '@/domain/ids';
+import type { PlayerView, SiteRef } from '@/domain/player-view';
+import { BuildingPlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 import type { Seat } from '@/data/session';
+import { CostLine } from './UpgradeControl';
 
 const MIN_WIDTH = 260;
 const MIN_HEIGHT = 200;
@@ -444,33 +445,6 @@ const reasonText = (reason: BuildReason): string =>
   reason.kind === 'coastal'
     ? fr.construction.coastalReason
     : fr.construction.depositReason(fr.deposits[reason.deposit]);
-
-/**
- * The bill in the critical ink when it cannot be paid: the figures are the explanation.
- *
- * The **illustrated plates**, at the height a raise is priced at (`UpgradeControl`): the two
- * verbs bill the same way, and a player who reads a drum on the nation sheet must not have to
- * relearn a silhouette to read the same drum on the map. The rows already carry a building
- * plate at thirty, so the twenty here is the smaller object of a line that was never tight.
- *
- * A plate carries its own ink and takes no tint, so only the figure turns critical — the half
- * that has to: the resource is *what* is missing, the number is *how much*.
- */
-function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
-  return (
-    <span
-      className="flex items-center justify-end gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
-      style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
-    >
-      {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
-        <span key={key} className="flex items-center gap-[4px]">
-          <ResourcePlate resource={key} height={20} />
-          {cost[key]}
-        </span>
-      ))}
-    </span>
-  );
-}
 
 /** The site a region hangs from, named. Ground no living site reaches prints no budget at all
  *  rather than "0 sur 0" — there is nothing there to spend. */

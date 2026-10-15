@@ -156,6 +156,9 @@ describe('isPushEndpoint', () => {
     'https://updates.push.services.mozilla.com/wpush/v2/abc',
     'https://web.push.apple.com/abc',
     'https://wns2-par02p.notify.windows.com/w/?token=abc',
+    /** Chrome, Edge, Brave, Opera, Vivaldi and Samsung Internet push through FCM, Firefox through
+     *  Mozilla autopush, Safari (macOS and iOS) through Apple, Edge on Windows through WNS. */
+    'https://fcm.googleapis.com/wp/abc',
   ])('accepte %s', (endpoint) => {
     expect(isPushEndpoint(endpoint)).toBe(true);
   });
@@ -175,6 +178,10 @@ describe('isPushEndpoint', () => {
     'https://backend/abc',
     'https://dashboard.internal/abc',
     'https://nas.local./abc',
+    'https://127.0.0.1.nip.io/x',
+    'https://evil.example.com/x',
+    'https://fcm.googleapis.com.evil.example.com/x',
+    'https://notfcm.googleapis.com/x',
   ])('refuse %s', (endpoint) => {
     expect(isPushEndpoint(endpoint)).toBe(false);
   });

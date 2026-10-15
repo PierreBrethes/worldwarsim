@@ -36,14 +36,6 @@ export function nearestOutpost<T extends OutpostPoint>(
   }, null);
 }
 
-/** How far the nearest outpost is, in kilometres — `null` when the player has none. */
-export function nearestOutpostKm(
-  target: LonLat,
-  outposts: ReadonlyArray<OutpostPoint>,
-): number | null {
-  return nearestOutpost(target, outposts)?.km ?? null;
-}
-
 /**
  * **Le plus proche des points qui portent jusque-là** — et non le plus proche tout court : deux
  * avant-postes de niveaux différents ne couvrent pas le même cercle, et le plus près peut très

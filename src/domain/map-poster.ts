@@ -14,7 +14,7 @@ import type { CargoView, PlayerView, TroopView } from './player-view';
 import { surveyedAt } from './survey-ink';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 
-export type PosterLine =
+type PosterLine =
   | { readonly kind: 'row'; readonly label: string; readonly value: string }
   | {
       readonly kind: 'chip';

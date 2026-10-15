@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from './geo';
-import { nearestOutpostKm, reachingOutpost, withinReach } from './outposts';
+import { nearestOutpost, reachingOutpost, withinReach } from './outposts';
 
 const BUCHAREST: LonLat = [26.1, 44.43];
 const PRAHOVA: LonLat = [26.01, 45.1];
@@ -8,13 +8,13 @@ const PARIS: LonLat = [2.27, 48.9];
 
 describe('outpost reach', () => {
   it('has none without an outpost', () => {
-    expect(nearestOutpostKm(PRAHOVA, [])).toBeNull();
+    expect(nearestOutpost(PRAHOVA, [])).toBeNull();
     expect(withinReach(PRAHOVA, [])).toBe(false);
   });
 
   it('measures the nearest one, not the first', () => {
-    const km = nearestOutpostKm(PRAHOVA, [{ point: PARIS }, { point: BUCHAREST }]);
-    expect(km).toBeCloseTo(75, 0);
+    const nearest = nearestOutpost(PRAHOVA, [{ point: PARIS }, { point: BUCHAREST }]);
+    expect(nearest?.km).toBeCloseTo(75, 0);
   });
 
   /** The same radius covers a handful of Romanian counties and no French department from

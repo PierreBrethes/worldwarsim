@@ -10,7 +10,7 @@
  * **Saturation has to be visible from across the room.** A full gauge is not a neutral state,
  * it is production being lost every hour, and nothing on screen said so before.
  */
-export const SATURATION_MARK = 0.85;
+const SATURATION_MARK = 0.85;
 
 export function Gauge({
   filled,

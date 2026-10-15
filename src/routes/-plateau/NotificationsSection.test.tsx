@@ -10,7 +10,7 @@ import { NotificationsSection } from './NotificationsSection';
 
 const words = fr.settingsWindow.notifications;
 const seat = { token: 'jeton', seasonId: 'season-1' } as unknown as Seat;
-const ENDPOINT = 'https://push.example/appareil';
+const ENDPOINT = 'https://fcm.googleapis.com/appareil';
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Safari/604.1';
 
 type Environment = {
@@ -20,6 +20,7 @@ type Environment = {
   permission?: NotificationPermission;
   subscribed?: boolean;
   publicKey?: string | null;
+  blitz?: boolean;
 };
 
 /** Le navigateur et le serveur tels que la section les voit : l'API Push est un bouchon, les
@@ -83,7 +84,7 @@ function mount(environment: Environment = {}) {
   } as unknown as ConvexReactClient;
   render(
     <ConvexProvider client={client}>
-      <NotificationsSection seat={seat} />
+      <NotificationsSection seat={seat} blitz={environment.blitz === true} />
     </ConvexProvider>,
   );
   const named = (name: string) =>
@@ -163,4 +164,10 @@ it('laisse les préférences du compte modifiables sans appareil abonné', async
     type: 'sighting',
     enabled: true,
   });
+});
+
+it('ne propose pas l’avant-poste en Blitz, où rien ne se fonde', () => {
+  mount({ blitz: true });
+  expect(screen.queryByRole('checkbox', { name: words.types.outpost })).toBeNull();
+  screen.getByRole('checkbox', { name: words.types.attack });
 });

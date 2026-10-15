@@ -21,6 +21,7 @@ const workName = (key: string, name: string): string =>
   key === 'outpost' ? fr.garrison.raiseWork : (fr.buildings[key as BuildingKey] ?? name);
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
+export type ServerBoard = FunctionReturnType<typeof api.victory.board>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
@@ -30,7 +31,12 @@ export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
 
-export function adaptServerView(world: World, server: ServerView): PlayerView {
+export function adaptServerView(
+  world: World,
+  server: ServerView,
+  /** Servi à part (`victory.board`) : `undefined` tant qu'il n'est pas arrivé. */
+  board?: ServerBoard,
+): PlayerView {
   const countryName = isNation(server.me.nation)
     ? COUNTRY_BY_NATION[server.me.nation]
     : server.me.nation;
@@ -40,13 +46,13 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
   return {
     season: {
       ...server.season,
-      // A deployment one version behind knows no test victory: an empty board rather than an
-      // `undefined` the journal would then index into.
-      reduction: server.season.reduction ?? {
-        target: 1,
-        concludedAt: null,
-        winnerNation: null,
-        standings: [],
+      // Tant que `victory.board` n'est pas arrivé : un tableau vide, que `ReductionLine` tait,
+      // et une cible que personne ne lit sans tableau.
+      reduction: {
+        target: board?.target ?? 1,
+        standings: board?.standings ?? [],
+        concludedAt: server.season.reduction?.concludedAt ?? null,
+        winnerNation: server.season.reduction?.winnerNation ?? null,
       },
       verdict: server.season.verdict ?? null,
     },
@@ -312,9 +318,6 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
   return {
     ...shared,
     state: 'enemyDetected',
-    /** A sentry sees a column go past, not a flag: nothing about the owner is served, and the
-     *  card says nothing rather than guessing. */
-    suspectedNation: null,
     headingAtMe: seen.headingAtMe,
     identification: { pierced: false },
     estimatedMinutesLeft: Math.max(0, (seen.arrivesAt - now) / 60_000),

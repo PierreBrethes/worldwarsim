@@ -8,15 +8,10 @@ import {
   nicknameRefusal,
   normalizeNickname,
   passwordRefusal,
+  REGISTER_MIN_INTERVAL_MS,
 } from '../src/domain/account';
 import { fail } from './errors';
-import { hashPassword, PBKDF2_ITERATIONS, verifyPassword, type PasswordDigest } from './passwords';
-
-const DUMMY_DIGEST: PasswordDigest = {
-  passwordHash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-  salt: 'AAAAAAAAAAAAAAAAAAAAAA',
-  iterations: PBKDF2_ITERATIONS,
-};
+import { hashPassword, verifyPassword } from './passwords';
 
 function sessionToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -34,6 +29,13 @@ export const register = action({
   args: { nickname: v.string(), password: v.string() },
   handler: async (ctx, { nickname, password }) => {
     validateRegistration(nickname, password);
+    if (
+      !(await ctx.runMutation(internal.accounts.claimRegistrationSlot, {
+        intervalMs: REGISTER_MIN_INTERVAL_MS,
+      }))
+    ) {
+      fail('REGISTER_TOO_FAST');
+    }
     const digest = await hashPassword(password);
     const token = sessionToken();
     await ctx.runMutation(internal.accounts.register, {
@@ -54,16 +56,17 @@ export const login = action({
     const snapshot = await ctx.runQuery(internal.accounts.passwordDigest, {
       nicknameKey: nicknameKey(nickname),
     });
+    /** A nickname nobody holds costs no derivation: nicknames are public, so refusing at once
+     *  gives away nothing, and invented ones cannot be turned into CPU. */
+    if (!snapshot) fail('BAD_CREDENTIALS');
     if (
-      snapshot !== null &&
       !(await ctx.runMutation(internal.accounts.claimLoginAttempt, {
         accountId: snapshot.accountId,
       }))
     ) {
       fail('LOGIN_TOO_FAST');
     }
-    const verified = await verifyPassword(password, snapshot ?? DUMMY_DIGEST);
-    if (!snapshot || !verified) fail('BAD_CREDENTIALS');
+    if (!(await verifyPassword(password, snapshot))) fail('BAD_CREDENTIALS');
 
     const token = sessionToken();
     await ctx.runMutation(internal.accounts.createSession, { ...snapshot, token });

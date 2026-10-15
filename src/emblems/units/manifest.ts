@@ -89,7 +89,7 @@ import japanLandTransport from './japan/landTransport.webp';
  * A tiered role exposes both of its levels, the others structurally only have one. The union
  * avoids an optional `tier` field that would end up read on a carrier.
  */
-export type UnitVisual =
+type UnitVisual =
   | { readonly kind: 'single'; readonly url: string }
   | { readonly kind: 'tiered'; readonly tiers: readonly [string, string] };
 

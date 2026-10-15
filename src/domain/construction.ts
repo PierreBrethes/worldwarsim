@@ -42,7 +42,7 @@ export type BuildReason =
  * A running site is no longer one of them: the queue is unbounded and paid at the enqueue
  * (25/08), so a chantier holds back nothing but its own turn.
  */
-export type BuildHold = 'siteSlots' | 'materials';
+type BuildHold = 'siteSlots' | 'materials';
 
 export type BuildOption = {
   readonly key: BuildingKey;
@@ -280,7 +280,7 @@ const pledgedBuildings = (view: PlayerView) =>
 
 /** The regions a construction is aimed at. One entry per region, so this is also the set of
  *  regions no further entry may take (`convex/constructions.ts`). */
-export const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
+const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
   new Set(pledgedBuildings(view).map((work) => work.regionId));
 
 /**

@@ -8,7 +8,7 @@ import { representativeRole } from './troops';
  * plateau : il dit *quoi*, un mouvement, un mât ou un point, et le plateau sait quel marqueur le
  * dessine.
  */
-export type UnderwayPlace =
+type UnderwayPlace =
   | { readonly kind: 'movement'; readonly arcId: string }
   | { readonly kind: 'building'; readonly regionId: string; readonly key: BuildingKey }
   | { readonly kind: 'outpost'; readonly outpostId: string };

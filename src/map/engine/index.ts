@@ -415,6 +415,8 @@ export class MapEngine {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // Redrawn on whole frames only (`FrameDemand`): an ambient step moves no piece.
+    this.renderer.shadowMap.autoUpdate = false;
     // Off by default in three: a site under the crane is cut where its work has reached, by a
     // plane on its own materials (`maquettes.ts`).
     this.renderer.localClippingEnabled = true;
@@ -863,7 +865,8 @@ export class MapEngine {
     ids: ReadonlyArray<string>,
     places: ReadonlyArray<LonLat> = [],
     lift = 0,
-    /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder. */
+    /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder.
+     *  Elle ne fait que rapprocher — déjà plus près, on y reste. */
     distance?: number,
   ): void {
     this.invalidate();
@@ -884,7 +887,11 @@ export class MapEngine {
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
     const arrivalDistance = Math.min(
       this.controls.maxDistance,
-      Math.max(distance ?? currentDistance, framing, this.controls.minDistance),
+      Math.max(
+        Math.min(distance ?? currentDistance, currentDistance),
+        framing,
+        this.controls.minDistance,
+      ),
     );
 
     this.journey = {
@@ -1920,7 +1927,9 @@ export class MapEngine {
     this.advanceReplay(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
-    if (!this.demand.due(now)) return;
+    const reason = this.demand.due(now);
+    if (reason === null) return;
+    const whole = reason !== 'ambient';
     this.ambience.frame();
     // The sun crosses a quarter degree a minute: the heartbeat is enough, no frame is ever asked
     // for the sky alone, and cut motion keeps it — nothing about it is an animation.
@@ -1947,7 +1956,8 @@ export class MapEngine {
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();
-    if (this.lamp.follow(this.controls.target, distance)) {
+    this.renderer.shadowMap.needsUpdate = whole;
+    if (this.lamp.follow(this.controls.target, distance) && whole) {
       for (const root of [
         this.standing.group,
         this.maquettes.group,
@@ -1966,6 +1976,8 @@ export class MapEngine {
     this.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
 
     this.renderer.render(this.scene, this.eye);
+    // The ambience only steps shader uniforms: the labels stand where the last whole frame put them.
+    if (!whole) return;
     const projections = this.labels.project(
       this.eye,
       this.screenWidth,

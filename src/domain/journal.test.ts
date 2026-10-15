@@ -47,7 +47,7 @@ describe('the journal', () => {
     const placed = { ...finished(NOON - HOUR), place: { lon: 2.5, lat: 49.1 } };
     const dispatches = journalDispatches(
       [battle(NOON)],
-      { target: 1, concludedAt: NOON - 3 * HOUR, winnerNation: 'france', standings: [] },
+      { concludedAt: NOON - 3 * HOUR, winnerNation: 'france' },
       [],
       [placed, finished(NOON - 2 * HOUR)],
     );
@@ -342,11 +342,7 @@ describe('the sort a dispatch is stamped with', () => {
   /** Une saison close se relit, elle ne se joue plus : elle n'exige plus rien de personne, donc
    *  pas d'encre rouge — c'est la limite de la règle, et elle se vérifie. */
   it('leaves the concluded season to the plain ink', () => {
-    const [closed] = journalDispatches(
-      [],
-      { target: 1, concludedAt: NOON, winnerNation: 'france', standings: [] },
-      [],
-    );
+    const [closed] = journalDispatches([], { concludedAt: NOON, winnerNation: 'france' }, []);
     expect(closed!.kind).toBe('seasonConcluded');
     expect(isAlarm(closed!.kind)).toBe(false);
   });

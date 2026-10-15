@@ -595,7 +595,7 @@ describe('the defender is warned on his device', () => {
       await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode }));
       await t.mutation(api.notifications.subscribe, {
         token: guest.token,
-        endpoint: 'https://push.example/lea',
+        endpoint: 'https://fcm.googleapis.com/lea',
         p256dh: 'p256dh',
         auth: 'auth',
         userAgent: 'Mozilla/5.0',
