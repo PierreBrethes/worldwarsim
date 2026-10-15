@@ -19,6 +19,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { PilePieces, SpreadPiece } from '@/domain/pile-pieces';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
+import { HOVER_ALTITUDE } from './thread';
 import {
   CONTACT,
   contactShadow,
@@ -155,6 +156,14 @@ export function pickedIn(
   return grip === 'pile' ? pieces.troopIds : (pieces.groups[grip]?.troopIds ?? null);
 }
 
+/** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
+ *  with the pieces, its altitude does not. */
+function hover(object: Object3D): void {
+  const scale = Math.max(object.scale.y, 1e-3);
+  for (const part of object.children)
+    if (part.userData.aloft === true) part.position.y = HOVER_ALTITUDE / scale;
+}
+
 /** The whole pile as one object at board scale, `null` when it is not dressed. `targets` are
  *  what a click is cast at. */
 export function pileObject(
@@ -189,6 +198,16 @@ export function pileObject(
     const text = words.groups[k];
     if (text) addCounter(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
     const group = pieces.groups[k]!;
+    // A plane that never lands hovers over its shadow, as it flew over it on its thread.
+    if (group.aloft) {
+      figurine.object.position.y = HOVER_ALTITUDE;
+      target.position.y = HOVER_ALTITUDE;
+      figurine.object.userData.aloft = true;
+      target.userData.aloft = true;
+      const shadow = contactShadow();
+      shadow.position.x = x;
+      object.add(shadow);
+    }
     // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
     const plume = group.role === 'infantry' ? null : PLUME_BY_WEAR[group.wear];
     if (plume === null) return;
@@ -950,6 +969,7 @@ export class StandingLayer {
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
       object.scale.setScalar(near * pieceScale.troops);
+      hover(object);
     }
     this.orientSpread(cameraPosition);
     this.orientSettle();

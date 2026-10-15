@@ -386,6 +386,38 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
 }
 
 /**
+ * **Les unités d'une pile, en Blitz** (règle de Pierre, 15/10) : une troupe de combat seule, ou
+ * un transport et ce qu'il porte, le transport en tête — deux troupes de combat ne font jamais
+ * une unité. Les sièges sont ceux de `stackRows`, plus ceux du camion (`motorized`) : on n'invente
+ * pas une seconde arithmétique de places.
+ */
+export function unitsOf<T extends { readonly id: string; readonly role: UnitRole }>(
+  troops: ReadonlyArray<T>,
+): ReadonlyArray<ReadonlyArray<T>> {
+  const units: T[][] = [];
+  // One canonical order: the first hull listed takes the passengers, so the map and the hand
+  // must list them alike.
+  const ranked = [...troops].sort(
+    (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
+  );
+  for (const row of stackRows(ranked, new Set(troops.map((troop) => troop.id)))) {
+    if (row.carrier === null) units.push([row.troop]);
+    else units.find((unit) => unit[0] === row.carrier)?.push(row.troop);
+  }
+  const walkers = units.filter((unit) => unit.length === 1 && unit[0]!.role === 'infantry');
+  for (const truck of units.filter((unit) => unit[0]!.role === 'landTransport')) {
+    let seats = LAND_SEATS_PER_TRANSPORT;
+    while (walkers.length > 0 && seats >= (LIFT_COST.infantry ?? 0)) {
+      const walker = walkers.shift()!;
+      truck.push(walker[0]!);
+      units.splice(units.indexOf(walker), 1);
+      seats -= LIFT_COST.infantry ?? 0;
+    }
+  }
+  return units;
+}
+
+/**
  * **Whether that drop would be taken** — asked of the picture itself rather than of a second
  * rule about capacity. A transport whose berths are taken refuses the gesture, and it refuses it
  * on exactly the count the « places » counter prints, because both read the same assignment.

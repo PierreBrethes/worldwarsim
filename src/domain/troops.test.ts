@@ -8,7 +8,9 @@ import {
   stationAtCombat,
   stationGroups,
   troopsAt,
+  unitsOf,
 } from './troops';
+import type { UnitRole } from './ids';
 import type { ArcView, PlayerView, TroopStation, TroopView } from './player-view';
 import { directRoute } from './routing';
 
@@ -241,6 +243,49 @@ describe('stackRows', () => {
 
   it('boards nobody when the only transport lifts nothing', () => {
     expect(shape(['I-1', 'L-1'])).toEqual(['I-1', 'I-2', 'A-1', 'L-1', 'C-1']);
+  });
+});
+
+/** **Une unité** (règle de Pierre, 15/10) : une troupe de combat seule, ou un transport et ce
+ *  qu'il porte — jamais deux troupes de combat ensemble. */
+describe('unitsOf', () => {
+  const units = (...roles: ReadonlyArray<UnitRole>) =>
+    unitsOf(roles.map((role, k) => ({ id: `${role}-${k}`, role }))).map((unit) =>
+      unit.map((member) => member.id),
+    );
+  const shapes = (...roles: ReadonlyArray<UnitRole>) =>
+    unitsOf(roles.map((role, k) => ({ id: String(k), role }))).map((unit) =>
+      unit.map((member) => member.role),
+    );
+
+  it('makes each combat troop its own unit, in the order of the roles', () => {
+    expect(units('infantry', 'infantry')).toEqual([['infantry-0'], ['infantry-1']]);
+    expect(units('escort', 'bomber')).toEqual([['bomber-1'], ['escort-0']]);
+  });
+
+  it('makes a transport and what it carries one unit, the transport first', () => {
+    expect(units('infantry', 'cargo')).toEqual([['cargo-1', 'infantry-0']]);
+    expect(units('airTransport', 'infantry', 'infantry')).toEqual([
+      ['airTransport-0', 'infantry-1', 'infantry-2'],
+    ]);
+  });
+
+  it('leaves alone what no transport seats, and an escort beside a cargo', () => {
+    expect(units('airTransport', 'armor')).toEqual([['armor-1'], ['airTransport-0']]);
+    expect(units('cargo', 'escort', 'infantry')).toEqual([['escort-1'], ['cargo-0', 'infantry-2']]);
+  });
+
+  it('cuts the same units whatever order the troops come in', () => {
+    expect(shapes('carrier', 'cargo', 'infantry')).toEqual(shapes('infantry', 'cargo', 'carrier'));
+    expect(shapes('carrier', 'cargo', 'infantry')).toEqual([['cargo', 'infantry'], ['carrier']]);
+  });
+
+  it('seats infantry in a truck, two to a truck', () => {
+    expect(shapes('landTransport', 'infantry', 'infantry', 'infantry')).toEqual([
+      ['infantry'],
+      ['landTransport', 'infantry', 'infantry'],
+    ]);
+    expect(shapes('landTransport', 'armor')).toEqual([['armor'], ['landTransport']]);
   });
 });
 

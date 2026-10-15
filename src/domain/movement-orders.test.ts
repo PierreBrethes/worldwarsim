@@ -812,8 +812,10 @@ describe('a Blitz order (lot 5)', () => {
   const blitz = (
     roles: ReadonlyArray<UnitRole>,
     held: Partial<NonNullable<Column['blitz']>> = {},
+    standing: Partial<Column> = {},
   ) =>
     column(roles, {
+      ...standing,
       blitz: { theatre: europe, reloading: false, occupiedBuildingIds: new Set(), ...held },
     });
   const paris: MovementAim = { ...point, lon: 2.35, lat: 48.85 };
@@ -832,6 +834,39 @@ describe('a Blitz order (lot 5)', () => {
   it('sends one troop and never two', () => {
     expect(refusalOf('march', paris, blitz(['infantry', 'infantry']))).toBe('ONE_UNIT_ONLY');
     expect(refusalOf('march', paris, blitz(['infantry']))).toBeNull();
+  });
+
+  it('counts units and not roles: a transport leaves with what it carries', () => {
+    const atSea = { ...sea, lon: 4, lat: 52 };
+    expect(
+      refusalOf('march', atSea, blitz(['cargo', 'infantry'], {}, { afloat: true })),
+    ).toBeNull();
+    expect(refusalOf('march', paris, blitz(['landTransport', 'infantry', 'infantry']))).toBeNull();
+    expect(refusalOf('march', atSea, blitz(['cargo', 'escort'], {}, { afloat: true }))).toBe(
+      'ONE_UNIT_ONLY',
+    );
+  });
+
+  it('keeps a plane in the air: it leaves from where it is, without an airfield', () => {
+    expect(refusalOf('march', paris, blitz(['bomber']))).toBeNull();
+    expect(refusalOf('march', paris, column(['bomber']))).toBe('NO_AIRFIELD_AT_DEPARTURE');
+  });
+
+  it('still takes its passengers aboard and sets them down at an airfield only', () => {
+    const airfield: MovementAim = { kind: 'building', buildingId: 'b1', key: 'airfield' };
+    expect(refusalOf('march', airfield, blitz(['airTransport', 'infantry']))).toBe(
+      'NO_AIRFIELD_AT_DEPARTURE',
+    );
+    const fromAirfield = blitz(
+      ['airTransport', 'infantry'],
+      {},
+      {
+        departureBuildings: new Set<BuildingKey>(['airfield']),
+      },
+    );
+    expect(refusalOf('march', paris, fromAirfield)).toBe('AIRFIELD_TARGET_REQUIRED');
+    expect(refusalOf('march', airfield, fromAirfield)).toBeNull();
+    expect(refusalOf('march', paris, blitz(['airTransport']))).toBeNull();
   });
 
   it('aims nowhere outside its theatre', () => {

@@ -1,6 +1,6 @@
 import type { UnitRole, UnitTier } from './ids';
 import type { ArcView, TroopView } from './player-view';
-import { DOMAIN_BY_ROLE, ROLE_ORDER, type UnitDomain } from './troops';
+import { DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
 
 /**
  * Une pile posée se lit en groupes de figurines (ADR 0026 §5). La règle vit ici, pure, pour que
@@ -20,6 +20,8 @@ type PieceGroup = {
   /** Marks of the figures that stand, front first. */
   readonly figures: ReadonlyArray<UnitTier>;
   readonly wear: Wear;
+  /** **En Blitz, un avion reste en l'air** (décision de Pierre, 15/10) : posé, il plane. */
+  readonly aloft?: true;
 };
 
 export type PilePieces = {
@@ -114,6 +116,30 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
         };
       }),
     ),
+  };
+}
+
+/**
+ * **En Blitz, une pièce par unité** (règle de Pierre, 15/10) : deux fantassins au même point se
+ * tiennent côte à côte et se lèvent chacun ; un transport se dessine pour ses passagers, qui
+ * partent avec lui. Rien ne se déploie : la pièce est déjà l'unité.
+ */
+export function unitPieces(troops: ReadonlyArray<PileTroop>): PilePieces {
+  return {
+    groups: unitsOf(troops).map((unit) => {
+      const [face] = bucketsOf(unit.slice(0, 1)) as [Bucket];
+      return {
+        role: face.role,
+        troops: 1,
+        troopIds: unit.map((t) => t.id),
+        figures: figuresOf(face),
+        wear: wearOf(face.ratio),
+        ...(DOMAIN_BY_ROLE[face.role] === 'air' ? { aloft: true as const } : {}),
+      };
+    }),
+    more: 0,
+    troopIds: troops.map((t) => t.id),
+    spread: [],
   };
 }
 

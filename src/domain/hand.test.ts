@@ -83,31 +83,49 @@ describe('composeHand', () => {
   });
 });
 
-describe('clickPile in a Blitz (one unit at a time)', () => {
-  const single = { single: true };
+describe('clickPile in a Blitz: one piece per unit (15/10)', () => {
+  /** Deux fantassins côte à côte, et un cargo avec son passager. */
+  const units = { units: [['i1'], ['i2'], ['c1', 'p1']] };
 
-  it('lifts the troop clicked, never the whole pile', () => {
-    expect(clickPile(empty, pile(['t1', 't2']), single)).toEqual({
+  it('lifts the unit whose piece is clicked, a transport with its passengers', () => {
+    expect(clickPile(empty, pile(['i2']), units)).toEqual({ kind: 'lift', hand: held(['i2']) });
+    expect(clickPile(empty, pile(['c1', 'p1']), units)).toEqual({
       kind: 'lift',
-      hand: held(['t1']),
+      hand: held(['c1', 'p1']),
     });
   });
 
-  it('puts it back on a second click', () => {
-    expect(clickPile(held(['t1']), pile(['t1', 't2']), single)).toEqual({ kind: 'drop' });
-  });
-
-  it('swaps for another troop standing at the same address', () => {
-    expect(clickPile(held(['t1']), pile(['t2']), single)).toEqual({
+  it('puts it back on a second click, and swaps for another unit of the same address', () => {
+    expect(clickPile(held(['i2']), pile(['i2']), units)).toEqual({ kind: 'drop' });
+    expect(clickPile(held(['i1']), pile(['i2']), units)).toEqual({
       kind: 'lift',
-      hand: held(['t2']),
+      hand: held(['i2']),
     });
   });
 
-  it('composes nothing', () => {
-    expect(composeHand(held(['t1']), ['t1', 't2'], single)).toEqual({
+  it('walks the units of an address from its label, then puts the last back', () => {
+    const label = pile(['i1', 'i2', 'c1', 'p1']);
+    expect(clickPile(empty, label, units)).toEqual({ kind: 'lift', hand: held(['i1']) });
+    expect(clickPile(held(['i1']), label, units)).toEqual({ kind: 'lift', hand: held(['i2']) });
+    expect(clickPile(held(['i2']), label, units)).toEqual({
       kind: 'lift',
-      hand: held(['t2']),
+      hand: held(['c1', 'p1']),
+    });
+    expect(clickPile(held(['c1', 'p1']), label, units)).toEqual({ kind: 'drop' });
+  });
+
+  it('ticks a transport with its passengers, a passenger alone to land it', () => {
+    expect(composeHand(held(['i1']), ['i1', 'c1'], units)).toEqual({
+      kind: 'lift',
+      hand: held(['c1', 'p1']),
+    });
+    expect(composeHand(held(['c1', 'p1']), ['p1'], units)).toEqual({
+      kind: 'lift',
+      hand: held(['p1']),
+    });
+    expect(composeHand(held(['p1']), ['p1', 'i2'], units)).toEqual({
+      kind: 'lift',
+      hand: held(['i2']),
     });
   });
 });

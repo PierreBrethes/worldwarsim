@@ -126,6 +126,70 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(minutes).toBeLessThan(8);
   });
 
+  it('sends a transport with what it carries, never two combat troops', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const dogger = { lon: 2.5, lat: 54.5 };
+    const heligoland = { lon: 6.5, lat: 54.6 };
+    const cargo = await troop(t, seat, dogger, 'cargo');
+    const infantry = await troop(t, seat, dogger, 'infantry');
+    const escort = await troop(t, seat, dogger, 'escort');
+    const origin = { kind: 'point' as const, point: dogger };
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin,
+        troopIds: [cargo, escort],
+        point: heligoland,
+      }),
+    ).rejects.toThrow(/ONE_UNIT_ONLY/);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin,
+      troopIds: [cargo, infantry],
+      point: heligoland,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(point(await troopRow(t, cargo))).toEqual(point(await troopRow(t, infantry)));
+    expect(point(await troopRow(t, cargo))).toEqual([heligoland.lon, heligoland.lat]);
+  });
+
+  it('keeps a plane in the air: it flies again from where it stopped', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const bomber = await troop(t, seat, PARIS, 'bomber');
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: PARIS },
+      troopIds: [bomber],
+      point: LYON,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(point(await troopRow(t, bomber))).toEqual([LYON.lon, LYON.lat]);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: LYON },
+      troopIds: [bomber],
+      point: PARIS,
+    });
+    expect(await movementOf(t, bomber)).toBeDefined();
+  });
+
+  it('flies no passenger off a field: one boards by air at an airfield only', async () => {
+    const t = boot();
+    const { seat } = await blitz(t);
+    const plane = await troop(t, seat, PARIS, 'airTransport');
+    const rider = await troop(t, seat, PARIS, 'infantry');
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'point', point: PARIS },
+        troopIds: [plane, rider],
+        point: LYON,
+      }),
+    ).rejects.toThrow(/NO_AIRFIELD_AT_DEPARTURE/);
+  });
+
   it('keeps one unit per building', async () => {
     const t = boot();
     const { seat } = await blitz(t);
