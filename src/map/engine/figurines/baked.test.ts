@@ -16,7 +16,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { bakedFigurine } from './figurine';
-import { JOINTS, squadOf } from './infantry';
+import { JOINTS, squadOf, stride } from './infantry';
 
 type Gltf = {
   nodes: ReadonlyArray<{
@@ -186,6 +186,26 @@ describe.runIf(files.length > 0)('baked figurines', () => {
     expect(meshesOf(baked).length).toBeLessThan(meshesOf(scene).length);
 
     if (role === 'infantry') {
+      // A joint's pose replaces its own rotation: whatever turns above it (a leaning torso)
+      // must still turn it once baked.
+      const marchers = [scene, baked].map((made) =>
+        squadOf([{ make: () => made.clone(true), marches: true }]),
+      );
+      for (const seconds of [0, 0.13]) {
+        for (const squad of marchers) {
+          stride(squad, seconds);
+          squad.updateMatrixWorld(true);
+        }
+        for (const joint of JOINTS) {
+          const [was, is] = marchers.map((squad) => squad.getObjectByName(joint));
+          if (was === undefined) continue;
+          const drift = was.matrixWorld.elements.map((value, k) =>
+            Math.abs(value - is!.matrixWorld.elements[k]!),
+          );
+          expect(Math.max(...drift), `${joint} at ${seconds}s`).toBeLessThan(1e-5);
+        }
+      }
+
       const squad = squadOf([{ make: () => baked.clone(true), marches: true }]);
       const man = squad.children[0]!;
       for (const joint of JOINTS.filter((joint) => scene.getObjectByName(joint)))

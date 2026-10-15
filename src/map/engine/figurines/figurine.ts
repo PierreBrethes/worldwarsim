@@ -92,14 +92,25 @@ export function bakedFigurine(scene: Object3D): Group {
     if (node === scene) return;
     if (movesOnItsOwn(node)) {
       const above = pivotOf(node.parent!);
+      // A pose replaces the joint's own rotation: what turned above it and is merged away (a
+      // leaning torso) rides on a carrier, or the arms would swing square to the hips.
+      let holder = pivots.get(above)!.group;
+      if (node.parent !== above) {
+        const carrier = new Group();
+        new Matrix4()
+          .copy(above.matrixWorld)
+          .invert()
+          .multiply(node.parent!.matrixWorld)
+          .decompose(carrier.position, carrier.quaternion, carrier.scale);
+        holder.add(carrier);
+        holder = carrier;
+      }
       const group = new Group();
       group.name = node.name;
-      new Matrix4()
-        .copy(above.matrixWorld)
-        .invert()
-        .multiply(node.matrixWorld)
-        .decompose(group.position, group.quaternion, group.scale);
-      pivots.get(above)!.group.add(group);
+      group.position.copy(node.position);
+      group.quaternion.copy(node.quaternion);
+      group.scale.copy(node.scale);
+      holder.add(group);
       pivots.set(node, { group, meshes: [] });
     }
     if ((node as Mesh).isMesh) pivots.get(pivotOf(node))!.meshes.push(node as Mesh);
