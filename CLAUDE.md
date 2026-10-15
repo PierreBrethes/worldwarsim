@@ -644,7 +644,9 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 - une **ambiance** qui tourne sans fin (mer, vent) est une couche d'`Ambience` (`ambience.ts`) :
   elle déclare sa cadence (`hz`, 12 par défaut), reçoit un temps quantifié à ce pas, figé hors
   `full`, et le socle demande **une** image par pas (`FrameDemand.request`) — jamais
-  `invalidate()`, qui tiendrait la carte à 60 i/s ;
+  `invalidate()`, qui tiendrait la carte à 60 i/s. **Cette image est partielle** (15/10/2026,
+  `FrameDemand.due` rend `'ambient'`) : ni carte d'ombres ni étiquettes refaites — une ambiance
+  ne change que des uniformes ou des sprites, jamais une pièce qui porte ombre ni une étiquette ;
 - un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
   `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
   `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
