@@ -1,6 +1,5 @@
 import {
   BufferGeometry,
-  Color,
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
@@ -19,7 +18,16 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { HELD_OPACITY, lavis, nationShades, PALETTE, PEN_OPACITY, penOn } from './palette';
+import {
+  HELD_OPACITY,
+  lavis,
+  nationShades,
+  PALETTE,
+  PEN_DEPTH,
+  PEN_OPACITY,
+  penOn,
+} from './palette';
+import { splitOutlines } from './countries';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
 
@@ -43,8 +51,6 @@ const STROKE_LIFT = 0.003;
 /** Under everything else the layer draws: possession is the ground the rest is laid on, and a
  *  region that carries a building must still show the denser built ink over its holder's. */
 const HELD_LIFT = 0.0005;
-/** The held contour is the holder's ink pushed darker, so it stays a line on its own lavis. */
-const OUTLINE_DEPTH = 0.45;
 const OUTLINE_LIFT = STROKE_LIFT;
 const OUTLINE_PX = 2;
 /** **La hachure passe sous la couleur pleine** (ADR 0020 §7) : une région disputée revenue au
@@ -72,7 +78,7 @@ const DESIGNATED_OPACITY = 0.62;
  */
 export type HeldClaim = {
   readonly ink: string;
-  /** A held region drawn in a solid ink contour, so a lone territory never reads as a lake. */
+  /** The up-to-date holding is traced in a solid pen contour, so a lone territory never reads as a lake. */
   readonly outlined?: boolean;
   readonly regions: ReadonlyArray<{
     readonly id: string;
@@ -470,8 +476,12 @@ export class RegionLayer {
         // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
         fill.receiveShadow = true;
         this.held.add(fill);
-        if (claim.outlined === true && state !== 'suspended')
-          this.held.add(this.holdOutline(claim.ink, ids));
+      }
+      if (claim.outlined === true) {
+        const current = new Set(
+          claim.regions.filter(({ state }) => state === 'current').map(({ id }) => id),
+        );
+        if (current.size > 0) this.held.add(this.holdOutline(claim.ink, current));
       }
     }
   }
@@ -485,25 +495,16 @@ export class RegionLayer {
   }
 
   private holdOutline(ink: string, ids: ReadonlySet<string>): LineSegments2 {
-    const points: number[] = [];
-    for (const { region } of this.prepared) {
-      if (!ids.has(region.id)) continue;
-      for (const ring of region.rings) {
-        for (let i = 0; i < ring.length; i++) {
-          const [ax, ay] = ring[i]!;
-          const [bx, by] = ring[(i + 1) % ring.length]!;
-          points.push(
-            ...this.frame.toWorld(ax, ay, COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
-            ...this.frame.toWorld(bx, by, COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
-          );
-        }
-      }
-    }
+    const rings = this.prepared.flatMap(({ region }) => (ids.has(region.id) ? [region.rings] : []));
+    const points = splitOutlines(rings).coast.flatMap(([from, to]) => [
+      ...this.frame.toWorld(from[0], from[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
+      ...this.frame.toWorld(to[0], to[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
+    ]);
     const geometry = new LineSegmentsGeometry();
     geometry.setPositions(points);
     const material = onLand(
       new LineMaterial({
-        color: new Color(ink).multiplyScalar(OUTLINE_DEPTH),
+        color: lavis('#000000', PEN_DEPTH, ink),
         linewidth: OUTLINE_PX,
         transparent: true,
         depthWrite: false,

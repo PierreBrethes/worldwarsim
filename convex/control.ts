@@ -5,7 +5,7 @@ import type { Id } from './_generated/dataModel';
 import { knownRegions, type KnownRegion } from '../src/domain/control';
 import { nationInk } from '../src/domain/nations';
 import { isStanding } from '../src/domain/outposts';
-import { isBlitz } from './blitz';
+import { modeOf } from '../src/domain/season-mode';
 import { homeGroundsOf, occupationsOf, soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionFacts, regionsOf } from './regions';
@@ -59,7 +59,7 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** **Son sol, et le sien seul.** Il n'a pas besoin de s'observer lui-même : une nation n'est
    *  jamais annexée (ADR 0004), donc rien ne peut s'y périmer. Le sol des autres, lui, se
    *  relève comme n'importe quel sol — savoir qui joue l'Allemagne ne dit pas où elle tient. */
-  const home = (await isBlitz(ctx, seasonId)) ? null : homeCountryOf(player.nation);
+  const home = modeOf(season.mode) === 'blitz' ? null : homeCountryOf(player.nation);
 
   /** **Ce qu'une de ses portées couvre à l'instant**, lu sur ses propres index et rien d'autre :
    *  il est sur place, donc la date n'y apprendrait rien et la couleur y reste franche. */
