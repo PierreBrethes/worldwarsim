@@ -189,8 +189,8 @@ export function Protractor({
         type="button"
         aria-expanded={open}
         aria-controls={ROUNDS_ID}
-        aria-label={open ? fr.protractor.close : fr.protractor.open(waiting)}
-        title={open ? fr.protractor.close : fr.protractor.open(waiting)}
+        aria-label={open ? fr.protractor.close : fr.protractor.open(waiting, view.mode === 'blitz')}
+        title={open ? fr.protractor.close : fr.protractor.open(waiting, view.mode === 'blitz')}
         onClick={() => setOpen((shown) => !shown)}
         className="protractor-hub float flex cursor-pointer flex-col items-center justify-center gap-[3px] bg-[var(--ink)] text-[var(--paper)]"
       >

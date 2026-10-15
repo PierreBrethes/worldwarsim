@@ -91,7 +91,15 @@ const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + la
 const upperFirst = (label: string): string => label.charAt(0).toUpperCase() + label.slice(1);
 
 /** L'élision devant une voyelle — `l’alliage` et jamais `le alliage`. */
-const startsWithVowel = (word: string): boolean => 'aeiouyâàéèêîôû'.includes(word.charAt(0));
+const startsWithVowel = (word: string): boolean =>
+  'aeiouyâàäéèêëîïôöûüœ'.includes(word.charAt(0).toLowerCase());
+
+/** `de Paris`, `d’essai-nuit-a` — a free-form name (nickname, region) after `de`. */
+export const ofName = (name: string): string =>
+  startsWithVowel(name) ? `d’${name}` : `de ${name}`;
+
+/** `une` before a feminine noun, where `spelled(1)` says `un`. */
+const spelledFeminine = (count: number): string => (count === 1 ? 'une' : spelled(count));
 
 /** One decimal at most, and never a trailing `.0`: rates come out of a settlement, not a table. */
 const tenths = (value: number): string => String(Math.round(value * 10) / 10);
@@ -963,7 +971,7 @@ export const fr = {
     ],
     reply: 'répondre',
     takeSeat: (founder: string) =>
-      founder === '' ? 'Prendre place à la table' : `Prendre place à la table de ${founder}`,
+      founder === '' ? 'Prendre place à la table' : `Prendre place à la table ${ofName(founder)}`,
     alreadySeated: 'déjà à table',
     yourSeat: (others: number) =>
       others === 0
@@ -989,7 +997,7 @@ export const fr = {
 
   /** **La une de mon édition** (`/accueil`) : mes parties en articles, triés par urgence. */
   home: {
-    edition: (nickname: string) => `le monde en jeu — édition de ${nickname}`,
+    edition: (nickname: string) => `le monde en jeu — édition ${ofName(nickname)}`,
     tagline: 'deux façons de faire la guerre entre amis — une soirée, ou une semaine',
     gamesCount: (count: number) => `${num(count)} partie${plural(count, '', 's')}`,
     onTheFront: 'à la une',
@@ -1311,7 +1319,7 @@ export const fr = {
     allReadyFounder: (founder: string) => `Toute la table est prête : ${founder} peut lancer.`,
     waitYourNation: (blitz: boolean) => (blitz ? 'votre drapeau' : 'votre nation'),
     waitNationOf: (nickname: string, blitz: boolean) =>
-      `${blitz ? 'le drapeau' : 'la nation'} de ${nickname}`,
+      `${blitz ? 'le drapeau' : 'la nation'} ${ofName(nickname)}`,
     waitAtTable: (nickname: string) => `${nickname} à la table`,
     waitReady: (count: number) => `${spelled(count)} « prêt »`,
     waitSecond: 'un deuxième joueur',
@@ -1383,7 +1391,7 @@ export const fr = {
       regrets: 'indications de service : regrets',
       valid: 'valable jusqu’au lancement',
       file: 'à classer',
-      tableOf: (founder: string) => `table de ${founder}`,
+      tableOf: (founder: string) => `table ${ofName(founder)}`,
       filedAt: (at: number) =>
         new Intl.DateTimeFormat('fr-FR', {
           day: '2-digit',
@@ -1412,7 +1420,7 @@ export const fr = {
         when === null ? 'Rendez-vous dès que la table est complète' : `Rendez-vous ${when}`,
         seats.taken === null
           ? `${spelled(seats.cap)} places STOP nations identiques`
-          : `${spelled(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
+          : `${spelledFeminine(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
         'Soyez présent à l’heure',
       ],
       mondialeLines: ({
@@ -1430,7 +1438,7 @@ export const fr = {
         `Capture d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
         seats.taken === null
           ? `Jusqu’à ${spelled(seats.cap)} places STOP choisissez votre nation`
-          : `${spelled(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
+          : `${spelledFeminine(seats.taken)} place${plural(seats.taken, '', 's')} prise${plural(seats.taken, '', 's')} sur ${spelled(seats.cap)}`,
       ],
     },
     /** **Chaque refus de `joinRefusalOf` a son télégramme et son issue** (choix 19). */
@@ -1957,8 +1965,8 @@ export const fr = {
    */
   protractor: {
     label: 'menu du plateau',
-    open: (waiting: number) =>
-      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, chantiers, journal, presse, télégraphe, réglages`,
+    open: (waiting: number, blitz = false) =>
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, presse, télégraphe, réglages`,
     close: 'refermer le menu',
     closeShort: 'fermer',
     works: 'chant.',
@@ -2397,11 +2405,11 @@ export const fr = {
       captureStarted: (site: string, until: string) =>
         `Notre infanterie tient ${site} : capture vers ${until}.`,
       captureThreat: (site: string, until: string) =>
-        `${site} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
+        `${upperFirst(site)} est en cours de capture : perdu vers ${until} si personne ne l’en chasse.`,
       hqThreat: (site: string, until: string) =>
-        `${site} est en cours de capture : QG perdu vers ${until}, et sa chute nous élimine. Chassez l’infanterie qui le tient.`,
-      captured: (site: string) => `${site} est à nous : capture achevée.`,
-      siteLost: (site: string) => `${site} a été capturé — il n’est plus à nous.`,
+        `${upperFirst(site)} est en cours de capture : QG perdu vers ${until}, et sa chute nous élimine. Chassez l’infanterie qui le tient.`,
+      captured: (site: string) => `${upperFirst(site)} est à nous : capture achevée.`,
+      siteLost: (site: string) => `${upperFirst(site)} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>
         `Capture de ${site} abandonnée : plus aucune infanterie à nous sur place.`,
       captureLifted: (site: string) => `La capture de ${site} est levée.`,
@@ -2823,6 +2831,8 @@ export const fr = {
     estimatedLoot: 'butin estimé au relevé',
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
     initiative: 'vous frappez en premier',
+    neutralCover:
+      'Site neutre : personne n’y est relevé en garnison, donc aucune passe. L’infanterie le tient à l’arrivée et la capture commence.',
     /** Ce que la cible encaissera, selon ce qu'on vise : le seul avantage de la défense est un
      *  mur (C1), et il protège sans tirer. */
     cover: {
@@ -3570,10 +3580,14 @@ export const fr = {
       contactRadiusKm: number,
       outpostReachKm: number,
       hand: { readonly finger: boolean; readonly phone: boolean; readonly mapping: MouseMapping },
+      blitz = false,
     ) => {
       const act = hand.finger
         ? 'toucher net'
         : fr.mapUi.mouse.click[buttonOfRole(hand.mapping, 'act')];
+      const regions = blitz
+        ? 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on désigne un sol.'
+        : 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.';
       return [
         hand.finger
           ? {
@@ -3582,7 +3596,7 @@ export const fr = {
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
                 'Touchez une de vos piles pour la lever : sa fiche s’ouvre au pied. Touchez la carte pour la poser, la pile pour la reposer. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
-                'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
+                regions,
               ],
             }
           : {
@@ -3593,39 +3607,55 @@ export const fr = {
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
                 `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
-                'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
+                regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
               ],
             },
         {
           title: 'Lire le terrain',
           lines: [
-            'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
-            'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
+            ...(blitz
+              ? []
+              : [
+                  'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
+                ]),
+            blitz
+              ? 'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments adverses, ni colonnes au-delà de votre portée.'
+              : 'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
             `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
             `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
-            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
-            'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
-            `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
+            ...(blitz
+              ? []
+              : [
+                  `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
+                  'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
+                  `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
+                ]),
           ],
         },
         hand.phone
           ? {
               title: 'Vos bureaux',
               lines: [
-                'Au pied de l’écran : chantiers, journal, « à faire », presse, télégraphe. Une entrée ouverte se referme d’un second toucher.',
+                `Au pied de l’écran : ${blitz ? '' : 'chantiers, '}journal, « à faire », presse, télégraphe. Une entrée ouverte se referme d’un second toucher.`,
                 'Le drapeau du bandeau ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
                 '« En cours », sous le bandeau : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
-                '« À faire » : vos poses offertes et tout ce qui attend un ordre.',
+                blitz
+                  ? '« À faire » : tout ce qui attend un ordre.'
+                  : '« À faire » : vos poses offertes et tout ce qui attend un ordre.',
               ],
             }
           : {
               title: 'Vos bureaux',
               lines: [
-                'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
-                '« À faire maintenant », en bas à gauche : tout ce qui attend un ordre, l’ordre de mobilisation en tête — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.',
+                ...(blitz
+                  ? []
+                  : [
+                      'Économie, dans la colonne de gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
+                    ]),
+                `« À faire maintenant », en bas à gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
                 'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
-                'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
+                'Télégraphe, dans la colonne de gauche : le canal général de la saison — tout le monde y lit tout le monde.',
               ],
             },
       ];

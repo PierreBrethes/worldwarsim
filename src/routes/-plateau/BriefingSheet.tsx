@@ -75,6 +75,7 @@ export function BriefingSheet({
                   phone,
                   mapping,
                 },
+                theatre !== null,
               )
               .map((column) => (
                 <Column key={column.title} title={column.title} lines={column.lines} />

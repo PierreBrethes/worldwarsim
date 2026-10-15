@@ -12,7 +12,7 @@ const words = fr.settingsWindow.notifications;
  * navigateur depuis le clic, puis abonne. Celles du bas sont le compte, modifiables même quand cet
  * appareil n'est pas abonné.
  */
-export function NotificationsSection({ seat }: { seat: Seat }) {
+export function NotificationsSection({ seat, blitz }: { seat: Seat; blitz: boolean }) {
   const device = usePushDevice(seat);
   const preferences = useQuery(api.notifications.preferences, { token: seat.token });
   const setPreference = useMutation(api.notifications.setPreference);
@@ -52,7 +52,7 @@ export function NotificationsSection({ seat }: { seat: Seat }) {
       <div className="mt-[14px] text-[13.5px] text-[var(--ink)]">{words.typesLabel}</div>
       <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">{words.typesNote}</p>
       <div className="mt-[8px] flex flex-col gap-[6px]">
-        {PUSH_TYPES.map((type) => (
+        {PUSH_TYPES.filter((type) => !(blitz && type === 'outpost')).map((type) => (
           <label
             key={type}
             className="flex items-baseline gap-[10px] text-[12.5px] text-[var(--ink)]"
