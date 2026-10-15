@@ -151,7 +151,7 @@ export const notInBlitz = (mode: SeasonMode): 'NOT_IN_BLITZ' | null =>
  *
  * @a-mesurer the decision says 15 to 20 minutes; nothing has played one yet
  */
-export const BLITZ_CROSSING_MINUTES = 18;
+const BLITZ_CROSSING_MINUTES = 18;
 
 export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   const { west, south, east, north } = theatre.box;

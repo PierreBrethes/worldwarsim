@@ -11,7 +11,7 @@ type PileTroop = Pick<TroopView, 'id' | 'role' | 'tier' | 'strength' | 'nominalS
 
 export type Wear = 'whole' | 'smoking' | 'burning';
 
-export type PieceGroup = {
+type PieceGroup = {
   readonly role: UnitRole;
   /** Troops of this role in the pile — the ×N counter shows when > 1. */
   readonly troops: number;

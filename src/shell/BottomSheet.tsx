@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { fr } from '@/i18n/fr';
 import { useSoleSurface } from './sole-surface';
 
-export const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
+const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
 
 export type SheetHeight = (typeof SHEET_HEIGHTS)[number];
 

@@ -98,8 +98,7 @@ export function presenceOf(seenAt: number | null, now: number): Presence {
   return { kind: 'away', minutes: Math.floor((now - seenAt) / 60_000) };
 }
 
-export type LaunchRefusal =
-  'NOT_ENOUGH_PLAYERS' | 'BLITZ_FULL' | 'PLAYERS_NOT_READY' | 'PLAYERS_ABSENT';
+type LaunchRefusal = 'NOT_ENOUGH_PLAYERS' | 'BLITZ_FULL' | 'PLAYERS_NOT_READY' | 'PLAYERS_ABSENT';
 
 export type LaunchPlan =
   | { readonly refusal: null }

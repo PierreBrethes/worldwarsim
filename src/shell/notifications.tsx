@@ -9,7 +9,7 @@ import { fr } from '@/i18n/fr';
  */
 export type NotificationTone = 'error' | 'info';
 
-export type Notification = {
+type Notification = {
   readonly id: number;
   readonly message: string;
   readonly tone: NotificationTone;
@@ -37,7 +37,7 @@ export function notify(message: string, tone: NotificationTone = 'error'): void 
   if (tone === 'info') setTimeout(() => dismissNotification(id), INFO_MILLISECONDS);
 }
 
-export function dismissNotification(id: number): void {
+function dismissNotification(id: number): void {
   notifications = notifications.filter((notification) => notification.id !== id);
   for (const subscriber of subscribers) subscriber();
 }

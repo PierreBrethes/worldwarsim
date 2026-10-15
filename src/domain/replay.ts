@@ -44,7 +44,7 @@ export function stepBounds(step: ReplayStep): { start: number; end: number } {
   return { start, end: start + STEP_MS[step] };
 }
 
-export type PieceFate = 'standing' | 'fallen' | 'routed';
+type PieceFate = 'standing' | 'fallen' | 'routed';
 
 /**
  * One troop on the table. `progress` is how far its fate has played, 0..1 — a fall or a retreat

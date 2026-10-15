@@ -83,7 +83,7 @@ const withinFrame = (frame: Frame | null, offset: Offset): Offset =>
       };
 
 /** A grab that a click on a control must not start: a close button stays a button. */
-export const onControl = (event: PointerEventReact<HTMLElement>): boolean =>
+const onControl = (event: PointerEventReact<HTMLElement>): boolean =>
   (event.target as HTMLElement).closest('button, a, input, select, textarea, details') !== null;
 
 /**

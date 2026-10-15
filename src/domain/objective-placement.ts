@@ -54,7 +54,7 @@ export type ObjectiveMeasure = {
   } | null;
 };
 
-export type PlacedObjective = { readonly key: string; readonly regionId: string };
+type PlacedObjective = { readonly key: string; readonly regionId: string };
 
 /**
  * Le plan complet : ce qui se pose, et les paires que la géographie prive de leur objectif

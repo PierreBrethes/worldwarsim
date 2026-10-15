@@ -4237,7 +4237,7 @@ export function countryLabel(adm0: string): string {
 }
 
 /** « Blitz · Europe » ou « Mondiale » : le mode d'une saison, et son théâtre quand elle en a un. */
-export const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
+const modeSummary = (mode: SeasonMode, theatre: string | null): string =>
   fr.modes.summary(
     fr.modes[mode].name,
     theatre === null ? null : ((fr.modes.theatres as Record<string, string>)[theatre] ?? theatre),

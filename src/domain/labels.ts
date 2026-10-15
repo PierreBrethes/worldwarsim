@@ -303,7 +303,7 @@ export type LabelAnchor =
  * `BuildingHandle` et ce n'en sera jamais un : un relevé n'a pas de niveau, et l'inventer pour
  * réutiliser la forme d'à côté ferait dire au brouillard ce qu'il ne sait pas.
  */
-export type InstallationHandle = {
+type InstallationHandle = {
   readonly id: string;
   readonly key: Exclude<BuildingKey, 'depot'>;
   readonly regionId: string;
@@ -312,7 +312,7 @@ export type InstallationHandle = {
 };
 
 /** A standing building, as a label hands it to whoever acts on it. */
-export type BuildingHandle = {
+type BuildingHandle = {
   readonly id: string;
   readonly key: BuildingKey;
   readonly regionId: string;
@@ -483,7 +483,7 @@ export function abbreviateStack(stack: Stack): string {
     .join(' · ');
 }
 
-export const stackHeadcount = (stack: Stack): number =>
+const stackHeadcount = (stack: Stack): number =>
   Object.values(stack).reduce((sum, count) => sum + count, 0);
 
 export function buildLabels(
@@ -569,7 +569,7 @@ export const captureSiteName = (capture: Pick<CaptureView, 'site' | 'regionName'
  * pas une destination (décision 4a du 13/09), et un drapeau au bout du tronçon la suggérerait.
  * Le nom voyage en ligne de nature : c'est lui que le bord de l'écran annonce, hors champ.
  */
-export function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
+function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
   if (arc.state !== 'mine') return null;
   return {
     id: `arrival-${arc.id}`,
