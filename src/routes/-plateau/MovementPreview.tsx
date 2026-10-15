@@ -138,6 +138,7 @@ export function MovementPreview({
   choices,
   onChoose,
   at,
+  from,
   preview,
   slots,
   originName,
@@ -156,6 +157,8 @@ export function MovementPreview({
   choices: ReadonlyArray<OrderChoice>;
   onChoose: (choice: OrderChoice) => void;
   at: { x: number; y: number };
+  /** Where the pile stands on the screen: the card keeps to the far side of it. */
+  from: { x: number; y: number } | null;
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
   preview: Previewed | undefined;
   /** `null` en Blitz : il n'y a pas de slots (B5). */
@@ -480,12 +483,15 @@ export function MovementPreview({
     );
   }
 
-  /** **Away from the road**: the route comes in from the middle of the table, so the card goes
-   *  to the outer side of the pose whenever the screen has room for it. */
-  const outward =
-    at.x <= window.innerWidth / 2 ? at.x > CARD_ROOM : window.innerWidth - at.x > CARD_ROOM;
-  const fromRight = outward === at.x <= window.innerWidth / 2;
-  const fromBottom = at.y > window.innerHeight / 2;
+  /** **Away from the road**: the card sits on the side of the pose opposite the pile, so the
+   *  thread between them stays in view, and flips only where the screen has no room. */
+  const farSide = from ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const roomLeft = at.x > CARD_ROOM;
+  const roomRight = window.innerWidth - at.x > CARD_ROOM;
+  const fromRight = farSide.x > at.x ? roomLeft || !roomRight : !roomRight && roomLeft;
+  const roomAbove = at.y > CARD_HEIGHT;
+  const roomBelow = window.innerHeight - at.y > CARD_HEIGHT;
+  const fromBottom = farSide.y > at.y ? roomAbove || !roomBelow : !roomBelow && roomAbove;
 
   return (
     <div
@@ -591,6 +597,9 @@ const HOLD_MS = 700;
 
 /** What the desk card needs beside the pose, its width and a gap, before it may go outward. */
 const CARD_ROOM = 236 + 18;
+
+/** What its height takes under or over the pose, the room the vertical side needs. */
+const CARD_HEIGHT = 320;
 
 /** Ce que met la jauge à se vider quand le doigt lâche avant la fin : visible, pas traînant. */
 const RELEASE_MS = 240;

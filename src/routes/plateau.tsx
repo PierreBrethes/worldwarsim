@@ -454,6 +454,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
   /** De quoi nommer la région d'une pile, dès que la carte a chargé ses régions. */
   const [regionAt, setRegionAt] = useState<RegionAt | null>(null);
+  const [screenOf, setScreenOf] = useState<ScreenOf | null>(null);
+  const keepScreenOf = useCallback((lookup: ScreenOf) => setScreenOf(() => lookup), []);
   const keepRegionAt = useCallback((lookup: RegionAt) => setRegionAt(() => lookup), []);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
@@ -2131,6 +2133,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCountryHover={setHoveredCountry}
               onRegionHover={setHoveredRegion}
               onRegionsLoaded={keepRegionAt}
+              onScreenOf={keepScreenOf}
               onArcHover={setHoveredArc}
               onLabelHover={setHoveredLabel}
               poster={poster}
@@ -2317,6 +2320,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   )
                 }
                 at={order}
+                from={
+                  screenOf === null
+                    ? null
+                    : screenOf(stationPointOf(view.me, column.station) ?? view.me.homePosition)
+                }
                 preview={preview}
                 slots={blitz ? null : view.me.slots}
                 originName={stationNames(view).place(column.station)}
@@ -3029,3 +3037,5 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
   key === 'listening' && point !== undefined
     ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
     : null;
+
+type ScreenOf = (lonLat: LonLat) => { x: number; y: number } | null;

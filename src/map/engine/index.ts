@@ -1361,6 +1361,16 @@ export class MapEngine {
    * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
    * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
    */
+  screenOf(lonLat: LonLat): { x: number; y: number } | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const at = this.frame.projectLonLat(lonLat).project(this.eye);
+    if (at.z > 1) return null;
+    return {
+      x: rect.left + ((at.x + 1) / 2) * this.screenWidth,
+      y: rect.top + ((1 - at.y) / 2) * this.screenHeight,
+    };
+  }
+
   pieceRect(labelId: string): Rect | null {
     const box =
       this.standing.boxOf(labelId) ??

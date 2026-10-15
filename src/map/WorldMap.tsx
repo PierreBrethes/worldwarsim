@@ -157,6 +157,8 @@ type Props = {
    * point, par la même lecture que le survol. Un cartouche de pile en a besoin, et il est écrit
    * au plateau, pas ici.
    */
+  /** Where a place stands on the screen, for what must keep clear of a route. */
+  onScreenOf?: (screenOf: (lonLat: LonLat) => { x: number; y: number } | null) => void;
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
@@ -317,6 +319,7 @@ export function WorldMap({
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
+  onScreenOf,
   onArcHover,
   onLabelHover,
   poster,
@@ -348,6 +351,10 @@ export function WorldMap({
   useEffect(() => {
     regionsLoaded.current = onRegionsLoaded;
   }, [onRegionsLoaded]);
+  const screenOfSink = useRef(onScreenOf);
+  useEffect(() => {
+    screenOfSink.current = onScreenOf;
+  }, [onScreenOf]);
   const engine = useRef<MapEngine | null>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
   /** Une rose rouverte est une autre rose : elle se mesure et se recale à son tour. */
@@ -376,6 +383,7 @@ export function WorldMap({
     // The board does not wait for these 500 KB, and their failure is mute — but the possession
     // colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
+    screenOfSink.current?.((lonLat) => instance.screenOf(lonLat));
     loadRegions()
       .then((data) => {
         if (abandoned) return;

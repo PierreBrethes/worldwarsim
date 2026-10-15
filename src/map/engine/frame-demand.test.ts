@@ -72,6 +72,7 @@ describe('every public method of the engine asks for a frame', () => {
   const READ_ONLY: ReadonlySet<string> = new Set([
     'invalidate',
     'pieceRect',
+    'screenOf',
     'subscribeRest',
     'cameraDistance',
     'atZoomFloor',
