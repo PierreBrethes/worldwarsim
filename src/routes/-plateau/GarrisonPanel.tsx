@@ -78,6 +78,8 @@ export function GarrisonPanel({
   );
   const [error, setError] = useState<string | null>(null);
   const respecialize = useMutation(api.movements.respecialize);
+  const disembark = useMutation(api.movements.disembark);
+  const [ashoreError, setAshoreError] = useState<string | null>(null);
 
   const building =
     station.kind === 'building'
@@ -207,7 +209,17 @@ export function GarrisonPanel({
             observing={view.me.defeated}
             onPrepare={onPrepare}
             onPickedChange={onPickedChange}
+            onDisembark={(troopIds) => {
+              setAshoreError(null);
+              disembark({
+                ...seat,
+                troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+              }).catch((problem: unknown) => handleError(problem, setAshoreError));
+            }}
           />
+          {ashoreError !== null && (
+            <p className="mt-[6px] text-[11px] text-[var(--critical)]">{ashoreError}</p>
+          )}
         </div>
 
         {/** **On ne monte pas ce qui n'est pas debout** : un chantier n'a pas de niveau à

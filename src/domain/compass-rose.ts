@@ -1372,10 +1372,13 @@ function build(
        */
       const razes =
         standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
+      /** Un transport garé là débarque ce qu'il porte, au clic droit sur sa figurine (15/10). */
+      const off = disembarkAt({ kind: 'building', buildingId: target.id }, view, composition);
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
         actions: [
+          ...(off?.action == null ? [] : [off.action]),
           ...(raise?.action == null ? [] : [raise.action]),
           ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),

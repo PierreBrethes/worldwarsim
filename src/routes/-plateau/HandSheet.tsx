@@ -157,6 +157,7 @@ export function HandSheet({
           canPrepare
           observing={false}
           onPickedChange={onCompose}
+          onDisembark={onDisembark}
         />
       </div>
       {!supplied && (

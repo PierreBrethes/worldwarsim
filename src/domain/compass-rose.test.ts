@@ -9,6 +9,7 @@ const view = {
   me: {
     nation: 'france',
     slots: { total: 4, used: 1 },
+    troops: [],
     outposts: [
       {
         id: 'AP-01',
