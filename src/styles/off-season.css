@@ -18,14 +18,16 @@
     --float-hi: 0 22px 48px rgb(0 0 0 / 52%);
     --gutter: 20px;
 
+    /* La page défile ici et pas dans le document : `body` est en `overflow: hidden` pour le
+       plateau, et un `.os` qui grandit au-delà de l'écran y était coupé sans barre. */
     position: relative;
-    min-height: 100%;
+    height: 100%;
     overflow-x: hidden;
+    overflow-y: auto;
     background: var(--desk);
     color: var(--ink);
     font: 14px/1.35 var(--ui);
     font-variant-numeric: tabular-nums;
-    overflow-x: hidden;
     button,
     input,
     select {
