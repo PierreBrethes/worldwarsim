@@ -92,7 +92,10 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     const mending = held.filter((troop) => troop.mending).length;
     return {
       ...plain,
-      eyebrow: fr.troops.sheetKicker,
+      eyebrow: fr.troops.sheetKicker(
+        held.length,
+        held.some((troop) => troop.strength < troop.nominalStrength),
+      ),
       title: natureOf(label),
       lines: [
         ...waitingChips(held, now),
