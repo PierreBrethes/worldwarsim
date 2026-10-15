@@ -156,6 +156,14 @@ export function pickedIn(
   return grip === 'pile' ? pieces.troopIds : (pieces.groups[grip]?.troopIds ?? null);
 }
 
+/** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
+ *  with the pieces, its altitude does not. */
+function hover(object: Object3D): void {
+  const scale = Math.max(object.scale.y, 1e-3);
+  for (const part of object.children)
+    if (part.userData.aloft === true) part.position.y = HOVER_ALTITUDE / scale;
+}
+
 /** The whole pile as one object at board scale, `null` when it is not dressed. `targets` are
  *  what a click is cast at. */
 export function pileObject(
@@ -194,6 +202,8 @@ export function pileObject(
     if (group.aloft) {
       figurine.object.position.y = HOVER_ALTITUDE;
       target.position.y = HOVER_ALTITUDE;
+      figurine.object.userData.aloft = true;
+      target.userData.aloft = true;
       const shadow = contactShadow();
       shadow.position.x = x;
       object.add(shadow);
@@ -959,6 +969,7 @@ export class StandingLayer {
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
       object.scale.setScalar(near * pieceScale.troops);
+      hover(object);
     }
     this.orientSpread(cameraPosition);
     this.orientSettle();
