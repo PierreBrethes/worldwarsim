@@ -685,6 +685,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  la modale fermait la visée qu'il venait de diriger sur ce mât — un port ne pouvait plus
        *  être visé du doigt. */
       if (narrow && column !== null) return;
+      /** **En Blitz, un bâtiment qui tient une de mes unités la lève** (retour de Pierre, 15/10) :
+       *  il ne recrute pas tant qu'elle y est (U6), et l'unité sortie d'une formation n'avait
+       *  qu'une porte, la modale, ses cases puis « préparer ». */
+      if (blitz && !view.me.defeated) {
+        const station: TroopStation = { kind: 'building', buildingId };
+        const [unit] = unitsOf(troopsAt(view.me, stationKeyOf(station), marching));
+        if (unit !== undefined) {
+          liftHand({ kind: 'held', station, troopIds: unit.map((troop) => troop.id) });
+          return;
+        }
+      }
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
@@ -713,7 +724,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, view.mode, marching, narrow, column],
+    [
+      navigate,
+      openGarrison,
+      boardPoint,
+      view.me,
+      view.mode,
+      marching,
+      narrow,
+      column,
+      blitz,
+      liftHand,
+    ],
   );
 
   /**
