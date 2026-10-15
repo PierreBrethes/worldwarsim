@@ -76,7 +76,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
-import { playedTheatre } from '@/domain/theatres';
+import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
 import {
@@ -1728,21 +1728,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * **Un joueur sans quartier général n'a rien sur la carte**, et la carte s'ouvre sur le monde
    * entier : il lui faudrait trouver son pays avant de pouvoir poser quoi que ce soit. La caméra
    * va donc à `me.openingPoint` — la capitale de 1940, seul point qu'on connaisse de lui tant
-   * qu'il n'a rien bâti (décision 1b du 13/09), ou le centre du théâtre en Blitz —, servi par le
-   * serveur parce que la table vit avec l'index
-   * des régions, côté serveur.
+   * qu'il n'a rien bâti (décision 1b du 13/09) —, servi par le serveur parce que la table vit
+   * avec l'index des régions, côté serveur. **Une Blitz cadre son QG**, que le serveur sert au
+   * même champ et que la carte de départ pose au lancement, un quart du théâtre autour
+   * (`openingFrameOf`) : la distance nulle laisse ce cadre décider.
    *
    * Une seule fois, et jamais après la pose : un recadrage qui reviendrait à chaque vue reprendrait
    * la caméra des mains du joueur.
    */
-  const framedOnCapital = useRef(false);
+  const framedOnOpening = useRef(false);
   useEffect(() => {
-    if (framedOnCapital.current || view.me.hqLevel > 0) return;
-    const opening = view.me.openingPoint;
-    if (opening === null) return;
-    framedOnCapital.current = true;
-    setFocus({ ids: [], places: [opening], nonce: Date.now() });
-  }, [view.me.hqLevel, view.me.openingPoint]);
+    if (framedOnOpening.current) return;
+    const places = openingFrameOf({
+      theatre: blitzTheatre,
+      hqLevel: view.me.hqLevel,
+      openingPoint: view.me.openingPoint,
+    });
+    if (places === null) return;
+    framedOnOpening.current = true;
+    setFocus({
+      ids: [],
+      places,
+      ...(blitzTheatre === null ? {} : { distance: 0 }),
+      nonce: Date.now(),
+    });
+  }, [blitzTheatre, view.me.hqLevel, view.me.openingPoint]);
 
   const editionServed = useRef(false);
   useEffect(() => {
@@ -1968,11 +1978,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
   const focusBuilding = useCallback(
-    (regionId: string, key: string) => {
+    (regionId: string, key: string, distance?: number) => {
       const point = view.me.regions.find((region) => region.id === regionId)?.point;
+      const at = distance === undefined ? {} : { distance };
       if (!toggles.buildings && point !== undefined)
-        setFocus({ ids: [], places: [point], nonce: Date.now() });
-      else setFocus({ ids: [buildingLabelId({ regionId, key })], nonce: Date.now() });
+        setFocus({ ids: [], places: [point], ...at, nonce: Date.now() });
+      else setFocus({ ids: [buildingLabelId({ regionId, key })], ...at, nonce: Date.now() });
     },
     [view.me.regions, toggles.buildings],
   );
@@ -1989,12 +2000,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /** **Le chemin du retour** : le quartier général, ou la capitale de 1940 tant qu'il n'est pas
-   *  posé — le même repli que le cadrage d'ouverture. */
+   *  posé — le même repli que le cadrage d'ouverture. Demandé, il rapproche : on rentre chez soi
+   *  pour y lire ses pièces, pas pour revoir le monde autour. */
   const recenterOnHome = useCallback(() => {
     const hq = view.me.buildings.find((building) => building.key === 'hq');
-    if (hq !== undefined) focusBuilding(hq.regionId, 'hq');
+    if (hq !== undefined) focusBuilding(hq.regionId, 'hq', DISPATCH_VIEW_DISTANCE);
     else if (view.me.capitalPoint !== null)
-      setFocus({ ids: [], places: [view.me.capitalPoint], nonce: Date.now() });
+      setFocus({
+        ids: [],
+        places: [view.me.capitalPoint],
+        distance: DISPATCH_VIEW_DISTANCE,
+        nonce: Date.now(),
+      });
   }, [view.me.buildings, view.me.capitalPoint, focusBuilding]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
@@ -2070,6 +2087,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               playerNation={view.me.nation}
               indicators={toggles}
               accentedMovement={hoveredMovement}
+              underRouteScale={
+                orderError !== null && !narrow && !windows.includes('journal') ? (
+                  <div className="hud border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
+                    {orderError}
+                  </div>
+                ) : undefined
+              }
               onSelect={aimingOnPhone ? keepSelection : select}
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
@@ -2306,18 +2330,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onClose={() => setOpenedReport(null)}
               />
             )}
-            {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
-            cartouche la porte (décision du 30/08). Pas en haut à gauche : l'échelle de route d'un
-            mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
-            {orderError !== null && (
+            {/* Le refus d'un ordre reste affiché jusqu'au geste suivant, la main toujours levée.
+            **Plus rien n'y dit la visée** — le cartouche la porte (décision du 30/08). Au bureau il
+            s'empile sous l'échelle du trajet, au coin droit (`underRouteScale`) ; ici, seulement au
+            téléphone et quand le journal tient la marge droite (piste 1c) : centré en haut. */}
+            {orderError !== null && (narrow || windows.includes('journal')) && (
               <div
-                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] left-1/2 -translate-x-1/2 ${
                   narrow
-                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)] left-1/2 -translate-x-1/2'
-                    : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
-                      windows.includes('journal')
-                      ? 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 -translate-x-1/2'
-                      : 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] right-4'
+                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)]'
+                    : 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)]'
                 }`}
               >
                 {orderError}
@@ -2540,8 +2562,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 }
 
 /**
- * **D'où l'on regarde le lieu d'une dépêche** : assez près pour lire les régions et les mâts
- * autour — la place d'une passe est un lieu, pas un continent.
+ * **D'où l'on regarde le lieu d'une dépêche**, et son QG quand on y rentre : assez près pour lire
+ * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
 

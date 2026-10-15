@@ -865,7 +865,8 @@ export class MapEngine {
     ids: ReadonlyArray<string>,
     places: ReadonlyArray<LonLat> = [],
     lift = 0,
-    /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder. */
+    /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder.
+     *  Elle ne fait que rapprocher — déjà plus près, on y reste. */
     distance?: number,
   ): void {
     this.invalidate();
@@ -886,7 +887,11 @@ export class MapEngine {
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
     const arrivalDistance = Math.min(
       this.controls.maxDistance,
-      Math.max(distance ?? currentDistance, framing, this.controls.minDistance),
+      Math.max(
+        Math.min(distance ?? currentDistance, currentDistance),
+        framing,
+        this.controls.minDistance,
+      ),
     );
 
     this.journey = {

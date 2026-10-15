@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BLITZ_SHARE, contactKm, detectionRangeOf } from '../../convex/constants';
-import { theatreById, theatreKm } from './theatres';
+import { openingFrameOf, theatreById, theatreKm } from './theatres';
 
 const europe = theatreById('europe')!;
 const pacific = theatreById('pacific')!;
@@ -26,5 +26,33 @@ describe('une distance de Blitz, part de l’étendue de son théâtre (A2)', ()
   it('laisse la Mondiale à ses kilomètres', () => {
     expect(contactKm(null)).toBe(25);
     expect(detectionRangeOf(['infantry', 'fighter'], null)).toBe(150);
+  });
+});
+
+describe('le cadrage d’ouverture du plateau', () => {
+  it('cadre le QG d’une Blitz, servi par le serveur, avec un quart du théâtre autour', () => {
+    expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: [16, 53] })).toEqual([
+      [16, 53],
+      [1.75, 43.5],
+      [30.25, 62.5],
+    ]);
+  });
+
+  it('reste centré sur le QG de part et d’autre de l’antiméridien', () => {
+    const [hq, low, high] = openingFrameOf({
+      theatre: pacific,
+      hqLevel: 1,
+      openingPoint: [170, 0],
+    })!;
+    expect([(low![0] + high![0]) / 2, (low![1] + high![1]) / 2]).toEqual(hq);
+    expect(high![0]).toBeGreaterThan(180);
+  });
+
+  it('va à la capitale d’une Mondiale sans QG, et nulle part une fois le QG posé', () => {
+    expect(openingFrameOf({ theatre: null, hqLevel: 0, openingPoint: [2.35, 48.85] })).toEqual([
+      [2.35, 48.85],
+    ]);
+    expect(openingFrameOf({ theatre: null, hqLevel: 1, openingPoint: [2.35, 48.85] })).toBeNull();
+    expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: null })).toBeNull();
   });
 });
