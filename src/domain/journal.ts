@@ -1,6 +1,6 @@
 import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
-import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
+import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
@@ -343,10 +343,7 @@ function written(notice: Notice): Written {
     case 'captureCancelled': {
       const site =
         notice.site.kind === 'building'
-          ? fr.capture.buildingSite(
-              fr.buildings[canonicalBuildingKey(notice.site.building)],
-              notice.regionName ?? '',
-            )
+          ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
           : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {

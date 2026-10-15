@@ -2260,6 +2260,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 strength={view.me.troops
                   .filter((troop) => column.troopIds.includes(troop.id))
                   .reduce((sum, troop) => sum + troop.strength, 0)}
+                neutralTarget={neutralTargetOf(view, order)}
                 choice={order}
                 choices={order.choices}
                 onChoose={(choice) =>
@@ -2508,6 +2509,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       seat={seat}
                       mayConclude={view.me.mayConclude}
                       defeated={view.me.defeated}
+                      blitz={blitz}
                       onShowBriefing={showBriefing}
                       {...windowProps}
                     />
@@ -2518,6 +2520,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}
+              blitz={blitz}
               onDismiss={() => {
                 markBriefingSeen();
                 setBriefing(false);
@@ -2677,6 +2680,15 @@ function Loading() {
  * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
  * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
  */
+/** Un site neutre de Blitz n'a pas de garnison : l'aperçu n'y annonce ni initiative ni riposte. */
+function neutralTargetOf(view: PlayerView, { aim, mission }: OrderChoice): boolean {
+  return (
+    mission.kind === 'capture' &&
+    aim.kind === 'building' &&
+    view.neutralSites.some((site) => site.id === aim.buildingId)
+  );
+}
+
 function choiceOf(action: OrderAction): OrderChoice {
   const said = { label: action.label, consequence: action.consequence };
   switch (action.key) {
