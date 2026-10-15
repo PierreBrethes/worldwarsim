@@ -35,7 +35,7 @@ export function SurfaceColumn({
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const blitz = view.mode === 'blitz';
   const playing = view.season.reduction.concludedAt === null;
-  const rank = view.press?.mine?.rank ?? null;
+  const rank = blitz ? null : (view.press?.mine?.rank ?? null);
 
   const square = (
     name: BoardWindow,
