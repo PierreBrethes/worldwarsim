@@ -3,7 +3,7 @@ import { fr, stackLabel } from '@/i18n/fr';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
-import { isHqSite, progressAt } from './capture';
+import { capturingAt, isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
@@ -78,15 +78,7 @@ function captureOn(label: MapLabel, view: PlayerView) {
   if (line !== undefined && line.role === 'capture') return line;
   const station = label.type === 'stack' ? label.station : null;
   if (station?.kind !== 'point') return null;
-  return (
-    view.captures.find(
-      (capture) =>
-        capture.side === 'capturer' &&
-        capture.stoppedAt === null &&
-        capture.point[0] === station.lonLat[0] &&
-        capture.point[1] === station.lonLat[1],
-    ) ?? null
-  );
+  return capturingAt(view.captures, station.lonLat) ?? null;
 }
 
 function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null {

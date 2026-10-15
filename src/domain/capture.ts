@@ -127,3 +127,17 @@ function afterActive(from: number, active: number, rest: TimeWindow | null): num
     instant = end;
   }
 }
+
+/** The capture a side is running at a point, unless it has stopped: the one reading of "this
+ *  troop is busy capturing", for the idle list and the poster alike. */
+export function capturingAt<
+  C extends { side: string; stoppedAt: number | null; point: readonly [number, number] },
+>(captures: ReadonlyArray<C>, point: readonly [number, number]): C | undefined {
+  return captures.find(
+    (capture) =>
+      capture.side === 'capturer' &&
+      capture.stoppedAt === null &&
+      capture.point[0] === point[0] &&
+      capture.point[1] === point[1],
+  );
+}
