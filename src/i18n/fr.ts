@@ -515,6 +515,7 @@ export const fr = {
     NICKNAME_TAKEN: () => 'ce pseudo est déjà utilisé',
     BAD_CREDENTIALS: () => 'pseudo ou mot de passe incorrect',
     LOGIN_TOO_FAST: () => 'une tentative toutes les trois secondes — patientez un instant',
+    REGISTER_TOO_FAST: () => 'trop d’inscriptions à la fois — réessayez dans un instant',
     ACCOUNT_NOT_FOUND: () => 'compte introuvable',
     SESSION_TOKEN_COLLISION: () => 'impossible de créer la session — réessayez',
     UNKNOWN_SESSION: () => 'session expirée — reconnectez-vous',

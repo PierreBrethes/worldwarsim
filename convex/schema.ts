@@ -73,6 +73,12 @@ export default defineSchema({
     loginAttemptAt: v.optional(v.number()),
   }).index('byNicknameKey', ['nicknameKey']),
 
+  /** **Le dernier passage de l'inscription** (clé `register`, une seule ligne). */
+  authThrottle: defineTable({
+    key: v.string(),
+    at: v.number(),
+  }).index('byKey', ['key']),
+
   sessions: defineTable({
     accountId: v.id('accounts'),
     /** L'empreinte du jeton quand `hashed` est vrai, le jeton lui-même sur une ligne d'avant

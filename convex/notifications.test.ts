@@ -80,8 +80,8 @@ async function lobby(t: Bench) {
 /** Une saison lancée, les deux joueurs abonnés d'un appareil chacun. */
 async function launchedSeason(t: Bench) {
   const { seat, guest } = await lobby(t);
-  await subscribe(t, seat, 'https://push.example/pierre');
-  await subscribe(t, guest, 'https://push.example/lea');
+  await subscribe(t, seat, 'https://fcm.googleapis.com/pierre');
+  await subscribe(t, guest, 'https://fcm.googleapis.com/lea');
   await t.mutation(api.seasons.launch, seat);
   await advance(t, 2 * MINUTE);
   const objectives = await t.run(async (ctx) => ctx.db.query('objectives').collect());
@@ -176,22 +176,22 @@ describe('les abonnements', () => {
   it('rattachent un appareil au compte, avec un libellé lisible', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
-    await subscribe(t, seat, 'https://push.example/a');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/a');
 
     expect(
       await t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/a',
+        endpoint: 'https://fcm.googleapis.com/a',
       }),
     ).toBe(true);
     expect(
       await t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/b',
+        endpoint: 'https://fcm.googleapis.com/b',
       }),
     ).toBe(false);
     expect(await t.query(api.notifications.devices, { token: seat.token })).toMatchObject([
-      { endpoint: 'https://push.example/a', deviceLabel: 'Chrome sur Android' },
+      { endpoint: 'https://fcm.googleapis.com/a', deviceLabel: 'Chrome sur Android' },
     ]);
   });
 
@@ -199,19 +199,19 @@ describe('les abonnements', () => {
     const t = boot();
     const { seat, code } = await foundSeat(t, 'Pierre');
     const guest = await joinSeat(t, code, 'Léa');
-    await subscribe(t, seat, 'https://push.example/shared');
-    await subscribe(t, guest, 'https://push.example/shared');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/shared');
+    await subscribe(t, guest, 'https://fcm.googleapis.com/shared');
 
     expect(
       await t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/shared',
+        endpoint: 'https://fcm.googleapis.com/shared',
       }),
     ).toBe(false);
     expect(
       await t.query(api.notifications.subscribed, {
         token: guest.token,
-        endpoint: 'https://push.example/shared',
+        endpoint: 'https://fcm.googleapis.com/shared',
       }),
     ).toBe(true);
     expect(
@@ -223,26 +223,26 @@ describe('les abonnements', () => {
     const t = boot();
     const { seat, code } = await foundSeat(t, 'Pierre');
     const guest = await joinSeat(t, code, 'Léa');
-    await subscribe(t, seat, 'https://push.example/a');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/a');
 
     await t.mutation(api.notifications.unsubscribe, {
       token: guest.token,
-      endpoint: 'https://push.example/a',
+      endpoint: 'https://fcm.googleapis.com/a',
     });
     expect(
       await t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/a',
+        endpoint: 'https://fcm.googleapis.com/a',
       }),
     ).toBe(true);
     await t.mutation(api.notifications.unsubscribe, {
       token: seat.token,
-      endpoint: 'https://push.example/a',
+      endpoint: 'https://fcm.googleapis.com/a',
     });
     expect(
       await t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/a',
+        endpoint: 'https://fcm.googleapis.com/a',
       }),
     ).toBe(false);
   });
@@ -250,17 +250,17 @@ describe('les abonnements', () => {
   it('partent avec la déconnexion de l’appareil, et de lui seul', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
-    await subscribe(t, seat, 'https://push.example/phone');
-    await subscribe(t, seat, 'https://push.example/laptop');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/phone');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/laptop');
 
     await t.mutation(api.accounts.logout, {
       token: seat.token,
-      endpoint: 'https://push.example/phone',
+      endpoint: 'https://fcm.googleapis.com/phone',
     });
     const left = await t.run(async (ctx) =>
       (await ctx.db.query('pushSubscriptions').collect()).map((row) => row.endpoint),
     );
-    expect(left).toEqual(['https://push.example/laptop']);
+    expect(left).toEqual(['https://fcm.googleapis.com/laptop']);
   });
 
   it('donnent toutes les préférences cochées, et gardent ce qu’on décoche', async () => {
@@ -290,8 +290,8 @@ describe('ce qui entre dans la file', () => {
   it('saison : le lancement, pour chaque joueur assis', async () => {
     const t = boot();
     const { seat, guest } = await lobby(t);
-    await subscribe(t, seat, 'https://push.example/pierre');
-    await subscribe(t, guest, 'https://push.example/lea');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/pierre');
+    await subscribe(t, guest, 'https://fcm.googleapis.com/lea');
     await t.mutation(api.seasons.launch, seat);
 
     expect(await types(t, seat)).toEqual(['season']);
@@ -373,7 +373,9 @@ describe('ce qui entre dans la file', () => {
     const engagement = (await t.run(async (ctx) => ctx.db.query('engagements').first()))!;
     await advance(t, MINUTE);
 
-    const toGuest = webpush.sent.filter((entry) => entry.endpoint === 'https://push.example/lea');
+    const toGuest = webpush.sent.filter(
+      (entry) => entry.endpoint === 'https://fcm.googleapis.com/lea',
+    );
     expect(toGuest).toHaveLength(1);
     /** La colonne relevée en approche part dans la même minute : le résumé la compte, et
      *  l'adresse mène quand même à la seule attaque du lot. Le corps ne nomme personne. */
@@ -485,7 +487,7 @@ describe('ce qui entre dans la file', () => {
     });
     await t.mutation(api.notifications.unsubscribe, {
       token: guest.token,
-      endpoint: 'https://push.example/lea',
+      endpoint: 'https://fcm.googleapis.com/lea',
     });
 
     await enqueue(t, seat, 'attack');
@@ -498,6 +500,22 @@ describe('ce qui entre dans la file', () => {
 });
 
 describe('le vidage', () => {
+  it('révoque sans l’appeler un abonnement dont l’adresse n’est plus d’un service connu', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      const [device] = await ctx.db.query('pushSubscriptions').collect();
+      await ctx.db.patch(device!._id, { endpoint: 'https://127.0.0.1.nip.io/x' });
+    });
+    webpush.sent.length = 0;
+    await enqueue(t, seat, 'attack');
+    await advance(t, MINUTE);
+
+    expect(webpush.sent.map((entry) => entry.endpoint)).not.toContain('https://127.0.0.1.nip.io/x');
+    const left = await t.run((ctx) => ctx.db.query('pushSubscriptions').collect());
+    expect(left.map((row) => row.endpoint)).not.toContain('https://127.0.0.1.nip.io/x');
+  });
+
   it('groupe ce qui arrive dans la même minute en une seule notification', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
@@ -509,7 +527,7 @@ describe('le vidage', () => {
     await advance(t, MINUTE);
 
     expect(webpush.sent).toHaveLength(1);
-    expect(webpush.sent[0]!.endpoint).toBe('https://push.example/pierre');
+    expect(webpush.sent[0]!.endpoint).toBe('https://fcm.googleapis.com/pierre');
     expect(webpush.sent[0]!.payload).toMatchObject({
       title: 'La Manchette',
       body: '3 alarmes : une passe de résolution, un avant-poste désactivé ou détruit, une colonne relevée.',
@@ -637,7 +655,7 @@ describe('le vidage', () => {
     const subscribed = () =>
       t.query(api.notifications.subscribed, {
         token: seat.token,
-        endpoint: 'https://push.example/pierre',
+        endpoint: 'https://fcm.googleapis.com/pierre',
       });
 
     webpush.failWith = 500;
@@ -665,7 +683,13 @@ describe('le vidage', () => {
   it('refuse une adresse que le serveur n’a pas à appeler', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
-    for (const endpoint of ['http://push.example/a', 'https://10.0.0.5/a', 'https://backend/a']) {
+    for (const endpoint of [
+      'http://fcm.googleapis.com/a',
+      'https://10.0.0.5/a',
+      'https://backend/a',
+      'https://127.0.0.1.nip.io/a',
+      'https://evil.example.com/a',
+    ]) {
       await expect(subscribe(t, seat, endpoint)).rejects.toThrow('PUSH_ENDPOINT_INVALID');
     }
     expect(await t.query(api.notifications.devices, { token: seat.token })).toEqual([]);
@@ -676,18 +700,18 @@ describe('le vidage', () => {
     const { seat } = await foundSeat(t, 'Pierre');
     for (let rank = 0; rank < 12; rank += 1) {
       vi.setSystemTime(NOON + rank * MINUTE);
-      await subscribe(t, seat, `https://push.example/${rank}`);
+      await subscribe(t, seat, `https://fcm.googleapis.com/${rank}`);
     }
     const kept = await t.query(api.notifications.devices, { token: seat.token });
     expect(kept.map((device) => device.endpoint).sort()).toEqual(
-      Array.from({ length: 10 }, (_, rank) => `https://push.example/${rank + 2}`).sort(),
+      Array.from({ length: 10 }, (_, rank) => `https://fcm.googleapis.com/${rank + 2}`).sort(),
     );
   });
 
   it('ne laisse partir qu’un essai à la fois', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
-    await subscribe(t, seat, 'https://push.example/pierre');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/pierre');
     await t.mutation(api.notifications.sendTest, { token: seat.token });
     await t.mutation(api.notifications.sendTest, { token: seat.token });
     await drain(t);
@@ -702,7 +726,7 @@ describe('le vidage', () => {
   it('envoie la notification d’essai sans passer par la file', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
-    await subscribe(t, seat, 'https://push.example/pierre');
+    await subscribe(t, seat, 'https://fcm.googleapis.com/pierre');
     await t.mutation(api.notifications.sendTest, { token: seat.token });
     await drain(t);
 

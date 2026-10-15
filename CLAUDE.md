@@ -327,8 +327,10 @@ servir** (`SESSION_IDLE_MS`) ; c'est le plateau ouvert qui la tient en vie (`pla
 leurs abonnements aux notifications (`accounts.logoutOthers`). La connexion n'examine qu'**une
 tentative toutes les trois secondes par pseudo** (`LOGIN_TOO_FAST`, `LOGIN_MIN_INTERVAL_MS`) :
 une pause et jamais un verrouillage — les pseudos sont publics, et une tentative refusée ne
-repousse pas la suivante. Elle ne protège pas le CPU d'essais sur des pseudos inconnus : cela
-reste l'affaire d'une limite par IP au proxy.
+repousse pas la suivante. Un pseudo inconnu ne coûte aucune dérivation (refus immédiat, les pseudos
+sont publics) ; l'inscription est bornée globalement, une toutes les 250 ms (`REGISTER_TOO_FAST`,
+`accounts.claimRegistrationSlot`, une ligne de `authThrottle`). Une récupération de mot de passe ferme aussi les abonnements push,
+et un endpoint de push doit être d'un service connu (`isPushEndpoint`, liste blanche de domaines).
 
 **Et une invitation est un lien** (02/10/2026, lot A du plan marque et site) : `/rejoindre/CODE`,
 publique — la porte de `__root.tsx` l'ouvre par la **même** condition que `/connexion`
