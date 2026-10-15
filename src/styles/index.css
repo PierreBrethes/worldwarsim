@@ -237,7 +237,7 @@ body {
 
 /* Le coin pivote, pas sa forme : un quart de cercle tourné montrerait ses bords droits. */
 .protractor-hub > * {
-  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 240ms var(--ease-out);
 }
 
 .protractor[data-open] .protractor-hub > * {
@@ -249,7 +249,7 @@ body {
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 200ms ease;
+  transition: opacity var(--dur-base) ease;
 }
 
 .protractor[data-open] .protractor-arc {
@@ -263,7 +263,7 @@ body {
   opacity: 0;
   transform: translate(0, 0) scale(0.35);
   transition:
-    transform 150ms cubic-bezier(0.4, 0, 1, 1) calc(var(--back) * 18ms),
+    transform 150ms var(--ease-in) calc(var(--back) * 18ms),
     opacity 150ms ease calc(var(--back) * 18ms);
 }
 
@@ -271,14 +271,14 @@ body {
   opacity: 1;
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y))) scale(1);
   transition:
-    transform 230ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--rank) * 30ms),
+    transform 230ms var(--ease-out) calc(var(--rank) * 30ms),
     opacity 180ms ease calc(var(--rank) * 30ms);
 }
 
 /* Réduites : les ronds sont à leur place et s'y fondent. Coupées : ils y sont, sans transition. */
 .protractor[data-motion='reduced'] .protractor-round {
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y)));
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-quick) ease;
 }
 
 .protractor[data-motion='reduced'] .protractor-hub > *,
