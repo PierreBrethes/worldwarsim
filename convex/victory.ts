@@ -5,7 +5,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
 import { concludeSeason } from './seasons';
-import { isAtWar, playerOf, seatsOf } from './seats';
+import { belligerentOf, isAtWar, seatsOf } from './seats';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
@@ -123,7 +123,7 @@ export const reductionTarget = (players: number): number => playersToReduce(play
 export const board = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
-    const { player, season } = await playerOf(ctx, token, seasonId);
+    const { player, season } = await belligerentOf(ctx, token, seasonId);
     const standings = await standingsOf(ctx, season._id);
     return {
       target: reductionTarget(standings.length),
