@@ -518,7 +518,7 @@ export function MovementPreview({
             type="button"
             disabled={blocked}
             onClick={send}
-            className="mt-[10px] w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[10px] py-[8px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase hover:border-[var(--critical)] hover:bg-[var(--critical)] disabled:cursor-not-allowed disabled:opacity-45"
+            className="mt-[10px] w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[10px] py-[8px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase hover:border-[var(--critical)] hover:bg-[var(--critical)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {fr.aim.submit}
           </button>
@@ -666,7 +666,7 @@ function HoldButton({
         if (isHoldKey(event)) release();
       }}
       onContextMenu={(event) => event.preventDefault()}
-      className="relative min-h-[56px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-45"
+      className="relative min-h-[56px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-40"
       style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
     >
       <span

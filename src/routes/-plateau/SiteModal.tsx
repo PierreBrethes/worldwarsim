@@ -1118,7 +1118,7 @@ function RoleSheetCard({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-40 ${
                     tier === level ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
                   }`}
                 >
@@ -1437,7 +1437,7 @@ function RoleCard({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
                     tier === level
                       ? 'bg-[var(--ink)] text-[var(--paper)]'
                       : 'bg-[var(--paper)] text-[var(--ink)]'

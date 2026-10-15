@@ -1513,7 +1513,7 @@ function LotControl({
               type="button"
               disabled={wanted <= 0}
               onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
-              className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-35"
+              className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
             >
               {fr.economy.lot.launch}
             </button>

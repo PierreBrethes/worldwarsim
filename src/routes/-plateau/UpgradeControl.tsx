@@ -74,7 +74,7 @@ export function UpgradeControl({
               (problem: unknown) => handleError(problem, setError),
             );
           }}
-          className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
+          className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
         >
           {fr.upgrade.action}
         </button>
