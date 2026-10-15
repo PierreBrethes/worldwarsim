@@ -4,7 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { THEATRES, theatreById } from '../src/domain/theatres';
 import { blitzMapRulesOf } from '../src/domain/blitz-placement';
-import { BLITZ } from './constants';
+import { BLITZ, CAPTURE_MINUTES } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
 import { routeKmFrom } from './routes';
@@ -345,7 +345,7 @@ describe('les fonds de la Blitz', () => {
     );
     await t.mutation(internal.movements.arrive, { movementId });
     const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
-    expect(capture!.completesAt).toBe(MIDDAY + 3 * MINUTE);
+    expect(capture!.completesAt).toBe(MIDDAY + 2.4 * MINUTE);
 
     vi.setSystemTime(capture!.completesAt);
     await t.mutation(internal.captures.complete, {
@@ -357,7 +357,7 @@ describe('les fonds de la Blitz', () => {
     const hq = BLITZ.fundsPerMinute.hq!;
     const town = BLITZ.fundsPerMinute.city!;
     expect(await fundsServed(t, seat)).toEqual({
-      stock: BLITZ.startingFunds + 4 * hq + town,
+      stock: BLITZ.startingFunds + 4 * hq + town * (4 - CAPTURE_MINUTES.blitz.building),
       perMinute: hq + town,
     });
 
@@ -570,8 +570,8 @@ describe('le soin et l’absence de chantier', () => {
     ).toBe(true);
 
     await t.mutation(internal.blitz.mend, { seasonId: seat.seasonId });
-    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(25);
-    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 3);
+    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(27);
+    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 5);
   });
 
   /** La ligne `players` est lue par toutes les vues : la réécrire sans rien soigner les
@@ -658,7 +658,7 @@ describe('la chute d’un QG (B10)', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('se capture en six minutes, élimine le perdant et conclut la Blitz à deux', async () => {
+  it('se capture en moins de cinq minutes, élimine le perdant et conclut la Blitz à deux', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
@@ -668,7 +668,7 @@ describe('la chute d’un QG (B10)', () => {
     await vacate(t, hq);
 
     const capture = await captureToTheEnd(t, me._id, seat.seasonId, hq);
-    expect(capture.completesAt - MIDDAY).toBe(6 * MINUTE);
+    expect(capture.completesAt - MIDDAY).toBe(4.8 * MINUTE);
 
     expect(await buildingsOf(t, loser._id)).toEqual([]);
     expect((await buildingsOf(t, me._id)).map((building) => building._id)).toEqual(

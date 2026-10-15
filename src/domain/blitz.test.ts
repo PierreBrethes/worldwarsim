@@ -66,8 +66,8 @@ describe('le recrutement de la Blitz', () => {
 describe('le soin de la Blitz', () => {
   const infantry = { role: 'infantry', strength: 20, nominalStrength: 50 } as const;
 
-  it('rend un dixième de la force par pas, au prix du rôle', () => {
-    expect(mendStep(infantry, 100)).toEqual({ strength: 25, cost: 3 });
+  it('rend un huitième de la force par pas, au prix du rôle', () => {
+    expect(mendStep(infantry, 100)).toEqual({ strength: 27, cost: 5 });
   });
 
   it('ne dépasse pas le nominal, et ne soigne pas qui ne peut payer', () => {
@@ -82,9 +82,9 @@ describe('le soin de la Blitz', () => {
         { ...infantry, id: 'a' },
         { ...infantry, id: 'b' },
       ],
-      4,
+      6,
     );
-    expect(plan.map((step) => [step.troop.id, step.cost])).toEqual([['a', 3]]);
+    expect(plan.map((step) => [step.troop.id, step.cost])).toEqual([['a', 5]]);
   });
 });
 
@@ -105,20 +105,20 @@ describe('the theatre box', () => {
 });
 
 describe('the theatre pace (B1)', () => {
-  it('puts Europe near five minutes per thousand kilometres', () => {
+  it('puts Europe near four minutes per thousand kilometres', () => {
     const pace = theatreMinutesPer1000Km(europe);
-    expect(pace).toBeGreaterThan(3.5);
+    expect(pace).toBeGreaterThan(3);
     expect(pace).toBeLessThan(6);
   });
 
-  it('crosses any theatre in fifteen to twenty minutes', () => {
+  it('crosses any theatre in fourteen to nineteen minutes', () => {
     for (const theatre of [europe, pacific]) {
       const { west, south, east, north } = theatre.box;
       const heightKm = (north - south) * 111.2;
       const widthKm = (east - west) * 111.2 * Math.cos((((north + south) / 2) * Math.PI) / 180);
       const minutes = (Math.max(heightKm, widthKm) / 1000) * theatreMinutesPer1000Km(theatre);
-      expect(minutes).toBeGreaterThanOrEqual(15);
-      expect(minutes).toBeLessThanOrEqual(20);
+      expect(minutes).toBeGreaterThanOrEqual(14);
+      expect(minutes).toBeLessThanOrEqual(19);
     }
   });
 });

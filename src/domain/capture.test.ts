@@ -24,13 +24,13 @@ describe('captureRate', () => {
 });
 
 describe('captureDurationMs', () => {
-  it('takes six hours in the long mode and three minutes in the short one', () => {
+  it('takes six hours in the long mode and two minutes twenty-four in the short one', () => {
     expect(captureDurationMs('mondiale', { kind: 'building', key: 'barracks' })).toBe(6 * HOUR);
-    expect(captureDurationMs('blitz', { kind: 'outpost' })).toBe(3 * 60_000);
+    expect(captureDurationMs('blitz', { kind: 'outpost' })).toBe(2.4 * 60_000);
   });
 
   it('holds a Blitz headquarters twice as long as a building', () => {
-    expect(captureDurationMs('blitz', { kind: 'building', key: 'hq' })).toBe(6 * 60_000);
+    expect(captureDurationMs('blitz', { kind: 'building', key: 'hq' })).toBe(4.8 * 60_000);
   });
 });
 

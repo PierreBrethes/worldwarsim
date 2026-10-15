@@ -146,12 +146,12 @@ export const notInBlitz = (mode: SeasonMode): 'NOT_IN_BLITZ' | null =>
   mode === 'blitz' ? 'NOT_IN_BLITZ' : null;
 
 /**
- * **A Blitz crosses its theatre in a quarter of an hour or so** (B1, 14/10): the pace is read off
+ * **A Blitz crosses its theatre in under a quarter of an hour** (B1, 14/10, then x1.25 on 15/10): the pace is read off
  * the theatre rather than written per theatre, so a box redrawn tomorrow keeps the evening.
  *
- * @a-mesurer the decision says 15 to 20 minutes; nothing has played one yet
+ * @a-mesurer the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet
  */
-export const BLITZ_CROSSING_MINUTES = 18;
+export const BLITZ_CROSSING_MINUTES = 14.4;
 
 export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   const { west, south, east, north } = theatre.box;

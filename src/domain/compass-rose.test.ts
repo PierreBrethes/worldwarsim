@@ -545,7 +545,7 @@ describe('in aim', () => {
       },
     );
     expect(hq?.actions).toEqual([
-      expect.objectContaining({ key: 'capture', consequence: expect.stringContaining('00:06:00') }),
+      expect.objectContaining({ key: 'capture', consequence: expect.stringContaining('00:04:48') }),
     ]);
   });
 

@@ -862,7 +862,7 @@ export const CAPTURE_MINUTES = {
   mondiale: { building: 360, outpost: 360 },
   /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit
    *  avoir le temps de revenir. */
-  blitz: { building: 3, outpost: 3, hq: 6 },
+  blitz: { building: 2.4, outpost: 2.4, hq: 4.8 },
 } as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>> & {
   blitz: { hq: number };
 };
@@ -1205,13 +1205,13 @@ export const BLITZ = {
     cargo: 140,
     carrier: 320,
   } as Readonly<Record<UnitRole, number>>,
-  recruitMinutes: 1,
+  recruitMinutes: 0.8,
   /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
   troopBound: 80,
   mend: {
     stepMinutes: 1,
     /** La part de la force nominale rendue à chaque pas. */
-    sharePerStep: 0.1,
+    sharePerStep: 0.125,
     /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */
     priceShare: 0.5,
   },
