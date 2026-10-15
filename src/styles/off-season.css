@@ -2473,27 +2473,6 @@
       font: italic 11.5px var(--text);
       color: var(--ink-note);
     }
-    .wirewin form {
-      display: flex;
-      gap: 6px;
-      padding: 8px 10px 10px;
-      border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-      background: var(--paper-3);
-    }
-    .wirewin form input {
-      flex: 1;
-      min-width: 0;
-      border: 1px solid var(--ink-quiet);
-      background: transparent;
-      padding: 8px 9px;
-      min-height: 38px;
-      font: 13.5px var(--ui);
-      color: var(--ink);
-      outline: none;
-    }
-    .wirewin form input:focus-visible {
-      border-color: var(--ink);
-    }
     .wiretab {
       align-self: end;
       display: grid;
