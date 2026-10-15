@@ -654,6 +654,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view],
   );
 
+  /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
+  const unitsAt = useCallback(
+    (station: MarchStation) =>
+      blitz
+        ? {
+            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
+              unit.map((troop) => troop.id),
+            ),
+          }
+        : {},
+    [blitz, view.me, marching],
+  );
+
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
     setLifts((count) => count + 1);
@@ -690,9 +703,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  qu'une porte, la modale, ses cases puis « préparer ». */
       if (blitz && !view.me.defeated) {
         const station: TroopStation = { kind: 'building', buildingId };
-        const [unit] = unitsOf(troopsAt(view.me, stationKeyOf(station), marching));
+        const unit = unitsAt(station).units?.[0];
         if (unit !== undefined) {
-          liftHand({ kind: 'held', station, troopIds: unit.map((troop) => troop.id) });
+          liftHand({ kind: 'held', station, troopIds: unit });
           return;
         }
       }
@@ -735,6 +748,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       column,
       blitz,
       liftHand,
+      unitsAt,
     ],
   );
 
@@ -757,19 +771,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setOrder(null);
     setResting(null);
   }, []);
-
-  /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
-  const unitsAt = useCallback(
-    (station: MarchStation) =>
-      blitz
-        ? {
-            units: unitsOf(troopsAt(view.me, stationKeyOf(station), marching)).map((unit) =>
-              unit.map((troop) => troop.id),
-            ),
-          }
-        : {},
-    [blitz, view.me, marching],
-  );
 
   /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
    *  plateau rend vrai quand la pile cliquée devient la destination. */
