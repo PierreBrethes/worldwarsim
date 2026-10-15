@@ -570,8 +570,8 @@ describe('le soin et l’absence de chantier', () => {
     ).toBe(true);
 
     await t.mutation(internal.blitz.mend, { seasonId: seat.seasonId });
-    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(27);
-    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 5);
+    expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(25);
+    expect((await playerOf(t, seat)).funds).toBe(BLITZ.startingFunds - 3);
   });
 
   /** La ligne `players` est lue par toutes les vues : la réécrire sans rien soigner les

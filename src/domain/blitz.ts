@@ -75,7 +75,7 @@ type Wounded = {
 };
 
 /**
- * **Un pas de soin** : un dixième de la force rendu, payé au prorata du prix du rôle. `null` quand
+ * **Un pas de soin** : une part de la force rendue (`BLITZ.mend.sharePerStep`), payée au prorata du prix du rôle. `null` quand
  * la troupe est entière ou que les fonds ne couvrent pas le pas — on ne soigne pas à crédit.
  */
 export function mendStep(

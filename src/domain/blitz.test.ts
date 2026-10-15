@@ -1,3 +1,4 @@
+import { BLITZ } from '../../convex/constants';
 import { describe, expect, it } from 'vitest';
 import {
   blitzRecruitRefusalOf,
@@ -66,8 +67,21 @@ describe('le recrutement de la Blitz', () => {
 describe('le soin de la Blitz', () => {
   const infantry = { role: 'infantry', strength: 20, nominalStrength: 50 } as const;
 
-  it('rend un huitième de la force par pas, au prix du rôle', () => {
-    expect(mendStep(infantry, 100)).toEqual({ strength: 27, cost: 5 });
+  it('rend un dixième de la force par pas, au prix du rôle', () => {
+    expect(mendStep(infantry, 100)).toEqual({ strength: 25, cost: 3 });
+  });
+
+  it('soigne un quart plus vite qu’au pas d’une minute, pour tous les rôles, au même prix par point', () => {
+    for (const role of ['infantry', 'armor', 'bomber', 'cargo'] as const) {
+      const troop = { role, strength: 1, nominalStrength: 100 };
+      const step = mendStep(troop, 10_000)!;
+      const gained = step.strength - troop.strength;
+      expect(gained / BLITZ.mend.stepMinutes).toBeCloseTo(1.25 * 10);
+      expect(step.cost / gained).toBeCloseTo(
+        (BLITZ.rolePrice[role] * BLITZ.mend.priceShare) / 100,
+        0,
+      );
+    }
   });
 
   it('ne dépasse pas le nominal, et ne soigne pas qui ne peut payer', () => {
@@ -82,9 +96,9 @@ describe('le soin de la Blitz', () => {
         { ...infantry, id: 'a' },
         { ...infantry, id: 'b' },
       ],
-      6,
+      4,
     );
-    expect(plan.map((step) => [step.troop.id, step.cost])).toEqual([['a', 5]]);
+    expect(plan.map((step) => [step.troop.id, step.cost])).toEqual([['a', 3]]);
   });
 });
 

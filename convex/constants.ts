@@ -1209,9 +1209,9 @@ export const BLITZ = {
   /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */
   troopBound: 80,
   mend: {
-    stepMinutes: 1,
+    stepMinutes: 0.8,
     /** La part de la force nominale rendue à chaque pas. */
-    sharePerStep: 0.125,
+    sharePerStep: 0.1,
     /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */
     priceShare: 0.5,
   },
