@@ -117,6 +117,9 @@ describe('account registration', () => {
     );
 
     expect(attempts.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter(({ status }) => status === 'rejected')).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query('accounts').collect())).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query('sessions').collect())).toHaveLength(1);
     expect(
       String(
         (attempts.find(({ status }) => status === 'rejected') as PromiseRejectedResult).reason,
@@ -136,28 +139,6 @@ describe('account registration', () => {
 });
 
 describe('account login and sessions', () => {
-  it('examines one login attempt per nickname even when it names nobody', async () => {
-    const t = boot();
-    const ghost = { nickname: 'Fantome', password: 'mot de passe solide' };
-    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('BAD_CREDENTIALS');
-    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('LOGIN_TOO_FAST');
-    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
-    await expect(t.action(api.auth.login, ghost)).rejects.toThrow('BAD_CREDENTIALS');
-  });
-
-  it('keeps the throttle table bounded however many nicknames are tried', async () => {
-    const t = boot();
-    for (let i = 0; i < 40; i++) {
-      vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
-      await expect(
-        t.action(api.auth.login, { nickname: `Fantome${i}`, password: 'mot de passe solide' }),
-      ).rejects.toThrow('BAD_CREDENTIALS');
-    }
-    expect(await t.run((ctx) => ctx.db.query('authThrottle').collect())).toHaveLength(1);
-  });
-
-  afterEach(() => vi.useRealTimers());
-
   it('logs in with the normalized nickname and returns no digest fields', async () => {
     const t = boot();
     const registered = await signUp(t, {
@@ -195,6 +176,15 @@ describe('account login and sessions', () => {
    * attempt is not even examined — and a refused attempt does not push the next one back, or
    * hammering a nickname would shut its owner out for as long as one cared to hammer.
    */
+  it('refuses a nickname nobody holds at once, deriving and storing nothing', async () => {
+    const t = boot();
+    const ghost = { nickname: 'Fantome', password: 'mot de passe solide' };
+    for (let i = 0; i < 3; i++) {
+      await expect(t.action(api.auth.login, ghost)).rejects.toThrow('BAD_CREDENTIALS');
+    }
+    expect(await t.run((ctx) => ctx.db.query('authThrottle').collect())).toHaveLength(0);
+  });
+
   it('examines one login attempt per nickname every three seconds', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const t = boot();

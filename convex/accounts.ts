@@ -73,29 +73,41 @@ export const register = internalMutation({
 });
 
 /**
- * **Un passage à la fois sur une porte**, pris avant de dériver quoi que ce soit : `false` et le
- * mot de passe n'est même pas examiné. Un passage refusé ici **ne repousse pas** le suivant —
- * sinon marteler un pseudo suffirait à en fermer la porte à son propriétaire. Les lignes échues
- * sont balayées au passage, pour que des pseudos inventés ne fassent pas grossir la table.
+ * **Une tentative à la fois sur un pseudo**, prise avant de dériver quoi que ce soit : `false`
+ * et le mot de passe n'est même pas examiné. Une tentative refusée ici **ne repousse pas** la
+ * suivante — sinon marteler un pseudo suffirait à en fermer la porte à son propriétaire.
  */
-export const claimAuthSlot = internalMutation({
-  args: { key: v.string(), intervalMs: v.number() },
-  handler: async (ctx, { key, intervalMs }) => {
+export const claimLoginAttempt = internalMutation({
+  args: { accountId: v.id('accounts') },
+  handler: async (ctx, { accountId }) => {
+    const account = await ctx.db.get(accountId);
+    if (account === null) return true;
     const now = Date.now();
-    const expired = await ctx.db
-      .query('authThrottle')
-      .withIndex('byAt', (q) => q.lte('at', now - LOGIN_MIN_INTERVAL_MS))
-      .take(20);
-    for (const row of expired) {
-      if (row.key !== key) await ctx.db.delete(row._id);
+    if (
+      account.loginAttemptAt !== undefined &&
+      now - account.loginAttemptAt < LOGIN_MIN_INTERVAL_MS
+    ) {
+      return false;
     }
+    await ctx.db.patch(accountId, { loginAttemptAt: now });
+    return true;
+  },
+});
 
+/**
+ * **Une inscription par intervalle, tous pseudos confondus** : chacune dérive un PBKDF2 dans le
+ * pool d'actions, qu'un script saturerait. Une seule ligne, réécrite.
+ */
+export const claimRegistrationSlot = internalMutation({
+  args: { intervalMs: v.number() },
+  handler: async (ctx, { intervalMs }) => {
+    const now = Date.now();
     const row = await ctx.db
       .query('authThrottle')
-      .withIndex('byKey', (q) => q.eq('key', key))
+      .withIndex('byKey', (q) => q.eq('key', 'register'))
       .unique();
     if (row !== null && now - row.at < intervalMs) return false;
-    if (row === null) await ctx.db.insert('authThrottle', { key, at: now });
+    if (row === null) await ctx.db.insert('authThrottle', { key: 'register', at: now });
     else await ctx.db.patch(row._id, { at: now });
     return true;
   },

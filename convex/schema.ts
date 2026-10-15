@@ -69,22 +69,15 @@ export default defineSchema({
     /** Le dernier essai de notification demandé, pour n'en laisser partir qu'un à la fois
      *  (`PUSH_TEST_INTERVAL_MS`). */
     pushTestAt: v.optional(v.number()),
-    /** Legacy : les tentatives vivent désormais dans `authThrottle`. Plus lu ni écrit. */
+    /** La dernière tentative de connexion **examinée** sur ce pseudo (`LOGIN_MIN_INTERVAL_MS`). */
     loginAttemptAt: v.optional(v.number()),
   }).index('byNicknameKey', ['nicknameKey']),
 
-  /**
-   * **Une porte de l'authentification, et le dernier passage examiné.** Une ligne par clé
-   * (`login:<pseudo>` — connu ou non, `register`), réécrite à chaque passage accepté et balayée
-   * dès qu'elle est plus vieille que l'intervalle le plus long : la table ne grossit pas avec les
-   * pseudos qu'un script invente.
-   */
+  /** **Le dernier passage de l'inscription** (clé `register`, une seule ligne). */
   authThrottle: defineTable({
     key: v.string(),
     at: v.number(),
-  })
-    .index('byKey', ['key'])
-    .index('byAt', ['at']),
+  }).index('byKey', ['key']),
 
   sessions: defineTable({
     accountId: v.id('accounts'),
