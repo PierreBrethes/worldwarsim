@@ -151,7 +151,7 @@ function WhenAffordable({
  * A plate carries its own ink and takes no tint, so only the figure turns critical. That is
  * the half that has to: the resource is *what* is missing, the number is *how much*.
  */
-function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
+export function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
       className="flex items-center justify-end gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
