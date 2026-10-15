@@ -56,14 +56,13 @@ function reverseWinding(geometry: BufferGeometry): void {
     }
     return;
   }
-  for (const attribute of Object.values(geometry.attributes)) {
-    const size = attribute.itemSize;
-    const array = attribute.array;
+  // The loader interleaves a primitive's attributes (stride 32): `array` is then the whole
+  // buffer, so the components go through the attribute.
+  for (const attribute of Object.values(geometry.attributes))
     for (let k = 0; k + 2 < attribute.count; k += 3)
-      for (let c = 0; c < size; c++) {
-        const second = array[(k + 1) * size + c]!;
-        array[(k + 1) * size + c] = array[(k + 2) * size + c]!;
-        array[(k + 2) * size + c] = second;
+      for (let c = 0; c < attribute.itemSize; c++) {
+        const second = attribute.getComponent(k + 1, c);
+        attribute.setComponent(k + 1, c, attribute.getComponent(k + 2, c));
+        attribute.setComponent(k + 2, c, second);
       }
-  }
 }

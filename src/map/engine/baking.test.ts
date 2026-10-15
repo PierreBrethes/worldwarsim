@@ -1,4 +1,14 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  BufferGeometry,
+  Group,
+  InterleavedBuffer,
+  InterleavedBufferAttribute,
+  Mesh,
+  MeshStandardMaterial,
+  Quaternion,
+  Vector3,
+} from 'three';
 import { describe, expect, it } from 'vitest';
 import { bakedParts } from './baking';
 
@@ -45,6 +55,33 @@ describe('bakedParts', () => {
       geometry.index!.getX(0),
       geometry.index!.getX(2),
       geometry.index!.getX(1),
+    ]);
+  });
+
+  it('turns an interleaved mirrored mesh right side out, as the loader hands it', () => {
+    // Position, normal, uv: eight floats a vertex, one buffer — `flag_right` as it loads.
+    const buffer = new InterleavedBuffer(
+      new Float32Array([0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1]),
+      8,
+    );
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new InterleavedBufferAttribute(buffer, 3, 0));
+    geometry.setAttribute('normal', new InterleavedBufferAttribute(buffer, 3, 3));
+    geometry.setAttribute('uv', new InterleavedBufferAttribute(buffer, 2, 6));
+    const mesh = new Mesh(geometry, new MeshStandardMaterial());
+    mesh.scale.set(-1, 1, 1);
+    const [part] = bakedParts(new Group().add(mesh));
+    const { position, normal, uv } = part!.geometry.attributes;
+    expect([0, 1, 2].map((k) => [position!.getX(k) + 0, position!.getY(k)])).toEqual([
+      [0, 0],
+      [0, 1],
+      [-1, 0],
+    ]);
+    for (const k of [0, 1, 2]) expect([normal!.getX(k) + 0, normal!.getZ(k)]).toEqual([0, 1]);
+    expect([0, 1, 2].map((k) => [uv!.getX(k), uv!.getY(k)])).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
     ]);
   });
 });

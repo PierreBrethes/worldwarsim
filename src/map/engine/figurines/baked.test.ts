@@ -5,6 +5,8 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
+  InterleavedBuffer,
+  InterleavedBufferAttribute,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
@@ -40,12 +42,13 @@ type Gltf = {
     count: number;
     componentType: number;
   }>;
-  bufferViews: ReadonlyArray<{ byteOffset?: number }>;
+  bufferViews: ReadonlyArray<{ byteOffset?: number; byteStride?: number }>;
 };
 
 /**
  * The file's node tree as the loader builds it — names, placements, one mesh per primitive
- * with its real positions — without three's loader, which wants a DOM for the textures.
+ * with its real positions, interleaved where the file interleaves them, as the loader does —
+ * without three's loader, which wants a DOM for the textures.
  */
 function sceneOfFile(url: string): Object3D {
   const bytes = readFileSync(join(process.cwd(), url));
@@ -61,6 +64,22 @@ function sceneOfFile(url: string): Object3D {
     if (accessor.componentType === 5123) return new Uint16Array(buffer, 0, accessor.count);
     return new Uint32Array(buffer, 0, accessor.count);
   };
+  const positionOf = (k: number): BufferAttribute | InterleavedBufferAttribute => {
+    const accessor = gltf.accessors[k]!;
+    const view = gltf.bufferViews[accessor.bufferView]!;
+    if (view.byteStride === undefined) return new BufferAttribute(read(k), 3);
+    const stride = view.byteStride / 4;
+    const floats = new Float32Array(
+      bin.buffer.slice(bin.byteOffset + (view.byteOffset ?? 0)),
+      0,
+      accessor.count * stride,
+    );
+    return new InterleavedBufferAttribute(
+      new InterleavedBuffer(floats, stride),
+      3,
+      (accessor.byteOffset ?? 0) / 4,
+    );
+  };
   const materials = new Map<number, MeshStandardMaterial>();
   const materialOf = (k = -1) => {
     if (!materials.has(k)) materials.set(k, new MeshStandardMaterial());
@@ -71,10 +90,7 @@ function sceneOfFile(url: string): Object3D {
     const primitives = node.mesh === undefined ? [] : gltf.meshes[node.mesh]!.primitives;
     const meshes = primitives.map((primitive) => {
       const geometry = new BufferGeometry();
-      geometry.setAttribute(
-        'position',
-        new BufferAttribute(read(primitive.attributes.POSITION), 3),
-      );
+      geometry.setAttribute('position', positionOf(primitive.attributes.POSITION));
       if (primitive.indices !== undefined)
         geometry.setIndex(new BufferAttribute(read(primitive.indices), 1));
       return new Mesh(geometry, materialOf(primitive.material));
@@ -106,6 +122,31 @@ const meshesOf = (object: Object3D) => {
   object.traverse((part) => (part as Mesh).isMesh && meshes.push(part as Mesh));
   return meshes;
 };
+
+/**
+ * The volume swept from a far point to every face, signed by the side three draws: a face
+ * turned inside out (a mirrored flag baked without flipping) moves it by far more than rounding.
+ */
+function sweptVolume(object: Object3D): number {
+  const far = new Vector3(100, 37, -53);
+  const [a, b, c] = [new Vector3(), new Vector3(), new Vector3()];
+  let volume = 0;
+  object.updateMatrixWorld(true);
+  for (const mesh of meshesOf(object)) {
+    const position = mesh.geometry.attributes.position!;
+    const index = mesh.geometry.index;
+    const corner = (k: number, into: Vector3) =>
+      into
+        .fromBufferAttribute(position, index ? index.getX(k) : k)
+        .applyMatrix4(mesh.matrixWorld)
+        .sub(far);
+    const sign = Math.sign(mesh.matrixWorld.determinant());
+    const count = index ? index.count : position.count;
+    for (let k = 0; k + 2 < count; k += 3)
+      volume += (sign * corner(k, a).dot(corner(k + 1, b).cross(corner(k + 2, c)))) / 6;
+  }
+  return volume;
+}
 
 const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
   Object.entries(roles ?? {}).flatMap(([role, entry]) =>
@@ -141,6 +182,7 @@ describe.runIf(files.length > 0)('baked figurines', () => {
         0,
       );
     expect(triangles(baked)).toBe(triangles(scene));
+    expect(sweptVolume(baked)).toBeCloseTo(sweptVolume(scene), 3);
     expect(meshesOf(baked).length).toBeLessThan(meshesOf(scene).length);
 
     if (role === 'infantry') {
