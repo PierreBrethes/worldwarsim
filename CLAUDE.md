@@ -392,7 +392,7 @@ articulations nommées (`squadOf`), un modèle pour le reste — ou `null` dès 
 de fichier : rien plutôt que la mauvaise figurine. Les GLB sortent de Claude Design sur un
 gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la planche, pièces
 nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de triangles et
-aux noms de son rôle. Les huit nations sont sculptées, à quelques trous près : le R35
+aux noms de son rôle. **Leurs textures se compressent en WebP avant commit** (`npx @gltf-transform/cli webp <in.glb> <out.glb> --quality 90`, lancé hors du dépôt, rien ne s'ajoute aux dépendances ; géométrie et noms intacts, pas de meshopt ni de quantification qui casseraient `bakedParts` et `footprintOf`) ; `GLTFLoader` lit `EXT_texture_webp` sans décodeur. Les huit nations sont sculptées, à quelques trous près : le R35
 (blindé MK1 français), le Ju 52 allemand, l'infanterie MK2 japonaise et les cargos, porte-avions
 et transports qui n'ont pas non plus de planche. Seul le MK1 de l'infanterie
 marche : un MK2 garde la pose où il a été sculpté (le bazooka français à genou). Le **pion d'un mouvement `mien`** porte sa figurine sur le fil, tournée vers sa
