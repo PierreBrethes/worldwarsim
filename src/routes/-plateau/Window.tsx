@@ -14,7 +14,7 @@ import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { useSwipe } from '@/shell/BottomSheet';
 import { useSoleSurface } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
-import { HandleContext } from './Draggable';
+import { DragHandle, HandleContext } from './Draggable';
 import { followDrag, scaleOf, useDragOffset, type Grab, type Offset } from './dragging';
 
 const MIN_WIDTH = 320;
@@ -308,5 +308,41 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
     >
       {fr.common.close}
     </button>
+  );
+}
+
+/**
+ * **Un en-tête pour toutes les fenêtres** : le surtitre qui dit ce qu'on lit, le titre en Bodoni,
+ * « fermer », sous un seul filet double. Ce qui n'appartient qu'à une fenêtre — un drapeau, une
+ * maquette, un tampon, un budget — se range devant le titre (`lead`) ou avant « fermer ».
+ */
+export function WindowHead({
+  eyebrow,
+  title,
+  lead,
+  onClose,
+  children,
+}: {
+  eyebrow?: ReactNode;
+  title?: ReactNode;
+  lead?: ReactNode;
+  onClose: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-2 border-[var(--ink)] px-4 py-[10px]">
+      {lead}
+      <div className="flex min-w-0 flex-col gap-[5px]">
+        {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
+        {title !== undefined && (
+          <h2 className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
+            {title}
+          </h2>
+        )}
+      </div>
+      <span className="flex-1" />
+      {children}
+      <CloseButton onClick={onClose} />
+    </DragHandle>
   );
 }
