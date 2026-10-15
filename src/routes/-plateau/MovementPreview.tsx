@@ -590,7 +590,7 @@ function Timing({
 const HOLD_MS = 700;
 
 /** What the desk card needs beside the pose, its width and a gap, before it may go outward. */
-const CARD_ROOM = 262 + 18;
+const CARD_ROOM = 236 + 18;
 
 /** Ce que met la jauge à se vider quand le doigt lâche avant la fin : visible, pas traînant. */
 const RELEASE_MS = 240;
