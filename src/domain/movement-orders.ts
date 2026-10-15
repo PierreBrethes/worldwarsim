@@ -16,6 +16,7 @@ import {
   LIFT_COST,
   PROJECTION_BY_DOMAIN,
   stackRows,
+  unitsOf,
 } from './troops';
 
 /**
@@ -511,13 +512,20 @@ const mine = (aim: MovementAim, column: Column): boolean =>
  */
 const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   if (column.blitz !== undefined) {
-    /** **Une troupe part seule** (B15), et nulle part hors de la boîte du théâtre (B1). */
-    if (column.roles.length > 1) return 'ONE_UNIT_ONLY';
+    /** **Une unité part seule** (B15, révisé le 15/10) : un transport part avec ce qu'il porte ;
+     *  et nulle part hors de la boîte du théâtre (B1). */
+    if (unitsOf(column.roles.map((role, rank) => ({ id: String(rank), role }))).length > 1)
+      return 'ONE_UNIT_ONLY';
     const at = pointOfAim(aim);
     if (at !== null && !withinTheatre(column.blitz.theatre, at)) return 'OUTSIDE_THEATRE';
   }
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
-  if (domains.has('air') && !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)) {
+  /** **En Blitz l'avion reste en l'air** (décision de Pierre, 15/10) : il repart d'où il est. */
+  if (
+    domains.has('air') &&
+    column.blitz === undefined &&
+    !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)
+  ) {
     return 'NO_AIRFIELD_AT_DEPARTURE';
   }
   if (domains.has('sea') && embarking(column, domains)) {

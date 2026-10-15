@@ -8,7 +8,9 @@ import {
   stationAtCombat,
   stationGroups,
   troopsAt,
+  unitsOf,
 } from './troops';
+import type { UnitRole } from './ids';
 import type { ArcView, PlayerView, TroopStation, TroopView } from './player-view';
 import { directRoute } from './routing';
 
@@ -241,6 +243,40 @@ describe('stackRows', () => {
 
   it('boards nobody when the only transport lifts nothing', () => {
     expect(shape(['I-1', 'L-1'])).toEqual(['I-1', 'I-2', 'A-1', 'L-1', 'C-1']);
+  });
+});
+
+/** **Une unité** (règle de Pierre, 15/10) : une troupe de combat seule, ou un transport et ce
+ *  qu'il porte — jamais deux troupes de combat ensemble. */
+describe('unitsOf', () => {
+  const units = (...roles: ReadonlyArray<UnitRole>) =>
+    unitsOf(roles.map((role, k) => ({ id: `${role}-${k}`, role }))).map((unit) =>
+      unit.map((member) => member.id),
+    );
+
+  it('makes each combat troop its own unit', () => {
+    expect(units('infantry', 'infantry')).toEqual([['infantry-0'], ['infantry-1']]);
+    expect(units('escort', 'bomber')).toEqual([['escort-0'], ['bomber-1']]);
+  });
+
+  it('makes a transport and what it carries one unit, the transport first', () => {
+    expect(units('infantry', 'cargo')).toEqual([['cargo-1', 'infantry-0']]);
+    expect(units('airTransport', 'infantry', 'infantry')).toEqual([
+      ['airTransport-0', 'infantry-1', 'infantry-2'],
+    ]);
+  });
+
+  it('leaves alone what no transport seats, and an escort beside a cargo', () => {
+    expect(units('airTransport', 'armor')).toEqual([['airTransport-0'], ['armor-1']]);
+    expect(units('cargo', 'escort', 'infantry')).toEqual([['cargo-0', 'infantry-2'], ['escort-1']]);
+  });
+
+  it('seats infantry in a truck, two to a truck', () => {
+    expect(units('landTransport', 'infantry', 'infantry', 'infantry')).toEqual([
+      ['landTransport-0', 'infantry-1', 'infantry-2'],
+      ['infantry-3'],
+    ]);
+    expect(units('landTransport', 'armor')).toEqual([['landTransport-0'], ['armor-1']]);
   });
 });
 
