@@ -2533,6 +2533,8 @@ export const fr = {
     hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
     found: 'fonder un avant-poste ici',
+    aboard: 'à bord',
+    getOff: 'faire descendre',
   },
 
   /**
