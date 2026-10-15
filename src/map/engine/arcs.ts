@@ -24,9 +24,12 @@ import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { pieceScale } from './piece-scale';
+import { asClockTime } from '@/domain/duration';
+import { surveyInk } from '@/domain/survey-ink';
 import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
+  readonly key: string;
   arc: ArcView;
   thread: Thread;
   unrolled: ReadonlyArray<UnrolledSegment>;
@@ -139,8 +142,9 @@ export class ArcLayer {
     for (const rendered of this.rendered) rendered.thread.setResolution(width, height);
   }
 
+  /** A movement whose drawing did not change keeps its objects (`drawnKey`): the view is re-served
+   *  at every step of any column and at every aim preview, and a pawn is up to three figurines. */
   display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
-    this.clear();
     // Only mine are inked: nothing is added to what a sighting already says (fog). And only what
     // the player sent: a return is created by the resolution, nobody put a pen to it.
     const known = this.known;
@@ -159,92 +163,111 @@ export class ArcLayer {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
     const now = performance.now();
+    const previous = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered]));
+    this.rendered = [];
+    this.targets = [];
     for (const arc of arcs) {
-      const stale = arc.state === 'lastKnown';
-      const thread = buildThread(
-        arc.route,
-        this.frame,
-        ARC_COLORS[arc.state],
-        THICKNESSES[arc.state],
-        {
-          trace: TRACE_OPACITY,
-          progress: stale ? 0.45 : 1,
-        },
-      );
-      thread.setResolution(this.width, this.height);
-      thread.setScale(this.unitsPerPixel);
-      this.group.add(thread.object);
-      for (const target of thread.targets) {
-        target.userData.arc = arc.id;
-        this.targets.push(target);
+      const key = drawnKey(arc, this.playerNation, this.troops);
+      let rendered = previous.get(arc.id);
+      previous.delete(arc.id);
+      if (rendered?.key !== key) {
+        if (rendered) release(rendered);
+        rendered = this.build(arc, key, appeared.includes(arc), now);
       }
-
-      const roles = movementRoles(arc);
-      const figurineOf = (role: UnitRole | null) =>
-        role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
-      const pawn = new Pawn(
-        movementSprites(arc, this.playerNation),
-        ARC_COLORS[arc.state].progress,
-        // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
-        // its stretch (F2, ADR 0026 §4 révisé), dated by its first observation (H3).
-        arc.state === 'enemyDetected'
-          ? {
-              land: annotationFigurine('land', arc.since),
-              sea: annotationFigurine('sea', arc.since),
-              air: annotationFigurine('air', arc.since),
-            }
-          : roles && {
-              land: figurineOf(roles.land),
-              sea: figurineOf(roles.sea),
-              air: figurineOf(roles.air),
-            },
-        movementWear(arc, this.troops),
-        roles,
-      );
-      pawn.visible = !stale;
-      this.group.add(pawn.object);
-
-      if (appeared.includes(arc)) {
-        const duration = this.ink.trace(thread.legs, now);
-        if (duration > 0) this.inking.set(arc.id, now + duration);
-      }
-      if ((this.inking.get(arc.id) ?? 0) > now) {
-        thread.object.visible = false;
-        pawn.visible = false;
-      }
-
-      const relicMedium = lastKnownMedium(arc);
-      const lastLeg = thread.legs.at(-1);
-      let relic: Group | null = null;
-      if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
-        relic = inkAnnotation(relicMedium, arc.lastSeenAt, arc.seenMinutesAgo).object;
-        pointOnLeg(lastLeg, 1, relic.position);
-        relic.visible = false;
-        this.group.add(relic);
-      }
-
-      const headPosition = new Vector3();
-      this.headPositions.set(arc.id, headPosition);
-
-      this.rendered.push({
-        arc,
-        thread,
-        unrolled: unrollRoute(arc.route),
-        pawn,
-        relic,
-        headPosition,
-        /** A column the server says is at the end of its thread wins over the value the loop
-         *  carried: held at the border, its pace is nil, and a pawn carried to 0,98 would
-         *  otherwise stand there for good. */
-        progress: arc.progress >= 1 ? 1 : (carried?.get(arc.id) ?? arc.progress),
-        pace: paceOf(arc),
-        rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
-        loadingUntil: loadingUntilOf(arc),
-      });
+      rendered.arc = arc;
+      /** A column the server says is at the end of its thread wins over the value the loop
+       *  carried: held at the border, its pace is nil, and a pawn carried to 0,98 would
+       *  otherwise stand there for good. */
+      rendered.progress = arc.progress >= 1 ? 1 : (carried?.get(arc.id) ?? arc.progress);
+      rendered.pace = paceOf(arc);
+      rendered.loadingUntil = loadingUntilOf(arc);
+      this.headPositions.set(arc.id, rendered.headPosition);
+      this.targets.push(...rendered.thread.targets);
+      this.rendered.push(rendered);
+    }
+    for (const gone of previous.values()) {
+      release(gone);
+      this.headPositions.delete(gone.arc.id);
     }
     this.syncCrates();
     this.applyAccent();
     this.animate();
+  }
+
+  private build(arc: ArcView, key: string, appearing: boolean, now: number): RenderedArc {
+    const stale = arc.state === 'lastKnown';
+    const thread = buildThread(
+      arc.route,
+      this.frame,
+      ARC_COLORS[arc.state],
+      THICKNESSES[arc.state],
+      {
+        trace: TRACE_OPACITY,
+        progress: stale ? 0.45 : 1,
+      },
+    );
+    thread.setResolution(this.width, this.height);
+    thread.setScale(this.unitsPerPixel);
+    this.group.add(thread.object);
+    for (const target of thread.targets) target.userData.arc = arc.id;
+
+    const roles = movementRoles(arc);
+    const figurineOf = (role: UnitRole | null) =>
+      role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
+    const pawn = new Pawn(
+      movementSprites(arc, this.playerNation),
+      ARC_COLORS[arc.state].progress,
+      // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
+      // its stretch (F2, ADR 0026 §4 révisé), dated by its first observation (H3).
+      arc.state === 'enemyDetected'
+        ? {
+            land: annotationFigurine('land', arc.since),
+            sea: annotationFigurine('sea', arc.since),
+            air: annotationFigurine('air', arc.since),
+          }
+        : roles && {
+            land: figurineOf(roles.land),
+            sea: figurineOf(roles.sea),
+            air: figurineOf(roles.air),
+          },
+      movementWear(arc, this.troops),
+      roles,
+    );
+    pawn.visible = !stale;
+    this.group.add(pawn.object);
+
+    if (appearing) {
+      const duration = this.ink.trace(thread.legs, now);
+      if (duration > 0) this.inking.set(arc.id, now + duration);
+    }
+    if ((this.inking.get(arc.id) ?? 0) > now) {
+      thread.object.visible = false;
+      pawn.visible = false;
+    }
+
+    const relicMedium = lastKnownMedium(arc);
+    const lastLeg = thread.legs.at(-1);
+    let relic: Group | null = null;
+    if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
+      relic = inkAnnotation(relicMedium, arc.lastSeenAt, arc.seenMinutesAgo).object;
+      pointOnLeg(lastLeg, 1, relic.position);
+      relic.visible = false;
+      this.group.add(relic);
+    }
+
+    return {
+      key,
+      arc,
+      thread,
+      unrolled: unrollRoute(arc.route),
+      pawn,
+      relic,
+      headPosition: new Vector3(),
+      progress: arc.progress,
+      pace: 0,
+      rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
+      loadingUntil: null,
+    };
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
@@ -389,10 +412,10 @@ export class ArcLayer {
    * server answer found it.
    */
   rebuild(): void {
-    this.display(
-      this.rendered.map((rendered) => rendered.arc),
-      new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered.progress])),
-    );
+    const arcs = this.rendered.map((rendered) => rendered.arc);
+    const carried = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered.progress]));
+    this.clear();
+    this.display(arcs, carried);
   }
 
   /** Frees every thread and pawn, and detaches them from the scene. */
@@ -414,15 +437,37 @@ export class ArcLayer {
   }
 
   private clear(): void {
-    for (const rendered of this.rendered) {
-      rendered.thread.dispose();
-      rendered.pawn.dispose();
-      if (rendered.relic) eraseAnnotation(rendered.relic);
-    }
+    for (const rendered of this.rendered) release(rendered);
     this.rendered = [];
     this.targets = [];
     this.headPositions.clear();
   }
+}
+
+function release({ thread, pawn, relic }: RenderedArc): void {
+  thread.dispose();
+  pawn.dispose();
+  if (relic) eraseAnnotation(relic);
+}
+
+/**
+ * **What a movement draws**, beyond what the loop advances (progress, pace, loading): the nation
+ * dressing it, its state, route and end, its roles and wear, the hour its annotation writes and
+ * the ink a last known position fades to — read like `CampLayer`'s, by what shows, not by instants.
+ */
+function drawnKey(arc: ArcView, nation: string | null, troops: ReadonlyArray<TroopView>): string {
+  return JSON.stringify([
+    nation,
+    arc.state,
+    arc.to,
+    arc.route,
+    movementRoles(arc),
+    movementWear(arc, troops),
+    arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
+    arc.state === 'lastKnown'
+      ? [asClockTime(arc.lastSeenAt), surveyInk(arc.seenMinutesAgo).toFixed(2)]
+      : null,
+  ]);
 }
 
 /**
