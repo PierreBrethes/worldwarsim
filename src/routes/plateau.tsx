@@ -2086,6 +2086,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               playerNation={view.me.nation}
               indicators={toggles}
               accentedMovement={hoveredMovement}
+              underRouteScale={
+                orderError !== null && !narrow && !windows.includes('journal') ? (
+                  <div className="hud border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
+                    {orderError}
+                  </div>
+                ) : undefined
+              }
               onSelect={aimingOnPhone ? keepSelection : select}
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
@@ -2321,18 +2328,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onClose={() => setOpenedReport(null)}
               />
             )}
-            {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
-            cartouche la porte (décision du 30/08). Pas en haut à gauche : l'échelle de route d'un
-            mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
-            {orderError !== null && (
+            {/* Le refus d'un ordre reste affiché jusqu'au geste suivant, la main toujours levée.
+            **Plus rien n'y dit la visée** — le cartouche la porte (décision du 30/08). Au bureau il
+            s'empile sous l'échelle du trajet, au coin droit (`underRouteScale`) ; ici, seulement au
+            téléphone et quand le journal tient la marge droite (piste 1c) : centré en haut. */}
+            {orderError !== null && (narrow || windows.includes('journal')) && (
               <div
-                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] left-1/2 -translate-x-1/2 ${
                   narrow
-                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)] left-1/2 -translate-x-1/2'
-                    : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
-                      windows.includes('journal')
-                      ? 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 -translate-x-1/2'
-                      : 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] right-4'
+                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)]'
+                    : 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)]'
                 }`}
               >
                 {orderError}
