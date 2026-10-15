@@ -860,14 +860,15 @@
 
 /* Habillée, la flaque d'ombre du point ne prend plus le pointeur : la pièce est peut-être
    dessinée ailleurs, et un sol vide ouvrait l'affiche de la ville (retours du 15/10). Le fanion
-   du propriétaire, lui, est un repère qu'on voit. */
+   du propriétaire est un repère qu'on voit, pas une prise : la pièce se lève par elle-même. */
 .label-anchor.label-anchor--dressed .label::before {
   pointer-events: none;
 }
 
 /* **Le fanion du propriétaire** (Blitz, retours du 15/10) : planté au vrai point, sous la pièce,
    à l'encre de qui la tient — blanc pour un neutre. Il pousse avec la pièce au rapproché ; au
-   loin, la planche est la pièce. */
+   loin, la planche est la pièce. Il ne prend jamais le pointeur : planté au pied de la pièce, il
+   volait le clic qui la lève. */
 .label-owner {
   position: absolute;
   bottom: -1px;
@@ -876,10 +877,6 @@
   opacity: var(--dressed, 0);
   pointer-events: none;
   filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1px rgb(38 30 20 / 40%));
-}
-
-.label-anchor--dressed .label-owner {
-  pointer-events: auto;
 }
 
 .label-owner-cloth {
