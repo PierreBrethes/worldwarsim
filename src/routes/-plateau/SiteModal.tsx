@@ -28,10 +28,9 @@ import { BLITZ } from '../../../convex/constants';
 import { HelpMark } from './HelpMark';
 import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl } from './RaiseControl';
-import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
-import { FloatingWindow, useWindowSized, type WindowProps, CloseButton } from './Window';
+import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
 import type { Seat } from '@/data/session';
 
@@ -202,29 +201,27 @@ function Site({
 
   return (
     <>
-      <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px]">
-        <BuildingPlate building={building.key} height={30} />
-        <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
-          {fr.buildings[building.key]}
-        </span>
-        <span className="text-[12.5px] text-[var(--ink-soft)]">
-          {fr.economy.inRegion(region?.name ?? building.regionId)}
-        </span>
-        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
-          {fr.production.siteLevel(building.level)}
-        </span>
+      <WindowHead
+        lead={<BuildingPlate building={building.key} height={30} />}
+        eyebrow={
+          <>
+            {fr.economy.inRegion(region?.name ?? building.regionId)} ·{' '}
+            {fr.production.siteLevel(building.level)}
+          </>
+        }
+        title={fr.buildings[building.key]}
+        onClose={onClose}
+      >
         {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
             debout, entier, et c'est sa région qui a changé de couleur. Le tampon le constate, et
             il n'ouvre aucun bouton — ce qui se reprend se reprend sur la carte. */}
         {unlinked && <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />}
-        <span className="h-px flex-1 bg-(--ink)/20" />
         {/* L'élévation passe **après** la fermeture sous le seuil : pleine ligne, elle repoussait
             « fermer » à une troisième ligne et l'en-tête mangeait un tiers du téléphone. */}
         <span className="order-last w-full min-w-0 md:order-none md:w-auto">
           <UpgradeControl building={building} view={view} seat={seat} now={now} />
         </span>
-        <CloseButton onClick={onClose} />
-      </DragHandle>
+      </WindowHead>
       <UnderCapture view={view} buildingId={building.id} />
 
       {error && (
@@ -415,25 +412,21 @@ function BlitzSite({
 
   return (
     <>
-      <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px]">
-        <BuildingPlate building={building.key} height={30} />
-        <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
-          {fr.buildings[building.key]}
-        </span>
-        <span className="text-[12.5px] text-[var(--ink-soft)]">
-          {fr.economy.inRegion(region?.name ?? building.regionId)}
-        </span>
+      <WindowHead
+        lead={<BuildingPlate building={building.key} height={30} />}
+        eyebrow={fr.economy.inRegion(region?.name ?? building.regionId)}
+        title={fr.buildings[building.key]}
+        onClose={onClose}
+      >
         {income > 0 && (
           <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
             {fr.blitz.siteIncome(income)}
           </span>
         )}
-        <span className="h-px flex-1 bg-(--ink)/20" />
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
           {fr.blitz.fundsHeld(funds)}
         </span>
-        <CloseButton onClick={onClose} />
-      </DragHandle>
+      </WindowHead>
       <UnderCapture view={view} buildingId={building.id} />
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
