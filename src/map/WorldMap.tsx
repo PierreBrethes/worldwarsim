@@ -992,6 +992,7 @@ export function WorldMap({
         }
         muted={placing !== null}
         destinations={destinationIds}
+        groupFar={blitz !== null}
       />
       <EdgeIndicators
         labels={labels}

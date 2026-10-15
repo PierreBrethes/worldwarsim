@@ -17,6 +17,7 @@ import {
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import type { PilePieces, SpreadPiece } from '@/domain/pile-pieces';
+import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { HOVER_ALTITUDE } from './thread';
@@ -69,6 +70,65 @@ export function pileLayout(
     groups: Array.from({ length: groups }, (_, k) => at(k)),
     more: more ? at(groups) : null,
   };
+}
+
+type Slot = { readonly x: number; readonly z: number };
+
+/** Board units between two ranks of a formation: a tank's length and a little. */
+const RANK_DEPTH = 0.6;
+
+/** A block of `count` slots around its centre: one row up to four, then a square-ish formation. */
+function block(count: number): Slot[] {
+  if (count <= 4) return pileLayout(count, false).groups.map((x) => ({ x, z: 0 }));
+  const columns = Math.ceil(Math.sqrt(count));
+  const ranks = Math.ceil(count / columns);
+  return Array.from({ length: count }, (_, k) => {
+    const rank = Math.floor(k / columns);
+    const inRank = Math.min(columns, count - rank * columns);
+    return {
+      x: ((k % columns) - (inRank - 1) / 2) * GROUP_SPACING,
+      z: ((ranks - 1) / 2 - rank) * RANK_DEPTH,
+    };
+  });
+}
+
+/**
+ * **Where each group of a pile stands around its point** (retours du 15/10): a row, or a tight
+ * formation when the units are many (a Blitz pile is one piece per unit), the « +N » counter
+ * taking the slot after the last group. **On a shore** — `seaward`, a unit vector toward the
+ * water, `null` inland — hulls stand on the sea side and land troops on the land side, two
+ * blocks: a troop on land never stands in the water. Board units, before the near weight scales
+ * the whole pile, in the board's own axes.
+ */
+export function formationOf(
+  domains: ReadonlyArray<'land' | 'sea'>,
+  more: boolean,
+  seaward: readonly [number, number] | null,
+): { groups: ReadonlyArray<Slot>; more: Slot | null } {
+  const slots = domains.length + (more ? 1 : 0);
+  const afloat = (k: number) => seaward !== null && k < domains.length && domains[k] === 'sea';
+  const land = Array.from({ length: slots }, (_, k) => k).filter((k) => !afloat(k));
+  const sea = Array.from({ length: slots }, (_, k) => k).filter(afloat);
+  const placed = new Array<Slot>(slots);
+  for (const [members, side] of [
+    [land, -1],
+    [sea, 1],
+  ] as const) {
+    if (members.length === 0) continue;
+    const slotsOf = block(members.length);
+    members.forEach((k, r) => {
+      const { x, z } = slotsOf[r]!;
+      if (seaward === null) {
+        placed[k] = { x, z };
+        return;
+      }
+      // Turned so the rows run along the shore, each block a gap off it on its own side.
+      const [sx, sz] = seaward;
+      const off = z + side * (Math.max(...slotsOf.map((slot) => Math.abs(slot.z))) + GROUP_SPACING);
+      placed[k] = { x: -x * sz + off * sx, z: x * sx + off * sz };
+    });
+  }
+  return { groups: placed.slice(0, domains.length), more: more ? placed[slots - 1]! : null };
 }
 
 /** Troops in a row before the next one starts behind it: four is about a pile's own width. */
@@ -134,10 +194,10 @@ const FOOTPRINT = new BoxGeometry(GROUP_SPACING * 0.9, 0.6, 0.75);
 FOOTPRINT.translate(0, 0.3, 0);
 const UNSEEN = new MeshBasicMaterial();
 
-function footprint(x: number, grip: Grip): Mesh {
+function footprint({ x, z }: Slot, grip: Grip): Mesh {
   const target = new Mesh(FOOTPRINT, UNSEEN);
   target.visible = false;
-  target.position.x = x;
+  target.position.set(x, 0, z);
   target.userData.grip = grip;
   return target;
 }
@@ -171,6 +231,8 @@ export function pileObject(
   pieces: PilePieces,
   texts: CounterTexts,
   faces: Faces,
+  /** Toward the water from a pile on a shore (`formationOf`), `null` inland. */
+  seaward: readonly [number, number] | null = null,
 ): {
   object: Group;
   ready: Promise<unknown>;
@@ -179,7 +241,11 @@ export function pileObject(
 } | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
-  const layout = pileLayout(figurines.length, pieces.more > 0);
+  const layout = formationOf(
+    pieces.groups.map(({ role }) => (DOMAIN_BY_ROLE[role] === 'sea' ? 'sea' : 'land')),
+    pieces.more > 0,
+    seaward,
+  );
   const words = counterTexts(pieces, texts);
   const object = new Group();
   const smokes: Smoke[] = [];
@@ -189,14 +255,14 @@ export function pileObject(
     targets.push(piece.children[0] as Mesh);
   };
   figurines.forEach((figurine, k) => {
-    const x = layout.groups[k]!;
-    figurine.object.position.x = x;
+    const slot = layout.groups[k]!;
+    figurine.object.position.set(slot.x, 0, slot.z);
     object.add(figurine.object);
-    const target = footprint(x, k);
+    const target = footprint(slot, k);
     object.add(target);
     targets.push(target);
     const text = words.groups[k];
-    if (text) addCounter(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
+    if (text) addCounter(counter(faces.of(text), slot.x + COUNTER_AT[0], slot.z + COUNTER_AT[1]));
     const group = pieces.groups[k]!;
     // A plane that never lands hovers over its shadow, as it flew over it on its thread.
     if (group.aloft) {
@@ -205,7 +271,7 @@ export function pileObject(
       figurine.object.userData.aloft = true;
       target.userData.aloft = true;
       const shadow = contactShadow();
-      shadow.position.x = x;
+      shadow.position.set(slot.x, 0, slot.z);
       object.add(shadow);
     }
     // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
@@ -222,7 +288,7 @@ export function pileObject(
     );
   });
   if (layout.more !== null && words.more !== null)
-    addCounter(counter(faces.of(words.more), layout.more, 0));
+    addCounter(counter(faces.of(words.more), layout.more.x, layout.more.z));
   return {
     object,
     ready: Promise.all(figurines.map((figurine) => figurine.ready)),
@@ -504,7 +570,7 @@ function spreadObject(
   figurines.forEach((figurine, k) => {
     const piece = pieces.spread[k]!;
     const part = new Group();
-    const target = footprint(0, 'pile');
+    const target = footprint({ x: 0, z: 0 }, 'pile');
     target.userData.pileId = pileId;
     target.userData.troopId = piece.troopId;
     part.add(figurine.object, target, lifeBar(piece));
@@ -581,6 +647,8 @@ export class StandingLayer {
     private readonly frame: WorldFrame,
     private readonly changed: () => void,
     private readonly garrisonAt: GarrisonAt,
+    /** Toward the water from a point on a shore, `null` inland (`formationOf`). */
+    private readonly seaward: (lonLat: LonLat) => readonly [number, number] | null = () => null,
   ) {
     this.faces = new Faces(changed);
   }
@@ -606,7 +674,13 @@ export class StandingLayer {
         next.set(pile.id, kept);
         continue;
       }
-      const built = pileObject(this.nation, pile.pieces, this.texts, this.faces);
+      const built = pileObject(
+        this.nation,
+        pile.pieces,
+        this.texts,
+        this.faces,
+        'lonLat' in pile.at ? this.seaward(pile.at.lonLat) : null,
+      );
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
@@ -785,6 +859,7 @@ export class StandingLayer {
       heldPieces(entry.pieces, held.troopIds),
       this.texts,
       this.faces,
+      'lonLat' in entry.at ? this.seaward(entry.at.lonLat) : null,
     );
     if (copy === null) return;
     for (const disc of copy.object.getObjectsByProperty('name', CONTACT)) disc.visible = false;

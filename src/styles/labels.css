@@ -739,7 +739,8 @@
   opacity: calc(1 - var(--dressed, 0));
 }
 
-.label--building.label--grouped .label-pictogram {
+.label--building.label--grouped .label-pictogram,
+.label--installation.label--grouped .label-pictogram {
   display: none;
 }
 
@@ -855,6 +856,51 @@
 .label-anchor.label-anchor--dressed .label-block .label-lines,
 .label-anchor.label-anchor--dressed .label-block .label-lines * {
   pointer-events: auto;
+}
+
+/* Habillée, la flaque d'ombre du point ne prend plus le pointeur : la pièce est peut-être
+   dessinée ailleurs, et un sol vide ouvrait l'affiche de la ville (retours du 15/10). Le fanion
+   du propriétaire est un repère qu'on voit, pas une prise : la pièce se lève par elle-même. */
+.label-anchor.label-anchor--dressed .label::before {
+  pointer-events: none;
+}
+
+/* **Le fanion du propriétaire** (Blitz, retours du 15/10) : planté au vrai point, sous la pièce,
+   à l'encre de qui la tient — blanc pour un neutre. Il pousse avec la pièce au rapproché ; au
+   loin, la planche est la pièce. Il ne prend jamais le pointeur : planté au pied de la pièce, il
+   volait le clic qui la lève. */
+.label-owner {
+  position: absolute;
+  bottom: -1px;
+  left: -2px;
+  display: block;
+  opacity: var(--dressed, 0);
+  pointer-events: none;
+  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1px rgb(38 30 20 / 40%));
+}
+
+.label-owner-cloth {
+  fill: var(--owner-ink, var(--ink));
+  stroke: var(--ink);
+  stroke-width: 0.8;
+}
+
+.label-owner--neutral .label-owner-cloth {
+  fill: var(--paper);
+}
+
+/* **Le trait d'encre du point à la pièce** qu'un anneau a écartée : on voit où elle est vraiment. */
+.label-tether {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: color-mix(in srgb, var(--ink) 70%, transparent);
+  box-shadow: 0 0 0 0.75px rgb(232 223 200 / 60%);
+  opacity: var(--dressed, 0);
+  transform-origin: 0 50%;
+  pointer-events: none;
 }
 
 /* La capture (14/10) : l'anneau qui se remplit et le tampon ; l'heure est à l'affiche. Chez le défenseur, l'encre

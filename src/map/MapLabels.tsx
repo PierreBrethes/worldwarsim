@@ -21,6 +21,7 @@ import { useMapMotion } from '@/data/mapMotion';
 import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
+  NEUTRAL_FLAG,
   URGENCY_MS,
   cartoucheShown,
   isCountdown,
@@ -97,6 +98,7 @@ export function MapLabels({
   onHoldOver,
   muted,
   destinations,
+  groupFar = false,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
@@ -142,11 +144,15 @@ export function MapLabels({
   muted: boolean;
   /** Les destinations de la colonne armée, cerclées au pied (lot mobile-3, A8). */
   destinations: ReadonlySet<string>;
+  /** **Au loin aussi, des planches de sites qui se chevauchent n'en font qu'un cartouche**
+   *  (Blitz, retours du 15/10) : les neutres d'une Blitz couvraient l'Espagne. */
+  groupFar?: boolean;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
   const countdowns = useRef(new Map<string, HTMLElement>());
+  const tethers = useRef(new Map<string, HTMLElement>());
   const motion = useMapMotion();
   const states = useRef(new Map<string, RenderState>());
   const pendingDegrade = useRef(0);
@@ -258,7 +264,7 @@ export function MapLabels({
     const expanded = state.lod === 'expanded' && !state.folded;
     root.classList.toggle('label--expanded', expanded);
     root.classList.toggle('label--glyph', !expanded);
-    root.classList.toggle('label--grouped', expanded && state.grouped);
+    root.classList.toggle('label--grouped', state.grouped);
     const stagger = expanded ? state.stagger : 0;
     if (root.dataset.stagger !== String(stagger)) {
       root.dataset.stagger = String(stagger);
@@ -284,11 +290,19 @@ export function MapLabels({
     // rendrait en la quittant : on mesure la carte au repos, et on la renomme après.
     const held = pointed.current;
     point(null);
+    // Une installation relevée n'entre dans « N sites » qu'en Blitz : en Mondiale elle garde sa
+    // planche et sa rose, que le cartouche réuni ne sait pas ouvrir.
+    const site = (label: MapLabel) =>
+      label.type === 'building' || (groupFar && label.type === 'installation');
     const candidates = labels
       .filter((label) => {
         const state = states.current.get(label.id);
         // Un drapeau n'a pas de mots à replier, et il ne cède sa place à personne.
-        return state?.visible === true && state.lod === 'expanded' && label.type !== 'arrival';
+        return (
+          state?.visible === true &&
+          (state.lod === 'expanded' || (groupFar && site(label))) &&
+          label.type !== 'arrival'
+        );
       })
       .slice()
       .sort((first, second) => second.priority - first.priority);
@@ -306,18 +320,37 @@ export function MapLabels({
       const block = blocks.current.get(label.id);
       const state = states.current.get(label.id);
       if (!block || !state) return [];
-      const rect = block.getBoundingClientRect();
-      widths.current.set(label.id, rect.width);
+      const words = block.getBoundingClientRect();
+      widths.current.set(label.id, words.width);
+      // La planche d'un site est hors du flux du bloc, et c'est elle qui chevauche : au loin, ou
+      // quand ses mots se taisent, elle est tout ce qu'il montre — tant que la maquette ne l'a
+      // pas remplacée.
+      const plate =
+        groupFar && state.dressed < 1
+          ? block.querySelector('.label-pictogram')?.getBoundingClientRect()
+          : undefined;
+      const rect: ScreenBox =
+        plate === undefined
+          ? words
+          : {
+              left: Math.min(words.left, plate.left),
+              top: Math.min(words.top, plate.top),
+              right: Math.max(words.right, plate.right),
+              bottom: Math.max(words.bottom, plate.bottom),
+            };
       return [{ label, state, rect }];
     });
 
+    const installations = new Set(
+      labels.flatMap((label) => (label.type === 'installation' ? [label.id] : [])),
+    );
     const formed = groupOverlapping(
       measured.flatMap<GroupCandidate>(({ label, state, rect }) =>
-        label.type === 'stack' || label.type === 'building'
+        label.type === 'stack' || site(label)
           ? [
               {
                 id: label.id,
-                kind: label.type,
+                kind: label.type === 'stack' ? 'stack' : 'building',
                 box: rect,
                 x: state.x,
                 y: state.y,
@@ -326,6 +359,12 @@ export function MapLabels({
             ]
           : [],
       ),
+    ).map((group) =>
+      // La liste d'une pile de mâts n'ouvre qu'un bâtiment à moi : une installation y serait
+      // comptée sans être joignable. Un tel groupe rapproche la caméra.
+      group.coincident && group.members.some((member) => installations.has(member))
+        ? { ...group, coincident: false }
+        : group,
     );
     const groupOf = new Map(
       formed.flatMap((group) => group.members.map((member) => [member, group] as const)),
@@ -356,14 +395,18 @@ export function MapLabels({
       if (group !== undefined) {
         let standing = placedGroups.get(group.id);
         if (standing === undefined) {
-          standing = !kept.some((other) => boxesOverlap(other, group.box, OVERLAP_MARGIN));
+          // Des planches de sites réunies ne se replient pas devant une pile : repliées, elles
+          // restaient l'amas qu'elles devaient résumer.
+          standing =
+            (groupFar && group.kind === 'building') ||
+            !kept.some((other) => boxesOverlap(other, group.box, OVERLAP_MARGIN));
           placedGroups.set(group.id, standing);
           if (standing) kept.push(group.box);
         }
         state.grouped = standing && !fans(group);
         state.folded = !standing;
         if (standing && fans(group)) state.stagger = lifts.get(label.id) ?? 0;
-      } else {
+      } else if (state.lod === 'expanded') {
         state.folded = kept.some((other) => boxesOverlap(other, rect, OVERLAP_MARGIN));
         if (!state.folded) kept.push(rect);
       }
@@ -380,7 +423,7 @@ export function MapLabels({
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
     point(held);
-  }, [labels, apply, engine, point]);
+  }, [labels, apply, engine, point, groupFar]);
 
   /**
    * One degradation per frame at most, and only when something asked for it. Crossing the
@@ -426,6 +469,7 @@ export function MapLabels({
           stagger: 0,
           fade: 1,
           dressed: 0,
+          drawn: '',
           plateScale: 1,
           x: 0,
           y: 0,
@@ -489,6 +533,21 @@ export function MapLabels({
           // Dressed, the piece takes the pointer from the canvas (`onPieceHover`, `onPiecePress`):
           // its label, standing in the middle of it, would steal the press of what it covers.
           anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
+        }
+
+        // **Le trait d'encre du fanion à la pièce** qu'un anneau a écartée de son point.
+        const length = Math.round(Math.hypot(projection.drawnX, projection.drawnY));
+        const drawn =
+          length < TETHER_MIN_PX
+            ? ''
+            : `${length}px/${Math.atan2(projection.drawnY, projection.drawnX).toFixed(3)}rad`;
+        const tether = tethers.current.get(projection.id);
+        if (drawn !== state.drawn && tether !== undefined) {
+          state.drawn = drawn;
+          const [span = '0px', turn = '0rad'] = drawn.split('/');
+          tether.style.display = drawn === '' ? 'none' : '';
+          tether.style.width = span;
+          tether.style.transform = `rotate(${turn})`;
         }
 
         const plate = Math.round(projection.plateScale * 20) / 20;
@@ -683,6 +742,14 @@ export function MapLabels({
           }}
           style={{ display: 'none' }}
         >
+          <span
+            aria-hidden
+            className="label-tether"
+            style={{ display: 'none' }}
+            ref={(node) => {
+              register(tethers.current, label.id, node);
+            }}
+          />
           <div
             ref={(node) => {
               register(roots.current, label.id, node);
@@ -750,6 +817,23 @@ export function MapLabels({
               onAct(label, event.clientX, event.clientY);
             }}
           >
+            {label.flag !== undefined && (
+              <span
+                className={
+                  label.flag === NEUTRAL_FLAG ? 'label-owner label-owner--neutral' : 'label-owner'
+                }
+                style={
+                  label.flag === NEUTRAL_FLAG
+                    ? undefined
+                    : ({ '--owner-ink': label.flag } as CSSProperties)
+                }
+              >
+                <svg viewBox="0 0 16 22" width="16" height="22" aria-hidden>
+                  <path className="label-flag-pole" d="M2 1v21" />
+                  <path className="label-owner-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
+                </svg>
+              </span>
+            )}
             <div
               className="label-block"
               ref={(node) => {
@@ -1127,12 +1211,17 @@ type RenderState = {
   stagger: number;
   fade: number;
   dressed: number;
+  /** Where its piece is drawn off its point, as last written: `''` on it. */
+  drawn: string;
   plateScale: number;
   x: number;
   y: number;
 };
 
 const LOOT_CYCLE_RADIUS_PX = 30;
+
+/** Under this, a piece drawn off its point still reads as standing on it: no thread. */
+const TETHER_MIN_PX = 6;
 
 function nearbyLootSightings(
   clicked: MapLabel,
