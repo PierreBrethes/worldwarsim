@@ -63,6 +63,8 @@ const DESIGNATED_OPACITY = 0.62;
  */
 export type HeldClaim = {
   readonly ink: string;
+  /** A held region drawn in a solid ink contour, so a lone territory never reads as a lake. */
+  readonly outlined?: boolean;
   readonly regions: ReadonlyArray<{
     readonly id: string;
     readonly wash: number;
@@ -458,8 +460,30 @@ export class RegionLayer {
         // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
         fill.receiveShadow = true;
         this.held.add(fill);
+        if (claim.outlined === true && state !== 'suspended')
+          this.held.add(this.outlineOf(claim.ink, ids));
       }
     }
+  }
+
+  private outlineOf(ink: string, ids: ReadonlySet<string>): LineSegments {
+    const points: number[] = [];
+    for (const { region } of this.prepared) {
+      if (!ids.has(region.id)) continue;
+      for (const ring of region.rings) {
+        for (let i = 0; i < ring.length; i++) {
+          const [ax, ay] = ring[i]!;
+          const [bx, by] = ring[(i + 1) % ring.length]!;
+          points.push(
+            ...this.frame.toWorld(ax, ay, COUNTRY_THICKNESS + HELD_LIFT).toArray(),
+            ...this.frame.toWorld(bx, by, COUNTRY_THICKNESS + HELD_LIFT).toArray(),
+          );
+        }
+      }
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    return new LineSegments(geometry, onLand(new LineBasicMaterial({ color: ink })));
   }
 
   private fill(mesh: Mesh, ids: ReadonlySet<string>, lift: number): void {
