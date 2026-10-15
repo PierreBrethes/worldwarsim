@@ -385,6 +385,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const narrow = useNarrowScreen();
   const blitz = view.mode === 'blitz';
+  /** A Blitz shows no ground card on hover alone; a country picked by click keeps its whole card. */
+  const quietHover = blitz && country == null;
   const blitzTheatre = useMemo(() => playedTheatre(view), [view]);
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
@@ -2102,6 +2104,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               playerNation={view.me.nation}
               indicators={toggles}
               accentedMovement={hoveredMovement}
+              quietRouteScale={blitz}
               underRouteScale={
                 orderError !== null && !narrow && !windows.includes('journal') ? (
                   <div className="hud paper-grain float border border-l-[3px] border-[var(--critical)] px-3 py-2 text-[11px] text-[var(--ink)]">
@@ -2393,8 +2396,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               {!aimingOnPhone && (
                 <GroundPanel
                   selected={country ?? null}
-                  hoveredCountry={blitz ? null : hoveredCountry}
-                  hoveredRegion={blitz ? null : hoveredRegion}
+                  hoveredCountry={quietHover ? null : hoveredCountry}
+                  hoveredRegion={quietHover ? null : hoveredRegion}
                   holding={
                     hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
                   }
