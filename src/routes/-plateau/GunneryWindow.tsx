@@ -27,8 +27,7 @@ import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
 import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
-import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps, CloseButton } from './Window';
+import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 import { rolesFormingSites } from '@/domain/blitz';
@@ -65,11 +64,7 @@ export function GunneryWindow({
   return (
     <FloatingWindow name="gunnery" onClose={onClose} {...windowProps} alignment="top" width={1180}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          <span>{fr.gunnery.header}</span>
-          <span className="flex-1" />
-          <CloseButton onClick={onClose} />
-        </DragHandle>
+        <WindowHead title={fr.gunnery.header} onClose={onClose} />
 
         {/* Ce que la table garantit, imprimé : c'est le garde-fou du projet (fiche 08 §9), et
             c'est la première chose qu'un joueur venu chercher l'arme absolue doit lire. */}
