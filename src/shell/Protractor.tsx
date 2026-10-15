@@ -49,7 +49,7 @@ export function Protractor({
   const playing = view.season.reduction.concludedAt === null;
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
-  const rank = view.press?.mine?.rank ?? null;
+  const rank = blitz ? null : (view.press?.mine?.rank ?? null);
   const work = view.me.construction;
 
   const close = (refocus: boolean) => {
