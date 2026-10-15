@@ -72,16 +72,20 @@ const capture = (
 
 describe('a capture', () => {
   it('does not list the troop that captures as idle', () => {
-    const view = board({ troops: [troop({ stationedAt: posted('PRT', [4.8, 45.7]) })] }, [], [
-      capture('capturer'),
-    ]);
+    const view = board(
+      { troops: [troop({ stationedAt: posted('PRT', [4.8, 45.7]) })] },
+      [],
+      [capture('capturer')],
+    );
     expect(kinds(view)).not.toContain('troopWithoutOrder');
   });
 
   it('lists it again once the capture is stopped', () => {
-    const view = board({ troops: [troop({ stationedAt: posted('PRT', [4.8, 45.7]) })] }, [], [
-      capture('capturer', 1),
-    ]);
+    const view = board(
+      { troops: [troop({ stationedAt: posted('PRT', [4.8, 45.7]) })] },
+      [],
+      [capture('capturer', 1)],
+    );
     expect(kinds(view)).toContain('troopWithoutOrder');
   });
 
