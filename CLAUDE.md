@@ -628,7 +628,8 @@ et la feuille la reçoit : pays, mer et encres de région. La carte d'ombres (20
 **recalée sur ce que la caméra regarde** à chaque image, par crans de 2^¼ et calée au texel pour
 ne pas scintiller, et **éteinte au-delà du fondu des régions** (`shadowReach`) : à la vue monde
 aucune pièce ne tient debout, et l'ombre ne coûte rien. Elle ne demande aucune image — elle se
-rend avec celles que la carte doit déjà. Les disques de contact restent, très légers : ils posent
+rend avec les images **complètes** que la carte doit déjà (remuée, battement), jamais avec une
+image d'ambiance, qui ne touche que des uniformes. Les disques de contact restent, très légers : ils posent
 la pièce sous ses pieds quand l'ombre de la lampe tombe à côté. **Et un flou tilt-shift léger** (1,5 px au plus, `tiltShiftOf`, `camera-tilt.ts`) borde le haut et le bas de la carte : nul à l'aplomb, plein à la pente la plus rasante, nul au-delà du fondu des régions et coupé par « animations coupées » ; deux bandes DOM `backdrop-filter` sous les étiquettes, force écrite par le moteur dans `--tilt-shift` (`onTiltShift`).
 
 **La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
@@ -646,7 +647,9 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 - une **ambiance** qui tourne sans fin (mer, vent) est une couche d'`Ambience` (`ambience.ts`) :
   elle déclare sa cadence (`hz`, 12 par défaut), reçoit un temps quantifié à ce pas, figé hors
   `full`, et le socle demande **une** image par pas (`FrameDemand.request`) — jamais
-  `invalidate()`, qui tiendrait la carte à 60 i/s ;
+  `invalidate()`, qui tiendrait la carte à 60 i/s. **Cette image est partielle** (15/10/2026,
+  `FrameDemand.due` rend `'ambient'`) : ni carte d'ombres ni étiquettes refaites — une ambiance
+  ne change que des uniformes ou des sprites, jamais une pièce qui porte ombre ni une étiquette ;
 - un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
   `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
   `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
