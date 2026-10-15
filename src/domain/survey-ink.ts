@@ -1,7 +1,7 @@
 import { LAST_KNOWN_HOURS } from '../../convex/constants';
 
 /** @a-mesurer — the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. */
-const SURVEY_INK_FADED = 0.2;
+export const SURVEY_INK_FADED = 0.2;
 
 /**
  * **The hour a survey carries** (H3, one rule for camps and threads): a force in sight, the hour
