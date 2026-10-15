@@ -40,8 +40,8 @@ export function MarchGauge({ since, dueAt }: { since: number; dueAt: number }) {
 
 /**
  * **L'anneau d'une capture** (14/10) : il se remplit à l'horloge que le serveur a servie
- * (`progressAt`, la règle même qui date l'échéance), le tampon « capture » à côté et l'heure de
- * fin — de victoire chez le capteur, de perte chez le défenseur, à l'encre d'alerte. Sa propre
+ * (`progressAt`, la règle même qui date l'échéance) avec le tampon « capture » ; l'heure de fin —
+ * de victoire chez le capteur, de perte chez le défenseur, à l'encre d'alerte — se lit à l'affiche. Sa propre
  * horloge, comme la barre du pillage : la carte ne rend pas une image pour lui.
  */
 export function CaptureGauge({
@@ -60,7 +60,15 @@ export function CaptureGauge({
   const percent = Math.floor(share * 100);
   const hour = asClockTime(completesAt);
   return (
-    <div className={`label-line capture-gauge capture-gauge--${side}`} data-testid="capture-gauge">
+    <div
+      className={`label-line capture-gauge capture-gauge--${side}`}
+      data-testid="capture-gauge"
+      aria-label={
+        side === 'capturer'
+          ? fr.capture.endsAt(percent, hour)
+          : fr.capture.lostAt(percent, hour, hq)
+      }
+    >
       <svg className="capture-ring" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9" pathLength={1} className="capture-ring-track" />
         <circle
@@ -73,11 +81,6 @@ export function CaptureGauge({
         />
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
-      <span>
-        {side === 'capturer'
-          ? fr.capture.endsAt(percent, hour)
-          : fr.capture.lostAt(percent, hour, hq)}
-      </span>
     </div>
   );
 }

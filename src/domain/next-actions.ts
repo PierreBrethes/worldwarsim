@@ -340,7 +340,17 @@ const troopsWithoutOrder = (
     names,
     view,
     standing,
-    (troop) => troop.stationedAt.kind === 'point',
+    (troop) => troop.stationedAt.kind === 'point' && !capturesFrom(view, troop.stationedAt),
+  );
+
+/** A troop that is capturing where it stands is working, not idle. */
+const capturesFrom = (view: PlayerView, station: Extract<TroopStation, { kind: 'point' }>) =>
+  view.captures.some(
+    (capture) =>
+      capture.side === 'capturer' &&
+      capture.stoppedAt === null &&
+      capture.point[0] === station.lonLat[0] &&
+      capture.point[1] === station.lonLat[1],
   );
 
 const unsuppliedTroops = (

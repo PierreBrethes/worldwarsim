@@ -55,7 +55,7 @@ describe('CaptureGauge', () => {
       <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
     );
     expect(markup).toContain('stroke-dasharray="0.75 1"');
-    expect(markup).toContain('75 % · perdu vers');
+    expect(markup).toContain('aria-label="75 % · perdu vers');
     expect(markup).toContain('capture-gauge--defender');
     expect(
       renderToStaticMarkup(
@@ -66,6 +66,6 @@ describe('CaptureGauge', () => {
           completesAt={Date.UTC(2026, 9, 14, 12, 30)}
         />,
       ),
-    ).toContain('75 % · QG perdu vers');
+    ).toContain('aria-label="75 % · QG perdu vers');
   });
 });
