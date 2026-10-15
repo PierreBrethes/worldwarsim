@@ -1,3 +1,4 @@
+import { BLITZ } from '../../convex/constants';
 import { describe, expect, it } from 'vitest';
 import {
   blitzRecruitRefusalOf,
@@ -70,6 +71,19 @@ describe('le soin de la Blitz', () => {
     expect(mendStep(infantry, 100)).toEqual({ strength: 25, cost: 3 });
   });
 
+  it('soigne un quart plus vite qu’au pas d’une minute, pour tous les rôles, au même prix par point', () => {
+    for (const role of ['infantry', 'armor', 'bomber', 'cargo'] as const) {
+      const troop = { role, strength: 1, nominalStrength: 100 };
+      const step = mendStep(troop, 10_000)!;
+      const gained = step.strength - troop.strength;
+      expect(gained / BLITZ.mend.stepMinutes).toBeCloseTo(1.25 * 10);
+      expect(step.cost / gained).toBeCloseTo(
+        (BLITZ.rolePrice[role] * BLITZ.mend.priceShare) / 100,
+        0,
+      );
+    }
+  });
+
   it('ne dépasse pas le nominal, et ne soigne pas qui ne peut payer', () => {
     expect(mendStep({ ...infantry, strength: 48 }, 100)).toEqual({ strength: 50, cost: 2 });
     expect(mendStep({ ...infantry, strength: 50 }, 100)).toBeNull();
@@ -105,20 +119,20 @@ describe('the theatre box', () => {
 });
 
 describe('the theatre pace (B1)', () => {
-  it('puts Europe near five minutes per thousand kilometres', () => {
+  it('puts Europe near four minutes per thousand kilometres', () => {
     const pace = theatreMinutesPer1000Km(europe);
-    expect(pace).toBeGreaterThan(3.5);
+    expect(pace).toBeGreaterThan(3);
     expect(pace).toBeLessThan(6);
   });
 
-  it('crosses any theatre in fifteen to twenty minutes', () => {
+  it('crosses any theatre in fourteen to nineteen minutes', () => {
     for (const theatre of [europe, pacific]) {
       const { west, south, east, north } = theatre.box;
       const heightKm = (north - south) * 111.2;
       const widthKm = (east - west) * 111.2 * Math.cos((((north + south) / 2) * Math.PI) / 180);
       const minutes = (Math.max(heightKm, widthKm) / 1000) * theatreMinutesPer1000Km(theatre);
-      expect(minutes).toBeGreaterThanOrEqual(15);
-      expect(minutes).toBeLessThanOrEqual(20);
+      expect(minutes).toBeGreaterThanOrEqual(14);
+      expect(minutes).toBeLessThanOrEqual(19);
     }
   });
 });

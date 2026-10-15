@@ -343,7 +343,7 @@ export const fr = {
     siteIncome: (perMinute: number) => `verse ${num(perMinute)} fonds par minute`,
     fundsHeld: (funds: number) => `${num(funds)} fonds en caisse`,
     price: (funds: number) => `${num(funds)} fonds`,
-    terms: (funds: number, minutes: number) => `${num(funds)} fonds · prêt en ${num(minutes)} min`,
+    terms: (funds: number, duration: string) => `${num(funds)} fonds · prêt en ${duration}`,
     recruit: (funds: number) => `former — ${num(funds)} fonds`,
     short: (missing: number) => `il manque ${num(missing)} fonds`,
     mend: 'soin',
@@ -352,11 +352,22 @@ export const fr = {
     mending: (count: number) =>
       count > 1 ? `${num(count)} troupes reprennent des forces` : 'reprend des forces',
     mendingHere: (count: number) => (count > 1 ? `${num(count)} en soin` : 'une en soin'),
-    mendNote:
-      'une troupe entamée posée sur un bâtiment à soi reprend un dixième de sa force par minute, contre des fonds',
+    mendNote: (share: number, seconds: number) =>
+      `une troupe entamée posée sur un bâtiment à soi reprend ${num(Math.round(share * 100))} % de sa force toutes les ${num(seconds)} secondes, contre des fonds`,
     clock: 'fin',
     clockLabel: (left: string) => `fin de la Blitz dans ${left} — le plus gros revenu l’emporte`,
     clockEnded: 'terminée',
+    clockOut: 'éliminé',
+    ending: {
+      won: 'VICTOIRE',
+      lost: 'DÉFAITE',
+      draw: 'ÉGALITÉ',
+      eliminated: (time: string) => `ÉLIMINÉ À ${time} — votre quartier général est tombé`,
+      home: 'retour à l’accueil',
+      watch: 'regarder la carte',
+      observe: 'observer',
+      outcome: { winner: 'vainqueur', loser: 'vaincu', out: 'éliminé', draw: 'égalité' },
+    },
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
   },

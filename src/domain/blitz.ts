@@ -75,7 +75,7 @@ type Wounded = {
 };
 
 /**
- * **Un pas de soin** : un dixième de la force rendu, payé au prorata du prix du rôle. `null` quand
+ * **Un pas de soin** : une part de la force rendue (`BLITZ.mend.sharePerStep`), payée au prorata du prix du rôle. `null` quand
  * la troupe est entière ou que les fonds ne couvrent pas le pas — on ne soigne pas à crédit.
  */
 export function mendStep(
@@ -146,12 +146,12 @@ export const notInBlitz = (mode: SeasonMode): 'NOT_IN_BLITZ' | null =>
   mode === 'blitz' ? 'NOT_IN_BLITZ' : null;
 
 /**
- * **A Blitz crosses its theatre in a quarter of an hour or so** (B1, 14/10): the pace is read off
+ * **A Blitz crosses its theatre in under a quarter of an hour** (B1, 14/10, then x1.25 on 15/10): the pace is read off
  * the theatre rather than written per theatre, so a box redrawn tomorrow keeps the evening.
  *
- * @a-mesurer the decision says 15 to 20 minutes; nothing has played one yet
+ * @a-mesurer the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet
  */
-export const BLITZ_CROSSING_MINUTES = 18;
+export const BLITZ_CROSSING_MINUTES = 14.4;
 
 export function withinTheatre(theatre: Theatre, [lon, lat]: LonLat): boolean {
   const { west, south, east, north } = theatre.box;

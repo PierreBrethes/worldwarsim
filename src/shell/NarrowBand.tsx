@@ -39,6 +39,7 @@ export function NarrowBand({
   ref?: Ref<HTMLElement>;
 }) {
   const now = useClock();
+  const search = useSearch({ strict: false }) as BoardSearch;
   const [shown, setShown] = useState<{ resource: ResourceKey; left: number } | null>(null);
   const [surface, setSurface] = useState<'dossier' | 'layers' | null>(null);
   const columns = useRef<HTMLDivElement>(null);
@@ -95,7 +96,7 @@ export function NarrowBand({
       {me.funds !== null ? (
         <div className="flex h-[38px] items-center justify-between px-[12px]">
           <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
-          <BlitzClock view={view} now={now} />
+          <BlitzClock view={view} now={now} openEnding={search} />
         </div>
       ) : (
         <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">

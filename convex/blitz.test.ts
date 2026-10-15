@@ -4,7 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { THEATRES, theatreById } from '../src/domain/theatres';
 import { blitzMapRulesOf } from '../src/domain/blitz-placement';
-import { BLITZ } from './constants';
+import { BLITZ, CAPTURE_MINUTES } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
 import { routeKmFrom } from './routes';
@@ -345,7 +345,7 @@ describe('les fonds de la Blitz', () => {
     );
     await t.mutation(internal.movements.arrive, { movementId });
     const [capture] = await t.run((ctx) => ctx.db.query('captures').collect());
-    expect(capture!.completesAt).toBe(MIDDAY + 3 * MINUTE);
+    expect(capture!.completesAt).toBe(MIDDAY + 2.4 * MINUTE);
 
     vi.setSystemTime(capture!.completesAt);
     await t.mutation(internal.captures.complete, {
@@ -357,7 +357,7 @@ describe('les fonds de la Blitz', () => {
     const hq = BLITZ.fundsPerMinute.hq!;
     const town = BLITZ.fundsPerMinute.city!;
     expect(await fundsServed(t, seat)).toEqual({
-      stock: BLITZ.startingFunds + 4 * hq + town,
+      stock: BLITZ.startingFunds + 4 * hq + town * (4 - CAPTURE_MINUTES.blitz.building),
       perMinute: hq + town,
     });
 
@@ -658,7 +658,7 @@ describe('la chute d’un QG (B10)', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('se capture en six minutes, élimine le perdant et conclut la Blitz à deux', async () => {
+  it('se capture en moins de cinq minutes, élimine le perdant et conclut la Blitz à deux', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
@@ -668,7 +668,7 @@ describe('la chute d’un QG (B10)', () => {
     await vacate(t, hq);
 
     const capture = await captureToTheEnd(t, me._id, seat.seasonId, hq);
-    expect(capture.completesAt - MIDDAY).toBe(6 * MINUTE);
+    expect(capture.completesAt - MIDDAY).toBe(4.8 * MINUTE);
 
     expect(await buildingsOf(t, loser._id)).toEqual([]);
     expect((await buildingsOf(t, me._id)).map((building) => building._id)).toEqual(
@@ -676,6 +676,9 @@ describe('la chute d’un QG (B10)', () => {
     );
     expect(await troopsOf(t, loser._id)).toEqual([]);
     expect((await playerOf(t, guest)).defeated).toBe(true);
+    expect((await playerOf(t, guest)).eliminatedAt).toBe(capture.completesAt);
+    expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).toBe(capture.completesAt);
+    expect((await playerOf(t, seat)).eliminatedAt).toBeUndefined();
     const season = (await t.run((ctx) => ctx.db.get(seat.seasonId)))!;
     expect(season).toMatchObject({
       status: 'concluded',
@@ -769,6 +772,9 @@ describe('la chute d’un QG, cas limites', () => {
     const hq = (await buildingsOf(t, victim._id)).find((building) => building.key === 'hq')!;
     await vacate(t, hq);
     await t.mutation(api.players.surrender, first!);
+    const surrendered = await playerOf(t, first!);
+    expect(surrendered.defeated).toBe(true);
+    expect(surrendered.eliminatedAt).toBeUndefined();
     const [lon, lat] = pointOfBuilding(hq)!;
     const [infantry] = await troopsOf(t, me._id);
     const movementId = await t.run((ctx) =>
@@ -982,6 +988,10 @@ describe('la fin à deux heures (B11)', () => {
       reason: 'income',
       winnerNation: 'france',
     });
+    const closed = (await t.query(api.view.playerView, seat)).me.funds;
+    vi.setSystemTime(END + 10 * MINUTE);
+    const later = (await t.query(api.view.playerView, seat)).me.funds;
+    expect(later).toEqual({ stock: closed!.stock, perMinute: 0 });
   });
 
   it('déclare l’égalité à revenu et caisse égaux', async () => {

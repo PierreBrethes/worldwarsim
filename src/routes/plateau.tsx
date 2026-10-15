@@ -41,6 +41,8 @@ import {
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
+import { endingOf } from '@/domain/ending';
+import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { useClock } from '@/shell/clock';
@@ -388,6 +390,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** A Blitz shows no ground card on hover alone; a country picked by click keeps its whole card. */
   const quietHover = blitz && country == null;
   const blitzTheatre = useMemo(() => playedTheatre(view), [view]);
+  const ending = endingOf(view);
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
@@ -1700,6 +1703,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [navigate],
   );
 
+  useOpenedOnce(ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`, () =>
+    openWindow('press'),
+  );
+
   /**
    * **Une pile composée, mise en main** — depuis le panneau d'une garnison ou depuis la modale
    * d'un site, qui porte la même composition depuis la décision 61a. C'est la même main que la
@@ -2558,6 +2565,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       key={name}
                       press={view.press}
                       verdict={view.season.verdict}
+                      ending={ending.facts}
+                      blitz={blitz}
                       {...windowProps}
                     />
                   );

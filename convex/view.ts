@@ -255,7 +255,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
-  const funds = blitz ? await fundsServed(ctx, player, now) : null;
+  const funds = blitz ? await fundsServed(ctx, player, season.concludedAt ?? null, now) : null;
   const headquarters = buildings.find((building) => building.key === 'hq');
   const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
   /** Le soin de la Blitz se lit sur la même règle que le travail qui l'applique (`blitz.mend`). */
@@ -423,6 +423,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        *  détecteurs restants — et les surfaces d'action se présentent sans leurs boutons :
        *  l'interface ne promet pas ce que `requirePlayable` refuse déjà (audit du 25/08). */
       defeated: player.defeated ?? false,
+      eliminatedAt: player.eliminatedAt ?? null,
       ink: nationInk(player.nation),
       progress: 0,
       restWindow: player.restWindow,
@@ -1416,9 +1417,17 @@ async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promi
 const siteRef = (site: Site | null): { readonly outpostId: Id<'outposts'> | null } | null =>
   site === null ? null : { outpostId: site.kind === 'home' ? null : site.outpostId };
 
-async function fundsServed(ctx: QueryCtx, player: Doc<'players'>, now: number) {
+/** Une saison conclue fige la caisse à l'heure de la conclusion et n'annonce plus de débit. */
+async function fundsServed(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  concludedAt: number | null,
+  now: number,
+) {
   const funds = await fundsOf(ctx, player, now);
-  return { stock: fundsAt(funds, now), perMinute: funds.perMinute };
+  return concludedAt === null
+    ? { stock: fundsAt(funds, now), perMinute: funds.perMinute }
+    : { stock: fundsAt(funds, concludedAt), perMinute: 0 };
 }
 
 /**
