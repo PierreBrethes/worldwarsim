@@ -1,6 +1,5 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
-import { fail } from './errors';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
@@ -73,7 +72,7 @@ import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
-import { isAtWar, playerOf, requireStarted, seatsOf, warEntryOf } from './seats';
+import { belligerentOf, isAtWar, seatsOf, warEntryOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
@@ -156,11 +155,7 @@ function capitalPointOf(nation: string | null): LonLat | null {
  * même que l'ancien simulateur laissait derrière lui.
  */
 export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
-  const { player, season } = await playerOf(ctx, token, seasonId);
-  requireStarted(season);
-  /** A seat taken on a running season is not a nation yet: its owner holds no flag, and the
-   *  board has nothing to draw. He is sent back to the lobby, to enter the war (`enterWar`). */
-  if (!isAtWar(player, season)) fail('NOT_AT_WAR');
+  const { player, season } = await belligerentOf(ctx, token, seasonId);
   const now = Date.now();
 
   const economy = await economyOf(ctx, player._id, now);
