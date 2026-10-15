@@ -19,10 +19,15 @@ import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
  */
 const SURFACE_ALTITUDE = COUNTRY_THICKNESS + 0.006;
 
-/** The air arc's rise: a share of the chord, clamped at both ends. */
-export const AIR_RISE_SHARE = 0.18;
-export const AIR_RISE_MIN = 4;
-export const AIR_RISE_MAX = 24;
+/** The air arc's rise: a share of the chord, clamped at both ends — a quarter of what it was
+ *  until 15/10 (Pierre: the plane flew far too high above its shadow). */
+export const AIR_RISE_SHARE = 0.045;
+export const AIR_RISE_MIN = 1;
+export const AIR_RISE_MAX = 6;
+
+/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers at the shortest hop's
+ *  cruise, and its thread leaves and stops at that height. */
+export const HOVER_ALTITUDE = AIR_RISE_MIN;
 
 /**
  * Without the floor, a hundred-kilometer hop draws flat and can no longer be told from a
@@ -183,9 +188,10 @@ export function buildThread(
   colors: ThreadColors,
   thickness: number,
   opacities: { readonly trace: number; readonly progress: number },
+  { aloft = false } = {},
 ): Thread {
   const object = new Group();
-  const legs = cutIntoLegs(route, frame);
+  const legs = cutIntoLegs(route, frame, aloft);
   const lineMaterials: LineMaterial[] = [];
   const width = threadWidth(thickness);
 
@@ -378,9 +384,13 @@ const onGround = (point: Vector3): Vector3 => new Vector3(point.x, SURFACE_ALTIT
  * measured in the frame, not on the nodes. `simplify()` may have removed the coast node when
  * it was collinear — trusting indices would lose the dock.
  */
-function cutIntoLegs(route: ComputedRoute, frame: WorldFrame): ReadonlyArray<ThreadLeg> {
+function cutIntoLegs(
+  route: ComputedRoute,
+  frame: WorldFrame,
+  aloft: boolean,
+): ReadonlyArray<ThreadLeg> {
   if (route.legs.length === 1 && route.legs[0]!.medium === 'air') {
-    return [airLeg(route, frame)];
+    return [airLeg(route, frame, aloft)];
   }
 
   const points = route.points;
@@ -424,14 +434,15 @@ function cutIntoLegs(route: ComputedRoute, frame: WorldFrame): ReadonlyArray<Thr
   return legs;
 }
 
-function airLeg(route: ComputedRoute, frame: WorldFrame): ThreadLeg {
+function airLeg(route: ComputedRoute, frame: WorldFrame, aloft: boolean): ThreadLeg {
   const departure = frame.projectLonLat(route.points[0]!, SURFACE_ALTITUDE);
   const arrival = frame.projectLonLat(route.points[route.points.length - 1]!, SURFACE_ALTITUDE);
   const rise = airRise(departure.distanceTo(arrival));
+  const floor = aloft ? HOVER_ALTITUDE : 0;
   const vertices = Array.from({ length: AIR_SEGMENTS + 1 }, (_, k) => {
     const share = k / AIR_SEGMENTS;
     const point = departure.clone().lerp(arrival, share);
-    point.y += rise * flightAltitude(share);
+    point.y += floor + (rise - floor) * flightAltitude(share);
     return point;
   });
   return { medium: 'air', strands: [strandOf(vertices)], length: lengthOf(vertices) };

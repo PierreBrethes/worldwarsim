@@ -7,6 +7,7 @@ import {
   buildThread,
   airRise,
   flightAltitude,
+  HOVER_ALTITUDE,
   pointOnLeg,
   AIR_RISE_MAX,
   AIR_RISE_MIN,
@@ -258,6 +259,19 @@ describe('the air arc', () => {
     };
     expect(heightAt(0.45)).toBeCloseTo(heightAt(0.5), 3);
     expect(heightAt(0.55)).toBeCloseTo(heightAt(0.5), 3);
+  });
+
+  it('in a Blitz, leaves and stops at the height where a plane hovers', () => {
+    const route = directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
+    const grounded = buildThread(route, frame, colors, thickness, opacities);
+    const aloft = buildThread(route, frame, colors, thickness, opacities, { aloft: true });
+    const ground = grounded.legs[0]!.strands[0]!.vertices;
+    const flown = aloft.legs[0]!.strands[0]!.vertices;
+    const surface = ground[0]!.y;
+    expect(flown[0]!.y - surface).toBeCloseTo(HOVER_ALTITUDE, 6);
+    expect(flown.at(-1)!.y - surface).toBeCloseTo(HOVER_ALTITUDE, 6);
+    const apex = (vertices: typeof flown) => Math.max(...vertices.map((vertex) => vertex.y));
+    expect(apex(flown)).toBeCloseTo(apex(ground), 6);
   });
 });
 

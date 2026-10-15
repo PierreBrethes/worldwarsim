@@ -110,6 +110,7 @@ export class ArcLayer {
   private lastFrameMs = 0;
   /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
   motion: MapMotion = 'full';
+  private aloft = false;
   /** My troops, read for the strength my movements carry: the arc does not serve it. */
   troops: ReadonlyArray<TroopView> = [];
 
@@ -128,6 +129,13 @@ export class ArcLayer {
   setPlayerNation(nation: string | null): void {
     if (nation === this.playerNation) return;
     this.playerNation = nation;
+    this.rebuild();
+  }
+
+  /** **En Blitz, un avion ne se pose pas** (15/10) : son fil part et s'arrête à sa hauteur. */
+  setAloft(aloft: boolean): void {
+    if (aloft === this.aloft) return;
+    this.aloft = aloft;
     this.rebuild();
   }
 
@@ -205,6 +213,7 @@ export class ArcLayer {
         trace: TRACE_OPACITY,
         progress: stale ? 0.45 : 1,
       },
+      { aloft: this.aloft },
     );
     thread.setResolution(this.width, this.height);
     thread.setScale(this.unitsPerPixel);

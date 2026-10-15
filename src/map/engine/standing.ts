@@ -19,6 +19,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { PilePieces, SpreadPiece } from '@/domain/pile-pieces';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
+import { HOVER_ALTITUDE } from './thread';
 import {
   CONTACT,
   contactShadow,
@@ -189,6 +190,14 @@ export function pileObject(
     const text = words.groups[k];
     if (text) addCounter(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
     const group = pieces.groups[k]!;
+    // A plane that never lands hovers over its shadow, as it flew over it on its thread.
+    if (group.aloft) {
+      figurine.object.position.y = HOVER_ALTITUDE;
+      target.position.y = HOVER_ALTITUDE;
+      const shadow = contactShadow();
+      shadow.position.x = x;
+      object.add(shadow);
+    }
     // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
     const plume = group.role === 'infantry' ? null : PLUME_BY_WEAR[group.wear];
     if (plume === null) return;
