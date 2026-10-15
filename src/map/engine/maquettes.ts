@@ -161,18 +161,15 @@ export function clusterFootprints(
   points: ReadonlyArray<Point>,
   span: number,
   footprint = span / 2,
-  bounds?: PlacementBounds,
+  bounds: PlacementBounds = { maxShift: Infinity, onLand: () => true },
 ): Placement[] {
-  const first = ringed(points, span, footprint);
-  if (bounds === undefined)
-    return first.placed.map(({ at, ring }) => ({ at, facing: outwardOf(ring), scale: 1 }));
   const placed = new Array<Placement>(points.length);
-  for (const members of first.clusters) {
+  for (const members of ringed(points, span).clusters) {
     const own = members.map((k) => points[k]!);
     let fitted: Placement[] | null = null;
     for (const scale of SHRINK_STEPS) {
-      const trial = ringed(own, span * scale, footprint * scale).placed.map((place, r) =>
-        fitting(own[r]!, place, footprint * scale, scale, bounds, points),
+      const trial = ringed(own, span * scale).placed.map((place, r) =>
+        fitting(own[r]!, place, footprint * scale, span * scale, scale, bounds, points),
       );
       if (trial.every((place) => place !== null)) {
         fitted = trial as Placement[];
@@ -187,6 +184,7 @@ export function clusterFootprints(
           points[k]!,
           { at: points[k]!, ring: [0, 0] },
           footprint * smallest,
+          span * smallest,
           smallest,
           { ...bounds, onLand: () => true },
           points,
@@ -198,13 +196,14 @@ export function clusterFootprints(
 
 const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
 
-/** The placement as it may stand, `null` when it strays or steps off the land. A lone site whose
- *  front is the sea turns its garrison inland, away from the other sites; a ring's keeps its
- *  outward facing. */
+/** The placement as it may stand, `null` when it strays or steps off the land. A lone site turns
+ *  its garrison when its front is the sea or a neighbour's maquette — inland, away from the other
+ *  sites; a ring's keeps its outward facing. */
 function fitting(
   point: Point,
   { at, ring }: { at: Point; ring: Point },
   foot: number,
+  span: number,
   scale: number,
   { maxShift, onLand }: PlacementBounds,
   sites: ReadonlyArray<Point>,
@@ -218,14 +217,17 @@ function fitting(
     at[0] + foot * Math.sin(facing),
     at[1] + foot * Math.cos(facing),
   ];
-  if (onLand(...footAt(outward))) return { at, facing: outward, scale };
-  if (!lone) return null;
   const clearance = (facing: number) => {
     const [x, z] = footAt(facing);
     return Math.min(
+      Infinity,
       ...sites.filter((site) => site !== point).map(([sx, sz]) => Math.hypot(sx - x, sz - z)),
     );
   };
+  const clear = (facing: number) =>
+    onLand(...footAt(facing)) && (!lone || clearance(facing) >= span);
+  if (clear(outward)) return { at, facing: outward, scale };
+  if (!lone) return null;
   const inland = FACINGS.filter((facing) => onLand(...footAt(facing)));
   const facing = inland.reduce<number | null>(
     (best, each) => (best === null || clearance(each) > clearance(best) ? each : best),
@@ -237,10 +239,16 @@ function fitting(
 /** Away from its ring's centre; a lone site faces the front, towards +z. */
 const outwardOf = ([x, z]: Point): number => (x === 0 && z === 0 ? 0 : Math.atan2(x, z));
 
+/**
+ * **Sites whose maquettes touch, at their own points, ring together** — and only those (retours
+ * du 15/10 : un QG et sa caserne à une envergure et demie l'un de l'autre se dessinaient l'un
+ * dans l'autre). A ring keeps its members in their order around it, and **never draws one nearer
+ * its centre than its own point**: it can only push apart. A ring that grows into another site,
+ * or another ring, takes it in.
+ */
 function ringed(
   points: ReadonlyArray<Point>,
   span: number,
-  footprint: number,
 ): { placed: Array<{ at: Point; ring: Point }>; clusters: number[][] } {
   type Cluster = { members: number[]; centre: Point; reach: number };
   const clusterOf = (members: number[]): Cluster => {
@@ -248,11 +256,12 @@ function ringed(
       ([x, z], k) => [x + points[k]![0], z + points[k]![1]],
       [0, 0],
     );
-    return {
-      members,
-      centre: [sum[0] / members.length, sum[1] / members.length],
-      reach: ringRadius(members.length, span) + Math.max(footprint, span / 2),
-    };
+    const centre: Point = [sum[0] / members.length, sum[1] / members.length];
+    const radius = Math.max(
+      members.length < 2 ? 0 : ringRadius(members.length, span),
+      ...members.map((k) => Math.hypot(points[k]![0] - centre[0], points[k]![1] - centre[1])),
+    );
+    return { members, centre, reach: radius + span / 2 };
   };
   const clusters = points.map((_, k) => clusterOf([k]));
   const overlapping = (): [number, number] | null => {
@@ -260,7 +269,7 @@ function ringed(
       for (let j = i + 1; j < clusters.length; j++) {
         const [a, b] = [clusters[i]!, clusters[j]!];
         const gap = Math.hypot(a.centre[0] - b.centre[0], a.centre[1] - b.centre[1]);
-        if (gap < a.reach + b.reach) return [i, j];
+        if (gap < a.reach + b.reach - 1e-9) return [i, j];
       }
     return null;
   };
@@ -272,13 +281,22 @@ function ringed(
   }
   const placed = new Array<{ at: Point; ring: Point }>(points.length);
   for (const { members, centre } of clusters) {
-    const offsets = ringOffsets(members.length, span);
-    members.forEach((k, rank) => {
-      const ring = members.length < 2 ? ([0, 0] as const) : offsets[rank]!;
-      placed[k] = {
-        at: members.length < 2 ? points[k]! : [centre[0] + ring[0], centre[1] + ring[1]],
-        ring,
-      };
+    if (members.length < 2) {
+      placed[members[0]!] = { at: points[members[0]!]!, ring: [0, 0] };
+      continue;
+    }
+    const radius = ringRadius(members.length, span);
+    const offsetOf = (k: number): Point => [points[k]![0] - centre[0], points[k]![1] - centre[1]];
+    // Round the ring in the order the sites stand around it, from the first one's own bearing.
+    const around = members
+      .map((k) => ({ k, bearing: outwardOf(offsetOf(k)), away: Math.hypot(...offsetOf(k)) }))
+      .sort((a, b) => a.bearing - b.bearing);
+    const start = around[0]!.bearing;
+    around.forEach(({ k, away }, rank) => {
+      const bearing = start + (2 * Math.PI * rank) / members.length;
+      const out = Math.max(radius, away);
+      const ring: Point = [out * Math.sin(bearing), out * Math.cos(bearing)];
+      placed[k] = { at: [centre[0] + ring[0], centre[1] + ring[1]], ring };
     });
   }
   return { placed, clusters: clusters.map(({ members }) => members) };

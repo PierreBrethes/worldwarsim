@@ -32,7 +32,7 @@ import {
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
-import { boxOfObject, footedHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, footedHit, nearer, type PieceHit } from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -214,6 +214,25 @@ export function pickedIn(
   const grip = grips.includes('pile') ? 'pile' : grips[0];
   if (grip === undefined) return null;
   return grip === 'pile' ? pieces.troopIds : (pieces.groups[grip]?.troopIds ?? null);
+}
+
+/** **The group whose footprint stands nearest a board point**, its troops — `null` for a pile of
+ *  no group. Read on the footprints as they stand in the world. */
+export function nearestGroup(
+  point: Vector3,
+  targets: ReadonlyArray<Object3D>,
+  pieces: PilePieces,
+): ReadonlyArray<string> | null {
+  let nearest: { grip: number; gap: number } | null = null;
+  const at = new Vector3();
+  for (const target of targets) {
+    const grip = target.userData.grip as Grip;
+    if (grip === 'pile') continue;
+    target.getWorldPosition(at);
+    const gap = Math.hypot(at.x - point.x, at.z - point.z);
+    if (nearest === null || gap < nearest.gap) nearest = { grip, gap };
+  }
+  return nearest === null ? null : (pieces.groups[nearest.grip]?.troopIds ?? null);
 }
 
 /** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
@@ -794,9 +813,16 @@ export class StandingLayer {
     for (const [pileId, entry] of this.dressed) {
       if (!entry.ready || !entry.object.visible) continue;
       if (deployed && spread?.pileId === pileId) continue;
-      const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
+      let distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
+      let troopIds = distance === undefined ? null : pickedIn(ray, entry.targets, entry.pieces);
+      // A pile of Blitz units — one piece each, nothing to deploy — never leaves whole: pressed
+      // anywhere on what it draws, it gives the unit nearest the pointer (ONE_UNIT_ONLY).
+      if (distance === undefined && entry.pieces.spread.length === 0) {
+        distance = drawnHit(ray, entry.object) ?? undefined;
+        if (distance !== undefined)
+          troopIds = nearestGroup(ray.ray.at(distance, new Vector3()), entry.targets, entry.pieces);
+      }
       if (distance === undefined || (best !== null && best.distance <= distance)) continue;
-      const troopIds = pickedIn(ray, entry.targets, entry.pieces);
       if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
     }
     return best === null ? null : { ...best.pick, spread: false, distance: best.distance };

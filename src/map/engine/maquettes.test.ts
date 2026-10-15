@@ -78,8 +78,9 @@ describe('clusterFootprints', () => {
     );
     expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo(S);
     expect((placed[0]!.at[0] + placed[1]!.at[0]) / 2).toBeCloseTo(S / 4);
-    const [ox, oz] = ringOffsets(2)[0]!;
-    expect(placed[0]!.facing).toBeCloseTo(Math.atan2(ox, oz));
+    // Each garrison faces away from the ring's centre, on its own side.
+    expect(placed[0]!.facing).toBeCloseTo(-Math.PI / 2);
+    expect(placed[1]!.facing).toBeCloseTo(Math.PI / 2);
   });
 
   it('takes in a site the grown ring reaches', () => {
@@ -95,7 +96,36 @@ describe('clusterFootprints', () => {
     );
     const radius = Math.hypot(...ringOffsets(4)[0]!);
     const centre = placed.reduce((sum, { at }) => sum + at[0], 0) / placed.length;
-    for (const { at } of placed) expect(Math.hypot(at[0] - centre, at[1])).toBeCloseTo(radius);
+    for (const { at } of placed)
+      expect(Math.hypot(at[0] - centre, at[1])).toBeGreaterThanOrEqual(radius - 1e-9);
+    expect(placed[3]!.at[0]).toBeGreaterThan(placed[0]!.at[0]);
+  });
+
+  it('leaves alone two sites whose maquettes do not touch, garrisons and all', () => {
+    const points = [
+      [0, 0],
+      [1.4 * S, 0.3],
+    ] as const;
+    const placed = clusterFootprints(points, S, GARRISON_FOOT);
+    placed.forEach(({ at, scale }, k) => {
+      expect(at).toEqual(points[k]);
+      expect(scale).toBe(1);
+    });
+  });
+
+  it('never draws a ring member nearer its centre than its own point', () => {
+    const points = [
+      [0, 0],
+      [0.9 * S, 0],
+      [0.45 * S, 0.1],
+    ] as const;
+    const placed = clusterFootprints(points, S);
+    const centre = [(0.9 * S) / 3 + (0.45 * S) / 3, 0.1 / 3] as const;
+    placed.forEach(({ at }, k) =>
+      expect(gap(at, centre)).toBeGreaterThanOrEqual(gap(points[k]!, centre) - 1e-9),
+    );
+    // Its order around the ring holds: the westmost stays west.
+    expect(placed[0]!.at[0]).toBeLessThan(placed[1]!.at[0]);
   });
 
   it('stands no two maquettes nearer than a span, wherever the sites fall', () => {
