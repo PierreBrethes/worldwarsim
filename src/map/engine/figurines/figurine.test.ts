@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Group } from 'three';
 import { figurineFor, nearWeight, setNearFloor } from './figurine';
 import { squadOf } from './infantry';
 
 describe('nearWeight', () => {
+  afterEach(() => setNearFloor(0));
+
   it('is a whole figurine at the country level and none beyond the region fade', () => {
     expect(nearWeight(4)).toBe(1);
     expect(nearWeight(30)).toBe(1);
@@ -18,7 +20,6 @@ describe('nearWeight', () => {
     setNearFloor(20);
     expect(nearWeight(10)).toBe(1);
     expect(nearWeight(48)).toBeGreaterThan(0);
-    setNearFloor(0);
   });
 });
 

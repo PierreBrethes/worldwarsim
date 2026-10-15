@@ -1146,6 +1146,7 @@ export class MapEngine {
    * themselves and detach, then the sweep below takes what is left in the scene.
    */
   dispose(): void {
+    setNearFloor(0);
     cancelAnimationFrame(this.animation);
     if (this.restTimer !== null) clearTimeout(this.restTimer);
     removeEventListener('pointermove', this.trackGesture);
@@ -1924,13 +1925,13 @@ export class MapEngine {
     // The sun crosses a quarter degree a minute: the heartbeat is enough, no frame is ever asked
     // for the sky alone, and cut motion keeps it — nothing about it is an animation.
     const distance = this.camera.position.distanceTo(this.controls.target);
+    setNearFloor(distance);
     const looked = this.controls.target;
     this.night.apply(
       this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle),
       this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
       distance,
     );
-    setNearFloor(distance);
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
