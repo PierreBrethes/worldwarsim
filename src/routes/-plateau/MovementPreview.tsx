@@ -398,16 +398,16 @@ export function MovementPreview({
         hug
       >
         <div className="px-4 pt-[4px] text-[var(--ink)]">
-          <h3 className="font-(family-name:--font-display) text-[25px] leading-[1.05] font-extrabold">
+          <h3 className="font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold">
             {destinationOf(aim, preview)}
           </h3>
-          <p className="mt-[3px] text-[13px] text-[var(--ink-soft)]">
+          <p className="mt-[1px] text-[12px] text-[var(--ink-soft)]">
             {fr.orderSheet.from(troopIds.length, originName)}
           </p>
           {choices.length > 1 && (
             <div
               role="radiogroup"
-              className="mt-[11px] grid border border-[var(--ink)]"
+              className="mt-[7px] grid border border-[var(--ink)]"
               style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}
             >
               {choices.map((option) => {
@@ -429,18 +429,18 @@ export function MovementPreview({
               })}
             </div>
           )}
-          <p className="mt-[8px] font-(family-name:--font-text) text-[13.5px] text-[var(--ink-quiet)] italic">
+          <p className="mt-[4px] font-(family-name:--font-text) text-[12px] leading-[1.3] text-[var(--ink-quiet)] italic">
             {choice.consequence}
           </p>
           {preview && (
             <>
-              <div className="mt-[10px] grid grid-cols-2 border-t border-b border-[var(--ink)] border-b-(color:--ink)/20">
+              <div className="mt-[6px] grid grid-cols-2 border-t border-b border-[var(--ink)] border-b-(color:--ink)/20">
                 <Timing label={fr.orderSheet.duration}>{asDuration(preview.minutes)}</Timing>
                 <Timing label={fr.orderSheet.arrival} ruled>
                   {asClockTime(preview.arrivesAt)}
                 </Timing>
               </div>
-              <p className="mt-[7px] text-[12.5px] text-[var(--ink-quiet)]">
+              <p className="mt-[4px] text-[12px] text-[var(--ink-quiet)]">
                 {fr.orderSheet.route(
                   legOf(preview.route),
                   Math.round(
@@ -466,7 +466,7 @@ export function MovementPreview({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[56px] w-[92px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] font-semibold tracking-[.16em] uppercase"
+            className="min-h-[48px] w-[84px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] font-semibold tracking-[.16em] uppercase"
           >
             {fr.aim.cancel}
           </button>
@@ -584,9 +584,11 @@ function Timing({
   children: ReactNode;
 }) {
   return (
-    <div className={`py-[7px] ${ruled ? 'border-l border-(color:--ink)/20 pl-3' : ''}`}>
+    <div className={`py-[4px] ${ruled ? 'border-l border-(color:--ink)/20 pl-3' : ''}`}>
       <div className="text-[9.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">{label}</div>
-      <div className="mt-1 font-(family-name:--font-mono) text-[16px] font-medium">{children}</div>
+      <div className="mt-[1px] font-(family-name:--font-mono) text-[14px] font-medium">
+        {children}
+      </div>
     </div>
   );
 }
@@ -691,7 +693,7 @@ function HoldButton({
         if (isHoldKey(event)) release();
       }}
       onContextMenu={(event) => event.preventDefault()}
-      className="relative min-h-[56px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-40"
+      className="relative min-h-[48px] flex-1 cursor-pointer overflow-hidden bg-[var(--ink)] text-[var(--paper)] select-none disabled:cursor-not-allowed disabled:opacity-40"
       style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
     >
       <span
