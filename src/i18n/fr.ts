@@ -3766,6 +3766,22 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
+    still: 'relâcher · rien ne change',
+    putBack: 'Reposer',
+    putBackDetail: 'rien ne bouge',
+    boardRefused: 'Embarquement impossible',
+    /** Les verbes de la pastille, à l'infinitif comme au prototype. */
+    verbs: {
+      attack: 'Attaquer',
+      raid: 'Lancer le raid',
+      form: 'Former une escouade',
+      join: 'Rejoindre l’escouade',
+      board: 'Embarquer',
+      sea: 'Marcher',
+      inland: 'Faire route',
+      air: 'Voler',
+    },
+    pieces: (count: number) => `${count} pièces ensemble`,
   },
   compass: {
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,

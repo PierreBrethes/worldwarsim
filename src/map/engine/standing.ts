@@ -436,6 +436,7 @@ type Marks = {
 /** The ring reads the drop: mine where an order would leave, the alarm where it is refused. */
 const RETICLE_INK = {
   order: ARC_COLORS.mine.trace,
+  fight: ARC_COLORS.enemyDetected.progress,
   refused: ARC_COLORS.enemyDetected.progress,
   none: PALETTE.border,
 } as const;
@@ -929,6 +930,15 @@ export class StandingLayer {
     const pulse = this.motion === 'full' ? 1 + 0.06 * Math.sin((now / 1000) * 8) : 1;
     reticle.scale.setScalar(pulse);
     plumb.scale.y = Math.max(carried.lift, 1e-3);
+  }
+
+  /** **Where the piece in hand comes from, and where it would land**, while the drop is read:
+   *  the road the hand draws (`AimRibbon`). `null` set down, put back, or undressed. */
+  get reading(): { readonly from: Vector3; readonly to: Vector3 } | null {
+    const carried = this.carried;
+    if (carried === null || carried.pointer === null || carried.down !== null) return null;
+    const home = this.dressed.get(carried.pileId);
+    return home?.ready === true ? { from: home.object.position, to: carried.pointer } : null;
   }
 
   /** **What the drop would do here** (`DropHint`'s reading), told to the ring under the piece. */

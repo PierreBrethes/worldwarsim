@@ -59,6 +59,7 @@ import { NightSky } from './night';
 import { InkLayer } from './ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
+import { AimRibbon } from './aim';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
@@ -292,6 +293,11 @@ export class MapEngine {
   private readonly camps: CampLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
+  /** The road the piece in hand would take (POC « Manipuler les pions »). */
+  private readonly aimRibbon = new AimRibbon();
+  private aimRoute: Vector3[] | null = null;
+  private verdict: DropVerdict = 'none';
+  private lastFrame = performance.now();
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
@@ -592,6 +598,7 @@ export class MapEngine {
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.aimRibbon.group);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
@@ -739,7 +746,15 @@ export class MapEngine {
   /** **The ring under the carried piece reads the drop**: an order, a refusal, or nothing. */
   markDrop(verdict: DropVerdict): void {
     this.invalidate();
+    this.verdict = verdict;
     this.standing.markDrop(verdict);
+  }
+
+  /** **The server's road for the drop under the resting pointer**, `null` while it moves: the
+   *  hand draws a straight line from home until then (`AimRibbon`). */
+  setAimRoute(points: ReadonlyArray<LonLat> | null): void {
+    this.invalidate();
+    this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */
@@ -1254,6 +1269,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.aimRibbon.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
@@ -2224,6 +2240,7 @@ export class MapEngine {
       this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isCarrying ||
+      (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
     )
       this.invalidate();
@@ -2257,6 +2274,23 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    const reading = this.standing.reading;
+    const tone = this.verdict;
+    this.aimRibbon.show(
+      reading === null || tone === 'none'
+        ? null
+        : tone !== 'refused' && this.aimRoute !== null
+          ? this.aimRoute
+          : [reading.from, reading.to],
+      tone === 'none' ? 'order' : tone,
+    );
+    this.aimRibbon.animate(
+      this.unitsPerPixel(distance),
+      this.screenHeight,
+      (now - this.lastFrame) / 1000,
+      this.ambience.motion !== 'off',
+    );
+    this.lastFrame = now;
     this.veil.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);

@@ -50,10 +50,6 @@ type MovementIdentification =
   | { readonly pierced: false }
   | { readonly pierced: true; readonly type: MovementType; readonly stack: Stack };
 
-/** The aiming preview is drawn as one of the player's threads, but nothing was sent: the ink
- *  that marks a departure and the stamp that marks an arrival both skip it. */
-export const PREVIEW_ARC_ID = 'preview';
-
 /**
  * The four display states of an arc. The discriminated union is the fog of war's guardrail:
  * an enemy arc structurally has neither `type` nor `stack`, so they cannot be displayed by

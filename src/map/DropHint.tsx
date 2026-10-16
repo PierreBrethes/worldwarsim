@@ -1,9 +1,8 @@
 import type { Ref } from 'react';
 import type { CompassAction } from '@/domain/compass-rose';
-import type { DropReading } from '@/domain/drop-order';
+import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import type { TroopStation } from '@/domain/player-view';
-import { PICTOGRAM_PATHS } from './CompassRose';
 import type { PieceClick } from './engine';
 
 /** **Ce que le glisser prend ou vise** (15/10) : une pièce que la carte dessine, ou l'étiquette
@@ -12,12 +11,13 @@ export type PieceFrom =
   | { readonly kind: 'piece'; readonly hit: PieceClick }
   | { readonly kind: 'stack'; readonly station: TroopStation };
 
-/** **Ce que ferait le lâcher, dit sous le pointeur** — l'ordre, sa conséquence, ou le motif. */
+/** **Ce que ferait le lâcher, dit sous le pointeur** (POC, `#hint`) : un signe dans un rond, le
+ *  verbe, sa conséquence — ou le refus en rouge, ou « reposer » quand rien ne bouge. */
 export type DropHint = {
-  readonly title: string;
+  readonly icon: string;
+  readonly tone: DropChip['tone'] | 'calm' | 'refused';
+  readonly verb: string;
   readonly detail: string | null;
-  readonly boards: boolean;
-  readonly refused: boolean;
   /** Plusieurs ordres possibles : lequel est choisi, et le suivant au Tab. */
   readonly choice?: string;
 };
@@ -26,18 +26,18 @@ export type DropHint = {
 export function hintOfReading(
   reading: DropReading,
   chosenOf: (verbs: ReadonlyArray<CompassAction>) => number,
+  forbidden: Forbidden,
 ): DropHint | null {
   if (reading.kind === 'none') return null;
   if (reading.kind === 'refused')
-    return { title: reading.reason, detail: null, boards: false, refused: true };
+    return { icon: '✕', tone: 'refused', verb: reading.reason, detail: null };
   const { verbs } = reading;
   const at = chosenOf(verbs);
   const verb = verbs[at]!;
   return {
-    title: verb.label,
-    detail: verb.cost ?? (verb.consequence || null),
-    boards: verb.pictogram === 'anchor',
-    refused: false,
+    ...chipOf(verb, forbidden),
+    detail:
+      verb.key === 'aim' && verb.join !== undefined ? fr.drop.pieces(verb.join.pieces) : verb.cost,
     ...(verbs.length > 1
       ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
       : {}),
@@ -59,62 +59,30 @@ export function DropHintChip({
   ref: Ref<HTMLDivElement>;
 }) {
   return (
-    <div
-      ref={ref}
-      role="status"
-      className="pointer-events-none fixed top-0 left-0 z-[var(--z-popin)] max-w-[260px]"
-    >
-      <div
-        className="float paper-grain flex items-start gap-[7px] border px-[8px] py-[5px] text-[var(--ink)]"
-        style={{ borderColor: hint.refused ? 'var(--critical)' : 'var(--ink)' }}
-      >
-        {hint.boards && (
-          <svg
-            viewBox="0 0 20 20"
-            width={18}
-            height={18}
-            aria-hidden
-            className="mt-[1px] shrink-0"
-            style={{ fill: hint.refused ? 'var(--critical)' : 'var(--ink)' }}
-          >
-            {PICTOGRAM_PATHS.anchor}
-          </svg>
-        )}
-        <span className="min-w-0">
+    <div ref={ref} role="status" className={`drop-chip paper-grain float drop-chip--${hint.tone}`}>
+      {/* Keyed by what it says: a new verb pops its sign. */}
+      <span key={hint.icon + hint.verb} className="drop-chip-icon" aria-hidden>
+        {hint.icon}
+      </span>
+      <span className="drop-chip-verb">{hint.verb}</span>
+      {hint.detail !== null && <span className="drop-chip-detail">{hint.detail}</span>}
+      {hint.tone !== 'refused' &&
+        notes.map((note) => (
           <span
-            className="block text-[11px] font-bold tracking-[.12em] uppercase"
-            style={{ color: hint.refused ? 'var(--critical)' : undefined }}
+            key={note.text}
+            className={`drop-chip-detail${note.alarm ? ' drop-chip-detail--alarm' : ''}`}
           >
-            {hint.title}
+            {note.text}
           </span>
-          {hint.detail !== null && (
-            <span
-              className="block font-(family-name:--font-mono) text-[10.5px] leading-[1.35]"
-              style={{ color: hint.refused ? 'var(--critical)' : 'var(--ink-soft)' }}
-            >
-              {hint.detail}
-            </span>
-          )}
-          {!hint.refused &&
-            notes.map((note) => (
-              <span
-                key={note.text}
-                className="block font-(family-name:--font-mono) text-[10.5px] leading-[1.35]"
-                style={{ color: note.alarm ? 'var(--critical)' : 'var(--ink)' }}
-              >
-                {note.text}
-              </span>
-            ))}
-          {hint.choice !== undefined && (
-            <span className="mt-[3px] block font-(family-name:--font-mono) text-[10.5px] leading-[1.35] text-[var(--ink)]">
-              {hint.choice}
-            </span>
-          )}
-          <span className="mt-[4px] block border-t border-dotted border-(color:--ink)/40 pt-[3px] text-[9px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
-            {hint.refused ? fr.drop.refused : fr.drop.release}
-          </span>
-        </span>
-      </div>
+        ))}
+      {hint.choice !== undefined && <span className="drop-chip-detail">{hint.choice}</span>}
+      <span className="drop-chip-keys">
+        {hint.tone === 'refused'
+          ? fr.drop.refused
+          : hint.tone === 'calm'
+            ? fr.drop.still
+            : fr.drop.release}
+      </span>
     </div>
   );
 }

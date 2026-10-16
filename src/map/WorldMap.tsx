@@ -28,7 +28,6 @@ import {
   type Compass,
 } from '@/domain/compass-rose';
 import {
-  PREVIEW_ARC_ID,
   type ArcView,
   type JournalDispatch,
   type ReplayView,
@@ -239,6 +238,8 @@ type Props = {
   onDropRefused?: () => void;
   /** L'arrivée lue au pointeur arrêté, que la pastille porte sous son verbe. */
   dropNotes?: ReadonlyArray<DropNote>;
+  /** **La route du serveur sous le pointeur arrêté** : le ruban de la pièce en main la suit. */
+  aimRoute?: ReadonlyArray<LonLat> | null;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
   onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
@@ -351,6 +352,7 @@ export function WorldMap({
   showDestinations = false,
   onDropRefused,
   dropNotes,
+  aimRoute = null,
   onCarryEnd,
   onDisembark,
   covered = false,
@@ -467,7 +469,7 @@ export function WorldMap({
       if (next === null) return;
       event.preventDefault();
       choice.current.index = next;
-      setHint(hintOfReading(read, chosenOf));
+      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null));
     };
     addEventListener('keydown', turn);
     return () => removeEventListener('keydown', turn);
@@ -761,11 +763,17 @@ export function WorldMap({
       });
     readyEngine.onCarryCancel = onDropRefused;
     readyEngine.onCarryOver = (target, clientX, clientY) => {
-      hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
-      if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
+      // The prototype's place: below right of the hand, flipped against the screen's edges.
+      const chip = hintNode.current;
+      const width = chip?.offsetWidth ?? 0;
+      const height = chip?.offsetHeight ?? 0;
+      const x = clientX + 26 + width > innerWidth - 12 ? clientX - width - 22 : clientX + 26;
+      const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
+      hintAt.current = `translate(${x}px, ${y}px)`;
+      if (chip !== null) chip.style.transform = hintAt.current;
       const tell = (hint: DropHint | null) => {
         setHint(hint);
-        readyEngine.markDrop(hint === null ? 'none' : hint.refused ? 'refused' : 'order');
+        readyEngine.markDrop(hint === null || hint.tone === 'calm' ? 'none' : hint.tone);
       };
       if (target === null) {
         reading.current = null;
@@ -796,9 +804,10 @@ export function WorldMap({
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
-      tell(hintOfReading(reading.current, chosenOf));
+      tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
     };
   }, [
+    holding,
     readyEngine,
     standing,
     labels,
@@ -1074,6 +1083,10 @@ export function WorldMap({
   }, [readyEngine, standing]);
 
   useEffect(() => {
+    readyEngine?.setAimRoute(aimRoute);
+  }, [readyEngine, aimRoute]);
+
+  useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
 
@@ -1107,11 +1120,7 @@ export function WorldMap({
     inked.current = { arcs, seenAt: latest };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
-      arc.state === 'mine' &&
-      arc.id !== PREVIEW_ARC_ID &&
-      !arcs.some((still) => still.id === arc.id)
-        ? [arc.to]
-        : [],
+      arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     for (const burst of inkBursts(journal, before.seenAt, vanished))
       engine.current?.inkBurst(burst);

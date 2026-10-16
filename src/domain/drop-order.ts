@@ -1,5 +1,6 @@
 // **Lâcher, c'est ordonner** (POC « Manipuler les pions », 16/10/2026) : la pièce posée donne
 // l'ordre que la rose aurait offert là, sans rose. Ce module dit lesquels une dépose peut donner.
+import { fr } from '@/i18n/fr';
 import type { Compass, CompassAction } from './compass-rose';
 import type { UnitRole } from './ids';
 import { routeModeOf } from './movement-orders';
@@ -47,4 +48,34 @@ export function forbiddenGroundOf(roles: ReadonlyArray<UnitRole>): Forbidden {
   if (roles.length === 0) return null;
   const mode = routeModeOf(roles);
   return mode === 'land' ? 'sea' : mode === 'air' ? null : 'inland';
+}
+
+/** Ce que la pastille dit d'un ordre : son signe, son encre, son verbe (POC, `#hint`). */
+export type DropChip = {
+  readonly icon: string;
+  readonly tone: 'order' | 'fight';
+  readonly verb: string;
+};
+
+const HOSTILE: ReadonlySet<CompassAction['key']> = new Set(['bombard', 'plunder', 'capture']);
+
+/** **Le signe et le verbe d'un ordre de pièce**, et l'encre rouge de ce qui va au feu. Le verbe
+ *  d'une marche dit ce qui part : à pied, par mer, par air (`forbiddenGroundOf`). */
+export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
+  const { verbs } = fr.drop;
+  const capital = action.label.charAt(0).toUpperCase() + action.label.slice(1);
+  if (action.key === 'board') return { icon: '⤓', tone: 'order', verb: verbs.board };
+  if (action.key !== 'aim')
+    return {
+      icon: HOSTILE.has(action.key) ? '⚔' : '✓',
+      tone: HOSTILE.has(action.key) ? 'fight' : 'order',
+      verb: capital,
+    };
+  if (action.type === 'attack' || action.type === 'raid')
+    return { icon: '⚔', tone: 'fight', verb: verbs[action.type] };
+  if (action.boardsOn !== undefined) return { icon: '⤓', tone: 'order', verb: verbs.board };
+  if (action.join !== undefined)
+    return { icon: '+', tone: 'order', verb: action.join.formed ? verbs.form : verbs.join };
+  if (action.pictogram === 'doorway') return { icon: '✓', tone: 'order', verb: capital };
+  return { icon: '✓', tone: 'order', verb: verbs[forbidden ?? 'air'] };
 }

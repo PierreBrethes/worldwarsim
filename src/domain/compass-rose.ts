@@ -285,6 +285,8 @@ export type CompassAction =
       readonly type: MovementType;
       /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque. */
       readonly boardsOn?: string;
+      /** **Rejoindre une de mes piles** : `formed` quand elle était seule — l'escouade naît. */
+      readonly join?: { readonly formed: boolean; readonly pieces: number };
     }
   | {
       readonly key: 'build';
@@ -1529,11 +1531,21 @@ function towardsMyPile(
   };
   const onto = boardingAt(station, aimed, target.name, view, column, heldTroopIds);
   const fan = fanOf(target.name, view, column, [aimed]);
+  const there = view.me.troops.filter(
+    (troop) => stationKeyOf(troop.stationedAt) === stationKeyOf(station),
+  ).length;
   const join =
     column.blitz === undefined
       ? fan.actions.flatMap((action) =>
           action.key === 'aim' && action.type === 'march'
-            ? [{ ...action, label: fr.compass.join, consequence: fr.compass.joinConsequence }]
+            ? [
+                {
+                  ...action,
+                  label: fr.compass.join,
+                  consequence: fr.compass.joinConsequence,
+                  join: { formed: there === 1, pieces: there + heldTroopIds.length },
+                },
+              ]
             : [],
         )
       : [];

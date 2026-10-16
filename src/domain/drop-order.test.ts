@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Compass, CompassAction } from './compass-rose';
-import { dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
+import { chipOf, dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
 
 const branch = (key: CompassAction['key'], label: string = key): CompassAction =>
   ({ key, label, pictogram: 'cabin', cost: null, consequence: '' }) as unknown as CompassAction;
@@ -52,5 +52,45 @@ describe('forbiddenGroundOf', () => {
 
   it('veils nothing for an empty hand', () => {
     expect(forbiddenGroundOf([])).toBeNull();
+  });
+});
+
+describe('chipOf', () => {
+  const aim = (type: string, extra: object = {}): CompassAction =>
+    ({ ...branch('aim', type), type, ...extra }) as unknown as CompassAction;
+
+  it('says an attack in red, with crossed swords', () => {
+    expect(chipOf(aim('attack'), 'sea')).toEqual({ icon: '⚔', tone: 'fight', verb: 'Attaquer' });
+    expect(chipOf(branch('bombard'), 'sea').tone).toBe('fight');
+  });
+
+  it('forms a squad on a lone troop, and joins one already formed', () => {
+    expect(chipOf(aim('march', { join: { formed: true, pieces: 2 } }), 'sea')).toEqual({
+      icon: '+',
+      tone: 'order',
+      verb: 'Former une escouade',
+    });
+    expect(chipOf(aim('march', { join: { formed: false, pieces: 4 } }), 'sea').verb).toBe(
+      'Rejoindre l’escouade',
+    );
+  });
+
+  it('boards under the boarding arrow', () => {
+    expect(chipOf(branch('board'), 'sea')).toEqual({ icon: '⤓', tone: 'order', verb: 'Embarquer' });
+    expect(chipOf(aim('march', { boardsOn: 't1' }), 'sea').icon).toBe('⤓');
+  });
+
+  it('names a plain march by what goes: on foot, by sea, by air', () => {
+    expect(chipOf(aim('march'), 'sea').verb).toBe('Marcher');
+    expect(chipOf(aim('march'), 'inland').verb).toBe('Faire route');
+    expect(chipOf(aim('march'), null).verb).toBe('Voler');
+  });
+
+  it('keeps any other order under its own label, capitalised', () => {
+    expect(chipOf(branch('collect', 'ramasser'), 'sea')).toEqual({
+      icon: '✓',
+      tone: 'order',
+      verb: 'Ramasser',
+    });
   });
 });
