@@ -283,8 +283,10 @@ export type CompassAction =
       readonly consequence: string;
       readonly aim: MovementAim;
       readonly type: MovementType;
-      /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque. */
+      /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque, et
+       *  les places qu'elle y prendra. */
       readonly boardsOn?: string;
+      readonly boardNeed?: number;
       /** **Rejoindre une de mes piles** : `formed` quand elle était seule — l'escouade naît. */
       readonly join?: { readonly formed: boolean; readonly pieces: number };
     }
@@ -470,6 +472,8 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly carrierId: string;
+      /** The seats the hand takes in it: its tag shows them, ghosted (POC). */
+      readonly need: number;
     }
   /**
    * **Bombarder** (B20, lot 6b) : sur-le-champ, comme embarquer — aucune colonne ne part, la pièce
@@ -1466,6 +1470,7 @@ function boardingAt(
           cost: fr.compass.boardNow,
           consequence: places,
           carrierId: fit.carrier.id,
+          need: needed,
         },
       ],
       refusal: null,
@@ -1494,6 +1499,7 @@ function boardingAt(
         pictogram: 'anchor',
         consequence: `${fr.compass.boardOnArrival} ${places}`,
         boardsOn: fit.carrier.id,
+        boardNeed: needed,
       },
     ],
     refusal: null,

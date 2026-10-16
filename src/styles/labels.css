@@ -936,13 +936,168 @@
   display: block;
 }
 
-/* **L'étiquette d'un transport chargé** (POC « Manipuler les pions », 16/10) : elle pend sous la
-   pile au rapproché seulement — en figurines, ou cartouche déplié pour un transport sans figurine.
-   De loin, le cartouche suffit. */
+/* **L'étiquette d'un transport** (POC « Manipuler les pions », `.tag`) : elle pend au-dessus de
+   la pile par un fil, au rapproché seulement — en figurines, ou cartouche déplié pour un
+   transport sans figurine. De loin, le cartouche suffit. Vide et hors du geste, elle attend le
+   survol de sa pile. */
 .label-anchor .cargo-tags {
   display: none;
 }
+/* Its string reaches down to the top of its figurines, wherever they stand off the point
+   (`--cargo-x`, `--cargo-y`, written by the label layer in screen pixels). */
 .label-anchor.label-anchor--dressed .cargo-tags,
 .label--expanded:not(.label--grouped) .cargo-tags {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(
+    calc(var(--cargo-x, 0px) / var(--hud-scale, 1) - 50%),
+    calc(var(--cargo-y, -46px) / var(--hud-scale, 1) - 100%)
+  );
+}
+.cargo-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% 100%;
+  animation: cargo-sway 3.7s ease-in-out infinite alternate;
+}
+.cargo-tag--idle {
+  display: none;
+}
+.label-anchor--hovered .cargo-tag--idle {
+  display: flex;
+}
+@keyframes cargo-sway {
+  from {
+    transform: rotate(-1.5deg);
+  }
+  to {
+    transform: rotate(1.5deg);
+  }
+}
+.cargo-tag-body {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 96px;
+  padding: 6px 8px 7px 16px;
+  background: var(--paper);
+  color: var(--ink);
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
+}
+/* The eyelet the string goes through. */
+.cargo-tag-body::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--map-desk);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.cargo-tag--open .cargo-tag-body {
+  box-shadow:
+    0 0 0 2px var(--arc-mine),
+    var(--shadow-float);
+}
+.cargo-tag-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+.cargo-tag-head b {
+  font: 700 12.5px/1 var(--font-display);
+}
+.cargo-tag-head span {
+  font: 500 10.5px/1 var(--font-mono);
+  color: var(--ink-soft);
+}
+.cargo-tag-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 176px;
+}
+.cargo-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px dashed color-mix(in srgb, var(--ink) 50%, transparent);
+  background: transparent;
+}
+.cargo-slot--full {
+  border: 1px solid var(--ink);
+  background: #f3ead6;
+  cursor: grab;
+}
+.cargo-slot--full:hover {
+  background: #fff6e2;
+  box-shadow: 0 2px 0 var(--ink);
+  transform: translateY(-1px);
+}
+.cargo-slot--ghost {
+  border-style: solid;
+  border-color: var(--arc-mine);
+  background: color-mix(in srgb, var(--arc-mine) 22%, transparent);
+}
+.cargo-slot--over {
+  border-color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 18%, transparent);
+}
+.cargo-slot--more {
+  border-style: solid;
+  font: 500 10px/1 var(--font-mono);
+  color: var(--critical);
+}
+.cargo-slot--stamp {
+  animation: cargo-stamp 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes cargo-stamp {
+  from {
+    transform: scale(1.6) rotate(-8deg);
+  }
+}
+.cargo-tag-out {
+  justify-self: start;
+  padding: 5px 6px;
+  border: 1px solid var(--ink);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cargo-tag-out:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.cargo-tag-why {
+  max-width: 160px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--ink-soft);
+}
+.cargo-tag-string {
+  width: 0;
+  height: 34px;
+  border-left: 1.2px dashed var(--ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cargo-tag,
+  .cargo-slot--stamp {
+    animation: none;
+  }
 }

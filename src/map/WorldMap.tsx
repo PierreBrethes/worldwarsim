@@ -46,6 +46,7 @@ import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
 import { RouteScale } from './RouteScale';
+import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
@@ -686,6 +687,19 @@ export function WorldMap({
    * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
    */
   const [hint, setHint] = useState<DropHint | null>(null);
+  /** **Le transport sous la main**, son étiquette ouverte sur les places qu'on y prendrait. */
+  const [cargoAim, setCargoAim] = useState<CargoAim | null>(null);
+  /** Mes transports qui prendraient la main, par l'étiquette qui porte leur étiquette de bagage. */
+  const availableLabels = useMemo(
+    () =>
+      new Set(
+        availablePiles.map((id) => {
+          const at = standing.find((pile) => pile.id === id)?.at;
+          return at !== undefined && 'beside' in at ? at.beside : id;
+        }),
+      ),
+    [availablePiles, standing],
+  );
   // A new hand starts from the first verb, and an empty one has no chip left to show.
   useEffect(() => {
     choice.current = { signature: '', index: 0 };
@@ -767,8 +781,17 @@ export function WorldMap({
       const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
       hintAt.current = `translate(${x}px, ${y}px)`;
       if (chip !== null) chip.style.transform = hintAt.current;
+      const over =
+        target === null || target.kind === 'ground'
+          ? null
+          : (read(target, clientX, clientY).label?.id ?? null);
       const tell = (hint: DropHint | null) => {
         setHint(hint);
+        const aim =
+          hint?.boarding === undefined || over === null
+            ? null
+            : { labelId: over, ...hint.boarding };
+        setCargoAim((was) => (JSON.stringify(was) === JSON.stringify(aim) ? was : aim));
         readyEngine.markDrop(
           hint === null || hint.tone === 'calm' ? 'none' : hint.tone,
           hint === null || hint.tone === 'calm' ? null : ringOfHint(hint),
@@ -1185,6 +1208,8 @@ export function WorldMap({
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}
+        cargoAim={cargoAim}
+        availableLabels={availableLabels}
       />
       <EdgeIndicators
         labels={labels}

@@ -21,6 +21,9 @@ export type DropHint = {
   readonly detail: string | null;
   /** Plusieurs ordres possibles : lequel est choisi, et le suivant au Tab. */
   readonly choice?: string;
+  /** **Monter à bord** : le transport visé, les places que la main y prend, et si elles y
+   *  tiennent — son étiquette s'ouvre dessus (POC, `seats`). */
+  readonly boarding?: { readonly carrierId: string; readonly need: number; readonly fits: boolean };
 };
 
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
@@ -35,8 +38,15 @@ export function hintOfReading(
   const { verbs } = reading;
   const at = chosenOf(verbs);
   const verb = verbs[at]!;
+  const boarding =
+    verb.key === 'board'
+      ? { carrierId: verb.carrierId, need: verb.need, fits: true }
+      : verb.key === 'aim' && verb.boardsOn !== undefined
+        ? { carrierId: verb.boardsOn, need: verb.boardNeed ?? 0, fits: true }
+        : null;
   return {
     ...chipOf(verb, forbidden),
+    ...(boarding === null ? {} : { boarding }),
     detail:
       verb.key === 'aim' && verb.join !== undefined ? fr.drop.pieces(verb.join.pieces) : verb.cost,
     ...(verbs.length > 1

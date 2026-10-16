@@ -1768,14 +1768,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const refusal = boardingRefusalOf(boarding);
       const { needed, offered } = boardingRefusalDetails(boarding);
       const seats = seatsOf(carrier.role);
+      const seated = { carrierId: carrier.id, need: needed, fits: refusal === null };
       return refusal === null
         ? {
+            boarding: seated,
             icon: '⤓',
             tone: 'order',
             verb: fr.drop.verbs.board,
             detail: `${fr.compass.transports([carrier.role])} · ${fr.compass.boardPlaces(seats - offered + needed, seats)}`,
           }
         : {
+            boarding: seated,
             icon: '✕',
             tone: 'refused',
             verb: fr.drop.boardRefused,

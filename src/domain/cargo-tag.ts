@@ -8,7 +8,7 @@ import {
   type BoardingRefusal,
   type DisembarkRefusal,
 } from './movement-orders';
-import { carrierIn, seatsLeft, seatsOf, type Seated } from './troops';
+import { carrierIn, fareOf, seatsLeft, seatsOf, type Seated } from './troops';
 
 type Aboard = Seated & { readonly tier: UnitTier };
 
@@ -17,33 +17,44 @@ export type CargoTag = {
   readonly role: UnitRole;
   readonly seats: number;
   readonly used: number;
-  /** Ceux qui sont assis dans ce transport-ci — un camion à bord d'une coque compte pour un. */
+  /** Ceux qui sont assis dans ce transport-ci — un camion à bord d'une coque compte pour un —,
+   *  et les places que chacun y tient : un blindé en prend trois. */
   readonly riders: ReadonlyArray<{
     readonly id: string;
     readonly role: UnitRole;
     readonly tier: UnitTier;
+    readonly seats: number;
   }>;
   /** Pourquoi personne ne peut descendre ici, `null` quand on le peut : la règle même de
    *  `movements.disembark` (`disembarkRefusalOf`). */
   readonly refusal: DisembarkRefusal | null;
 };
 
-/** Une étiquette par transport chargé de la pile, dans l'ordre de la pile ; un vide n'en a pas. */
+/** Une étiquette par transport de la pile, dans l'ordre de la pile — un vide aussi : la main y
+ *  lit ses places libres (POC, `avail`). Ce qui la montre est l'affaire de la carte. */
 export function cargoTagsOf<T extends Aboard>(
   pile: ReadonlyArray<T>,
   where: { readonly afloat: boolean; readonly atAirfield: boolean },
 ): ReadonlyArray<CargoTag> {
   return pile.flatMap((carrier) => {
+    if (seatsOf(carrier.role) === 0) return [];
     const riders = pile.filter((troop) => carrierIn(troop, pile)?.id === carrier.id);
-    if (riders.length === 0) return [];
     return [
       {
         carrierId: carrier.id,
         role: carrier.role,
         seats: seatsOf(carrier.role),
         used: seatsOf(carrier.role) - seatsLeft(carrier, pile),
-        riders: riders.map(({ id, role, tier }) => ({ id, role, tier })),
-        refusal: disembarkRefusalOf({ carrier: carrier.role, ...where }),
+        riders: riders.map((rider) => ({
+          id: rider.id,
+          role: rider.role,
+          tier: rider.tier,
+          seats: fareOf(carrier.role, rider, pile) ?? 1,
+        })),
+        refusal: disembarkRefusalOf({
+          carrier: riders.length === 0 ? null : carrier.role,
+          ...where,
+        }),
       },
     ];
   });
