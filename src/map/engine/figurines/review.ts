@@ -122,8 +122,6 @@ if (kind === 'buildings') {
   });
   const faces = new Faces(() => {});
   const texts = {
-    count: fr.troops.sheetCount,
-    more: fr.troops.moreRoles,
     aboard: fr.troops.aboardCounter,
   };
   for (const [caption, troops] of [

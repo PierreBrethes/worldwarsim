@@ -32,17 +32,12 @@ type PieceGroup = {
 
 export type PilePieces = {
   readonly groups: ReadonlyArray<PieceGroup>;
-  /** Roles present beyond the three shown — the "+N" counter, 0 when none. */
-  readonly more: number;
-  /** Every troop of the pile, the +N's included: what a click on a counter lifts. */
+  /** Every troop of the pile: what a press on the pile lifts. */
   readonly troopIds: ReadonlyArray<string>;
-  /** **The pile deployed** while it is in hand (ADR 0026 §6, 13/10): one piece per troop, the
-   *  +N's included, in the groups' order — each read alone, as if it stood by itself. */
-  readonly spread: ReadonlyArray<SpreadPiece>;
+  /** **Une escouade** (POC « Manipuler les pions », 16/10) : deux pièces ou plus, détourées et
+   *  sous un fanion. Jamais en Blitz, où chaque pièce est une unité. */
+  readonly squad: boolean;
 };
-
-export type SpreadPiece = Pick<PieceGroup, 'role' | 'figures' | 'wear' | 'aboard'> &
-  Pick<SheetLine, 'notches' | 'ink'> & { readonly troopId: string };
 
 export type SheetLine = {
   readonly role: UnitRole;
@@ -54,8 +49,6 @@ export type SheetLine = {
   readonly notches: number;
   readonly ink: 'ink' | 'ochre' | 'red';
 };
-
-const SHOWN_GROUPS = 3;
 
 type Bucket = { role: UnitRole; troops: PileTroop[]; ratio: number };
 
@@ -96,44 +89,29 @@ function figuresOf({ role, troops, ratio }: Bucket): UnitTier[] {
   return [...Array<UnitTier>(front).fill(2), ...Array<UnitTier>(count - front).fill(1)];
 }
 
+/**
+ * **Une pièce par troupe** (POC « Manipuler les pions », 16/10) : l'escouade montre tout ce
+ * qu'elle tient, rôle par rôle dans l'ordre de la fiche — plus de « +N » ni de « ×N », on ne
+ * voit plus la première troupe seule. **Ce qui est à bord ne se voit pas** (15/10) : seul ce qui
+ * se tient debout se dessine, et un transport emmène ce qu'il porte.
+ */
 export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
-  /** **Ce qui est à bord ne se voit pas** (15/10) : seul ce qui se tient debout se dessine, et
-   *  un transport emmène ce qu'il porte. */
   const standing = troops.filter((troop) => carrierIn(troop, troops) === null);
-  const cargo = (members: ReadonlyArray<PileTroop>) =>
-    members.flatMap((member) => cargoOf(member, troops));
-  const aboard = (members: ReadonlyArray<PileTroop>) => {
-    const riders = cargo(members).length;
-    return riders === 0 ? {} : { aboard: riders };
-  };
-  const buckets = bucketsOf(standing);
-  return {
-    groups: buckets.slice(0, SHOWN_GROUPS).map((bucket) => ({
-      role: bucket.role,
-      troops: bucket.troops.length,
-      troopIds: [...bucket.troops, ...cargo(bucket.troops)].map((t) => t.id),
-      figures: figuresOf(bucket),
-      wear: wearOf(bucket.ratio),
-      ...aboard(bucket.troops),
-    })),
-    more: Math.max(0, buckets.length - SHOWN_GROUPS),
-    troopIds: troops.map((t) => t.id),
-    spread: buckets.flatMap(({ troops: members }) =>
-      members.map((troop) => {
-        const [alone] = bucketsOf([troop]) as [Bucket];
-        const [line] = pileSheet([troop]) as [SheetLine];
-        return {
-          troopId: troop.id,
-          role: troop.role,
-          figures: figuresOf(alone),
-          wear: wearOf(alone.ratio),
-          notches: line.notches,
-          ink: line.ink,
-          ...aboard([troop]),
-        };
-      }),
-    ),
-  };
+  const groups = bucketsOf(standing).flatMap(({ troops: members }) =>
+    members.map((troop): PieceGroup => {
+      const [alone] = bucketsOf([troop]) as [Bucket];
+      const riders = cargoOf(troop, troops);
+      return {
+        role: troop.role,
+        troops: 1,
+        troopIds: [troop, ...riders].map((t) => t.id),
+        figures: figuresOf(alone),
+        wear: wearOf(alone.ratio),
+        ...(riders.length === 0 ? {} : { aboard: riders.length }),
+      };
+    }),
+  );
+  return { groups, troopIds: troops.map((t) => t.id), squad: groups.length > 1 };
 }
 
 /**
@@ -155,9 +133,8 @@ export function unitPieces(troops: ReadonlyArray<PileTroop>): PilePieces {
         ...(unit.length > 1 ? { aboard: unit.length - 1 } : {}),
       };
     }),
-    more: 0,
     troopIds: troops.map((t) => t.id),
-    spread: [],
+    squad: false,
   };
 }
 

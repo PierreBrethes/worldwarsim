@@ -54,6 +54,7 @@ import { CompassRose } from './CompassRose';
 import { DropHintChip, hintOfReading, type DropHint, type PieceFrom } from './DropHint';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import {
+  DETACH_MS,
   MapEngine,
   type BuiltRegions,
   type CarryTarget,
@@ -128,7 +129,8 @@ type Props = {
   /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
   /** **Le glisser prend une pièce** (15/10) : vrai quand elle est en main. */
-  onPieceCarry?: ((from: PieceFrom) => boolean) | undefined;
+  /** `single`: a long press on a squad takes the one troop pressed (POC du 16/10). */
+  onPieceCarry?: ((from: PieceFrom, single: boolean) => boolean) | undefined;
   /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
    *  cible —, embarquer, ou reposer. */
   onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back') | undefined;
@@ -277,11 +279,7 @@ const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
-const COUNTER_TEXTS = {
-  count: fr.troops.sheetCount,
-  more: fr.troops.moreRoles,
-  aboard: fr.troops.aboardCounter,
-};
+const COUNTER_TEXTS = { aboard: fr.troops.aboardCounter };
 
 export function WorldMap({
   world,
@@ -672,6 +670,8 @@ export function WorldMap({
    * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
    */
   const [hint, setHint] = useState<DropHint | null>(null);
+  /** **L'anneau de l'appui long** sur une escouade : il se remplit, puis dit « une seule ». */
+  const [detaching, setDetaching] = useState<{ x: number; y: number; done: boolean } | null>(null);
   const hintNode = useRef<HTMLDivElement>(null);
   const hintAt = useRef('');
   /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur. */
@@ -705,10 +705,22 @@ export function WorldMap({
     };
     readyEngine.onPieceCarry =
       onPieceCarry &&
-      ((target, clientX, clientY) => {
+      ((target, clientX, clientY, single) => {
         const { from } = read(target, clientX, clientY);
-        return from !== null && onPieceCarry(from);
+        return from !== null && onPieceCarry(from, single);
       });
+    readyEngine.onDetach = (phase, clientX, clientY) => {
+      const rect = container.current?.getBoundingClientRect();
+      setDetaching(
+        phase === 'end'
+          ? null
+          : {
+              x: clientX - (rect?.left ?? 0),
+              y: clientY - (rect?.top ?? 0),
+              done: phase === 'done',
+            },
+      );
+    };
     readyEngine.onPieceDrop =
       onPieceDrop &&
       ((target, clientX, clientY) => {
@@ -1160,6 +1172,7 @@ export function WorldMap({
       {gestureHint && <GestureHint mapping={mapping} />}
       {placing && <PlacingCard placing={placing} container={container} />}
       {hint !== null && <DropHintChip ref={hintNode} hint={hint} />}
+      {detaching !== null && <DetachRing {...detaching} />}
       {rose && (
         <CompassRose
           key={rose.opening}
@@ -1180,6 +1193,61 @@ export function WorldMap({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * **L'appui long qui détache** (POC du 16/10) : un anneau d'encre ocre se remplit sous le pointeur
+ * pendant `DETACH_MS` ; plein, il porte « 1 » — le glisser ne prendra que la troupe pressée.
+ */
+function DetachRing({ x, y, done }: { x: number; y: number; done: boolean }) {
+  const length = 2 * Math.PI * 17;
+  return (
+    <svg
+      aria-hidden
+      width={48}
+      height={48}
+      viewBox="0 0 48 48"
+      className="pointer-events-none absolute z-[var(--z-popin)]"
+      style={{ left: x - 24, top: y - 24 }}
+    >
+      <circle
+        cx={24}
+        cy={24}
+        r={17}
+        fill="var(--paper)"
+        fillOpacity={0.8}
+        stroke="var(--ink)"
+        strokeOpacity={0.25}
+      />
+      <circle
+        cx={24}
+        cy={24}
+        r={17}
+        fill="none"
+        stroke="var(--arc-mine)"
+        strokeWidth={4}
+        strokeLinecap="round"
+        strokeDasharray={length}
+        strokeDashoffset={done ? 0 : length}
+        transform="rotate(-90 24 24)"
+      >
+        {!done && (
+          <animate
+            attributeName="stroke-dashoffset"
+            from={length}
+            to={0}
+            dur={`${DETACH_MS}ms`}
+            fill="freeze"
+          />
+        )}
+      </circle>
+      {done && (
+        <text x={24} y={28.5} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--ink)">
+          1
+        </text>
+      )}
+    </svg>
   );
 }
 

@@ -2522,7 +2522,6 @@ export const fr = {
     /** La charge de butin, pas les passagers : ceux-là ont leur jeton (15/10). */
     sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
-    moreRoles: (roles: number) => `+${roles}`,
     /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
     aboardCounter: (riders: number) => `${riders}\nà bord`,
   },

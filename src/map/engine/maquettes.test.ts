@@ -224,8 +224,8 @@ describe('clusterFootprints', () => {
   });
 });
 
-/** The widest pile's half-width: three groups and the +N, half a squad past the last slot. */
-const PILE_REACH = pileLayout(3, true).more! + 0.1;
+/** A pile's half-width along its row: four pieces, half a squad past the last slot. */
+const PILE_REACH = pileLayout(4).at(-1)! + 0.1;
 
 describe('the garrison foot', () => {
   it('stands a lone garrison in front of its maquette, facing the front', () => {

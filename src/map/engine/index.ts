@@ -166,6 +166,9 @@ export type CarryTarget =
 
 /** A finger holds this long on a piece before carrying it: a quicker finger pans the board. */
 const LONG_PRESS_MS = 300;
+/** **Held still this long on a squad, the press takes one troop** (POC « Manipuler les pions »,
+ *  16/10): a quick drag takes the whole squad. Exported for the ring that fills meanwhile. */
+export const DETACH_MS = 450;
 /** The click a browser sends after a release arrives within this, the same turn of its loop. */
 const CARRY_CLICK_MS = 250;
 
@@ -250,6 +253,9 @@ type Gesture = {
   readonly fromLabel: boolean;
   /** A finger's long press, waiting. */
   hold: ReturnType<typeof setTimeout> | null;
+  /** A mouse held still on a squad: past `DETACH_MS` the drag takes the one troop pressed. */
+  detach?: ReturnType<typeof setTimeout> | null;
+  single?: boolean;
 };
 
 /**
@@ -420,13 +426,22 @@ export class MapEngine {
    *  itself, and says whether it did — `false` lets the board read the press. */
   onPiecePress?: ((press: PiecePress) => boolean) | undefined;
   /** **A drag takes a piece** (15/10): the host lifts it and says whether it is now in hand. */
-  onPieceCarry?: ((from: CarryTarget, clientX: number, clientY: number) => boolean) | undefined;
+  onPieceCarry?:
+    ((from: CarryTarget, clientX: number, clientY: number, single: boolean) => boolean) | undefined;
+  /** **The long press on a squad**: `start` at the press, `done` once it takes one troop, `end`
+   *  when the press is over — the ring under the pointer fills meanwhile. */
+  onDetach?:
+    ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
   /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
   onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
   /** What the carried piece is over, at every move — the sign of what a drop would do: a piece, a
    *  label, the bare ground, or `null` once the carry is over. */
   onCarryOver?:
-    | ((over: CarryTarget | { readonly kind: 'ground' } | null, clientX: number, clientY: number) => void)
+    | ((
+        over: CarryTarget | { readonly kind: 'ground' } | null,
+        clientX: number,
+        clientY: number,
+      ) => void)
     | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
@@ -1321,6 +1336,7 @@ export class MapEngine {
     }
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;
     gesture.pastThreshold = true;
+    this.endDetach(gesture);
     // A finger that moves before its long press pans the board, as it always did.
     if (gesture.hold !== null) {
       clearTimeout(gesture.hold);
@@ -1346,6 +1362,16 @@ export class MapEngine {
     if (gesture.carry === null) return;
     if (!finger) {
       this.holdOrbit();
+      const carry = gesture.carry;
+      if (carry.kind === 'canvas' && carry.pick.squad === true) {
+        this.onDetach?.('start', gesture.x, gesture.y);
+        gesture.detach = setTimeout(() => {
+          gesture.detach = null;
+          if (this.gesture !== gesture || gesture.carrying || gesture.pastThreshold) return;
+          gesture.single = true;
+          this.onDetach?.('done', gesture.x, gesture.y);
+        }, DETACH_MS);
+      }
       return;
     }
     gesture.hold = setTimeout(() => {
@@ -1356,7 +1382,8 @@ export class MapEngine {
 
   private beginCarry(gesture: Gesture): void {
     if (gesture.carry === null) return;
-    gesture.carrying = this.onPieceCarry?.(gesture.carry, gesture.x, gesture.y) === true;
+    gesture.carrying =
+      this.onPieceCarry?.(gesture.carry, gesture.x, gesture.y, gesture.single === true) === true;
     if (!gesture.carrying) {
       gesture.carry = null;
       this.releaseOrbit();
@@ -1376,7 +1403,11 @@ export class MapEngine {
     this.lastPointer.clientX = clientX;
     this.lastPointer.clientY = clientY;
     this.hoverDirty = true;
-    this.onCarryOver?.(this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' }, clientX, clientY);
+    this.onCarryOver?.(
+      this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' },
+      clientX,
+      clientY,
+    );
   }
 
   /** What stands under the pointer, a label first — never the carried copy, which is always there. */
@@ -1388,6 +1419,14 @@ export class MapEngine {
     if (!this.castAt(clientX, clientY)) return null;
     const pick = this.standing.pick(this.ray, { under: true });
     return pick === null ? null : { kind: 'canvas', pick };
+  }
+
+  /** The long press is over, taken or not: the ring under the pointer goes. */
+  private endDetach(gesture: Gesture): void {
+    if (gesture.detach != null) clearTimeout(gesture.detach);
+    gesture.detach = null;
+    if (gesture.carry?.kind === 'canvas' && gesture.carry.pick.squad === true)
+      this.onDetach?.('end', gesture.x, gesture.y);
   }
 
   private holdOrbit(): void {
@@ -1457,6 +1496,7 @@ export class MapEngine {
     if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
     if (gesture?.hold != null) clearTimeout(gesture.hold);
+    if (gesture !== null) this.endDetach(gesture);
     this.releaseOrbit();
     // A press hides the piece under the pointer: released, it is there again.
     this.hoverDirty = true;
@@ -2134,7 +2174,6 @@ export class MapEngine {
       this.ink.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
-      this.standing.isSpreading ||
       this.standing.isCarrying
     )
       this.invalidate();

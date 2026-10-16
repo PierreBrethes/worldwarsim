@@ -1567,10 +1567,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       : built;
   }, [view, markers, knownRegionById]);
 
-  /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée.
-   *  La garnison d'un bâtiment se lève par ses figurines comme une pile posée. */
+  /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
+   *  longuement (POC du 16/10). La garnison d'un bâtiment se lève par ses figurines comme une
+   *  pile posée. */
   const pileClickOf = useCallback(
-    (hit: PieceClick): PileClick | null => {
+    (hit: PieceClick, single = false): PileClick | null => {
       const pile = markers.find(
         (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
           marker.kind === 'stack' && marker.id === hit.pileId,
@@ -1582,7 +1583,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         pile?.station ?? (building && { kind: 'building', buildingId: building.id });
       if (station === undefined || station.kind === 'home') return null;
       const troopId = hit.troopIds[0];
-      return hit.spread && troopId !== undefined
+      return single && troopId !== undefined
         ? { kind: 'troop', station, troopId }
         : {
             kind: 'pile',
@@ -1607,8 +1608,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   /** Une pièce dessinée, ou l'étiquette d'une de mes piles posées : la pile qu'elle désigne. */
   const clickOfFrom = useCallback(
-    (from: PieceFrom): PileClick | null => {
-      if (from.kind === 'piece') return pileClickOf(from.hit);
+    (from: PieceFrom, single = false): PileClick | null => {
+      if (from.kind === 'piece') return pileClickOf(from.hit, single);
       if (from.station.kind !== 'point') return null;
       const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
         (troop) => troop.id,
@@ -1623,8 +1624,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * scinde —, ou la pile ; en Blitz, l'unité touchée, ou la première de l'étiquette.
    */
   const carryPiece = useCallback(
-    (from: PieceFrom): boolean => {
-      const click = clickOfFrom(from);
+    (from: PieceFrom, single: boolean): boolean => {
+      const click = clickOfFrom(from, single);
       if (click === null) return false;
       const rules = unitsAt(click.station);
       const next: Hand =
@@ -3170,4 +3171,3 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
   key === 'listening' && point !== undefined
     ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
     : null;
-
