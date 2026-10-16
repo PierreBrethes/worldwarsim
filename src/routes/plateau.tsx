@@ -76,7 +76,6 @@ import { producingSites } from '@/domain/producing';
 import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
-  isOrder,
   type Compass,
   type CompassAction,
   type CompassTarget,
@@ -136,14 +135,14 @@ import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
 import { DisembarkCard } from './-plateau/DisembarkCard';
 import {
-  MovementPreview,
+  useSendOrder,
   wireOrigin,
   wireCaptureTarget,
   wireTarget,
   type OrderChoice,
   type Previewed,
   type Sent,
-} from './-plateau/MovementPreview';
+} from './-plateau/order-wire';
 import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
@@ -205,17 +204,6 @@ type ArmedColumn = {
   readonly station: MarchStation;
   readonly troopIds: ReadonlyArray<string>;
   readonly rule: Column;
-};
-
-/**
- * **Ce que la carte a déjà décidé, en attente de la confirmation au bout de l'arc**, et le point
- * où elle se pose. `choices` est tout ce que la cible accepte de cette pile : la rose du bureau en
- * a déjà choisi un, la feuille du téléphone les offre en onglets (refonte mobile, 1c).
- */
-type Order = OrderChoice & {
-  readonly choices: ReadonlyArray<OrderChoice>;
-  readonly x: number;
-  readonly y: number;
 };
 
 /** **La marche que la route chiffre sous un pointeur arrêté** (ADR 0026 §6), et le point où
@@ -457,7 +445,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           },
     [hand],
   );
-  const [order, setOrder] = useState<Order | null>(null);
   const [resting, setResting] = useState<RestAim | null>(null);
   /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */
   const [heldCompass, setHeldCompass] = useState<Compass | null>(null);
@@ -469,8 +456,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
   /** De quoi nommer la région d'une pile, dès que la carte a chargé ses régions. */
   const [regionAt, setRegionAt] = useState<RegionAt | null>(null);
-  const [screenOf, setScreenOf] = useState<ScreenOf | null>(null);
-  const keepScreenOf = useCallback((lookup: ScreenOf) => setScreenOf(() => lookup), []);
   const keepRegionAt = useCallback((lookup: RegionAt) => setRegionAt(() => lookup), []);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
@@ -632,7 +617,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setHand(EMPTY_HAND);
-      setOrder(null);
       /** **Un observateur lit sa garnison, il ne la compose plus** (décision du 31/08) : les
        *  cases partent avec `observing` et « préparer » avec elles, mais le panneau s'ouvre —
        *  une porte qui ne s'ouvre que parfois se lit comme une panne, et ses troupes restent
@@ -677,7 +661,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setHand(next);
     setLifts((count) => count + 1);
     setGarrison(null);
-    setOrder(null);
     setOrderError(null);
   }, []);
 
@@ -722,7 +705,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        setOrder(null);
         setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
@@ -774,7 +756,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
-    setOrder(null);
     setResting(null);
   }, []);
 
@@ -865,6 +846,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
 
+  /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
+   *  cartouche « transmis » prend le relais le temps qu'on le lise. */
+  const afterSent = useCallback(
+    (filed: Sent, label: string) => {
+      if (narrow) setSent({ ...filed, order: label });
+      setDepartures((count) => count + 1);
+      dropHand();
+    },
+    [narrow, dropHand],
+  );
+  const sendOrder = useSendOrder(seat);
+  /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
+  const previewNow = useRef<Previewed | undefined>(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       switch (action.key) {
@@ -970,12 +964,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 : { kind: 'track', movementId: action.target.movementId as Id<'movements'> },
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
+        /** **L'ordre part au lâcher** (POC « Manipuler les pions », 16/10) : la pastille sous
+         *  la main l'a déjà dit, il n'y a plus de carte à confirmer. */
         case 'aim':
         case 'plunder':
         case 'capture':
         case 'collect': {
-          const choice = choiceOf(action);
-          setOrder({ ...choice, choices: [choice], x: at.x, y: at.y });
+          if (column === null) return;
+          setOrderError(null);
+          sendOrder(column.station, column.troopIds, choiceOf(action), previewNow.current).then(
+            (filed) => afterSent(filed, action.label),
+            (problem: unknown) => {
+              handleError(problem, setOrderError);
+              dropHand();
+            },
+          );
           return;
         }
         /**
@@ -1010,26 +1013,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       column,
       seat,
       narrow,
+      sendOrder,
+      afterSent,
     ],
   );
-
-  /**
-   * **Sous le seuil, la cible touchée ouvre la feuille d'ordre**, pas la rose (refonte mobile,
-   * 1c) : tout ce qu'elle accepte de la pile, en onglets, et le premier choisi — l'ordre même où
-   * la rose les aurait posés. Une cible qui n'accepte rien rend la main à la rose, qui seule sait
-   * dire pourquoi.
-   */
-  const orderFrom = useCallback((compass: Compass, at: { x: number; y: number }): boolean => {
-    /** Embarquer n'est pas un ordre de la feuille (rien ne part) : la rose, qui le porte à côté
-     *  des marches, s'ouvre à sa place. */
-    if (compass.actions.some((action) => action.key === 'board' || action.key === 'bombard'))
-      return false;
-    const choices = compass.actions.filter(isOrder).map(choiceOf);
-    const first = choices[0];
-    if (first === undefined) return false;
-    setOrder({ ...first, choices, x: at.x, y: at.y });
-    return true;
-  }, []);
 
   /** **Échap repose la pièce en main** (ADR 0026 §6). La rose arrête la touche avant nous quand
    *  elle est ouverte. */
@@ -1063,7 +1050,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return;
       }
       setHand(move.hand);
-      setOrder(null);
     },
     [hand, dropHand, unitsAt],
   );
@@ -2057,8 +2043,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * parce qu'aucune ne sait refuser à la place des autres : celle qui ne sert pas est en `skip`,
    * et la carte lit celle de l'ordre en cours.
    */
-  /** L'ordre ouvert l'emporte sur l'arrêt du pointeur : une seule demande, celle qu'on lit. */
-  const aimed = order ?? resting;
+  const aimed = resting;
   const dispatch =
     column === null || aimed === null
       ? null
@@ -2104,6 +2089,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : mission.kind === 'collect'
             ? collectPreview
             : marchPreview;
+  previewNow.current = preview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -2203,16 +2189,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       });
   }, [view.me.buildings, view.me.capitalPoint, focusBuilding]);
 
-  /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
-   *  cartouche « transmis » prend le relais le temps qu'on le lise. */
-  const afterSent = useCallback(
-    (filed: Sent) => {
-      if (narrow && order !== null) setSent({ ...filed, order: order.label });
-      setDepartures((count) => count + 1);
-      dropHand();
-    },
-    [narrow, order, dropHand],
-  );
   useEffect(() => {
     if (sent === null) return;
     const timer = setTimeout(() => setSent(null), SENT_NOTICE_MS);
@@ -2306,12 +2282,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCountryHover={setHoveredCountry}
               onRegionHover={setHoveredRegion}
               onRegionsLoaded={keepRegionAt}
-              onScreenOf={keepScreenOf}
               onArcHover={setHoveredArc}
               onLabelHover={setHoveredLabel}
               poster={poster}
               compassOf={compassOfTarget}
               onCompassAction={actOnCompass}
+              onDropRefused={dropHand}
               building={buildingSite !== null}
               placing={placing}
               onPlacePoint={placePort}
@@ -2322,7 +2298,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               searchArea={searchArea}
               fingerRose={fingerRose}
               showDestinations
-              onOrderTarget={narrow ? orderFrom : undefined}
               covered={narrow && windows.length > 0}
               reveal={reveal}
               replay={replay}
@@ -2434,7 +2409,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
             {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
-            {hand.kind === 'held' && !(narrow && order !== null) && (
+            {hand.kind === 'held' && (
               <HandSheet
                 key={`${stationKeyOf(hand.station)}-${lifts}`}
                 view={view}
@@ -2478,7 +2453,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onDrop={dropHand}
               />
             )}
-            {resting !== null && order === null && preview && (
+            {resting !== null && preview && (
               /* Placed outside the `.hud` zoom, which would scale the board point as well. */
               <div
                 className="pointer-events-none absolute z-10"
@@ -2488,41 +2463,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
                 </div>
               </div>
-            )}
-            {column && order && (
-              <MovementPreview
-                seat={seat}
-                origin={column.station}
-                troopIds={column.troopIds}
-                strength={view.me.troops
-                  .filter((troop) => column.troopIds.includes(troop.id))
-                  .reduce((sum, troop) => sum + troop.strength, 0)}
-                neutralTarget={neutralTargetOf(view, order)}
-                choice={order}
-                choices={order.choices}
-                onChoose={(choice) =>
-                  setOrder(
-                    (previous) =>
-                      previous && {
-                        ...choice,
-                        choices: previous.choices,
-                        x: previous.x,
-                        y: previous.y,
-                      },
-                  )
-                }
-                at={order}
-                from={
-                  screenOf === null
-                    ? null
-                    : screenOf(stationPointOf(view.me, column.station) ?? view.me.homePosition)
-                }
-                preview={preview}
-                slots={blitz ? null : view.me.slots}
-                originName={stationNames(view).place(column.station)}
-                onClose={dropHand}
-                onSent={afterSent}
-              />
             )}
             <CombatToasts
               journal={view.journal}
@@ -2937,15 +2877,6 @@ function Loading() {
  * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
  * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
  */
-/** Un site neutre de Blitz n'a pas de garnison : l'aperçu n'y annonce ni initiative ni riposte. */
-function neutralTargetOf(view: PlayerView, { aim, mission }: OrderChoice): boolean {
-  return (
-    mission.kind === 'capture' &&
-    aim.kind === 'building' &&
-    view.neutralSites.some((site) => site.id === aim.buildingId)
-  );
-}
-
 function choiceOf(action: OrderAction): OrderChoice {
   const said = { label: action.label, consequence: action.consequence };
   switch (action.key) {
@@ -3240,4 +3171,3 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
     ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
     : null;
 
-type ScreenOf = (lonLat: LonLat) => { x: number; y: number } | null;

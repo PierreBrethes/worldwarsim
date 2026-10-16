@@ -1,5 +1,7 @@
 import type { Ref } from 'react';
-import type { Compass } from '@/domain/compass-rose';
+import type { CompassAction } from '@/domain/compass-rose';
+import type { DropReading } from '@/domain/drop-order';
+import { fr } from '@/i18n/fr';
 import type { TroopStation } from '@/domain/player-view';
 import { PICTOGRAM_PATHS } from './CompassRose';
 import type { PieceClick } from './engine';
@@ -10,24 +12,36 @@ export type PieceFrom =
   | { readonly kind: 'piece'; readonly hit: PieceClick }
   | { readonly kind: 'stack'; readonly station: TroopStation };
 
-/** **Ce que ferait le lâcher, dit sous le pointeur** — le signe d'embarquement, ou le motif. */
+/** **Ce que ferait le lâcher, dit sous le pointeur** — l'ordre, sa conséquence, ou le motif. */
 export type DropHint = {
   readonly title: string;
   readonly detail: string | null;
   readonly boards: boolean;
   readonly refused: boolean;
+  /** Plusieurs ordres possibles : lequel est choisi, et le suivant au Tab. */
+  readonly choice?: string;
 };
 
-/** La première branche de la rose qu'ouvrirait le lâcher, ou son motif : un aperçu, pas un ordre. */
-export function hintOfCompass(compass: Compass | null): DropHint | null {
-  if (compass === null) return null;
-  const [first] = compass.actions;
-  if (first === undefined)
-    return compass.refusal === null
-      ? null
-      : { title: compass.refusal, detail: null, boards: false, refused: true };
-  const boards = first.pictogram === 'anchor';
-  return { title: first.label, detail: boards ? first.consequence : null, boards, refused: false };
+/** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
+export function hintOfReading(
+  reading: DropReading,
+  chosenOf: (verbs: ReadonlyArray<CompassAction>) => number,
+): DropHint | null {
+  if (reading.kind === 'none') return null;
+  if (reading.kind === 'refused')
+    return { title: reading.reason, detail: null, boards: false, refused: true };
+  const { verbs } = reading;
+  const at = chosenOf(verbs);
+  const verb = verbs[at]!;
+  return {
+    title: verb.label,
+    detail: verb.cost ?? (verb.consequence || null),
+    boards: verb.pictogram === 'anchor',
+    refused: false,
+    ...(verbs.length > 1
+      ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
+      : {}),
+  };
 }
 
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
@@ -69,6 +83,14 @@ export function DropHintChip({ hint, ref }: { hint: DropHint; ref: Ref<HTMLDivEl
               {hint.detail}
             </span>
           )}
+          {hint.choice !== undefined && (
+            <span className="mt-[3px] block font-(family-name:--font-mono) text-[10.5px] leading-[1.35] text-[var(--ink)]">
+              {hint.choice}
+            </span>
+          )}
+          <span className="mt-[4px] block border-t border-dotted border-(color:--ink)/40 pt-[3px] text-[9px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+            {hint.refused ? fr.drop.refused : fr.drop.release}
+          </span>
         </span>
       </div>
     </div>

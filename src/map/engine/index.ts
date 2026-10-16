@@ -423,8 +423,11 @@ export class MapEngine {
   onPieceCarry?: ((from: CarryTarget, clientX: number, clientY: number) => boolean) | undefined;
   /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
   onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
-  /** What the carried piece is over, at every move — the sign of what a drop would do. */
-  onCarryOver?: ((over: CarryTarget | null, clientX: number, clientY: number) => void) | undefined;
+  /** What the carried piece is over, at every move — the sign of what a drop would do: a piece, a
+   *  label, the bare ground, or `null` once the carry is over. */
+  onCarryOver?:
+    | ((over: CarryTarget | { readonly kind: 'ground' } | null, clientX: number, clientY: number) => void)
+    | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -1373,7 +1376,7 @@ export class MapEngine {
     this.lastPointer.clientX = clientX;
     this.lastPointer.clientY = clientY;
     this.hoverDirty = true;
-    this.onCarryOver?.(this.carryTargetAt(clientX, clientY), clientX, clientY);
+    this.onCarryOver?.(this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' }, clientX, clientY);
   }
 
   /** What stands under the pointer, a label first — never the carried copy, which is always there. */
@@ -1546,20 +1549,6 @@ export class MapEngine {
       clientX: event.clientX,
       clientY: event.clientY,
     });
-  }
-
-  /**
-   * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
-   * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
-   */
-  screenOf(lonLat: LonLat): { x: number; y: number } | null {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const at = this.frame.projectLonLat(lonLat).project(this.eye);
-    if (at.z > 1) return null;
-    return {
-      x: rect.left + ((at.x + 1) / 2) * this.screenWidth,
-      y: rect.top + ((1 - at.y) / 2) * this.screenHeight,
-    };
   }
 
   pieceRect(labelId: string): Rect | null {

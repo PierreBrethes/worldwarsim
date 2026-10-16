@@ -22,7 +22,6 @@ import type { IndicatorToggles } from '@/domain/indicators';
 import {
   isDestinationAction,
   isOrder,
-  soleOrderOf,
   type CompassAction,
   type CompassTarget,
   type OrderAction,
@@ -52,7 +51,8 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { DropHintChip, hintOfCompass, type DropHint, type PieceFrom } from './DropHint';
+import { DropHintChip, hintOfReading, type DropHint, type PieceFrom } from './DropHint';
+import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import {
   MapEngine,
   type BuiltRegions,
@@ -168,8 +168,6 @@ type Props = {
    * point, par la même lecture que le survol. Un cartouche de pile en a besoin, et il est écrit
    * au plateau, pas ici.
    */
-  /** Where a place stands on the screen, for what must keep clear of a route. */
-  onScreenOf?: (screenOf: (lonLat: LonLat) => { x: number; y: number } | null) => void;
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
@@ -228,12 +226,9 @@ type Props = {
    * décide lesquelles, par la même rose que le geste ouvrirait.
    */
   showDestinations?: boolean;
-  /**
-   * **Sous le seuil, une cible visée ouvre la feuille d'ordre, pas la rose** (refonte mobile,
-   * 1c) : le type d'ordre s'y choisit. Le plateau rend vrai quand il a pris la cible — une rose
-   * qui ne porte que son motif de refus s'ouvre encore, c'est elle qui sait le dire.
-   */
-  onOrderTarget?: ((compass: Compass, at: { x: number; y: number }) => boolean) | undefined;
+  /** **Une pièce posée là où rien ne la prend rentre chez elle** : la pastille l'a déjà dit en
+   *  rouge, il n'y a pas de rose à ouvrir sur un refus. */
+  onDropRefused?: () => void;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -280,13 +275,6 @@ export type PlacingBuilding = {
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
-/** The branches that open the order card (`actOnCompass`) rather than act at once. */
-const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set([
-  'aim',
-  'plunder',
-  'capture',
-  'collect',
-]);
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 const COUNTER_TEXTS = {
@@ -337,7 +325,6 @@ export function WorldMap({
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
-  onScreenOf,
   onArcHover,
   onLabelHover,
   poster,
@@ -354,7 +341,7 @@ export function WorldMap({
   searchArea = null,
   fingerRose = null,
   showDestinations = false,
-  onOrderTarget,
+  onDropRefused,
   covered = false,
   reveal = null,
   replay = null,
@@ -369,10 +356,6 @@ export function WorldMap({
   useEffect(() => {
     regionsLoaded.current = onRegionsLoaded;
   }, [onRegionsLoaded]);
-  const screenOfSink = useRef(onScreenOf);
-  useEffect(() => {
-    screenOfSink.current = onScreenOf;
-  }, [onScreenOf]);
   const engine = useRef<MapEngine | null>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
   /** Une rose rouverte est une autre rose : elle se mesure et se recale à son tour. */
@@ -401,7 +384,6 @@ export function WorldMap({
     // The board does not wait for these 500 KB, and their failure is mute — but the possession
     // colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
-    screenOfSink.current?.((lonLat) => instance.screenOf(lonLat));
     loadRegions()
       .then((data) => {
         if (abandoned) return;
@@ -444,32 +426,75 @@ export function WorldMap({
     if (engine.current) engine.current.onArcHover = onArcHover ?? (() => {});
   }, [onArcHover]);
 
+  /**
+   * **Le verbe choisi pendant le geste**, retrouvé au lâcher par la signature de ses ordres : la
+   * même cible rend le même choix, une autre repart du premier. Tab ou un chiffre le changent.
+   */
+  const choice = useRef({ signature: '', index: 0 });
+  const reading = useRef<DropReading | null>(null);
+  const chosenOf = useCallback((verbs: ReadonlyArray<CompassAction>): number => {
+    const signature = verbs.map((verb) => `${verb.key}:${verb.label}`).join('|');
+    if (choice.current.signature !== signature) choice.current = { signature, index: 0 };
+    return Math.min(choice.current.index, verbs.length - 1);
+  }, []);
+  useEffect(() => {
+    if (holding === null) return;
+    const turn = (event: KeyboardEvent) => {
+      const read = reading.current;
+      if (read?.kind !== 'orders' || read.verbs.length < 2) return;
+      const digit = Number.parseInt(event.key, 10);
+      const count = read.verbs.length;
+      const at = chosenOf(read.verbs);
+      const next =
+        event.key === 'Tab'
+          ? turnChoice(count, at, event.shiftKey ? -1 : 1)
+          : digit >= 1 && digit <= count
+            ? digit - 1
+            : null;
+      if (next === null) return;
+      event.preventDefault();
+      choice.current.index = next;
+      setHint(hintOfReading(read, chosenOf));
+    };
+    addEventListener('keydown', turn);
+    return () => removeEventListener('keydown', turn);
+  }, [holding, chosenOf]);
+
   // One rose at a time, and the camera holds still while it is open: aiming at an action on
   // a map drifting under the pointer is aiming twice.
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
-      const drawn = compassOf(target);
+      let drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
-      if (drawn === null || rect === undefined) return;
+      if (rect === undefined) return;
+      if (drawn === null) {
+        if (aiming) onDropRefused?.();
+        return;
+      }
       const at = { x: clientX - rect.left, y: clientY - rect.top };
       /** **La pièce se pose là où l'ordre se lit** — sous une rose ou une carte d'ordre — et pas
        *  quand le geste part droit au serveur : un refus la laisserait figée au sol. */
       const setDown = () => {
         if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
       };
-      if (aiming && onOrderTarget?.(drawn, at) === true) {
+      /** **Lâcher, c'est ordonner** (POC « Manipuler les pions », 16/10) : le verbe que la
+       *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
+       *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
+      if (aiming) {
+        const reading = dropReadingOf(drawn);
+        if (reading.kind !== 'orders') {
+          setRose(null);
+          onDropRefused?.();
+          return;
+        }
         setDown();
-        setRose(null);
-        return;
+        if (fingerRose === null || reading.verbs.length === 1) {
+          setRose(null);
+          onCompassAction(reading.verbs[chosenOf(reading.verbs)]!, at);
+          return;
+        }
+        drawn = { ...drawn, actions: reading.verbs };
       }
-      const sole = aiming ? soleOrderOf(drawn) : null;
-      if (sole !== null) {
-        if (ORDER_CARD_KEYS.has(sole.key)) setDown();
-        setRose(null);
-        onCompassAction(sole, at);
-        return;
-      }
-      setDown();
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
        *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
@@ -484,7 +509,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction, holding],
+    [compassOf, fingerRose, aiming, onDropRefused, onCompassAction, holding, chosenOf],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -696,17 +721,35 @@ export function WorldMap({
       hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
       if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
       if (target === null) {
+        reading.current = null;
         setHint(null);
         return;
       }
-      const { from, label } = read(target, clientX, clientY);
-      const here = from === null ? undefined : dropHintOf?.(from);
-      if (here !== undefined) {
-        setHint(here);
-        return;
+      if (target.kind !== 'ground') {
+        const { from } = read(target, clientX, clientY);
+        const here = from === null ? undefined : dropHintOf?.(from);
+        if (here !== undefined) {
+          reading.current = null;
+          setHint(here);
+          return;
+        }
       }
-      const aimed = label === undefined ? null : labelTarget(label, clientX, clientY);
-      setHint(aimed === null ? null : hintOfCompass(compassOf(aimed)));
+      const label = target.kind === 'ground' ? undefined : read(target, clientX, clientY).label;
+      const aimed =
+        label !== undefined
+          ? labelTarget(label, clientX, clientY)
+          : (() => {
+              const point = readyEngine.pointAt(clientX, clientY);
+              return pointTarget(
+                readyEngine.countryAtPoint(clientX, clientY),
+                readyEngine.regionAtPoint(clientX, clientY),
+                point,
+                point !== null && coastAt(point),
+                point !== null && landAt(point),
+              );
+            })();
+      reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
+      setHint(hintOfReading(reading.current, chosenOf));
     };
   }, [
     readyEngine,
@@ -718,6 +761,9 @@ export function WorldMap({
     onLabelAct,
     labelTarget,
     compassOf,
+    coastAt,
+    landAt,
+    chosenOf,
   ]);
 
   useEffect(() => {
@@ -768,14 +814,17 @@ export function WorldMap({
           : point === null
             ? null
             : pointTarget(country, region, point, coastAt(point), landAt(point));
-      const order = target === null ? undefined : compassOf(target)?.actions.find(isOrder);
+      /** La route du verbe choisi, celui que le lâcher donnerait. */
+      const read = dropReadingOf(target === null ? null : compassOf(target));
+      const verb = read.kind === 'orders' ? read.verbs[chosenOf(read.verbs)] : undefined;
+      const order = verb !== undefined && isOrder(verb) ? verb : undefined;
       onRestAim?.(order ?? null, {
         x: clientX - (rect?.left ?? 0),
         y: clientY - (rect?.top ?? 0),
       });
     };
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
-  }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget]);
+  }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget, chosenOf]);
 
   /**
    * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
