@@ -239,7 +239,6 @@ export class CampLayer {
     this.marked = id === null || state === null ? null : { id, state };
   }
 
-  /** Where a camp's annotation lies, `null` when there is none. */
   positionOf(id: string): Vector3 | null {
     return this.placed.get(id)?.object.position ?? null;
   }
@@ -284,7 +283,7 @@ export class CampLayer {
         seconds,
         this.motion !== 'full',
       );
-      ring.scale.setScalar(RING_RADIUS * ((ring.userData.beat as number | undefined) ?? 1));
+      ring.scale.setScalar(RING_RADIUS * ring.beat);
     }
   }
 

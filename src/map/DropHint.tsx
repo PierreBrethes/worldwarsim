@@ -12,8 +12,8 @@ export type PieceFrom =
   | { readonly kind: 'piece'; readonly hit: PieceClick }
   | { readonly kind: 'stack'; readonly station: TroopStation };
 
-/** **Ce que ferait le lâcher, dit sous le pointeur** (POC, `#hint`) : un signe dans un rond, le
- *  verbe, sa conséquence — ou le refus en rouge, ou « reposer » quand rien ne bouge. */
+/** **What letting go would do, said under the pointer** (POC, `#hint`): a sign in a round, the
+ *  verb, its consequence — or the refusal in red, or « reposer » when nothing moves. */
 export type DropHint = {
   readonly icon: string;
   readonly tone: DropChip['tone'] | 'calm' | 'refused';
@@ -21,8 +21,10 @@ export type DropHint = {
   readonly detail: string | null;
   /** Plusieurs ordres possibles : lequel est choisi, et le suivant au Tab. */
   readonly choice?: string;
-  /** **Monter à bord** : le transport visé, les places que la main y prend, et si elles y
-   *  tiennent — son étiquette s'ouvre dessus (POC, `seats`). */
+  /** **Joining one of my piles**: its ring turns as a squad's would (POC, `merge`). */
+  readonly joins?: boolean;
+  /** **Boarding**: the transport aimed at, the seats the hand takes in it, and whether they fit —
+   *  its tag opens on them (POC, `seats`). */
   readonly boarding?: { readonly carrierId: string; readonly need: number; readonly fits: boolean };
 };
 
@@ -47,12 +49,13 @@ export function hintOfReading(
   const chip = chipOf(verb, forbidden);
   return {
     ...chip,
+    ...(verb.key === 'aim' && verb.join !== undefined ? { joins: true } : {}),
     ...(boarding === null ? {} : { boarding }),
     detail:
       verb.key === 'aim' && verb.join !== undefined
         ? fr.drop.pieces(verb.join.pieces)
         : verb.key === 'aim' && chip.tone === 'fight'
-          ? strikeOf(verb.aim.kind, verb.cost)
+          ? strikeOf(verb.cost)
           : verb.cost,
     ...(verbs.length > 1
       ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
@@ -60,22 +63,18 @@ export function hintOfReading(
   };
 }
 
-/** **L'anneau de ce que la main survole** (POC, `ringStyle`) : rouge et cerclé de repères sur
- *  l'ennemi, en tirets qui tournent sur une pile qu'on rejoint, plein et battant sur un transport,
- *  en tirets rouges sur un refus. */
+/** **The ring of what the hand is over** (POC, `ringStyle`): red and ticked on the enemy, turning
+ *  dashes on a pile one joins, solid and beating on a transport, red dashes on a refusal. */
 export function ringOfHint(hint: DropHint): RingState {
   if (hint.tone === 'refused') return 'bad';
   if (hint.tone === 'fight') return 'enemy';
-  return hint.icon === '+' ? 'merge' : 'target';
+  return hint.joins === true ? 'merge' : 'target';
 }
 
-/** **Ce qu'une attaque dit d'avance** (POC, `odds`) : pas l'issue — le brouillard ne sert ni la
- *  composition ni l'effectif d'en face —, mais l'initiative (B16) et le mur d'une garnison (C1). */
-const SHELTERS: ReadonlySet<string> = new Set(['outpost', 'objective', 'building']);
-function strikeOf(kind: string, cost: string | null): string {
-  const strike = SHELTERS.has(kind) ? fr.drop.strikeSheltered : fr.drop.strike;
-  return cost === null ? strike : `${strike} · ${cost}`;
-}
+/** **What an attack says beforehand** (POC, `odds`): not the outcome — the fog serves neither
+ *  the composition nor the strength across — but the initiative (B16). */
+const strikeOf = (cost: string | null): string =>
+  cost === null ? fr.drop.strike : `${fr.drop.strike} · ${cost}`;
 
 /** Ce que la route du serveur ajoute au pointeur arrêté : l'heure d'arrivée, la morsure du
  *  repos, ou l'absence de route — il n'y a plus de carte pour le dire avant l'ordre. */

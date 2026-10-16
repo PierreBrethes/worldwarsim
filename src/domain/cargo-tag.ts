@@ -17,8 +17,8 @@ export type CargoTag = {
   readonly role: UnitRole;
   readonly seats: number;
   readonly used: number;
-  /** Ceux qui sont assis dans ce transport-ci — un camion à bord d'une coque compte pour un —,
-   *  et les places que chacun y tient : un blindé en prend trois. */
+  /** Who sits in this very transport — a truck aboard a hull counts as one — and the seats each
+   *  takes: a tank takes three. */
   readonly riders: ReadonlyArray<{
     readonly id: string;
     readonly role: UnitRole;
@@ -30,8 +30,8 @@ export type CargoTag = {
   readonly refusal: DisembarkRefusal | null;
 };
 
-/** Une étiquette par transport de la pile, dans l'ordre de la pile — un vide aussi : la main y
- *  lit ses places libres (POC, `avail`). Ce qui la montre est l'affaire de la carte. */
+/** A tag per transport of the pile, in the pile's order — an empty one too: the hand reads its free
+ *  seats on it (POC, `avail`). When it shows is the map's business. */
 export function cargoTagsOf<T extends Aboard>(
   pile: ReadonlyArray<T>,
   where: { readonly afloat: boolean; readonly atAirfield: boolean },
@@ -68,8 +68,8 @@ const SEATED_LATER: ReadonlySet<BoardingRefusal | null> = new Set([
 ]);
 
 /**
- * **Les transports d'une pile qui prendraient la main** (POC, `avail`) : le genre suffit — un
- * camion n'assoit que l'infanterie —, les places et l'aérodrome se lisent sur leur étiquette.
+ * **The transports of a pile that would take the hand** (POC, `avail`): the kind is enough — a
+ * truck seats infantry only —, the seats and the airfield are read on their tag.
  */
 export function carriersFor<T extends Seated>(held: ReadonlyArray<T>, pile: ReadonlyArray<T>): T[] {
   const riders = held.filter((troop) => carrierIn(troop, held) === null);

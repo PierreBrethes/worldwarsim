@@ -786,8 +786,8 @@ export class MapEngine {
   private refreshRings(): void {
     const rings = new Map<string, RingState>();
     const held = this.held;
-    if (held === null) this.camps.mark(null, null);
     if (held === null) {
+      this.camps.mark(null, null);
       if (this.hoveredPile !== null) rings.set(this.hoveredPile, 'hover');
       this.standing.setRings(rings);
       return;

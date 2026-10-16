@@ -350,8 +350,8 @@
   color: var(--held-ink);
 }
 
-/* **La pastille sous la main** (POC « Manipuler les pions », `#hint`) : ce que le lâcher ferait
-   ici. Placée par le moteur au pointeur, sans repasser par React. */
+/* **The chip under the hand** (POC « Manipuler les pions », `#hint`): what letting go here would
+   do. The engine places it at the pointer, without going back through React. */
 .drop-chip {
   position: fixed;
   top: 0;

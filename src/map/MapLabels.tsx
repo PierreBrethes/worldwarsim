@@ -107,9 +107,9 @@ export function MapLabels({
   availableLabels = NO_LABELS,
 }: {
   labels: ReadonlyArray<MapLabel>;
-  /** **Le transport sous la main** : son étiquette s'ouvre sur les places qu'on y prendrait. */
+  /** **The transport under the hand**: its tag opens on the seats the drop would take. */
   cargoAim?: CargoAim | null;
-  /** Les étiquettes dont un transport prendrait la main : elles pendent le temps du geste. */
+  /** The labels whose transport could take the hand: their tags hang while it is held. */
   availableLabels?: ReadonlySet<string>;
   /** The player's nation: the passengers on a transport's tag wear its plates. */
   nation?: string | null;

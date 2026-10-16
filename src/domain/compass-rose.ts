@@ -283,11 +283,11 @@ export type CompassAction =
       readonly consequence: string;
       readonly aim: MovementAim;
       readonly type: MovementType;
-      /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque, et
-       *  les places qu'elle y prendra. */
+      /** **The transport the column boards on arrival** (15/10), when the branch boards, and the
+       *  seats it will take there. */
       readonly boardsOn?: string;
       readonly boardNeed?: number;
-      /** **Rejoindre une de mes piles** : `formed` quand elle était seule — l'escouade naît. */
+      /** **Joining one of my piles**: `formed` when it stood alone — the squad is born. */
       readonly join?: { readonly formed: boolean; readonly pieces: number };
     }
   | {

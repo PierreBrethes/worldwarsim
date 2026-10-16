@@ -936,10 +936,9 @@
   display: block;
 }
 
-/* **L'étiquette d'un transport** (POC « Manipuler les pions », `.tag`) : elle pend au-dessus de
-   la pile par un fil, au rapproché seulement — en figurines, ou cartouche déplié pour un
-   transport sans figurine. De loin, le cartouche suffit. Vide et hors du geste, elle attend le
-   survol de sa pile. */
+/* **A transport's tag** (POC « Manipuler les pions », `.tag`): it hangs over the pile by a string,
+   up close only — in figurines, or the unfolded cartouche of a transport without one. From afar the
+   cartouche is enough. Empty and outside a gesture, it waits for its pile to be hovered. */
 .label-anchor .cargo-tags {
   display: none;
 }

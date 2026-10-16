@@ -233,9 +233,9 @@ type Props = {
   onDropRefused?: () => void;
   /** L'arrivée lue au pointeur arrêté, que la pastille porte sous son verbe. */
   dropNotes?: ReadonlyArray<DropNote>;
-  /** **La route du serveur sous le pointeur arrêté** : le ruban de la pièce en main la suit. */
+  /** **The server's road under the resting pointer**: the ribbon of the piece in hand follows it. */
   aimRoute?: ReadonlyArray<LonLat> | null;
-  /** Mes piles dont un transport prendrait la main : leur anneau bat pendant le geste. */
+  /** My piles whose transport could take the hand: their rings beat while it is held. */
   availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
   onCarryEnd?: () => void;
@@ -687,9 +687,9 @@ export function WorldMap({
    * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
    */
   const [hint, setHint] = useState<DropHint | null>(null);
-  /** **Le transport sous la main**, son étiquette ouverte sur les places qu'on y prendrait. */
+  /** **The transport under the hand**, its tag open on the seats the drop would take. */
   const [cargoAim, setCargoAim] = useState<CargoAim | null>(null);
-  /** Mes transports qui prendraient la main, par l'étiquette qui porte leur étiquette de bagage. */
+  /** My transports that could take the hand, by the label their luggage tag hangs from. */
   const availableLabels = useMemo(
     () =>
       new Set(

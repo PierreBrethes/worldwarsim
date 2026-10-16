@@ -3772,7 +3772,7 @@ export const fr = {
     putBack: 'Reposer',
     putBackDetail: 'rien ne bouge',
     boardRefused: 'Embarquement impossible',
-    /** Les verbes de la pastille, à l'infinitif comme au prototype. */
+    /** The chip's verbs, in the infinitive as in the prototype. */
     verbs: {
       attack: 'Attaquer',
       raid: 'Lancer le raid',
@@ -3785,7 +3785,6 @@ export const fr = {
     },
     pieces: (count: number) => `${count} pièces ensemble`,
     strike: 'vous frappez en premier',
-    strikeSheltered: 'vous frappez en premier · elle est à couvert',
   },
   compass: {
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,

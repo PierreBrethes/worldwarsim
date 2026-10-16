@@ -71,6 +71,8 @@ const LANDING_S = 0.22;
 export class InkRing extends Mesh<PlaneGeometry, ShaderMaterial> {
   private state: RingState | null = null;
   private since = 0;
+  /** How much wider than its piece it is drawn right now: landing, beating. */
+  beat = 1;
 
   constructor() {
     super(
@@ -122,7 +124,7 @@ export class InkRing extends Mesh<PlaneGeometry, ShaderMaterial> {
       ? 1
       : 1 + 0.4 * (1 - Math.min(1, (seconds - this.since) / LANDING_S)) ** 2;
     const beat = BEATS.has(state) && !still ? 1.06 + 0.05 * pulse : 1;
-    this.userData.beat = landing * beat;
+    this.beat = landing * beat;
   }
 
   /** Its ink's opacity, for what fades out on its own clock. */

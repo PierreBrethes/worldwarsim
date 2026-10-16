@@ -166,7 +166,6 @@ export class DustBurst {
         spin: Math.random() * 6,
       });
     }
-    this.object.scale.setScalar(1);
     this.step(0, size);
   }
 

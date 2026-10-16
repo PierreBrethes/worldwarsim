@@ -1723,8 +1723,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
   );
 
-  /** **Mes transports qui prendraient la main** (POC, `avail`) : leur anneau bat le temps du
-   *  geste, et leur étiquette s'ouvre sur leurs places. */
+  /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
+   *  held, and their tags open on their seats. */
   const availablePiles = useMemo((): ReadonlyArray<string> => {
     if (hand.kind !== 'held') return [];
     const held = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
@@ -2198,8 +2198,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
-  /** **La route du serveur, en ruban sous la main** (POC « Manipuler les pions ») : plus d'arc
-   *  d'aperçu ni de pion, seulement la bande ocre jusqu'au point visé. */
+  /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc
+   *  nor pawn any more, only the ochre band to the point aimed at. */
   const aimRoute = useMemo(
     () =>
       column === null || aimed === null || !preview

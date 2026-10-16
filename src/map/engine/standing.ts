@@ -689,7 +689,10 @@ export class StandingLayer {
         () => {},
       );
     }
-    for (const gone of this.dressed.values()) gone.object.removeFromParent();
+    for (const gone of this.dressed.values()) {
+      gone.object.removeFromParent();
+      gone.ring.material.dispose();
+    }
     this.dressed = next;
     this.rebuild();
   }
@@ -1037,7 +1040,7 @@ export class StandingLayer {
     const now = performance.now();
     for (const [id, { ring, extent }] of this.dressed) {
       ring.style(this.rings.get(id) ?? null, now / 1000, this.motion !== 'full');
-      const beat = (ring.userData.beat as number | undefined) ?? 1;
+      const beat = ring.beat;
       ring.scale.set(extent.x * beat, 1, extent.z * beat);
     }
     if (this.leaving !== null) this.orientCarried(this.leaving, cameraPosition, now);

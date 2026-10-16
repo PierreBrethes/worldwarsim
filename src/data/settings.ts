@@ -96,8 +96,8 @@ export const keepTelegraphSound = (on: boolean): void => {
 
 const TABLE_SOUND_KEY = 'wws-table-sound';
 
-/** **Les bruits de la table** (POC « Manipuler les pions ») : du bois sous la main, à part du
- *  télégraphe — on peut vouloir l'un sans l'autre. Allumés par défaut, pour ce navigateur. */
+/** **The table's sounds** (POC « Manipuler les pions »), apart from the telegraph's: one may want
+ *  either without the other. On by default, for this browser. */
 export const tableSoundOn = (): boolean => localStorage.getItem(TABLE_SOUND_KEY) !== 'muted';
 
 export const keepTableSound = (on: boolean): void => {

@@ -6,7 +6,7 @@ import { UnitSprite } from '@/emblems/UnitSprite';
 /** Past this many pixels a press on a passenger is a pull, not a click. */
 const PULL_PX = 6;
 
-/** **Le transport sous la main** : l'étiquette qui le porte, les places qu'on y prendrait. */
+/** **The transport under the hand**: the label that carries it, the seats the drop would take. */
 export type CargoAim = {
   readonly labelId: string;
   readonly carrierId: string;
@@ -18,12 +18,12 @@ export type CargoAim = {
 const slotWidth = (seats: number): number => 26 * seats + 4 * (seats - 1);
 
 /**
- * **L'étiquette d'un transport** (POC « Manipuler les pions », `.tag`), pendue au-dessus de la
- * pile par un fil : qui est à bord, chacun sur les places qu'il tient, les places libres, et la
- * sortie. Elle pend quand le transport porte quelqu'un, quand la pièce en main pourrait y monter,
- * et au survol ; sous la main, elle s'ouvre et dit en ocre les places qu'on y prendrait — en
- * rouge celles qui manquent. Un passager se tire hors de l'étiquette — ou se clique — et descend
- * au pied de son transport. Là où personne ne peut descendre, elle dit pourquoi (ADR 0015).
+ * **A transport's tag** (POC « Manipuler les pions », `.tag`), hung over the pile by a string:
+ * who rides, each on the seats it takes, the free seats, and the way out. It hangs while someone
+ * rides, while the piece in hand could board, and under the pointer; under the hand it opens and
+ * says in ochre the seats the drop would take — in red the ones missing. A rider is pulled out of
+ * the tag — or clicked — and steps down at its transport's feet. Where nobody can step down, the
+ * tag says why (ADR 0015).
  */
 export function CargoTags({
   tags,
@@ -164,7 +164,6 @@ export function CargoTags({
                   <p className="cargo-tag-why">{fr.errors[tag.refusal!]?.()}</p>
                 ))}
             </div>
-            {/* The string it hangs by, down to its piece. */}
             <span aria-hidden className="cargo-tag-string" />
           </div>
         );

@@ -34,7 +34,7 @@ const INK: Readonly<Record<AimTone, { color: string; opacity: number }>> = {
 /**
  * **The road the piece in hand would take** (POC « Manipuler les pions », `previews`): a flat
  * ochre band on the sheet, its dashes flowing forward, an arrow at its end — red to a fight,
- * faint red and straight when the drop is refused. The server's route once the pointer rests,
+ * faint red and straight to where the hand is when the drop is refused. The server's route once the pointer rests,
  * a straight line from home until then.
  */
 export class AimRibbon {
@@ -55,7 +55,6 @@ export class AimRibbon {
   private readonly arrow = new Mesh(ARROW, this.arrowMaterial);
   private ribbon: Ribbon | null = null;
   private key = '';
-  private dashed = true;
 
   constructor() {
     this.arrow.renderOrder = 6;
@@ -75,8 +74,6 @@ export class AimRibbon {
     this.material.remainingOpacity = ink.opacity;
     this.arrowMaterial.color.set(ink.color);
     this.arrowMaterial.opacity = ink.opacity;
-    this.dashed = tone !== 'refused';
-    this.material.uniforms.dashed!.value = this.dashed ? 1 : 0;
     const lifted = points.map((point) => new Vector3(point.x, point.y + LIFT, point.z));
     const key = lifted.map((point) => `${point.x.toFixed(4)},${point.z.toFixed(4)}`).join(';');
     if (key === this.key) return;
@@ -97,7 +94,7 @@ export class AimRibbon {
 
   /** Its dashes flow while it is shown — `isFlowing` keeps the frames coming. */
   get isFlowing(): boolean {
-    return this.group.visible && this.dashed;
+    return this.group.visible;
   }
 
   animate(unitsPerPixel: number, screenHeight: number, seconds: number, flowing: boolean): void {
@@ -105,7 +102,6 @@ export class AimRibbon {
     const drawn = ribbonWidth(WIDTH, FLOOR_PX, unitsPerPixel);
     this.material.viewHeight = screenHeight;
     this.material.pitch = dashPitch(drawn);
-    // The dashes walk toward the arrow.
     if (flowing) this.material.phase = (this.material.phase + seconds * PITCHES_PER_SECOND) % 1;
     this.arrow.scale.setScalar(drawn);
   }

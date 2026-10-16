@@ -50,7 +50,7 @@ export function forbiddenGroundOf(roles: ReadonlyArray<UnitRole>): Forbidden {
   return mode === 'land' ? 'sea' : mode === 'air' ? null : 'inland';
 }
 
-/** Ce que la pastille dit d'un ordre : son signe, son encre, son verbe (POC, `#hint`). */
+/** What the chip says of an order: its sign, its ink, its verb (POC, `#hint`). */
 export type DropChip = {
   readonly icon: string;
   readonly tone: 'order' | 'fight';
@@ -59,8 +59,8 @@ export type DropChip = {
 
 const HOSTILE: ReadonlySet<CompassAction['key']> = new Set(['bombard', 'plunder', 'capture']);
 
-/** **Le signe et le verbe d'un ordre de pièce**, et l'encre rouge de ce qui va au feu. Le verbe
- *  d'une marche dit ce qui part : à pied, par mer, par air (`forbiddenGroundOf`). */
+/** **A piece order's sign and verb**, and the red ink of what goes to the fire. A march's verb
+ *  says what leaves: on foot, by sea, by air (`forbiddenGroundOf`). */
 export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
   const { verbs } = fr.drop;
   const capital = action.label.charAt(0).toUpperCase() + action.label.slice(1);

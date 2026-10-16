@@ -1,22 +1,12 @@
 import { tableSoundOn } from '@/data/settings';
 
 /**
- * **Les bruits de la table** (POC « Manipuler les pions », `SOUNDS`) : du bois, de l'encre et de
- * la toile, synthétisés — une pièce qu'on lève, qu'on pose, qui s'emboîte, qui dit non. Aucun
- * fichier : quelques oscillateurs et un souffle filtré, comme le tic-tac du télégraphe.
+ * **The table's sounds** (POC « Manipuler les pions », `SOUNDS`): wood, ink and canvas,
+ * synthesised — a piece lifted, set down, snapped in, refused. No file: a few oscillators and a
+ * filtered breath, as the telegraph's tick.
  */
 type Sound =
-  | 'lift'
-  | 'drop'
-  | 'snap'
-  | 'tick'
-  | 'bad'
-  | 'whoosh'
-  | 'board'
-  | 'merge'
-  | 'fire'
-  | 'stamp'
-  | 'engine';
+  'lift' | 'drop' | 'snap' | 'tick' | 'bad' | 'whoosh' | 'board' | 'merge' | 'fire' | 'stamp';
 
 let audio: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
@@ -104,10 +94,8 @@ const SOUNDS: Readonly<Record<Sound, (a: AudioContext, t: number) => void>> = {
     tone(a, t, { f0: 110, f1: 50, dur: 0.14, gain: 0.22 });
     hiss(a, t, { dur: 0.05, gain: 0.07, f0: 1200 });
   },
-  engine: (a, t) => tone(a, t, { type: 'sawtooth', f0: 70, f1: 140, dur: 0.8, gain: 0.025 }),
 };
 
-/** Joue `name`, si les bruits de la table sont allumés et l'onglet regardé. */
 export function playTableSound(name: Sound): void {
   try {
     if (!tableSoundOn() || document.hidden) return;
@@ -120,6 +108,6 @@ export function playTableSound(name: Sound): void {
     if (audio.state === 'suspended') void audio.resume();
     SOUNDS[name](audio, audio.currentTime + 0.005);
   } catch {
-    // L'audio est un agrément : un navigateur qui le refuse n'a rien à dire au joueur.
+    // Sound is a nicety: a browser that refuses it has nothing to tell the player.
   }
 }
