@@ -19,6 +19,26 @@ même fonction que le refus du serveur (ADR 0015). **Aucune règle de jeu ne cha
 > figurines**, aux couleurs de sa nation (`figurineFor`), et la dépêche le nomme. Un bombardement
 > ne révèle pas le tireur à sa cible. Un engagement d'avant ce lot garde ses blocs et ses totaux.
 
+> **Révisée le 16/10/2026 — « lâcher, c'est ordonner »** (POC « Manipuler les pions »,
+> `WWS/prototypes/pions/`, retours de Pierre). Le §5 et le §6 ne tiennent plus tels quels.
+> **§5** : une pile de Mondiale se dresse **toutes troupes visibles**, une figurine (ou une
+> escouade d'hommes) par troupe, en rangs de quatre ; à plusieurs, c'est une **escouade**,
+> cernée d'un pointillé d'encre et d'un fanion de la nation (`squadMarks`, `standing.ts`). Plus de
+> groupe par rôle, de jeton « ×N » ni « +N ». Un transport chargé se dessine seul, et une
+> **étiquette** pend sous lui — qui est à bord, les places, « tout débarquer » ; un passager s'en
+> tire, ou s'y clique, pour descendre (`CargoTags`, `cargoTagsOf`). Elle remplace le jeton
+> « N à bord », la branche « débarquer » de la rose et la carte qui demandait lesquelles. **§6** :
+> le glisser est le geste. La pastille sous le pointeur lit la rose de la cible
+> (`dropReadingOf`) et dit l'ordre que le lâcher donnera — Tab ou 1-2-3 quand il y en a
+> plusieurs — ou le refus ; **lâchée, la pièce l'envoie**, sans rose ni « envoyer —
+> irréversible » ; refusée, elle hoche la tête et rentre. Au doigt, plusieurs ordres ouvrent une
+> rose réduite à eux. Échap ou le bouton droit annulent le geste ; il n'y a pas d'annulation
+> après coup. Le glisser prend l'escouade entière ; un appui long sur elle (450 ms, un anneau
+> qui se remplit) n'en prend qu'une troupe — **le déploiement au sol disparaît**. Pendant le
+> geste, le milieu interdit se voile (la mer sous ce qui marche, l'intérieur des terres sous ce
+> qui flotte, `forbiddenGroundOf`), un anneau et un fil à plomb marquent le point de chute, et la
+> fiche se tait. Le clic-clic reste. Hors lot : le lasso, le parachutage, rediriger en route.
+
 ## Contexte
 
 L'audit visuel du 12/10/2026 a relevé quatre registres d'image côte à côte sur le plateau : la
