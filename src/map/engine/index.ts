@@ -609,6 +609,7 @@ export class MapEngine {
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.aimRibbon.group);
+    this.standing.elsewhere = (id) => this.camps.positionOf(id);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
@@ -785,6 +786,7 @@ export class MapEngine {
   private refreshRings(): void {
     const rings = new Map<string, RingState>();
     const held = this.held;
+    if (held === null) this.camps.mark(null, null);
     if (held === null) {
       if (this.hoveredPile !== null) rings.set(this.hoveredPile, 'hover');
       this.standing.setRings(rings);
@@ -801,8 +803,14 @@ export class MapEngine {
           : this.standing.pileOfLabel(over.labelId);
     const ringed = target !== null && target !== held.pileId && this.dropRing !== null;
     if (ringed) rings.set(target, this.dropRing as RingState);
+    // An enemy camp under the hand wears its own ring (POC, `enemy`).
+    const camp =
+      over !== null && over.kind === 'label' && this.camps.isDressed(over.labelId)
+        ? over.labelId
+        : null;
+    this.camps.mark(camp, camp === null ? null : this.dropRing);
     // The target answers with a click of wood as the hand comes over it (POC, `snap`).
-    const aimed = ringed ? target : null;
+    const aimed = ringed ? target : camp !== null && this.dropRing !== null ? camp : null;
     if (aimed !== null && aimed !== this.aimedPile) playTableSound('snap');
     this.aimedPile = aimed;
     this.standing.setRings(rings, aimed);
@@ -1540,6 +1548,13 @@ export class MapEngine {
     if (label !== undefined) return { kind: 'label', labelId: label };
     if (!this.castAt(clientX, clientY)) return null;
     const pick = this.standing.pick(this.ray, { under: true });
+    // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
+    const camp = this.camps.under(this.ray);
+    if (
+      camp !== null &&
+      (pick === null || pick.pileId === this.held?.pileId || camp.distance < pick.distance)
+    )
+      return { kind: 'label', labelId: camp.id };
     return pick === null ? null : { kind: 'canvas', pick };
   }
 
@@ -1867,6 +1882,7 @@ export class MapEngine {
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.standing.motion = motion;
+    this.camps.motion = motion;
     this.veil.motion = motion;
     this.ink.motion = motion;
     this.maquettes.motion = motion;
@@ -2303,6 +2319,7 @@ export class MapEngine {
       this.regions.terrain.active ||
       this.standing.isCarrying ||
       this.standing.ringing ||
+      this.camps.ringing ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
     )

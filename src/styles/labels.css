@@ -960,6 +960,7 @@
   );
 }
 .cargo-tag {
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -982,6 +983,8 @@
 }
 .cargo-tag-body {
   position: relative;
+  /* Only the paper takes the pointer: its string and the air round it are the board's. */
+  pointer-events: auto;
   display: grid;
   gap: 5px;
   min-width: 96px;

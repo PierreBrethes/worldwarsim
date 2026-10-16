@@ -44,11 +44,16 @@ export function hintOfReading(
       : verb.key === 'aim' && verb.boardsOn !== undefined
         ? { carrierId: verb.boardsOn, need: verb.boardNeed ?? 0, fits: true }
         : null;
+  const chip = chipOf(verb, forbidden);
   return {
-    ...chipOf(verb, forbidden),
+    ...chip,
     ...(boarding === null ? {} : { boarding }),
     detail:
-      verb.key === 'aim' && verb.join !== undefined ? fr.drop.pieces(verb.join.pieces) : verb.cost,
+      verb.key === 'aim' && verb.join !== undefined
+        ? fr.drop.pieces(verb.join.pieces)
+        : verb.key === 'aim' && chip.tone === 'fight'
+          ? strikeOf(verb.aim.kind, verb.cost)
+          : verb.cost,
     ...(verbs.length > 1
       ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
       : {}),
@@ -62,6 +67,14 @@ export function ringOfHint(hint: DropHint): RingState {
   if (hint.tone === 'refused') return 'bad';
   if (hint.tone === 'fight') return 'enemy';
   return hint.icon === '+' ? 'merge' : 'target';
+}
+
+/** **Ce qu'une attaque dit d'avance** (POC, `odds`) : pas l'issue — le brouillard ne sert ni la
+ *  composition ni l'effectif d'en face —, mais l'initiative (B16) et le mur d'une garnison (C1). */
+const SHELTERS: ReadonlySet<string> = new Set(['outpost', 'objective', 'building']);
+function strikeOf(kind: string, cost: string | null): string {
+  const strike = SHELTERS.has(kind) ? fr.drop.strikeSheltered : fr.drop.strike;
+  return cost === null ? strike : `${strike} · ${cost}`;
 }
 
 /** Ce que la route du serveur ajoute au pointeur arrêté : l'heure d'arrivée, la morsure du

@@ -583,6 +583,8 @@ export class StandingLayer {
   private dressed = new Map<string, Dressed>();
   private held: PieceHold | null = null;
   motion: MapMotion = 'full';
+  /** Where a target that is not a pile lies — an enemy camp: sent there, the copy flies in. */
+  elsewhere: (id: string) => Vector3 | null = () => null;
   /** The copy of what is in hand; `null` when the pile is not dressed. */
   private carried: Carried | null = null;
   /** A refusal announced, waiting for the hand to empty (`refuseDrop`). */
@@ -801,7 +803,7 @@ export class StandingLayer {
       playTableSound('whoosh');
     // Sent onto a pile, the copy flies into it (POC, `absorb`); elsewhere it waits there, pale.
     const onto = lifted?.onto ?? null;
-    const absorbed = sent && onto !== null ? (this.footOf(onto)?.at ?? null) : null;
+    const absorbed = sent && onto !== null ? (this.footOf(onto)?.at ?? this.elsewhere(onto)) : null;
     if (lifted !== null && held === null && (!sent || absorbed !== null) && this.motion !== 'off') {
       lifted.back = {
         from: lifted.object.position.clone(),

@@ -3784,6 +3784,8 @@ export const fr = {
       air: 'Voler',
     },
     pieces: (count: number) => `${count} pièces ensemble`,
+    strike: 'vous frappez en premier',
+    strikeSheltered: 'vous frappez en premier · elle est à couvert',
   },
   compass: {
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,

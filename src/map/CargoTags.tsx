@@ -93,12 +93,7 @@ export function CargoTags({
   };
 
   return (
-    <div
-      className="cargo-tags pointer-events-auto"
-      onPointerDown={keep}
-      onClick={keep}
-      onContextMenu={keep}
-    >
+    <div className="cargo-tags" onPointerDown={keep} onClick={keep} onContextMenu={keep}>
       {tags.map((tag) => {
         const free = tag.refusal === null;
         const open = aim?.carrierId === tag.carrierId;

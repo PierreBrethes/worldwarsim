@@ -20,6 +20,8 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
+import { InkRing, type RingState } from './ink-ring';
+import type { MapMotion } from '@/domain/map-motion';
 
 /** The annotation's side in model units — the landing's mark against a figurine. */
 const SIDE = 3.2;
@@ -146,6 +148,12 @@ export function inkAnnotation(
   return { object, piece };
 }
 
+/** An annotation and its ring: the ring's plane is every ring's, only its material goes. */
+function eraseRinged({ object, ring }: Placed): void {
+  ring.material.dispose();
+  eraseAnnotation(object);
+}
+
 export function eraseAnnotation(object: Group): void {
   object.removeFromParent();
   releaseInk(object);
@@ -175,7 +183,12 @@ type Placed = {
   lonLat: LonLat;
   readonly object: Group;
   readonly piece: Group;
+  /** Red and ticked when the hand would attack it (POC, `enemy`). */
+  readonly ring: InkRing;
 };
+
+/** The ring round an annotation, in its model's units: just outside its dotted circle. */
+const RING_RADIUS = (SIDE / 2) * FIGURINE_SCALE * 1.05;
 
 /**
  * **The enemy's surveyed camps, annotated in ink** (F2, révision de l'ADR 0026 §4): up close the
@@ -185,6 +198,8 @@ type Placed = {
 export class CampLayer {
   readonly group = new Group();
   private placed = new Map<string, Placed>();
+  private marked: { readonly id: string; readonly state: RingState } | null = null;
+  motion: MapMotion = 'full';
 
   constructor(private readonly frame: WorldFrame) {}
 
@@ -198,25 +213,40 @@ export class CampLayer {
       let entry = this.placed.get(camp.id);
       this.placed.delete(camp.id);
       if (entry?.key !== key) {
-        if (entry) eraseAnnotation(entry.object);
-        entry = {
-          key,
-          medium: camp.medium,
-          lonLat: camp.lonLat,
-          ...inkAnnotation(camp.medium, camp.seenAt, camp.seenMinutesAgo),
-        };
+        if (entry) eraseRinged(entry);
+        const drawn = inkAnnotation(camp.medium, camp.seenAt, camp.seenMinutesAgo);
+        const ring = new InkRing();
+        ring.position.y = 0.035;
+        ring.scale.setScalar(RING_RADIUS);
+        drawn.object.add(ring);
+        entry = { key, medium: camp.medium, lonLat: camp.lonLat, ...drawn, ring };
         this.group.add(entry.object);
       }
       entry.lonLat = camp.lonLat;
       next.set(camp.id, entry);
     }
-    for (const gone of this.placed.values()) eraseAnnotation(gone.object);
+    for (const gone of this.placed.values()) eraseRinged(gone);
     this.placed = next;
     this.rebuild();
   }
 
   isDressed(id: string): boolean {
     return this.placed.has(id);
+  }
+
+  /** **The camp the hand would drop onto**, and the ring it wears for it; `null` for none. */
+  mark(id: string | null, state: RingState | null): void {
+    this.marked = id === null || state === null ? null : { id, state };
+  }
+
+  /** Where a camp's annotation lies, `null` when there is none. */
+  positionOf(id: string): Vector3 | null {
+    return this.placed.get(id)?.object.position ?? null;
+  }
+
+  /** Its ring pulses: the frames must keep coming. */
+  get ringing(): boolean {
+    return this.motion === 'full' && this.marked !== null;
   }
 
   boxOf(id: string): Box3 | null {
@@ -243,11 +273,18 @@ export class CampLayer {
   }
 
   orient(cameraPosition: Vector3, yaw: number): void {
-    for (const { object } of this.placed.values()) {
+    const seconds = performance.now() / 1000;
+    for (const [id, { object, ring }] of this.placed) {
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
       object.scale.setScalar(near * pieceScale.troops);
       object.rotation.set(0, yaw, 0);
+      ring.style(
+        this.marked?.id === id ? this.marked.state : null,
+        seconds,
+        this.motion !== 'full',
+      );
+      ring.scale.setScalar(RING_RADIUS * ((ring.userData.beat as number | undefined) ?? 1));
     }
   }
 
