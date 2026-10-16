@@ -73,7 +73,7 @@ import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
 import {
   StandingLayer,
-  type CounterTexts,
+  type DropVerdict,
   type PieceHold,
   type PiecePick,
   type StandingPile,
@@ -83,6 +83,7 @@ import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { TheatreFrame } from './theatre';
+import { CarryVeil } from './veil';
 import type { Theatre } from '@/domain/theatres';
 import { batteryAt, ReplayScene, replayReach, type ReplayFire } from './replay';
 import {
@@ -96,7 +97,7 @@ import {
 import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
-export type { CounterTexts, PieceHold, PiecePick, StandingPile } from './standing';
+export type { DropVerdict, PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './annotations';
 
@@ -141,6 +142,8 @@ export type MapActClick = {
 export type PieceClick = PiecePick & {
   clientX: number;
   clientY: number;
+  /** Released where a long press took one troop of a squad: that troop, not the squad. */
+  single?: boolean;
 };
 
 /** A clean press on a drawn piece (`MapEngine.onPiecePress`), already read through the mapping. */
@@ -166,6 +169,9 @@ export type CarryTarget =
 
 /** A finger holds this long on a piece before carrying it: a quicker finger pans the board. */
 const LONG_PRESS_MS = 300;
+/** **Held still this long on a squad, the press takes one troop** (POC « Manipuler les pions »,
+ *  16/10): a quick drag takes the whole squad. Exported for the ring that fills meanwhile. */
+export const DETACH_MS = 450;
 /** The click a browser sends after a release arrives within this, the same turn of its loop. */
 const CARRY_CLICK_MS = 250;
 
@@ -250,6 +256,9 @@ type Gesture = {
   readonly fromLabel: boolean;
   /** A finger's long press, waiting. */
   hold: ReturnType<typeof setTimeout> | null;
+  /** A mouse held still on a squad: past `DETACH_MS` the drag takes the one troop pressed. */
+  detach?: ReturnType<typeof setTimeout> | null;
+  single?: boolean;
 };
 
 /**
@@ -273,6 +282,7 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly theatreFrame: TheatreFrame;
+  private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
   private dayCycle: DayCycle = 'real';
   private readonly sea: SeaLayer | null;
@@ -420,11 +430,27 @@ export class MapEngine {
    *  itself, and says whether it did — `false` lets the board read the press. */
   onPiecePress?: ((press: PiecePress) => boolean) | undefined;
   /** **A drag takes a piece** (15/10): the host lifts it and says whether it is now in hand. */
-  onPieceCarry?: ((from: CarryTarget, clientX: number, clientY: number) => boolean) | undefined;
+  onPieceCarry?:
+    ((from: CarryTarget, clientX: number, clientY: number, single: boolean) => boolean) | undefined;
+  /** **The long press on a squad**: `start` at the press, `done` once it takes one troop, `end`
+   *  when the press is over — the ring under the pointer fills meanwhile. */
+  onDetach?:
+    ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
+  /** **The right button, pressed while a piece is carried**, takes the gesture back. */
+  onCarryCancel?: (() => void) | undefined;
+  /** The drag is over, its drop told first: let go, put back or cancelled. */
+  onCarryEnd?: (() => void) | undefined;
   /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
   onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
-  /** What the carried piece is over, at every move — the sign of what a drop would do. */
-  onCarryOver?: ((over: CarryTarget | null, clientX: number, clientY: number) => void) | undefined;
+  /** What the carried piece is over, at every move — the sign of what a drop would do: a piece, a
+   *  label, the bare ground, or `null` once the carry is over. */
+  onCarryOver?:
+    | ((
+        over: CarryTarget | { readonly kind: 'ground' } | null,
+        clientX: number,
+        clientY: number,
+      ) => void)
+    | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -499,6 +525,7 @@ export class MapEngine {
     this.surface = board.surface;
     this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.lamp, this.sea);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
+    this.veil = new CarryVeil(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -668,9 +695,9 @@ export class MapEngine {
   }
 
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
-  displayStanding(piles: ReadonlyArray<StandingPile>, texts: CounterTexts): void {
+  displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
-    this.standing.display(piles, texts);
+    this.standing.display(piles);
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
@@ -691,10 +718,34 @@ export class MapEngine {
     this.invalidate();
     this.held = held;
     this.standing.hold(held, sent);
+    // Put back mid-drag (Échap, the right button): letting go afterwards orders nothing.
+    const gesture = this.gesture;
+    if (held === null && gesture?.carrying === true) {
+      gesture.carrying = false;
+      gesture.carry = null;
+      gesture.pastThreshold = true;
+      this.onCarryOver?.(null, gesture.x, gesture.y);
+      this.onCarryEnd?.();
+    }
+    this.veil.show(held?.forbidden ?? null, performance.now());
+    if (this.veil.needsGround)
+      this.veil.ground((this.routeGrid ??= buildGrid(this.world)), this.frame);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  /** **The ring under the carried piece reads the drop**: an order, a refusal, or nothing. */
+  markDrop(verdict: DropVerdict): void {
+    this.invalidate();
+    this.standing.markDrop(verdict);
+  }
+
+  /** **The drop is refused**: the piece shakes its head before it goes home. */
+  refuseDrop(): void {
+    this.invalidate();
+    this.standing.refuseDrop();
   }
 
   /** **The piece in hand is set down where the pose opened its rose**, and waits there for
@@ -1213,6 +1264,7 @@ export class MapEngine {
     this.ink.dispose();
     this.regions.dispose();
     this.sea?.dispose();
+    this.veil.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -1241,11 +1293,19 @@ export class MapEngine {
       this.lastPointer.clientY = event.clientY;
       this.restLabel = null;
       if (!this.fingerOnBoard) this.pointerMoved();
+      // Lifted by a click, the piece reads its drop as a carried one does: the release is the click.
+      if (this.held !== null && !this.fingerOnBoard)
+        this.onCarryOver?.(
+          this.carryTargetAt(event.clientX, event.clientY) ?? { kind: 'ground' },
+          event.clientX,
+          event.clientY,
+        );
     });
     canvas.addEventListener('pointerleave', () => {
       this.pointer.set(-2, -2);
       this.hoverDirty = true;
       if (this.rest.stop()) this.onRestless?.();
+      if (this.held !== null && this.gesture?.carrying !== true) this.onCarryOver?.(null, 0, 0);
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
@@ -1313,11 +1373,14 @@ export class MapEngine {
     gesture.x = event.clientX;
     gesture.y = event.clientY;
     if (gesture.carrying) {
-      this.carryMove(event.clientX, event.clientY);
+      // Chorded: a second button down during a drag comes as a move, never as a press.
+      if ((event.buttons & 2) !== 0) this.onCarryCancel?.();
+      else this.carryMove(event.clientX, event.clientY);
       return;
     }
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;
     gesture.pastThreshold = true;
+    this.endDetach(gesture);
     // A finger that moves before its long press pans the board, as it always did.
     if (gesture.hold !== null) {
       clearTimeout(gesture.hold);
@@ -1343,6 +1406,16 @@ export class MapEngine {
     if (gesture.carry === null) return;
     if (!finger) {
       this.holdOrbit();
+      const carry = gesture.carry;
+      if (carry.kind === 'canvas' && carry.pick.squad === true) {
+        this.onDetach?.('start', gesture.x, gesture.y);
+        gesture.detach = setTimeout(() => {
+          gesture.detach = null;
+          if (this.gesture !== gesture || gesture.carrying || gesture.pastThreshold) return;
+          gesture.single = true;
+          this.onDetach?.('done', gesture.x, gesture.y);
+        }, DETACH_MS);
+      }
       return;
     }
     gesture.hold = setTimeout(() => {
@@ -1353,7 +1426,8 @@ export class MapEngine {
 
   private beginCarry(gesture: Gesture): void {
     if (gesture.carry === null) return;
-    gesture.carrying = this.onPieceCarry?.(gesture.carry, gesture.x, gesture.y) === true;
+    gesture.carrying =
+      this.onPieceCarry?.(gesture.carry, gesture.x, gesture.y, gesture.single === true) === true;
     if (!gesture.carrying) {
       gesture.carry = null;
       this.releaseOrbit();
@@ -1373,7 +1447,13 @@ export class MapEngine {
     this.lastPointer.clientX = clientX;
     this.lastPointer.clientY = clientY;
     this.hoverDirty = true;
-    this.onCarryOver?.(this.carryTargetAt(clientX, clientY), clientX, clientY);
+    // The stop that tells the server's route counts from the last move, a carried one too.
+    this.pointerMoved();
+    this.onCarryOver?.(
+      this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' },
+      clientX,
+      clientY,
+    );
   }
 
   /** What stands under the pointer, a label first — never the carried copy, which is always there. */
@@ -1385,6 +1465,14 @@ export class MapEngine {
     if (!this.castAt(clientX, clientY)) return null;
     const pick = this.standing.pick(this.ray, { under: true });
     return pick === null ? null : { kind: 'canvas', pick };
+  }
+
+  /** The long press is over, taken or not: the ring under the pointer goes. */
+  private endDetach(gesture: Gesture): void {
+    if (gesture.detach != null) clearTimeout(gesture.detach);
+    gesture.detach = null;
+    if (gesture.carry?.kind === 'canvas' && gesture.carry.pick.squad === true)
+      this.onDetach?.('end', gesture.x, gesture.y);
   }
 
   private holdOrbit(): void {
@@ -1454,6 +1542,7 @@ export class MapEngine {
     if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
     if (gesture?.hold != null) clearTimeout(gesture.hold);
+    if (gesture !== null) this.endDetach(gesture);
     this.releaseOrbit();
     // A press hides the piece under the pointer: released, it is there again.
     this.hoverDirty = true;
@@ -1464,6 +1553,7 @@ export class MapEngine {
       this.carriedAt = performance.now();
       this.onCarryOver?.(null, event.clientX, event.clientY);
       if (event.type === 'pointerup') this.dropCarried(event);
+      this.onCarryEnd?.();
       return;
     }
     if (event.type !== 'pointerup' || gesture.fromLabel) return;
@@ -1481,7 +1571,7 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    if (press.picks && this.pickAt(event)) return;
+    if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt(event);
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
@@ -1510,7 +1600,7 @@ export class MapEngine {
   }
 
   /** A building held or a key armed wants the ground, not the piece standing on it. */
-  private pickAt(event: PointerEvent): boolean {
+  private pickAt(event: PointerEvent, single: boolean): boolean {
     const onPieceClick = this.onPieceClick;
     if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
@@ -1520,6 +1610,7 @@ export class MapEngine {
       ...piece,
       clientX: event.clientX,
       clientY: event.clientY,
+      ...(single ? { single } : {}),
     });
     return true;
   }
@@ -1546,20 +1637,6 @@ export class MapEngine {
       clientX: event.clientX,
       clientY: event.clientY,
     });
-  }
-
-  /**
-   * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
-   * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
-   */
-  screenOf(lonLat: LonLat): { x: number; y: number } | null {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const at = this.frame.projectLonLat(lonLat).project(this.eye);
-    if (at.z > 1) return null;
-    return {
-      x: rect.left + ((at.x + 1) / 2) * this.screenWidth,
-      y: rect.top + ((1 - at.y) / 2) * this.screenHeight,
-    };
   }
 
   pieceRect(labelId: string): Rect | null {
@@ -1714,6 +1791,7 @@ export class MapEngine {
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.standing.motion = motion;
+    this.veil.motion = motion;
     this.ink.motion = motion;
     this.maquettes.motion = motion;
     this.regions.terrain.motion = motion;
@@ -2145,8 +2223,8 @@ export class MapEngine {
       this.ink.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
-      this.standing.isSpreading ||
-      this.standing.isCarrying
+      this.standing.isCarrying ||
+      this.veil.fading
     )
       this.invalidate();
     const now = performance.now();
@@ -2179,6 +2257,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    this.veil.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();

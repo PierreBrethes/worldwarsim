@@ -117,7 +117,7 @@ describe('a capture on the poster', () => {
       stack: { infantry: 1 },
       place: 'Marne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
     const held = {
@@ -144,7 +144,7 @@ describe('posterOf', () => {
       stack: { infantry: 1 },
       place: 'Marne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
     const poster = posterFor(view(), [pile], 'pile');
@@ -179,7 +179,7 @@ describe('posterOf', () => {
       stack: { infantry: 1 },
       place: 'Aisne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     } as unknown as MapMarker;
     const holding = (...troops: ReturnType<typeof troop>[]) =>
@@ -204,7 +204,7 @@ describe('posterOf', () => {
       stack: { infantry: 1 },
       place: 'Marne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
+      pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
     const reloading = {
@@ -518,7 +518,7 @@ describe('a mending pile', () => {
       stack: { infantry: 1 },
       place: 'garnison',
       plate: null,
-      pieces: { groups: [], more: 0, spread: [] },
+      pieces: { groups: [], squad: false },
       ink: '#2f4f78',
     } as unknown as MapMarker;
     const poster = posterFor(view({ me: mending }), [pile], 'pile');

@@ -115,12 +115,12 @@ une marche qui monte en arrivant s'il y est encore et a la place (`movements.boa
 `boardOnArrival`) — en Blitz elle entre dans le bâtiment que tient ce transport. Règle unique
 `boardingRefusalOf` (`src/domain/movement-orders.ts`), par air dans un aérodrome seulement.
 **Débarquer** : sur place, jamais au large, d'un avion dans un aérodrome (`movements.disembark`,
-`disembarkRefusalOf`) ; clic droit sur le transport — une troupe descend d'un clic, plusieurs ouvrent
-`DisembarkCard` —, ou le bouton de la fiche. **Les passagers suivent leur transport** : un transport
+`disembarkRefusalOf`) ; depuis l'**étiquette** du transport (16/10, plus bas), ou le bouton de la
+fiche. **Les passagers suivent leur transport** : un transport
 part avec sa cargaison, un passager ne part pas sans lui (`STILL_ABOARD`), et une colonne mixte
 embarque au départ (`seatLoose`) et reste à bord à l'arrivée. Sur la carte, **ce qui est à bord ne
-se dessine pas** : le transport porte un jeton de bois « N à bord » (`pilePieces`, `aboard`), chez
-moi seulement — en face, une coque. `dev:backfillCarriedBy` a écrit l'état des parties d'avant.
+se dessine pas** : le transport se dresse seul, son étiquette dit qui il porte, chez moi
+seulement — en face, une coque. `dev:backfillCarriedBy` a écrit l'état des parties d'avant.
 
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
 dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — quatre-vingt-treize
@@ -137,19 +137,36 @@ ADR 0026 §6). On **lève** une pile, on la **pose** : une seule main au plateau
 dérivent la colonne armée et la pièce que porte le moteur, et une seule règle pour les clics sur
 ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). **Ou on la
 glisse** (15/10) : pressée sur une de mes pièces — figurine ou étiquette —, un glisser gauche,
-quel que soit le mappage, ou un appui long du doigt (`LONG_PRESS_MS`) la porte (`carry` : une
-troupe déployée seule, c'est ainsi qu'une pile se scinde, ou la pile), l'orbite tenue ; lâchée
-(`dropOn`), sur un transport de son adresse elle embarque, sur elle-même elle se repose, ailleurs
-elle se pose et la rose répond — dont « rejoindre » une autre de mes piles, une marche à son point
-exact, refusée en Blitz entre unités de combat. Sous le pointeur, une puce dit ce que ferait le
-lâcher (`DropHint.tsx`, moteur `onCarryOver`). La garnison d'un
+quel que soit le mappage, ou un appui long du doigt (`LONG_PRESS_MS`) la porte (`carry`),
+l'orbite tenue ; lâchée (`dropOn`), sur un transport de son adresse elle embarque, sur elle-même
+elle se repose, ailleurs **elle ordonne** (ci-dessous) — dont « rejoindre » une autre de mes piles,
+une marche à son point exact, refusée en Blitz entre unités de combat. La garnison d'un
 **bâtiment** se lève aussi par ses figurines, au pied de sa maquette, comme une pile posée ; celle
 d'un avant-poste, qui n'en a pas, ne se lève pas sur la carte. Les deux gardent leur **panneau de
 garnison**, qui compose la pile et dont « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
 l'heure du premier ordre — sur le sol comme sur un mât, un camp ou un objectif, dont
-l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au point de pose, ou passe droit à
-« envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
-la rose et l'aperçu refermés la reposent.
+l'étiquette relaie l'arrêt que la toile ne voit pas. Échap, un clic sur la pièce, ou la rose
+refermée la reposent.
+
+**Lâcher, c'est ordonner — 16/10/2026** (POC « Manipuler les pions », `WWS/prototypes/pions/`,
+révision de l'ADR 0026 §5-6). Sous le pointeur, la **pastille** lit la rose de la cible
+(`dropReadingOf`, `src/domain/drop-order.ts` — la même fonction que le refus du serveur) et dit
+l'ordre que le lâcher donnera : le premier des ordres de pièce (partir, monter à bord, piller,
+capturer, ramasser, bombarder, fonder), Tab ou 1-2-3 pour en changer, ou le refus en rouge
+(`DropHint.tsx`, moteur `onCarryOver`). **Lâchée, la pièce l'envoie** (`useSendOrder`,
+`src/routes/-plateau/order-wire.ts`) : plus de rose ni de carte « envoyer — irréversible »
+(`MovementPreview` est supprimé) ; l'arrêt du pointeur ajoute sous le verbe l'heure d'arrivée,
+la morsure du repos ou « aucune route » (`DropNote`). Pièce levée au clic, la pastille se lit de
+même et le clic pose comme le lâcher — mais un clic sans ordre ouvre la rose sur son motif et
+garde la pièce en main. Au doigt, plusieurs ordres ouvrent une rose réduite à eux. **Refusée,
+elle hoche la tête** et rentre (`refuseDrop`). Échap ou le bouton droit annulent le geste (`onCarryCancel`) ; il n'y a pas
+d'annulation après coup. La rose ne garde que ce qui n'est pas un ordre de pièce — bâtir, élever,
+raser, démanteler. Pendant le geste, **le milieu interdit se voile** (`CarryVeil`,
+`src/map/engine/veil.ts`) : la mer sous ce qui marche, découpée au pochoir des pays ; l'intérieur
+des terres sous ce qui flotte, lu sur la grille de routage, la plage laissée claire ; rien sous ce
+qui vole (`forbiddenGroundOf`, lu sur `routeModeOf`). Un **anneau** au sol et un **fil à plomb**
+marquent le point de chute, ocre pour un ordre, rouge pour un refus (`markDrop`), et la fiche se
+tait le temps du geste. Hors lot : le lasso, le parachutage, rediriger en route.
 
 **Et la pièce se tient comme une pièce d'échecs** (lot « tampons et gestes », 13/10/2026, gestes
 du prototype `table-etat-major.html`, courbes pures dans `src/map/engine/landing.ts`). Levée,
@@ -157,22 +174,25 @@ la copie monte, suit le pointeur avec un temps de retard et se balance ; son omb
 au sol qui s'étale et pâlit avec la hauteur. **Posée** là où la rose s'ouvre (`setDownPiece`),
 elle tombe, rebondit et attend l'ordre ; **reposée**, elle rentre en glissant et retombe chez
 elle ; **envoyée**, son pion prend le relais (`departures`, compté par le plateau à l'ordre
-parti) ; une pile déployée qui se referme retombe aussi. Pas de main 3D : le curseur système la
+parti). Pas de main 3D : le curseur système la
 porte. Tout cela est une animation **déclarée à la boucle** (`standing.isCarrying`), en
 `actives` seulement — réduites ou coupées, la pièce est où elle doit être, d'un coup.
 
-**Et la pile levée se déploie — 13/10/2026** (ADR 0026 §6). Lever prend toute la pile ; levée,
-une pile de plusieurs troupes s'ouvre au sol, **une figurine par troupe** avec ses dix crans de
-vie (`pilePieces(...).spread`, rangées de quatre centrées sur le point et tournées vers l'œil —
-`spreadLayout`, `standing.ts`). Un clic ou un tap sur une troupe déployée l'ajoute à la main ou
-l'en retire (`clickPile`, variante `troop`) ; hors main, elle se délave ; la dernière retirée
-repose la pièce. **Maj + clic a disparu** : il n'avait plus rien à ajouter, et les cases de la
-fiche restent la voie clavier. La main reste la seule source — la fiche se remonte sur elle à
-chaque clic. Reposer, Échap ou un ordre envoyé referment le déploiement sur ce qui reste.
-L'animation dure 250 ms, déclarée à la boucle (`isSpreading`) ; réduite, les troupes poussent
-sur place en 120 ms ; coupée, elles sont posées d'un coup. La garnison d'un bâtiment se déploie
-à son pied ; une pile adverse ne se déploie pas, ni une pile sans figurine pour chacune de ses
-troupes.
+**Et une escouade se voit entière — 16/10/2026** (ADR 0026 §5, révisé). Une pile de Mondiale
+se dresse **une figurine par troupe** — un véhicule, ou trois hommes par tiers de force —, en
+rangs de quatre (`pilePieces` : un groupe par troupe debout, `formationOf`, `standing.ts`) ; à
+plusieurs troupes c'est une **escouade**, cernée d'un pointillé d'encre et d'un fanion à l'encre de
+la nation (`squadMarks`). Plus de jeton « ×N » ni « +N », plus de déploiement au sol. Un glisser
+prend l'escouade entière ; un **appui long** sur elle (`DETACH_MS`, 450 ms, un anneau qui se
+remplit sous le pointeur, `DetachRing`) n'en prend qu'une troupe — c'est ainsi qu'elle se scinde.
+**Maj + clic a disparu** : les cases de la fiche restent la voie clavier. Sous un **transport
+chargé** pend une **étiquette** de bagage (`CargoTags.tsx`, règle `cargoTagsOf`,
+`src/domain/cargo-tag.ts`) : le transport, les places, ses passagers en sprites et « tout
+débarquer » ; un passager s'en **tire**, ou s'y clique, pour descendre au pied de son transport.
+Là où personne ne descend — au large, un avion hors aérodrome —, l'étiquette dit pourquoi. Elle
+pend aux piles posées et aux garnisons de mes bâtiments, au rapproché seulement, et a remplacé le
+jeton « N à bord », la branche « débarquer » de la rose et `DisembarkCard`. En Blitz, une pièce
+reste une unité.
 
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la

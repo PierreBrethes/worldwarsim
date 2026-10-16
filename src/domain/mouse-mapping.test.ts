@@ -183,7 +183,7 @@ describe('les notices lisent le mappage', () => {
     for (const mapping of [CLASSIC_MAPPING, WHEEL_ACTS_MAPPING]) {
       expect(sentence(mapping)).toContain('clic gauche net sur une pile — la lever');
       expect(fr.mapUi.gestureHint(mapping).lift).toContain(
-        'clic gauche net ou glisser : lever une pile',
+        'glisser une pile, ou clic gauche net puis clic gauche net',
       );
     }
   });

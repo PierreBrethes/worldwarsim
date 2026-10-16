@@ -3,6 +3,7 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import { CargoTags } from './CargoTags';
 import {
   Fragment,
   useCallback,
@@ -99,8 +100,14 @@ export function MapLabels({
   muted,
   destinations,
   groupFar = false,
+  nation = null,
+  onDisembark,
 }: {
   labels: ReadonlyArray<MapLabel>;
+  /** The player's nation: the passengers on a transport's tag wear its plates. */
+  nation?: string | null;
+  /** **Débarquer depuis l'étiquette d'un transport** (POC du 16/10) ; absent, pas d'étiquette. */
+  onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   engine: MapEngine | null;
   /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
    *  et rien d'autre ne bouge (décision du 29/08). */
@@ -948,6 +955,9 @@ export function MapLabels({
                 )}
               </div>
             </div>
+            {label.cargo !== undefined && onDisembark !== undefined && !muted && (
+              <CargoTags tags={label.cargo} nation={nation} onDisembark={onDisembark} />
+            )}
           </div>
         </div>
       ))}

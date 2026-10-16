@@ -8,6 +8,8 @@ import { viewOf } from './view';
 import { seatedOf } from './movement/forces';
 import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
+import { UNIT_ROLE } from './validators';
+import { nominalStrength } from './constants';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -236,4 +238,42 @@ export const snapshot = internalQuery({
     playerView: await viewOf(ctx, token, seasonId),
     control: await heldOf(ctx, token, seasonId),
   }),
+});
+
+/**
+ * **Poser des troupes sur une saison de test**, à un point de la carte et à pleine force — pour
+ * essayer le geste sans attendre une caserne. `carriedBy` met la nouvelle à bord d'un transport
+ * déjà posé au même point. Jamais pour une saison réelle : c'est une triche, sans porte cliente.
+ *
+ * `npx convex run dev:spawnTroops '{"playerId":"…","role":"infantry","count":2,"lon":2.3,"lat":48.8}'`
+ */
+export const spawnTroops = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    role: UNIT_ROLE,
+    count: v.number(),
+    lon: v.number(),
+    lat: v.number(),
+    carriedBy: v.optional(v.id('troops')),
+  },
+  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const strength = nominalStrength(role, 1);
+    const ids: Id<'troops'>[] = [];
+    for (let k = 0; k < count; k++)
+      ids.push(
+        await ctx.db.insert('troops', {
+          seasonId: player.seasonId,
+          playerId,
+          role,
+          tier: 1,
+          nominalStrength: strength,
+          currentStrength: strength,
+          stationedAt: { lon, lat },
+          ...(carriedBy === undefined ? {} : { carriedBy }),
+        }),
+      );
+    return ids;
+  },
 });

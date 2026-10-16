@@ -1,3 +1,4 @@
+import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { countryLabel, fr } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
@@ -134,6 +135,8 @@ export type MapMarker =
       readonly plate: string | null;
       /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
       readonly pieces: PilePieces;
+      /** **Ses transports chargés** (POC du 16/10) : l'étiquette qui pend sous la pile. */
+      readonly cargo?: ReadonlyArray<CargoTag>;
       /** **Blitz** (B19) : la fin du plus long rechargement de la pile, absente sinon. */
       readonly reloadUntil?: number;
       /** **L'artillerie** (B20) : l'instant où la pile sera en batterie, absent sinon. */
@@ -194,6 +197,8 @@ export type MapMarker =
        *  son artillerie est en batterie (B20), absents sinon. */
       readonly reloadUntil?: number;
       readonly emplacedAt?: number;
+      /** **Les transports chargés de sa garnison** : l'étiquette qui pend sous le mât. */
+      readonly cargo?: ReadonlyArray<CargoTag>;
       readonly ink: string;
     }
   | {
@@ -334,6 +339,8 @@ export type MapLabel = {
   readonly flag?: string;
   /** The ground pictogram; `null` for a movement head, whose 3D sprite stands in. */
   readonly pictogram: LabelPictogram | null;
+  /** **A pile's loaded transports**, each with its tag (POC du 16/10); absent elsewhere. */
+  readonly cargo?: ReadonlyArray<CargoTag>;
   /**
    * A drawn plate hung where the pictogram would go — the building itself rather than a sign
    * for it. The two are exclusive: a plate is a portrait, a pictogram is a category, and the
@@ -823,6 +830,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         plate: marker.plate,
         station: marker.station,
         hostCountry: null,
+        ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
         force: {
           headcount: stackHeadcount(marker.stack),
           composition: abbreviateStack(marker.stack),
@@ -870,6 +878,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: null,
         works: marker.works,
         hostCountry: marker.hostCountry,
+        ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
         lines: [
           { role: 'nature', text: marker.name },
           ...(marker.level === null

@@ -11,8 +11,8 @@ export type Hand =
     };
 
 /**
- * A left click on one of my own piles: the pile itself (a group, its label, a counter), or one
- * troop of the pile **deployed** at the foot of the piece in hand (ADR 0026 §6, 13/10).
+ * A left click on one of my own piles: the pile itself (a piece of it, its label), or one troop
+ * of a squad taken alone by a long press (16/10).
  */
 export type PileClick =
   | {
@@ -30,14 +30,13 @@ export type HandMove =
 const unchanged = (hand: Hand): HandMove =>
   hand.kind === 'held' ? { kind: 'lift', hand } : { kind: 'drop' };
 
-/** Lifting takes the whole pile; held, the pile deploys and each of its troops goes into the
- *  hand or out of it — the last one out puts the piece back. In a Blitz, `units` says what a
- *  piece is (`clickUnit`). **A transport comes with what it carries** (15/10): `pile` says who
- *  rides whom. */
+/** Lifting takes the whole pile; held, a click on its pile puts it back and one elsewhere poses
+ *  it. A single troop is taken by a long press and a drag (`carry`), never by a click. In a
+ *  Blitz, `units` says what a piece is (`clickUnit`). */
 export function clickPile(
   hand: Hand,
   click: PileClick,
-  { units, pile = [] }: { units?: Units; pile?: ReadonlyArray<Seated> } = {},
+  { units }: { units?: Units } = {},
 ): HandMove {
   if (units !== undefined) return clickUnit(hand, click, units);
   const troopIds = click.kind === 'pile' ? click.troopIds : [click.troopId];
@@ -47,13 +46,7 @@ export function clickPile(
       ? { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds } }
       : unchanged(hand);
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
-  if (click.kind === 'pile') return { kind: 'drop' };
-  const toggled = withCargo([click.troopId], pile);
-  const rest = hand.troopIds.filter((id) => !toggled.includes(id));
-  return composeHand(
-    hand,
-    rest.length === hand.troopIds.length ? [...hand.troopIds, ...toggled] : rest,
-  );
+  return { kind: 'drop' };
 }
 
 /** A troop and what it carries, at every level: a passenger never leaves without its transport. */
