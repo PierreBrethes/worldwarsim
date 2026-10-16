@@ -36,6 +36,7 @@ import {
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
+import { playTableSound } from '../table-sound';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
@@ -592,6 +593,13 @@ export class StandingLayer {
     for (const pile of piles) {
       const key = drawnKey(this.nation, pile.pieces);
       const kept = this.dressed.get(pile.id);
+      // A pile grown under the eyes is a squad formed or joined (POC, `merge`).
+      if (
+        kept?.ready === true &&
+        kept.object.visible &&
+        pile.pieces.troopIds.length > kept.pieces.troopIds.length
+      )
+        playTableSound('merge');
       if (kept?.key === key) {
         kept.at = pile.at;
         kept.pieces = pile.pieces;
@@ -738,6 +746,11 @@ export class StandingLayer {
     const refused = this.refusal !== null && released - this.refusal < REFUSAL_MS;
     this.refusal = null;
     this.verdict = 'none';
+    // The wood under the hand (POC): lifted, let go on an order, put back. A boarding and a
+    // refusal were heard as they were told (`boardInto`, the engine's `refuseDrop`).
+    if (held !== null && previous?.pileId !== held.pileId) playTableSound('lift');
+    if (held === null && previous !== null && into === null && !refused)
+      playTableSound(sent ? 'drop' : 'whoosh');
     if (lifted !== null && held === null && !sent && this.motion !== 'off') {
       lifted.back = {
         from: lifted.object.position.clone(),
@@ -1006,6 +1019,7 @@ export class StandingLayer {
 
   /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away. */
   boardInto(at: Vector3): void {
+    playTableSound('board');
     this.boarding = { at, since: performance.now() };
   }
 

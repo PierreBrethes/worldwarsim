@@ -94,6 +94,16 @@ export const keepTelegraphSound = (on: boolean): void => {
   localStorage.setItem(TELEGRAPH_SOUND_KEY, on ? 'audible' : 'muted');
 };
 
+const TABLE_SOUND_KEY = 'wws-table-sound';
+
+/** **Les bruits de la table** (POC « Manipuler les pions ») : du bois sous la main, à part du
+ *  télégraphe — on peut vouloir l'un sans l'autre. Allumés par défaut, pour ce navigateur. */
+export const tableSoundOn = (): boolean => localStorage.getItem(TABLE_SOUND_KEY) !== 'muted';
+
+export const keepTableSound = (on: boolean): void => {
+  localStorage.setItem(TABLE_SOUND_KEY, on ? 'audible' : 'muted');
+};
+
 const MOUSE_MAPPING_KEY = 'wws-mouse-mapping';
 
 /**

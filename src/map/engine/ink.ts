@@ -1,3 +1,4 @@
+import { playTableSound } from '../table-sound';
 import {
   CanvasTexture,
   DoubleSide,
@@ -213,6 +214,7 @@ export class InkLayer {
     if (words !== undefined) {
       const texture = wordedTexture(words);
       this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true);
+      setTimeout(() => playTableSound('stamp'), delayMs);
     }
     if (kind === 'combat' || (kind === 'arrival' && words === undefined))
       this.stamp(

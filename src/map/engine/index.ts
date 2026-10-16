@@ -60,6 +60,7 @@ import { InkLayer } from './ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import { AimRibbon } from './aim';
+import { playTableSound } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
@@ -305,6 +306,7 @@ export class MapEngine {
   private hoveredPile: string | null = null;
   /** My transports that could take the piece in hand, ringed while it is held. */
   private available: ReadonlyArray<string> = [];
+  private aimedPile: string | null = null;
   private lastFrame = performance.now();
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
@@ -799,6 +801,10 @@ export class MapEngine {
           : this.standing.pileOfLabel(over.labelId);
     const ringed = target !== null && target !== held.pileId && this.dropRing !== null;
     if (ringed) rings.set(target, this.dropRing as RingState);
+    // The target answers with a click of wood as the hand comes over it (POC, `snap`).
+    const aimed = ringed ? target : null;
+    if (aimed !== null && aimed !== this.aimedPile) playTableSound('snap');
+    this.aimedPile = aimed;
     this.standing.setRings(rings, ringed);
   }
 
@@ -812,6 +818,7 @@ export class MapEngine {
   /** **The drop is refused**: the piece shakes its head before it goes home. */
   refuseDrop(): void {
     this.invalidate();
+    playTableSound('bad');
     this.standing.refuseDrop();
   }
 
@@ -1482,6 +1489,7 @@ export class MapEngine {
           if (this.gesture !== gesture || gesture.carrying || gesture.pastThreshold) return;
           gesture.single = true;
           this.onDetach?.('done', gesture.x, gesture.y);
+          playTableSound('tick');
         }, DETACH_MS);
       }
       return;
