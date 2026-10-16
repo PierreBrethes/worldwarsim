@@ -29,7 +29,12 @@ export type RingState =
   /** The reticle under the piece in hand: where it would land, an order or a refusal. */
   | 'aim'
   | 'aimFight'
-  | 'aimRefused';
+  | 'aimRefused'
+  /** Where a piece touches down, spreading out (POC, `ripple`). */
+  | 'ripple'
+  | 'rippleOchre'
+  /** The pale copy waiting where an order sent it (POC, `settle`). */
+  | 'settled';
 
 const OCHRE = ARC_COLORS.mine.trace;
 const ALARM = ARC_COLORS.enemyDetected.progress;
@@ -48,6 +53,9 @@ const STYLE: Readonly<
   aim: [OCHRE, 0.1125, 1, 0, 0, 0, 1],
   aimFight: [ALARM, 0.1125, 1, 0, 0, 0, 1],
   aimRefused: [ALARM, 0.1125, 1, 0, 10, 0, 1],
+  ripple: [PALETTE.border, 0.06, 0.55, 0, 0, 0, 0],
+  rippleOchre: [OCHRE, 0.06, 0.55, 0, 0, 0, 0],
+  settled: [OCHRE, 0.064, 0.9, 0, 18, 0.08, 0],
 };
 
 /** What the hand would drop onto beats as it pulses. */
@@ -115,6 +123,11 @@ export class InkRing extends Mesh<PlaneGeometry, ShaderMaterial> {
       : 1 + 0.4 * (1 - Math.min(1, (seconds - this.since) / LANDING_S)) ** 2;
     const beat = BEATS.has(state) && !still ? 1.06 + 0.05 * pulse : 1;
     this.userData.beat = landing * beat;
+  }
+
+  /** Its ink's opacity, for what fades out on its own clock. */
+  set opacity(value: number) {
+    this.material.uniforms.uOpacity!.value = value;
   }
 
   /** Still turning or pulsing: the frames must keep coming. */

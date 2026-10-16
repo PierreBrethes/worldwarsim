@@ -805,7 +805,7 @@ export class MapEngine {
     const aimed = ringed ? target : null;
     if (aimed !== null && aimed !== this.aimedPile) playTableSound('snap');
     this.aimedPile = aimed;
-    this.standing.setRings(rings, ringed);
+    this.standing.setRings(rings, aimed);
   }
 
   /** **The server's road for the drop under the resting pointer**, `null` while it moves: the

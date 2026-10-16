@@ -9,6 +9,7 @@ import {
   SRGBColorSpace,
   Sprite,
   SpriteMaterial,
+  Vector3,
 } from 'three';
 import type { Wear } from '@/domain/pile-pieces';
 
@@ -124,6 +125,68 @@ export class Smoke {
       puff.position.set(lean, height, 0);
       puff.scale.setScalar(size);
     });
+  }
+}
+
+/** The prototype's dust (`KINDS.dust`): its sizes and speeds in its units, a third of ours. */
+const DUST = { life: 1.2, from: 0.35, to: 1.5, opacity: 0.5, up: 0.5, spread: 0.6 } as const;
+const DUST_INK = '#a8916a';
+
+/**
+ * **A puff of dust where a piece touches the felt** (POC « Manipuler les pions », `emit('dust')`):
+ * a few soft discs thrown up and out, slowing, swelling and fading over 1.2 s. Its own materials,
+ * freed with it.
+ */
+export class DustBurst {
+  readonly object = new Group();
+  private readonly puffs: { sprite: Sprite; drift: Vector3; spin: number }[] = [];
+
+  constructor(count: number, size: number) {
+    puffTexture ??= drawPuff();
+    for (let k = 0; k < count; k++) {
+      const sprite = new Sprite(
+        new SpriteMaterial({
+          map: puffTexture,
+          color: DUST_INK,
+          transparent: true,
+          depthWrite: false,
+        }),
+      );
+      sprite.renderOrder = 5;
+      sprite.userData.ground = true;
+      this.object.add(sprite);
+      this.puffs.push({
+        sprite,
+        // Its speed in its size: the prototype's spread and rise, closed over its slowing.
+        drift: new Vector3(
+          (Math.random() - 0.5) * DUST.spread,
+          DUST.up * (0.6 + Math.random() * 0.6),
+          (Math.random() - 0.5) * DUST.spread,
+        ).multiplyScalar(size),
+        spin: Math.random() * 6,
+      });
+    }
+    this.object.scale.setScalar(1);
+    this.step(0, size);
+  }
+
+  /** At `age` seconds; `false` once it has faded. */
+  step(age: number, size: number): boolean {
+    const f = age / DUST.life;
+    if (f >= 1) return false;
+    const travelled = (1 - Math.exp(-1.2 * age)) / 1.2;
+    for (const { sprite, drift, spin } of this.puffs) {
+      sprite.position.copy(drift).multiplyScalar(travelled);
+      sprite.scale.setScalar((DUST.from + (DUST.to - DUST.from) * (1 - (1 - f) ** 2)) * size);
+      sprite.material.opacity = DUST.opacity * (1 - f) * (f < 0.1 ? f / 0.1 : 1);
+      sprite.material.rotation = spin + f;
+    }
+    return true;
+  }
+
+  dispose(): void {
+    for (const { sprite } of this.puffs) sprite.material.dispose();
+    this.object.removeFromParent();
   }
 }
 
