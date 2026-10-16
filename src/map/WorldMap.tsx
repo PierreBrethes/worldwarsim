@@ -231,6 +231,8 @@ type Props = {
   /** **Une pièce posée là où rien ne la prend rentre chez elle** : la pastille l'a déjà dit en
    *  rouge, il n'y a pas de rose à ouvrir sur un refus. */
   onDropRefused?: () => void;
+  /** Passengers stepping off from a transport's tag (POC du 16/10). */
+  onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -278,8 +280,6 @@ export type PlacingBuilding = {
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
-
-const COUNTER_TEXTS = { aboard: fr.troops.aboardCounter };
 
 export function WorldMap({
   world,
@@ -340,6 +340,7 @@ export function WorldMap({
   fingerRose = null,
   showDestinations = false,
   onDropRefused,
+  onDisembark,
   covered = false,
   reveal = null,
   replay = null,
@@ -1033,7 +1034,7 @@ export function WorldMap({
   }, [arcs, troops]);
 
   useEffect(() => {
-    readyEngine?.displayStanding(standing, COUNTER_TEXTS);
+    readyEngine?.displayStanding(standing);
   }, [readyEngine, standing]);
 
   useEffect(() => {
@@ -1151,6 +1152,8 @@ export function WorldMap({
         muted={placing !== null}
         destinations={destinationIds}
         groupFar={blitz !== null}
+        nation={playerNation ?? null}
+        onDisembark={onDisembark}
       />
       <EdgeIndicators
         labels={labels}

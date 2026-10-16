@@ -2523,7 +2523,6 @@ export const fr = {
     sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
     /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
-    aboardCounter: (riders: number) => `${riders}\nà bord`,
   },
 
   /**
@@ -3792,6 +3791,13 @@ export const fr = {
 
   /** **La pastille sous la pièce portée** (POC « Manipuler les pions », 16/10) : ce que le lâcher
    *  ferait, et comment changer d'ordre quand la cible en accepte plusieurs. */
+  /** **L'étiquette d'un transport chargé** (POC « Manipuler les pions », 16/10). */
+  cargo: {
+    seats: (used: number, seats: number) => `${used}/${seats}`,
+    pull: (role: string) => `${role} — tirer ou cliquer pour débarquer`,
+    all: 'tout débarquer',
+    release: 'débarquer',
+  },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',

@@ -83,6 +83,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
+import { cargoTagsOf } from '@/domain/cargo-tag';
 import type { DropHint, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -857,6 +858,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [narrow, dropHand],
   );
   const sendOrder = useSendOrder(seat);
+  /** **Tirer un passager hors de l'étiquette** (POC du 16/10) : il descend au pied de son
+   *  transport, sur-le-champ — la règle de `movements.disembark`, que l'étiquette a déjà lue. */
+  const disembarkFromTag = useCallback(
+    (troopIds: ReadonlyArray<string>) => {
+      setOrderError(null);
+      disembark({ ...seat, troopIds: troopIds.map((troopId) => troopId as Id<'troops'>) }).catch(
+        (problem: unknown) => handleError(problem, setOrderError),
+      );
+    },
+    [disembark, seat],
+  );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
   const previewNow = useRef<Previewed | undefined>(undefined);
   const actOnCompass = useCallback(
@@ -2289,6 +2301,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               compassOf={compassOfTarget}
               onCompassAction={actOnCompass}
               onDropRefused={dropHand}
+              onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               building={buildingSite !== null}
               placing={placing}
               onPlacePoint={placePort}
@@ -3087,6 +3100,7 @@ function postedStacks(
       place: pilePlace(at, names, regionAt),
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
       pieces: pilePieces(held),
+      cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,
       ...reloadOf(held),
       ...emplacementOf(held),

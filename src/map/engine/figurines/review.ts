@@ -16,11 +16,10 @@ import type { UnitRole } from '@/domain/ids';
 import { TIERS_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { pilePieces } from '@/domain/pile-pieces';
-import { fr } from '@/i18n/fr';
 import { inkAnnotation } from '../annotations';
 import { blockFigurine } from '../blocks';
 import type { Smoke } from '../smoke';
-import { Faces, pileObject } from '../standing';
+import { pileObject } from '../standing';
 import { BUILDINGS } from '@/domain/ids';
 import { BUILDING_SPRITES, buildingMaquette } from '@/emblems/buildings/manifest';
 import { OBJECTIVE_MAQUETTES, OBJECTIVE_SPRITES } from '@/emblems/objectives/manifest';
@@ -120,10 +119,6 @@ if (kind === 'buildings') {
     strength,
     nominalStrength: 100,
   });
-  const faces = new Faces(() => {});
-  const texts = {
-    aboard: fr.troops.aboardCounter,
-  };
   for (const [caption, troops] of [
     ['pile · 1 infanterie', [troop('infantry')]],
     ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
@@ -134,7 +129,7 @@ if (kind === 'buildings') {
     // MK2: France has no R35 yet. Smoke at half strength, thick smoke and a burnt hull at a quarter.
     ['pile · 2 blindés à 50 %', [1, 2].map(() => troop('armor', 50, 2))],
     ['pile · 2 blindés à 25 %', [1, 2].map(() => troop('armor', 25, 2))],
-    // What rides a transport is not drawn: the truck carries its « N à bord » counter (15/10).
+    // What rides a transport is not drawn: the pile's tag lists it (POC du 16/10).
     [
       'pile · camion, 2 fantassins à bord',
       [
@@ -145,7 +140,7 @@ if (kind === 'buildings') {
       ],
     ],
   ] as const) {
-    const pile = pileObject(nation, pilePieces(troops), texts, faces);
+    const pile = pileObject(nation, pilePieces(troops));
     if (pile) smokes.push(...pile.smokes);
     card(spriteUrl(nation, 'infantry', 1), caption, pile?.object ?? null);
   }

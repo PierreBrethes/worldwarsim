@@ -71,13 +71,7 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
-import {
-  StandingLayer,
-  type CounterTexts,
-  type PieceHold,
-  type PiecePick,
-  type StandingPile,
-} from './standing';
+import { StandingLayer, type PieceHold, type PiecePick, type StandingPile } from './standing';
 import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
@@ -96,7 +90,7 @@ import {
 import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
-export type { CounterTexts, PieceHold, PiecePick, StandingPile } from './standing';
+export type { PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './annotations';
 
@@ -686,9 +680,9 @@ export class MapEngine {
   }
 
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
-  displayStanding(piles: ReadonlyArray<StandingPile>, texts: CounterTexts): void {
+  displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
-    this.standing.display(piles, texts);
+    this.standing.display(piles);
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close

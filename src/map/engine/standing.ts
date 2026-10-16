@@ -2,8 +2,6 @@ import {
   type Box3,
   BoxGeometry,
   BufferGeometry,
-  CanvasTexture,
-  CircleGeometry,
   CylinderGeometry,
   DoubleSide,
   Group,
@@ -15,7 +13,6 @@ import {
   PlaneGeometry,
   type Raycaster,
   RingGeometry,
-  SRGBColorSpace,
   Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
@@ -30,7 +27,6 @@ import { HOVER_ALTITUDE } from './thread';
 import {
   CONTACT,
   contactShadow,
-  FIGURINE_SCALE,
   figurineFor,
   nearWeight,
   type Figurine,
@@ -58,9 +54,6 @@ export type GarrisonAt = (
 
 /** Board units between two groups: a squad and a tank are both about a third of one wide. */
 const GROUP_SPACING = 0.5;
-/** « N à bord » stands at the front left, clear of a vehicle's bonnet. */
-const ABOARD_AT = [-0.24, 0.34] as const;
-
 /** **Where each piece stands in a row around the pile's point**, side by side and centred.
  *  Board units, before the near weight scales the whole pile. */
 export function pileLayout(pieces: number): ReadonlyArray<number> {
@@ -142,25 +135,12 @@ export function dressedGroups(nation: string | null, pieces: PilePieces): Figuri
   return figurines.length === 0 ? null : figurines;
 }
 
-/** The counters' words come from the caller: the engine holds no i18n table. */
-export type CounterTexts = {
-  /** **« N à bord »** (15/10), sur deux lignes : le compte, puis ce qu'il compte. */
-  readonly aboard: (riders: number) => string;
-};
-
-/** What each piece's transports carry, the one counter a pile still wears. */
-function counterTexts(pieces: PilePieces, texts: CounterTexts): ReadonlyArray<string | null> {
-  return pieces.groups.map((piece) =>
-    piece.aboard === undefined ? null : texts.aboard(piece.aboard),
-  );
-}
-
 /**
- * **What a click takes** (ADR 0026 §6): the index of a piece, or the whole pile — a counter. It
- * is read on the pile's current pieces, never kept: a pile re-served with the same drawing keeps
- * its objects, not necessarily its troops.
+ * **What a click takes** (ADR 0026 §6): the index of a piece. It is read on the pile's current
+ * pieces, never kept: a pile re-served with the same drawing keeps its objects, not necessarily
+ * its troops.
  */
-type Grip = number | 'pile';
+type Grip = number;
 
 /** A group is clicked by its footprint, not by its triangles: a rifle is a pixel wide. */
 const FOOTPRINT = new BoxGeometry(GROUP_SPACING * 0.9, 0.6, 0.75);
@@ -175,18 +155,15 @@ function footprint({ x, z }: Slot, grip: Grip): Mesh {
   return target;
 }
 
-/** The troops a ray takes among `targets`, a counter before the group it stands on. */
+/** The troops of the piece a ray takes among `targets`. */
 export function pickedIn(
   ray: Raycaster,
   targets: ReadonlyArray<Object3D>,
   pieces: PilePieces,
 ): ReadonlyArray<string> | null {
-  const grips = ray
-    .intersectObjects([...targets], false)
-    .map((hit) => hit.object.userData.grip as Grip);
-  const grip = grips.includes('pile') ? 'pile' : grips[0];
-  if (grip === undefined) return null;
-  return grip === 'pile' ? pieces.troopIds : (pieces.groups[grip]?.troopIds ?? null);
+  const grip = ray.intersectObjects([...targets], false)[0]?.object.userData.grip as
+    Grip | undefined;
+  return grip === undefined ? null : (pieces.groups[grip]?.troopIds ?? null);
 }
 
 /** **The group whose footprint stands nearest a board point**, its troops — `null` for a pile of
@@ -200,7 +177,6 @@ export function nearestGroup(
   const at = new Vector3();
   for (const target of targets) {
     const grip = target.userData.grip as Grip;
-    if (grip === 'pile') continue;
     target.getWorldPosition(at);
     const gap = Math.hypot(at.x - point.x, at.z - point.z);
     if (nearest === null || gap < nearest.gap) nearest = { grip, gap };
@@ -221,8 +197,6 @@ function hover(object: Object3D): void {
 export function pileObject(
   nation: string | null,
   pieces: PilePieces,
-  texts: CounterTexts,
-  faces: Faces,
   /** Toward the water from a pile on a shore (`formationOf`), `null` inland. */
   seaward: readonly [number, number] | null = null,
 ): {
@@ -237,14 +211,9 @@ export function pileObject(
     pieces.groups.map(({ role }) => (DOMAIN_BY_ROLE[role] === 'sea' ? 'sea' : 'land')),
     seaward,
   );
-  const words = counterTexts(pieces, texts);
   const object = new Group();
   const smokes: Smoke[] = [];
   const targets: Mesh[] = [];
-  const addCounter = (piece: Group) => {
-    object.add(piece);
-    targets.push(piece.children[0] as Mesh);
-  };
   figurines.forEach((figurine, k) => {
     const slot = layout[k]!;
     figurine.object.position.set(slot.x, 0, slot.z);
@@ -252,8 +221,6 @@ export function pileObject(
     const target = footprint(slot, k);
     object.add(target);
     targets.push(target);
-    const riders = words[k];
-    if (riders) addCounter(counter(faces.of(riders), slot.x + ABOARD_AT[0], slot.z + ABOARD_AT[1]));
     const group = pieces.groups[k]!;
     // A plane that never lands hovers over its shadow, as it flew over it on its thread.
     if (group.aloft) {
@@ -359,103 +326,6 @@ export function blacken(figurine: Object3D): void {
         ? part.material.map(charred)
         : charred(part.material);
   });
-}
-
-/**
- * **A painted wooden counter**, the prototype's (`table-etat-major.html`, `counter`): a disc of
- * wood, its top a paper face inked in Bodoni. The face is a canvas, drawn once per text and
- * shared by the layer's piles; the layer frees the faces no pile shows any more.
- */
-const WOOD = new MeshStandardMaterial({ color: '#5e4020', roughness: 0.6 });
-const BEVEL_WOOD = new MeshStandardMaterial({ color: '#9a7440', roughness: 0.45 });
-const DISC = new CylinderGeometry(0.5, 0.54, 0.11, 32);
-DISC.translate(0, 0.055, 0);
-const BEVEL = new CylinderGeometry(0.46, 0.5, 0.035, 32);
-BEVEL.translate(0, 0.1275, 0);
-const FACE = new CircleGeometry(0.455, 32);
-FACE.rotateX(-Math.PI / 2);
-FACE.translate(0, 0.146, 0);
-
-export class Faces {
-  private readonly faces = new Map<string, MeshStandardMaterial>();
-  /** `redrawn` is called when a face is inked again after Bodoni has landed — it was Georgia until then. */
-  constructor(private readonly redrawn: () => void) {}
-
-  of(text: string): MeshStandardMaterial {
-    let face = this.faces.get(text);
-    if (face) return face;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 128;
-    const draw = () => {
-      const ctx = canvas.getContext('2d')!;
-      ctx.clearRect(0, 0, 128, 128);
-      const paper = ctx.createRadialGradient(56, 52, 8, 64, 64, 64);
-      paper.addColorStop(0, '#f1e7cc');
-      paper.addColorStop(1, '#dccfae');
-      ctx.fillStyle = paper;
-      ctx.beginPath();
-      ctx.arc(64, 64, 63, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#2a2118';
-      for (const [radius, width] of [
-        [54, 4],
-        [46, 1.5],
-      ] as const) {
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        ctx.arc(64, 64, radius, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      // A second line is what the first counts, set small under it (« 2 / à bord »).
-      const [head = '', caption] = text.split('\n');
-      const y = caption === undefined ? 68 : 56;
-      ctx.font = `700 ${head.length > 2 ? 44 : caption === undefined ? 56 : 48}px "Bodoni Moda", Georgia, serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(255, 250, 235, 0.7)';
-      ctx.fillText(head, 64, y + 2);
-      ctx.fillStyle = '#2a2118';
-      ctx.fillText(head, 64, y);
-      if (caption !== undefined) {
-        ctx.font = `600 19px "Bodoni Moda", Georgia, serif`;
-        ctx.fillText(caption, 64, 90);
-      }
-    };
-    draw();
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    face = new MeshStandardMaterial({ map: texture, roughness: 0.8 });
-    this.faces.set(text, face);
-    void document.fonts?.load('700 58px "Bodoni Moda"').then(() => {
-      if (this.faces.get(text) !== face) return;
-      draw();
-      texture.needsUpdate = true;
-      this.redrawn();
-    });
-    return face;
-  }
-
-  /** Frees every face whose text is not in `shown`. */
-  keepOnly(shown: ReadonlySet<string>): void {
-    for (const [text, face] of this.faces) {
-      if (shown.has(text)) continue;
-      face.map?.dispose();
-      face.dispose();
-      this.faces.delete(text);
-    }
-  }
-}
-
-function counter(face: MeshStandardMaterial, x: number, z: number): Group {
-  const piece = new Group();
-  const disc = new Mesh(DISC, WOOD);
-  disc.userData.grip = 'pile' satisfies Grip;
-  const bevel = new Mesh(BEVEL, BEVEL_WOOD);
-  bevel.userData.grip = 'pile' satisfies Grip;
-  piece.add(disc, bevel, new Mesh(FACE, face));
-  piece.scale.setScalar(FIGURINE_SCALE);
-  piece.position.set(x, 0, z);
-  return piece;
 }
 
 /** `ready` flips once every figurine is in: until then the pile is not on the layer and its plate stays. */
@@ -617,7 +487,6 @@ export class StandingLayer {
   private nation: string | null = null;
   private piles: ReadonlyArray<StandingPile> = [];
   private dressed = new Map<string, Dressed>();
-  private readonly faces: Faces;
   private held: PieceHold | null = null;
   motion: MapMotion = 'full';
   /** The copy of what is in hand; `null` when the pile is not dressed. */
@@ -626,8 +495,6 @@ export class StandingLayer {
   private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
   private leaving: Carried | null = null;
-  /** Set by the first `display`; no pile exists before it. */
-  private texts: CounterTexts = { aboard: String };
 
   constructor(
     private readonly frame: WorldFrame,
@@ -635,9 +502,7 @@ export class StandingLayer {
     private readonly garrisonAt: GarrisonAt,
     /** Toward the water from a point on a shore, `null` inland (`formationOf`). */
     private readonly seaward: (lonLat: LonLat) => readonly [number, number] | null = () => null,
-  ) {
-    this.faces = new Faces(changed);
-  }
+  ) {}
 
   setNation(nation: string | null): void {
     this.nation = nation;
@@ -646,9 +511,8 @@ export class StandingLayer {
 
   /** A pile whose pieces did not change keeps its objects: the view is re-served at every step
    *  of any column, and rebuilding three squads each time would be work for nothing. */
-  display(piles: ReadonlyArray<StandingPile>, texts: CounterTexts = this.texts): void {
+  display(piles: ReadonlyArray<StandingPile>): void {
     this.piles = piles;
-    this.texts = texts;
     const next = new Map<string, Dressed>();
     for (const pile of piles) {
       const key = drawnKey(this.nation, pile.pieces);
@@ -663,8 +527,6 @@ export class StandingLayer {
       const built = pileObject(
         this.nation,
         pile.pieces,
-        this.texts,
-        this.faces,
         'lonLat' in pile.at ? this.seaward(pile.at.lonLat) : null,
       );
       if (built === null) continue;
@@ -696,13 +558,6 @@ export class StandingLayer {
     for (const gone of this.dressed.values()) gone.object.removeFromParent();
     this.dressed = next;
     this.rebuild();
-
-    const shown = new Set<string>();
-    for (const pile of piles) {
-      if (!next.has(pile.id)) continue;
-      for (const text of counterTexts(pile.pieces, this.texts)) if (text) shown.add(text);
-    }
-    this.faces.keepOnly(shown);
   }
 
   readonly smoke: AmbientLayer = {
@@ -815,8 +670,6 @@ export class StandingLayer {
     const copy = pileObject(
       this.nation,
       heldPieces(entry.pieces, held.troopIds),
-      this.texts,
-      this.faces,
       'lonLat' in entry.at ? this.seaward(entry.at.lonLat) : null,
     );
     if (copy === null) return;
@@ -988,13 +841,11 @@ export class StandingLayer {
     this.boarding = { at, since: performance.now() };
   }
 
-  /** Model geometry is shared with the pawns and the counter disc with every pile: only the
-   *  counter faces are this layer's to free. */
+  /** Model geometry is shared with the pawns: nothing here is this layer's to free. */
   dispose(): void {
     this.dropLeaving();
     if (this.carried !== null) discard(this.carried);
     this.carried = null;
     this.group.removeFromParent();
-    this.faces.keepOnly(new Set());
   }
 }

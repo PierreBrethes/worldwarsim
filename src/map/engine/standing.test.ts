@@ -1,11 +1,10 @@
-import { MeshStandardMaterial, Raycaster, Vector3 } from 'three';
+import { Raycaster, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import {
   drawnKey,
   dressedGroups,
-  type Faces,
   formationOf,
   nearestGroup,
   pileLayout,
@@ -93,13 +92,12 @@ describe('drawnKey', () => {
 });
 
 describe('picking a pile', () => {
-  const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
   const pieces = pilePieces([
     { ...troop('armor'), id: 'a1' },
     { ...troop('armor'), id: 'a2' },
     { ...troop('infantry'), id: 'i1' },
   ]);
-  const pile = pileObject('germany', pieces, { aboard: String }, faces)!;
+  const pile = pileObject('germany', pieces)!;
   // No model file loads under node: the footprints stand without them.
   pile.ready.catch(() => {});
   pile.object.updateMatrixWorld(true);
@@ -119,38 +117,30 @@ describe('picking a pile', () => {
   });
 });
 
-/** **Ce qui est à bord ne se voit pas** (15/10) : le transport porte son jeton, qu'un clic prend
- *  comme la pile entière. */
+/** **Ce qui est à bord ne se voit pas** (15/10) : le transport se dessine seul, son étiquette
+ *  dit qui il porte (`cargoTagsOf`). */
 describe('a transport carrying passengers', () => {
-  const inked: string[] = [];
-  const faces = {
-    of: (text: string) => {
-      inked.push(text);
-      return new MeshStandardMaterial();
-    },
-  } as unknown as Faces;
   const pieces = pilePieces([
     { ...troop('landTransport'), id: 'l1' },
     { ...troop('infantry'), id: 'i1', carriedBy: 'l1' },
     { ...troop('infantry'), id: 'i2', carriedBy: 'l1' },
   ]);
-  const pile = pileObject('germany', pieces, { aboard: (n) => `${n} à bord` }, faces)!;
-  pile.ready.catch(() => {});
 
-  it('draws the truck alone, with its « 2 à bord » counter', () => {
-    expect(pieces.groups.map((group) => group.role)).toEqual(['landTransport']);
-    expect(inked).toEqual(['2 à bord']);
+  it('draws the truck alone, its riders with it', () => {
+    expect(pieces.groups.map((group) => [group.role, group.troopIds])).toEqual([
+      ['landTransport', ['l1', 'i1', 'i2']],
+    ]);
+    expect(pileObject('germany', pieces)?.targets).toHaveLength(1);
   });
 });
 
 describe('pressing between the units of a Blitz pile', () => {
-  const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
   const pieces = unitPieces([
     { ...troop('infantry'), id: 'u1' },
     { ...troop('infantry'), id: 'u2' },
     { ...troop('infantry'), id: 'u3' },
   ]);
-  const pile = pileObject('germany', pieces, { aboard: String }, faces)!;
+  const pile = pileObject('germany', pieces)!;
   pile.ready.catch(() => {});
   pile.object.updateMatrixWorld(true);
   const slots = formationOf(['land', 'land', 'land'], null);

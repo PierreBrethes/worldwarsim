@@ -956,3 +956,12 @@
 .label--capturing.label--glyph .label-lines {
   display: block;
 }
+
+/* **L'étiquette d'un transport chargé** (POC « Manipuler les pions », 16/10) : elle pend sous la
+   pile au rapproché seulement, quand la pile se tient en figurines — de loin, le cartouche suffit. */
+.label-anchor .cargo-tags {
+  display: none;
+}
+.label-anchor.label-anchor--dressed .cargo-tags {
+  display: flex;
+}
