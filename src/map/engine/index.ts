@@ -71,12 +71,19 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
-import { StandingLayer, type PieceHold, type PiecePick, type StandingPile } from './standing';
+import {
+  StandingLayer,
+  type DropVerdict,
+  type PieceHold,
+  type PiecePick,
+  type StandingPile,
+} from './standing';
 import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { TheatreFrame } from './theatre';
+import { CarryVeil } from './veil';
 import type { Theatre } from '@/domain/theatres';
 import { batteryAt, ReplayScene, replayReach, type ReplayFire } from './replay';
 import {
@@ -90,7 +97,7 @@ import {
 import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
-export type { PieceHold, PiecePick, StandingPile } from './standing';
+export type { DropVerdict, PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './annotations';
 
@@ -273,6 +280,7 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly theatreFrame: TheatreFrame;
+  private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
   private dayCycle: DayCycle = 'real';
   private readonly sea: SeaLayer | null;
@@ -511,6 +519,7 @@ export class MapEngine {
     this.surface = board.surface;
     this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.lamp, this.sea);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
+    this.veil = new CarryVeil(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -703,10 +712,25 @@ export class MapEngine {
     this.invalidate();
     this.held = held;
     this.standing.hold(held, sent);
+    this.veil.show(held?.forbidden ?? null, performance.now());
+    if (this.veil.needsGround)
+      this.veil.ground((this.routeGrid ??= buildGrid(this.world)), this.frame);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  /** **The ring under the carried piece reads the drop**: an order, a refusal, or nothing. */
+  markDrop(verdict: DropVerdict): void {
+    this.invalidate();
+    this.standing.markDrop(verdict);
+  }
+
+  /** **The drop is refused**: the piece shakes its head before it goes home. */
+  refuseDrop(): void {
+    this.invalidate();
+    this.standing.refuseDrop();
   }
 
   /** **The piece in hand is set down where the pose opened its rose**, and waits there for
@@ -1225,6 +1249,7 @@ export class MapEngine {
     this.ink.dispose();
     this.regions.dispose();
     this.sea?.dispose();
+    this.veil.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -1737,6 +1762,7 @@ export class MapEngine {
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.standing.motion = motion;
+    this.veil.motion = motion;
     this.ink.motion = motion;
     this.maquettes.motion = motion;
     this.regions.terrain.motion = motion;
@@ -2168,7 +2194,8 @@ export class MapEngine {
       this.ink.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
-      this.standing.isCarrying
+      this.standing.isCarrying ||
+      this.veil.fading
     )
       this.invalidate();
     const now = performance.now();
@@ -2201,6 +2228,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    this.veil.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();

@@ -483,6 +483,7 @@ export function WorldMap({
         const reading = dropReadingOf(drawn);
         if (reading.kind !== 'orders') {
           setRose(null);
+          if (reading.kind === 'refused') engine.current?.refuseDrop();
           onDropRefused?.();
           return;
         }
@@ -733,9 +734,13 @@ export function WorldMap({
     readyEngine.onCarryOver = (target, clientX, clientY) => {
       hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
       if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
+      const tell = (hint: DropHint | null) => {
+        setHint(hint);
+        readyEngine.markDrop(hint === null ? 'none' : hint.refused ? 'refused' : 'order');
+      };
       if (target === null) {
         reading.current = null;
-        setHint(null);
+        tell(null);
         return;
       }
       if (target.kind !== 'ground') {
@@ -743,7 +748,7 @@ export function WorldMap({
         const here = from === null ? undefined : dropHintOf?.(from);
         if (here !== undefined) {
           reading.current = null;
-          setHint(here);
+          tell(here);
           return;
         }
       }
@@ -762,7 +767,7 @@ export function WorldMap({
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
-      setHint(hintOfReading(reading.current, chosenOf));
+      tell(hintOfReading(reading.current, chosenOf));
     };
   }, [
     readyEngine,

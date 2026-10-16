@@ -41,6 +41,7 @@ import {
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
+import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { Shell } from '@/shell/Shell';
@@ -433,6 +434,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** Ce que le moteur porte sous le pointeur : la pile posée ou la garnison d'où la main l'a
    *  prise, par l'identifiant que porte sa pile ; un avant-poste n'a pas de figurines, la main y
    *  est seule. */
+  const forbidden = forbiddenGroundOf(column?.rule.roles ?? []);
   const holding = useMemo(
     () =>
       hand.kind === 'empty'
@@ -443,8 +445,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 ? stackLabelId(hand.station)
                 : stationKeyOf(hand.station),
             troopIds: hand.troopIds,
+            forbidden,
           },
-    [hand],
+    [hand, forbidden],
   );
   const [resting, setResting] = useState<RestAim | null>(null);
   /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */

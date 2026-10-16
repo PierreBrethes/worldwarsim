@@ -130,7 +130,9 @@ describe('a transport carrying passengers', () => {
     expect(pieces.groups.map((group) => [group.role, group.troopIds])).toEqual([
       ['landTransport', ['l1', 'i1', 'i2']],
     ]);
-    expect(pileObject('germany', pieces)?.targets).toHaveLength(1);
+    const pile = pileObject('germany', pieces)!;
+    pile.ready.catch(() => {});
+    expect(pile.targets).toHaveLength(1);
   });
 });
 
