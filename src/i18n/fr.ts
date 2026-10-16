@@ -3793,8 +3793,7 @@ export const fr = {
   /** **La pastille sous la pièce portée** (POC « Manipuler les pions », 16/10) : ce que le lâcher
    *  ferait, et comment changer d'ordre quand la cible en accepte plusieurs. */
   drop: {
-    choice: (index: number, count: number, next: string) =>
-      `${index}/${count} · Tab : ${next}`,
+    choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
   },
