@@ -94,6 +94,16 @@ export const keepTelegraphSound = (on: boolean): void => {
   localStorage.setItem(TELEGRAPH_SOUND_KEY, on ? 'audible' : 'muted');
 };
 
+const TABLE_SOUND_KEY = 'wws-table-sound';
+
+/** **The table's sounds** (POC « Manipuler les pions »), apart from the telegraph's: one may want
+ *  either without the other. On by default, for this browser. */
+export const tableSoundOn = (): boolean => localStorage.getItem(TABLE_SOUND_KEY) !== 'muted';
+
+export const keepTableSound = (on: boolean): void => {
+  localStorage.setItem(TABLE_SOUND_KEY, on ? 'audible' : 'muted');
+};
+
 const MOUSE_MAPPING_KEY = 'wws-mouse-mapping';
 
 /**

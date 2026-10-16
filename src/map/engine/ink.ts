@@ -1,3 +1,4 @@
+import { playTableSound } from '../table-sound';
 import {
   CanvasTexture,
   DoubleSide,
@@ -164,6 +165,8 @@ export class InkLayer {
   motion: MapMotion = 'full';
   private traces: PenStroke[] = [];
   private stamps: Stamp[] = [];
+  /** A delayed stamp is heard as it lands: the board gone, it is not. */
+  private readonly heard = new Set<ReturnType<typeof setTimeout>>();
   private reaches: PenStroke[] = [];
   private viewHeight = 1;
   private readonly geometries = {
@@ -213,6 +216,11 @@ export class InkLayer {
     if (words !== undefined) {
       const texture = wordedTexture(words);
       this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true);
+      const timer = setTimeout(() => {
+        this.heard.delete(timer);
+        playTableSound('stamp');
+      }, delayMs);
+      this.heard.add(timer);
     }
     if (kind === 'combat' || (kind === 'arrival' && words === undefined))
       this.stamp(
@@ -266,6 +274,7 @@ export class InkLayer {
   }
 
   dispose(): void {
+    for (const timer of this.heard) clearTimeout(timer);
     for (const stroke of [...this.traces, ...this.reaches]) wipe(stroke);
     for (const stamp of this.stamps) unstamp(stamp);
     this.reaches = [];

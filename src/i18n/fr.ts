@@ -3470,6 +3470,8 @@ export const fr = {
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
     soundState: (on: boolean) => (on ? 'activé' : 'coupé'),
+    tableSoundLabel: 'Bruits de la table',
+    tableSoundNote: 'Le bois des pièces qu’on lève, pose ou embarque, le tampon, la volée.',
     /** **Le seul pouvoir de fondateur du plateau.** Une saison sans horloge n'a pas d'autre fin,
      *  et la note dit ce qui reste après — sinon « clore » se lit comme « supprimer ». Il passe
      *  au doyen quand le fondateur ne revient plus (`seasons.conclude`), sans que le titre
@@ -3766,6 +3768,23 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
+    still: 'relâcher · rien ne change',
+    putBack: 'Reposer',
+    putBackDetail: 'rien ne bouge',
+    boardRefused: 'Embarquement impossible',
+    /** The chip's verbs, in the infinitive as in the prototype. */
+    verbs: {
+      attack: 'Attaquer',
+      raid: 'Lancer le raid',
+      form: 'Former une escouade',
+      join: 'Rejoindre l’escouade',
+      board: 'Embarquer',
+      sea: 'Marcher',
+      inland: 'Faire route',
+      air: 'Voler',
+    },
+    pieces: (count: number) => `${count} pièces ensemble`,
+    strike: 'vous frappez en premier',
   },
   compass: {
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,

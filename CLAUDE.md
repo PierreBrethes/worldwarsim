@@ -143,17 +143,20 @@ elle se repose, ailleurs **elle ordonne** (ci-dessous) — dont « rejoindre » 
 une marche à son point exact, refusée en Blitz entre unités de combat. La garnison d'un
 **bâtiment** se lève aussi par ses figurines, au pied de sa maquette, comme une pile posée ; celle
 d'un avant-poste, qui n'en a pas, ne se lève pas sur la carte. Les deux gardent leur **panneau de
-garnison**, qui compose la pile et dont « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
-l'heure du premier ordre — sur le sol comme sur un mât, un camp ou un objectif, dont
-l'étiquette relaie l'arrêt que la toile ne voit pas. Échap, un clic sur la pièce, ou la rose
-refermée la reposent.
+garnison**, qui compose la pile et dont « préparer » la met dans la même main. Pointeur arrêté,
+`movements.preview` sert la route et l'heure du premier ordre — sur le sol comme sur un mât, un
+camp ou un objectif, dont l'étiquette relaie l'arrêt que la toile ne voit pas. Échap, un clic sur
+la pièce, ou la rose refermée la reposent.
 
 **Lâcher, c'est ordonner — 16/10/2026** (POC « Manipuler les pions », `WWS/prototypes/pions/`,
 révision de l'ADR 0026 §5-6). Sous le pointeur, la **pastille** lit la rose de la cible
 (`dropReadingOf`, `src/domain/drop-order.ts` — la même fonction que le refus du serveur) et dit
 l'ordre que le lâcher donnera : le premier des ordres de pièce (partir, monter à bord, piller,
 capturer, ramasser, bombarder, fonder), Tab ou 1-2-3 pour en changer, ou le refus en rouge
-(`DropHint.tsx`, moteur `onCarryOver`). **Lâchée, la pièce l'envoie** (`useSendOrder`,
+(`DropHint.tsx`, moteur `onCarryOver`). **Elle a le gabarit du POC** (`#hint`, 17/10) : un signe
+dans un rond, le verbe à l'infinitif (`chipOf`, « Former une escouade », « Attaquer » en rouge —
+l'issue d'une attaque n'est pas dite, le brouillard ne sert pas ce qu'il y a en face), sa
+conséquence, la ligne des touches ; « Reposer » au calme sur sa propre pile. **Lâchée, la pièce l'envoie** (`useSendOrder`,
 `src/routes/-plateau/order-wire.ts`) : plus de rose ni de carte « envoyer — irréversible »
 (`MovementPreview` est supprimé) ; l'arrêt du pointeur ajoute sous le verbe l'heure d'arrivée,
 la morsure du repos ou « aucune route » (`DropNote`). Pièce levée au clic, la pastille se lit de
@@ -164,9 +167,24 @@ d'annulation après coup. La rose ne garde que ce qui n'est pas un ordre de piè
 raser, démanteler. Pendant le geste, **le milieu interdit se voile** (`CarryVeil`,
 `src/map/engine/veil.ts`) : la mer sous ce qui marche, découpée au pochoir des pays ; l'intérieur
 des terres sous ce qui flotte, lu sur la grille de routage, la plage laissée claire ; rien sous ce
-qui vole (`forbiddenGroundOf`, lu sur `routeModeOf`). Un **anneau** au sol et un **fil à plomb**
+qui vole (`forbiddenGroundOf`, lu sur `routeModeOf`). Un **réticule** au sol et un **fil à plomb**
 marquent le point de chute, ocre pour un ordre, rouge pour un refus (`markDrop`), et la fiche se
-tait le temps du geste. Hors lot : le lasso, le parachutage, rediriger en route.
+tait le temps du geste. **La route est le ruban du POC** (`AimRibbon`, `src/map/engine/aim.ts`) :
+une bande ocre à tirets qui coulent et une flèche, rouge vers un combat — droite depuis la pile
+tant que le pointeur bouge, celle du serveur dès qu'il s'arrête ; plus d'arc d'aperçu ni de pion.
+Hors lot : le lasso, le parachutage, rediriger en route, ⌘Z.
+
+**Et chaque pièce porte l'anneau du POC** (`InkRing`, `src/map/engine/ink-ring.ts`, états de
+`ringStyle`) : encre fine au survol, tirets ocre qui tournent sur la pile en main, plein et battant
+sur le transport où l'on monte, tirets à contresens sur la pile qu'on rejoint, rouge à repères sur
+le camp qu'on attaque (`CampLayer.mark`, le camp se vise aussi par la toile), tirets rouges sur un
+refus, et un battement sur chaque transport qui prendrait la main (`carriersFor`). L'état sort du
+moteur seul (`refreshRings`) ; sous la main, la pile d'où l'on vient ne masque jamais celle qu'on
+vise. Les cercles de destination autour des étiquettes ont disparu. **Les bruits** sont ceux du POC,
+synthétisés (`src/map/table-sound.ts`, réglage « bruits de la table ») ; **les gestes** aussi :
+étirement à la prise, saut au-dessus d'une cible, onde d'encre et poussière où la pièce touche
+(`DustBurst`), copie pâle qui attend à l'arrivée dans un anneau ocre, ou plonge dans la pile ou le
+camp visé, onde ocre quand une escouade grandit.
 
 **Et la pièce se tient comme une pièce d'échecs** (lot « tampons et gestes », 13/10/2026, gestes
 du prototype `table-etat-major.html`, courbes pures dans `src/map/engine/landing.ts`). Levée,
@@ -185,14 +203,15 @@ plusieurs troupes c'est une **escouade**, cernée d'un pointillé d'encre et d'u
 la nation (`squadMarks`). Plus de jeton « ×N » ni « +N », plus de déploiement au sol. Un glisser
 prend l'escouade entière ; un **appui long** sur elle (`DETACH_MS`, 450 ms, un anneau qui se
 remplit sous le pointeur, `DetachRing`) n'en prend qu'une troupe — c'est ainsi qu'elle se scinde.
-**Maj + clic a disparu** : les cases de la fiche restent la voie clavier. Sous un **transport
-chargé** pend une **étiquette** de bagage (`CargoTags.tsx`, règle `cargoTagsOf`,
-`src/domain/cargo-tag.ts`) : le transport, les places, ses passagers en sprites et « tout
-débarquer » ; un passager s'en **tire**, ou s'y clique, pour descendre au pied de son transport.
-Là où personne ne descend — au large, un avion hors aérodrome —, l'étiquette dit pourquoi. Elle
-pend aux piles posées et aux garnisons de mes bâtiments, au rapproché seulement, et a remplacé le
-jeton « N à bord », la branche « débarquer » de la rose et `DisembarkCard`. En Blitz, une pièce
-reste une unité.
+**Maj + clic a disparu** : les cases de la fiche restent la voie clavier. Au-dessus de chaque
+**transport** pend par un fil une **étiquette** de bagage (`CargoTags.tsx`, règle `cargoTagsOf`,
+`src/domain/cargo-tag.ts`) : le transport, ses places — chaque passager sur celles qu'il tient, un
+blindé sur trois —, « tout débarquer » ; un passager s'en **tire**, ou s'y clique, pour descendre
+au pied de son transport. Elle pend quand il porte quelqu'un, quand la pièce en main pourrait y
+monter, et au survol ; sous la main, elle s'ouvre sur les places qu'on y prendrait, ocre, ou rouges
+quand elles manquent. Là où personne ne descend — au large, un avion hors aérodrome —, elle dit
+pourquoi. Seul son papier prend le pointeur, et l'affiche du survol s'écarte d'elle. En Blitz, une
+pièce reste une unité.
 
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la

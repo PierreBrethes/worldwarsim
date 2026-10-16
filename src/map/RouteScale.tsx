@@ -3,7 +3,7 @@ import { fr } from '@/i18n/fr';
 import { unrollRoute } from '@/domain/route-timing';
 import { asDuration } from '@/domain/duration';
 import type { Medium } from '@/domain/routing';
-import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
+import type { ArcView } from '@/domain/player-view';
 
 /**
  * The segmented scale of plate 2d: the route laid flat, each section as wide as its
@@ -82,12 +82,9 @@ export function RouteScale({
  *
  * **A sighting joins them** (decision 4a): the thread it serves is a watched stretch, and putting
  * a duration on it would be billing a fragment of road at the price of a whole trip.
- *
- * **So does the aimed route**: it carries no clock on purpose (`previewArc`), and its trip is
- * timed on the order card beside it — read here, it was a trip of zero minute.
  */
 function totalDuration(arc: ArcView): number | null {
-  const left = arc.state === 'mine' && arc.id !== PREVIEW_ARC_ID ? arc.minutesLeft : null;
+  const left = arc.state === 'mine' ? arc.minutesLeft : null;
   if (left === null || arc.progress >= 1) return null;
   return Math.max(0, left) / (1 - arc.progress);
 }

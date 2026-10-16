@@ -20,7 +20,6 @@ import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
-  isDestinationAction,
   isOrder,
   type CompassAction,
   type CompassTarget,
@@ -28,7 +27,6 @@ import {
   type Compass,
 } from '@/domain/compass-rose';
 import {
-  PREVIEW_ARC_ID,
   type ArcView,
   type JournalDispatch,
   type ReplayView,
@@ -48,12 +46,14 @@ import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
 import { RouteScale } from './RouteScale';
+import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
 import {
   DropHintChip,
   hintOfReading,
+  ringOfHint,
   type DropHint,
   type DropNote,
   type PieceFrom,
@@ -228,17 +228,15 @@ type Props = {
    * réserve au pied du plateau. La carte ne lit pas le seuil — le plateau le lui dit.
    */
   fingerRose?: { readonly floor: number } | null;
-  /**
-   * **Les destinations d'une colonne armée, cerclées sur la carte et nommées au bord** quand
-   * elles sont hors champ (lot mobile-3, A8). Le plateau l'allume sous le seuil ; la carte
-   * décide lesquelles, par la même rose que le geste ouvrirait.
-   */
-  showDestinations?: boolean;
   /** **Une pièce posée là où rien ne la prend rentre chez elle** : la pastille l'a déjà dit en
    *  rouge, il n'y a pas de rose à ouvrir sur un refus. */
   onDropRefused?: () => void;
   /** L'arrivée lue au pointeur arrêté, que la pastille porte sous son verbe. */
   dropNotes?: ReadonlyArray<DropNote>;
+  /** **The server's road under the resting pointer**: the ribbon of the piece in hand follows it. */
+  aimRoute?: ReadonlyArray<LonLat> | null;
+  /** My piles whose transport could take the hand: their rings beat while it is held. */
+  availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
   onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
@@ -288,8 +286,8 @@ export type PlacingBuilding = {
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
+const NO_PILES: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
-const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 export function WorldMap({
   world,
@@ -348,9 +346,10 @@ export function WorldMap({
   focus = null,
   searchArea = null,
   fingerRose = null,
-  showDestinations = false,
   onDropRefused,
   dropNotes,
+  aimRoute = null,
+  availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
   covered = false,
@@ -467,7 +466,7 @@ export function WorldMap({
       if (next === null) return;
       event.preventDefault();
       choice.current.index = next;
-      setHint(hintOfReading(read, chosenOf));
+      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null));
     };
     addEventListener('keydown', turn);
     return () => removeEventListener('keydown', turn);
@@ -688,6 +687,19 @@ export function WorldMap({
    * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
    */
   const [hint, setHint] = useState<DropHint | null>(null);
+  /** **The transport under the hand**, its tag open on the seats the drop would take. */
+  const [cargoAim, setCargoAim] = useState<CargoAim | null>(null);
+  /** My transports that could take the hand, by the label their luggage tag hangs from. */
+  const availableLabels = useMemo(
+    () =>
+      new Set(
+        availablePiles.map((id) => {
+          const at = standing.find((pile) => pile.id === id)?.at;
+          return at !== undefined && 'beside' in at ? at.beside : id;
+        }),
+      ),
+    [availablePiles, standing],
+  );
   // A new hand starts from the first verb, and an empty one has no chip left to show.
   useEffect(() => {
     choice.current = { signature: '', index: 0 };
@@ -761,11 +773,29 @@ export function WorldMap({
       });
     readyEngine.onCarryCancel = onDropRefused;
     readyEngine.onCarryOver = (target, clientX, clientY) => {
-      hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
-      if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
+      // The prototype's place: below right of the hand, flipped against the screen's edges.
+      const chip = hintNode.current;
+      const width = chip?.offsetWidth ?? 0;
+      const height = chip?.offsetHeight ?? 0;
+      const x = clientX + 26 + width > innerWidth - 12 ? clientX - width - 22 : clientX + 26;
+      const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
+      hintAt.current = `translate(${x}px, ${y}px)`;
+      if (chip !== null) chip.style.transform = hintAt.current;
+      const over =
+        target === null || target.kind === 'ground'
+          ? null
+          : (read(target, clientX, clientY).label?.id ?? null);
       const tell = (hint: DropHint | null) => {
         setHint(hint);
-        readyEngine.markDrop(hint === null ? 'none' : hint.refused ? 'refused' : 'order');
+        const aim =
+          hint?.boarding === undefined || over === null
+            ? null
+            : { labelId: over, ...hint.boarding };
+        setCargoAim((was) => (JSON.stringify(was) === JSON.stringify(aim) ? was : aim));
+        readyEngine.markDrop(
+          hint === null || hint.tone === 'calm' ? 'none' : hint.tone,
+          hint === null || hint.tone === 'calm' ? null : ringOfHint(hint),
+        );
       };
       if (target === null) {
         reading.current = null;
@@ -796,9 +826,10 @@ export function WorldMap({
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
-      tell(hintOfReading(reading.current, chosenOf));
+      tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
     };
   }, [
+    holding,
     readyEngine,
     standing,
     labels,
@@ -875,22 +906,6 @@ export function WorldMap({
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
   }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget, chosenOf]);
 
-  /**
-   * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
-   * A8) : une étiquette est une destination quand sa rose porte une marche, une expédition ou un
-   * ramassage — la même fonction que le geste, donc jamais un cercle sur ce que la rose refuse
-   * (ADR 0015). Le sol nu n'y est pas : il est partout.
-   */
-  const destinationIds = useMemo(() => {
-    if (!aiming || !showDestinations) return NO_DESTINATIONS;
-    return new Set(
-      labels.flatMap((label) => {
-        const target = targetOfLabel(label, null, null, coastAt, landAt);
-        if (target === null || target.kind === 'country' || target.kind === 'point') return [];
-        return compassOf(target)?.actions.some(isDestinationAction) === true ? [label.id] : [];
-      }),
-    );
-  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
    * 03/10) — un toucher y recentre. Les destinations de la colonne armée ne s'y nomment plus
@@ -1074,6 +1089,14 @@ export function WorldMap({
   }, [readyEngine, standing]);
 
   useEffect(() => {
+    readyEngine?.setAimRoute(aimRoute);
+  }, [readyEngine, aimRoute]);
+
+  useEffect(() => {
+    readyEngine?.setAvailable(availablePiles);
+  }, [readyEngine, availablePiles]);
+
+  useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
 
@@ -1107,11 +1130,7 @@ export function WorldMap({
     inked.current = { arcs, seenAt: latest };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
-      arc.state === 'mine' &&
-      arc.id !== PREVIEW_ARC_ID &&
-      !arcs.some((still) => still.id === arc.id)
-        ? [arc.to]
-        : [],
+      arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     for (const burst of inkBursts(journal, before.seenAt, vanished))
       engine.current?.inkBurst(burst);
@@ -1186,10 +1205,11 @@ export function WorldMap({
           engine.current?.pointerOverLabel(labelId, clientX, clientY)
         }
         muted={placing !== null}
-        destinations={destinationIds}
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}
+        cargoAim={cargoAim}
+        availableLabels={availableLabels}
       />
       <EdgeIndicators
         labels={labels}

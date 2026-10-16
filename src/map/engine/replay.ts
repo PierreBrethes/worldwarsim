@@ -1,3 +1,4 @@
+import { playTableSound } from '../table-sound';
 import {
   AdditiveBlending,
   BoxGeometry,
@@ -237,6 +238,7 @@ const ease = (k: number) => k * k * (3 - 2 * k);
  * Geometry and materials are the modules' (figurines, blocks, smoke): nothing to free but itself.
  */
 export class ReplayScene {
+  private heard: string | null = null;
   readonly object = new Group();
   private readonly pieces: Piece[];
 
@@ -369,6 +371,10 @@ export class ReplayScene {
    */
   show(frame: ReplayFrame, seconds: number, still: boolean): void {
     const { step, progress } = frame;
+    // Each volley is heard once, as it leaves (POC, `fire`).
+    const heard = frame.firing === null ? null : `${step}:${frame.firing}`;
+    if (heard !== null && heard !== this.heard) playTableSound('fire');
+    this.heard = heard;
     const count = this.pieces.length;
     this.pieces.forEach((piece, k) => {
       const state = frame.pieces[k]!;

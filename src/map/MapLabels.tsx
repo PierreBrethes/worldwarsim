@@ -3,7 +3,7 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import { CargoTags } from './CargoTags';
+import { CargoTags, type CargoAim } from './CargoTags';
 import {
   Fragment,
   useCallback,
@@ -78,6 +78,8 @@ import type { MapEngine } from './engine';
  * pictogram in the ground; here it holds to the text, across the bar, and the shadow pool
  * serves as the base.
  */
+const NO_LABELS: ReadonlySet<string> = new Set();
+
 export function MapLabels({
   labels,
   engine,
@@ -98,12 +100,17 @@ export function MapLabels({
   holding,
   onHoldOver,
   muted,
-  destinations,
   groupFar = false,
   nation = null,
   onDisembark,
+  cargoAim = null,
+  availableLabels = NO_LABELS,
 }: {
   labels: ReadonlyArray<MapLabel>;
+  /** **The transport under the hand**: its tag opens on the seats the drop would take. */
+  cargoAim?: CargoAim | null;
+  /** The labels whose transport could take the hand: their tags hang while it is held. */
+  availableLabels?: ReadonlySet<string>;
   /** The player's nation: the passengers on a transport's tag wear its plates. */
   nation?: string | null;
   /** **Débarquer depuis l'étiquette d'un transport** (POC du 16/10) ; absent, pas d'étiquette. */
@@ -149,8 +156,6 @@ export function MapLabels({
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
   muted: boolean;
-  /** Les destinations de la colonne armée, cerclées au pied (lot mobile-3, A8). */
-  destinations: ReadonlySet<string>;
   /** **Au loin aussi, des planches de sites qui se chevauchent n'en font qu'un cartouche**
    *  (Blitz, retours du 15/10) : les neutres d'une Blitz couvraient l'Espagne. */
   groupFar?: boolean;
@@ -229,6 +234,11 @@ export function MapLabels({
    */
   const over = useRef<{ label: string | null; piece: string | null }>({ label: null, piece: null });
   const hovered = useRef<string | null>(null);
+  /** The labels that carry a transport's tag: only they look for their figurines each frame. */
+  const cargoed = useRef<ReadonlySet<string>>(new Set());
+  cargoed.current = new Set(
+    labels.flatMap((label) => ((label.cargo?.length ?? 0) > 0 ? [label.id] : [])),
+  );
   /** The piece just pressed: what it opened stands in for its poster until the pointer leaves
    *  it — the canvas hands the piece back at the release, under the window it opened. */
   const pressed = useRef<string | null>(null);
@@ -241,6 +251,10 @@ export function MapLabels({
       const previous = hovered.current;
       if (id === previous) return;
       hovered.current = id;
+      // A transport's tag hangs while its piece is under the pointer (POC, `t.hover`).
+      if (previous !== null)
+        anchors.current.get(previous)?.classList.remove('label-anchor--hovered');
+      if (id !== null) anchors.current.get(id)?.classList.add('label-anchor--hovered');
       if (id !== pressed.current) pressed.current = null;
       const left = labels.find((candidate) => candidate.id === previous);
       if (left?.anchor.kind === 'movementHead') onMovementHover(null);
@@ -480,6 +494,7 @@ export function MapLabels({
           dressed: 0,
           drawn: '',
           plateScale: 1,
+          hang: '',
           x: 0,
           y: 0,
         },
@@ -568,6 +583,20 @@ export function MapLabels({
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
         state.x = projection.x;
         state.y = projection.y;
+        // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
+        if (cargoed.current.has(projection.id)) {
+          const rect = state.dressed >= 0.5 ? engine.pieceRect(projection.id) : null;
+          const hang =
+            rect === null
+              ? ''
+              : `${Math.round((rect.left + rect.right) / 2 - projection.x)}/${Math.round(rect.top - projection.y)}`;
+          if (hang !== state.hang) {
+            state.hang = hang;
+            const [x, y] = hang.split('/');
+            anchor.style.setProperty('--cargo-x', hang === '' ? '0px' : `${x}px`);
+            anchor.style.setProperty('--cargo-y', hang === '' ? '-46px' : `${y}px`);
+          }
+        }
         if (projection.lod !== state.lod) {
           state.lod = projection.lod;
           apply(projection.id, state);
@@ -582,7 +611,15 @@ export function MapLabels({
         poster.style.visibility = under.visible ? '' : 'hidden';
         // A drawn piece (maquette, figurines, block, pawn) is cleared whole, from its projected
         // box; far away, where the plate is the piece, the poster hangs from the label.
-        const rect = engine.pieceRect(place.id);
+        const drawn = engine.pieceRect(place.id);
+        // A transport's tag hangs over its piece: the card clears the tag too (POC, `#card`).
+        const tag = cargoed.current.has(place.id)
+          ? anchors.current.get(place.id)?.querySelector('.cargo-tags')?.getBoundingClientRect()
+          : undefined;
+        const rect =
+          drawn === null || tag === undefined || tag.height === 0
+            ? drawn
+            : { ...drawn, top: drawn.top - tag.height };
         let side: PosterSpot['side'];
         let x: number;
         let y: number;
@@ -763,11 +800,7 @@ export function MapLabels({
             ref={(node) => {
               register(roots.current, label.id, node);
             }}
-            className={classesOf(
-              label,
-              label.id === selected || label.id === secondarySelected,
-              destinations.has(label.id),
-            )}
+            className={classesOf(label, label.id === selected || label.id === secondarySelected)}
             role={label.lootSightingId === null ? undefined : 'button'}
             tabIndex={label.lootSightingId === null ? undefined : 0}
             aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
@@ -955,9 +988,18 @@ export function MapLabels({
                 )}
               </div>
             </div>
-            {label.cargo !== undefined && onDisembark !== undefined && !muted && (
-              <CargoTags tags={label.cargo} nation={nation} onDisembark={onDisembark} />
-            )}
+            {label.cargo !== undefined &&
+              label.cargo.length > 0 &&
+              onDisembark !== undefined &&
+              !muted && (
+                <CargoTags
+                  tags={label.cargo}
+                  nation={nation}
+                  onDisembark={onDisembark}
+                  aim={cargoAim?.labelId === label.id ? cargoAim : null}
+                  available={availableLabels.has(label.id)}
+                />
+              )}
           </div>
         </div>
       ))}
@@ -1232,6 +1274,8 @@ type RenderState = {
   /** Where its piece is drawn off its point, as last written: `''` on it. */
   drawn: string;
   plateScale: number;
+  /** Where a transport's tag hangs from, over its figurines, as last written. */
+  hang: string;
   x: number;
   y: number;
 };
@@ -1266,11 +1310,10 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
   else map.delete(id);
 }
 
-function classesOf(label: MapLabel, selected: boolean, destination: boolean): string {
+function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
-    destination ? 'label--destination' : '',
     label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,

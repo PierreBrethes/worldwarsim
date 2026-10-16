@@ -5,7 +5,7 @@ import {
   unrollRoute,
   type UnrolledSegment,
 } from '@/domain/route-timing';
-import { PREVIEW_ARC_ID, type ArcView, type TroopView } from '@/domain/player-view';
+import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
@@ -159,13 +159,7 @@ export class ArcLayer {
     const appeared =
       carried !== undefined || known === null
         ? []
-        : arcs.filter(
-            (arc) =>
-              arc.state === 'mine' &&
-              arc.id !== PREVIEW_ARC_ID &&
-              arc.type !== 'return' &&
-              !known.has(arc.id),
-          );
+        : arcs.filter((arc) => arc.state === 'mine' && arc.type !== 'return' && !known.has(arc.id));
     if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
     for (const id of this.inking.keys()) {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);

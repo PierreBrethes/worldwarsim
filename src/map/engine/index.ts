@@ -59,6 +59,9 @@ import { NightSky } from './night';
 import { InkLayer } from './ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
+import { AimRibbon } from './aim';
+import { playTableSound } from '../table-sound';
+import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
@@ -292,6 +295,19 @@ export class MapEngine {
   private readonly camps: CampLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
+  /** The road the piece in hand would take (POC « Manipuler les pions »). */
+  private readonly aimRibbon = new AimRibbon();
+  private aimRoute: Vector3[] | null = null;
+  private verdict: DropVerdict = 'none';
+  /** What the carried piece is over, and the ring the drop gives it (POC, `ringStyle`). */
+  private carryOver: CarryTarget | { readonly kind: 'ground' } | null = null;
+  private dropRing: RingState | null = null;
+  /** The pile under a free pointer, ringed in ink. */
+  private hoveredPile: string | null = null;
+  /** My transports that could take the piece in hand, ringed while it is held. */
+  private available: ReadonlyArray<string> = [];
+  private aimedPile: string | null = null;
+  private lastFrame = performance.now();
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
@@ -592,6 +608,8 @@ export class MapEngine {
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.aimRibbon.group);
+    this.standing.elsewhere = (id) => this.camps.positionOf(id);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
@@ -724,7 +742,7 @@ export class MapEngine {
       gesture.carrying = false;
       gesture.carry = null;
       gesture.pastThreshold = true;
-      this.onCarryOver?.(null, gesture.x, gesture.y);
+      this.tellCarryOver(null, gesture.x, gesture.y);
       this.onCarryEnd?.();
     }
     this.veil.show(held?.forbidden ?? null, performance.now());
@@ -732,19 +750,83 @@ export class MapEngine {
       this.veil.ground((this.routeGrid ??= buildGrid(this.world)), this.frame);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
+    if (held === null) this.carryOver = null;
+    this.refreshRings();
     this.hoverDirty = true;
     this.refreshCursor();
   }
 
   /** **The ring under the carried piece reads the drop**: an order, a refusal, or nothing. */
-  markDrop(verdict: DropVerdict): void {
+  markDrop(verdict: DropVerdict, ring: RingState | null = null): void {
     this.invalidate();
+    this.verdict = verdict;
+    this.dropRing = ring;
     this.standing.markDrop(verdict);
+    this.refreshRings();
+  }
+
+  /** **My transports that could take the piece in hand**: their rings pulse while it is held. */
+  setAvailable(pileIds: ReadonlyArray<string>): void {
+    this.invalidate();
+    this.available = pileIds;
+    this.refreshRings();
+  }
+
+  private tellCarryOver(
+    over: CarryTarget | { readonly kind: 'ground' } | null,
+    clientX: number,
+    clientY: number,
+  ): void {
+    this.carryOver = over;
+    this.onCarryOver?.(over, clientX, clientY);
+  }
+
+  /** **Every pile's ring, from what the hand is doing** (POC, `ringStyle`): hovered, in hand,
+   *  aimed at, or a seat that could take it. */
+  private refreshRings(): void {
+    const rings = new Map<string, RingState>();
+    const held = this.held;
+    if (held === null) {
+      this.camps.mark(null, null);
+      if (this.hoveredPile !== null) rings.set(this.hoveredPile, 'hover');
+      this.standing.setRings(rings);
+      return;
+    }
+    for (const id of this.available) rings.set(id, 'avail');
+    rings.set(held.pileId, 'selected');
+    const over = this.carryOver;
+    const target =
+      over === null || over.kind === 'ground'
+        ? null
+        : over.kind === 'canvas'
+          ? over.pick.pileId
+          : this.standing.pileOfLabel(over.labelId);
+    const ringed = target !== null && target !== held.pileId && this.dropRing !== null;
+    if (ringed) rings.set(target, this.dropRing as RingState);
+    // An enemy camp under the hand wears its own ring (POC, `enemy`).
+    const camp =
+      over !== null && over.kind === 'label' && this.camps.isDressed(over.labelId)
+        ? over.labelId
+        : null;
+    this.camps.mark(camp, camp === null ? null : this.dropRing);
+    // The target answers with a click of wood as the hand comes over it (POC, `snap`).
+    const aimed = ringed ? target : camp !== null && this.dropRing !== null ? camp : null;
+    if (aimed !== null && aimed !== this.aimedPile) playTableSound('snap');
+    this.aimedPile = aimed;
+    this.standing.setRings(rings, aimed);
+  }
+
+  /** **The server's road for the drop under the resting pointer**, `null` while it moves: the
+   *  hand draws a straight line from home until then (`AimRibbon`). */
+  setAimRoute(points: ReadonlyArray<LonLat> | null): void {
+    this.invalidate();
+    this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */
   refuseDrop(): void {
     this.invalidate();
+    playTableSound('bad');
     this.standing.refuseDrop();
   }
 
@@ -1254,6 +1336,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.aimRibbon.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
@@ -1295,7 +1378,7 @@ export class MapEngine {
       if (!this.fingerOnBoard) this.pointerMoved();
       // Lifted by a click, the piece reads its drop as a carried one does: the release is the click.
       if (this.held !== null && !this.fingerOnBoard)
-        this.onCarryOver?.(
+        this.tellCarryOver(
           this.carryTargetAt(event.clientX, event.clientY) ?? { kind: 'ground' },
           event.clientX,
           event.clientY,
@@ -1305,7 +1388,7 @@ export class MapEngine {
       this.pointer.set(-2, -2);
       this.hoverDirty = true;
       if (this.rest.stop()) this.onRestless?.();
-      if (this.held !== null && this.gesture?.carrying !== true) this.onCarryOver?.(null, 0, 0);
+      if (this.held !== null && this.gesture?.carrying !== true) this.tellCarryOver(null, 0, 0);
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
@@ -1414,6 +1497,7 @@ export class MapEngine {
           if (this.gesture !== gesture || gesture.carrying || gesture.pastThreshold) return;
           gesture.single = true;
           this.onDetach?.('done', gesture.x, gesture.y);
+          playTableSound('tick');
         }, DETACH_MS);
       }
       return;
@@ -1449,7 +1533,7 @@ export class MapEngine {
     this.hoverDirty = true;
     // The stop that tells the server's route counts from the last move, a carried one too.
     this.pointerMoved();
-    this.onCarryOver?.(
+    this.tellCarryOver(
       this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' },
       clientX,
       clientY,
@@ -1464,6 +1548,13 @@ export class MapEngine {
     if (label !== undefined) return { kind: 'label', labelId: label };
     if (!this.castAt(clientX, clientY)) return null;
     const pick = this.standing.pick(this.ray, { under: true });
+    // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
+    const camp = this.camps.under(this.ray);
+    if (
+      camp !== null &&
+      (pick === null || pick.pileId === this.held?.pileId || camp.distance < pick.distance)
+    )
+      return { kind: 'label', labelId: camp.id };
     return pick === null ? null : { kind: 'canvas', pick };
   }
 
@@ -1551,7 +1642,7 @@ export class MapEngine {
     if (gesture === null) return;
     if (gesture.carrying) {
       this.carriedAt = performance.now();
-      this.onCarryOver?.(null, event.clientX, event.clientY);
+      this.tellCarryOver(null, event.clientX, event.clientY);
       if (event.type === 'pointerup') this.dropCarried(event);
       this.onCarryEnd?.();
       return;
@@ -1791,6 +1882,7 @@ export class MapEngine {
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.standing.motion = motion;
+    this.camps.motion = motion;
     this.veil.motion = motion;
     this.ink.motion = motion;
     this.maquettes.motion = motion;
@@ -2128,12 +2220,14 @@ export class MapEngine {
       this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
     }
 
-    const piece =
-      !this.fingerOnBoard && onScreen && this.pieceToTake() !== null
-        ? PIECE_CURSOR
-        : label !== null
-          ? 'pointer'
-          : null;
+    const take = !this.fingerOnBoard && onScreen ? this.pieceToTake() : null;
+    const piece = take !== null ? PIECE_CURSOR : label !== null ? 'pointer' : null;
+    const hoveredPile =
+      this.held !== null || take === null || take.carried === true ? null : take.pileId;
+    if (hoveredPile !== this.hoveredPile) {
+      this.hoveredPile = hoveredPile;
+      this.refreshRings();
+    }
     if (piece !== this.hoveredPiece) {
       this.hoveredPiece = piece;
       this.refreshCursor();
@@ -2224,6 +2318,9 @@ export class MapEngine {
       this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isCarrying ||
+      this.standing.ringing ||
+      this.camps.ringing ||
+      (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
     )
       this.invalidate();
@@ -2257,6 +2354,23 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    const reading = this.standing.reading;
+    const tone = this.verdict;
+    this.aimRibbon.show(
+      reading === null || tone === 'none'
+        ? null
+        : tone !== 'refused' && this.aimRoute !== null
+          ? this.aimRoute
+          : [reading.from, reading.to],
+      tone === 'none' ? 'order' : tone,
+    );
+    this.aimRibbon.animate(
+      this.unitsPerPixel(distance),
+      this.screenHeight,
+      (now - this.lastFrame) / 1000,
+      this.ambience.motion !== 'off',
+    );
+    this.lastFrame = now;
     this.veil.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);

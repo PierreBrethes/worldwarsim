@@ -283,8 +283,12 @@ export type CompassAction =
       readonly consequence: string;
       readonly aim: MovementAim;
       readonly type: MovementType;
-      /** **Le transport où la colonne monte en arrivant** (15/10), quand la branche embarque. */
+      /** **The transport the column boards on arrival** (15/10), when the branch boards, and the
+       *  seats it will take there. */
       readonly boardsOn?: string;
+      readonly boardNeed?: number;
+      /** **Joining one of my piles**: `formed` when it stood alone — the squad is born. */
+      readonly join?: { readonly formed: boolean; readonly pieces: number };
     }
   | {
       readonly key: 'build';
@@ -468,6 +472,8 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly carrierId: string;
+      /** The seats the hand takes in it: its tag shows them, ghosted (POC). */
+      readonly need: number;
     }
   /**
    * **Bombarder** (B20, lot 6b) : sur-le-champ, comme embarquer — aucune colonne ne part, la pièce
@@ -512,11 +518,6 @@ export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'plunder' ||
   action.key === 'capture' ||
   action.key === 'collect';
-
-/** **Ce qui fait d'une étiquette une destination de la colonne armée** : un ordre, ou un
- *  embarquement — les deux se cerclent sur la carte et se listent sous le pouce. */
-export const isDestinationAction = (action: CompassAction): boolean =>
-  isOrder(action) || action.key === 'board' || action.key === 'bombard';
 
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
@@ -1469,6 +1470,7 @@ function boardingAt(
           cost: fr.compass.boardNow,
           consequence: places,
           carrierId: fit.carrier.id,
+          need: needed,
         },
       ],
       refusal: null,
@@ -1497,6 +1499,7 @@ function boardingAt(
         pictogram: 'anchor',
         consequence: `${fr.compass.boardOnArrival} ${places}`,
         boardsOn: fit.carrier.id,
+        boardNeed: needed,
       },
     ],
     refusal: null,
@@ -1529,11 +1532,21 @@ function towardsMyPile(
   };
   const onto = boardingAt(station, aimed, target.name, view, column, heldTroopIds);
   const fan = fanOf(target.name, view, column, [aimed]);
+  const there = view.me.troops.filter(
+    (troop) => stationKeyOf(troop.stationedAt) === stationKeyOf(station),
+  ).length;
   const join =
     column.blitz === undefined
       ? fan.actions.flatMap((action) =>
           action.key === 'aim' && action.type === 'march'
-            ? [{ ...action, label: fr.compass.join, consequence: fr.compass.joinConsequence }]
+            ? [
+                {
+                  ...action,
+                  label: fr.compass.join,
+                  consequence: fr.compass.joinConsequence,
+                  join: { formed: there === 1, pieces: there + heldTroopIds.length },
+                },
+              ]
             : [],
         )
       : [];

@@ -84,13 +84,12 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
-import { cargoTagsOf } from '@/domain/cargo-tag';
+import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { boardingRefusalDetails, boardingRefusalOf, type Column } from '@/domain/movement-orders';
 import {
-  PREVIEW_ARC_ID,
   type ArcView,
   type CombatReport,
   type JournalDispatch,
@@ -116,7 +115,7 @@ import {
   type MarchStation,
 } from '@/domain/troops';
 import { fireReachOf, firesIndirect } from '@/domain/indirect-fire';
-import { pilePlace, placeLabel, stationNames, type RegionAt } from '@/domain/station-name';
+import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
@@ -1724,6 +1723,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
   );
 
+  /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
+   *  held, and their tags open on their seats. */
+  const availablePiles = useMemo((): ReadonlyArray<string> => {
+    if (hand.kind !== 'held') return [];
+    const held = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
+    const piles = new Map<string, { station: TroopStation; troops: TroopView[] }>();
+    for (const troop of view.me.troops) {
+      if (marching.has(troop.id) || hand.troopIds.includes(troop.id)) continue;
+      const key = stationKeyOf(troop.stationedAt);
+      const pile = piles.get(key);
+      if (pile === undefined) piles.set(key, { station: troop.stationedAt, troops: [troop] });
+      else pile.troops.push(troop);
+    }
+    return [...piles.values()].flatMap(({ station, troops }) =>
+      carriersFor(held, troops).length === 0
+        ? []
+        : [station.kind === 'point' ? stackLabelId(station) : stationKeyOf(station)],
+    );
+  }, [hand, view.me.troops, marching]);
   /** **Le signe d'embarquement**, sous le pointeur, sur un transport de la même adresse — les
    *  places d'après, ou le motif. Ailleurs, la rose le dit (`undefined`). */
   const dropHintOf = useCallback(
@@ -1733,7 +1751,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const { pile } = unitsAt(click.station);
       const drop = dropOn(hand, click, pile);
       if (drop.kind === 'pose') return undefined;
-      if (drop.kind === 'putBack') return null;
+      if (drop.kind === 'putBack')
+        return { icon: '↺', tone: 'calm', verb: fr.drop.putBack, detail: fr.drop.putBackDetail };
       const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
       const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
       const station = click.station;
@@ -1749,15 +1768,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const refusal = boardingRefusalOf(boarding);
       const { needed, offered } = boardingRefusalDetails(boarding);
       const seats = seatsOf(carrier.role);
-      return {
-        title: fr.compass.boardOnto(fr.compass.transports([carrier.role])),
-        detail:
-          refusal === null
-            ? fr.compass.boardPlaces(seats - offered + needed, seats)
-            : fr.errors[refusal](boardingRefusalDetails(boarding)),
-        boards: true,
-        refused: refusal !== null,
-      };
+      const seated = { carrierId: carrier.id, need: needed, fits: refusal === null };
+      return refusal === null
+        ? {
+            boarding: seated,
+            icon: '⤓',
+            tone: 'order',
+            verb: fr.drop.verbs.board,
+            detail: `${fr.compass.transports([carrier.role])} · ${fr.compass.boardPlaces(seats - offered + needed, seats)}`,
+          }
+        : {
+            boarding: seated,
+            icon: '✕',
+            tone: 'refused',
+            verb: fr.drop.boardRefused,
+            detail: fr.errors[refusal](boardingRefusalDetails(boarding)),
+          };
     },
     [clickOfFrom, hand, unitsAt, view.me.buildings],
   );
@@ -2167,23 +2193,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [resting, preview],
   );
 
-  /**
-   * **The aimed arc is the route the server just computed**, drawn with the board's own thread
-   * and nothing else — never a great-circle approximation laid on top. It joins the arcs of the
-   * movements in flight in the same list, so it inherits the same stroke, the same pawn, the
-   * same everything.
-   */
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
-  const arcs = useMemo<ReadonlyArray<ArcView>>(
+  /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc
+   *  nor pawn any more, only the ochre band to the point aimed at. */
+  const aimRoute = useMemo(
     () =>
       column === null || aimed === null || !preview
-        ? view.arcs
-        : [...view.arcs, previewArc(column, aimed, preview)],
-    [view.arcs, column, aimed, preview],
+        ? null
+        : preview.route.points.map((point) => [point.lon, point.lat] as LonLat),
+    [column, aimed, preview],
   );
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
@@ -2312,7 +2334,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             <WorldMap
               blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}
-              arcs={arcs}
+              arcs={view.arcs}
               troops={view.me.troops}
               journal={view.journal}
               labels={labels}
@@ -2365,6 +2387,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCompassAction={actOnCompass}
               onDropRefused={dropHand}
               dropNotes={dropNotes}
+              aimRoute={aimRoute}
+              availablePiles={availablePiles}
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               building={buildingSite !== null}
@@ -2376,7 +2400,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
-              showDestinations
               covered={narrow && windows.length > 0}
               reveal={reveal}
               replay={replay}
@@ -3042,63 +3065,6 @@ function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troop
         ),
       ),
     },
-  };
-}
-
-/**
- * The aimed arc, in the `mine` state because it is the player's own: it carries a type and a
- * stack, and the union makes that the only thing it can be. It is a preview and nothing on the
- * board treats it otherwise — it disappears with the card that describes it.
- */
-function previewArc(
-  column: ArmedColumn,
-  order: OrderChoice,
-  preview: NonNullable<Previewed>,
-): ArcView {
-  const points = preview.route.points.map((point) => [point.lon, point.lat] as LonLat);
-  return {
-    state: 'mine',
-    id: PREVIEW_ARC_ID,
-    from: points[0] ?? [0, 0],
-    to: points[points.length - 1] ?? [0, 0],
-    route: {
-      mode: preview.route.mode,
-      points,
-      distanceUnits: preview.route.distanceUnits,
-      costUnits: preview.route.costUnits,
-      landCost: preview.route.landCost,
-      legs: preview.route.legs,
-    },
-    originCountry: '',
-    /** A point belongs to nobody until the arrival says otherwise — the arc stays neutral. */
-    destinationCountry:
-      order.aim.kind === 'region'
-        ? order.aim.country
-        : order.aim.kind === 'outpost'
-          ? order.aim.hostCountry
-          : '',
-    originLabel: placeLabel(preview.originName),
-    destinationLabel: placeLabel(preview.destinationName),
-    type: order.type,
-    stack: column.rule.roles.reduce<Record<string, number>>(
-      (counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }),
-      {},
-    ),
-    troopIds: column.troopIds,
-    /**
-     * **Nothing has left**: the pawn sits at the barracks and the thread is entirely ahead. The
-     * duration of the trip is not written here on purpose — the map walks a column against its
-     * own clock from exactly this pair (`paceOf`, `map/engine/arcs.ts`), and a preview carrying
-     * a real countdown would crawl off the barracks while the player is still deciding. What the
-     * trip costs is read on the aiming card, from `preview.minutes`, which is the only place it
-     * means anything before the slot is spent.
-     */
-    minutesLeft: 0,
-    borderWait:
-      preview.holdUntil === null
-        ? null
-        : { resolutionInMinutes: Math.max(0, (preview.holdUntil - Date.now()) / 60_000) },
-    progress: 0,
   };
 }
 

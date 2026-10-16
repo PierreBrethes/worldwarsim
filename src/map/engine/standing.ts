@@ -35,8 +35,10 @@ import {
   type Figurine,
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
-import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
-import { ARC_COLORS, PALETTE } from './palette';
+import { InkRing, type RingState } from './ink-ring';
+import { playTableSound } from '../table-sound';
+import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
+import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, footedHit, nearer, type PieceHit } from './piece-pick';
 
@@ -205,6 +207,9 @@ export function pileObject(
   seaward: readonly [number, number] | null = null,
 ): {
   object: Group;
+  /** Where its pieces stand round, and half their width and depth: its ring is drawn there. */
+  center: { readonly x: number; readonly z: number };
+  extent: { readonly x: number; readonly z: number };
   ready: Promise<unknown>;
   smokes: ReadonlyArray<Smoke>;
   targets: ReadonlyArray<Mesh>;
@@ -250,8 +255,20 @@ export function pileObject(
     );
   });
   if (pieces.squad) object.add(squadMarks(layout, nation));
+  const margin = GROUP_SPACING * 0.62;
+  const xs = layout.map(({ x }) => x);
+  const zs = layout.map(({ z }) => z);
   return {
     object,
+    // A pile on a shore stands inland of its point (`formationOf`): its ring is round its pieces.
+    center: {
+      x: (Math.min(...xs) + Math.max(...xs)) / 2,
+      z: (Math.min(...zs) + Math.max(...zs)) / 2,
+    },
+    extent: {
+      x: (Math.max(...xs) - Math.min(...xs)) / 2 + margin,
+      z: (Math.max(...zs) - Math.min(...zs)) / 2 + margin,
+    },
     ready: Promise.all(figurines.map((figurine) => figurine.ready)),
     smokes,
     targets,
@@ -341,6 +358,9 @@ type Dressed = {
   ready: boolean;
   readonly smokes: ReadonlyArray<Smoke>;
   readonly targets: ReadonlyArray<Mesh>;
+  /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
+  readonly ring: InkRing;
+  readonly extent: { readonly x: number; readonly z: number };
 };
 
 /** A piece in hand: the pile it was lifted from, and the troops lifted (ADR 0026 §6). */
@@ -369,7 +389,8 @@ export function washedOf(material: Material): Material {
  *  `userData.unwashed` until it is put back — the same file elsewhere stays whole. */
 function wash(object: Object3D, washed: boolean): void {
   object.traverse((part) => {
-    if (!(part instanceof Mesh) || part.userData.grip !== undefined) return;
+    if (!(part instanceof Mesh) || part.userData.grip !== undefined || part instanceof InkRing)
+      return;
     const kept = part.userData.unwashed as Mesh['material'] | undefined;
     if (!washed) {
       if (kept === undefined) return;
@@ -411,6 +432,8 @@ type Carried = {
   /** The ring on the ground where it would land, and the line that drops to it. */
   readonly marks: Marks;
   readonly width: number;
+  /** Half its width and depth (`pileObject`): what its reticle and its rings are sized by. */
+  readonly radius: number;
   pointer: Vector3 | null;
   lift: number;
   drag: { x: number; z: number };
@@ -426,20 +449,26 @@ type Carried = {
     /** **A refused drop** shakes its head where it was let go before it goes. */
     readonly refused: boolean;
   } | null;
+  /** **Sent** (POC, `settle`): it waits where it was let go, pale, in a turning ochre ring. */
+  settled: number | null;
+  /** The pile it was set down on: sent, it flies into it rather than waiting (POC, `absorb`). */
+  onto: string | null;
 };
 
 type Marks = {
-  readonly reticle: Mesh<RingGeometry, MeshBasicMaterial>;
+  readonly reticle: InkRing;
   readonly plumb: Line<BufferGeometry, LineDashedMaterial>;
 };
 
-/** The ring reads the drop: mine where an order would leave, the alarm where it is refused. */
-const RETICLE_INK = {
-  order: ARC_COLORS.mine.trace,
-  refused: ARC_COLORS.enemyDetected.progress,
-  none: PALETTE.border,
-} as const;
-export type DropVerdict = keyof typeof RETICLE_INK;
+/** The reticle reads the drop (POC): ochre where an order would leave, red to a fight, red and
+ *  dashed where it is refused, none where the piece would only go back. */
+const RETICLE: Readonly<Record<DropVerdict, RingState | null>> = {
+  order: 'aim',
+  fight: 'aimFight',
+  refused: 'aimRefused',
+  none: null,
+};
+export type DropVerdict = 'order' | 'fight' | 'refused' | 'none';
 /** The prototype's head shake: five half-turns over 0.28 s, fading. */
 const SHAKE_S = 0.28;
 const SHAKE_TURN = 0.22;
@@ -447,17 +476,8 @@ const SHAKE_TURN = 0.22;
 const REFUSAL_MS = 1000;
 const RETICLE_LIFT = 0.006;
 
-function carriedMarks(width: number): Marks {
-  const reticle = new Mesh(
-    new RingGeometry(0.44 * width, 0.49 * width, 48),
-    new MeshBasicMaterial({
-      color: RETICLE_INK.none,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    }),
-  );
-  reticle.rotation.x = -Math.PI / 2;
+function carriedMarks(): Marks {
+  const reticle = new InkRing();
   reticle.position.y = RETICLE_LIFT;
   const plumb = new Line(
     new BufferGeometry().setFromPoints([new Vector3(0, 0, 0), new Vector3(0, 1, 0)]),
@@ -472,6 +492,17 @@ function carriedMarks(width: number): Marks {
   plumb.computeLineDistances();
   return { reticle, plumb };
 }
+
+/** The prototype's lift (`startCarry`): a stretch upward that settles, as if off the felt. */
+const STRETCH_S = 0.4;
+/** Over a target the copy hangs higher (`lift + 0.7` of the prototype's 1.6) and hops once. */
+const OVER_TARGET = 0.44;
+const HOP = (0.35 / 1.6) * CARRIED_LIFT;
+/** Sent, the pale copy waits this long at its destination, then fades out. */
+const SETTLED_S = 2.4;
+const UNSETTLE_S = 0.35;
+/** The prototype's squash where a piece lands (`settle`). */
+const SQUASH_S = 0.3;
 
 /** A boarding is announced before the hand empties: past this, the next putting back is one. */
 const BOARDING_MS = 3000;
@@ -509,10 +540,10 @@ function discard(carried: Carried): void {
   carried.object.removeFromParent();
   for (const material of carried.shadow.materials) material.dispose();
   const { reticle, plumb } = carried.marks;
-  for (const mark of [reticle, plumb]) {
-    mark.geometry.dispose();
-    mark.material.dispose();
-  }
+  // The reticle's plane is every ring's: only its own material goes.
+  reticle.material.dispose();
+  plumb.geometry.dispose();
+  plumb.material.dispose();
 }
 
 /** The held pieces only: a troop taken out of its squad is carried alone, no outline. */
@@ -552,11 +583,27 @@ export class StandingLayer {
   private dressed = new Map<string, Dressed>();
   private held: PieceHold | null = null;
   motion: MapMotion = 'full';
+  /** Where a target that is not a pile lies — an enemy camp: sent there, the copy flies in. */
+  elsewhere: (id: string) => Vector3 | null = () => null;
   /** The copy of what is in hand; `null` when the pile is not dressed. */
   private carried: Carried | null = null;
   /** A refusal announced, waiting for the hand to empty (`refuseDrop`). */
   private refusal: number | null = null;
   private verdict: DropVerdict = 'none';
+  /** What each pile is to the hand (`setRings`): hovered, in hand, aimed at, a free seat. */
+  private rings: ReadonlyMap<string, RingState> = new Map();
+  /** The pile the drop is read on, whose own ring answers: no reticle under the hand. */
+  private aimed: string | null = null;
+  private hopSince = 0;
+  /** Sent copies waiting at their destination (POC, `settle`). */
+  private settling: Carried[] = [];
+  /** Ripples of ink and puffs of dust, each on its own clock. */
+  private effects: {
+    readonly since: number;
+    readonly seconds: number;
+    readonly step: (k: number) => void;
+    readonly end: () => void;
+  }[] = [];
   /** A boarding announced, waiting for the hand to empty (`boardInto`). */
   private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
@@ -583,6 +630,18 @@ export class StandingLayer {
     for (const pile of piles) {
       const key = drawnKey(this.nation, pile.pieces);
       const kept = this.dressed.get(pile.id);
+      // A pile grown under the eyes is a squad formed or joined (POC, `merge`).
+      if (
+        kept?.ready === true &&
+        kept.object.visible &&
+        pile.pieces.troopIds.length > kept.pieces.troopIds.length
+      ) {
+        playTableSound('merge');
+        const scale = kept.object.scale.x;
+        const at = kept.ring.getWorldPosition(new Vector3());
+        this.ripple(at, (Math.max(kept.extent.x, kept.extent.z) + 0.1) * scale, true);
+        this.dust(at, 8, 0.8, scale);
+      }
       if (kept?.key === key) {
         kept.at = pile.at;
         kept.pieces = pile.pieces;
@@ -598,6 +657,9 @@ export class StandingLayer {
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
+      const ring = new InkRing();
+      ring.position.set(built.center.x, RETICLE_LIFT, built.center.z);
+      built.object.add(ring);
       const entry: Dressed = {
         key,
         at: pile.at,
@@ -606,6 +668,12 @@ export class StandingLayer {
         ready: false,
         smokes: built.smokes,
         targets: built.targets,
+        ring,
+        // Round a squad, outside its dashed outline.
+        extent: {
+          x: built.extent.x + (pile.pieces.squad ? 0.08 : 0.02),
+          z: built.extent.z + (pile.pieces.squad ? 0.08 : 0.02),
+        },
       };
       next.set(pile.id, entry);
       // A model that fails to load leaves the pile in its plate.
@@ -621,7 +689,10 @@ export class StandingLayer {
         () => {},
       );
     }
-    for (const gone of this.dressed.values()) gone.object.removeFromParent();
+    for (const gone of this.dressed.values()) {
+      gone.object.removeFromParent();
+      gone.ring.material.dispose();
+    }
     this.dressed = next;
     this.rebuild();
   }
@@ -654,7 +725,11 @@ export class StandingLayer {
         copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
     }
     if (copy !== null) return { ...copy.pick, distance: copy.distance, carried: true };
-    let best: { distance: number; pick: PieceHold & { squad: boolean } } | null = null;
+    type Hit = { distance: number; pick: PieceHold & { squad: boolean } };
+    let best: Hit | null = null;
+    // Under the hand, the pile it came from is only what nothing else is (POC, `exclude`): its
+    // pale home in front of a pile must not take the drop meant for it.
+    let home: Hit | null = null;
     for (const [pileId, entry] of this.dressed) {
       if (!entry.ready || !entry.object.visible) continue;
       let distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
@@ -666,10 +741,12 @@ export class StandingLayer {
         if (distance !== undefined)
           troopIds = nearestGroup(ray.ray.at(distance, new Vector3()), entry.targets, entry.pieces);
       }
-      if (distance === undefined || (best !== null && best.distance <= distance)) continue;
-      if (troopIds !== null)
-        best = { distance, pick: { pileId, troopIds, squad: entry.pieces.squad } };
+      if (distance === undefined || troopIds === null) continue;
+      const hit = { distance, pick: { pileId, troopIds, squad: entry.pieces.squad } };
+      if (under && pileId === this.held?.pileId) home = hit;
+      else if (best === null || distance < best.distance) best = hit;
     }
+    best ??= home;
     return best === null ? null : { ...best.pick, distance: best.distance };
   }
 
@@ -715,16 +792,40 @@ export class StandingLayer {
     const refused = this.refusal !== null && released - this.refusal < REFUSAL_MS;
     this.refusal = null;
     this.verdict = 'none';
-    if (lifted !== null && held === null && !sent && this.motion !== 'off') {
+    // The wood under the hand (POC): lifted, let go on an order, put back. A boarding and a
+    // refusal were heard as they were told (`boardInto`, the engine's `refuseDrop`).
+    if (held !== null && previous?.pileId !== held.pileId) {
+      playTableSound('lift');
+      const foot = this.footOf(held.pileId);
+      if (foot !== null) {
+        this.ripple(foot.at, foot.radius * 0.9);
+        this.dust(foot.at, 3, 0.5, foot.scale);
+      }
+    }
+    if (held === null && previous !== null && into === null && !refused && !sent)
+      playTableSound('whoosh');
+    // Sent onto a pile, the copy flies into it (POC, `absorb`); elsewhere it waits there, pale.
+    const onto = lifted?.onto ?? null;
+    const absorbed = sent && onto !== null ? (this.footOf(onto)?.at ?? this.elsewhere(onto)) : null;
+    if (lifted !== null && held === null && (!sent || absorbed !== null) && this.motion !== 'off') {
       lifted.back = {
         from: lifted.object.position.clone(),
         since: released,
         carried: lifted.lift,
-        into,
+        into: into ?? absorbed,
         refused: refused && into === null && this.motion === 'full',
       };
       lifted.down = null;
       this.leaving = lifted;
+    } else if (lifted !== null && held === null && sent && this.motion === 'full') {
+      lifted.settled = released;
+      lifted.pointer = null;
+      wash(lifted.piece, true);
+      this.settling.push(lifted);
+      if (previous !== null) {
+        const entry = this.dressed.get(previous.pileId);
+        if (entry) wash(entry.object, false);
+      }
     } else {
       if (lifted !== null) discard(lifted);
       if (previous !== null) {
@@ -733,7 +834,10 @@ export class StandingLayer {
       }
     }
     this.held = held;
-    if (held === null) return;
+    if (held === null) {
+      this.aimed = null;
+      return;
+    }
     const entry = this.dressed.get(held.pileId);
     if (entry === undefined) return;
     if (entry.ready) wash(entry.object, true);
@@ -748,7 +852,7 @@ export class StandingLayer {
     piece.add(copy.object);
     const shadow = carriedShadow();
     const width = Math.max(1, 0.6 * heldPieces(entry.pieces, held.troopIds).groups.length);
-    const marks = carriedMarks(width);
+    const marks = carriedMarks();
     const object = new Group();
     object.add(piece, shadow.object, marks.reticle, marks.plumb);
     object.position.copy(entry.object.position);
@@ -764,6 +868,7 @@ export class StandingLayer {
       shadow,
       marks,
       width,
+      radius: Math.max(copy.extent.x, copy.extent.z),
       pointer: null,
       lift: this.motion === 'full' ? 0 : CARRIED_LIFT,
       drag: { x: 0, z: 0 },
@@ -771,6 +876,8 @@ export class StandingLayer {
       clock: now,
       down: null,
       back: null,
+      settled: null,
+      onto: null,
     };
     this.carried = carried;
     copy.ready.then(
@@ -796,7 +903,79 @@ export class StandingLayer {
       (carried.down === null
         ? carried.pointer !== null
         : (performance.now() - carried.down.since) / 1000 < DROP_DONE + SETTLE_TAIL);
-    return moving || this.leaving !== null;
+    return moving || this.leaving !== null || this.settling.length > 0 || this.effects.length > 0;
+  }
+
+  /** **The rings round the piles** (POC, `ringStyle`), by pile; a pile left out has none. */
+  setRings(rings: ReadonlyMap<string, RingState>, aimed: string | null = null): void {
+    this.rings = rings;
+    // The copy hops as the hand comes over a target (POC, `bump`).
+    if (aimed !== null && aimed !== this.aimed) this.hopSince = performance.now();
+    this.aimed = aimed;
+  }
+
+  /** **A ring of ink spreads where a piece touches down** (POC, `ripple`). */
+  private ripple(at: Vector3, radius: number, ochre = false): void {
+    if (this.motion !== 'full') return;
+    const ring = new InkRing();
+    ring.position.set(at.x, at.y + RETICLE_LIFT, at.z);
+    this.group.add(ring);
+    this.effects.push({
+      since: performance.now(),
+      seconds: 0.55,
+      step: (k) => {
+        const e = 1 - (1 - k) ** 3;
+        ring.style(ochre ? 'rippleOchre' : 'ripple', 0, true);
+        ring.opacity = 0.55 * (1 - e);
+        ring.scale.setScalar(radius * (0.8 + 1.4 * e));
+      },
+      end: () => {
+        ring.material.dispose();
+        ring.removeFromParent();
+      },
+    });
+  }
+
+  /** **A puff of dust** where a piece leaves or lands (POC, `emit('dust')`), `size` in its units. */
+  private dust(at: Vector3, count: number, size: number, scale: number): void {
+    if (this.motion !== 'full') return;
+    const grain = size * PROTOTYPE_UNIT * scale;
+    const burst = new DustBurst(count, grain);
+    burst.object.position.set(at.x, at.y + 0.2 * PROTOTYPE_UNIT * scale, at.z);
+    this.group.add(burst.object);
+    this.effects.push({
+      since: performance.now(),
+      seconds: 1.2,
+      step: (k) => burst.step(k * 1.2, grain),
+      end: () => burst.dispose(),
+    });
+  }
+
+  /** Where a pile stands, and how big it is drawn: what a ripple round it is sized by. */
+  private footOf(pileId: string): { at: Vector3; radius: number; scale: number } | null {
+    const entry = this.dressed.get(pileId);
+    if (entry === undefined || !entry.ready) return null;
+    const scale = entry.object.scale.x;
+    return {
+      at: entry.ring.getWorldPosition(new Vector3()),
+      radius: Math.max(entry.extent.x, entry.extent.z) * scale,
+      scale,
+    };
+  }
+
+  /** The pile a label stands for: a pile's own, or the garrison at a mast's foot. */
+  pileOfLabel(labelId: string): string | null {
+    if (this.dressed.has(labelId)) return labelId;
+    for (const [id, { at }] of this.dressed) if ('beside' in at && at.beside === labelId) return id;
+    return null;
+  }
+
+  /** A ring turns or pulses: the frames must keep coming. */
+  get ringing(): boolean {
+    if (this.motion !== 'full') return false;
+    for (const { ring, object } of this.dressed.values())
+      if (ring.moving && object.visible) return true;
+    return false;
   }
 
   /** The ground under the pointer, `null` off the board or under a finger. */
@@ -812,6 +991,11 @@ export class StandingLayer {
     // Set down again elsewhere, it is taken up first: it drops from the carried height.
     const from = carried.down === null ? carried.lift : CARRIED_LIFT;
     carried.down = { at: at.clone(), since: performance.now(), from };
+    carried.onto = this.aimed;
+    playTableSound('drop');
+    const scale = carried.object.scale.x;
+    this.ripple(at, carried.radius * scale);
+    this.dust(at, 5, 0.7, scale);
   }
 
   /** The copy on its way home is done with: it goes, and the pile it left is whole again. */
@@ -854,8 +1038,23 @@ export class StandingLayer {
       hover(object);
     }
     const now = performance.now();
+    for (const [id, { ring, extent }] of this.dressed) {
+      ring.style(this.rings.get(id) ?? null, now / 1000, this.motion !== 'full');
+      const beat = ring.beat;
+      ring.scale.set(extent.x * beat, 1, extent.z * beat);
+    }
     if (this.leaving !== null) this.orientCarried(this.leaving, cameraPosition, now);
     if (this.carried !== null) this.orientCarried(this.carried, cameraPosition, now);
+    for (const settled of [...this.settling]) this.orientCarried(settled, cameraPosition, now);
+    this.effects = this.effects.filter((effect) => {
+      const k = (now - effect.since) / 1000 / effect.seconds;
+      if (k < 1) {
+        effect.step(k);
+        return true;
+      }
+      effect.end();
+      return false;
+    });
   }
 
   /** Its time in seconds since `since`, or past every animation when motion is not full. */
@@ -873,10 +1072,38 @@ export class StandingLayer {
     let tilt = { x: 0, z: 0 };
     let turn = 0;
     let shrink = 1;
+    let squash = 0;
+    if (carried.settled !== null) {
+      const t = this.seconds(carried.settled, now);
+      carried.lift = 0;
+      if (t < SQUASH_S) squash = Math.sin(Math.PI * (t / SQUASH_S));
+      const fading = Math.min(1, Math.max(0, (t - SETTLED_S) / UNSETTLE_S));
+      const { reticle } = carried.marks;
+      reticle.style('settled', now / 1000, !full);
+      reticle.opacity = 0.9 * (1 - fading);
+      reticle.scale.setScalar(1.05 * carried.radius);
+      piece.visible = fading < 1;
+      piece.scale.set(1 + 0.1 * squash, 1 - 0.16 * squash, 1 + 0.1 * squash);
+      piece.position.y = 0;
+      carried.shadow.object.visible = false;
+      carried.marks.plumb.visible = false;
+      object.visible = near > 0;
+      object.scale.setScalar(scale);
+      if (fading >= 1) {
+        this.settling = this.settling.filter((each) => each !== carried);
+        discard(carried);
+      }
+      return;
+    }
     if (back !== null) {
       const shaking = back.refused ? SHAKE_S : 0;
       const t = this.seconds(back.since, now) - shaking;
       if (t >= RETURN_DONE) {
+        if (back.into === null) {
+          playTableSound('drop');
+          const foot = this.footOf(carried.pileId);
+          if (foot !== null) this.ripple(foot.at, foot.radius * 0.8);
+        }
         this.dropLeaving();
         return;
       }
@@ -897,7 +1124,8 @@ export class StandingLayer {
     } else if (carried.pointer !== null) {
       const gap = carried.pointer.clone().sub(object.position);
       object.position.addScaledVector(gap, full ? followShare(dt, 14) : 1);
-      carried.lift += (CARRIED_LIFT - carried.lift) * (full ? followShare(dt, 12) : 1);
+      const goal = CARRIED_LIFT * (this.aimed !== null ? 1 + OVER_TARGET : 1);
+      carried.lift += (goal - carried.lift) * (full ? followShare(dt, 12) : 1);
       // The prototype leans 0.012 a unit of lag; its unit is ours over PROTOTYPE_UNIT.
       const lean = 0.012 / PROTOTYPE_UNIT / Math.max(scale, 1e-3);
       carried.drag = { x: gap.x * lean, z: gap.z * lean };
@@ -905,7 +1133,16 @@ export class StandingLayer {
       // The prototype's tremble: a piece over where it cannot go does not hang still.
       if (full && this.verdict === 'refused') turn = Math.sin((now / 1000) * 30) * 0.03;
     }
-    piece.position.y = carried.lift;
+    // Picked up, a stretch that settles; over a new target, one hop (POC, `startCarry`, `bump`).
+    const lifted = full && back === null && down === null ? (now - carried.since) / 1000 : Infinity;
+    const stretch =
+      lifted < STRETCH_S ? Math.sin(Math.PI * (lifted / STRETCH_S)) * (1 - lifted / STRETCH_S) : 0;
+    piece.scale.set(1 - 0.08 * stretch, 1 + 0.16 * stretch, 1 - 0.08 * stretch);
+    const hopping =
+      full && back === null && down === null && this.aimed !== null
+        ? Math.exp(((this.hopSince - now) / 1000) * 7)
+        : 0;
+    piece.position.y = carried.lift + Math.sin(hopping * Math.PI) * HOP;
     piece.rotation.set(tilt.x, turn, tilt.z);
     this.orientMarks(carried, now);
     // The prototype's blob: `radius × (0.8 + h × 0.3)`, `0.42 − h × 0.1`, h in its units.
@@ -923,12 +1160,25 @@ export class StandingLayer {
   private orientMarks(carried: Carried, now: number): void {
     const { reticle, plumb } = carried.marks;
     const reading = carried.pointer !== null && carried.down === null && carried.back === null;
-    reticle.visible = plumb.visible = reading;
+    plumb.visible = reading;
+    reticle.style(
+      reading && this.aimed === null ? RETICLE[this.verdict] : null,
+      now / 1000,
+      this.motion !== 'full',
+    );
     if (!reading) return;
-    reticle.material.color.set(RETICLE_INK[this.verdict]);
     const pulse = this.motion === 'full' ? 1 + 0.06 * Math.sin((now / 1000) * 8) : 1;
-    reticle.scale.setScalar(pulse);
+    reticle.scale.setScalar(0.95 * carried.radius * pulse);
     plumb.scale.y = Math.max(carried.lift, 1e-3);
+  }
+
+  /** **Where the piece in hand comes from, and where it would land**, while the drop is read:
+   *  the road the hand draws (`AimRibbon`). `null` set down, put back, or undressed. */
+  get reading(): { readonly from: Vector3; readonly to: Vector3 } | null {
+    const carried = this.carried;
+    if (carried === null || carried.pointer === null || carried.down !== null) return null;
+    const home = this.dressed.get(carried.pileId);
+    return home?.ready === true ? { from: home.object.position, to: carried.pointer } : null;
   }
 
   /** **What the drop would do here** (`DropHint`'s reading), told to the ring under the piece. */
@@ -943,6 +1193,7 @@ export class StandingLayer {
 
   /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away. */
   boardInto(at: Vector3): void {
+    playTableSound('board');
     this.boarding = { at, since: performance.now() };
   }
 
@@ -951,6 +1202,10 @@ export class StandingLayer {
     this.dropLeaving();
     if (this.carried !== null) discard(this.carried);
     this.carried = null;
+    for (const settled of this.settling) discard(settled);
+    this.settling = [];
+    for (const effect of this.effects) effect.end();
+    this.effects = [];
     this.group.removeFromParent();
   }
 }

@@ -10,8 +10,10 @@ import {
   MAX_HUD_SCALE,
   MIN_HUD_SCALE,
   keepHudScale,
+  keepTableSound,
   keepTelegraphSound,
   readHudScale,
+  tableSoundOn,
   telegraphSoundOn,
 } from '@/data/settings';
 import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
@@ -58,6 +60,7 @@ export function SettingsWindow({
 }) {
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
+  const [tableSound, setTableSound] = useState(tableSoundOn);
   const mapping = useMouseMapping();
   const mapMotion = useMapMotionSetting();
   const dayCycle = useDayCycle();
@@ -200,6 +203,31 @@ export function SettingsWindow({
               }
             >
               {fr.settingsWindow.soundState(sound)}
+            </button>
+          </div>
+          <div className="mt-[14px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="min-w-[180px] flex-1">
+              <div className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.tableSoundLabel}
+              </div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.tableSoundNote}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-pressed={tableSound}
+              onClick={() => {
+                setTableSound(!tableSound);
+                keepTableSound(!tableSound);
+              }}
+              className={
+                tableSound
+                  ? 'shrink-0 cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--paper)] uppercase'
+                  : 'shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]'
+              }
+            >
+              {fr.settingsWindow.soundState(tableSound)}
             </button>
           </div>
 

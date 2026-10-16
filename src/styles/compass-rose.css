@@ -349,3 +349,83 @@
   border-color: var(--held-ink);
   color: var(--held-ink);
 }
+
+/* **The chip under the hand** (POC « Manipuler les pions », `#hint`): what letting go here would
+   do. The engine places it at the pointer, without going back through React. */
+.drop-chip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popin);
+  pointer-events: none;
+  min-width: 168px;
+  max-width: 280px;
+  padding: 8px 11px 9px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 1px 8px;
+  align-items: center;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  transition: border-color 0.15s;
+  will-change: transform;
+}
+.drop-chip-icon {
+  grid-row: 1 / span 2;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 700 13px/1 var(--font-body);
+  color: var(--paper);
+  background: var(--arc-mine);
+  animation: drop-chip-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes drop-chip-pop {
+  from {
+    transform: scale(1.4);
+  }
+}
+.drop-chip-verb {
+  font: 700 16px/1.05 var(--font-display);
+}
+.drop-chip-detail {
+  grid-column: 2;
+  font: 500 11px/1.25 var(--font-mono);
+  color: var(--ink-soft);
+}
+.drop-chip-detail--alarm {
+  color: var(--critical);
+}
+.drop-chip-keys {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px dotted rgb(42 33 24 / 30%);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.drop-chip--refused {
+  border-color: var(--critical);
+}
+.drop-chip--refused .drop-chip-icon,
+.drop-chip--fight .drop-chip-icon {
+  background: var(--critical);
+}
+.drop-chip--refused .drop-chip-verb {
+  color: var(--critical);
+}
+.drop-chip--calm .drop-chip-icon {
+  background: var(--ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-chip-icon {
+    animation: none;
+  }
+}
