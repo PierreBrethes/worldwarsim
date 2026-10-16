@@ -51,7 +51,13 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { DropHintChip, hintOfReading, type DropHint, type PieceFrom } from './DropHint';
+import {
+  DropHintChip,
+  hintOfReading,
+  type DropHint,
+  type DropNote,
+  type PieceFrom,
+} from './DropHint';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import {
   DETACH_MS,
@@ -231,6 +237,10 @@ type Props = {
   /** **Une pièce posée là où rien ne la prend rentre chez elle** : la pastille l'a déjà dit en
    *  rouge, il n'y a pas de rose à ouvrir sur un refus. */
   onDropRefused?: () => void;
+  /** L'arrivée lue au pointeur arrêté, que la pastille porte sous son verbe. */
+  dropNotes?: ReadonlyArray<DropNote>;
+  /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
+  onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
@@ -340,6 +350,8 @@ export function WorldMap({
   fingerRose = null,
   showDestinations = false,
   onDropRefused,
+  dropNotes,
+  onCarryEnd,
   onDisembark,
   covered = false,
   reveal = null,
@@ -431,6 +443,8 @@ export function WorldMap({
    */
   const choice = useRef({ signature: '', index: 0 });
   const reading = useRef<DropReading | null>(null);
+  /** Un lâcher de glisser, et non le clic d'une pièce levée : seul le premier rentre au refus. */
+  const dragging = useRef(false);
   const chosenOf = useCallback((verbs: ReadonlyArray<CompassAction>): number => {
     const signature = verbs.map((verb) => `${verb.key}:${verb.label}`).join('|');
     if (choice.current.signature !== signature) choice.current = { signature, index: 0 };
@@ -466,8 +480,9 @@ export function WorldMap({
       let drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (rect === undefined) return;
+      const fromDrag = aiming && dragging.current;
       if (drawn === null) {
-        if (aiming) onDropRefused?.();
+        if (fromDrag) onDropRefused?.();
         return;
       }
       const at = { x: clientX - rect.left, y: clientY - rect.top };
@@ -479,14 +494,15 @@ export function WorldMap({
       /** **Lâcher, c'est ordonner** (POC « Manipuler les pions », 16/10) : le verbe que la
        *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
        *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
-      if (aiming) {
-        const reading = dropReadingOf(drawn);
-        if (reading.kind !== 'orders') {
-          setRose(null);
-          if (reading.kind === 'refused') engine.current?.refuseDrop();
-          onDropRefused?.();
-          return;
-        }
+      const reading = aiming ? dropReadingOf(drawn) : null;
+      if (reading !== null && reading.kind !== 'orders' && fromDrag) {
+        setRose(null);
+        if (reading.kind === 'refused') engine.current?.refuseDrop();
+        onDropRefused?.();
+        return;
+      }
+      // Lifted by a click, a pose with nothing to order opens the rose on its reason, in hand.
+      if (reading?.kind === 'orders') {
         setDown();
         if (fingerRose === null || reading.verbs.length === 1) {
           setRose(null);
@@ -672,6 +688,13 @@ export function WorldMap({
    * l'étiquette où la rose s'ouvrira si le lâcher est une pose.
    */
   const [hint, setHint] = useState<DropHint | null>(null);
+  // A new hand starts from the first verb, and an empty one has no chip left to show.
+  useEffect(() => {
+    choice.current = { signature: '', index: 0 };
+    if (holding !== null) return;
+    reading.current = null;
+    setHint(null);
+  }, [holding]);
   /** **L'anneau de l'appui long** sur une escouade : il se remplit, puis dit « une seule ». */
   const [detaching, setDetaching] = useState<{ x: number; y: number; done: boolean } | null>(null);
   const hintNode = useRef<HTMLDivElement>(null);
@@ -679,7 +702,7 @@ export function WorldMap({
   /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur. */
   useLayoutEffect(() => {
     if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
-  }, [hint]);
+  }, [hint, rose]);
   useEffect(() => {
     if (!readyEngine) return;
     const read = (
@@ -709,8 +732,13 @@ export function WorldMap({
       onPieceCarry &&
       ((target, clientX, clientY, single) => {
         const { from } = read(target, clientX, clientY);
-        return from !== null && onPieceCarry(from, single);
+        dragging.current = from !== null && onPieceCarry(from, single);
+        return dragging.current;
       });
+    readyEngine.onCarryEnd = () => {
+      dragging.current = false;
+      onCarryEnd?.();
+    };
     readyEngine.onDetach = (phase, clientX, clientY) => {
       const rect = container.current?.getBoundingClientRect();
       setDetaching(
@@ -784,6 +812,7 @@ export function WorldMap({
     landAt,
     chosenOf,
     onDropRefused,
+    onCarryEnd,
   ]);
 
   useEffect(() => {
@@ -1181,7 +1210,10 @@ export function WorldMap({
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
       {placing && <PlacingCard placing={placing} container={container} />}
-      {hint !== null && <DropHintChip ref={hintNode} hint={hint} />}
+      {/* Une rose ouverte dit déjà ce que la pastille disait. */}
+      {hint !== null && rose === null && (
+        <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
+      )}
       {detaching !== null && <DetachRing {...detaching} />}
       {rose && (
         <CompassRose
@@ -1208,8 +1240,10 @@ export function WorldMap({
 
 /**
  * **L'appui long qui détache** (POC du 16/10) : un anneau d'encre ocre se remplit sous le pointeur
- * pendant `DETACH_MS` ; plein, il porte « 1 » — le glisser ne prendra que la troupe pressée.
+ * pendant `DETACH_MS` ; plein, il porte « 1 » — le glisser ne prendra que la troupe pressée. Il ne
+ * paraît qu'après `RING_DELAY_S` : un simple clic sur l'escouade ne le fait pas clignoter.
  */
+const RING_DELAY_S = 0.15;
 function DetachRing({ x, y, done }: { x: number; y: number; done: boolean }) {
   const length = 2 * Math.PI * 17;
   return (
@@ -1221,42 +1255,60 @@ function DetachRing({ x, y, done }: { x: number; y: number; done: boolean }) {
       className="pointer-events-none absolute z-[var(--z-popin)]"
       style={{ left: x - 24, top: y - 24 }}
     >
-      <circle
-        cx={24}
-        cy={24}
-        r={17}
-        fill="var(--paper)"
-        fillOpacity={0.8}
-        stroke="var(--ink)"
-        strokeOpacity={0.25}
-      />
-      <circle
-        cx={24}
-        cy={24}
-        r={17}
-        fill="none"
-        stroke="var(--arc-mine)"
-        strokeWidth={4}
-        strokeLinecap="round"
-        strokeDasharray={length}
-        strokeDashoffset={done ? 0 : length}
-        transform="rotate(-90 24 24)"
-      >
+      <g opacity={done ? 1 : 0}>
         {!done && (
           <animate
-            attributeName="stroke-dashoffset"
-            from={length}
-            to={0}
-            dur={`${DETACH_MS}ms`}
+            attributeName="opacity"
+            to={1}
+            begin={`${RING_DELAY_S}s`}
+            dur="0.1s"
             fill="freeze"
           />
         )}
-      </circle>
-      {done && (
-        <text x={24} y={28.5} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--ink)">
-          1
-        </text>
-      )}
+        <circle
+          cx={24}
+          cy={24}
+          r={17}
+          fill="var(--paper)"
+          fillOpacity={0.8}
+          stroke="var(--ink)"
+          strokeOpacity={0.25}
+        />
+        <circle
+          cx={24}
+          cy={24}
+          r={17}
+          fill="none"
+          stroke="var(--arc-mine)"
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeDasharray={length}
+          strokeDashoffset={done ? 0 : length}
+          transform="rotate(-90 24 24)"
+        >
+          {!done && (
+            <animate
+              attributeName="stroke-dashoffset"
+              from={length}
+              to={0}
+              dur={`${DETACH_MS}ms`}
+              fill="freeze"
+            />
+          )}
+        </circle>
+        {done && (
+          <text
+            x={24}
+            y={28.5}
+            textAnchor="middle"
+            fontSize={13}
+            fontWeight={700}
+            fill="var(--ink)"
+          >
+            1
+          </text>
+        )}
+      </g>
     </svg>
   );
 }

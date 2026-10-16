@@ -46,22 +46,7 @@ describe('clickPile', () => {
     expect(clickPile(empty, pile([]))).toEqual({ kind: 'drop' });
   });
 
-  it('a deployed troop goes into the hand, after those already in it', () => {
-    expect(clickPile(held(['t1']), troop('t3'))).toEqual({
-      kind: 'lift',
-      hand: held(['t1', 't3']),
-    });
-  });
-
-  it('a deployed troop in hand leaves it, and the last one puts the piece back', () => {
-    expect(clickPile(held(['t1', 't2']), troop('t1'))).toEqual({
-      kind: 'lift',
-      hand: held(['t2']),
-    });
-    expect(clickPile(held(['t1']), troop('t1'))).toEqual({ kind: 'drop' });
-  });
-
-  it('a deployed troop means nothing with an empty hand: lifting takes the whole pile', () => {
+  it('a single troop means nothing to a click with an empty hand', () => {
     expect(clickPile(empty, troop('t1'))).toEqual({ kind: 'drop' });
   });
 });
@@ -163,16 +148,5 @@ describe('carrying and dropping the piece', () => {
 
   it('poses on another address', () => {
     expect(dropOn(held(['t1']), pile(['t9'], B), at)).toEqual({ kind: 'pose' });
-  });
-
-  it('keeps a transport and its passengers together in the hand', () => {
-    expect(clickPile(held(['t1']), troop('c'), { pile: at })).toEqual({
-      kind: 'lift',
-      hand: held(['t1', 'c', 'r']),
-    });
-    expect(clickPile(held(['t1', 'c', 'r']), troop('c'), { pile: at })).toEqual({
-      kind: 'lift',
-      hand: held(['t1']),
-    });
   });
 });

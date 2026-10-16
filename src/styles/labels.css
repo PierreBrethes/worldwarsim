@@ -958,10 +958,12 @@
 }
 
 /* **L'étiquette d'un transport chargé** (POC « Manipuler les pions », 16/10) : elle pend sous la
-   pile au rapproché seulement, quand la pile se tient en figurines — de loin, le cartouche suffit. */
+   pile au rapproché seulement — en figurines, ou cartouche déplié pour un transport sans figurine.
+   De loin, le cartouche suffit. */
 .label-anchor .cargo-tags {
   display: none;
 }
-.label-anchor.label-anchor--dressed .cargo-tags {
+.label-anchor.label-anchor--dressed .cargo-tags,
+.label--expanded:not(.label--grouped) .cargo-tags {
   display: flex;
 }

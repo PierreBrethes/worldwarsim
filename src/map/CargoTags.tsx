@@ -38,22 +38,20 @@ export function CargoTags({
       moved ||= Math.hypot(step.clientX - from.x, step.clientY - from.y) > PULL_PX;
       if (moved) setPulled({ id: riderId, x: step.clientX, y: step.clientY });
     };
-    const up = () => {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', up);
-      handle.removeEventListener('pointercancel', cancel);
-      setPulled(null);
-      onDisembark([riderId]);
-    };
+    // The tag may go under the pull (the view re-served): a lost capture lets go without an order.
     const cancel = () => {
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', up);
-      handle.removeEventListener('pointercancel', cancel);
+      handle.removeEventListener('lostpointercapture', cancel);
       setPulled(null);
+    };
+    const up = () => {
+      cancel();
+      onDisembark([riderId]);
     };
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
-    handle.addEventListener('pointercancel', cancel);
+    handle.addEventListener('lostpointercapture', cancel);
   };
 
   return (

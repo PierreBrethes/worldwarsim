@@ -85,7 +85,7 @@ import {
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import { cargoTagsOf } from '@/domain/cargo-tag';
-import type { DropHint, PieceFrom } from '@/map/DropHint';
+import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { boardingRefusalDetails, boardingRefusalOf, type Column } from '@/domain/movement-orders';
@@ -872,8 +872,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [disembark, seat],
   );
+  /** **Un ordre en vol** : un second lâcher n'envoie pas les mêmes troupes deux fois, et la fiche
+   *  attend son issue pour revenir. */
+  const inFlight = useRef(false);
+  const settle = useCallback(() => {
+    inFlight.current = false;
+    setDragged(null);
+  }, []);
+  const carryEnded = useCallback(() => {
+    if (!inFlight.current) setDragged(null);
+  }, []);
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
-  const previewNow = useRef<Previewed | undefined>(undefined);
+  const previewNow = useRef<{ aim: OrderChoice['aim']; preview: Previewed } | undefined>(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       switch (action.key) {
@@ -972,11 +982,26 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         case 'plunder':
         case 'capture':
         case 'collect': {
-          if (column === null) return;
+          if (column === null || inFlight.current) return;
+          inFlight.current = true;
           setOrderError(null);
-          sendOrder(column.station, column.troopIds, choiceOf(action), previewNow.current).then(
-            (filed) => afterSent(filed, action.label),
+          const chosen = choiceOf(action);
+          const seen = previewNow.current;
+          sendOrder(
+            column.station,
+            column.troopIds,
+            chosen,
+            // The stop the server measured may be another target than the one let go on.
+            seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
+              ? seen.preview
+              : undefined,
+          ).then(
+            (filed) => {
+              settle();
+              afterSent(filed, action.label);
+            },
             (problem: unknown) => {
+              settle();
               handleError(problem, setOrderError);
               dropHand();
             },
@@ -1016,6 +1041,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       narrow,
       sendOrder,
       afterSent,
+      settle,
     ],
   );
 
@@ -1610,13 +1636,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [markers, view.me, marching, blitz],
   );
-  const pieceClick = useCallback(
-    (hit: PieceClick): boolean => {
-      const click = pileClickOf(hit);
-      return click !== null && applyPileClick(click, hit.clientX, hit.clientY);
-    },
-    [pileClickOf, applyPileClick],
-  );
 
   /** Une pièce dessinée, ou l'étiquette d'une de mes piles posées : la pile qu'elle désigne. */
   const clickOfFrom = useCallback(
@@ -1635,10 +1654,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * **Le glisser prend la pièce** (15/10) : une troupe déployée seule — c'est ainsi qu'une pile se
    * scinde —, ou la pile ; en Blitz, l'unité touchée, ou la première de l'étiquette.
    */
-  const carryPiece = useCallback(
-    (from: PieceFrom, single: boolean): boolean => {
+  const takePiece = useCallback(
+    (from: PieceFrom, single: boolean): Hand | null => {
       const click = clickOfFrom(from, single);
-      if (click === null) return false;
+      if (click === null) return null;
       const rules = unitsAt(click.station);
       const next: Hand =
         rules.units !== undefined && from.kind === 'stack'
@@ -1647,12 +1666,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               return move.kind === 'lift' ? move.hand : EMPTY_HAND;
             })()
           : carry(hand, click, rules.pile);
-      if (next.kind === 'empty') return false;
+      if (next.kind === 'empty') return null;
       if (next !== hand) liftHand(next);
-      setDragged(next);
-      return true;
+      return next;
     },
     [clickOfFrom, unitsAt, hand, liftHand],
+  );
+  const carryPiece = useCallback(
+    (from: PieceFrom, single: boolean): boolean => {
+      const next = takePiece(from, single);
+      setDragged(next);
+      return next !== null;
+    },
+    [takePiece],
+  );
+  /** Released where a long press took one troop, the click lifts that troop alone. */
+  const pieceClick = useCallback(
+    (hit: PieceClick): boolean => {
+      if (hit.single === true) return takePiece({ kind: 'piece', hit }, true) !== null;
+      const click = pileClickOf(hit);
+      return click !== null && applyPileClick(click, hit.clientX, hit.clientY);
+    },
+    [pileClickOf, applyPileClick, takePiece],
   );
 
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
@@ -1667,15 +1702,26 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         dropHand();
         return 'back';
       }
+      if (inFlight.current) return 'board';
+      inFlight.current = true;
       setOrderError(null);
       boardTransport({
         ...seat,
         troopIds: hand.troopIds.map((troopId) => troopId as Id<'troops'>),
         carrierId: drop.carrierId as Id<'troops'>,
-      }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+      }).then(
+        () => {
+          settle();
+          dropHand();
+        },
+        (problem: unknown) => {
+          settle();
+          handleError(problem, setOrderError);
+        },
+      );
       return 'board';
     },
-    [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat],
+    [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
   );
 
   /** **Le signe d'embarquement**, sous le pointeur, sur un transport de la même adresse — les
@@ -2103,7 +2149,23 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : mission.kind === 'collect'
             ? collectPreview
             : marchPreview;
-  previewNow.current = preview;
+  previewNow.current =
+    resting === null || preview === undefined ? undefined : { aim: resting.aim, preview };
+  /** No card before the order any more: what would change it is said under the verb, at the stop. */
+  const dropNotes = useMemo(
+    (): ReadonlyArray<DropNote> =>
+      resting === null || preview === undefined
+        ? []
+        : preview === null
+          ? [{ text: fr.aim.noRoute, alarm: true }]
+          : [
+              { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
+              ...(preview.holdUntil === null
+                ? []
+                : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+            ],
+    [resting, preview],
+  );
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -2302,6 +2364,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               compassOf={compassOfTarget}
               onCompassAction={actOnCompass}
               onDropRefused={dropHand}
+              dropNotes={dropNotes}
+              onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               building={buildingSite !== null}
               placing={placing}
@@ -2457,17 +2521,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onOpenGunnery={() => openWindow('gunnery')}
                 onDrop={dropHand}
               />
-            )}
-            {resting !== null && preview && (
-              /* Placed outside the `.hud` zoom, which would scale the board point as well. */
-              <div
-                className="pointer-events-none absolute z-10"
-                style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
-              >
-                <div className="hud paper-grain border border-[var(--ink)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink)] float">
-                  {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
-                </div>
-              </div>
             )}
             <CombatToasts
               journal={view.journal}
@@ -2747,7 +2800,6 @@ const DISPATCH_VIEW_DISTANCE = 20;
 const REPLAY_BELOW_NARROW = 0.45;
 
 /** Clear of the closed hand the cursor draws, thirty-two pixels wide. */
-const REST_TAG_GAP = 20;
 
 /** Le temps de lire « transmis » et de voir la ligne neuve sortir de « En cours ». */
 const SENT_NOTICE_MS = 6000;

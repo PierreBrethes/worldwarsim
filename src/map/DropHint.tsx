@@ -44,8 +44,20 @@ export function hintOfReading(
   };
 }
 
+/** Ce que la route du serveur ajoute au pointeur arrêté : l'heure d'arrivée, la morsure du
+ *  repos, ou l'absence de route — il n'y a plus de carte pour le dire avant l'ordre. */
+export type DropNote = { readonly text: string; readonly alarm: boolean };
+
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
-export function DropHintChip({ hint, ref }: { hint: DropHint; ref: Ref<HTMLDivElement> }) {
+export function DropHintChip({
+  hint,
+  notes = [],
+  ref,
+}: {
+  hint: DropHint;
+  notes?: ReadonlyArray<DropNote>;
+  ref: Ref<HTMLDivElement>;
+}) {
   return (
     <div
       ref={ref}
@@ -83,6 +95,16 @@ export function DropHintChip({ hint, ref }: { hint: DropHint; ref: Ref<HTMLDivEl
               {hint.detail}
             </span>
           )}
+          {!hint.refused &&
+            notes.map((note) => (
+              <span
+                key={note.text}
+                className="block font-(family-name:--font-mono) text-[10.5px] leading-[1.35]"
+                style={{ color: note.alarm ? 'var(--critical)' : 'var(--ink)' }}
+              >
+                {note.text}
+              </span>
+            ))}
           {hint.choice !== undefined && (
             <span className="mt-[3px] block font-(family-name:--font-mono) text-[10.5px] leading-[1.35] text-[var(--ink)]">
               {hint.choice}

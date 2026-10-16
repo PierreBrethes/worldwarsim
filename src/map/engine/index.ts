@@ -142,6 +142,8 @@ export type MapActClick = {
 export type PieceClick = PiecePick & {
   clientX: number;
   clientY: number;
+  /** Released where a long press took one troop of a squad: that troop, not the squad. */
+  single?: boolean;
 };
 
 /** A clean press on a drawn piece (`MapEngine.onPiecePress`), already read through the mapping. */
@@ -436,6 +438,8 @@ export class MapEngine {
     ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
   /** **The right button, pressed while a piece is carried**, takes the gesture back. */
   onCarryCancel?: (() => void) | undefined;
+  /** The drag is over, its drop told first: let go, put back or cancelled. */
+  onCarryEnd?: (() => void) | undefined;
   /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
   onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
   /** What the carried piece is over, at every move — the sign of what a drop would do: a piece, a
@@ -721,6 +725,7 @@ export class MapEngine {
       gesture.carry = null;
       gesture.pastThreshold = true;
       this.onCarryOver?.(null, gesture.x, gesture.y);
+      this.onCarryEnd?.();
     }
     this.veil.show(held?.forbidden ?? null, performance.now());
     if (this.veil.needsGround)
@@ -1288,11 +1293,19 @@ export class MapEngine {
       this.lastPointer.clientY = event.clientY;
       this.restLabel = null;
       if (!this.fingerOnBoard) this.pointerMoved();
+      // Lifted by a click, the piece reads its drop as a carried one does: the release is the click.
+      if (this.held !== null && !this.fingerOnBoard)
+        this.onCarryOver?.(
+          this.carryTargetAt(event.clientX, event.clientY) ?? { kind: 'ground' },
+          event.clientX,
+          event.clientY,
+        );
     });
     canvas.addEventListener('pointerleave', () => {
       this.pointer.set(-2, -2);
       this.hoverDirty = true;
       if (this.rest.stop()) this.onRestless?.();
+      if (this.held !== null && this.gesture?.carrying !== true) this.onCarryOver?.(null, 0, 0);
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
@@ -1434,6 +1447,8 @@ export class MapEngine {
     this.lastPointer.clientX = clientX;
     this.lastPointer.clientY = clientY;
     this.hoverDirty = true;
+    // The stop that tells the server's route counts from the last move, a carried one too.
+    this.pointerMoved();
     this.onCarryOver?.(
       this.carryTargetAt(clientX, clientY) ?? { kind: 'ground' },
       clientX,
@@ -1538,6 +1553,7 @@ export class MapEngine {
       this.carriedAt = performance.now();
       this.onCarryOver?.(null, event.clientX, event.clientY);
       if (event.type === 'pointerup') this.dropCarried(event);
+      this.onCarryEnd?.();
       return;
     }
     if (event.type !== 'pointerup' || gesture.fromLabel) return;
@@ -1555,7 +1571,7 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    if (press.picks && this.pickAt(event)) return;
+    if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt(event);
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
@@ -1584,7 +1600,7 @@ export class MapEngine {
   }
 
   /** A building held or a key armed wants the ground, not the piece standing on it. */
-  private pickAt(event: PointerEvent): boolean {
+  private pickAt(event: PointerEvent, single: boolean): boolean {
     const onPieceClick = this.onPieceClick;
     if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
@@ -1594,6 +1610,7 @@ export class MapEngine {
       ...piece,
       clientX: event.clientX,
       clientY: event.clientY,
+      ...(single ? { single } : {}),
     });
     return true;
   }
