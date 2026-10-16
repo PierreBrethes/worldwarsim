@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from './ids';
-import { cargoTagsOf } from './cargo-tag';
+import { cargoTagsOf, carriersFor } from './cargo-tag';
 
 const troop = (id: string, role: UnitRole, carriedBy?: string) => ({
   id,
@@ -53,5 +53,28 @@ describe('cargoTagsOf', () => {
     const plane = [troop('p1', 'airTransport'), troop('i1', 'infantry', 'p1')];
     expect(cargoTagsOf(plane, ashore)[0]?.refusal).toBe('AIRFIELD_TARGET_REQUIRED');
     expect(cargoTagsOf(plane, { afloat: false, atAirfield: true })[0]?.refusal).toBeNull();
+  });
+});
+
+describe('carriersFor', () => {
+  it('names the transports that take what is in hand, full ones too: the tag says the seats', () => {
+    const pile = [
+      troop('t1', 'landTransport'),
+      troop('t2', 'landTransport'),
+      troop('x1', 'infantry', 't2'),
+      troop('x2', 'infantry', 't2'),
+      troop('a1', 'armor'),
+    ];
+    expect(carriersFor([troop('i1', 'infantry')], pile).map(({ id }) => id)).toEqual(['t1', 't2']);
+  });
+
+  it('leaves out what does not take them: a truck carries no tank', () => {
+    expect(carriersFor([troop('a2', 'armor')], [troop('t1', 'landTransport')])).toEqual([]);
+  });
+
+  it('keeps a plane away from its airfield: the tag says why no one boards', () => {
+    expect(
+      carriersFor([troop('i1', 'infantry')], [troop('p1', 'airTransport')]).map(({ id }) => id),
+    ).toEqual(['p1']);
   });
 });

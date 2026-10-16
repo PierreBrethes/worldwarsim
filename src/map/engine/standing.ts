@@ -35,8 +35,9 @@ import {
   type Figurine,
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
+import { InkRing, type RingState } from './ink-ring';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
-import { ARC_COLORS, PALETTE } from './palette';
+import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, footedHit, nearer, type PieceHit } from './piece-pick';
 
@@ -205,6 +206,8 @@ export function pileObject(
   seaward: readonly [number, number] | null = null,
 ): {
   object: Group;
+  /** Half its width and depth, its squad's outline included: the ring is drawn round it. */
+  extent: { readonly x: number; readonly z: number };
   ready: Promise<unknown>;
   smokes: ReadonlyArray<Smoke>;
   targets: ReadonlyArray<Mesh>;
@@ -250,8 +253,13 @@ export function pileObject(
     );
   });
   if (pieces.squad) object.add(squadMarks(layout, nation));
+  const margin = GROUP_SPACING * 0.62;
   return {
     object,
+    extent: {
+      x: Math.max(...layout.map(({ x }) => Math.abs(x))) + margin,
+      z: Math.max(...layout.map(({ z }) => Math.abs(z))) + margin,
+    },
     ready: Promise.all(figurines.map((figurine) => figurine.ready)),
     smokes,
     targets,
@@ -341,6 +349,9 @@ type Dressed = {
   ready: boolean;
   readonly smokes: ReadonlyArray<Smoke>;
   readonly targets: ReadonlyArray<Mesh>;
+  /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
+  readonly ring: InkRing;
+  readonly extent: { readonly x: number; readonly z: number };
 };
 
 /** A piece in hand: the pile it was lifted from, and the troops lifted (ADR 0026 §6). */
@@ -369,7 +380,8 @@ export function washedOf(material: Material): Material {
  *  `userData.unwashed` until it is put back — the same file elsewhere stays whole. */
 function wash(object: Object3D, washed: boolean): void {
   object.traverse((part) => {
-    if (!(part instanceof Mesh) || part.userData.grip !== undefined) return;
+    if (!(part instanceof Mesh) || part.userData.grip !== undefined || part instanceof InkRing)
+      return;
     const kept = part.userData.unwashed as Mesh['material'] | undefined;
     if (!washed) {
       if (kept === undefined) return;
@@ -429,18 +441,19 @@ type Carried = {
 };
 
 type Marks = {
-  readonly reticle: Mesh<RingGeometry, MeshBasicMaterial>;
+  readonly reticle: InkRing;
   readonly plumb: Line<BufferGeometry, LineDashedMaterial>;
 };
 
-/** The ring reads the drop: mine where an order would leave, the alarm where it is refused. */
-const RETICLE_INK = {
-  order: ARC_COLORS.mine.trace,
-  fight: ARC_COLORS.enemyDetected.progress,
-  refused: ARC_COLORS.enemyDetected.progress,
-  none: PALETTE.border,
-} as const;
-export type DropVerdict = keyof typeof RETICLE_INK;
+/** The reticle reads the drop (POC): ochre where an order would leave, red to a fight, red and
+ *  dashed where it is refused, none where the piece would only go back. */
+const RETICLE: Readonly<Record<DropVerdict, RingState | null>> = {
+  order: 'aim',
+  fight: 'aimFight',
+  refused: 'aimRefused',
+  none: null,
+};
+export type DropVerdict = 'order' | 'fight' | 'refused' | 'none';
 /** The prototype's head shake: five half-turns over 0.28 s, fading. */
 const SHAKE_S = 0.28;
 const SHAKE_TURN = 0.22;
@@ -448,17 +461,8 @@ const SHAKE_TURN = 0.22;
 const REFUSAL_MS = 1000;
 const RETICLE_LIFT = 0.006;
 
-function carriedMarks(width: number): Marks {
-  const reticle = new Mesh(
-    new RingGeometry(0.44 * width, 0.49 * width, 48),
-    new MeshBasicMaterial({
-      color: RETICLE_INK.none,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    }),
-  );
-  reticle.rotation.x = -Math.PI / 2;
+function carriedMarks(): Marks {
+  const reticle = new InkRing();
   reticle.position.y = RETICLE_LIFT;
   const plumb = new Line(
     new BufferGeometry().setFromPoints([new Vector3(0, 0, 0), new Vector3(0, 1, 0)]),
@@ -510,10 +514,10 @@ function discard(carried: Carried): void {
   carried.object.removeFromParent();
   for (const material of carried.shadow.materials) material.dispose();
   const { reticle, plumb } = carried.marks;
-  for (const mark of [reticle, plumb]) {
-    mark.geometry.dispose();
-    mark.material.dispose();
-  }
+  // The reticle's plane is every ring's: only its own material goes.
+  reticle.material.dispose();
+  plumb.geometry.dispose();
+  plumb.material.dispose();
 }
 
 /** The held pieces only: a troop taken out of its squad is carried alone, no outline. */
@@ -558,6 +562,10 @@ export class StandingLayer {
   /** A refusal announced, waiting for the hand to empty (`refuseDrop`). */
   private refusal: number | null = null;
   private verdict: DropVerdict = 'none';
+  /** What each pile is to the hand (`setRings`): hovered, in hand, aimed at, a free seat. */
+  private rings: ReadonlyMap<string, RingState> = new Map();
+  /** The drop is read on a pile, which its own ring answers: no reticle under the hand. */
+  private onPile = false;
   /** A boarding announced, waiting for the hand to empty (`boardInto`). */
   private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
@@ -599,6 +607,8 @@ export class StandingLayer {
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
+      const ring = new InkRing();
+      built.object.add(ring);
       const entry: Dressed = {
         key,
         at: pile.at,
@@ -607,6 +617,12 @@ export class StandingLayer {
         ready: false,
         smokes: built.smokes,
         targets: built.targets,
+        ring,
+        // Round a squad, outside its dashed outline.
+        extent: {
+          x: built.extent.x + (pile.pieces.squad ? 0.08 : 0.02),
+          z: built.extent.z + (pile.pieces.squad ? 0.08 : 0.02),
+        },
       };
       next.set(pile.id, entry);
       // A model that fails to load leaves the pile in its plate.
@@ -655,7 +671,11 @@ export class StandingLayer {
         copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
     }
     if (copy !== null) return { ...copy.pick, distance: copy.distance, carried: true };
-    let best: { distance: number; pick: PieceHold & { squad: boolean } } | null = null;
+    type Hit = { distance: number; pick: PieceHold & { squad: boolean } };
+    let best: Hit | null = null;
+    // Under the hand, the pile it came from is only what nothing else is (POC, `exclude`): its
+    // pale home in front of a pile must not take the drop meant for it.
+    let home: Hit | null = null;
     for (const [pileId, entry] of this.dressed) {
       if (!entry.ready || !entry.object.visible) continue;
       let distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
@@ -667,10 +687,12 @@ export class StandingLayer {
         if (distance !== undefined)
           troopIds = nearestGroup(ray.ray.at(distance, new Vector3()), entry.targets, entry.pieces);
       }
-      if (distance === undefined || (best !== null && best.distance <= distance)) continue;
-      if (troopIds !== null)
-        best = { distance, pick: { pileId, troopIds, squad: entry.pieces.squad } };
+      if (distance === undefined || troopIds === null) continue;
+      const hit = { distance, pick: { pileId, troopIds, squad: entry.pieces.squad } };
+      if (under && pileId === this.held?.pileId) home = hit;
+      else if (best === null || distance < best.distance) best = hit;
     }
+    best ??= home;
     return best === null ? null : { ...best.pick, distance: best.distance };
   }
 
@@ -749,7 +771,7 @@ export class StandingLayer {
     piece.add(copy.object);
     const shadow = carriedShadow();
     const width = Math.max(1, 0.6 * heldPieces(entry.pieces, held.troopIds).groups.length);
-    const marks = carriedMarks(width);
+    const marks = carriedMarks();
     const object = new Group();
     object.add(piece, shadow.object, marks.reticle, marks.plumb);
     object.position.copy(entry.object.position);
@@ -798,6 +820,27 @@ export class StandingLayer {
         ? carried.pointer !== null
         : (performance.now() - carried.down.since) / 1000 < DROP_DONE + SETTLE_TAIL);
     return moving || this.leaving !== null;
+  }
+
+  /** **The rings round the piles** (POC, `ringStyle`), by pile; a pile left out has none. */
+  setRings(rings: ReadonlyMap<string, RingState>, onPile = false): void {
+    this.rings = rings;
+    this.onPile = onPile;
+  }
+
+  /** The pile a label stands for: a pile's own, or the garrison at a mast's foot. */
+  pileOfLabel(labelId: string): string | null {
+    if (this.dressed.has(labelId)) return labelId;
+    for (const [id, { at }] of this.dressed) if ('beside' in at && at.beside === labelId) return id;
+    return null;
+  }
+
+  /** A ring turns or pulses: the frames must keep coming. */
+  get ringing(): boolean {
+    if (this.motion !== 'full') return false;
+    for (const { ring, object } of this.dressed.values())
+      if (ring.moving && object.visible) return true;
+    return false;
   }
 
   /** The ground under the pointer, `null` off the board or under a finger. */
@@ -855,6 +898,12 @@ export class StandingLayer {
       hover(object);
     }
     const now = performance.now();
+    for (const [id, { ring, extent }] of this.dressed) {
+      ring.style(this.rings.get(id) ?? null, now / 1000, this.motion !== 'full');
+      const beat = (ring.userData.beat as number | undefined) ?? 1;
+      ring.scale.set(extent.x * beat, 1, extent.z * beat);
+      ring.position.y = RETICLE_LIFT;
+    }
     if (this.leaving !== null) this.orientCarried(this.leaving, cameraPosition, now);
     if (this.carried !== null) this.orientCarried(this.carried, cameraPosition, now);
   }
@@ -924,11 +973,15 @@ export class StandingLayer {
   private orientMarks(carried: Carried, now: number): void {
     const { reticle, plumb } = carried.marks;
     const reading = carried.pointer !== null && carried.down === null && carried.back === null;
-    reticle.visible = plumb.visible = reading;
+    plumb.visible = reading;
+    reticle.style(
+      reading && !this.onPile ? RETICLE[this.verdict] : null,
+      now / 1000,
+      this.motion !== 'full',
+    );
     if (!reading) return;
-    reticle.material.color.set(RETICLE_INK[this.verdict]);
     const pulse = this.motion === 'full' ? 1 + 0.06 * Math.sin((now / 1000) * 8) : 1;
-    reticle.scale.setScalar(pulse);
+    reticle.scale.setScalar(0.49 * carried.width * pulse);
     plumb.scale.y = Math.max(carried.lift, 1e-3);
   }
 

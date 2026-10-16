@@ -2,7 +2,12 @@
 // elle dit qui est à bord et ce qui reste de place, et c'est d'elle qu'on tire un passager
 // pour le faire descendre. Remplace le jeton « N à bord ».
 import type { UnitRole, UnitTier } from './ids';
-import { disembarkRefusalOf, type DisembarkRefusal } from './movement-orders';
+import {
+  boardingRefusalOf,
+  disembarkRefusalOf,
+  type BoardingRefusal,
+  type DisembarkRefusal,
+} from './movement-orders';
 import { carrierIn, seatsLeft, seatsOf, type Seated } from './troops';
 
 type Aboard = Seated & { readonly tier: UnitTier };
@@ -42,4 +47,25 @@ export function cargoTagsOf<T extends Aboard>(
       },
     ];
   });
+}
+
+/** What a seat count or an airfield decides, and the tag says: the kind of transport still fits. */
+const SEATED_LATER: ReadonlySet<BoardingRefusal | null> = new Set([
+  null,
+  'NOT_ENOUGH_LIFT',
+  'AIRFIELD_BOARDING_ONLY',
+]);
+
+/**
+ * **Les transports d'une pile qui prendraient la main** (POC, `avail`) : le genre suffit — un
+ * camion n'assoit que l'infanterie —, les places et l'aérodrome se lisent sur leur étiquette.
+ */
+export function carriersFor<T extends Seated>(held: ReadonlyArray<T>, pile: ReadonlyArray<T>): T[] {
+  const riders = held.filter((troop) => carrierIn(troop, held) === null);
+  return pile.filter(
+    (carrier) =>
+      seatsOf(carrier.role) > 0 &&
+      !held.some((troop) => troop.id === carrier.id) &&
+      SEATED_LATER.has(boardingRefusalOf({ riders, carrier, pile, atAirfield: false })),
+  );
 }

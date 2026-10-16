@@ -20,7 +20,6 @@ import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
-  isDestinationAction,
   isOrder,
   type CompassAction,
   type CompassTarget,
@@ -53,6 +52,7 @@ import { CompassRose } from './CompassRose';
 import {
   DropHintChip,
   hintOfReading,
+  ringOfHint,
   type DropHint,
   type DropNote,
   type PieceFrom,
@@ -227,12 +227,6 @@ type Props = {
    * réserve au pied du plateau. La carte ne lit pas le seuil — le plateau le lui dit.
    */
   fingerRose?: { readonly floor: number } | null;
-  /**
-   * **Les destinations d'une colonne armée, cerclées sur la carte et nommées au bord** quand
-   * elles sont hors champ (lot mobile-3, A8). Le plateau l'allume sous le seuil ; la carte
-   * décide lesquelles, par la même rose que le geste ouvrirait.
-   */
-  showDestinations?: boolean;
   /** **Une pièce posée là où rien ne la prend rentre chez elle** : la pastille l'a déjà dit en
    *  rouge, il n'y a pas de rose à ouvrir sur un refus. */
   onDropRefused?: () => void;
@@ -240,6 +234,8 @@ type Props = {
   dropNotes?: ReadonlyArray<DropNote>;
   /** **La route du serveur sous le pointeur arrêté** : le ruban de la pièce en main la suit. */
   aimRoute?: ReadonlyArray<LonLat> | null;
+  /** Mes piles dont un transport prendrait la main : leur anneau bat pendant le geste. */
+  availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
   onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
@@ -289,8 +285,8 @@ export type PlacingBuilding = {
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
+const NO_PILES: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
-const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 export function WorldMap({
   world,
@@ -349,10 +345,10 @@ export function WorldMap({
   focus = null,
   searchArea = null,
   fingerRose = null,
-  showDestinations = false,
   onDropRefused,
   dropNotes,
   aimRoute = null,
+  availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
   covered = false,
@@ -773,7 +769,10 @@ export function WorldMap({
       if (chip !== null) chip.style.transform = hintAt.current;
       const tell = (hint: DropHint | null) => {
         setHint(hint);
-        readyEngine.markDrop(hint === null || hint.tone === 'calm' ? 'none' : hint.tone);
+        readyEngine.markDrop(
+          hint === null || hint.tone === 'calm' ? 'none' : hint.tone,
+          hint === null || hint.tone === 'calm' ? null : ringOfHint(hint),
+        );
       };
       if (target === null) {
         reading.current = null;
@@ -884,22 +883,6 @@ export function WorldMap({
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
   }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget, chosenOf]);
 
-  /**
-   * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
-   * A8) : une étiquette est une destination quand sa rose porte une marche, une expédition ou un
-   * ramassage — la même fonction que le geste, donc jamais un cercle sur ce que la rose refuse
-   * (ADR 0015). Le sol nu n'y est pas : il est partout.
-   */
-  const destinationIds = useMemo(() => {
-    if (!aiming || !showDestinations) return NO_DESTINATIONS;
-    return new Set(
-      labels.flatMap((label) => {
-        const target = targetOfLabel(label, null, null, coastAt, landAt);
-        if (target === null || target.kind === 'country' || target.kind === 'point') return [];
-        return compassOf(target)?.actions.some(isDestinationAction) === true ? [label.id] : [];
-      }),
-    );
-  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
    * 03/10) — un toucher y recentre. Les destinations de la colonne armée ne s'y nomment plus
@@ -1087,6 +1070,10 @@ export function WorldMap({
   }, [readyEngine, aimRoute]);
 
   useEffect(() => {
+    readyEngine?.setAvailable(availablePiles);
+  }, [readyEngine, availablePiles]);
+
+  useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
 
@@ -1195,7 +1182,6 @@ export function WorldMap({
           engine.current?.pointerOverLabel(labelId, clientX, clientY)
         }
         muted={placing !== null}
-        destinations={destinationIds}
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}

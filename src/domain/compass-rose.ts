@@ -515,11 +515,6 @@ export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'capture' ||
   action.key === 'collect';
 
-/** **Ce qui fait d'une étiquette une destination de la colonne armée** : un ordre, ou un
- *  embarquement — les deux se cerclent sur la carte et se listent sous le pouce. */
-export const isDestinationAction = (action: CompassAction): boolean =>
-  isOrder(action) || action.key === 'board' || action.key === 'bombard';
-
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
   readonly kicker: string;

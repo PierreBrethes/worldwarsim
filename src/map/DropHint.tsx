@@ -4,6 +4,7 @@ import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domai
 import { fr } from '@/i18n/fr';
 import type { TroopStation } from '@/domain/player-view';
 import type { PieceClick } from './engine';
+import type { RingState } from './engine/ink-ring';
 
 /** **Ce que le glisser prend ou vise** (15/10) : une pièce que la carte dessine, ou l'étiquette
  *  d'une de mes piles. */
@@ -42,6 +43,15 @@ export function hintOfReading(
       ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
       : {}),
   };
+}
+
+/** **L'anneau de ce que la main survole** (POC, `ringStyle`) : rouge et cerclé de repères sur
+ *  l'ennemi, en tirets qui tournent sur une pile qu'on rejoint, plein et battant sur un transport,
+ *  en tirets rouges sur un refus. */
+export function ringOfHint(hint: DropHint): RingState {
+  if (hint.tone === 'refused') return 'bad';
+  if (hint.tone === 'fight') return 'enemy';
+  return hint.icon === '+' ? 'merge' : 'target';
 }
 
 /** Ce que la route du serveur ajoute au pointeur arrêté : l'heure d'arrivée, la morsure du

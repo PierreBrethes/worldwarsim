@@ -84,7 +84,7 @@ import {
 } from '@/domain/compass-rose';
 import { placementOf, workSitesOf } from '@/domain/construction';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
-import { cargoTagsOf } from '@/domain/cargo-tag';
+import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -1723,6 +1723,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
   );
 
+  /** **Mes transports qui prendraient la main** (POC, `avail`) : leur anneau bat le temps du
+   *  geste, et leur étiquette s'ouvre sur leurs places. */
+  const availablePiles = useMemo((): ReadonlyArray<string> => {
+    if (hand.kind !== 'held') return [];
+    const held = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
+    const piles = new Map<string, { station: TroopStation; troops: TroopView[] }>();
+    for (const troop of view.me.troops) {
+      if (marching.has(troop.id) || hand.troopIds.includes(troop.id)) continue;
+      const key = stationKeyOf(troop.stationedAt);
+      const pile = piles.get(key);
+      if (pile === undefined) piles.set(key, { station: troop.stationedAt, troops: [troop] });
+      else pile.troops.push(troop);
+    }
+    return [...piles.values()].flatMap(({ station, troops }) =>
+      carriersFor(held, troops).length === 0
+        ? []
+        : [station.kind === 'point' ? stackLabelId(station) : stationKeyOf(station)],
+    );
+  }, [hand, view.me.troops, marching]);
   /** **Le signe d'embarquement**, sous le pointeur, sur un transport de la même adresse — les
    *  places d'après, ou le motif. Ailleurs, la rose le dit (`undefined`). */
   const dropHintOf = useCallback(
@@ -2366,6 +2385,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onDropRefused={dropHand}
               dropNotes={dropNotes}
               aimRoute={aimRoute}
+              availablePiles={availablePiles}
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               building={buildingSite !== null}
@@ -2377,7 +2397,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
-              showDestinations
               covered={narrow && windows.length > 0}
               reveal={reveal}
               replay={replay}
