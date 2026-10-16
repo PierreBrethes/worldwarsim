@@ -155,9 +155,11 @@ l'ordre que le lâcher donnera : le premier des ordres de pièce (partir, monter
 capturer, ramasser, bombarder, fonder), Tab ou 1-2-3 pour en changer, ou le refus en rouge
 (`DropHint.tsx`, moteur `onCarryOver`). **Lâchée, la pièce l'envoie** (`useSendOrder`,
 `src/routes/-plateau/order-wire.ts`) : plus de rose ni de carte « envoyer — irréversible »
-(`MovementPreview` est supprimé) ; un clic sur la carte, pièce levée, fait de même. Au doigt,
-plusieurs ordres ouvrent une rose réduite à eux. **Refusée, elle hoche la tête** et rentre
-(`refuseDrop`). Échap ou le bouton droit annulent le geste (`onCarryCancel`) ; il n'y a pas
+(`MovementPreview` est supprimé) ; l'arrêt du pointeur ajoute sous le verbe l'heure d'arrivée,
+la morsure du repos ou « aucune route » (`DropNote`). Pièce levée au clic, la pastille se lit de
+même et le clic pose comme le lâcher — mais un clic sans ordre ouvre la rose sur son motif et
+garde la pièce en main. Au doigt, plusieurs ordres ouvrent une rose réduite à eux. **Refusée,
+elle hoche la tête** et rentre (`refuseDrop`). Échap ou le bouton droit annulent le geste (`onCarryCancel`) ; il n'y a pas
 d'annulation après coup. La rose ne garde que ce qui n'est pas un ordre de pièce — bâtir, élever,
 raser, démanteler. Pendant le geste, **le milieu interdit se voile** (`CarryVeil`,
 `src/map/engine/veil.ts`) : la mer sous ce qui marche, découpée au pochoir des pays ; l'intérieur
