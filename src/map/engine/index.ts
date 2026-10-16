@@ -434,6 +434,8 @@ export class MapEngine {
    *  when the press is over — the ring under the pointer fills meanwhile. */
   onDetach?:
     ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
+  /** **The right button, pressed while a piece is carried**, takes the gesture back. */
+  onCarryCancel?: (() => void) | undefined;
   /** The carried piece let go on a piece or a label; on the ground it is `onAct`'s. */
   onPieceDrop?: ((on: CarryTarget, clientX: number, clientY: number) => void) | undefined;
   /** What the carried piece is over, at every move — the sign of what a drop would do: a piece, a
@@ -712,6 +714,14 @@ export class MapEngine {
     this.invalidate();
     this.held = held;
     this.standing.hold(held, sent);
+    // Put back mid-drag (Échap, the right button): letting go afterwards orders nothing.
+    const gesture = this.gesture;
+    if (held === null && gesture?.carrying === true) {
+      gesture.carrying = false;
+      gesture.carry = null;
+      gesture.pastThreshold = true;
+      this.onCarryOver?.(null, gesture.x, gesture.y);
+    }
     this.veil.show(held?.forbidden ?? null, performance.now());
     if (this.veil.needsGround)
       this.veil.ground((this.routeGrid ??= buildGrid(this.world)), this.frame);
@@ -1350,7 +1360,9 @@ export class MapEngine {
     gesture.x = event.clientX;
     gesture.y = event.clientY;
     if (gesture.carrying) {
-      this.carryMove(event.clientX, event.clientY);
+      // Chorded: a second button down during a drag comes as a move, never as a press.
+      if ((event.buttons & 2) !== 0) this.onCarryCancel?.();
+      else this.carryMove(event.clientX, event.clientY);
       return;
     }
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;

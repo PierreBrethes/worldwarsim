@@ -1,6 +1,6 @@
 import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
-import { compassOf, soleOrderOf, type CompassTarget } from './compass-rose';
+import { compassOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
@@ -844,22 +844,6 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toBe(fr.compass.noSquad);
   });
-
-  it('sets one passenger ashore from my pile, and asks for several', () => {
-    const own = { ...target, station: beach };
-    expect(compassOf(own, at('cargo', 1))?.actions[0]).toMatchObject({
-      key: 'disembark',
-      troopIds: ['passenger-0'],
-      consequence: 'Met pied à terre à côté du transport.',
-    });
-    expect(compassOf(own, at('cargo', 2))?.actions[0]).toMatchObject({
-      key: 'disembark',
-      troopIds: ['passenger-0', 'passenger-1'],
-    });
-    const offshore = { ...beach, afloat: true } as const;
-    const sea = compassOf({ ...own, station: offshore }, at('cargo', 1, { station: offshore }));
-    expect(sea?.refusal).toBe('on ne débarque pas au large — gagnez une côte ou un port');
-  });
 });
 
 describe('founding from the map', () => {
@@ -893,20 +877,11 @@ describe('founding from the map', () => {
       },
     }) as unknown as PlayerView;
 
-  /** Le cargo n'a rien à faire là : pas d'ordre seul, la rose garde le motif. */
-  it('skips the rose only for a single order', () => {
+  /** Le cargo n'a rien à faire là : la rose garde le motif. */
+  it('founds nothing with a cargo, and says why', () => {
     const cargo = compassOf(camp, posted(['cargo']))!;
-    expect(soleOrderOf(cargo)).toBeNull();
+    expect(cargo.actions).toEqual([]);
     expect(cargo.refusal).toBe('un cargo ne fonde pas — seule l’infanterie plante un point');
-    const aim = {
-      key: 'aim',
-      label: 'marcher',
-      consequence: '',
-    } as unknown as Parameters<typeof soleOrderOf>[0]['actions'][number];
-    expect(soleOrderOf({ kicker: '', name: '', actions: [aim], refusal: null })).toBe(aim);
-    expect(soleOrderOf({ kicker: '', name: '', actions: [aim, aim], refusal: null })).toBeNull();
-    const board = { key: 'board' } as unknown as typeof aim;
-    expect(soleOrderOf({ kicker: '', name: '', actions: [board], refusal: null })).toBeNull();
   });
 
   it('founds nothing in a Blitz, so the sheet in hand has no founding to offer', () => {

@@ -23,7 +23,7 @@ import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
-import type { LandPace, RouteMedium } from '../domain/routing';
+import type { LandPace } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
@@ -2685,24 +2685,6 @@ export const fr = {
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
   },
 
-  /**
-   * **La feuille d'ordre, sous le seuil** (refonte mobile, 1c) : le type d'ordre s'y choisit, et
-   * l'envoi s'y tient appuyé — rien d'irréversible en un toucher.
-   */
-  orderSheet: {
-    kicker: 'ordre de mouvement',
-    from: (count: number, origin: string) =>
-      `${count} troupe${plural(count, '', 's')} depuis ${origin}`,
-    duration: 'durée',
-    arrival: 'arrivée',
-    route: (leg: string, km: number, count: number, strength: number) =>
-      `${leg} · ${num(km)} km · ${count} troupe${plural(count, '', 's')}, effectif ${num(strength)}`,
-    hold: 'tenir pour envoyer',
-    holding: 'maintenez…',
-    holdNote: 'irréversible · 1 slot',
-    holdNoteBlitz: 'irréversible',
-  },
-
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
   /** Blitz (B19) : après une frappe, une unité bouge mais n'attaque pas encore. */
   reload: {
@@ -2817,37 +2799,28 @@ export const fr = {
   aim: {
     /** A place has no name: the degrees are the name, to one decimal — the precision a click
      *  carries, past which the figure says more than the gesture did. */
+    /**
+     * **L'allure, à côté du milieu.** Une colonne dont l'infanterie tient dans ses transports
+     * roule (note « le transport terrestre et l'allure ») : c'est le seul effet du transport
+     * terrestre, et la seule façon de le voir avant de payer.
+     */
+    paces: { motorized: 'motorisé', foot: 'à pied' } satisfies Record<LandPace, string>,
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
-    previewKicker: 'aperçu de trajet',
-    slot: 'coûte 1 slot de mouvement',
-    heading: (destination: string, type: string) => `${destination} — ${type}`,
-    computing: 'calcul de la route…',
-    noRoute: 'Aucune route terrestre vers cette destination.',
-    duration: (duration: string, count: number) =>
-      `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
     pursuit: 'poursuite',
-    pursuitNote:
-      'l’heure est celle de sa position actuelle : la route se recourbe si elle bouge, et la poursuite s’abandonne si elle sort de votre vue',
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
      * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
      * précisément ce qu'on a acheté en spécialisant l'avant-poste.
      */
-    relayed: (duration: string) => `relais logistiques — ${duration} de moins`,
-    restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
-    presence: (duration: string) => `présence sur site — ${duration}`,
     capture: (duration: string) => `capture — ${duration} à la force de la pile`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
-    estimatedLoot: 'butin estimé au relevé',
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
     initiative: 'vous frappez en premier',
-    neutralCover:
-      'Site neutre au dernier relevé : aucune garnison connue. L’infanterie le tient à l’arrivée et la capture commence ; s’il a été pris entre-temps, une passe aura lieu.',
     /** Ce que la cible encaissera, selon ce qu'on vise : le seul avantage de la défense est un
      *  mur (C1), et il protège sans tirer. */
     cover: {
@@ -2864,29 +2837,18 @@ export const fr = {
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
      * `medium` ; à l'écran on dit par où l'on passe.
      */
-    mediums: {
-      land: 'par terre',
-      sea: 'par mer',
-      air: 'par air',
-      combined: 'terre et mer',
-    } satisfies Record<RouteMedium, string>,
     /**
      * **L'allure, à côté du milieu.** Une colonne dont l'infanterie tient dans ses transports
      * roule (note « le transport terrestre et l'allure ») : c'est le seul effet du transport
      * terrestre, et la seule façon de le voir avant de payer.
      */
-    paces: { motorized: 'motorisé', foot: 'à pied' } satisfies Record<LandPace, string>,
     /**
      * **This label promises nothing** (ADR 0019 §6). It does not say an adversary is there, and
      * above all it does not say recognised ground would be safe — a posted force is invisible
      * everywhere, at home included. It says one thing, and the note underneath repeats it so it
      * cannot be read the other way round: nothing of yours watches this ground.
      */
-    unscouted: 'sol non reconnu',
-    unscoutedNote:
-      'rien à vous ne regarde ce sol. Un sol reconnu ne serait pas plus sûr : une troupe posée ne se voit pas.',
     submit: 'envoyer — irréversible',
-    cancel: 'annuler',
   },
 
   /**
@@ -3602,7 +3564,7 @@ export const fr = {
               lines: [
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
-                'Touchez une de vos piles pour la lever : sa fiche s’ouvre au pied. Touchez la carte pour la poser, la pile pour la reposer. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
+                'Touchez une de vos piles pour la lever, ou tenez-la appuyée pour la porter. Touchez la carte pour la poser : l’ordre part — s’il y en a plusieurs, une rose réduite laisse choisir. Touchez la pile pour la reposer.',
                 regions,
               ],
             }
@@ -3612,7 +3574,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser — ou glissez-la. Lâchée sur un transport, elle embarque ; clic droit sur le transport pour débarquer. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
+                `Une de vos piles : glissez-la et lâchez-la — l’ordre part au lâcher, la pastille sous le pointeur dit lequel (Tab ou 1, 2, 3 pour en changer). Appui long sur une escouade : une seule troupe. Lâchée sur un transport, elle embarque ; l’étiquette d’un transport chargé fait descendre. Échap ou ${fr.mapUi.mouse.button.right} annule. ${fr.mapUi.mouse.click.left} la lève aussi, un second la pose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -3746,7 +3708,7 @@ export const fr = {
       orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
       separator: '·',
       pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
-      lift: ` ${fr.mapUi.mouse.click.left} ou glisser : lever une pile, puis la poser`,
+      lift: ` glisser une pile, ou ${fr.mapUi.mouse.click.left} puis ${fr.mapUi.mouse.click.left} : l’ordre part à la pose`,
     }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
@@ -3847,12 +3809,6 @@ export const fr = {
     boardOnArrival: 'Marche jusqu’au transport et monte à bord en arrivant, s’il y est encore.',
     boardPlaces: (used: number, capacity: number) =>
       `À bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}.`,
-    /** **Débarquer** (15/10) : pied à terre au point du transport. */
-    disembark: 'débarquer',
-    disembarkConsequence: (count: number) =>
-      count === 1
-        ? 'Met pied à terre à côté du transport.'
-        : `${count} troupes à bord : choisissez qui met pied à terre.`,
     /** « Cargo ×2 · porte-avions » : ce qui emporte, jamais l'abréviation de la pile. */
     transports: (roles: ReadonlyArray<UnitRole>) =>
       [...new Set(roles)]
@@ -3950,14 +3906,6 @@ export const fr = {
    * sol, il ancre des mâts, il héberge une garnison. Deux de ces trois pertes ne se lisent nulle
    * part ailleurs sur le plateau, donc elles se lisent ici ou jamais.
    */
-  /** **Qui met pied à terre** (15/10) : la carte que « débarquer » ouvre quand plusieurs troupes
-   *  sont à bord. */
-  disembark: {
-    kicker: 'pied à terre',
-    heading: (count: number) => `${count} troupe${plural(count, '', 's')} à bord`,
-    aboardOf: (carrier: string) => `à bord · ${carrier.toLowerCase()}`,
-    submit: (count: number) => (count <= 1 ? 'débarquer' : `débarquer ${count} troupes`),
-  },
   dismantle: {
     kicker: 'démantèlement',
     heading: (place: string, level: number) => `Avant-poste de ${place} — niveau ${level}`,

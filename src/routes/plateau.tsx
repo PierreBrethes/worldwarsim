@@ -135,7 +135,6 @@ import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
-import { DisembarkCard } from './-plateau/DisembarkCard';
 import {
   useSendOrder,
   wireOrigin,
@@ -176,7 +175,6 @@ type Demolition = { buildingId: string; x: number; y: number };
 /** **Le point qu'on s'apprête à démonter**, et l'endroit du geste — même contrat que `Demolition`
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
-type Disembarking = { troopIds: ReadonlyArray<string>; x: number; y: number };
 
 /** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
  *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
@@ -400,7 +398,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
-  const [disembarking, setDisembarking] = useState<Disembarking | null>(null);
   /**
    * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
    * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
@@ -427,6 +424,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [departures, setDepartures] = useState(0);
   /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
   const [lifts, setLifts] = useState(0);
+  /** **La main d'un glisser** : la pastille sous le pointeur dit tout, la fiche se tait le temps
+   *  du geste (POC « Manipuler les pions »). */
+  const [dragged, setDragged] = useState<Hand | null>(null);
   const column = useMemo(
     () => (hand.kind === 'held' ? armedColumn(view, hand.station, hand.troopIds) : null),
     [view, hand],
@@ -953,19 +953,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             carrierId: action.carrierId as Id<'troops'>,
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
-        /** **Débarquer** (15/10) : une troupe à bord descend d'un clic ; plusieurs, une carte
-         *  demande lesquelles. */
-        case 'disembark':
-          setOrderError(null);
-          if (action.troopIds.length > 1) {
-            setDisembarking({ troopIds: action.troopIds, x: at.x, y: at.y });
-            return;
-          }
-          disembark({
-            ...seat,
-            troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
-          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
-          return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
          *  la pièce reste posée et la main se repose. */
         case 'bombard':
@@ -1022,7 +1009,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       raiseOutpost,
       respecialize,
       boardTransport,
-      disembark,
       bombard,
       dropHand,
       column,
@@ -1088,7 +1074,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setBuildingSite(null);
       setDemolition(null);
       setDismantling(null);
-      setDisembarking(null);
       setSelectedLoot(null);
       setSelectedCamp(null);
       setSelectedObjective(null);
@@ -1484,10 +1469,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       works.find((site) => site.regionId === regionId && site.key === key) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
-    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât. */
-    const garrisonCountdowns = (buildingId: string) => {
-      const held = troopsAt(view.me, stationKeyOf({ kind: 'building', buildingId }), marching);
-      return { ...reloadOf(held), ...emplacementOf(held) };
+    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât,
+     *  et l'étiquette de ses transports chargés — un avion ne débarque qu'à l'aérodrome. */
+    const garrisonOf = (building: PlayerView['me']['buildings'][number]) => {
+      const held = troopsAt(
+        view.me,
+        stationKeyOf({ kind: 'building', buildingId: building.id }),
+        marching,
+      );
+      return {
+        ...reloadOf(held),
+        ...emplacementOf(held),
+        cargo: cargoTagsOf(held, {
+          afloat: false,
+          atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
+        }),
+      };
     };
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
@@ -1508,7 +1505,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
-      ...garrisonCountdowns(building.id),
+      ...garrisonOf(building),
       ink: view.me.ink,
     }));
 
@@ -1652,6 +1649,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           : carry(hand, click, rules.pile);
       if (next.kind === 'empty') return false;
       if (next !== hand) liftHand(next);
+      setDragged(next);
       return true;
     },
     [clickOfFrom, unitsAt, hand, liftHand],
@@ -2398,16 +2396,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onClose={() => setDismantling(null)}
               />
             )}
-            {disembarking !== null && (
-              <DisembarkCard
-                key={disembarking.troopIds.join()}
-                seat={seat}
-                view={view}
-                troopIds={disembarking.troopIds}
-                at={disembarking}
-                onClose={() => setDisembarking(null)}
-              />
-            )}
             {garrison && (
               <GarrisonPanel
                 /* The pre-check is part of the panel's identity, not only its address: a second
@@ -2426,7 +2414,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
             {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
-            {hand.kind === 'held' && (
+            {hand.kind === 'held' && hand !== dragged && (
               <HandSheet
                 key={`${stationKeyOf(hand.station)}-${lifts}`}
                 view={view}

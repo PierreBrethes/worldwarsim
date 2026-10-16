@@ -21,7 +21,6 @@ import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './id
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
-  disembarkRefusalOf,
   foundingRefusal,
   legalMovementTypes,
   lootCollectionOrderRefusalOf,
@@ -471,18 +470,6 @@ export type CompassAction =
       readonly carrierId: string;
     }
   /**
-   * **Débarquer** (15/10) : mettre pied à terre au point du transport. Une troupe à bord descend
-   * d'un clic ; plusieurs, une fenêtre demande lesquelles.
-   */
-  | {
-      readonly key: 'disembark';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly troopIds: ReadonlyArray<string>;
-    }
-  /**
    * **Bombarder** (B20, lot 6b) : sur-le-champ, comme embarquer — aucune colonne ne part, la pièce
    * tire de sa batterie. Elle ne paraît que si `bombardRefusalOf`, la règle de
    * `movements.bombard`, la laisse passer.
@@ -868,16 +855,6 @@ function collectFan(
     refusal: refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)),
   };
 }
-
-/**
- * **La pose saute la rose quand elle n'a qu'un ordre à offrir** (ADR 0026 §6) : rien n'est deviné
- * à la place du joueur, il n'y a simplement rien d'autre à choisir. Une seconde branche — un autre
- * ordre, un embarquement — ou un refus rendent la rose.
- */
-export const soleOrderOf = (compass: Compass): OrderAction | null => {
-  const [only, ...others] = compass.actions;
-  return only !== undefined && others.length === 0 && isOrder(only) ? only : null;
-};
 
 /**
  * A target's compass, or `null` when there is nothing to say — the right click then stays inert
@@ -1372,13 +1349,10 @@ function build(
        */
       const razes =
         standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
-      /** Un transport garé là débarque ce qu'il porte, au clic droit sur sa figurine (15/10). */
-      const off = disembarkAt({ kind: 'building', buildingId: target.id }, view, composition);
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
         actions: [
-          ...(off?.action == null ? [] : [off.action]),
           ...(raise?.action == null ? [] : [raise.action]),
           ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
@@ -1399,15 +1373,11 @@ function build(
      */
     case 'force': {
       const found = foundHere(target, view, composition);
-      const off = target.station === null ? null : disembarkAt(target.station, view, composition);
-      const actions = [off?.action, found.action].flatMap((action) =>
-        action == null ? [] : [action],
-      );
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions,
-        refusal: actions.length > 0 ? null : (off?.refusal ?? found.refusal),
+        actions: found.action === null ? [] : [found.action],
+        refusal: found.refusal,
       };
     }
     /**
@@ -1576,44 +1546,6 @@ function towardsMyPile(
       actions.length > 0
         ? null
         : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad)),
-  };
-}
-
-/**
- * **Débarquer** (15/10) : ce qui est à bord à cette adresse — ce que la main tient, ou toute la
- * pile —, ou le motif qui l'en empêche. `null` quand personne n'y est à bord.
- */
-function disembarkAt(
-  station: TroopStation,
-  view: PlayerView,
-  heldTroopIds: ReadonlyArray<string> | null,
-): { readonly action: CompassAction | null; readonly refusal: string | null } | null {
-  const pile = troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));
-  const passengers = pile.filter(
-    (troop) =>
-      (heldTroopIds === null || heldTroopIds.includes(troop.id)) && carrierIn(troop, pile) !== null,
-  );
-  if (passengers.length === 0) return null;
-  const site =
-    station.kind === 'building'
-      ? view.me.buildings.find((building) => building.id === station.buildingId)
-      : undefined;
-  const refusal = disembarkRefusalOf({
-    carrier: carrierIn(passengers[0]!, pile)!.role,
-    afloat: station.kind === 'point' && station.afloat,
-    atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
-  });
-  if (refusal !== null) return { action: null, refusal: fr.errors[refusal]() };
-  return {
-    action: {
-      key: 'disembark',
-      pictogram: 'helmet',
-      label: fr.compass.disembark,
-      cost: null,
-      consequence: fr.compass.disembarkConsequence(passengers.length),
-      troopIds: passengers.map((troop) => troop.id),
-    },
-    refusal: null,
   };
 }
 

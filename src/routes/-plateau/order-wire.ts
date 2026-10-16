@@ -102,26 +102,6 @@ export const wireOrigin = (station: MarchStation) =>
         } as const);
 
 /**
- * **Ce que la cible rendra, lu sur ce qu'on vise et rien d'autre** : la protection tient
- * à une garnison (`convex/combat.ts`, `shelteredOf`). Un objectif est une garnison ; un point
- * n'en est une que debout et en service (`outpostShelters`), ce que le brouillard ne dit pas d'un
- * point adverse ; un camp relevé est une pile posée ; une région ou un site peuvent tenir l'un et
- * l'autre. `null` hors d'un ordre qui engage.
- */
-export function riposteCoverOf({
-  aim,
-  type,
-  mission,
-}: OrderChoice): 'sheltered' | 'open' | 'point' | 'either' | null {
-  if (mission.kind === 'plunder') return 'either';
-  if (type !== 'attack' && type !== 'raid') return null;
-  if (aim.kind === 'objective') return 'sheltered';
-  if (aim.kind === 'outpost') return 'point';
-  if (aim.kind === 'camp') return 'open';
-  return 'either';
-}
-
-/**
  * What a sent order calls its destination. A region and an outpost are named by the server, which
  * holds the index; a **point** has no name to give — so it is written as what it is, a pair of
  * coordinates, rather than borrowed from the country it happens to fall in (ADR 0019 §1).

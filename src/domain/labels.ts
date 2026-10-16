@@ -197,6 +197,8 @@ export type MapMarker =
        *  son artillerie est en batterie (B20), absents sinon. */
       readonly reloadUntil?: number;
       readonly emplacedAt?: number;
+      /** **Les transports chargés de sa garnison** : l'étiquette qui pend sous le mât. */
+      readonly cargo?: ReadonlyArray<CargoTag>;
       readonly ink: string;
     }
   | {
@@ -876,6 +878,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: null,
         works: marker.works,
         hostCountry: marker.hostCountry,
+        ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
         lines: [
           { role: 'nature', text: marker.name },
           ...(marker.level === null

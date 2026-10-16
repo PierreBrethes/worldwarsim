@@ -731,6 +731,7 @@ export function WorldMap({
         if (outcome === 'board') readyEngine.boardInto(clientX, clientY);
         if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });
+    readyEngine.onCarryCancel = onDropRefused;
     readyEngine.onCarryOver = (target, clientX, clientY) => {
       hintAt.current = `translate(${clientX + 18}px, ${clientY + 18}px)`;
       if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
@@ -782,6 +783,7 @@ export function WorldMap({
     coastAt,
     landAt,
     chosenOf,
+    onDropRefused,
   ]);
 
   useEffect(() => {
