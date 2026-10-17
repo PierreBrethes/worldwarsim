@@ -28,6 +28,10 @@ mer (révision du 18/09), le noyé, `LANDING_NEEDS_A_COAST`, et l'allure du tran
 >
 > Les capacités et encombrements du §1 tiennent ; le combat ne change pas.
 
+> **Précisée le 18/10/2026 par l'[ADR 0028](0028-l-economie-de-la-mondiale.md) §4** : en Mondiale, un
+> transport porte aussi des jetons de ravitaillement, dans une capacité séparée de ses places. Les
+> places et l'encombrement ne changent pas.
+
 ## Contexte
 
 Audit du 08/10/2026 sur une partie locale : le Royaume-Uni, deux blindés à la caserne, un cargo

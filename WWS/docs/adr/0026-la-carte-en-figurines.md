@@ -39,6 +39,10 @@ même fonction que le refus du serveur (ADR 0015). **Aucune règle de jeu ne cha
 > qui flotte, `forbiddenGroundOf`), un anneau et un fil à plomb marquent le point de chute, et la
 > fiche se tait. Le clic-clic reste. Hors lot : le lasso, le parachutage, rediriger en route.
 
+> **Révisée le 18/10/2026 par l'[ADR 0028](0028-l-economie-de-la-mondiale.md) §6** : au-delà de
+> douze troupes, une escouade de Mondiale se dessine en une figurine par rôle, et son fanion porte
+> le compte. « Toutes troupes visibles » tient jusqu'à douze.
+
 ## Contexte
 
 L'audit visuel du 12/10/2026 a relevé quatre registres d'image côte à côte sur le plateau : la

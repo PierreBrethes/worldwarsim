@@ -13,13 +13,32 @@ avant de les exécuter. La file historique ci-dessous est complétée par la dir
 Le cap est l'[ADR 0027](adr/0027-la-mondiale-au-centre.md). Tout ce qui suit cette section date
 d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 
-1. **Proposition « Mondiale : économie, logistique, escouades »**, ancrée dans le code, puis son
-   grilling (ADR 0027 §5) ; peut-être un POC du geste de ravitaillement.
+1. ~~**Proposition « Mondiale : économie, logistique, escouades »**~~ : faite et grillée le 18/10
+   ([proposition](design/propositions/mondiale-economie-logistique-escouades.md),
+   [ADR 0028](adr/0028-l-economie-de-la-mondiale.md)). Ses lots forment le point 4.
 2. **Retirer les plafonds** : `TROOP_CAP_*` et les emplacements par site (`SITE_SLOTS_FULL`).
 3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
    vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
    24 h, durée réglée au salon, fin de l'entrée tardive.
-4. **L'économie issue du point 1**, avec le plateau personnel.
+4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md)), en huit lots :
+   1. **Cinq ressources** : retirer tissus, bandages et minerai ; le fer donne l'acier ; retirer
+      filature, intendance, fonderie et casernements ; régénérer les gisements ; relire le socle.
+      Avec le wipe d'avant la saison test.
+   2. **Coûts mêlés et entretien** : barèmes par famille, paliers, entretien d'avant-poste, écoute
+      au charbon.
+   3. **Coups et plein** : portés par la troupe, repris à l'ancre, départ refusé sans plein, à sec
+      ni attaque ni riposte ; les deux pictos aux quatre endroits.
+   4. **Prototype du plateau personnel** (`WWS/prototypes/`) : charger, livrer, larguer, la
+      récolte. Il règle la fluidité avant les lots 5 et 6.
+   5. **Le plateau personnel** : bacs, récolte, tuiles, réserve de pièces ; remplace la fenêtre
+      Économie.
+   6. **Dépôts, livraison, largage** : charger, livrer, retour seul, larguer sur un point ou une
+      escouade, interception, caisse ; ce que le niveau d'un point rend.
+   7. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
+      verrous de niveau et `chainSpeed` retirés, invariant du contre.
+   8. **Les escouades** : salve bornée de l'artillerie, dessin regroupé, borne serveur.
+
+   Bakou, Dakar et Singapour (point 3) attendent les lots 3 et 6.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
 6. **Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7).
 7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.

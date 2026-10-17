@@ -22,7 +22,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0012](0012-trajets-multimodaux-sur-grille.md) | Trajets multimodaux sur grille raster, calculés dans le domaine | acceptée |
 | [0013](0013-batiments-de-projection-sur-regions.md) | Bâtiments de projection posés sur des régions | acceptée, portée révisée par 0015, amendée par 0019 |
 | [0014](0014-troupes-discretes-et-combat-sequentiel.md) | Troupes discrètes et combat séquentiel à l'initiative de l'attaquant | acceptée, précisée par 0018 |
-| [0015](0015-economie-v2-ressources-localisees.md) | Économie v2 : ressources localisées et filières courtes | acceptée |
+| [0015](0015-economie-v2-ressources-localisees.md) | Économie v2 : ressources localisées et filières courtes | acceptée, révisée par 0028 (Mondiale : cinq ressources, recherche) |
 | [0016](0016-code-anglais-jeu-francais.md) | Code en anglais, jeu en français via une table de traduction unique | acceptée |
 | [0017](0017-format-de-saison-et-socle-place.md) | Format de saison, socle placé, et ce que borne un plafond de stockage | acceptée |
 | [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08, §3 et §5 révisés par 0021 |
@@ -32,6 +32,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009, révisée le 12/09 |
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
 | [0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) | L'engagement est intentionnel, et une force posée se voit dans la portée | acceptée — révise 0008, 0019 §3/§6, 0021 §2/§3 |
-| [0025](0025-capacite-encombrement-et-embarquement-de-proximite.md) | Capacité, encombrement, et l'embarquement de proximité | acceptée — révise 0019 §2, fiche 09, décision 70b |
-| [0026](0026-la-carte-en-figurines.md) | La carte en figurines | acceptée — révise la décision du 30/08 (cartouche, visée) et la fiche 10 (unités) |
+| [0025](0025-capacite-encombrement-et-embarquement-de-proximite.md) | Capacité, encombrement, et l'embarquement de proximité | acceptée — révise 0019 §2, fiche 09, décision 70b ; précisée par 0028 (jetons à bord) |
+| [0026](0026-la-carte-en-figurines.md) | La carte en figurines | acceptée — révise la décision du 30/08 (cartouche, visée) et la fiche 10 (unités) ; révisée par 0028 (escouade regroupée) |
 | [0027](0027-la-mondiale-au-centre.md) | La Mondiale au centre, et l'économie comme seul frein | acceptée — remplace la fiche 01, révise 0001, 0020 §10/§11 |
+| [0028](0028-l-economie-de-la-mondiale.md) | L'économie de la Mondiale : cinq ressources, la logistique par les pièces | acceptée — révise 0015, 0026 (16/10), 66a, R1/R5 du 14/10, le relais ; précise 0025 |

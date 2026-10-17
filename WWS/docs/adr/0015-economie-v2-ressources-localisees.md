@@ -9,7 +9,9 @@
 > perte de capacité.
 
 **Statut :** acceptée — **critère de distribution renforcé le 15/08/2026**, **règle du grisé
-révisée le 24/08/2026** (voir plus bas)
+révisée le 24/08/2026** (voir plus bas) — **révisée par l'[ADR 0028](0028-l-economie-de-la-mondiale.md)**
+(18/10/2026) pour la Mondiale : cinq ressources, le fer donne l'acier, la recherche remplace le QG
+comme verrou.
 
 > ⚠️ **Révision (15/08/2026) : « un manque volontaire, jamais deux » ne suffit pas — il est
 > **complété**, pas remplacé.** Le critère mesure une **présence**, jamais une quantité ni une
