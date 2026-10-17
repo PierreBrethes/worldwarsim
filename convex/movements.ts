@@ -86,7 +86,6 @@ export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
   CAPTURE_TARGET,
-  CONTACT_FORCE,
   LON_LAT,
   MOVEMENT_ORIGIN,
   MOVEMENT_TYPE,
@@ -1007,37 +1006,4 @@ export const completePlunderPresence = internalMutation({
 export const revealSighting = internalMutation({
   args: { sightingId: v.id('sightings') },
   handler: (ctx, { sightingId }) => revealScheduledSighting(ctx, sightingId),
-});
-
-/**
- * **Legacy, le temps d'un wipe** : un rendez-vous de contact planifié avant le 13/09 peut encore
- * se réveiller, et une porte disparue fait échouer le réveil. Elle ne fait **rien** — la rencontre
- * en route a été retirée du plateau (ADR 0024 §3), et il n'y a plus de passe à ouvrir ni d'état à
- * rattraper : le champ `contactJobId` n'est plus écrit, donc la prochaine réévaluation venue ne
- * reprogrammera jamais celui-ci.
- */
-export const encounter = internalMutation({
-  args: {
-    initiatorId: v.id('movements'),
-    withId: v.id('movements'),
-    expectedAt: v.number(),
-  },
-  handler: () => {},
-});
-
-/** Legacy callback kept until the next wipe so already scheduled fixed-radius jobs become a
- * harmless reassessment instead of resolving a forbidden stationary interception. */
-export const intercept = internalMutation({
-  args: {
-    movementId: v.id('movements'),
-    by: CONTACT_FORCE,
-    point: LON_LAT,
-  },
-  handler: async (ctx, { movementId, by, point }) => {
-    const movement = await ctx.db.get(movementId);
-    if (!movement) return;
-    void by;
-    void point;
-    await reassessDetection(ctx, movement.seasonId);
-  },
 });

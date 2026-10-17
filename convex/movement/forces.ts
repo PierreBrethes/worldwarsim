@@ -121,8 +121,6 @@ export async function onAirfield(ctx: QueryCtx, address: TroopAddress): Promise<
   return buildingId !== null && (await ctx.db.get(buildingId))?.key === PROJECTION_BY_DOMAIN.air;
 }
 
-/** Who a contact is with. `CONTACT_FORCE` is the same union in the shape Convex checks at run
- *  time; this is the one TypeScript reads. */
 export type ContactForce =
   | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> }
   | { readonly kind: 'movement'; readonly movementId: Id<'movements'> }

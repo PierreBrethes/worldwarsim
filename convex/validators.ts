@@ -749,22 +749,6 @@ export const ATTACK_TARGET = v.union(
 );
 
 /**
- * **Who a contact is with**, as the scheduled resolution reads it back hours later. Two of the
- * three are documents; the third is not — a camp is troops sharing an address, and the address
- * is the only name it has, so the coordinate travels here rather than in an identifier.
- *
- * It used to travel as `posted:<playerId>@<lon>,<lat>`, a string built by hand and taken apart
- * by hand at the other end. A second spelling of a fact already spelled by the schema is a
- * second truth: when the re-reading missed, the pass was scheduled, nobody was found, and
- * nothing happened without a word — a silent failure in the middle of a combat rule.
- */
-export const CONTACT_FORCE = v.union(
-  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
-  v.object({ kind: v.literal('movement'), movementId: v.id('movements') }),
-  v.object({ kind: v.literal('posted'), playerId: v.id('players'), point: LON_LAT }),
-);
-
-/**
  * The same, plus the one nobody orders: a column on its way back to what it hangs from. Every
  * form of an address answers here, because a return goes back to the one it left with: an
  * **outpost** for a garrison — the same coordinate, read back by the arrival to know it becomes

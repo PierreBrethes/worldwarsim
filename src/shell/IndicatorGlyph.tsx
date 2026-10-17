@@ -18,7 +18,6 @@ export type PictogramName =
   | 'production'
   | 'nation'
   | 'replay'
-  | 'doctrine'
   | 'intel'
   /** Le tas de caisses des objectifs neutres : une réserve, jamais une possession. */
   | 'supply'

@@ -6,13 +6,7 @@
     "src/map/engine/pictogram-review.tsx",
     "scripts/*.mjs"
   ],
-  "project": [
-    "src/**/*.{ts,tsx,css}",
-    "convex/**/*.ts",
-    "scripts/**/*.mjs"
-  ],
-  "ignoreDependencies": [
-    "world-atlas"
-  ],
+  "project": ["src/**/*.{ts,tsx,css}", "convex/**/*.ts", "scripts/**/*.mjs"],
+  "ignoreDependencies": ["world-atlas"],
   "ignoreExportsUsedInFile": true
 }
