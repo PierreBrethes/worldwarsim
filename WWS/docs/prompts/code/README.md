@@ -4,11 +4,11 @@ statut: validé
 maj: 2026-10-02
 code: []
 decisions: []
-voir: [ready/outillage/README.md, ready/outillage/27-cycle-des-prompts.md, ../../skills/wws-fin-session/SKILL.md]
+voir: [../../skills/wws-fin-session/SKILL.md]
 ---
 # Prompts Claude Code — cycle de vie
 
-**En bref.** Règle du cycle de vie des prompts Claude Code : `ready/` pour ce qui se donne, `done/` pour ce qui est consommé et immuable, `_to_delete/` pour le périmé avant d'être donné. Fait autorité sur ce cycle ; ne décrit ni `ready/outillage/` ni `prompts/coffre/`.
+**En bref.** Règle du cycle de vie des prompts Claude Code : `ready/` pour ce qui se donne, `done/` pour ce qui est consommé et immuable, `_to_delete/` pour le périmé avant d'être donné. Fait autorité sur ce cycle ; ne décrit pas `prompts/coffre/`.
 
 Deux dossiers, une règle.
 
