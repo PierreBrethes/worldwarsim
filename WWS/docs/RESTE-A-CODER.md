@@ -8,6 +8,24 @@ Relecture code du 08/09 : [bilan daté, vérifications et recommandations](techn
 Le bilan relève notamment les cas à préciser dans les briefs de victoire et d'objectifs neutres
 avant de les exécuter. La file historique ci-dessous est complétée par la direction V1 du 08/09.
 
+## La file au 17/10 — vers la saison test Mondiale v2
+
+Le cap est l'[ADR 0027](adr/0027-la-mondiale-au-centre.md). Tout ce qui suit cette section date
+d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
+
+1. **Proposition « Mondiale : économie, logistique, escouades »**, ancrée dans le code, puis son
+   grilling (ADR 0027 §5) ; peut-être un POC du geste de ravitaillement.
+2. **Retirer les plafonds** : `TROOP_CAP_*` et les emplacements par site (`SITE_SLOTS_FULL`).
+3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
+   vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
+   24 h, durée réglée au salon, fin de l'entrée tardive.
+4. **L'économie issue du point 1**, avec le plateau personnel.
+5. **Le tutoriel de manipulation** (ADR 0027 §2).
+6. **Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7).
+7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.
+
+Plus tard : petites annonces et départ adaptatif (étape publique), bot Blitz, anglais.
+
 ## Direction V1 retenue le 08/09
 
 Pierre accueille favorablement **les points 1 à 8** de la proposition de version plus complète :

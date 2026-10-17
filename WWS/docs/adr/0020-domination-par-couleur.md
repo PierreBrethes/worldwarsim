@@ -2,7 +2,9 @@
 
 **Statut :** acceptée (31/08/2026) — **révise l'[ADR 0005](0005-brouillard-par-defaut.md)**,
 tient la promesse non tenue de l'[ADR 0004](0004-avant-postes-plutot-que-conquete.md),
-retire les doctrines de la [fiche 05](../design/05-doctrines.md)
+retire les doctrines de la [fiche 05](../design/05-doctrines.md) — **§10 et §11 révisés par
+l'[ADR 0027](0027-la-mondiale-au-centre.md)** (17/10/2026) : plus d'emplacements par site, et la
+durée de saison redevient un réglage du salon.
 
 ## Contexte
 

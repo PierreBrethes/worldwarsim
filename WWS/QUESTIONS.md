@@ -18,8 +18,8 @@ inventer un manque américain serait de la fiction. Trois leviers, aucun mesuré
 domination par part du théâtre (`fin-de-saison-au-seuil-tenu`) ne l'exige pas.
 
 *Ce que ça bloque :* les **atouts nationaux** (fiche 06, aucun codé) et tout rééquilibrage
-d'une nation. Pas le reste. *L'instrument :* la refonte du simulateur en client Convex
-(Registre 24) — sans lui, toute réponse est une opinion.
+d'une nation. Pas le reste. *L'instrument :* la saison test et son script de rapport sur le journal
+d'événements (ADR 0027 §7) ; la refonte du simulateur est abandonnée.
 
 ## 🟠 Structurantes
 
@@ -50,7 +50,8 @@ réponse. **À trancher avant de donner `fin-de-saison-au-seuil-tenu`.**
 60 km de rayon ; une fondation coûte 65, donne un emplacement, un cercle neuf et de la couleur.
 À tout prix supérieur à la fondation, élever est dominé par fonder tant qu'il reste de la place.
 Le prix n'est pas le sujet ; ce qu'un niveau achète l'est. Mesure d'abord (7a : avant-postes
-debout par joueur au jour 7, et combien d'élévations), règle ensuite.
+debout par joueur au jour 7, et combien d'élévations), règle ensuite. Repris par le chantier
+économie : élever doit rapporter un rendement qui s'accumule (ADR 0027 §5).
 
 **Le rendez-vous de l'ordre « intercepter ».** L'ADR 0024 a fermé la question « peut-on refuser
 le combat » : rien ne se bat sans ordre d'attaque, une force qui marche n'est jamais chassée
@@ -75,16 +76,15 @@ nations d'abord, jamais huit d'un coup. Le *nerf du Japon* (doctrine du porte-av
 l'irréversibilité) et le *pouvoir italien jamais simulé* se jugent quand ils existent.
 
 **Le nombre de nations.** Huit aujourd'hui, huit atouts à équilibrer pour un dev solo ; six
-serait plus sage pour la première saison avec atouts.
+serait plus sage pour la première saison avec atouts. La saison test se joue à huit, sans
+atout (ADR 0027 §4).
 
 **L'auto-battler à plans (option B).** Plan de bataille enregistré à l'avance, résolution
 déterministe — seule façon connue de rendre de la décision tactique sans casser l'asynchrone.
 À reconsidérer si le combat automatique paraît trop passif après une saison complète.
 
-**Notifications.** Proposition validée sur le principe le 28/08
-([pushes et alarmes](docs/design/propositions/notifications-push-et-alarmes.md)), « après le
-premier skirmish ». Trois parties plus tard, rien n'est codé ; en asynchrone sur sept jours,
-« rien » veut dire que les joueurs oublient le jeu au bout de deux jours.
+**Les personnages.** Pierre pense en ajouter plus tard (17/10) ; réels ou fictifs, rien n'est
+tranché. La règle de ton (ADR 0027 §6) tient d'ici là.
 
 **« L'Allemagne est injouable ».** Plainte Discord du 15/09 ; le frein a changé de nature
 depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une réponse.
@@ -127,3 +127,4 @@ ami — et c'est précisément ce que le tarif majoré empêche aujourd'hui.
   prompt `resolution-simultanee`). La salve d'allonge reste abandonnée ; l'artillerie viendra
   comme un rôle (Registre 28), pas comme une salve.
 - « Peut-on refuser le combat », le rayon d'interception → voir plus haut (ADR 0021, 0024).
+- Notifications → codées (`convex/notifications.ts`, `convex/pushSend.ts`).

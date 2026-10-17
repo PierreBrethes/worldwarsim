@@ -10,8 +10,8 @@ voir: [CONTEXT.md, QUESTIONS.md, docs/adr/README.md, docs/decisions.md]
 # WorldWarSim — le coffre de design
 
 **En bref.** Ce dossier garde le *pourquoi* et l'*intention* ; le code garde le *quoi* et fait foi
-(`CLAUDE.md` à la racine, « Sources de vérité »). Ici : les trois règles de design, les pièges, les
-conventions de la doc. Rien ici ne tient un état du projet.
+(`CLAUDE.md` à la racine, « Sources de vérité »). Ici : la boussole et les trois règles de design, les
+pièges, les conventions de la doc. Rien ici ne tient un état du projet.
 
 ## Où est quoi
 
@@ -27,17 +27,24 @@ conventions de la doc. Rien ici ne tient un état du projet.
 Une fiche de `docs/design/` décrit une intention ; une fois la règle codée, elle est figée et le
 code l'emporte sur elle.
 
-## Les trois règles de design
+## La boussole et les trois règles
 
-Toute proposition se teste contre elles avant d'être discutée.
+> Un jeu de plateau qu'on manipule à la main, à l'échelle de la planète : on ne voit que ce
+> qu'on a payé pour voir, et ce qu'on engage ne revient pas vite.
+
+Toute proposition se teste contre elles avant d'être discutée. La Mondiale est le jeu, la Blitz
+l'atelier des pièces ; le cap et ses raisons : ADR 0027.
 
 1. **Les bonus cassent une règle**, ils ne modifient jamais un pourcentage. « +15 % de dégâts »
    ne change aucune décision ; « je réoriente mes troupes en vol » change la carte mentale.
 2. **Ce qui est joli à l'écran est une ressource qu'on achète.** Le rendu est un résultat, pas
    un décor : ce qu'on voit de l'adversaire, on l'a relevé.
-3. **En Mondiale, un joueur écrasé reste nuisible.** Le risque n°1 du format long est le joueur
-   battu mardi avec cinq jours de rien devant lui. (La Blitz, deux heures, élimine à la chute
-   du QG.)
+3. **En Mondiale, un joueur écrasé reste nuisible, par la parole** : éliminé, il garde le
+   télégraphe et ce qu'il a vu. Le risque n°1 du format long est le joueur battu tôt avec des
+   jours de rien devant lui. (La Blitz élimine à la chute du QG.)
+
+**Ton : une guerre de pays, sans idéologie** — ni symbole de régime, ni crimes, ni camps ; les
+drapeaux sont ceux d'aujourd'hui.
 
 ## Pièges connus
 

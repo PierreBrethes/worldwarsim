@@ -1,5 +1,8 @@
 # 01 — Vision et format de saison
 
+> **Remplacée le 17/10/2026 par l'[ADR 0027](../adr/0027-la-mondiale-au-centre.md)** : deux modes,
+> la Mondiale au centre, une boussole réécrite. Gardée pour mémoire, elle ne fait plus foi.
+
 ## Le principe directeur
 
 > Le jeu n'est pas « faire une grosse armée ». Le jeu est **projeter de la force sur une planète où

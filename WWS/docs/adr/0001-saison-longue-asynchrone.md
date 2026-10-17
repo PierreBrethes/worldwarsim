@@ -1,6 +1,7 @@
 # ADR 0001 — Saison longue asynchrone plutôt que parties de 30 minutes
 
-**Statut :** acceptée
+**Statut :** acceptée — **révisée par l'[ADR 0027](0027-la-mondiale-au-centre.md)** (17/10/2026) :
+deux modes, dont une Blitz de 1 à 2 h, et une Mondiale dont la durée est un réglage du salon.
 
 ## Contexte
 
