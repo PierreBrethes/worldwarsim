@@ -127,7 +127,13 @@
   --plinth-h: 14px;
   --radius: 0;
   --shadow: none;
+  /* Elevation, three steps and no more: a piece lifted from its sheet, what floats over the
+     map, what floats over a float (the table map of the lobby, a sheet over a sheet). The
+     printed cartouche keeps its dry offset — ink on paper, not a height. */
+  --shadow-lift: 0 6px 14px rgb(0 0 0 / 20%);
   --shadow-float: 0 12px 26px rgb(0 0 0 / 42%);
+  --shadow-float-hi: 0 22px 48px rgb(0 0 0 / 52%);
+  --shadow-print: 2px 2px 0 rgb(38 30 20 / 38%);
 
   /* Motion: three durations and one curve, in and out alike — a leave that starts slow delays
      the very moment the eye is on (better-ui). A surface that opens reads them, so that the
