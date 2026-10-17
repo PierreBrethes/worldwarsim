@@ -237,7 +237,7 @@ body {
 
 /* Le coin pivote, pas sa forme : un quart de cercle tourné montrerait ses bords droits. */
 .protractor-hub > * {
-  transition: transform 240ms var(--ease-out);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 
 .protractor[data-open] .protractor-hub > * {
@@ -263,8 +263,8 @@ body {
   opacity: 0;
   transform: translate(0, 0) scale(0.35);
   transition:
-    transform 150ms var(--ease-in) calc(var(--back) * 18ms),
-    opacity 150ms ease calc(var(--back) * 18ms);
+    transform 150ms var(--ease-out) calc(var(--back) * 18ms),
+    opacity 150ms var(--ease-out) calc(var(--back) * 18ms);
 }
 
 .protractor[data-open] .protractor-round {
@@ -272,7 +272,7 @@ body {
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y))) scale(1);
   transition:
     transform 230ms var(--ease-out) calc(var(--rank) * 30ms),
-    opacity 180ms ease calc(var(--rank) * 30ms);
+    opacity 180ms var(--ease-out) calc(var(--rank) * 30ms);
 }
 
 /* Réduites : les ronds sont à leur place et s'y fondent. Coupées : ils y sont, sans transition. */
@@ -449,6 +449,12 @@ body {
   }
 }
 
+@keyframes page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes magnesium-flash {
   0% {
     opacity: 0;
@@ -462,20 +468,6 @@ body {
 }
 
 /* A combat dispatch slides in from the masthead it was printed under, and slides back out. */
-@keyframes dispatch-toast-in {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-}
-
-@keyframes dispatch-toast-out {
-  to {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-}
-
 @keyframes curtain-rise {
   from {
     opacity: 1;
@@ -616,9 +608,11 @@ body {
 }
 
 /* G3: the paper square inks at the hover, like the rows of `NextActions`. */
-.paper-hover:hover {
-  background-image: linear-gradient(
-    color-mix(in srgb, var(--ink) 7%, transparent),
-    color-mix(in srgb, var(--ink) 7%, transparent)
-  );
+@media (hover: hover) {
+  .paper-hover:hover {
+    background-image: linear-gradient(
+      color-mix(in srgb, var(--ink) 7%, transparent),
+      color-mix(in srgb, var(--ink) 7%, transparent)
+    );
+  }
 }

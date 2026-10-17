@@ -27,7 +27,7 @@
   font-family: var(--font-body);
   font-variant-numeric: tabular-nums;
   transform: translate(-50%, -50%);
-  animation: rose-open var(--dur-quick) cubic-bezier(0.2, 0.78, 0.35, 1) both;
+  animation: rose-open var(--dur-quick) var(--ease-out) both;
 
   --radial-ink: #22475a;
   --spoke-ink: var(--sea-ink);
@@ -127,7 +127,7 @@
   cursor: pointer;
   pointer-events: auto;
   transform: translate(-50%, -50%);
-  transition: background 90ms linear;
+  transition: background-color var(--dur-quick) ease;
 }
 
 .rose-medallion svg {
@@ -189,7 +189,7 @@
   background: var(--spoke-ink);
   opacity: 0.8;
   pointer-events: none;
-  animation: rose-appear 90ms linear both;
+  animation: rose-appear var(--dur-quick) var(--ease-out) both;
 }
 
 .rose-bubble {
@@ -199,7 +199,7 @@
   border: 1px solid var(--spoke-ink);
   background: var(--bubble-paper);
   pointer-events: none;
-  animation: rose-appear 90ms linear both;
+  animation: rose-appear var(--dur-quick) var(--ease-out) both;
 }
 
 @keyframes rose-appear {
@@ -368,7 +368,7 @@
   background: var(--paper);
   color: var(--ink);
   border: 1px solid var(--ink);
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-quick) ease;
   will-change: transform;
 }
 .drop-chip-icon {
@@ -381,7 +381,7 @@
   font: 700 13px/1 var(--font-body);
   color: var(--paper);
   background: var(--arc-mine);
-  animation: drop-chip-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  animation: drop-chip-pop var(--dur-base) var(--ease-out);
 }
 @keyframes drop-chip-pop {
   from {
@@ -424,8 +424,10 @@
 .drop-chip--calm .drop-chip-icon {
   background: var(--ink-soft);
 }
-@media (prefers-reduced-motion: reduce) {
-  .drop-chip-icon {
-    animation: none;
-  }
+/* La pastille se réécrit à chaque cible survolée pendant le geste : un fondu suffit en réduites. */
+:root[data-motion='reduced'] .drop-chip-icon {
+  animation-name: surface-fade;
+}
+:root[data-motion='off'] .drop-chip-icon {
+  animation: none;
 }

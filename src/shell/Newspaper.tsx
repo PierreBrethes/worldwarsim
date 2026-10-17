@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import boardBackdrop from './board-backdrop.jpg';
+import { useMapMotion } from '@/data/mapMotion';
 import { LOOP_POSTER_URL, LOOP_URL, filmBackdrop, type FilmBackdrop } from './media';
 
 /**
@@ -38,9 +39,16 @@ export function usePageTurn() {
   return { turning, turn };
 }
 
-const ANIMATION: Readonly<Record<'exit' | 'entry', string>> = {
-  exit: `page-turn-out ${EXIT_MS}ms ease-in both`,
-  entry: `page-turn-in ${ENTRY_MS}ms cubic-bezier(.2,.7,.2,1) both`,
+/** Hors animations actives, la page ne tourne plus sur son pli : elle passe en fondu. */
+const ANIMATION: Readonly<Record<'turn' | 'fade', Record<'exit' | 'entry', string>>> = {
+  turn: {
+    exit: `page-turn-out ${EXIT_MS}ms var(--ease-out) both`,
+    entry: `page-turn-in ${ENTRY_MS}ms var(--ease-out) both`,
+  },
+  fade: {
+    exit: `page-fade-out ${EXIT_MS}ms var(--ease-out) both`,
+    entry: `surface-fade ${ENTRY_MS}ms var(--ease-out) both`,
+  },
 };
 
 export function Newspaper({
@@ -55,6 +63,7 @@ export function Newspaper({
   backdrop?: 'map' | 'film';
   children: ReactNode;
 }) {
+  const pace = useMapMotion() === 'full' ? 'turn' : 'fade';
   return (
     <div className="relative h-full overflow-hidden bg-[var(--desk)]">
       {backdrop === 'film' ? <FilmTable /> : <MapTable />}
@@ -79,7 +88,7 @@ export function Newspaper({
             />
             <div
               className="relative origin-left"
-              style={turning === null ? undefined : { animation: ANIMATION[turning] }}
+              style={turning === null ? undefined : { animation: ANIMATION[pace][turning] }}
             >
               {children}
               <div
@@ -121,9 +130,10 @@ function MapTable() {
  * se reconnaître dans les bandes latérales, la feuille rester lisible.
  */
 function FilmTable() {
+  const still = useMapMotion() !== 'full';
   const [mode] = useState<FilmBackdrop>(() =>
     filmBackdrop({
-      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      reducedMotion: still,
       // Absent sur Safari et Firefox : absent vaut « pas d'économie demandée ».
       saveData:
         (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData ===

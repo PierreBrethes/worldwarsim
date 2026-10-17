@@ -162,16 +162,20 @@
       color: var(--ink);
       text-decoration: none;
     }
-    .btn:hover {
-      background: color-mix(in srgb, var(--ink) 8%, transparent);
+    @media (hover: hover) {
+      .btn:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+      }
     }
     .btn.primary {
       background: var(--ink);
       color: var(--paper);
     }
-    .btn.primary:hover {
-      background: var(--interaction);
-      border-color: var(--interaction);
+    @media (hover: hover) {
+      .btn.primary:hover {
+        background: var(--interaction);
+        border-color: var(--interaction);
+      }
     }
     .btn.primary[aria-disabled='true'] {
       background: color-mix(in srgb, var(--ink) 12%, transparent);
@@ -184,8 +188,10 @@
       border-color: var(--critical);
       color: var(--paper);
     }
-    .btn.alarm:hover {
-      background: #7f362b;
+    @media (hover: hover) {
+      .btn.alarm:hover {
+        background: #7f362b;
+      }
     }
     .btn.alarm[aria-disabled='true'] {
       background: rgba(157, 70, 56, 0.12);
@@ -209,8 +215,10 @@
       border-color: rgba(228, 216, 189, 0.45);
       color: var(--paper);
     }
-    .btn.dark:hover {
-      background: rgba(228, 216, 189, 0.1);
+    @media (hover: hover) {
+      .btn.dark:hover {
+        background: rgba(228, 216, 189, 0.1);
+      }
     }
     .link {
       background: none;
@@ -221,14 +229,18 @@
       text-decoration: underline;
       text-underline-offset: 4px;
     }
-    .link:hover {
-      color: var(--ink);
+    @media (hover: hover) {
+      .link:hover {
+        color: var(--ink);
+      }
     }
     .link.dark {
       color: var(--paper-dim-2);
     }
-    .link.dark:hover {
-      color: var(--paper);
+    @media (hover: hover) {
+      .link.dark:hover {
+        color: var(--paper);
+      }
     }
 
     .stamp {
@@ -890,7 +902,7 @@
       display: grid;
       grid-template-rows: 128px auto;
       color: var(--ink);
-      transition: transform 0.12s;
+      transition: transform var(--dur-quick) var(--ease-out);
     }
     .modecard .mapbox {
       border-bottom: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
@@ -1064,8 +1076,10 @@
       border: 0;
       font: 600 18px var(--num);
     }
-    .stepper button:hover {
-      background: color-mix(in srgb, var(--ink) 8%, transparent);
+    @media (hover: hover) {
+      .stepper button:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+      }
     }
     .stepper output {
       display: grid;
@@ -2229,14 +2243,19 @@
         font-size: 12px;
       }
     }
-    @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        animation-duration: 0.01ms !important;
-        animation-delay: 0ms !important;
-        transition: none !important;
-      }
+    /* Réduites : le tampon et la bande du télégramme arrivent en fondu, la carte de mode ne se
+       soulève plus ; coupées, rien ne bouge. */
+    :root[data-motion='reduced'] & :is(.stamp.pop, .tape.fresh) {
+      animation-name: surface-fade;
+    }
+    :root[data-motion='reduced'] & .modecard {
+      transition: none;
+    }
+    :root[data-motion='off'] & *,
+    :root[data-motion='off'] & *::before,
+    :root[data-motion='off'] & *::after {
+      animation: none !important;
+      transition: none !important;
     }
     /* =========================================================
    V2 — la table trie : ordre replié, invitation au bandeau,
@@ -2463,9 +2482,11 @@
       text-transform: uppercase;
       padding: 5px 9px;
     }
-    .wclose:hover {
-      background: var(--ink);
-      color: var(--paper);
+    @media (hover: hover) {
+      .wclose:hover {
+        background: var(--ink);
+        color: var(--paper);
+      }
     }
     .wcanal {
       padding: 5px 14px 4px;
@@ -2673,9 +2694,11 @@
     .btn[aria-disabled='true'] {
       cursor: not-allowed;
     }
-    .btn.primary[aria-disabled='true']:hover {
-      background: color-mix(in srgb, var(--ink) 12%, transparent);
-      border-color: color-mix(in srgb, var(--ink) 30%, transparent);
+    @media (hover: hover) {
+      .btn.primary[aria-disabled='true']:hover {
+        background: color-mix(in srgb, var(--ink) 12%, transparent);
+        border-color: color-mix(in srgb, var(--ink) 30%, transparent);
+      }
     }
     a.btn {
       text-decoration: none;

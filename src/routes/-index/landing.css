@@ -316,9 +316,11 @@ body.lp-scroll {
   cursor: pointer;
 }
 
-.lp-btn:hover {
-  background: var(--ink);
-  color: var(--paper);
+@media (hover: hover) {
+  .lp-btn:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
 }
 
 .lp-btn--solid {
@@ -326,8 +328,10 @@ body.lp-scroll {
   color: var(--paper);
 }
 
-.lp-btn--solid:hover {
-  background: var(--interaction);
+@media (hover: hover) {
+  .lp-btn--solid:hover {
+    background: var(--interaction);
+  }
 }
 
 .lp-btn:disabled {
@@ -934,8 +938,10 @@ body.lp-scroll {
   cursor: pointer;
 }
 
-.lp-send-button:hover {
-  background: #7f3529;
+@media (hover: hover) {
+  .lp-send-button:hover {
+    background: #7f3529;
+  }
 }
 
 .lp-rose-layer {

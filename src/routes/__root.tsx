@@ -1,11 +1,12 @@
 import { Navigate, Outlet, createRootRoute, useRouterState } from '@tanstack/react-router';
 import { useQueries } from 'convex/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { convexClient } from '@/data/convexClient';
 import { errorMessage } from '@/data/errors';
+import { useMapMotion } from '@/data/mapMotion';
 import { useSession } from '@/data/session';
 import { Notifications, notify } from '@/shell/notifications';
 
@@ -37,6 +38,15 @@ function Root() {
     window.addEventListener('unhandledrejection', onRejection);
     return () => window.removeEventListener('unhandledrejection', onRejection);
   }, []);
+
+  /** **Le réglage d'animations vaut pour tout le jeu**, hors-saison compris : posé sur la racine,
+   *  il est la seule porte du mouvement en CSS — `prefers-reduced-motion` n'y entre que par
+   *  « auto ». Portails et étiquettes le lisent comme le reste ; avant la première image, sans quoi les
+   *  entrées du premier rendu échappaient au réglage. */
+  const motion = useMapMotion();
+  useLayoutEffect(() => {
+    document.documentElement.dataset.motion = motion;
+  }, [motion]);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   /** Sans backend, personne ne garde rien : l'accueil dit déjà ce qui manque. */

@@ -129,14 +129,13 @@
   --shadow: none;
   --shadow-float: 0 12px 26px rgb(0 0 0 / 42%);
 
-  /* Motion: three durations, and a curve to come in (`--ease-out`) and one to leave (`--ease-in`).
-     A surface that opens reads them, so that the windows, the rose and the protractor keep one
-     pace. */
+  /* Motion: three durations and one curve, in and out alike — a leave that starts slow delays
+     the very moment the eye is on (better-ui). A surface that opens reads them, so that the
+     windows, the rose and the protractor keep one pace. */
   --dur-quick: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
 /* Plain paper, laid flat: the halftone screen lowered the contrast of everything written on it

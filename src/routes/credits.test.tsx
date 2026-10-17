@@ -13,7 +13,12 @@ import { Credits } from './credits';
 
 afterEach(cleanup);
 
-vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+vi.stubGlobal('matchMedia', (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+}));
 
 it('names the BKG, whose attribution the licence requires', async () => {
   const root = createRootRoute({ component: Outlet });

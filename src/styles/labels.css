@@ -455,7 +455,7 @@
 
 /* Detail level: the text and its stroke fade in briefly, the base does not move. */
 .label-block {
-  transition: opacity 0.18s ease;
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 
 .label--glyph .label-block {
@@ -599,7 +599,7 @@
 }
 
 .label-plate {
-  transition: transform 0.14s ease;
+  transition: transform var(--dur-quick) var(--ease-out);
 }
 
 /* **Le drapeau planté au bout de mes mouvements** (carte-lisible, 03/10), à l'encre de ma
@@ -1045,10 +1045,12 @@
   background: #f3ead6;
   cursor: grab;
 }
-.cargo-slot--full:hover {
-  background: #fff6e2;
-  box-shadow: 0 2px 0 var(--ink);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .cargo-slot--full:hover {
+    background: #fff6e2;
+    box-shadow: 0 2px 0 var(--ink);
+    transform: translateY(-1px);
+  }
 }
 .cargo-slot--ghost {
   border-style: solid;
@@ -1082,9 +1084,11 @@
   text-transform: uppercase;
   cursor: pointer;
 }
-.cargo-tag-out:hover {
-  background: var(--ink);
-  color: var(--paper);
+@media (hover: hover) {
+  .cargo-tag-out:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
 }
 .cargo-tag-why {
   max-width: 160px;
@@ -1097,9 +1101,13 @@
   height: 34px;
   border-left: 1.2px dashed var(--ink);
 }
-@media (prefers-reduced-motion: reduce) {
-  .cargo-tag,
-  .cargo-slot--stamp {
-    animation: none;
-  }
+/* Réduites : le tampon se pose en fondu ; plus rien ne tangue ni ne rampe. */
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.cargo-tag, .loading-gauge--crawl b) {
+  animation: none;
+}
+:root[data-motion='reduced'] .cargo-slot--stamp {
+  animation-name: surface-fade;
+}
+:root[data-motion='off'] .cargo-slot--stamp {
+  animation: none;
 }

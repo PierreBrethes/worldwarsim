@@ -123,6 +123,10 @@ function CombatToast({
     const timer = setTimeout(() => onDismiss(id), TOAST_MS);
     return () => clearTimeout(timer);
   }, [held, leaving, id, onDismiss]);
+  /** Le réglage coupé pendant la sortie : plus de transition, donc plus de `transitionend` à attendre. */
+  useEffect(() => {
+    if (leaving && !animated) onGone(id);
+  }, [leaving, animated, id, onGone]);
 
   const alarm = isAlarm(dispatch.kind);
   const action = `${narrow ? 'min-h-[44px]' : 'min-h-[36px]'} cursor-pointer border border-[var(--ink)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase`;
@@ -133,14 +137,14 @@ function CombatToast({
       onMouseLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)}
-      onAnimationEnd={() => leaving && onGone(id)}
+      onTransitionEnd={(event) => leaving && event.target === event.currentTarget && onGone(id)}
       className={`paper-grain pointer-events-auto flex flex-col gap-2 border px-[14px] py-[10px] text-[var(--ink)] float ${
         alarm ? 'border-[var(--critical)]' : 'border-[var(--ink)]'
       } ${
         animated
-          ? leaving
-            ? 'animate-[dispatch-toast-out_180ms_ease-in_forwards]'
-            : 'animate-[dispatch-toast-in_220ms_ease-out]'
+          ? `transition-[opacity,translate] ease-(--ease-out) starting:-translate-y-[10px] starting:opacity-0 ${
+              leaving ? '-translate-y-[10px] opacity-0 duration-150' : 'duration-[220ms]'
+            }`
           : ''
       }`}
     >

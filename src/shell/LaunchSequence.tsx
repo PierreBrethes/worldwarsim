@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMapMotion } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -28,6 +29,8 @@ export function LaunchSequence({
   onEnd: () => void;
 }) {
   const [phase, setPhase] = useState(0);
+  /** Hors animations actives, le sceau est posé d'emblée et l'éclair ne part pas : il reste les fondus. */
+  const still = useMapMotion() !== 'full';
 
   useEffect(() => {
     const timers = CUES.map(({ phase: cue, at }) => setTimeout(() => setPhase(cue), at));
@@ -52,7 +55,7 @@ export function LaunchSequence({
         <div
           className="border-[3px] border-[var(--critical)] p-1 shadow-[0_0_60px_rgba(157,70,56,.25)]"
           style={{
-            transition: 'transform .34s cubic-bezier(.16,1.5,.3,1)',
+            transition: still ? 'none' : 'transform .34s cubic-bezier(.16,1.5,.3,1)',
             transform: phase >= 1 ? 'rotate(-4deg) scale(1)' : 'rotate(-14deg) scale(2.5)',
           }}
         >
@@ -67,7 +70,7 @@ export function LaunchSequence({
         </div>
       </div>
 
-      {phase === 2 && (
+      {phase === 2 && !still && (
         <div
           className="absolute inset-0 bg-[var(--paper)]"
           style={{ animation: 'magnesium-flash .5s ease-out forwards' }}
@@ -83,7 +86,7 @@ export function LaunchSequence({
         </div>
         <div
           className="h-px bg-[var(--ink-quiet)]"
-          style={{ transition: 'width .9s cubic-bezier(.2,.7,.2,1)', width: phase >= 3 ? 460 : 0 }}
+          style={{ transition: 'width .9s var(--ease-out)', width: phase >= 3 ? 460 : 0 }}
         />
         <div className="font-(family-name:--font-display) text-[52px] font-extrabold tracking-[.06em] text-[var(--paper)]">
           {fr.launchSequence.season}

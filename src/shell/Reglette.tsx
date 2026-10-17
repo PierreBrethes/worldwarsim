@@ -565,7 +565,7 @@ function Wheel({ digit, up, roll }: { digit: number; up: boolean; roll: boolean 
         className="absolute inset-x-0 top-0 flex flex-col"
         style={{
           transform: `translateY(${-wheel.at}em)`,
-          transition: roll && !wheel.settling ? 'transform 700ms cubic-bezier(.16,1,.3,1)' : 'none',
+          transition: roll && !wheel.settling ? 'transform 700ms var(--ease-out)' : 'none',
         }}
         onTransitionEnd={() => {
           if (wheel.at !== wheel.digit + 10)
