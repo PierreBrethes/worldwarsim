@@ -333,18 +333,22 @@ export function WindowHead({
   children?: ReactNode;
 }) {
   return (
-    <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-2 border-[var(--ink)] px-4 py-[10px]">
-      {lead}
-      <div className="flex min-w-0 flex-col gap-[5px]">
-        {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
-        {title !== undefined && (
-          <Heading className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
-            {title}
-          </Heading>
-        )}
+    <DragHandle className="flex shrink-0 items-center gap-3 border-b-2 border-[var(--ink)] px-4 py-[10px]">
+      {/* « fermer » hors de la rangée qui passe à la ligne : dans le journal en marge, un
+          surtitre long le faisait tomber sous le titre, au lieu du coin haut droit des autres. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+        {lead}
+        <div className="flex min-w-0 flex-col gap-[5px]">
+          {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
+          {title !== undefined && (
+            <Heading className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
+              {title}
+            </Heading>
+          )}
+        </div>
+        <span className="flex-1" />
+        {children}
       </div>
-      <span className="flex-1" />
-      {children}
       <CloseButton onClick={onClose} />
     </DragHandle>
   );

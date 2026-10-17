@@ -22,6 +22,7 @@ function Plate({
   width,
   ink,
   ground = false,
+  area,
 }: {
   url: string | null;
   label: string;
@@ -30,6 +31,13 @@ function Plate({
   ink?: string;
   /** Stand the subject on the floor of its box instead of centring it in the leftover air. */
   ground?: boolean;
+  /**
+   * **Along a line, the eye weighs ink, not height**: pinned at one height, the coal heap
+   * (ratio 1,78) carried three times the drum (0,62). Given an area, the plate takes the
+   * height that gives it that many square pixels, never above `height` — a rule on the file's
+   * own ratio, read at load, and not a table of corrections (`resources/manifest.ts`).
+   */
+  area?: number | undefined;
 }) {
   if (url === null) return <Missing label={label} height={height} width={width} />;
   return (
@@ -39,6 +47,14 @@ function Plate({
       title={label}
       className={`block shrink-0 object-contain ${ground ? 'object-bottom' : ''}`}
       style={{ height, width: width ?? 'auto', ...(ink === undefined ? {} : { filter: ink }) }}
+      onLoad={
+        area === undefined
+          ? undefined
+          : ({ currentTarget: img }) => {
+              const ratio = img.naturalWidth / img.naturalHeight;
+              img.style.height = `${Math.min(height, Math.sqrt(area / ratio))}px`;
+            }
+      }
     />
   );
 }
@@ -122,6 +138,7 @@ export function ResourcePlate({
   width,
   onDark = false,
   boxed = true,
+  area,
 }: {
   resource: ResourceKey;
   height: number;
@@ -135,6 +152,7 @@ export function ResourcePlate({
    * varies, which is the caller's problem to seat (`ResourceCell` gives each a common slot).
    */
   boxed?: boolean;
+  area?: number;
 }) {
   return (
     <Plate
@@ -144,6 +162,7 @@ export function ResourcePlate({
       width={boxed ? (width ?? Math.round(height * BOX_RATIO)) : width}
       ink={onDark ? INK_FILTER_DARK : INK_FILTER}
       ground
+      area={area}
     />
   );
 }

@@ -259,13 +259,13 @@ export function ResourceCell({
       }`}
       {...button}
     >
-      {/* Unboxed, every plate is the same height and seated in the same slot, cut for the
+      {/* Unboxed, every plate weighs the same and is seated in the same slot, cut for the
           widest: the figures then fall in one column from one case to the next. */}
       <span
         className={`flex max-w-full items-end justify-center overflow-hidden ${stacked ? '' : 'row-span-2'}`}
         style={{ width: Math.round(PLATE * SLOT_RATIO), height: PLATE }}
       >
-        <ResourcePlate resource={resource} height={PLATE} boxed={false} />
+        <ResourcePlate resource={resource} height={PLATE} boxed={false} area={PLATE_AREA} />
       </span>
       <span
         aria-hidden
@@ -590,7 +590,9 @@ const dryLabel = (dry: Dryness, stacked: boolean): string => {
 };
 
 const PLATE = 22;
-const SLOT_RATIO = 1.8;
+/** Three quarters of the square: the drum and the sack stay at full height, coal lies at 14. */
+const PLATE_AREA = PLATE * PLATE * 0.75;
+const SLOT_RATIO = 1.2;
 
 /** L'étiquette qui pend sous la case en alerte, au bout d'un fil. Le diagnostic entier reste à la
  *  carte de la réserve : l'étiquette nomme l'état, la carte dit quoi faire. */
