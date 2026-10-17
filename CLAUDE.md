@@ -31,7 +31,7 @@ git config core.hooksPath .githooks   # une fois par clone : active le pre-push
 - **Ce fichier est une carte.** Un chantier n'y ajoute qu'un invariant qu'on ne devine pas en
   lisant le code ; son récit va dans le commit, la PR ou l'ADR.
 - `WWS/docs/technique/recit-du-code-2026-10-17.md` est l'ancien `CLAUDE.md`, figé : un pourquoi
-  daté s'y retrouve, l'état du code jamais. `Claude outputs/` : brouillons jetables.
+  daté s'y retrouve, l'état du code jamais.
 
 ## Architecture
 
