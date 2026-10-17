@@ -130,8 +130,8 @@ describe('the damage table holds no absolute counter', () => {
 
 /**
  * **L'initiative** (grilling du 14/10, B16) : l'attaquant frappe, le défenseur riposte avec ce
- * qui lui reste. Les deux chiffres du cas de référence sont dans `CLAUDE.md` — c'est là qu'on lit
- * ce que coûte une attaque frontale, en terrain libre et contre une garnison.
+ * qui lui reste. Ce cas de référence dit ce que coûte une attaque frontale, en terrain libre et
+ * contre une garnison.
  */
 describe('the reference case of the initiative', () => {
   it('has fifty soldiers in the open lose twenty-five and cost the attacker thirteen', () => {

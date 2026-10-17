@@ -102,7 +102,7 @@ numéros respecte les dépendances.
 | 18 | `18-hook-demarrage` — six lignes d'état au plus au démarrage d'une session | 16, 10, 11 |
 | 19 | `19-sur-head` — mesurer avant/après sur une copie de HEAD, jamais par stash | — |
 | 20 | `20-deux-postes` — scrutation seulement sous WSL, doc de dev pour les deux postes | — |
-| 21 | `21-instructions-en-tete` — les consignes de travail en tête de CLAUDE.md | 16, 19, 20 |
+| 21 | ~~`21-instructions-en-tete`~~ — fait le 17/10 : `CLAUDE.md` redevenu une carte | — |
 
 ### Vague 5 — la mémoire du projet
 
@@ -110,9 +110,9 @@ numéros respecte les dépendances.
 |---|---|---|
 | 22 | `22-docs-wws-a-jour` — WWS/CLAUDE.md, WWS/README.md, architecture.md alignés | — |
 | 23 | `23-docs-design-a-jour` — index des ADR, glossaire, fiches alignés sur les révisions | — |
-| 24 | `24-etat-du-code-deplace` — le récit quitte CLAUDE.md pour `WWS/docs/ETAT-DU-CODE.md`, tel quel | 21, 22 |
-| 25 | `25-claude-md-invariants` — CLAUDE.md ≤ 8 000 caractères, un invariant par système | 24 |
-| 26 | `26-etat-du-code-corrige` — le récit ne se contredit plus | 23, 24, 25 |
+| 24 | ~~`24-etat-du-code-deplace`~~ — fait le 17/10 : récit figé dans `WWS/docs/technique/recit-du-code-2026-10-17.md` | — |
+| 25 | ~~`25-claude-md-invariants`~~ — fait le 17/10 : `CLAUDE.md` à 6 500 caractères | — |
+| 26 | ~~`26-etat-du-code-corrige`~~ — abandonné le 17/10 : le récit est figé, le code fait foi | — |
 | 27 | `27-cycle-des-prompts` — `npm run prompts`, `plus-tard/`, ready/ remis à jour | — |
 | 28 | `28-modele-de-prompt` — `_modele.md` et le lint d'un prompt | 27 |
 | 29 | `29-archives` — `_to_delete/` et `Claude outputs/` retirés, `HANDOFF.md` unique | 27, P4 |

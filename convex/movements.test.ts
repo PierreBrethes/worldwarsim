@@ -1015,7 +1015,7 @@ describe('an attack marches at somebody', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     // Fifty soldiers against fifty in his barracks: the garrison takes .7 of my strike — 18 —
-    // and its 32 left riposte for 16. Le cas de référence de `CLAUDE.md`.
+    // and its 32 left riposte for 16.
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');

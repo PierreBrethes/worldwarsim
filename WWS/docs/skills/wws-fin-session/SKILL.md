@@ -12,7 +12,7 @@ description: >-
   déclencher.
 type: prompt
 statut: validé
-maj: 2026-10-02
+maj: 2026-10-17
 code: []
 decisions: []
 voir: [../../prompts/code/README.md, ../../../INDEX.md, ../../decisions.md, ../../prompts/coffre/organiser-le-coffre.md]
@@ -24,7 +24,8 @@ voir: [../../prompts/code/README.md, ../../../INDEX.md, ../../decisions.md, ../.
 décisions, index des ADR, cycle des prompts, chiffres périmés, fiches en retard, coffre (en-têtes,
 INDEX, registre), puis le récap. Fait autorité sur la fin de session.
 
-Le repo est la source de vérité (`CLAUDE.md` racine, `WWS/` pour le design). Une décision qui
+Le code et ses tests font foi sur ce que le jeu fait ; `WWS/` garde le pourquoi et l'intention ;
+`CLAUDE.md` racine est une carte qui ne reçoit aucun récit. Une décision qui
 reste dans la conversation est une décision perdue — la « question 21 du 18/08 », citée trois
 fois dans le code et introuvable dans le repo, est l'accident fondateur de ce rituel. Tout ce qui
 suit existe pour qu'il ne se reproduise pas.
@@ -73,12 +74,11 @@ valeurs dans `WWS/**/*.md` (grep des nombres eux-mêmes) et poser un bandeau dat
 périmées » sur chaque document qui les cite — sur le modèle de celui de l'ADR 0017. Ne pas
 réécrire les vieux chiffres : les marquer comme de l'histoire.
 
-### 5. Les fiches ne mentent pas
+### 5. Les fiches codées se figent
 
-Pour chaque règle codée pendant la session, vérifier la fiche design qui la raconte
-(`WWS/docs/design/`). Deux issues : la mettre à jour, ou — si la session finit trop tard — poser
-en tête de fiche une ligne « ⚠️ en retard sur l'ADR NNNN sur : <points> ». Une fiche qui ment
-sans le dire est pire qu'une fiche marquée en retard.
+Pour chaque règle codée pendant la session, la fiche ou la proposition qui la décrivait
+(`WWS/docs/design/`) passe `statut: livré` et son « En bref » dit « codé — le code fait foi ».
+On ne la resynchronise pas avec le code : deux descriptions d'une règle finissent par diverger.
 
 ### 6. Le coffre suit
 

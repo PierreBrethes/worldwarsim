@@ -149,7 +149,7 @@ export function GarrisonPanel({
          * plateau qui cesse de payer sans que le joueur ait rien fait.
          *
          * Il n'y a **pas** de tampon « détruit » : la destruction attend le pillage et rien ne
-         * compte les raids vers elle (ADR 0004, `CLAUDE.md`). Un cachet qu'aucun état ne peut
+         * compte les raids vers elle (ADR 0004). Un cachet qu'aucun état ne peut
          * allumer serait un état inventé.
          */}
         {outpost !== null && outpost.disabledMinutesLeft !== null && (

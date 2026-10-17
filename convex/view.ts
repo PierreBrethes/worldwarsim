@@ -374,7 +374,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
-  // schema slice that is not written (see `CLAUDE.md`, "ce qui reste"):
+  // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
