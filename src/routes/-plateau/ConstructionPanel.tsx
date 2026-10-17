@@ -204,7 +204,11 @@ export function ConstructionPanel({
         <h3 className="eyebrow mt-3 shrink-0 border-b border-(color:--ink)/30 pb-[4px]">
           {fr.construction.offerHeader}
         </h3>
-        <div className={size ? 'min-h-0 flex-1 overflow-auto' : 'max-h-[46vh] overflow-auto'}>
+        <div
+          className={
+            size ? 'min-h-0 flex-1 overflow-auto overscroll-contain' : 'max-h-[46vh] overflow-auto'
+          }
+        >
           {options.map((option) => (
             <OptionRow
               key={option.key}

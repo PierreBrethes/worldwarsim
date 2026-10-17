@@ -123,8 +123,8 @@ export function EconomyWindow({
             seuil, et **un seul défileur** alors — imbriqués, la colonne du QG prenait toute la
             largeur et la filière se lisait dans vingt pixels (`md` = le seuil de
             `shell/viewport.ts`). */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto md:flex-row md:items-stretch md:overflow-visible">
-          <div className="flex min-h-0 min-w-0 shrink-0 flex-col md:flex-1 md:shrink md:overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain md:flex-row md:items-stretch md:overflow-visible">
+          <div className="flex min-h-0 min-w-0 shrink-0 flex-col md:flex-1 md:shrink md:overflow-auto md:overscroll-contain">
             <Header
               note={
                 <div className="flex items-center gap-3">

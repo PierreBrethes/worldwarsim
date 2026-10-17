@@ -264,7 +264,8 @@ body {
   transform: translate(0, 0) scale(0.35);
   transition:
     transform 150ms var(--ease-out) calc(var(--back) * 18ms),
-    opacity 150ms var(--ease-out) calc(var(--back) * 18ms);
+    opacity 150ms var(--ease-out) calc(var(--back) * 18ms),
+    scale 150ms var(--ease-out);
 }
 
 .protractor[data-open] .protractor-round {
@@ -272,7 +273,8 @@ body {
   transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y))) scale(1);
   transition:
     transform 230ms var(--ease-out) calc(var(--rank) * 30ms),
-    opacity 180ms var(--ease-out) calc(var(--rank) * 30ms);
+    opacity 180ms var(--ease-out) calc(var(--rank) * 30ms),
+    scale 150ms var(--ease-out);
 }
 
 /* Réduites : les ronds sont à leur place et s'y fondent. Coupées : ils y sont, sans transition. */
@@ -615,4 +617,29 @@ body {
       color-mix(in srgb, var(--ink) 7%, transparent)
     );
   }
+}
+
+/* **Pressed, a control gives under the finger**: it inks like the hover, which a phone never
+   shows, and scales to .96 when the game moves. `scale` and not `transform`, which the
+   protractor already writes to fan its rounds out. The browser's grey flash would double the
+   ink, so it goes. */
+.press,
+.os .btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.press:active:not(:disabled, [aria-disabled='true']),
+.os .btn:active:not(:disabled, [aria-disabled='true']) {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--ink) 12%, transparent),
+    color-mix(in srgb, var(--ink) 12%, transparent)
+  );
+}
+
+:root[data-motion='full'] :is(.press, .os .btn) {
+  transition: scale 150ms var(--ease-out);
+}
+
+:root[data-motion='full'] :is(.press, .os .btn):active:not(:disabled, [aria-disabled='true']) {
+  scale: 0.96;
 }

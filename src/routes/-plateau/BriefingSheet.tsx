@@ -49,7 +49,7 @@ export function BriefingSheet({
       aria-label={fr.briefing.header}
       className="fixed inset-0 z-[var(--z-veil)] flex items-center justify-center bg-[rgba(15,10,4,.72)] p-6"
     >
-      <div className="hud max-h-full max-w-full overflow-auto">
+      <div className="hud max-h-full max-w-full overflow-auto overscroll-contain">
         <article className="paper-grain w-[880px] max-w-full border border-[var(--ink)] text-[var(--ink)] float">
           <div className="flex items-baseline justify-between gap-5 px-[26px] pt-[11px] pb-[7px]">
             <span className="eyebrow">{fr.briefing.kicker}</span>

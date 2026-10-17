@@ -2933,7 +2933,7 @@ function MapButtons({
 }
 
 const MAP_BUTTON =
-  'paper-grain paper-hover flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
+  'press paper-grain paper-hover flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
 
 function Loading() {
   return (

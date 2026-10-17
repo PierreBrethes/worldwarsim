@@ -198,7 +198,7 @@ export function BottomSheet({
           </div>
         </div>
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
-        <div className="min-h-0 flex-1 overflow-y-auto" hidden={collapsed}>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" hidden={collapsed}>
           {children}
         </div>
       </section>

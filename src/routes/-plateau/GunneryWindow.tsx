@@ -86,7 +86,7 @@ export function GunneryWindow({
 
         <Legend />
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full border-collapse text-[11.5px]">
             <thead>
               <tr>

@@ -129,6 +129,6 @@ export function SurfaceColumn({
 
 /** Le carré de papier de la table : celui des boutons de carte, avec un mot sous l'icône. */
 export const SQUARE_FRAME =
-  'float relative flex h-[46px] w-[46px] cursor-pointer flex-col items-center justify-center gap-[4px] border border-[var(--ink)]';
+  'press float relative flex h-[46px] w-[46px] cursor-pointer flex-col items-center justify-center gap-[4px] border border-[var(--ink)]';
 
 export const SQUARE = `paper-grain paper-hover ${SQUARE_FRAME} text-[var(--ink)]`;

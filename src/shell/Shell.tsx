@@ -42,7 +42,9 @@ export function Shell({
     return (
       <SoleSurfaceProvider>
         <BoardInsetsContext.Provider value={insets}>
-          <div className="board-frame flex h-full flex-col overflow-hidden">
+          {/* `clip` et non `hidden` : les arcs du rapporteur sont des cercles entiers centrés sur le
+              coin, et un cadre `hidden` reste un défileur qu'un focus peut faire glisser. */}
+          <div className="board-frame flex h-full flex-col overflow-clip">
             <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
               {children}
               <NarrowBand view={view} onShowBriefing={onShowBriefing} ref={top} />

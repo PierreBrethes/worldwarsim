@@ -261,7 +261,7 @@ function Site({
               téléphone, jamais le bureau — les cartes et la file s'empilent et **un seul
               défileur** les porte : deux boîtes qui se disputaient une hauteur fixe laissaient
               les cartes à zéro pixel, et l'on ne pouvait plus former une compagnie. */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto @4xl:flex-row @4xl:items-stretch @4xl:overflow-visible">
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain @4xl:flex-row @4xl:items-stretch @4xl:overflow-visible">
             <div
               className={`flex min-w-0 flex-col @4xl:flex-1 ${
                 sized ? '@4xl:min-h-0 @4xl:overflow-auto' : '@4xl:max-h-[620px] @4xl:overflow-auto'
@@ -434,7 +434,7 @@ function BlitzSite({
         </p>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
         {rolesFormedBy(building.key).length > 0 && (
           <div className="grid grid-cols-1 border-b border-(color:--ink)/35 @xl:grid-cols-3">
             {rolesFormedBy(building.key).map((role) => {

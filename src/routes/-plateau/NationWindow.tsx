@@ -59,7 +59,7 @@ export function NationWindow({
           <HelpMark>{fr.nationSheet.readOnly}</HelpMark>
         </WindowHead>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
           <Entry header={fr.nationSheet.powerHeader}>
             <p className="text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
           </Entry>

@@ -281,7 +281,7 @@ function Table({
   ) as Record<SortKey, number>;
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
       {/* **Le classement défile d'un bloc, il ne se comprime pas.** Les sept colonnes tiennent
           784 px et la fenêtre en a mille : sur un téléphone, sans cette largeur plancher, chaque
           ligne se serrait pour elle-même — sept grilles qui défilaient chacune de son côté, une

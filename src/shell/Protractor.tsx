@@ -197,7 +197,7 @@ export function Protractor({
         aria-label={open ? fr.protractor.close : fr.protractor.open(waiting, blitz)}
         title={open ? fr.protractor.close : fr.protractor.open(waiting, blitz)}
         onClick={() => setOpen((shown) => !shown)}
-        className="protractor-hub float flex cursor-pointer flex-col items-center justify-center gap-[3px] bg-[var(--ink)] text-[var(--paper)]"
+        className="protractor-hub press float flex cursor-pointer flex-col items-center justify-center gap-[3px] bg-[var(--ink)] text-[var(--paper)]"
       >
         {/* Ouvert, « à faire » est un rond de l'arc : le coin ne dit plus que « fermer », jamais
             deux fois la même entrée à l'écran. */}
@@ -264,7 +264,7 @@ export const ARC = (radius: number): CSSProperties => ({
 });
 
 export const ROUND =
-  'protractor-round float flex h-[48px] w-[48px] cursor-pointer flex-col items-center justify-center gap-[2px] rounded-full border border-[var(--ink)]';
+  'protractor-round press float flex h-[48px] w-[48px] cursor-pointer flex-col items-center justify-center gap-[2px] rounded-full border border-[var(--ink)]';
 
 export const LABEL = 'text-[7px] leading-none font-semibold tracking-[.08em] uppercase';
 

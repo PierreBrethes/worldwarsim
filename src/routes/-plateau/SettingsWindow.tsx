@@ -85,7 +85,7 @@ export function SettingsWindow({
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <WindowHead title={fr.settingsWindow.header} onClose={onClose} />
 
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-[14px]">
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.scaleLabel}</span>
             <span className="font-(family-name:--font-mono) text-[15px] text-[var(--ink)]">

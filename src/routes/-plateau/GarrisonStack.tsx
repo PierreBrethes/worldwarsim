@@ -142,7 +142,7 @@ export function GarrisonStack({
           />
         </>
       ) : (
-        <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto">
+        <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto overscroll-contain">
           {rows.map(({ troop, carrier }) => {
             const on = picked.has(troop.id);
             /** Un passager suit son transport : il se lit, il ne se coche pas seul. */
