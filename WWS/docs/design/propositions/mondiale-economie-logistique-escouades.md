@@ -237,7 +237,8 @@ personnel » : « le plateau » seul désigne la table.
 
 ## La suite en lots
 
-Reprise en tête de `RESTE-A-CODER.md`, point 4 de la file au 17/10.
+Reprise en tête de `RESTE-A-CODER.md`, point 4 de la file au 17/10, en neuf features : livrer et
+larguer y sont séparés, et chacune dit ce qui se voit.
 
 1. **Cinq ressources** : retirer tissus, bandages et minerai ; le fer donne l'acier ; retirer la
    filature, l'intendance, la fonderie et les casernements ; régénérer les gisements ; relire le

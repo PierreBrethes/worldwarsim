@@ -20,25 +20,32 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
    vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
    24 h, durée réglée au salon, fin de l'entrée tardive.
-4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md)), en huit lots :
-   1. **Cinq ressources** : retirer tissus, bandages et minerai ; le fer donne l'acier ; retirer
-      filature, intendance, fonderie et casernements ; régénérer les gisements ; relire le socle.
-      Avec le wipe d'avant la saison test.
-   2. **Coûts mêlés et entretien** : barèmes par famille, paliers, entretien d'avant-poste, écoute
-      au charbon.
+4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md)), en neuf features
+   vues du joueur. Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario
+   de démo, et le code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
+   1. **Cinq ressources** : retirer tissus, bandages, minerai, filature, intendance, fonderie ; le
+      fer donne l'acier ; régénérer les gisements ; relire le socle (avec le wipe).
+      *Se voit* : pictos et couleurs des cinq, gisement de fer, l'alliage renommé acier.
+   2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
+      d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
    3. **Coups et plein** : portés par la troupe, repris à l'ancre, départ refusé sans plein, à sec
-      ni attaque ni riposte ; les deux pictos aux quatre endroits.
+      ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la figurine, dans la fiche au
+      survol, l'abaque et la formation ; refus dits.
    4. **Prototype du plateau personnel** (`WWS/prototypes/`) : charger, livrer, larguer, la
-      récolte. Il règle la fluidité avant les lots 5 et 6.
+      récolte. Il règle la fluidité avant les features 5 à 7.
    5. **Le plateau personnel** : bacs, récolte, tuiles, réserve de pièces ; remplace la fenêtre
-      Économie.
-   6. **Dépôts, livraison, largage** : charger, livrer, retour seul, larguer sur un point ou une
-      escouade, interception, caisse ; ce que le niveau d'un point rend.
-   7. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
-      verrous de niveau et `chainSpeed` retirés, invariant du contre.
-   8. **Les escouades** : salve bornée de l'artillerie, dessin regroupé, borne serveur.
+      Économie. *Se voit* : bacs et jetons, récolte animée, tuile qui se pose, jetons qui volent.
+   6. **Livrer** : dépôt d'avant-poste, charger un transport, aller-retour, interception, caisse ;
+      ce que le niveau d'un point rend. *Se voit* : jetons sur le point, charge à bord, déchargement.
+   7. **Larguer** : sur un point ou une escouade isolée. *Se voit* : passage de l'avion, paquet
+      sous parachute, retour.
+   8. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
+      verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
+      recherche, pose sur le QG, carte qui avance.
+   9. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
+      serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
 
-   Bakou, Dakar et Singapour (point 3) attendent les lots 3 et 6.
+   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 6.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
 6. **Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7).
 7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.

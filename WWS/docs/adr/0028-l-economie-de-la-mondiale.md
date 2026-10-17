@@ -118,9 +118,9 @@ Côté points stratégiques :
 
 ## Conséquences
 
-- **Huit lots de code**, qui forment le point 4 de la file (`RESTE-A-CODER.md`). Le quatrième est
-  un prototype du plateau personnel et des gestes charger, livrer, larguer : il règle la
-  fluidité avant le code.
+- **Neuf features, back et front ensemble**, qui forment le point 4 de la file
+  (`RESTE-A-CODER.md`). La quatrième est un prototype du plateau personnel et des gestes charger,
+  livrer, larguer : il règle la fluidité avant le code.
 - **Le wipe d'avant la saison test** porte le passage à cinq ressources et le retrait des clés
   historiques (`depot`, `recall`, `decoy`).
 - **Les gisements se régénèrent sur quatre types**, et les garde-fous de l'ADR 0015 (bande, aucun
