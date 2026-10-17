@@ -1,6 +1,6 @@
 # Simulation et état de référence
 
-Deux choses vivent ici, et aucune n'est un prototype de jeu.
+Une chose vit ici, et aucune n'est un prototype de jeu.
 
 ## L'état de référence — exporté, plus jamais simulé
 
@@ -26,15 +26,11 @@ aurait recommencé à décrire un jeu que personne ne joue.
 Les deux sont **absents tant que personne n'a exporté** : ils ne sont pas dans le dépôt par
 défaut, et c'est voulu — un état de référence périmé trompe plus qu'il n'aide.
 
-## Le simulateur d'ouverture — `opening/`
+## Le simulateur d'ouverture — retiré le 17/10/2026
 
-L'instrument de mesure vivant : combien de décisions un joueur prend pendant l'ouverture d'une
-saison, et à quels moments. Il a son propre [README](opening/README.md). `verify.mjs` en est le
-miroir de constantes, lu par `npm run verifier`.
-
-**La production reliée ne l'a pas touché** (ADR 0020 §6, livrée le 07/09) : il n'a pas de carte,
-donc pas de couleur, donc rien à couper — tout y produit comme sur un sol national, qui est de
-toute façon ce que mesure une ouverture. Le jour où il posera un avant-poste, il devra le dire.
+Il comptait les décisions de l'ouverture sur une copie à la main de `convex/constants.ts`,
+d'avant la Blitz, et n'avait plus d'état de référence. Il vit dans l'historique git ; une
+prochaine mesure partira d'un client Convex (`QUESTIONS.md`), jamais d'une copie des constantes.
 
 ## Ce qui a été retiré — `../docs/_to_delete/simulation-v1/`
 

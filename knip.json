@@ -4,18 +4,15 @@
     "src/routes/*.tsx",
     "src/map/engine/figurines/review.ts",
     "src/map/engine/pictogram-review.tsx",
-    "scripts/*.mjs",
-    "WWS/simulation/opening/{run,verify,army}.mjs"
+    "scripts/*.mjs"
   ],
   "project": [
     "src/**/*.{ts,tsx,css}",
     "convex/**/*.ts",
-    "scripts/**/*.mjs",
-    "WWS/simulation/opening/**/*.mjs"
+    "scripts/**/*.mjs"
   ],
-  "ignoreDependencies": ["world-atlas"],
-  "ignoreExportsUsedInFile": true,
-  "ignoreIssues": {
-    "WWS/simulation/opening/constants.mjs": ["exports"]
-  }
+  "ignoreDependencies": [
+    "world-atlas"
+  ],
+  "ignoreExportsUsedInFile": true
 }

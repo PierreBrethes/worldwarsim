@@ -12,9 +12,6 @@ vite.config.ts.timestamp-*.mjs
 .claude/settings.local.json
 _wws_snapshot.tgz
 
-# Une vue de la dernière exécution du simulateur, jamais une source (node run.mjs --rapport).
-WWS/simulation/opening/rapport.html
-
 # Le coffre Obsidian de ce poste : réglages et état d'écran, pas de la documentation.
 WWS/.obsidian/
 

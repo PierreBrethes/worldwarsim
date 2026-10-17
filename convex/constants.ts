@@ -7,7 +7,7 @@
  *
  * **Première mesure des tables économiques, le 14/09/2026** : la chaîne de l'alliage — le débit
  * de la fonderie, le fer et le charbon qui la nourrissent, l'alliage de la dotation — est lue sur
- * la grille du simulateur d'ouverture (`WWS/simulation/opening/`, 108 cases) et non plus posée à
+ * la grille du simulateur d'ouverture (108 cases, retiré le 17/10/2026) et non plus posée à
  * vue. Rapport : `WWS/docs/rapports/2026-09-14-chaine-de-l-alliage.md`. **Placeholder tout de
  * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
  */
