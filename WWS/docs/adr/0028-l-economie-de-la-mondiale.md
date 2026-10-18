@@ -12,6 +12,21 @@ ressource R1 et l'usine R5 de
 fiche 03. **Mondiale seule** : la Blitz garde ses fonds et tire sans compter. Rien n'est codé au
 18/10, et tous les chiffres sont `@a-mesurer`.
 
+> **Précisée le 18/10/2026, après le prototype du plateau personnel** (Q19 à Q26 de la
+> [proposition](../design/propositions/mondiale-economie-logistique-escouades.md)) :
+> - **où charger** (§4) : un camion à un de ses bâtiments du sol national, un cargo au port, un
+>   avion à l'aérodrome ; ailleurs, au dépôt où il se tient. Un transport ne prend ni vivres ni
+>   acier ;
+> - **des crans** (§3) : coups et plein se comptent en crans, un jeton recharge un cran ; un cran de
+>   plein vaut ≈ 500 km. Un dépôt porte 20 jetons par ressource et par niveau ; un camion en charge
+>   10, un cargo 40, un avion 6 ;
+> - **des jetons de valeur** (§7) : 1, 5 et 25, la monnaie se fait seule ; les bacs font 20, plus
+>   20 par niveau d'entrepôt ;
+> - **la tournée de ravitaillement** (§4) : un transport enregistre une boucle de quatre arrêts au
+>   plus, recharge à chaque tour la consigne de son premier chargement, saute un dépôt plein,
+>   attend si le plateau personnel manque, et garde son slot tant qu'elle tourne. Elle remplace
+>   l'idée d'une troupe de génie, écartée (`QUESTIONS.md`).
+
 ## Contexte
 
 L'ADR 0027 a fait de l'économie le seul frein de la Mondiale, et a posé ses principes sans leur

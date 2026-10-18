@@ -35,8 +35,10 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       récolte. Il règle la fluidité avant les features 5 à 7.
    5. **Le plateau personnel** : bacs, récolte, tuiles, réserve de pièces ; remplace la fenêtre
       Économie. *Se voit* : bacs et jetons, récolte animée, tuile qui se pose, jetons qui volent.
-   6. **Livrer** : dépôt d'avant-poste, charger un transport, aller-retour, interception, caisse ;
-      ce que le niveau d'un point rend. *Se voit* : jetons sur le point, charge à bord, déchargement.
+   6. **Livrer et tournées** : dépôt d'avant-poste, charger à un bâtiment, au port ou à
+      l'aérodrome, aller-retour, tournée en boucle qui saute un dépôt plein et garde son slot,
+      interception, caisse ; ce que le niveau d'un point rend. *Se voit* : jetons sur le point,
+      charge à bord, déchargement, boucle tracée à l'encre, transport qui attend.
    7. **Larguer** : sur un point ou une escouade isolée. *Se voit* : passage de l'avion, paquet
       sous parachute, retour.
    8. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),

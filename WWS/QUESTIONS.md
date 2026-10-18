@@ -66,6 +66,12 @@ assumée le 19/08 ; à tenir à la lettre seulement si l'écart se sent en parti
 
 ## 🟡 À trancher plus tard
 
+**Une troupe de génie ?** Idée de Pierre du 18/10 : des « workers », sapeurs qui bâtiraient là
+où ils se tiennent, répareraient et ravitailleraient seuls. Écartée pour l'instant : la tournée
+de ravitaillement (ADR 0028, précision du 18/10) couvre le besoin sans nouvelle pièce, sans
+figurine ni comportement automatique de plus. À reprendre si bâtir loin doit un jour exiger une
+présence physique.
+
 **Les atouts nationaux et l'unité spéciale.** La fiche 06 décrit huit atouts qui cassent
 chacun une règle, et huit troupes signature ; **aucun n'est codé** — les nations se distinguent
 par la géographie, les gisements et les sprites. C'est le pitch d'origine (« chaque pays a son

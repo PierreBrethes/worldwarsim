@@ -104,17 +104,31 @@ lisent chez son propriétaire seulement, **par deux pictos faciles à retenir** 
 jerrican), aux quatre mêmes endroits : sous la figurine, dans la fiche au survol, dans l'abaque,
 et dans la réserve de pièces au moment de former (Pierre, 18/10).
 
+**Ils se comptent en crans, et un jeton recharge un cran** (Q20). Un cran de plein vaut ≈ 500 km,
+soit ≈ 1 h 20 de route en Mondiale.
+
+| Troupe | Coups | Plein |
+|---|---|---|
+| Infanterie | 3 | — (à pied) |
+| Blindé | 2 | 3 crans (1 500 km) |
+| Artillerie | 2 salves | 2 crans |
+| Camion | — | 4 crans |
+| Navires | 3 (cargo : —) | 6 crans de charbon |
+| Avions | 2 | 3 crans, leur allonge |
+
 - **Ancrée, une troupe se ravitaille ; ailleurs, elle vit sur ce qu'elle porte.** Une troupe posée
   là où elle est ancrée (`isAnchored` : sol national, ou rayon d'un de ses avant-postes debout)
   reprend ses coups et son plein sur le stock de l'ancre. Chez soi, c'est le plateau personnel ;
   ailleurs, le dépôt de l'avant-poste. Une seule lecture sert l'entretien et le ravitaillement.
 - **Le plein se paie au départ.** Le mouvement débite sa route du plein de chaque moteur. Une route
   plus longue que le plus petit plein de l'escouade est refusée, et le refus le dit (ADR 0015).
-- **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon, en jetons, à hauteur du
-  niveau du point. Les vivres et l'acier restent au plateau personnel.
-- **Ravitailler, c'est embarquer des jetons.** Sur le sol national, on glisse des jetons du
-  plateau personnel sur un camion, un cargo ou un transport aérien, dans sa capacité
-  (`CARRY_CAPACITY_BY_ROLE`). Ailleurs, on les prend au dépôt où se tient le transport. Puis on
+- **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon, en jetons : 20 par
+  ressource et par niveau du point. Réarmer une escouade de dix troupes coûte une vingtaine de
+  jetons. Les vivres et l'acier restent au plateau personnel.
+- **Ravitailler, c'est embarquer des jetons.** Un camion se charge à **un de ses bâtiments** du sol
+  national, un cargo **au port**, un avion **à l'aérodrome** (Q19) : on voit où se fait la
+  logistique. Hors du sol national, un transport se charge au dépôt de l'avant-poste où il se
+  tient. Charge : camion 10, cargo 40, avion 6. Un transport ne prend ni vivres ni acier. Puis on
   lâche le transport sur un de ses avant-postes, et la pastille dit « livrer ». C'est un mouvement,
   avec son slot. Il décharge à l'arrivée, garde à bord ce qui ne tient pas, et rentre seul, comme
   un pillage. Le camion livre par la route, le cargo à un avant-poste côtier.
@@ -127,6 +141,18 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
   places (ADR 0025) et la charge. Un cargo emmène quatre blindés et leur ravitaillement.
 - **Charger doit être fluide** : le geste est celui de l'embarquement, et il se met au point sur
   un prototype avant d'être codé.
+- **La tournée de ravitaillement** (Pierre, 18/10, Q22 à Q26) : un transport enregistre une boucle
+  de quatre arrêts au plus, depuis son point de chargement jusqu'à un ou plusieurs dépôts. On le
+  lâche sur le premier dépôt avec la variante « tournée » (Tab), puis sur les suivants ; la boucle
+  se trace à l'encre, chez soi seulement ; relâcher sur le départ la ferme et la lance. Ce qu'on a
+  chargé au premier tour devient la **consigne**, rechargée à chaque tour. À chaque tour, il dépose
+  à chaque dépôt ce qui lui manque, **saute un dépôt plein**, revient, et recommence jusqu'à ce
+  qu'on le rappelle ou qu'on l'intercepte. Si le plateau personnel manque, il attend au chargement
+  et une dépêche le dit. **Une tournée garde son slot tant qu'elle tourne** : on choisit entre
+  automatiser et opérer. La navette est une tournée à un arrêt ; avec l'avion, chaque arrêt est un
+  largage.
+- **Le génie** (des sapeurs qui bâtiraient et ravitailleraient seuls) est écarté pour l'instant
+  (`QUESTIONS.md`) : la tournée couvre le besoin sans nouvelle pièce.
 - **Un ravitaillement se relève et s'intercepte** comme tout mouvement (R8). Un transport détruit
   laisse une caisse. L'atout américain devient « vos ravitaillements ne sont jamais relevés ».
 - **Se défendre chez soi ne coûte aucune logistique** : le pays ravitaille. L'attaquant paie le
@@ -169,8 +195,10 @@ Un panneau à soi, sous la table au bureau, en tiroir au téléphone. On dit tou
 personnel » : « le plateau » seul désigne la table.
 
 - **Cinq bacs de jetons**, un par ressource. Un jeton vaut une unité, et les chiffres sont de
-  petits entiers lus par jour. L'entrepôt donne la taille des bacs ; un bac plein ne reçoit plus
-  rien. Les chiffres concernés : stocks, production des tuiles, prix (tuiles, pièces, recherches),
+  petits entiers lus par jour. **Les jetons ont trois valeurs, 1, 5 et 25** (Q21) : la monnaie se
+  fait seule, cinq petits fusionnent en un moyen, et un bac montre ses piles avec le nombre exact.
+  L'entrepôt donne la taille des bacs (20, puis +20 par niveau) ; un bac plein ne reçoit plus
+  rien. Le même rendu vaut pour les dépôts et la charge d'un transport. Les chiffres concernés : stocks, production des tuiles, prix (tuiles, pièces, recherches),
   entretien, charge d'un transport, taille d'un dépôt. Ordre de grandeur : une ferme de niveau 1
   donne 12 vivres par jour, une troupe en mange 1, un fantassin coûte 2 acier et 2 vivres, un
   porte-avions une quarantaine d'acier. Quelques jetons par visite, c'est une récolte qu'on suit
@@ -192,7 +220,7 @@ personnel » : « le plateau » seul désigne la table.
 |---|---|
 | Boule de neige du plus riche | entretien par paliers ; l'investissement s'essouffle ; les points sont loin de chez lui et la projection se paie à l'usage ; le défenseur se ravitaille gratuitement chez lui ; un bâtiment capturé perd un niveau |
 | Tortue chez soi | elle ne tient aucun point ; ses bacs plafonnent à l'entrepôt ; l'excédent sur le seuil scellé se pille |
-| Tapis d'avant-postes | chaque point mange des vivres selon son niveau ; il n'ouvre plus d'emplacement ; il se capture avec son dépôt ; un dépôt vide n'arme personne |
+| Tapis d'avant-postes | chaque point mange des vivres selon son niveau ; il n'ouvre plus d'emplacement ; il se capture avec son dépôt ; un dépôt vide n'arme personne ; le tenir garni prend des tournées, donc des slots |
 | Escouade monstre | une salve d'artillerie touche jusqu'à quatre de ses troupes ; elle vide les dépôts ; elle va au pas de la plus lente ; elle paie les paliers d'entretien |
 | Des centaines de pièces | une borne serveur invisible (≈ 150 troupes par joueur), dont le refus se dit sans compteur ; une escouade dessinée en douze figurines au plus ; les paliers rendent la centaine ruineuse avant la borne |
 
@@ -251,8 +279,9 @@ larguer y sont séparés, et chacune dit ce qui se voit.
    larguer, la récolte. Il règle la fluidité avant les lots 5 et 6.
 5. **Le plateau personnel** : bacs, récolte, tuiles, réserve de pièces. Il remplace la fenêtre
    Économie.
-6. **Dépôts, livraison, largage** : charger, livrer, retour seul, larguer sur un point ou une
-   escouade, interception, caisse ; ce que le niveau d'un point rend.
+6. **Dépôts, livraison, largage, tournées** : charger à un bâtiment, au port ou à l'aérodrome,
+   livrer, retour seul, larguer sur un point ou une escouade, la tournée en boucle, interception,
+   caisse ; ce que le niveau d'un point rend.
 7. **La recherche** : l'arbre de l'artefact, ses cartes, les verrous de niveau retirés,
    l'invariant du contre.
 8. **Les escouades** : la salve bornée de l'artillerie, le dessin regroupé, la borne serveur.
@@ -267,3 +296,8 @@ escouade définie par le lieu, jeton d'une unité, relais retiré, dépôt d'ava
 largage, entretien d'avant-poste sur le plateau personnel, salve bornée (b), dessin regroupé
 au-delà de douze, borne serveur, points stratégiques du §9, transport mixte, prototype d'abord.
 Ses deux exigences : ne jamais perdre le joueur, et des pictos simples pour ce que porte une troupe.
+
+Après le prototype (même jour, Q19 à Q26) : charger à un bâtiment, au port ou à l'aérodrome ;
+coups et plein en crans, un jeton par cran ; dépôts de 20 par ressource et par niveau ; jetons de
+valeur 1, 5, 25 ; la tournée de ravitaillement, qui garde son slot, à la place des workers ; le
+génie écarté.

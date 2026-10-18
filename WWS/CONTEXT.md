@@ -53,12 +53,12 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Fonds** | La seule ressource de la Blitz, versée par les villes et le QG tenus. Jamais « argent », jamais « crédits ». |
 | **Seuil scellé** | En Mondiale, la part de chaque réserve qui ne se pille jamais (le plafond initial). Seul l'excédent est à prendre. *(décision du 14/10)* |
 | **Ressources** | **Mondiale, décidé le 18/10 (ADR 0028), pas encore codé** : cinq — vivres, acier, charbon, pétrole, munitions ; le fer donne l'acier, et minerai, textile et bandages disparaissent. **Aujourd'hui** : huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
-| **Jeton** | Une unité d'une ressource, posée dans un bac du plateau personnel ou dans un dépôt d'avant-poste. Stocks, prix, production et entretien se comptent en jetons, de petits entiers lus par jour. *(ADR 0028 ; le disque « ×N » qui portait ce nom est retiré depuis le 16/10)* |
+| **Jeton** | Une unité d'une ressource, posée dans un bac du plateau personnel, dans un dépôt d'avant-poste ou à bord d'un transport. Il a trois valeurs, 1, 5 et 25, et la monnaie se fait seule. Stocks, prix, production et entretien se comptent en jetons, de petits entiers lus par jour. *(ADR 0028 ; le disque « ×N » qui portait ce nom est retiré depuis le 16/10)* |
 | **Plateau personnel** | Le panneau à soi : un bac de jetons par ressource, les tuiles, la réserve de pièces, les cartes de recherche. L'adversaire ne le voit jamais. Jamais « plateau » seul, qui désigne la table. *(ADR 0028)* |
 | **Tuile** | Un bâtiment avant sa pose, sur le plateau personnel. Lâchée sur une région, elle le bâtit ; lâchée sur sa pareille déjà posée, elle l'élève. *(ADR 0028)* |
 | **Dépôt d'avant-poste** | Les munitions, le pétrole et le charbon posés sur un avant-poste, à la mesure de son niveau. Les troupes ancrées dans son rayon s'y servent ; il se remplit par livraison ou par largage, et se capture avec le point. Distinct du *dépôt* d'un objectif. *(ADR 0028)* |
-| **Coups** | Les munitions qu'une troupe porte, comptées en passes qu'elle peut tirer, en attaque ou en riposte. Sans coups, ni attaque ni riposte : elle encaisse. Repris quand elle est ancrée. *(ADR 0028, Mondiale)* |
-| **Plein** | La distance que les moteurs d'une troupe couvrent encore ; pour un avion, son allonge. Payé au départ, repris quand elle est ancrée. L'infanterie à pied n'en a pas. *(ADR 0028, Mondiale)* |
+| **Coups** | Les munitions qu'une troupe porte, en **crans** : un cran, une passe qu'elle peut tirer, en attaque ou en riposte. Sans coups, ni attaque ni riposte : elle encaisse. Repris quand elle est ancrée, un jeton par cran. *(ADR 0028, Mondiale)* |
+| **Plein** | La distance que les moteurs d'une troupe couvrent encore, en **crans** d'environ 500 km ; pour un avion, son allonge. Payé au départ, repris quand elle est ancrée, un jeton par cran. L'infanterie à pied n'en a pas. *(ADR 0028, Mondiale)* |
 
 ## Actions
 
@@ -78,6 +78,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Rejeu** | Vue rapprochée d'un combat déjà résolu. Spectacle, jamais interaction. Se lance depuis la dépêche du combat ; en face, des blocs et des totaux — le brouillard ne se lève pas parce qu'on a tiré. *(ADR 0026 §7)* |
 | **Plage de repos** | En Mondiale, 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver, et aucune capture n'y progresse contre soi. La Blitz n'en a pas. |
 | **Largage** | Un ravitaillement par transport aérien qui ne se pose pas : un paquet descend sous parachute sur un de ses avant-postes, dont il remplit le dépôt, ou sur une de ses escouades isolées, qui reprend ses coups et son plein. L'avion rentre. *(ADR 0028)* |
+| **Tournée** | Une boucle de ravitaillement qu'un transport enregistre, de son point de chargement à quatre dépôts au plus. À chaque tour, il recharge sa **consigne** (ce qu'il portait au premier tour), dépose à chaque dépôt ce qui manque, saute un dépôt plein, et recommence jusqu'à ce qu'on le rappelle ou qu'on l'intercepte. Elle garde son slot. Jamais « route » (le chemin terrestre) ni « convoi ». *(ADR 0028, précision du 18/10)* |
 
 ## Retiré du vocabulaire
 
