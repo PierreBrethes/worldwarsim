@@ -2270,8 +2270,16 @@ export const fr = {
     editionOf: (time: string) => `édition de ${time}`,
     /** Une entrée de la file annulée à son tour : le droit avait disparu entre la mise en file
      *  et le démarrage. La dépêche dit la restitution, sinon le joueur cherche sa matière. */
-    constructionCancelled: (building: string, region: string) =>
-      `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
+    constructionCancelled: (
+      building: string,
+      region: string,
+      reason?: 'depositTaken' | 'tooClose',
+    ) =>
+      reason === 'depositTaken'
+        ? `Chantier abandonné : ${lowerFirst(building)} en ${region} — un autre exploitait déjà ce gisement ; son tenant est relevé. Matières remboursées.`
+        : reason === 'tooClose'
+          ? `Chantier abandonné : ${lowerFirst(building)} en ${region} — un de vos bâtiments se tient désormais trop près. Matières remboursées.`
+          : `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,

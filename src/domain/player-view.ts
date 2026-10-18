@@ -679,6 +679,7 @@ type NoticeBody =
       readonly at: number;
       readonly building: BuildCostKey;
       readonly regionName: string;
+      readonly reason?: 'depositTaken' | 'tooClose';
     }
   | {
       readonly kind: 'constructionFinished';

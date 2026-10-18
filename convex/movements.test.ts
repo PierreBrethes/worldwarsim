@@ -916,6 +916,18 @@ describe('an outpost opens a radius to build in', () => {
   it('refuses one outside it, and names the widest reach he has', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
+    /** La clé avant la portée, comme `placementRefusal` sous le fantôme : une caserne verrouillée
+     *  hors de portée se dit verrouillée aux deux bouts. */
+    await setHqLevel(t, seat, unlockLevel('barracks') - 1);
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      }),
+    ).rejects.toThrow('BUILDING_LOCKED');
+    await setHqLevel(t, seat, unlockLevel('barracks'));
     const refused: Record<string, unknown> = await t
       .mutation(api.constructions.start, {
         ...seat,

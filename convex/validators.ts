@@ -275,6 +275,9 @@ export const NOTICE = v.union(
     kind: v.literal('constructionCancelled'),
     building: BUILD_COST_KEY,
     regionId: v.string(),
+    /** **Perdu à la fin du chantier** (ADR 0029) : le gisement pris par un autre — relevé du même
+     *  coup —, ou un bâtiment à soi venu trop près. Absent : le droit perdu avant son tour. */
+    reason: v.optional(v.union(v.literal('depositTaken'), v.literal('tooClose'))),
   }),
   /** **Un bâtiment rasé par son propriétaire** (demande du 15/09). Chez lui seul : ce que la
    *  démolition change chez les autres se relève, il ne s'annonce pas (ADR 0005). */

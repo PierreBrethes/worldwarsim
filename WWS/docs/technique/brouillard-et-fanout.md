@@ -81,6 +81,11 @@ Mesure du 31/08 : un mouvement Lisbonne → Moscou (95 sommets, 76 haltes au dem
 posées, huit marches — laisse **730 lignes** au total, la plus grosse part revenant à qui a fondé
 en Europe centrale.
 
+**Un gisement pris ne se refuse qu'à ce qu'on sait** (ADR 0029) : la commande ne compte que ses
+propres exploitations et celles qu'on a relevées, la course se tranche quand le bâtiment se
+tiendrait, et un gisement découvert pris rembourse le chantier et relève son tenant comme tout
+autre relevé — jamais un refus gratuit qui sonderait la carte.
+
 ## Information périmée
 
 Un arc détecté puis sorti de portée ne doit pas disparaître de l'écran : il devient une **dernière

@@ -135,6 +135,7 @@ function written(notice: Notice): Written {
         text: fr.journal.constructionCancelled(
           isOutpostWork(notice.building) ? fr.garrison.raiseWork : fr.buildings[notice.building],
           notice.regionName,
+          notice.reason,
         ),
       };
     case 'constructionFinished':

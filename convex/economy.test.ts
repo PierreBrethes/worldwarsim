@@ -619,23 +619,66 @@ describe('placement', () => {
       });
     });
 
-    /** **Un gisement porte une seule exploitation** (ADR 0029 §3), quel que soit son exploitant. */
-    it('refuses a deposit somebody already works', async () => {
-      const t = boot();
-      const seat = await launchedSeason(t);
-      await t.run(async (ctx) => {
+    /** Puts another player's building on a point — what the fog hides from the player. */
+    const standOther = (t: ReturnType<typeof boot>, key: BuildingKey, regionId: string) =>
+      t.run(async (ctx) => {
         const other = (await ctx.db.query('players').collect()).find(
           (player) => player.nation !== 'france',
         )!;
         await ctx.db.insert('buildings', {
           seasonId: other.seasonId,
           playerId: other._id,
-          key: 'mine',
-          regionId: MOSELLE,
-          point: pointOfRegion(MOSELLE),
+          key,
+          regionId,
+          point: pointOfRegion(regionId),
           level: 1,
         });
       });
+
+    const myNotices = (t: ReturnType<typeof boot>, seat: Seat) =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        return ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+      });
+
+    const surveyedKeys = (t: ReturnType<typeof boot>, seat: Seat, regionId: string) =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        const row = await ctx.db
+          .query('regionSightings')
+          .withIndex('byPlayerRegion', (q) => q.eq('playerId', player._id).eq('regionId', regionId))
+          .unique();
+        return (row?.installations ?? []).map((seen) => seen.key);
+      });
+
+    /**
+     * **Un gisement porte une seule exploitation** (ADR 0029 §3), et le brouillard ne se lève pas
+     * à la commande : l'ordre passe, la course se tranche quand le bâtiment se tiendrait, et le
+     * tenant devient un relevé. Ce qu'on a relevé, ensuite, se refuse avant le clic.
+     */
+    it('settles a deposit somebody already works when it would stand, and surveys the holder', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await standOther(t, 'mine', MOSELLE);
+
+      const placed = await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      expect(placed).toMatchObject({ cost: {}, level: 0 });
+      const view = await t.query(api.view.playerView, seat);
+      expect(view.me.buildings.some((building) => building.key === 'mine')).toBe(false);
+      expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'coal' });
+      expect(await myNotices(t, seat)).toContainEqual(
+        expect.objectContaining({ kind: 'constructionCancelled', reason: 'depositTaken' }),
+      );
+      expect(await surveyedKeys(t, seat, MOSELLE)).toEqual(['mine']);
+
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
@@ -644,6 +687,52 @@ describe('placement', () => {
           point: pointOfRegion(MOSELLE),
         }),
       ).rejects.toThrow('DEPOSIT_TAKEN');
+    });
+
+    it('refunds a paid exploitation that loses the race at the end of its works', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
+      // The coal the season owed goes down on Calais: the next coal mine is paid for.
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: PAS_DE_CALAIS,
+        point: pointOfRegion(PAS_DE_CALAIS),
+      });
+      const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      await standOther(t, 'mine', MOSELLE);
+
+      await vi.advanceTimersByTimeAsync(buildMinutes('mine', 1) * 60_000 + 1000);
+      const view = await t.query(api.view.playerView, seat);
+      expect(view.me.buildings.filter((building) => building.key === 'mine')).toHaveLength(1);
+      expect(view.me.resources.steel.stock).toBeGreaterThanOrEqual(before);
+      expect(await myNotices(t, seat)).toContainEqual(
+        expect.objectContaining({ kind: 'constructionCancelled', reason: 'depositTaken' }),
+      );
+      expect(await surveyedKeys(t, seat, MOSELLE)).toEqual(['mine']);
+    });
+
+    /** **Seule une exploitation tient un gisement** : une caserne adverse sur le point n'y fait rien. */
+    it('lets a mine go down where another key stands on the deposit', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await standOther(t, 'barracks', MOSELLE);
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      const view = await t.query(api.view.playerView, seat);
+      expect(view.me.buildings.some((building) => building.key === 'mine')).toBe(true);
     });
   });
 
@@ -1252,9 +1341,9 @@ describe('the headquarters the player puts up', () => {
   });
 
   /**
-   * **Le sacrifice, exécutable.** Le QG posé sur un gisement le prend — et la mine que le socle
-   * y devait n'a plus de point. La dette du charbon reste due ailleurs plutôt que de disparaître
-   * avec le gisement (ADR 0029).
+   * **Le sacrifice, exécutable.** Le QG posé sur un gisement ne l'exploite pas, mais l'espacement
+   * en écarte la mine que le socle y devait. La dette du charbon reste due ailleurs plutôt que de
+   * disparaître avec le gisement (ADR 0029).
    */
   it('takes a deposit if that is where the player wants it, and the mine loses it', async () => {
     const t = boot();
@@ -1278,7 +1367,7 @@ describe('the headquarters the player puts up', () => {
         regionId: MOSELLE,
         point: pointOfRegion(MOSELLE),
       }),
-    ).rejects.toThrow('DEPOSIT_TAKEN');
+    ).rejects.toThrow('BUILDING_TOO_CLOSE');
     // Et le charbon se prend ailleurs : la dette suit l'espèce du gisement, pas le point perdu.
     await t.mutation(api.constructions.start, {
       ...seat,

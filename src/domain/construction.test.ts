@@ -349,6 +349,23 @@ describe('the point aimed at', () => {
     });
   });
 
+  /** La clé avant la portée, comme le serveur : une clé verrouillée hors de portée se dit
+   *  verrouillée aux deux bouts (`movements.test.ts`). */
+  it('names the locked key before the reach', () => {
+    const abroad = aim([7, 51], { region: { id: 'DEU-1572', name: 'Ruhr', country: 'DEU' } });
+    expect(refusalOf(view({ unlocked: 3 }), 'barracks', abroad)).toEqual({
+      code: 'BUILDING_LOCKED',
+    });
+  });
+
+  it('lets a deposit go under another key: only an exploitation holds it', () => {
+    const surveyedBarracks = {
+      ...view({}),
+      surveyedInstallations: [{ id: 's', key: 'barracks', regionId: 'x', point: COAL.lonLat }],
+    } as unknown as PlayerView;
+    expect(refusalOf(surveyedBarracks, 'mine', aim(COAL.lonLat))).toBeNull();
+  });
+
   it('wants a port on the coast', () => {
     expect(refusalOf(view({}), 'port', aim(PARIS))).toEqual({ code: 'NOT_COASTAL' });
     expect(refusalOf(view({}), 'port', aim(PARIS, { coastal: true }))).toBeNull();

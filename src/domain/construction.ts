@@ -278,15 +278,18 @@ const aroundOf = (view: PlayerView) => [
 ];
 
 /**
- * **A deposit nobody is known to work** — none of the player's own buildings or orders on it,
- * and no surveyed installation of anybody else's. What the fog hides, the server still refuses
- * (`DEPOSIT_TAKEN`), and that refusal is how the player learns it.
+ * **A deposit nobody is known to work** — none of the player's own exploitations or orders on
+ * it, and no surveyed exploitation of anybody else's (ADR 0029 §3: only an exploitation holds a
+ * deposit). The server reads the very same entry at the order (`spotAt`); what the fog hides is
+ * settled when the building would stand, and the holder becomes a survey.
  */
 export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
   const held = [
-    ...aroundOf(view).map((building) => building.lonLat),
-    ...view.surveyedInstallations.map((installation) => installation.point),
-  ];
+    ...aroundOf(view),
+    ...view.surveyedInstallations.map((seen) => ({ key: seen.key, lonLat: seen.point })),
+  ]
+    .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
+    .map((building) => building.lonLat);
   return DEPOSIT_POINTS.filter((deposit) => !held.some((point) => depositAt(point) === deposit));
 }
 
