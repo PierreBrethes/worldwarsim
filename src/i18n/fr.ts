@@ -3165,8 +3165,19 @@ export const fr = {
     worksHeader: 'chantiers',
     upkeepHeader: 'entretien',
     shortagesHeader: 'pénuries',
+    censusHeader: 'recensement',
+    hqLine: (level: number, maximum: number, slots: number) =>
+      `niveau ${level} sur ${maximum} · ${slots} slots de mouvement`,
+    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
+    listeningUnfigured: 'rayon de révélation non chiffré',
+    listeningTemporary:
+      'La station d’écoute est ici en attendant l’espionnage : un jalon inerte serait pire.',
+    overflowing: 'débordé — bac plein',
+    allSupplied: 'toutes ravitaillées, sol national ou rayon d’un avant-poste',
+    queueHeader: (count: number) =>
+      `en file — ${count} chantier${plural(count, '', 's')}, payé${plural(count, '', 's')} d’avance`,
     /** Le pied replié en une ligne : le chantier, le solde de vivres, les pénuries. */
-    details: 'chantiers, entretien, pénuries',
+    details: 'chantiers, entretien, pénuries, recensement',
     noWorks: 'aucun chantier',
     works: (name: string, time: string, queued: number) =>
       `${name} · ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,

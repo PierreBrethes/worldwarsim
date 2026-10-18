@@ -12,8 +12,8 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
-import { aBuilding, fr, roleLabel, upgradeHoldText } from '@/i18n/fr';
+import { MAX_HQ_LEVEL, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
+import { aBuilding, fr, noBuilding, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -262,10 +262,11 @@ export function PersonalBoard({
             </span>
           </button>
           {details && (
-            <div className="grid gap-x-5 gap-y-3 px-3 pb-3 md:grid-cols-3 md:px-4">
+            <div className="grid gap-x-5 gap-y-3 px-3 pb-3 md:grid-cols-4 md:px-4">
               <Works view={view} seat={seat} now={now} observing={observing} onSpent={mark} />
               <Upkeep view={view} />
               <Shortages shortages={shortages} />
+              <Census view={view} />
             </div>
           )}
           {view.me.chains
@@ -496,6 +497,12 @@ function Bin({
   const held = view.me.resources[resource];
   const stock = shown ?? currentStock(held, view.loadedAt, now);
   const full = held.cap > 0 && stock >= held.cap;
+  /** **Rien ne le produit** : ni bâti, ni en chantier, ni en file — le manque, pas la panne. */
+  const missing =
+    held.ratePerHour <= 0 &&
+    !view.me.buildings.some((building) => building.key === PRODUCER_OF[resource]) &&
+    view.me.construction?.key !== PRODUCER_OF[resource] &&
+    !view.me.constructionQueue.some((entry) => entry.key === PRODUCER_OF[resource]);
   return (
     <div
       ref={register}
@@ -534,7 +541,11 @@ function Bin({
         style={{ color: full ? 'var(--notable-paper)' : 'var(--ink-soft)' }}
         title={full ? fr.personalBoard.full : undefined}
       >
-        {full && !narrow ? fr.personalBoard.full : fr.personalBoard.rate(held.ratePerHour)}
+        {full && !narrow
+          ? fr.personalBoard.full
+          : missing
+            ? noBuilding(PRODUCER_OF[resource])
+            : fr.personalBoard.rate(held.ratePerHour)}
       </span>
       {delta !== null && (
         <span
@@ -1110,6 +1121,11 @@ function Works({
           </span>
         </div>
       )}
+      {view.me.constructionQueue.length > 0 && (
+        <p className="mt-[5px] text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
+          {fr.personalBoard.queueHeader(view.me.constructionQueue.length)}
+        </p>
+      )}
       {view.me.constructionQueue.map((entry, index) => (
         <div key={entry.id} className="mt-[3px] flex items-center gap-2 text-[11.5px]">
           <span className="w-[20px] font-(family-name:--font-mono) text-[var(--ink-quiet)]">
@@ -1173,7 +1189,7 @@ function Upkeep({ view }: { view: PlayerView }) {
           `${fr.economy.upkeepStep(step.rate, step.nextAt, step.nextRate)}${
             unsupplied > 0
               ? ` · ${fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}`
-              : ''
+              : ` · ${fr.personalBoard.allSupplied}`
           }`,
         )}
       {outpostFoodPerHour > 0 &&
@@ -1247,6 +1263,58 @@ function Shortages({ shortages }: { shortages: ReadonlyArray<Shortage> }) {
           </p>
         ),
       )}
+    </Foot>
+  );
+}
+
+/**
+ * **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout — sa région, son
+ * niveau et ce qu'il fait, l'écoute avec sa note, l'arsenal débordé quand son bac est plein.
+ */
+function Census({ view }: { view: PlayerView }) {
+  const hq = view.me.buildings.find((building) => building.key === 'hq') ?? null;
+  const others = view.me.buildings.filter((building) => building.key !== 'hq');
+  const region = (regionId: string) =>
+    view.me.regions.find((candidate) => candidate.id === regionId)?.name ?? regionId;
+  const chain = (key: BuildingKey) => view.me.chains.find((candidate) => candidate.by === key);
+  return (
+    <Foot title={fr.personalBoard.censusHeader}>
+      {hq === null ? (
+        <p className="text-[11.5px] leading-[1.4] text-[var(--critical)]">
+          {fr.personalBoard.hqMissing}
+        </p>
+      ) : (
+        <p className="text-[12px] leading-[1.4]">
+          <span className="font-semibold">{fr.buildings.hq}</span>{' '}
+          <span className="text-[var(--ink-soft)]">
+            {fr.personalBoard.hqLine(view.me.hqLevel, MAX_HQ_LEVEL, view.me.slots.total)}
+          </span>
+        </p>
+      )}
+      {others.map((building) => (
+        <p key={building.id} className="mt-[3px] text-[11.5px] leading-[1.35]">
+          <span className="font-semibold">{fr.buildings[building.key]}</span>{' '}
+          <span className="font-(family-name:--font-mono) text-[10.5px]">
+            {fr.common.levelShort(building.level)}
+          </span>{' '}
+          <span className="text-[var(--ink-soft)]">· {region(building.regionId)} · </span>
+          {building.key === 'listening' ? (
+            view.me.upkeep.listeningSilent ? (
+              <span className="text-[var(--critical)]">{fr.economy.listeningSilent}</span>
+            ) : (
+              <span className="text-[var(--ink-soft)]">
+                {fr.personalBoard.listeningUnfigured}{' '}
+                <HelpMark>{fr.personalBoard.listeningTemporary}</HelpMark>
+              </span>
+            )
+          ) : (
+            <span className="text-[var(--ink-soft)]">{fr.buildingEffects[building.key]}</span>
+          )}
+          {chain(building.key)?.state === 'overflowing' && (
+            <span className="text-[var(--notable-paper)]"> · {fr.personalBoard.overflowing}</span>
+          )}
+        </p>
+      ))}
     </Foot>
   );
 }
