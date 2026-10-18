@@ -228,7 +228,7 @@ async function ammunitionOf(t: ReturnType<typeof boot>, seat: Seat): Promise<num
   return view.me.resources.ammunition.stock;
 }
 
-/** The magazine, set where a case needs it — full, or too thin to cover the pass. */
+/** The ammunition on the personal board, set where a case needs it — what the anchor rearms from. */
 async function setAmmunition(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
   const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
@@ -1244,7 +1244,7 @@ describe('the rounds a troop carries into the pass', () => {
     expect(dry).toHaveLength(0);
   });
 
-  it('leaves the magazine alone on a march that meets nobody', async () => {
+  it('takes no ammunition for a march that meets nobody', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);
