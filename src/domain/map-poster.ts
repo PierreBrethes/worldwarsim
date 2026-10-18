@@ -1,3 +1,4 @@
+import { pileSupplies, type PileSupplies } from './supplies';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { fr, stackLabel } from '@/i18n/fr';
 import { incomePerMinute } from './blitz';
@@ -45,6 +46,8 @@ export type Poster = {
      *  nothing is carried, as in Blitz. */
     readonly capacity?: number | null;
   } | null;
+  /** **Coups et plein** de ma pile (ADR 0028 §3), absents en Blitz et ailleurs. */
+  readonly supplies?: PileSupplies | null;
 };
 
 const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
@@ -94,6 +97,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         held.some((troop) => troop.strength < troop.nominalStrength),
       ),
       title: natureOf(label),
+      supplies: pileSupplies(held),
       lines: [
         ...waitingChips(held, now),
         ...(mending === 0

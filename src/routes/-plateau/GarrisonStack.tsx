@@ -1,3 +1,5 @@
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { pileSupplies } from '@/domain/supplies';
 import { useEffect, useMemo, useState } from 'react';
 import { CARRY_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
@@ -186,6 +188,9 @@ export function GarrisonStack({
                   {carrier === null && (
                     <Upkeep troop={troop} blitz={view.mode === 'blitz'} rate={stepRate} />
                   )}
+                  <span className="block text-[10.5px] text-[var(--ink-soft)]">
+                    <SupplyPictos supplies={pileSupplies([troop])} />
+                  </span>
                 </span>
                 {carrier !== null && onDisembark !== undefined && (
                   <button
@@ -444,7 +449,8 @@ function TroopCards({
                   sous la barre à 375 px. */}
               <span className="mt-auto flex flex-col gap-1 pt-[4px]">
                 <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
-                  {fr.troops.strength(troop.strength, troop.nominalStrength)}
+                  {fr.troops.strength(troop.strength, troop.nominalStrength)}{' '}
+                  <SupplyPictos supplies={pileSupplies([troop])} />
                 </span>
                 <StrengthBar strength={troop.strength} nominal={troop.nominalStrength} />
               </span>

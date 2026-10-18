@@ -96,6 +96,9 @@ export type ErrorCode =
   | 'OUT_OF_OUTPOST_REACH'
   | 'MOVEMENT_IN_FLIGHT'
   | 'NO_LAND_ROUTE'
+  /** **Coups et plein** (ADR 0028 §3) : une route au-delà du plus petit plein, une attaque à sec. */
+  | 'NOT_ENOUGH_FUEL'
+  | 'NO_ROUNDS'
   | 'UNKNOWN_TROOP'
   | 'DUPLICATE_TROOP'
   | 'TROOP_NOT_AT_ORIGIN'

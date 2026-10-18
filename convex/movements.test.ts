@@ -1059,7 +1059,74 @@ describe('an attack marches at somebody', () => {
  * ammunition and the pass took it over, so this is where the resource has to be seen leaving
  * the national stock — and where a nation that let it run out has to be seen paying for it.
  */
-describe('the pass is what ammunition is spent on', () => {
+/** ADR 0028 §3 : le plein se paie au départ, et une route plus longue que lui est refusée. */
+describe('the fuel a route takes', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function setStock(t: ReturnType<typeof boot>, seat: Seat, key: string, stock: number) {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((one) => one.key === key)!;
+      await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    });
+  }
+
+  const marchTo = (
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    barracks: Id<'buildings'>,
+    troop: Id<'troops'>,
+    point: { lon: number; lat: number },
+  ) =>
+    t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      point,
+    });
+  /** Près de Ploiești : plus de deux mille kilomètres de route depuis la Marne. */
+  const PLOIESTI = { lon: 26.0, lat: 44.95 };
+  /** Berlin : moins de quatre crans de route. */
+  const BERLIN = { lon: 13.4, lat: 52.5 };
+
+  it('refuses a tank a road longer than its three steps, and says how many it needs', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const tank = await form(t, seat, 'armor', barracks);
+
+    await expect(marchTo(t, seat, barracks, tank, PLOIESTI)).rejects.toThrow('NOT_ENOUGH_FUEL');
+  });
+
+  it('fills an empty truck at home before it leaves, and takes the road off its fuel', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'oil', 100);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const truck = await form(t, seat, 'landTransport', barracks);
+    await t.run(async (ctx) => ctx.db.patch(truck, { fuel: 0 }));
+
+    const { movementId } = await marchTo(t, seat, barracks, truck, BERLIN);
+
+    const steps = await t.run(async (ctx) =>
+      Math.ceil(((await ctx.db.get(movementId))!.distanceUnits * 111) / 500),
+    );
+    expect(steps).toBeLessThanOrEqual(4);
+    expect((await t.run(async (ctx) => ctx.db.get(truck)))!.fuel).toBe(4 - steps);
+    expect((await t.query(api.view.playerView, seat)).me.resources.oil.stock).toBe(60);
+  });
+});
+
+describe('the rounds a troop carries into the pass', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -1081,18 +1148,72 @@ describe('the pass is what ammunition is spent on', () => {
     return { troop, defender };
   }
 
-  it('takes off each side what it fires: ten rounds to strike, five to riposte', async () => {
+  /** ADR 0028 §3 : chacune tire sur ses crans, et l'ancre les reprend sur le plateau personnel. */
+  it('spends a step of each troop that fires, and refills it at the anchor only', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);
     await setAmmunition(t, guest, 500);
 
-    await fight(t, seat, guest);
+    const { troop, defender } = await fight(t, seat, guest);
 
-    // One round per five points: fifty soldiers strike for ten, the thirty-two the strike left
-    // in the barracks riposte for seven — one pays only for what one fires (C3, 14/10).
+    // Home again, the attacker took its spent step back off the board: ten ammunition. The
+    // defender stands in Romania, nobody's soil — it lives on what it carries.
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.rounds).toBe(3);
     expect(await ammunitionOf(t, seat)).toBe(490);
-    expect(await ammunitionOf(t, guest)).toBe(493);
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.rounds).toBe(2);
+    expect(await ammunitionOf(t, guest)).toBe(500);
+  });
+
+  it('has a troop out of rounds take the strike without a riposte, and tells its owner', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setAmmunition(t, guest, 500);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const defender = await form(t, guest, 'infantry', theirs);
+    await t.run(async (ctx) => ctx.db.patch(defender, { rounds: 0 }));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(50);
+    const [engagement] = await engagementsIn(t);
+    expect(engagement!.troops.find((row) => row.side === 'defender')!.dry).toBe(true);
+    const dry = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'firedDry'))
+        .collect(),
+    );
+    expect(dry).toMatchObject([{ playerId: await playerOf(t, guest), troops: 1 }]);
+    // The attacker reads it in its account: one of theirs did not answer.
+    const report = (await t.query(api.view.playerView, seat)).reports[0]!;
+    expect(report.theirs.dry).toBe(1);
+  });
+
+  it('refuses the attack of a column out of rounds that its anchor cannot rearm', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setAmmunition(t, seat, 0);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.patch(troop, { rounds: 0 }));
+
+    await expect(
+      attacking(t, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        target: { kind: 'region', regionId: PRAHOVA },
+      }),
+    ).rejects.toThrow('NO_ROUNDS');
   });
 
   it('bills nothing to a garrison the strike wiped out, and never tells it it ran dry', async () => {
@@ -1121,23 +1242,6 @@ describe('the pass is what ammunition is spent on', () => {
         .collect(),
     );
     expect(dry).toHaveLength(0);
-  });
-
-  it('strikes at .60 and empties what is left when the magazine cannot cover the pass', async () => {
-    const t = boot();
-    const { seat, guest } = await launchedSeason(t);
-    await setAmmunition(t, seat, 4);
-    await setAmmunition(t, guest, 500);
-
-    const { troop, defender } = await fight(t, seat, guest);
-
-    // Supplied, the reference case takes 18 off the garrison and 16 off the attacker. Dry, the
-    // attacker's strike is worth .60 of itself — .5 × .6 × .7 × 50, eleven — and the defender,
-    // keeping more to riposte with, bites harder.
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 11);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
-    // The four rounds it had went into the pass; it did not fight for free.
-    expect(await ammunitionOf(t, seat)).toBe(0);
   });
 
   it('leaves the magazine alone on a march that meets nobody', async () => {

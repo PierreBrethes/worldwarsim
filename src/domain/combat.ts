@@ -83,31 +83,6 @@ export type CombatRules = {
   /** The share of a blow a garrison takes — its walls, never a multiplier on its own fire. */
   readonly garrisonDamageTaken: number;
   readonly routThreshold: number;
-  /**
-   * One round per this many points of engaged strength, per pass (chiffrage §5). A full
-   * mark-1 infantry therefore draws ten rounds to fight once.
-   */
-  readonly strengthPerRound: number;
-  /** What a side whose magazine cannot cover the pass strikes at (chiffrage §4). */
-  readonly dryFactor: number;
-};
-
-/**
- * **What one side's pass takes out of the national stock** (question 18, settled 25/08). **One
- * pays only for what one fires** (decision of 14/10, C3): the attacker on the strength it strikes
- * with, the defender on what the strike left it to riposte with — a defence wiped out pays
- * nothing and is never dry. A shock bills both sides at the entry, since both fire on it.
- *
- * **Dryness is a property of the side, never of a troop.** The stock is national — there is no
- * order in which to hand rounds to one company before another that would not be a rule
- * invented here. Either the magazine covers the pass, or the whole side fires at `dryFactor`
- * and spends what little it had.
- */
-type Magazine = {
-  readonly needed: number;
-  /** `needed`, or everything that was left — this debit clamps, it never refuses. */
-  readonly spent: number;
-  readonly dry: boolean;
 };
 
 export type Combatant = {
@@ -120,6 +95,11 @@ export type Combatant = {
   readonly formedAt: number;
   /** In garrison of a building, a standing outpost or an objective: it takes less of each blow. */
   readonly sheltered?: boolean;
+  /**
+   * **Ses coups, en crans** (ADR 0028 §3) : chaque passe où elle tire en coûte un. À zéro, elle
+   * ne tire plus, ni en frappe ni en riposte : elle encaisse. Absent, on ne compte pas (Blitz).
+   */
+  readonly rounds?: number;
 };
 
 /** `initiative`: the attacker strikes, the defender ripostes with the rest. `shock`: together.
@@ -150,7 +130,10 @@ export type Engagement = {
   readonly strikes: ReadonlyArray<Strike>;
   readonly outcomes: ReadonlyArray<CombatantOutcome>;
   readonly winner: CombatSide;
-  readonly magazine: Readonly<Record<CombatSide, Magazine>>;
+  /** Les troupes qui ont tiré : chacune y laisse un cran de coups. */
+  readonly fired: ReadonlyArray<string>;
+  /** **À sec** : elles auraient tiré, et n'avaient plus de coups. */
+  readonly dry: ReadonlyArray<string>;
 };
 
 const damageOf = (rules: CombatRules, from: Combatant, to: Combatant): number | undefined =>
@@ -175,14 +158,11 @@ type Fighter = {
 export function resolveEngagement({
   attackers,
   defenders,
-  ammunition,
   rules,
   mode = 'initiative',
 }: {
   attackers: ReadonlyArray<Combatant>;
   defenders: ReadonlyArray<Combatant>;
-  /** Each side's national stock, as it stands when the two forces meet. */
-  ammunition: Readonly<Record<CombatSide, number>>;
   rules: CombatRules;
   mode?: PassMode;
 }): Engagement {
@@ -204,32 +184,30 @@ export function resolveEngagement({
     mode === 'indirect'
       ? fighter.side === 'attacker' && firesIndirect(fighter.combatant.role)
       : !firesIndirect(fighter.combatant.role);
-  const bill = (side: CombatSide, fighters: ReadonlyArray<Fighter>) =>
-    draw(fighters.filter(fires).map(firing), ammunition[side], rules);
+  const fired = new Set<string>();
+  const dry = new Set<string>();
 
   const salvo = (
     shooters: ReadonlyArray<Fighter>,
     at: ReadonlyArray<Fighter>,
     phase: Strike['phase'],
-    magazine: Magazine,
   ) =>
     shooters.filter(fires).flatMap((shooter) => {
-      const supply = magazine.dry ? rules.dryFactor : 1;
       const strength = firing(shooter);
       if (strength <= 0) return [];
       const target = pick(shooter, at, rules);
       if (target === null) return [];
+      if (shooter.combatant.rounds === 0) {
+        dry.add(shooter.combatant.id);
+        return [];
+      }
+      fired.add(shooter.combatant.id);
       const cover = target.combatant.sheltered ? rules.garrisonDamageTaken : 1;
-      return [hit(shooter, strength, target, supply * cover, phase, rules)];
+      return [hit(shooter, strength, target, cover, phase, rules)];
     });
 
-  const attackerMagazine = bill('attacker', striking);
-  const struck = salvo(striking, holding, 'strike', attackerMagazine);
-  const magazine = { attacker: attackerMagazine, defender: bill('defender', holding) };
-  const strikes = [
-    ...struck,
-    ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte', magazine.defender),
-  ];
+  const struck = salvo(striking, holding, 'strike');
+  const strikes = [...struck, ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte')];
 
   const outcomes = [...striking, ...holding].map((fighter) => ({
     id: fighter.combatant.id,
@@ -239,7 +217,7 @@ export function resolveEngagement({
     state: stateOf(fighter, rules),
   }));
 
-  return { strikes, outcomes, winner: winnerOf(outcomes), magazine };
+  return { strikes, outcomes, winner: winnerOf(outcomes), fired: [...fired], dry: [...dry] };
 }
 
 /**
@@ -251,19 +229,6 @@ function stateOf(fighter: Fighter, rules: CombatRules): TroopState {
   return fighter.remaining < rules.routThreshold * fighter.combatant.nominalStrength
     ? 'routed'
     : 'standing';
-}
-
-/**
- * The rounds a force draws for one pass, against what its nation actually holds. Rounded up per
- * troop rather than on the sum: the tranche is a magazine, and half a magazine is a full one.
- */
-function draw(strengths: ReadonlyArray<number>, stock: number, rules: CombatRules): Magazine {
-  const needed = strengths.reduce(
-    (rounds, strength) => rounds + Math.ceil(strength / rules.strengthPerRound),
-    0,
-  );
-  const held = Math.max(0, Math.floor(stock));
-  return { needed, spent: Math.min(needed, held), dry: held < needed };
 }
 
 /**

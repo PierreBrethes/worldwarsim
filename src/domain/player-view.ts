@@ -1,3 +1,4 @@
+import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
@@ -274,6 +275,9 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Ses coups et son plein, en crans** (ADR 0028 §3) : absents en Blitz, où rien ne se
+   *  compte. Repris à l'ancre ; ailleurs, elle vit sur ce qu'elle porte. */
+  readonly supplies?: Supplies;
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
@@ -383,6 +387,8 @@ export type CombatTally = {
   readonly lost: number;
   readonly routed: number;
   readonly destroyed: number;
+  /** **À sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. */
+  readonly dry?: number;
 };
 
 /** One kind of troop engaged — role and mark — and what it brought (`strength`, men and
@@ -817,7 +823,12 @@ type NoticeBody =
       readonly detector: Detector;
       readonly detectorRegion: string | null;
     }
-  | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  | {
+      readonly kind: 'firedDry';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly troops?: number;
+    }
   /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
   | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }
   /**

@@ -2,6 +2,8 @@
  * **Une Mondiale lancée, en local, pour les captures.** Joue le parcours de deux vrais joueurs
  * par l'API publique : inscription (ou connexion), fondation, adhésion par le code, nation,
  * « prêt », lancement. Puis, sauf `--nu`, remplit les stocks et pose des troupes (`convex/dev.ts`).
+ * `--crans` pose en plus, pour la France, une escouade en Rhénanie aux crans entamés : une
+ * infanterie à sec et un blindé à un cran de plein (coups et plein, ADR 0028 §3).
  *
  *     npm run demo:mondiale
  *
@@ -19,6 +21,7 @@ import { api } from '../convex/_generated/api.js';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
 const bare = process.argv.includes('--nu');
+const steps = process.argv.includes('--crans');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -103,6 +106,17 @@ if (!bare) {
       }),
     ]);
   }
+  /** Hors de tout ancrage : rien ne les recharge, elles vivent sur ce qu'elles portent. */
+  if (steps && scene.a !== null)
+    for (const troop of [
+      { role: 'infantry', rounds: 0 },
+      { role: 'armor', rounds: 1, fuel: 1 },
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, count: 1, lon: 7.1, lat: 50.4, ...troop }),
+      ]);
 }
 
 writeFileSync(accountsFile, `${JSON.stringify({ ...accounts, code, seasonId }, null, 2)}\n`);

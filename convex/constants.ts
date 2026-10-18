@@ -184,14 +184,10 @@ export const STARTING_STEEL = 400;
 export const STARTING_OIL = 40;
 
 /**
- * **How many passes a nation can fight before its arsenal has to exist.** A full company of
- * infantry draws ten rounds per engagement (`STRENGTH_PER_ROUND`), so eighty is eight
- * company-passes, and the arsenal has the whole season to arrive.
+ * **How many steps of rounds a nation can hand out before its arsenal has to exist**: a step
+ * costs `SUPPLY_STEP_COST`, so eighty is eight steps — three riflemen rearmed, roughly.
  *
- * **Its old justification is void, and the number survives it unchanged** (question 18, 25/08):
- * it was sized against a recruitment bill that no longer exists, and the measurement behind it
- * tested a removed rule. Nothing here is calibrated any more, and the simulator cannot help —
- * it does not model combat at all.
+ * @a-mesurer never calibrated; the simulator does not model combat
  */
 export const STARTING_AMMUNITION = 80;
 
@@ -396,12 +392,39 @@ export const COST_BY_ROLE: Readonly<
 };
 
 /**
- * One round per five points of engaged strength, per pass (chiffrage §5). **The pass is the only
- * facturation** (question 18, 25/08): recruitment used to bill the magazine up front as well,
- * which priced the same rounds twice. A troop is not expensive to raise, it is expensive to keep
- * fighting.
+ * **Coups et plein, en crans** (ADR 0028 §3, précision du 18/10) : ce qu'une troupe porte pleine.
+ * Les coups sont les passes qu'elle peut tirer ; le plein, la distance que ses moteurs couvrent
+ * encore, en crans de `FUEL_STEP_KM`. Zéro : elle n'en a pas (un transport ne tire pas,
+ * l'infanterie marche).
+ *
+ * @a-mesurer la table de la proposition (Q20), jamais jouée
  */
-export const STRENGTH_PER_ROUND = 5;
+export const SUPPLY_BY_ROLE: Readonly<Record<UnitRole, { rounds: number; fuel: number }>> = {
+  infantry: { rounds: 3, fuel: 0 },
+  armor: { rounds: 2, fuel: 3 },
+  landTransport: { rounds: 0, fuel: 4 },
+  artillery: { rounds: 2, fuel: 2 },
+  fighter: { rounds: 2, fuel: 3 },
+  bomber: { rounds: 2, fuel: 3 },
+  airTransport: { rounds: 0, fuel: 3 },
+  escort: { rounds: 3, fuel: 6 },
+  cargo: { rounds: 0, fuel: 6 },
+  carrier: { rounds: 3, fuel: 6 },
+};
+
+/**
+ * Ce que coûte un cran, coups ou plein, dans sa ressource (Q28).
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const SUPPLY_STEP_COST = 10;
+
+/**
+ * La route qu'un cran de plein couvre (≈ 1 h 20 de route en Mondiale).
+ *
+ * @a-mesurer ≈ 500 km de l'ADR 0028, jamais joué
+ */
+export const FUEL_STEP_KM = 500;
 
 export const TIER_2_FACTOR = 1.6;
 
@@ -630,16 +653,10 @@ export const GARRISON_DAMAGE_TAKEN = 0.7;
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
 
-/** Chiffrage §4, design sheet 08 §7: a side whose stock cannot cover the pass fires at ×0.60 and
- *  never declines the engagement — an army out of ammunition is bad, not absent. */
-export const DRY_AMMUNITION_FACTOR = 0.6;
-
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
-  strengthPerRound: STRENGTH_PER_ROUND,
-  dryFactor: DRY_AMMUNITION_FACTOR,
 };
 
 /**

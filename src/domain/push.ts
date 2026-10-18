@@ -38,7 +38,7 @@ export const push = {
   captureThreat: 'Un de vos sites est en cours de capture.',
   siteLost: 'Un de vos sites a été capturé.',
   sighting: 'Une colonne adverse a été relevée dans une de vos portées.',
-  dryFire: 'Un de vos camps a tiré à sec : le magasin ne couvrait pas la passe.',
+  dryFire: 'Des troupes à sec n’ont pas tiré : sans coups, ni frappe ni riposte.',
   seasonLaunched: 'La saison est lancée.',
   rendezvousSoon: (minutes: number) => `La Blitz commence dans ${minutes} minutes : à table.`,
   seasonConcluded: 'La saison est close.',

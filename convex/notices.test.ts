@@ -459,21 +459,14 @@ describe('what the jobs file for the journal', () => {
    * **Une passe tirée à sec.** Le compte rendu montre les pertes, jamais leur raison : sans
    * cette ligne un défaut de ravitaillement se lit comme une défaite.
    */
-  it('files a dry pass for the side whose magazine could not cover it', async () => {
+  it('files a dry pass for the side whose troops had no rounds left', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const dry = await playerOf(t, seat);
-    await t.run(async (ctx) => {
-      const held = await ctx.db
-        .query('resources')
-        .withIndex('byPlayer', (q) => q.eq('playerId', dry))
-        .collect();
-      const magazine = held.find((row) => row.key === 'ammunition')!;
-      await ctx.db.patch(magazine._id, { stock: 0, updatedAt: Date.now() });
-    });
 
     const point = pointOf(PRAHOVA);
-    await post(t, guest, point);
+    const posted = await post(t, guest, point);
+    // Abroad, nothing rearms it: it lives on what it carries (ADR 0028 §3).
+    await t.run(async (ctx) => ctx.db.patch(posted, { rounds: 0 }));
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await attacking(t, {
       ...seat,
@@ -484,8 +477,10 @@ describe('what the jobs file for the journal', () => {
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect(await noticesOf(t, seat, 'firedDry')).toMatchObject([{ hostCountry: 'ROU' }]);
-    expect(await noticesOf(t, guest, 'firedDry')).toEqual([]);
+    expect(await noticesOf(t, guest, 'firedDry')).toMatchObject([
+      { hostCountry: 'ROU', troops: 1 },
+    ]);
+    expect(await noticesOf(t, seat, 'firedDry')).toEqual([]);
   });
 });
 

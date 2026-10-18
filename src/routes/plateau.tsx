@@ -1,3 +1,4 @@
+import { outOfRounds, pileSupplies, topUp } from '@/domain/supplies';
 import {
   Link,
   Navigate,
@@ -2213,6 +2214,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               ...(preview.holdUntil === null
                 ? []
                 : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+              ...fuelNotes(preview),
             ],
     [resting, preview],
   );
@@ -3032,6 +3034,20 @@ function choiceOf(action: OrderAction): OrderChoice {
   }
 }
 
+/** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
+function fuelNotes(preview: object): ReadonlyArray<DropNote> {
+  if (!('fuel' in preview)) return [];
+  const { steps, short, km } = (preview as { fuel: MarchFuel }).fuel;
+  if (short !== null) return [{ text: fr.errors.NOT_ENOUGH_FUEL({ ...short, km }), alarm: true }];
+  return steps > 0 ? [{ text: fr.supplies.route(steps), alarm: false }] : [];
+}
+
+type MarchFuel = {
+  readonly steps: number;
+  readonly km: number;
+  readonly short: { readonly needed: number; readonly held: number; readonly role: string } | null;
+};
+
 function armedColumn(
   view: PlayerView,
   station: MarchStation,
@@ -3071,9 +3087,26 @@ function armedColumn(
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,
       captureRate: captureRate(troops),
+      ...roundsOf(view, troops),
       ...blitzOf(view, troops),
     },
   };
+}
+
+/** **La même lecture que `columnOf` après la recharge du départ** (ADR 0028 §3) : une troupe
+ *  ancrée reprend ses coups sur le plateau personnel avant que l'ordre ne les lise. */
+function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
+  if (view.mode === 'blitz') return {};
+  const stock = (key: 'ammunition' | 'oil' | 'coal') => view.me.resources[key]?.stock ?? 0;
+  const { supplies } = topUp(
+    troops.filter((troop) => troop.supplied).map((troop) => ({ ...troop.supplies, ...troop })),
+    { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') },
+  );
+  const after = troops.map((troop) => ({
+    role: troop.role,
+    ...(supplies.get(troop.id) ?? troop.supplies),
+  }));
+  return outOfRounds(after) ? { outOfRounds: true } : {};
 }
 
 /** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
@@ -3142,6 +3175,7 @@ function postedStacks(
       pieces: pilePieces(held),
       cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,
+      supplies: pileSupplies(held),
       ...reloadOf(held),
       ...emplacementOf(held),
     };

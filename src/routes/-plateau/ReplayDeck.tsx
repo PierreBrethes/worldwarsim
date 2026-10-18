@@ -168,6 +168,7 @@ export function ReplayDeck({
  *  l'a vue au feu (F1) — les seuls totaux sur un compte rendu d'avant. */
 export function ReplayAccount({ view, said }: { view: ReplayView; said: string }) {
   const mineLost = view.mine.reduce((sum, entry) => sum + entry.lost, 0);
+  const mineDry = view.mine.reduce((sum, entry) => sum + (entry.dry ?? 0), 0);
   const cell = 'px-2 py-[3px] text-right font-(family-name:--font-mono) text-[12px]';
   const row = (label: string, tally: CombatTally, rule = 'border-t border-(color:--ink)/20') => (
     <tr key={label} className={rule}>
@@ -209,6 +210,11 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
       <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {fr.combat.beats(view.side === 'attacker', mineLost, view.theirs.lost)}
       </p>
+      {mineDry + (view.theirs.dry ?? 0) > 0 && (
+        <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--critical)]">
+          {fr.dispatchSheet.dryValue(mineDry, view.theirs.dry ?? 0, view.side === 'attacker')}
+        </p>
+      )}
       <table className="w-full border-collapse">
         <thead>
           <tr className="text-[9.5px] tracking-[.14em] text-[var(--ink-soft)] uppercase">

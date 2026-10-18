@@ -714,6 +714,10 @@ export const fr = {
     MOVEMENT_IN_FLIGHT: (d) =>
       `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
+    NOT_ENOUGH_FUEL: (d) =>
+      `plein trop court : ${num(d.km)} km demandent ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+    NO_ROUNDS: () =>
+      'à sec : plus un coup dans la colonne — elle marche, elle n’attaque pas ; elle se recharge à l’ancre',
     UNKNOWN_TROOP: () => 'troupe inconnue',
     DUPLICATE_TROOP: () => 'une troupe ne se nomme qu’une fois dans un mouvement',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
@@ -2494,8 +2498,8 @@ export const fr = {
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
       pursuitLost: (country: string) =>
         `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
-      firedDry: (country: string) =>
-        `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
+      firedDry: (country: string, troops: number) =>
+        `${troops === 1 ? 'Une de nos troupes était à sec' : `${troops} de nos troupes étaient à sec`} — ${country} : sans coups, ni frappe ni riposte. Elles se rechargent à l’ancre.`,
       /**
        * **Le seul événement du jeu qui ne laissait aucune trace.** Pas d'engagement, donc pas de
        * compte rendu : sans cette ligne, la plus longue marche d'une saison se lit « rien à
@@ -2531,6 +2535,20 @@ export const fr = {
    * la carte, et ce qui reste ici est ce qu'on écrit *à côté* d'une troupe — son adresse, son
    * effectif, ce qu'elle mange, et le cartouche qui la désigne.
    */
+  /** **Coups et plein** (ADR 0028 §3) : une cartouche et un jerrican, en crans. */
+  supplies: {
+    rounds: 'coups',
+    fuel: 'plein',
+    steps: (count: number) => `${count} cran${plural(count, '', 's')}`,
+    roundsTitle: (held: number, full: number) =>
+      `Coups : ${held} sur ${full} — un cran par passe tirée ; à sec, ni attaque ni riposte`,
+    fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
+      `Plein : ${held} sur ${full} crans de ${coal ? 'charbon' : 'pétrole'}, ≈ ${km} km de route — payé au départ`,
+    reload:
+      'Ancrée, elle se recharge sur le plateau personnel (10 par cran) ; ailleurs, elle vit sur ce qu’elle porte.',
+    formed: 'Part pleine, coups et plein.',
+    route: (steps: number) => `plein : la route coûte ${steps} cran${plural(steps, '', 's')}`,
+  },
   troops: {
     atHome: 'à domicile',
     /** The host arrives as an `adm0_a3`; the naming happens here so that no caller can print
@@ -2785,6 +2803,20 @@ export const fr = {
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
     pass: 'la passe',
+    dry: 'à sec',
+    /** **Une troupe à sec ne tire pas** (ADR 0028 §1), des deux côtés : la nôtre n'a pas pu
+     *  répondre, la leur n'a pas riposté — la dépêche le dit, sinon la passe se lit en défaite. */
+    dryValue: (mine: number, theirs: number, attacking: boolean) =>
+      [
+        mine > 0
+          ? `${mine} des nôtres sans coups, ${plural(mine, 'n’a', 'n’ont')} pas ${attacking ? 'frappé' : 'riposté'}`
+          : null,
+        theirs > 0
+          ? `${theirs} des leurs sans coups, ${plural(theirs, 'n’a', 'n’ont')} pas ${attacking ? 'riposté' : 'frappé'}`
+          : null,
+      ]
+        .filter((piece): piece is string => piece !== null)
+        .join(' · '),
     ground: 'le terrain',
     held: 'tenu',
     lost: 'perdu',
@@ -2910,8 +2942,8 @@ export const fr = {
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
-    before: (garrisonDamageTaken: number, dryFactor: number) =>
-      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
+    before: (garrisonDamageTaken: number, blitz: boolean) =>
+      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups.${blitz ? '' : ' Chaque passe tirée coûte un cran de coups : une troupe à sec n’attaque ni ne riposte.'}`,
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
      *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */

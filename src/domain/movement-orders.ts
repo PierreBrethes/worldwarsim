@@ -193,6 +193,11 @@ export type Column = {
    * infanterie. Absent, la pleine force — ce que la rose annonçait avant d'avoir les troupes.
    */
   readonly captureRate?: number;
+  /**
+   * **Plus un coup dans la colonne** (ADR 0028 §3, `outOfRounds`), lu après la recharge à
+   * l'ancre : elle marche, elle n'attaque pas. Absent, elle en a (et la Blitz ne compte pas).
+   */
+  readonly outOfRounds?: boolean;
   /** **Une Blitz** (lot 5) : absent, la Mondiale, où rien de ceci ne se lit. */
   readonly blitz?: {
     readonly theatre: Theatre;
@@ -239,7 +244,9 @@ export type OrderRefusal =
   | 'UNIT_TARGET_ONLY'
   | 'RELOADING'
   | 'BUILDING_OCCUPIED'
-  | 'INDIRECT_FIRE_ONLY';
+  | 'INDIRECT_FIRE_ONLY'
+  /** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : la colonne marche, elle n'attaque pas. */
+  | 'NO_ROUNDS';
 
 export type PlunderAim = {
   readonly kind: 'building';
@@ -409,6 +416,7 @@ export function refusalOf(
         if (column.blitz.reloading) return 'RELOADING';
         return closedGate(aim, column);
       }
+      if (column.outOfRounds === true) return 'NO_ROUNDS';
       if (aim.kind === 'objective' && !column.roles.includes('infantry'))
         return 'INFANTRY_REQUIRED';
       return nothingToAttack(aim) ?? closedGate(aim, column);
@@ -416,7 +424,8 @@ export function refusalOf(
      *  service, and a region has no point to disable. */
     case 'raid':
       if (aim.kind !== 'outpost') return 'OUTPOST_TARGET_ONLY';
-      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(aim, column);
+      if (mine(aim, column)) return 'FRIENDLY_TARGET';
+      return column.outOfRounds === true ? 'NO_ROUNDS' : closedGate(aim, column);
     default:
       return 'NOT_ORDERABLE';
   }

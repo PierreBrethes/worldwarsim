@@ -127,6 +127,16 @@ export function CombatLines({ combat }: { combat: CombatReport }) {
           combat.shock === true,
         )}
       />
+      {(combat.mine.dry ?? 0) + (combat.theirs.dry ?? 0) > 0 && (
+        <Row
+          label={said.dry}
+          value={said.dryValue(
+            combat.mine.dry ?? 0,
+            combat.theirs.dry ?? 0,
+            combat.side === 'attacker',
+          )}
+        />
+      )}
       <Row label={said.ground} value={combat.won ? said.held : said.lost} />
       {combat.outpostDisabled && <Row label={said.outpost} value={said.outpostDisabled} />}
     </>

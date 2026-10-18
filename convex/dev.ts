@@ -256,8 +256,11 @@ export const spawnTroops = internalMutation({
     lon: v.number(),
     lat: v.number(),
     carriedBy: v.optional(v.id('troops')),
+    /** Ses crans déjà entamés (coups et plein, ADR 0028 §3) ; absents, pleins. */
+    rounds: v.optional(v.number()),
+    fuel: v.optional(v.number()),
   },
-  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy }) => {
+  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const strength = nominalStrength(role, 1);
@@ -273,6 +276,8 @@ export const spawnTroops = internalMutation({
           currentStrength: strength,
           stationedAt: { lon, lat },
           ...(carriedBy === undefined ? {} : { carriedBy }),
+          ...(rounds === undefined ? {} : { rounds }),
+          ...(fuel === undefined ? {} : { fuel }),
         }),
       );
     return ids;

@@ -3,6 +3,7 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import { SupplyPictos } from '@/shell/SupplyPictos';
 import { CargoTags, type CargoAim } from './CargoTags';
 import {
   Fragment,
@@ -977,6 +978,10 @@ export function MapLabels({
                     </Fragment>
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
+                  ) : line.role === 'supplies' ? (
+                    <div key={rank} className="label-line label-line--figures">
+                      <SupplyPictos supplies={line.supplies} />
+                    </div>
                   ) : line.role === 'capture' ? (
                     <CaptureGauge
                       key={rank}

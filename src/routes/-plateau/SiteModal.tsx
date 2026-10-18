@@ -1,3 +1,5 @@
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { fullSupplies, pileSupplies } from '@/domain/supplies';
 import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
@@ -1035,6 +1037,9 @@ function RoleSheetCard({
           <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">
             {[equipment, `${cost.strength} ${fr.strengthUnits[role]}`].filter(Boolean).join(' · ')}
           </div>
+          <div className="mt-[2px] text-[11px] text-[var(--ink-soft)]" title={fr.supplies.formed}>
+            <SupplyPictos supplies={pileSupplies([{ role, supplies: fullSupplies(role) }])} />
+          </div>
           <div className="mt-px font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {total} {fr.production.inService}
           </div>
@@ -1436,6 +1441,9 @@ function RoleCard({
               {cost.strength}
             </span>
             <span className="text-[10.5px] text-[var(--ink-soft)]">{fr.strengthUnits[role]}</span>
+          </div>
+          <div className="mt-[2px] text-[11px] text-[var(--ink-soft)]" title={fr.supplies.formed}>
+            <SupplyPictos supplies={pileSupplies([{ role, supplies: fullSupplies(role) }])} />
           </div>
         </div>
       </div>

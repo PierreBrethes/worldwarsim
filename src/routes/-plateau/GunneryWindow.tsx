@@ -6,7 +6,6 @@ import {
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
   GARRISON_DAMAGE_TAKEN,
-  DRY_AMMUNITION_FACTOR,
   detectionRangeOf,
 } from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
@@ -24,6 +23,8 @@ import type { UnitTier } from '@/domain/troops';
 import type { UnitRole } from '@/domain/ids';
 import type { Cost } from '@/domain/player-view';
 import { Price } from '@/shell/Price';
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { fullSupplies, pileSupplies } from '@/domain/supplies';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
@@ -80,7 +81,7 @@ export function GunneryWindow({
           <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.gunnery.lead}{' '}
             <HelpMark>
-              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, DRY_AMMUNITION_FACTOR)}{' '}
+              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, workshop?.blitz === true)}{' '}
               {fr.gunnery.contactRange(contactKm(theatre))}
             </HelpMark>
           </div>
@@ -410,6 +411,14 @@ function Mark({
           {cost.strength} {fr.strengthUnits[role]}
         </span>
       </span>
+      {!blitz && (
+        <span className="text-[12.5px] text-[var(--ink)]">
+          <SupplyPictos
+            supplies={pileSupplies([{ role, supplies: fullSupplies(role) }])}
+            size={14}
+          />
+        </span>
+      )}
       <span className="flex items-baseline gap-2 border-t border-(color:--ink)/22 pt-[5px]">
         <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.production.inService}

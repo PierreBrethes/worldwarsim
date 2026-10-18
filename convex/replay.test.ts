@@ -103,12 +103,13 @@ async function fight(t: Bench, attacker: Seat, defender: Seat) {
   return engagement!._id;
 }
 
-type Detail = { troops: number; lost: number; routed: number; destroyed: number };
+type Detail = { troops: number; lost: number; routed: number; destroyed: number; dry?: number };
 const sum = (rows: ReadonlyArray<Detail>) => ({
   troops: rows.reduce((total, row) => total + row.troops, 0),
   lost: rows.reduce((total, row) => total + row.lost, 0),
   routed: rows.reduce((total, row) => total + row.routed, 0),
   destroyed: rows.reduce((total, row) => total + row.destroyed, 0),
+  dry: rows.reduce((total, row) => total + (row.dry ?? 0), 0),
 });
 
 describe('replayOf', () => {

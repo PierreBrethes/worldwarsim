@@ -72,6 +72,7 @@ import {
   regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
+import { suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
@@ -97,6 +98,7 @@ export const tallyOf = (rows: Doc<'engagements'>['troops']): CombatTally => ({
   lost: rows.reduce((sum, troop) => sum + (troop.strengthBefore - troop.strengthAfter), 0),
   routed: rows.filter((troop) => troop.state === 'routed').length,
   destroyed: rows.filter((troop) => troop.state === 'destroyed').length,
+  dry: rows.filter((troop) => troop.dry === true).length,
 });
 
 /** A side by role and mark, in the order the replay stands them. */
@@ -648,6 +650,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
+        ...(blitz ? {} : { supplies: suppliesOf(troop) }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */

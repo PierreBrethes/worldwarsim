@@ -1,3 +1,4 @@
+import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
@@ -157,6 +158,8 @@ export type MapMarker =
       readonly reloadUntil?: number;
       /** **L'artillerie** (B20) : l'instant où la pile sera en batterie, absent sinon. */
       readonly emplacedAt?: number;
+      /** **Ses coups et son plein** (ADR 0028 §3), absents en Blitz. */
+      readonly supplies?: PileSupplies | null;
       readonly ink: string;
     }
   | {
@@ -299,6 +302,8 @@ export type LabelLine =
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
+  /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
+  | { readonly role: 'supplies'; readonly supplies: PileSupplies }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
   | {
@@ -884,6 +889,9 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
+          ...(marker.supplies == null
+            ? []
+            : [{ role: 'supplies', supplies: marker.supplies } as const]),
           ...countdownsOf(marker),
         ],
       };

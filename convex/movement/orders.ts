@@ -51,6 +51,15 @@ import {
   type TroopAddress,
 } from './forces';
 import { carrierIn, cargoOf, seatLoose } from '../../src/domain/troops';
+import {
+  fuelRefusalOf,
+  fuelStepsFor,
+  fullSupplies,
+  outOfRounds,
+  suppliesOf,
+} from '../../src/domain/supplies';
+import { KM_PER_UNIT } from '../../src/domain/routing';
+import { resupply } from '../supplies';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
@@ -602,6 +611,7 @@ export async function columnOf(
     ),
     afloat: departure.afloat,
     coastal: departure.coastal,
+    ...(theatre === null && outOfRounds(troops) ? { outOfRounds: true } : {}),
   };
 }
 
@@ -679,6 +689,33 @@ export async function claimSlot(
   }
 }
 
+/**
+ * **Ce que la route coûte en plein, et qui la paie** : les moteurs qui partent par eux-mêmes —
+ * un passager ne consomme pas, son transport le porte. La mutation et l'aperçu lisent la même.
+ */
+export function fuelBill(
+  troops: ReadonlyArray<Doc<'troops'>>,
+  distanceUnits: number,
+  blitz: boolean,
+) {
+  const seated = seatLoose(troops.map(seatedOf));
+  const drivers = blitz
+    ? []
+    : troops.filter(
+        (troop) =>
+          fullSupplies(troop.role).fuel > 0 &&
+          troop.carriedBy === undefined &&
+          !seated.has(troop._id),
+      );
+  const km = Math.round(distanceUnits * KM_PER_UNIT);
+  return {
+    drivers,
+    km,
+    steps: drivers.length === 0 ? 0 : fuelStepsFor(km),
+    short: fuelRefusalOf(drivers, km),
+  };
+}
+
 export async function march(
   ctx: MutationCtx,
   {
@@ -747,6 +784,11 @@ export async function march(
         troops.push((await ctx.db.get(rider.id as Id<'troops'>))!);
   }
 
+  /** **Ancrée, elle se recharge au départ** (ADR 0028 §3) : les coups et le plein se reprennent
+   *  sur le plateau personnel avant que l'ordre ne les lise. */
+  const supplied = await resupply(ctx, playerId, troops, Date.now());
+  troops.splice(0, troops.length, ...supplied);
+
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
@@ -773,6 +815,17 @@ export async function march(
     landCostOf(column.roles),
   );
   if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
+
+  /**
+   * **Le plein se paie au départ** (ADR 0028 §3) : chaque moteur qui roule, vogue ou vole débite
+   * sa route, et une route plus longue que le plus petit plein est refusée. Un passager ne
+   * consomme pas : son transport le porte. Le retour d'une colonne qui a combattu ne se paie
+   * pas : il n'est l'ordre de personne.
+   */
+  const fuel = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
+  if (fuel.short !== null) fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km });
+  for (const troop of fuel.drivers)
+    await ctx.db.patch(troop._id, { fuel: suppliesOf(troop).fuel - fuel.steps });
 
   const now = Date.now();
   const minutes = await pacedMinutes(ctx, playerId, route, now);

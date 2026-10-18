@@ -436,6 +436,10 @@ export default defineSchema({
      *  a embarqué, plus parce qu'on se tient au point d'un transport. Absent, à pied. Il ne vaut
      *  qu'à la même adresse que son transport (`carrierIn`). */
     carriedBy: v.optional(v.id('troops')),
+    /** **Coups et plein, en crans** (ADR 0028 §3, Mondiale) : ce qu'elle porte encore. Absents,
+     *  pleins — elle n'a rien dépensé depuis sa formation (`SUPPLY_BY_ROLE`). */
+    rounds: v.optional(v.number()),
+    fuel: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -897,6 +901,8 @@ export default defineSchema({
         strengthBefore: v.number(),
         strengthAfter: v.number(),
         state: TROOP_STATE,
+        /** **À sec** (ADR 0028 §1) : elle aurait tiré, et n'avait plus de coups. */
+        dry: v.optional(v.literal(true)),
       }),
     ),
   })

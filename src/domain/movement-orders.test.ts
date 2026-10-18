@@ -109,6 +109,13 @@ describe('what an attack may be aimed at', () => {
     expect(refusalOf('march', camp, column(['infantry']))).toBe('POINT_TARGET_ONLY');
     expect(refusalOf('raid', camp, column(['infantry']))).toBe('OUTPOST_TARGET_ONLY');
   });
+
+  /** ADR 0028 §1 : sans coups, ni attaque ni riposte — la marche reste offerte. */
+  it('refuses the attack and the raid to a column out of rounds', () => {
+    const dry = column(['infantry'], { outOfRounds: true });
+    expect(refusalOf('attack', camp, dry)).toBe('NO_ROUNDS');
+    expect(refusalOf('raid', outpost, dry)).toBe('NO_ROUNDS');
+  });
 });
 
 describe('what a column may ask for', () => {

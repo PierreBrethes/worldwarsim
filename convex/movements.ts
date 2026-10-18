@@ -66,7 +66,9 @@ import {
   plunderAimOf,
   surveyedPlunderTarget,
   troopsAmong,
+  fuelBill,
 } from './movement/orders';
+import { resupply, toppedUp } from './supplies';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -604,7 +606,14 @@ export const preview = query({
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
-    const troops = await troopsAmong(ctx, player._id, troopIds);
+    const now = Date.now();
+    /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
+    const { troops } = await toppedUp(
+      ctx,
+      player._id,
+      await troopsAmong(ctx, player._id, troopIds),
+      now,
+    );
     const column = await columnOf(ctx, player._id, troops, departure);
     const pace = column.roles;
 
@@ -613,7 +622,7 @@ export const preview = query({
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 
-    const now = Date.now();
+    const fuel = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
     const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     return {
@@ -629,6 +638,8 @@ export const preview = query({
       destinationName: name,
       originName: departure.name,
       route: routeFacts(route),
+      /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
+      fuel: { steps: fuel.steps, short: fuel.short, km: fuel.km },
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -979,6 +990,10 @@ export const arrive = internalMutation({
     }
 
     await forgetMovement(ctx, movementId);
+    /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
+     *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
+    const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
+    await resupply(ctx, movement.playerId, landed, now);
     await reassessDetection(ctx, movement.seasonId, now);
   },
 });

@@ -398,7 +398,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'firedDry',
-        text: said.firedDry(countryLabel(notice.hostCountry)),
+        text: said.firedDry(countryLabel(notice.hostCountry), notice.troops ?? 1),
       };
     /**
      * **La seule passe qui n'en est pas une** : une colonne qui marche sur un sol vide ne dépose

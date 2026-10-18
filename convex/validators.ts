@@ -398,14 +398,16 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     point: LON_LAT,
   }),
-  /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
-   *  else on the board says it, and it is the difference between a defeat and a supply fault. */
+  /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
+   *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('firedDry'),
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
+    /** Combien n'ont pas tiré ; absent sur les lignes d'avant les coups (18/10). */
+    troops: v.optional(v.number()),
   }),
   /**
    * **Legacy — plus jamais écrites.** Les trois dépêches du leurre, retiré du jeu le 29/08/2026.

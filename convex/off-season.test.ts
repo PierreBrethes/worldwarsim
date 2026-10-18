@@ -8,7 +8,8 @@ import {
   DETECTION_RANGE_KM,
   STARTING_AMMUNITION,
   STARTING_KIT,
-  STRENGTH_PER_ROUND,
+  SUPPLY_BY_ROLE,
+  SUPPLY_STEP_COST,
   buildCost,
   nominalStrength,
 } from './constants';
@@ -251,9 +252,9 @@ describe('launching', () => {
   });
 
   /**
-   * **Le kit de munitions** (décision du 25/08). Since question 18 the rounds are billed at the
-   * pass and nowhere else, so what this endowment buys is *engagements*, not companies. The
-   * figure belongs to the starting line, never to a nation, like the steel and the oil beside it.
+   * **Le kit de munitions** (décision du 25/08). Since ADR 0028 the rounds are steps a troop
+   * carries, taken back at the anchor: what this endowment buys is rearming. The figure belongs
+   * to the starting line, never to a nation, like the steel and the oil beside it.
    */
   it('hands out the ammunition of the starting line, not a nation’s own figure', async () => {
     const t = boot();
@@ -262,10 +263,10 @@ describe('launching', () => {
 
     const view = await t.query(api.view.playerView, creator);
     expect(view.me.resources.ammunition.stock).toBe(STARTING_AMMUNITION);
-    // Enough for the given company to fight several passes: an endowment that covered one
-    // engagement would be a nation disarmed by its first contact.
-    const onePass = Math.ceil(nominalStrength('infantry', 1) / STRENGTH_PER_ROUND);
-    expect(view.me.resources.ammunition.stock).toBeGreaterThan(onePass * 3);
+    // Enough to rearm the given company twice over: an endowment that covered one rearming
+    // would be a nation disarmed by its first contact.
+    const rearm = SUPPLY_BY_ROLE.infantry.rounds * SUPPLY_STEP_COST;
+    expect(view.me.resources.ammunition.stock).toBeGreaterThan(rearm * 2);
   });
 });
 

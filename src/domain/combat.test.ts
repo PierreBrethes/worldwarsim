@@ -29,13 +29,6 @@ const UNIT_OF: Readonly<Record<CombatProfile, { role: UnitRole; tier: UnitTier }
   carrier: { role: 'carrier', tier: 1 },
 };
 
-/**
- * Every case below that is not about the magazine is fought with one: the measured figures of
- * the chiffrage are the figures of a *supplied* pass, and letting a case run dry by omission
- * would move them by ×0.60 without a line saying so.
- */
-const SUPPLIED = { attacker: 10_000, defender: 10_000 };
-
 let formed = 0;
 function troop(profile: CombatProfile, strength?: number, sheltered = false): Combatant {
   const { role, tier } = UNIT_OF[profile];
@@ -66,7 +59,6 @@ const duel = (
   const engagement = resolveEngagement({
     attackers: [a],
     defenders: [d],
-    ammunition: SUPPLIED,
     rules: COMBAT_RULES,
     mode,
   });
@@ -177,7 +169,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers,
       defenders: [lone],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -199,7 +190,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [rifles],
       defenders: [armour, lorries],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -214,7 +204,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [lorries],
       defenders: [worn],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -240,7 +229,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [tanks, troop('armor2')],
       defenders: [rifles],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -258,7 +246,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [lorries, bombers],
       defenders: [holder],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -289,7 +276,6 @@ describe('the strike, then the riposte, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [bombers],
       defenders: [rifles],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
     expect(firedBy(engagement, rifles)).toHaveLength(0);
@@ -330,9 +316,9 @@ describe('indirect fire', () => {
     expect(firedBy(charging.engagement, charging.attacker)).toHaveLength(0);
   });
 
-  it('bills the target nothing, since it does not fire', () => {
+  it('spends no round of the target, since it does not fire', () => {
     const fight = duel('artillery', 'infantry1', { mode: 'indirect' });
-    expect(fight.engagement.magazine.defender.needed).toBe(0);
+    expect(fight.engagement.fired).toEqual([fight.attacker.id]);
   });
 });
 
@@ -350,7 +336,6 @@ describe('the shock', () => {
     const engagement = resolveEngagement({
       attackers: [tanks, troop('armor2')],
       defenders: [rifles],
-      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
       mode: 'shock',
     });
@@ -365,105 +350,56 @@ describe('the shock', () => {
   });
 });
 
-/**
- * Question 18, settled 25/08. The bill moved from the recruitment to the pass, so this is where
- * the whole of the ammunition rule now lives — there is no other place a round is spent.
- */
-describe('the magazine is billed at the pass', () => {
-  it('draws one round per five points of engaged strength, on both sides', () => {
+/** **Coups** (ADR 0028 §3) : chaque troupe porte ses passes, et une troupe à sec n'en tire aucune. */
+describe('the rounds a troop carries', () => {
+  const armed = (profile: CombatProfile, rounds: number) => ({ ...troop(profile), rounds });
+
+  it('spends one step of each troop that fires, and none of the one that only takes', () => {
+    const attacker = armed('infantry1', 3);
+    const defender = armed('infantry1', 3);
     const engagement = resolveEngagement({
-      attackers: [troop('infantry1'), troop('armor1')],
-      defenders: [troop('infantry1', 22)],
-      ammunition: SUPPLIED,
-      rules: COMBAT_RULES,
-      mode: 'shock',
-    });
-
-    // 50 soldiers and 12 tanks: ten rounds and three. The defender's 22 points round up to five.
-    expect(engagement.magazine.attacker).toEqual({ needed: 13, spent: 13, dry: false });
-    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
-  });
-
-  /** Décision de Pierre du 14/10 (C3) : on ne paie que ce qu'on tire. */
-  it('bills the riposte on what the strike left standing', () => {
-    const engagement = resolveEngagement({
-      attackers: [troop('infantry1')],
-      defenders: [troop('infantry1')],
-      ammunition: SUPPLIED,
-      rules: COMBAT_RULES,
-    });
-
-    // Twenty-five soldiers left to answer: five rounds, not the ten the company brought in.
-    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
-  });
-
-  it('bills nothing to a defence the strike wiped out, and never calls it dry', () => {
-    const engagement = resolveEngagement({
-      attackers: [troop('armor2'), troop('armor2')],
-      defenders: [troop('infantry1')],
-      ammunition: { attacker: 10_000, defender: 0 },
-      rules: COMBAT_RULES,
-    });
-
-    expect(engagement.outcomes.find((one) => one.side === 'defender')!.state).toBe('destroyed');
-    expect(engagement.magazine.defender).toEqual({ needed: 0, spent: 0, dry: false });
-  });
-
-  it('judges the riposte dry on what it needs after the strike', () => {
-    const defender = troop('infantry1');
-    const engagement = resolveEngagement({
-      attackers: [troop('infantry1')],
+      attackers: [attacker],
       defenders: [defender],
-      ammunition: { attacker: 10_000, defender: 5 },
       rules: COMBAT_RULES,
     });
-
-    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
-    expect(firedBy(engagement, defender)[0]!.losses).toBe(13);
+    expect(engagement.fired).toEqual([attacker.id, defender.id]);
+    expect(engagement.dry).toEqual([]);
   });
 
-  it('takes everything that is left and fires at .60 when the stock cannot cover the pass', () => {
-    const attacker = troop('infantry1');
-    const dry = resolveEngagement({
+  it('has a defender out of rounds take the strike without a riposte', () => {
+    const attacker = armed('infantry1', 3);
+    const defender = armed('infantry1', 0);
+    const engagement = resolveEngagement({
+      attackers: [attacker],
+      defenders: [defender],
+      rules: COMBAT_RULES,
+    });
+    expect(firedBy(engagement, defender)).toEqual([]);
+    expect(engagement.dry).toEqual([defender.id]);
+    expect(engagement.outcomes.find((one) => one.id === attacker.id)!.strengthAfter).toBe(
+      attacker.strength,
+    );
+  });
+
+  it('has an attacker out of rounds strike nothing', () => {
+    const attacker = armed('infantry1', 0);
+    const engagement = resolveEngagement({
       attackers: [attacker],
       defenders: [troop('infantry1')],
-      ammunition: { attacker: 4, defender: 10_000 },
       rules: COMBAT_RULES,
     });
-    const supplied = duel('infantry1', 'infantry1');
-
-    expect(dry.magazine.attacker).toEqual({ needed: 10, spent: 4, dry: true });
-    // Bad, never absent: it still strikes, at .60 of the twenty-two of the reference case.
-    const lost = firedBy(dry, attacker)[0]!.losses;
-    expect(lost).toBe(Math.round(supplied.lostByDefender * 0.6));
-    expect(lost).toBeGreaterThan(0);
+    expect(firedBy(engagement, attacker)).toEqual([]);
+    expect(engagement.dry).toEqual([attacker.id]);
   });
 
-  it('leaves the other side alone when only one magazine is empty', () => {
-    const defender = troop('infantry1');
+  it('never calls dry a troop with nothing to aim at', () => {
     const engagement = resolveEngagement({
-      attackers: [troop('infantry1')],
-      defenders: [defender],
-      ammunition: { attacker: 0, defender: 10_000 },
+      attackers: [troop('armor2'), troop('armor2')],
+      defenders: [armed('infantry1', 0)],
       rules: COMBAT_RULES,
     });
-    const supplied = duel('infantry1', 'infantry1');
-
-    expect(engagement.magazine.attacker).toEqual({ needed: 10, spent: 0, dry: true });
-    expect(engagement.magazine.defender.dry).toBe(false);
-    // Dry, the strike is weaker, so more is left to riposte with than in the supplied case.
-    expect(firedBy(engagement, defender)[0]!.losses).toBeGreaterThan(supplied.lostByAttacker);
-  });
-
-  it('asks nothing of a side that brings nothing', () => {
-    const engagement = resolveEngagement({
-      attackers: [troop('infantry1')],
-      defenders: [],
-      ammunition: { attacker: 10_000, defender: 0 },
-      rules: COMBAT_RULES,
-    });
-
-    expect(engagement.magazine.defender).toEqual({ needed: 0, spent: 0, dry: false });
+    expect(engagement.outcomes.find((one) => one.side === 'defender')!.state).toBe('destroyed');
+    expect(engagement.dry).toEqual([]);
   });
 });
 
