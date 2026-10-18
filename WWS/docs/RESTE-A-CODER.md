@@ -28,9 +28,12 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
    [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en dix features vues du joueur.
    Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario de démo, et le
    code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
-   1. **Cinq ressources** : retirer tissus, bandages, minerai, filature, intendance, fonderie ; le
-      fer donne l'acier ; relire le socle (avec le wipe). *Se voit* : pictos et couleurs des cinq,
-      l'alliage renommé acier.
+   1. ~~**Cinq ressources**~~ : faite le 18/10. Vivres, acier, charbon, pétrole, munitions ; la mine
+      sur du fer rend l'acier (8 par heure, le débit de l'ancienne fonderie), l'arsenal fait une
+      munition d'un charbon et d'un acier ; filature, fonderie et intendance retirées. Gisements
+      régénérés sur quatre types, trois sur quatre chez soi : Norilsk et Vorkouta sortent, Nagasaki
+      entre au Japon, pour tenir la bande. « Sur 12 » retiré de la fiche de caserne. Le schéma
+      change : `npx convex run dev:reset` avant de pousser.
    2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
       d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
    3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
