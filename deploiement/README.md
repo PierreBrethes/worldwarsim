@@ -110,6 +110,21 @@ automatique réussie ni une méthode universelle pour les futurs composants Conv
    (`npx convex deploy` est le one-shot utilisé par la CI).
    Le dashboard est sur http://127.0.0.1:6791 (se connecter avec la clé d'admin).
 
+## Voir une partie Mondiale en local
+
+Avant : Docker (`worldwarsim-backend-1`) levé, `.env.local` visant 127.0.0.1, fonctions déployées
+(`npx convex deploy`), `npm run dev` en cours, et une fois `npm i playwright-core@1.58` dans un
+dossier hors du dépôt (`PLAYWRIGHT_DIR`).
+
+```bash
+npm run demo:mondiale   # deux comptes, une Mondiale lancée, stocks pleins, troupes posées
+PLAYWRIGHT_DIR=/chemin/pw npm run capture -- '/plateau?season={saison}' plateau.png [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms]
+```
+
+Le premier écrit `scripts/demo-mondiale.accounts.json` (ignoré par git : comptes, code et saison) et
+refuse tout backend non local ; le second s'y connecte par `/connexion`, tamponne la notice d'entrée
+et relève les erreurs de console. `--nu` au premier saute stocks et troupes.
+
 ## VPS (Hostinger) — mise en prod initiale
 
 En prod, le compose de dev est complété par
