@@ -6,7 +6,10 @@ type Marks = {
   readonly telegraphReadAt: number | null;
   readonly telegraphPushedAt: number | null;
   readonly telegraphDirectReadAt: Readonly<Record<string, number>>;
-  readonly boardRead: { readonly at: number; readonly stocks: Readonly<Record<string, number>> } | null;
+  readonly boardRead: {
+    readonly at: number;
+    readonly stocks: Readonly<Record<string, number>>;
+  } | null;
 };
 
 /**
