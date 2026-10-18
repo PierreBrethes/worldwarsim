@@ -801,7 +801,10 @@ export function MapLabels({
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
-    <div ref={layer} className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
+    <div
+      ref={layer}
+      className={`map-labels${muted ? ' pointer-events-none' : ''}${carriersShown ? ' map-labels--loading' : ''}`}
+    >
       {labels.map((label) => (
         <div
           key={label.id}

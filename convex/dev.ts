@@ -11,6 +11,8 @@ import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
 import { UNIT_ROLE } from './validators';
 import { nominalStrength } from './constants';
+import { capitalRegionOf, pointOfRegion } from './regions';
+import { isNation } from '../src/domain/nations';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -343,12 +345,26 @@ export const logisticsScene = internalMutation({
       immuneUntil: null,
       depot: { ammunition: 260, oil: 150, coal: 90 },
     });
-    const hq = (
+    /** Un QG à la capitale s'il n'y en a pas : c'est là qu'un camion se charge au plateau. */
+    let hq = (
       await ctx.db
         .query('buildings')
         .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
         .collect()
     ).find((building) => building.key === 'hq');
+    if (hq === undefined && isNation(player.nation)) {
+      const regionId = capitalRegionOf(player.nation);
+      const id = await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId,
+        key: 'hq',
+        regionId,
+        point: pointOfRegion(regionId),
+        level: 1,
+        homeOf: playerId,
+      });
+      hq = (await ctx.db.get(id))!;
+    }
     const truck = (stationedAt: Id<'buildings'> | Id<'outposts'>, load: Doc<'troops'>['load']) =>
       ctx.db.insert('troops', {
         seasonId: player.seasonId,
@@ -362,6 +378,32 @@ export const logisticsScene = internalMutation({
       });
     if (hq !== undefined) await truck(hq._id, { ammunition: 90, oil: 50, coal: 20 });
     await truck(outpostId, { ammunition: 30, oil: 0, coal: 0 });
+    /** Deux points côtiers, Marseille et Agde, et un cargo chargé au premier. */
+    const coast = async (lon: number, lat: number, depot: Doc<'outposts'>['depot']) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry: 'FRA',
+        level: 1,
+        specialization: 'relay',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...(depot === undefined ? {} : { depot }),
+      });
+    const marseille = await coast(5.37, 43.3, { ammunition: 40, oil: 0, coal: 180 });
+    await coast(3, 43.3, undefined);
+    await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId,
+      role: 'cargo',
+      tier: 1,
+      nominalStrength: nominalStrength('cargo', 1),
+      currentStrength: nominalStrength('cargo', 1),
+      stationedAt: marseille,
+      load: { ammunition: 120, oil: 0, coal: 220 },
+    });
     return outpostId;
   },
 });

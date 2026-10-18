@@ -949,9 +949,18 @@
 .label--outpost.label--pointed .cargo-tags {
   --cargo-x: -110px;
 }
+/* Au téléphone, l'étiquette pend sous le point, à gauche du cartouche : elle tient dans l'écran. */
+@media (max-width: 767px) {
+  .label--outpost.label--pointed .cargo-tags {
+    --cargo-x: -85px;
+    --cargo-y: 175px;
+  }
+}
 .label-anchor.label-anchor--dressed .cargo-tags,
 .label--expanded:not(.label--grouped) .cargo-tags,
-.label--outpost.label--pointed .cargo-tags {
+.label--outpost.label--pointed .cargo-tags,
+/* Des jetons en main (ADR 0028 §4) : toutes les étiquettes de transport pendent, on les vise. */
+.map-labels--loading .label-anchor .cargo-tags {
   position: absolute;
   top: 0;
   left: 0;
