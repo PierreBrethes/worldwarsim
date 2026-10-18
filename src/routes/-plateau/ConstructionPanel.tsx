@@ -98,11 +98,8 @@ export function ConstructionPanel({
   const site = siteOf(view, regionId, now);
   if (region === undefined || site === null) return null;
 
-  /**
-   * Never empty: the crane is only in the fan where something can go up, so the panel opens
-   * on a list. A region already carrying a building can take nothing else — one per region —
-   * and it is the crane that is missing there, not the lines here.
-   */
+  /** Never empty: the crane is only in the fan where something can go up, so the panel opens
+   *  on a list — the keys, and the place is aimed at afterwards (ADR 0029). */
   const options = buildableOn(site, view.buildCatalog);
 
   /** The other half of the fifteen, as a shelf under the offer — see `blockedOn`. */

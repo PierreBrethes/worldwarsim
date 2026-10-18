@@ -362,7 +362,6 @@ export class MapEngine {
   private spaceHeld = false;
   private building = false;
   private aiming = false;
-  private designating = false;
   /** The building held over the board, `null` when nothing is held. */
   private placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null = null;
   private readonly ghost: PlacingGhost;
@@ -404,15 +403,9 @@ export class MapEngine {
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
   /**
-   * A clean left click while the board is **designating** — a mobilisation key is armed and
-   * the next click names the ground it goes down on. It replaces the selection rather than
-   * doubling it: a click that both places an arsenal and re-frames the country would answer
-   * two questions where the player asked one.
-   */
-  onRegionClick: (regionId: string | null) => void = () => {};
-  /**
-   * A clean left click while a building is held: the point the ghost holds. Like
-   * `onRegionClick`, it replaces the selection rather than doubling it — one click, one answer.
+   * A clean left click while a building is held: the point the ghost holds. It replaces the
+   * selection rather than doubling it: a click that both places an arsenal and re-frames the
+   * country would answer two questions where the player asked one.
    */
   onPlacePoint: (spot: PlacingSpot) => void = () => {};
   /** The ghost moved onto another point — what the board reads its refusal off, before the click. */
@@ -657,7 +650,6 @@ export class MapEngine {
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.built);
-    this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
     this.scene.add(this.regions.terrain.group);
 
@@ -1311,12 +1303,6 @@ export class MapEngine {
     this.regions.showHeld(claims);
   }
 
-  /** The ground an armed key accepts, as the domain computed it — see `RegionLayer.showDesignated`. */
-  showDesignatedRegions(regionIds: ReadonlyArray<string>): void {
-    this.invalidate();
-    this.regions.showDesignated(new Set(regionIds));
-  }
-
   /**
    * **The ground one detector covers, while the pointer asks for it and no longer** (fiche 03).
    * `null` puts it away — the ring is an answer to a hover, not a layer of the board.
@@ -1510,7 +1496,7 @@ export class MapEngine {
    * not turn the table under the piece.
    */
   private armCarry(gesture: Gesture, event: PointerEvent, from: () => CarryTarget | null): void {
-    if (this.onPieceCarry === undefined || this.placing !== null || this.designating) return;
+    if (this.onPieceCarry === undefined || this.placing !== null) return;
     const finger = event.pointerType === 'touch';
     if (!finger && (buttonAt(event.button) !== 'left' || this.spaceHeld)) return;
     gesture.carry = from();
@@ -1692,7 +1678,7 @@ export class MapEngine {
     }
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
-    if (press.reads) this.readAt(event);
+    if (press.reads) this.readAt();
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
 
@@ -1721,7 +1707,7 @@ export class MapEngine {
   /** A building held or a key armed wants the ground, not the piece standing on it. */
   private pickAt(event: PointerEvent, single: boolean): boolean {
     const onPieceClick = this.onPieceClick;
-    if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
+    if (onPieceClick === undefined || this.placing !== null) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
     const piece = this.pieceToTake();
     if (piece === null) return false;
@@ -1745,7 +1731,7 @@ export class MapEngine {
 
   /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
   private pressPiece(event: PointerEvent, press: CleanPress): boolean {
-    if (this.onPiecePress === undefined || this.placing !== null || this.designating) return false;
+    if (this.onPiecePress === undefined || this.placing !== null) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
     const labelId = this.pieceUnder()?.id;
     if (labelId === undefined) return false;
@@ -1802,14 +1788,10 @@ export class MapEngine {
     this.onRest?.({ ...click, labelId: this.restLabel ?? this.hoveredLabel });
   }
 
-  private readAt(event: PointerEvent): void {
+  private readAt(): void {
     if (this.placing !== null) {
       const spot = this.ghost.spot;
       if (spot !== null) this.onPlacePoint(this.placingSpotAt(spot));
-      return;
-    }
-    if (this.designating) {
-      this.onRegionClick(this.regionAtPoint(event.clientX, event.clientY)?.id ?? null);
       return;
     }
     if (this.fingerOnBoard) {
@@ -1952,7 +1934,7 @@ export class MapEngine {
     else if (this.placing !== null)
       style.cursor =
         this.ghost.spot === null || this.placingRefused ? REFUSED_CURSOR : TROWEL_CURSOR;
-    else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
+    else if (this.building) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
@@ -1975,23 +1957,11 @@ export class MapEngine {
     this.refreshCursor();
   }
 
-  /**
-   * A mobilisation key is armed: the left click names a region instead of selecting a country.
-   * It wears the same trowel as the construction panel, because it is the same verb — putting
-   * a building down — and a second cursor for one gesture is one vocabulary too many.
-   */
   /** The board says whether the point the ghost holds is refused: the cursor says it too. */
   setPlacingRefused(refused: boolean): void {
     this.invalidate();
     if (refused === this.placingRefused) return;
     this.placingRefused = refused;
-    this.refreshCursor();
-  }
-
-  setDesignating(designating: boolean): void {
-    this.invalidate();
-    if (designating === this.designating) return;
-    this.designating = designating;
     this.refreshCursor();
   }
 
@@ -2248,11 +2218,7 @@ export class MapEngine {
     const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
     const pointing =
-      onScreen &&
-      !this.fingerOnBoard &&
-      this.gesture === null &&
-      this.placing === null &&
-      !this.designating;
+      onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
     const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
     if (label !== this.hoveredLabel) {
       this.hoveredLabel = label;

@@ -179,8 +179,8 @@ describe('launching', () => {
     /**
      * **Rien n'est planté** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2) : le
      * quartier général est la première dette du socle, et le joueur la pose où il veut sur son
-     * sol. Une bâtisse par région, donc un gisement sous le QG est un gisement perdu — c'est ce
-     * choix-là que la décision lui rend.
+     * sol. Un QG posé sur un gisement le prend (ADR 0029) — c'est ce choix-là que la décision
+     * lui rend.
      */
     expect(view.me.buildings).toEqual([]);
     expect(view.me.troops).toEqual([]);

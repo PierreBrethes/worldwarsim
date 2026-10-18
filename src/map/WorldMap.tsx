@@ -207,13 +207,6 @@ type Props = {
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
   /**
-   * The regions an armed mobilisation key accepts, and the click that names one. The map holds
-   * no rule of its own here: the list arrives computed (`placementOf`), and the click hands
-   * back a region id — what happens to it is the board's business.
-   */
-  designatedRegions?: ReadonlyArray<string>;
-  onDesignateRegion?: (regionId: string | null) => void;
-  /**
    * What the camera is asked to fly to: label ids, plus the plain places that carry no marker —
    * a column left on open ground is one. The nonce is what makes a second request on the same
    * target land: asking twice for the same building is an ordinary gesture, and an
@@ -354,8 +347,6 @@ export function WorldMap({
   onPlacePoint,
   onPlacingAim,
   aiming = false,
-  designatedRegions = NO_REGIONS,
-  onDesignateRegion,
   focus = null,
   searchArea = null,
   fingerRose = null,
@@ -1001,22 +992,6 @@ export function WorldMap({
   useEffect(() => {
     if (engine.current) engine.current.onPlacingAim = onPlacingAim ?? (() => {});
   }, [onPlacingAim]);
-
-  // A key with no ground to go down on designates nothing: the trowel only comes out when a
-  // click can actually land, so the mode is the list and not a separate flag to keep in step.
-  const designating = onDesignateRegion !== undefined && designatedRegions.length > 0;
-
-  useEffect(() => {
-    readyEngine?.setDesignating(designating);
-  }, [readyEngine, designating]);
-
-  useEffect(() => {
-    readyEngine?.showDesignatedRegions(designatedRegions);
-  }, [readyEngine, designatedRegions]);
-
-  useEffect(() => {
-    if (engine.current) engine.current.onRegionClick = onDesignateRegion ?? (() => {});
-  }, [onDesignateRegion]);
 
   /**
    * **Sous le doigt, un voyage referme la rose** : le toucher qui l'a ouverte a aussi ouvert une

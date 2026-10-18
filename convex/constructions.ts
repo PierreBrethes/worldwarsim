@@ -117,7 +117,7 @@ export const start = mutation({
      * the opening that is a decision; the price and the wait on what is not one are what the
      * season takes back. So as long as a key of the foundation is still owed, its first
      * placement costs nothing and stands at once — every other rule above having already had
-     * its say: deposit, one building per region, home country.
+     * its say: reach, deposit, spacing.
      *
      * It never enters the queue: there is nothing to wait for and nothing to bill, so it has
      * no rank, no refund and no turn — a playtest lost three free placements behind a paid
@@ -174,8 +174,8 @@ export const start = mutation({
  *
  * Une entrée dans la **même file**, sous le même `rank` et le même `finishesAt` : ce n'est pas
  * une seconde file de chantiers, c'est un chantier. Ce qui la distingue d'un bâtiment est
- * `outpostId`, et rien d'autre — elle ne prend aucune région, aucun emplacement, et la règle
- * « une entrée par région » ne la voit pas.
+ * `outpostId`, et rien d'autre — elle ne pose rien, et ni l'espacement ni la règle « une entrée
+ * par point » ne la voient.
  *
  * Rien n'est exigé de la garnison ni du quartier général : l'avant-poste est déjà debout. Ce
  * qu'un raid interdit, c'est de **rénover sous le feu** (`OUTPOST_DISABLED`).

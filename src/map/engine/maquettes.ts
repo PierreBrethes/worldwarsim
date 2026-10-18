@@ -57,8 +57,8 @@ export type StandingMaquette = {
 /**
  * **The widest side of a maquette's footprint, in board units.** Every model is brought to it:
  * a hangar and a well are the same size on the board, as their plates are on a mast. Half again
- * a tank's length (`FIGURINE_SCALE`), and about a French département — one building per region,
- * it stands on its own ground without spilling on the next. `@a-mesurer` on the board.
+ * a tank's length (`FIGURINE_SCALE`), under the spacing two buildings keep (ADR 0029), so it
+ * stands on its own ground without spilling on the next. `@a-mesurer` on the board.
  */
 export const MAQUETTE_SPAN = 0.7;
 

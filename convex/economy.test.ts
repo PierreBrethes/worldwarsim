@@ -1161,7 +1161,7 @@ describe('the foundation the season owes', () => {
 
 /**
  * **Le quartier général se pose, il n'est plus planté** (décision 1b du 13/09, révision des ADR
- * 0015 et 0017 §2). Ce qui a rouvert la question : une bâtisse par région, donc un gisement sous
+ * 0015 et 0017 §2). Ce qui a rouvert la question : un gisement sous
  * le QG est un gisement perdu — c'est au joueur de choisir ce qu'il sacrifie.
  */
 describe('the headquarters the player puts up', () => {

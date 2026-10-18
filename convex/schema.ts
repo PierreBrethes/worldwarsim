@@ -948,8 +948,8 @@ export default defineSchema({
      * portent aucun, et n'en ont aucun besoin — elles bâtissent.
      *
      * `regionId` reste rempli pour l'écran, qui nomme le lieu de tout ce qui est en file ; ce
-     * n'est pas une réservation de sol — une élévation ne prend pas la région de son point, et
-     * la règle « une entrée par région » l'ignore (`constructions.ts`).
+     * n'est pas une réservation de sol — une élévation ne pose rien, et ni l'espacement ni la
+     * règle « une entrée par point » ne la voient (`constructions.ts`).
      */
     outpostId: v.optional(v.id('outposts')),
     level: v.number(),

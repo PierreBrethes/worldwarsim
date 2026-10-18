@@ -1366,10 +1366,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.me.buildings, view.me.ink],
   );
 
-  // Buildings hang from a region id and the map layer resolves it — **sauf le port**, qui porte
-  // le point de côte choisi à la pose (ADR 0013, révision du 04/09) ; un outpost carries its own
-  // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
-  // wait for 4.7 to serve positions — see `MapMarker`.
+  // Every building stands at the point written at its placement (ADR 0029), and so does the
+  // work that will raise it; an outpost carries its own point, because it *is* a point and
+  // colours no ground (fiche 03).
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
     const loot: ReadonlyArray<MapMarker> = view.lootSightings
       .filter((sighting) => sighting.present)
@@ -1449,9 +1448,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     /**
      * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
      * n'avait aucune poignée — un ordre existait côté serveur que rien à l'écran ne pouvait
-     * nommer. Le point exact d'un site adverse n'est pas servi : le relevé porte la région, et
-     * le mât se pose à son centroïde, comme un gisement. Il suit le même interrupteur que les
-     * mâts à soi, parce que c'est le même encombrement.
+     * nommer. Le relevé porte le point où le site se tenait (ADR 0029), et le mât s'y pose : c'est
+     * le point que la capture et la frappe visent. Il suit le même interrupteur que les mâts à
+     * soi, parce que c'est le même encombrement.
      */
     /**
      * **Un camp adverse relevé se tient sur la carte** (ADR 0024 §1) : sans mât, le §3 serait

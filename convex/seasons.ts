@@ -42,8 +42,8 @@ import {
  * **Rien n'est planté ici** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2). Le quartier
  * général était posé d'office sur la capitale de 1940, et la compagnie d'infanterie avec lui ;
  * les deux sont passés dans le socle, que le joueur acquitte où il veut sur son sol
- * (`constructions.start`). Ce qui l'a rouvert : une bâtisse par région, donc un gisement sous le
- * QG est un gisement perdu — c'est au joueur de choisir ce qu'il sacrifie.
+ * (`constructions.start`). Un QG posé sur un gisement le prend (ADR 0029) — c'est au joueur de
+ * choisir ce qu'il sacrifie.
  *
  * Un belligérant qui n'a encore rien debout est donc un état normal, et le premier de la saison.
  */

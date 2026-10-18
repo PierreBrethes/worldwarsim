@@ -18,9 +18,9 @@ import { refuseInBlitz } from './blitz';
 export type { BuildingKey };
 
 /**
- * **Raser un bâtiment à soi** (demande de Pierre, 15/09). Sans elle, une bâtisse par région
- * (ADR 0015) fige une région au premier choix pour toute la saison : une mine posée là où l'on
- * voudrait une caserne est une erreur sans retour.
+ * **Raser un bâtiment à soi** (demande de Pierre, 15/09). Sans elle, un point posé (ADR 0029) se
+ * fige au premier choix pour toute la saison : une mine qui tient le seul gisement d'à côté, ou
+ * une caserne trop près d'où l'on voudrait une usine, est une erreur sans retour.
  *
  * **Rien n'est rendu de l'acier payé** (décision 5a) : ce qui est bâti est dépensé, et un
  * remboursement ferait de la démolition un entrepôt de matière à l'abri du pillage. Ce qui
