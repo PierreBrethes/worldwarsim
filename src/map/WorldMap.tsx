@@ -1389,7 +1389,8 @@ function PlacingCard({
       const rect = element.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      setAt({ x, y, flipX: x > rect.width * 0.6, flipY: y > rect.height * 0.6 });
+      // Au-dessus du pointeur dès le tiers haut passé : au téléphone, la feuille couvre le bas.
+      setAt({ x, y, flipX: x > rect.width * 0.6, flipY: y > rect.height * 0.35 });
     };
     element.addEventListener('pointermove', follow);
     const forget = () => setAt(null);
@@ -1404,7 +1405,7 @@ function PlacingCard({
   /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. */
   return (
     <div
-      className="pointer-events-none absolute z-10"
+      className="pointer-events-none absolute z-[var(--z-band)]"
       style={{
         left: at.x + (at.flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
         top: at.y + (at.flipY ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
@@ -1420,10 +1421,11 @@ function PlacingLines({ placing }: { placing: PlacingBuilding }) {
   return (
     <div className="hud paper-grain float max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)]">
       <span className="block font-semibold">{placing.title}</span>
-      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {placing.name} ·{' '}
-        {placing.free ? fr.construction.free : <Price costs={placing.cost} size={11} />} ·{' '}
-        {placing.duration}
+      <span className="block text-[11.5px] text-[var(--ink-soft)]">{placing.name}</span>
+      {/* Le prix sur sa propre ligne : ses pictos ne chevauchent rien, à 1440 comme à 390. */}
+      <span className="mt-[2px] flex items-center gap-[6px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+        {placing.free ? fr.construction.free : <Price costs={placing.cost} size={11} />}
+        <span>· {placing.duration}</span>
       </span>
       {placing.refusal === null ? (
         <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>

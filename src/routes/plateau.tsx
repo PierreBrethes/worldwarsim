@@ -1136,7 +1136,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   /** Ce que le fantôme lit : les gisements que personne n'exploite à sa connaissance, et la
    *  portée de ses avant-postes debout. */
-  const freeDepositPoints = useMemo(() => freeDeposits(view), [view]);
+  /** **Keyed on the free deposits themselves, not on the view**: every Convex update brings a
+   *  new view, and a new list would re-arm the ghost under the pointer (`WorldMap`). */
+  const freeIds = freeDeposits(view)
+    .map((deposit) => deposit.id)
+    .join(',');
+  const freeDepositPoints = useMemo(() => {
+    const free = new Set(freeIds.split(','));
+    return DEPOSIT_POINTS.filter((deposit) => free.has(deposit.id));
+  }, [freeIds]);
   const reaches = useMemo(() => reachesOf(view, outpostReachKm), [view]);
 
   /**
