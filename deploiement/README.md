@@ -123,7 +123,10 @@ PLAYWRIGHT_DIR=/chemin/pw npm run capture -- '/plateau?season={saison}' plateau.
 
 Le premier écrit `scripts/demo-mondiale.accounts.json` (ignoré par git : comptes, code et saison) et
 refuse tout backend non local ; le second s'y connecte par `/connexion`, tamponne la notice d'entrée
-et relève les erreurs de console. `--nu` au premier saute stocks et troupes.
+et relève les erreurs de console. `--nu` au premier saute stocks et troupes. `--geste` (répétable :
+`texte=…`, `clic=x,y`, `survol=x,y`, `molette=x,y,dy`, `pause=ms`) provoque un état avant la
+capture — par exemple `--geste 'clic=1392,660' --geste 'texte=Mine — charbon' --geste 'survol=995,425'`
+pour voir le fantôme d'une pose.
 
 ## VPS (Hostinger) — mise en prod initiale
 
