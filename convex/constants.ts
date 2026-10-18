@@ -417,7 +417,8 @@ export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
 export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
 
 /** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept
- *  as a guard against an unbounded queue, not as a balance knob. */
+ *  as a guard against an unbounded queue, not as a balance knob, and **never shown** (ADR 0027
+ *  §5): served so the button says the refusal when it bites, with no figure ahead of time. */
 export const MAX_QUEUED_BATCHES = 12;
 
 /**

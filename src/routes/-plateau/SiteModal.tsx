@@ -319,11 +319,7 @@ function Site({
                   <>
                     <div className="border-b border-(color:--ink)/35 bg-(--ink)/5 px-4 py-[5px]">
                       <span className="eyebrow">
-                        {fr.production.queueOf(
-                          facility.regionName,
-                          facility.queue.length,
-                          workshop.maxQueue,
-                        )}
+                        {fr.production.queueOf(facility.regionName, facility.queue.length)}
                       </span>
                     </div>
                     {facility.queue.map((batch) => (
@@ -664,7 +660,7 @@ function NarrowSite({
     if (!ready) return null;
     const { roleLocked, cost } = termsOf(entry);
     if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
-    if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull(workshop.maxQueue);
+    if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull;
     if (steel < cost.steel) return fr.production.sheet.steelShort(cost.steel - steel);
     return null;
   };

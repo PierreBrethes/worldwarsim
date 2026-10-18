@@ -165,7 +165,7 @@ export const recruit = mutation({
     if (standing + queued >= MONDIALE_TROOP_BOUND) fail('TROOP_BOUND_REACHED');
 
     const queue = await queueOf(ctx, buildingId);
-    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL', { maximum: MAX_QUEUED_BATCHES });
+    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL');
 
     const now = Date.now();
     const cost = recruitmentCost(role, tier, hqLevel);

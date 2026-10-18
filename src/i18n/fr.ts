@@ -693,7 +693,7 @@ export const fr = {
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
-    QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
+    QUEUE_FULL: () => 'la file de ce site est pleine',
     UNKNOWN_BATCH: () => 'lot inconnu',
     SPECIALIZATION_SEALED: () =>
       'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
@@ -3013,7 +3013,7 @@ export const fr = {
       lockedNote: 'le site doit monter',
       bill: (steel: number, duration: string) => `${steel} aci. · ${duration}`,
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
-      queueFull: (max: number) => `File pleine — ${max} lots sur ${max}.`,
+      queueFull: 'File pleine.',
       steelShort: (missing: number) => `Il manque ${missing} acier.`,
       running: 'en chaîne',
       remaining: 'restant',
@@ -3043,8 +3043,9 @@ export const fr = {
     /** La modale ne parle que d'un site : le nom du bâtiment, sa région et son niveau sont son
      *  kicker, et le bandeau de garnison compte ce qui s'y tient. */
     siteLevel: (level: number) => `niveau ${level}`,
-    queueOf: (region: string, count: number, max: number) =>
-      `${region} — ${count} lot${plural(count, '', 's')} en file sur ${max}`,
+    /** Aucun plafond affiché (ADR 0027 §5) : la borne de la file ne se dit qu'au refus. */
+    queueOf: (region: string, count: number) =>
+      `${region} — ${count} lot${plural(count, '', 's')} en file`,
     /** La seconde phrase envoyait vers le sélecteur de site, mort avec l'onglet (59a) : dans une
      *  modale de site il n'y a plus qu'un site, et les rôles sont juste au-dessus. */
     queueEmpty: 'Aucune troupe en chaîne. Enfilez un rôle ci-dessus.',
