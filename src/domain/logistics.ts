@@ -1,6 +1,7 @@
 import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE } from '../../convex/constants';
 import type { BuildingKey, ResourceKey, UnitRole } from './ids';
 import type { SupplyStocks } from './supplies';
+import { carrierIn, type Seated } from './troops';
 
 /**
  * **La logistique passe par les pièces** (ADR 0028 §4, Mondiale seule) : un dépôt d'avant-poste
@@ -17,6 +18,14 @@ export const loadTotal = (load: SupplyLoad | undefined): number =>
   load === undefined ? 0 : load.ammunition + load.oil + load.coal;
 
 export const loadCapacityOf = (role: UnitRole): number => LOAD_CAPACITY_BY_ROLE[role];
+
+/**
+ * **Les transports hors bord d'une colonne** : ceux qui portent une charge et ne sont pas à bord
+ * d'un autre de la même colonne — ceux qui déchargent à une livraison. Le serveur et la rose
+ * lisent celle-ci.
+ */
+export const carriersAmong = <T extends Seated>(troops: ReadonlyArray<T>): T[] =>
+  troops.filter((troop) => loadCapacityOf(troop.role) > 0 && carrierIn(troop, troops) === null);
 
 export const isSupplyKey = (key: ResourceKey): key is keyof SupplyLoad =>
   (SUPPLY_KEYS as ReadonlyArray<string>).includes(key);
@@ -170,6 +179,7 @@ export const missingOf = (consigne: SupplyLoad, held: SupplyLoad): SupplyLoad =>
 
 /** **Les arrêts qu'un tour visite vraiment** : un dépôt qui ne prendrait rien de ce qui reste à
  *  bord est sauté. */
+// used by the supply round (4.7 B)
 export function visitPlan<T extends string>(
   load: SupplyLoad,
   stops: ReadonlyArray<{ readonly id: T; readonly depot: SupplyLoad; readonly capacity: number }>,
@@ -191,9 +201,9 @@ export function visitPlan<T extends string>(
 /** **Une prise de jetons** (prototype v3) : glisser prend 10 ; l'appui maintenu accélère, 10 par
  *  10 jusqu'à 50, puis 50 par 50. */
 export const GRAB_STEP = 10;
-const GRAB_TICK_MS = 200;
+const GRAB_STEP_MS = 200;
 
 export function grabbedAfter(heldMs: number): number {
-  const ticks = Math.max(0, Math.floor(heldMs / GRAB_TICK_MS));
-  return ticks <= 4 ? GRAB_STEP * (1 + ticks) : 50 * (ticks - 3);
+  const steps = Math.max(0, Math.floor(heldMs / GRAB_STEP_MS));
+  return steps <= 4 ? GRAB_STEP * (1 + steps) : 50 * (steps - 3);
 }

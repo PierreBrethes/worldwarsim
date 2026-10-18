@@ -462,6 +462,7 @@ export const LOAD_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
 export const AIR_STOP_LEVEL = 2;
 
 /** **Une tournée compte quatre arrêts au plus** (ADR 0028, précision du 18/10). */
+// used by the supply round (4.7 B)
 export const TOUR_MAX_STOPS = 4;
 
 /**

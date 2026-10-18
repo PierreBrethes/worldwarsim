@@ -1,7 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { topUp, type Supplies, type SupplyStocks } from '../src/domain/supplies';
-import { emptyLoad } from '../src/domain/logistics';
+import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
@@ -95,11 +95,7 @@ export async function takeFromDepot(
   const outpost = await ctx.db.get(outpostId);
   if (outpost === null) return;
   const depot = outpost.depot ?? emptyLoad();
-  await ctx.db.patch(outpostId, {
-    depot: {
-      ammunition: Math.max(0, depot.ammunition - taken.ammunition),
-      oil: Math.max(0, depot.oil - taken.oil),
-      coal: Math.max(0, depot.coal - taken.coal),
-    },
-  });
+  const left = { ...depot };
+  for (const key of SUPPLY_KEYS) left[key] = Math.max(0, depot[key] - taken[key]);
+  await ctx.db.patch(outpostId, { depot: left });
 }

@@ -6,14 +6,13 @@ import {
   deliverRefusalOf,
   deliveryOf,
   emptyLoad,
-  loadCapacityOf,
+  carriersAmong,
   loadRefusalOf,
   type Busy,
   type LoadingPlace,
 } from '../src/domain/logistics';
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { isStanding } from '../src/domain/outposts';
-import { carrierIn } from '../src/domain/troops';
 import { isBlitz } from './blitz';
 import { depotCapacity } from './constants';
 import { fail } from './errors';
@@ -115,10 +114,8 @@ export const load = mutation({
 
 /** Les transports d'une colonne, ceux qui ne sont pas à bord d'un autre. */
 const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
-  const column = troops.map(seatedOf);
-  return troops.filter(
-    (troop) => loadCapacityOf(troop.role) > 0 && carrierIn(seatedOf(troop), column) === null,
-  );
+  const hulls = new Set(carriersAmong(troops.map(seatedOf)).map((troop) => troop.id));
+  return troops.filter((troop) => hulls.has(troop._id));
 };
 
 /**

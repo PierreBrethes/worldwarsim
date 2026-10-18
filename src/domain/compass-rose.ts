@@ -35,7 +35,7 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
-import { deliverRefusalOf, loadCapacityOf, loadTotal } from './logistics';
+import { carriersAmong, deliverRefusalOf, loadTotal } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import {
   carrierIn,
@@ -1150,11 +1150,7 @@ function withDelivery(
   heldTroopIds: ReadonlyArray<string>,
 ): Compass {
   const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
-  const carriers = held.filter(
-    (troop) =>
-      loadCapacityOf(troop.role) > 0 &&
-      !held.some((other) => other.id === troop.carriedBy && other.id !== troop.id),
-  );
+  const carriers = carriersAmong(held);
   const outpost = view.me.outposts.find((candidate) => candidate.id === outpostId);
   if (
     outpost === undefined ||

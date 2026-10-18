@@ -761,6 +761,7 @@ export async function march(
     /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
     delivery?: NonNullable<Doc<'movements'>['delivery']>;
     /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
+    // used by the supply round (4.7 B)
     keepsSlot?: boolean;
   },
 ) {
