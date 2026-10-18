@@ -1,6 +1,7 @@
 import { resourceColor } from '@/emblems/ResourceIcon';
 import { SUPPLY_KEYS, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { fr } from '@/i18n/fr';
+import { useMapMotion } from '@/data/mapMotion';
 
 /**
  * **Une charge, une barre découpée par couleur** (ADR 0028, précision du 18/10) : munitions,
@@ -17,6 +18,10 @@ export function ChargeBar({
   width?: number;
 }) {
   const total = loadTotal(load);
+  /** La barre glisse selon le réglage : actives, réduites, coupées. */
+  const motion = useMapMotion();
+  const transition =
+    motion === 'off' ? 'none' : `width ${motion === 'reduced' ? 150 : 500}ms ease-out`;
   const said = SUPPLY_KEYS.filter((key) => load[key] > 0)
     .map((key) => `${load[key]} ${fr.resources[key]}`)
     .join(', ');
@@ -33,8 +38,9 @@ export function ChargeBar({
         {SUPPLY_KEYS.map((key) => (
           <i
             key={key}
-            className="block h-full transition-[width] duration-500"
+            className="block h-full"
             style={{
+              transition,
               width: `${capacity > 0 ? (load[key] / capacity) * 100 : 0}%`,
               background: resourceColor(key, true),
             }}
