@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
@@ -21,9 +22,9 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
 import { useNarrowScreen } from '@/shell/viewport';
-import { upgradeHold } from '@/domain/construction';
+import { placementOf, upgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
-import { PRODUCER_OF, keyRefusal } from '@/domain/economy';
+import { PRODUCER_OF } from '@/domain/economy';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
   BUILDABLE_BUILDINGS,
@@ -41,6 +42,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { conditionText } from './FoundationRows';
 import { HelpMark } from './HelpMark';
 import { LotControl } from './LotControl';
 
@@ -101,7 +103,7 @@ export function PersonalBoard({
 
   const { shown, deltas, ledger, mark } = useHarvest(view, seat, motion, binRefs);
   const workshop = useQuery(api.troops.workshop, seat);
-  const { held, hint, away, grab, chip } = useHand({
+  const { held, hint, away, take, chip } = useHand({
     view,
     workshop,
     onSpent: mark,
@@ -152,21 +154,24 @@ export function PersonalBoard({
         }
       >
         <header className="flex h-[46px] shrink-0 items-center gap-3 border-b border-(color:--ink)/30 px-4">
-          <button
-            type="button"
-            onClick={() => narrow && setOpen((was) => !was)}
-            aria-label={narrow ? (open ? fr.personalBoard.fold : fr.personalBoard.open) : undefined}
-            className={`shrink-0 font-(family-name:--font-display) text-[19px] leading-none font-extrabold ${
-              narrow ? 'cursor-pointer' : 'cursor-default'
-            }`}
-          >
-            {fr.personalBoard.header}
-            {narrow && (
+          {narrow ? (
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((was) => !was)}
+              aria-label={open ? fr.personalBoard.fold : fr.personalBoard.open}
+              className="shrink-0 cursor-pointer font-(family-name:--font-display) text-[19px] leading-none font-extrabold"
+            >
+              {fr.personalBoard.header}
               <span aria-hidden className="ml-[6px] text-[12px]">
                 {open ? '▾' : '▴'}
               </span>
-            )}
-          </button>
+            </button>
+          ) : (
+            <h2 className="shrink-0 font-(family-name:--font-display) text-[19px] leading-none font-extrabold">
+              {fr.personalBoard.header}
+            </h2>
+          )}
           <span className="min-w-0 flex-1 truncate font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {!narrow && ledger}
           </span>
@@ -179,7 +184,7 @@ export function PersonalBoard({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" inert={narrow && !open}>
           {narrow && (
             <p className="px-3 pt-2 font-(family-name:--font-mono) text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
               {ledger}
@@ -205,13 +210,13 @@ export function PersonalBoard({
 
           <div className="flex flex-col gap-3 px-3 pt-3 pb-3 md:flex-row md:px-4">
             <Rack title={fr.personalBoard.tilesHeader} note={fr.personalBoard.tilesNote}>
-              {tileKeys(view).map((key) => (
+              {BUILDABLE_BUILDINGS.map((key) => (
                 <Tile
                   key={key}
                   buildingKey={key}
                   view={view}
                   lit={key === focusedKey || (held?.kind === 'tile' && held.key === key)}
-                  onGrab={observing ? null : (event) => grab({ kind: 'tile', key }, event)}
+                  onTake={observing ? null : (event) => take({ kind: 'tile', key }, event)}
                 />
               ))}
             </Rack>
@@ -219,7 +224,7 @@ export function PersonalBoard({
               view={view}
               workshop={workshop}
               held={held}
-              onGrab={observing ? null : (role, event) => grab({ kind: 'piece', role }, event)}
+              onTake={observing ? null : (role) => (event) => take({ kind: 'piece', role }, event)}
             />
           </div>
 
@@ -547,14 +552,16 @@ function Bin({
 // Tiles and pieces
 // ---------------------------------------------------------------------------------------
 
-/** **Une tuile par clé débloquée** — le QG toujours, qu'on pose une fois puis qu'on élève. */
-const tileKeys = (view: PlayerView): ReadonlyArray<BuildingKey> =>
-  BUILDABLE_BUILDINGS.filter(
-    (key) =>
-      key === 'hq' ||
-      (view.me.hqLevel > 0 &&
-        keyRefusal(key, view.me.hqLevel, view.buildCatalog[key].unlockedAtHqLevel) === null),
-  );
+/**
+ * **Ce qui retient une tuile avant même la carte** : une clé que le QG n'ouvre pas, ou dont aucun
+ * point ne prendrait la pose, et qui n'a pas de pareille debout à élever. Sa condition se dit au
+ * survol et à la prise, et la tuile rentre (`placementOf`).
+ */
+function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
+  if (view.me.buildings.some((building) => building.key === key)) return null;
+  const { condition } = placementOf(view, key);
+  return condition === null ? null : conditionText(condition);
+}
 
 function Rack({ title, note, children }: { title: string; note: string; children: ReactNode }) {
   return (
@@ -568,25 +575,44 @@ function Rack({ title, note, children }: { title: string; note: string; children
   );
 }
 
+/** What a tile or a piece hands the hand: a press of the pointer, or Entrée on its button. */
+type Take = (event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>) => void;
+
+/** **Une pièce de la main est un bouton** : le pointeur la prend en glissant, Entrée la met en
+ *  main, et le clic qu'un pointeur laisse derrière sa pression ne la reprend pas. */
+const takeProps = (take: Take | null) =>
+  take === null
+    ? {}
+    : {
+        onPointerDown: take,
+        onClick: (event: ReactMouseEvent<HTMLElement>) => {
+          if (event.detail === 0) take(event);
+        },
+      };
+
 function Tile({
   buildingKey,
   view,
   lit,
-  onGrab,
+  onTake,
 }: {
   buildingKey: BuildingKey;
   view: PlayerView;
   lit: boolean;
-  onGrab: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
+  onTake: Take | null;
 }) {
   const standing = view.me.buildings.filter((building) => building.key === buildingKey).length;
   const free = view.me.foundation.some((due) => due.key === buildingKey);
+  const refusal = tileRefusalOf(view, buildingKey);
+  const name = fr.buildings[buildingKey];
   return (
-    <div
-      onPointerDown={onGrab ?? undefined}
-      title={fr.buildings[buildingKey]}
-      className={`grid w-[84px] shrink-0 touch-none justify-items-center gap-[3px] border border-[var(--ink)] bg-[#efe5cc] px-[5px] pt-[5px] pb-[6px] shadow-[0_2px_0_var(--ink)] select-none ${
-        onGrab === null
+    <button
+      type="button"
+      {...takeProps(onTake)}
+      title={refusal === null ? name : `${name} — ${refusal}`}
+      aria-label={refusal === null ? name : `${name} — ${refusal}`}
+      className={`grid w-[84px] shrink-0 touch-none justify-items-center gap-[3px] border border-[var(--ink)] bg-[#efe5cc] px-[5px] pt-[5px] pb-[6px] text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        onTake === null
           ? ''
           : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'
       } ${lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''}`}
@@ -600,7 +626,7 @@ function Tile({
         )}
       </span>
       <b className="line-clamp-2 min-h-[2.2em] w-full text-center text-[11px] leading-[1.1] font-semibold">
-        {fr.buildings[buildingKey]}
+        {name}
       </b>
       <span className="font-(family-name:--font-mono) text-[10px]">
         {free ? (
@@ -609,7 +635,7 @@ function Tile({
           <Price costs={view.buildCatalog[buildingKey].cost} size={10} />
         )}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -622,12 +648,12 @@ function Pieces({
   view,
   workshop,
   held,
-  onGrab,
+  onTake,
 }: {
   view: PlayerView;
   workshop: Workshop | undefined;
   held: Held | null;
-  onGrab: ((role: UnitRole, event: ReactPointerEvent<HTMLElement>) => void) | null;
+  onTake: ((role: UnitRole) => Take) | null;
 }) {
   const roles = (workshop?.grid ?? []).filter(
     (entry) => entry.unlockedAtHqLevel <= view.me.hqLevel,
@@ -641,12 +667,13 @@ function Pieces({
         </p>
       )}
       {roles.map((entry) => (
-        <div
+        <button
+          type="button"
           key={entry.role}
-          onPointerDown={onGrab === null ? undefined : (event) => onGrab(entry.role, event)}
+          {...takeProps(onTake === null ? null : onTake(entry.role))}
           title={roleLabel(entry.role, 1)}
-          className={`grid w-[74px] shrink-0 touch-none justify-items-center gap-[3px] border border-(color:--ink)/50 px-[4px] pt-[4px] pb-[5px] select-none ${
-            onGrab === null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre)]'
+          className={`grid w-[74px] shrink-0 touch-none justify-items-center gap-[3px] border border-(color:--ink)/50 px-[4px] pt-[4px] pb-[5px] text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+            onTake === null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre)]'
           } ${held?.kind === 'piece' && held.role === entry.role ? 'shadow-[0_0_0_2px_var(--ochre)]' : ''}`}
         >
           <UnitSprite nation={view.me.nation} role={entry.role} height={30} width={60} />
@@ -656,7 +683,7 @@ function Pieces({
           <span className="font-(family-name:--font-mono) text-[10px]">
             <Price costs={entry.unit.costs} size={10} />
           </span>
-        </div>
+        </button>
       ))}
     </Rack>
   );
@@ -677,6 +704,7 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
       </div>
       {hint !== null && (
         <div
+          role="status"
           className="paper-grain absolute top-[calc(100%+8px)] left-1/2 w-max max-w-[280px] -translate-x-1/2 border border-[var(--ink)] px-[9px] py-[6px] text-[12px] leading-[1.3]"
           style={hint.refused ? { borderColor: 'var(--critical)', color: 'var(--critical)' } : {}}
         >
@@ -698,8 +726,10 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
  * verrait pas le doigt passer, et le fantôme ne le suivrait pas.
  *
  * Une tuile au-dessus de la carte arme le fantôme de la pose (ADR 0029), qui dit le prix ou le
- * refus ; au-dessus de sa pareille, le fantôme se range et la main dit « élever ». Une tuile
- * pressée sans glisser reste en main : un clic sur la carte la pose, comme une clé choisie.
+ * refus ; au-dessus de sa pareille, le fantôme se range et la main dit « élever ». Pressée sans
+ * glisser, ou prise par Entrée, une tuile laisse le fantôme armé : un clic sur la carte la pose,
+ * comme une clé choisie. Une pièce, elle, reste en main et se pose au clic suivant sur un mât.
+ * Une tuile que rien ne prendrait dit sa condition et rentre.
  */
 function useHand({
   view,
@@ -737,16 +767,26 @@ function useHand({
 
   useEffect(() => () => gesture.current?.cancel(), []);
 
-  const grab = (what: Held, event: ReactPointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || gesture.current !== null) return;
+  const take = (
+    what: Held,
+    event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>,
+  ): void => {
+    if (event.button !== 0) return;
+    gesture.current?.cancel();
     event.preventDefault();
     const element = event.currentTarget;
-    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+    const pointerId = 'pointerId' in event ? event.pointerId : null;
+    if (pointerId !== null && element.hasPointerCapture(pointerId))
+      element.releasePointerCapture(pointerId);
     const origin = element.getBoundingClientRect();
-    const from = { x: event.clientX, y: event.clientY };
+    const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
+    const from = pointerId === null ? home : { x: event.clientX, y: event.clientY };
+    const refusal = what.kind === 'tile' ? tileRefusalOf(latest.current.view, what.key) : null;
+    let mode: 'drag' | 'click' = pointerId === null ? 'click' : 'drag';
     let moved = false;
     let armed = false;
     let left = false;
+    let pressed = false;
     let lastHint: string | null = null;
 
     const say = (next: Hint) => {
@@ -756,32 +796,30 @@ function useHand({
       setHint(next);
     };
     const arm = (on: boolean) => {
-      if (what.kind !== 'tile' || on === armed) return;
+      if (what.kind !== 'tile' || refusal !== null || on === armed) return;
       armed = on;
       callbacks.current.onHoldTile(on ? what.key : null);
     };
     const follow = (x: number, y: number) => {
       if (chip.current) chip.current.style.transform = `translate(${x}px, ${y}px)`;
     };
+    const leave = () => {
+      if (left) return;
+      left = true;
+      setAway(true);
+    };
 
-    setHeld(what);
-    follow(from.x, from.y);
-    arm(true);
-    say(null);
-
-    const move = (drag: PointerEvent) => {
-      if (drag.pointerId !== event.pointerId) return;
-      if (Math.hypot(drag.clientX - from.x, drag.clientY - from.y) > DRAG_THRESHOLD_PX)
-        moved = true;
-      follow(drag.clientX, drag.clientY);
-      const target = targetAt(drag.clientX, drag.clientY, board.current, latest.current.view);
-      const reading = readingOf(what, target, latest.current);
+    const hover = (x: number, y: number) => {
+      follow(x, y);
+      if (refusal !== null) return;
+      const reading = readingOf(
+        what,
+        targetAt(x, y, board.current, latest.current.view),
+        latest.current,
+      );
       arm(reading.kind === 'map');
       say(reading.hint);
-      if (!left && reading.kind !== 'board') {
-        left = true;
-        setAway(true);
-      }
+      if (reading.kind !== 'board') leave();
       // Over the map the ghost is the tile: the one in hand would hide where it goes down.
       if (chip.current)
         chip.current.style.opacity = what.kind === 'tile' && reading.kind === 'map' ? '0' : '';
@@ -789,7 +827,9 @@ function useHand({
 
     const finish = () => {
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('pointerup', clickUp, true);
       window.removeEventListener('pointercancel', abandon);
       window.removeEventListener('keydown', escape);
       gesture.current = null;
@@ -814,27 +854,25 @@ function useHand({
             { transform: `translate(${at.x}px, ${at.y}px)` },
             { transform: `translate(${at.x - 7}px, ${at.y}px)`, offset: 0.12 },
             { transform: `translate(${at.x + 6}px, ${at.y}px)`, offset: 0.24 },
-            {
-              transform: `translate(${origin.left + origin.width / 2}px, ${origin.top + origin.height / 2}px)`,
-              opacity: 0.6,
-            },
+            { transform: `translate(${home.x}px, ${home.y}px)`, opacity: 0.6 },
           ];
       node
         .animate(frames, { duration: motion === 'reduced' ? 220 : 480, easing: 'ease-out' })
         .finished.then(done, done);
     };
-    const release = (up: PointerEvent) => {
-      if (up.pointerId !== event.pointerId) return;
+
+    /** The hand opens at a point: what it holds goes down there, or goes back. */
+    const drop = (at: { x: number; y: number }) => {
       finish();
-      const at = { x: up.clientX, y: up.clientY };
-      const target = targetAt(at.x, at.y, board.current, latest.current.view);
-      const reading = readingOf(what, target, latest.current);
-      // Pressed without a drag, a tile stays in hand: the next click on the map puts it down.
-      if (!moved && what.kind === 'tile') {
-        setHeld(null);
-        setHint(null);
-        return;
+      if (refusal !== null) {
+        say({ text: refusal, refused: true });
+        return settle(false, at);
       }
+      const reading = readingOf(
+        what,
+        targetAt(at.x, at.y, board.current, latest.current.view),
+        latest.current,
+      );
       if (reading.kind === 'map' && what.kind === 'tile') {
         const placed = callbacks.current.onPlaceTile();
         if (placed) callbacks.current.onSpent();
@@ -842,69 +880,120 @@ function useHand({
         return settle(placed, at);
       }
       arm(false);
-      if (reading.kind !== 'act' || reading.hint?.refused !== false) return settle(false, at);
+      say(reading.hint);
+      if (reading.kind !== 'act' || reading.hint?.refused !== false || reading.building === null)
+        return settle(false, at);
       settle(true, at);
-      if (what.kind === 'tile' && reading.building !== null) {
-        const building = reading.building;
+      const building = reading.building;
+      const spent = (said: string) => {
+        callbacks.current.onSpent();
+        notify(said, 'info');
+      };
+      const refused = (problem: unknown) => handleError(problem, (said) => notify(said));
+      if (what.kind === 'tile') {
         start({
           ...seat,
           building: building.key,
           regionId: building.regionId,
           point: { lon: building.point[0], lat: building.point[1] },
-        }).then(
-          () => {
-            callbacks.current.onSpent();
-            notify(fr.personalBoard.raised(building.name, building.level + 1), 'info');
-          },
-          (problem: unknown) => handleError(problem, (said) => notify(said)),
-        );
-      } else if (what.kind === 'piece' && reading.building !== null) {
+        }).then(() => spent(fr.personalBoard.raised(building.name, building.level + 1)), refused);
+      } else {
         recruit({
           ...seat,
-          buildingId: reading.building.id as Id<'buildings'>,
+          buildingId: building.id as Id<'buildings'>,
           role: what.role,
           tier: 1,
-        }).then(
-          () => {
-            callbacks.current.onSpent();
-            notify(fr.personalBoard.formed(roleLabel(what.role, 1)), 'info');
-          },
-          (problem: unknown) => handleError(problem, (said) => notify(said)),
-        );
+        }).then(() => spent(fr.personalBoard.formed(roleLabel(what.role, 1))), refused);
       }
     };
-    const abandon = () => {
+
+    /** Taken without a drag, a tile leaves the ghost armed and the hand empty; a piece stays in
+     *  hand for the next click, and the map is given back. */
+    const toClick = () => {
+      if (what.kind === 'tile' && refusal === null) {
+        finish();
+        setHeld(null);
+        setHint(null);
+        return;
+      }
+      if (refusal !== null) return drop(home);
+      mode = 'click';
+      say({ text: fr.personalBoard.dropOnSite, refused: false });
+      leave();
+    };
+
+    function move(event: PointerEvent) {
+      if (mode === 'drag' && event.pointerId !== pointerId) return;
+      if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > DRAG_THRESHOLD_PX)
+        moved = true;
+      hover(event.clientX, event.clientY);
+    }
+    function up(event: PointerEvent) {
+      if (mode !== 'drag' || event.pointerId !== pointerId) return;
+      if (!moved) return toClick();
+      drop({ x: event.clientX, y: event.clientY });
+    }
+    /** In click mode the next press belongs to the hand: neither the map nor a mast hears it. */
+    function down(event: PointerEvent) {
+      if (mode !== 'click') return;
+      event.stopPropagation();
+      event.preventDefault();
+      if (event.button !== 0) return abandon();
+      pressed = true;
+      hover(event.clientX, event.clientY);
+    }
+    function clickUp(event: PointerEvent) {
+      if (mode !== 'click' || !pressed) return;
+      event.stopPropagation();
+      const swallow = (click: MouseEvent) => {
+        click.stopPropagation();
+        click.preventDefault();
+      };
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+      drop({ x: event.clientX, y: event.clientY });
+    }
+    function abandon() {
       finish();
       arm(false);
       setHeld(null);
       setHint(null);
-    };
-    const escape = (key: KeyboardEvent) => {
+    }
+    function escape(key: KeyboardEvent) {
       if (key.key === 'Escape') abandon();
-    };
+    }
+
+    setHeld(what);
+    follow(from.x, from.y);
+    arm(true);
+    say(refusal === null ? null : { text: refusal, refused: true });
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', release);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('pointerup', clickUp, true);
     window.addEventListener('pointercancel', abandon);
     window.addEventListener('keydown', escape);
     gesture.current = { cancel: abandon };
+    if (mode === 'click') toClick();
   };
 
-  return { held, hint, away, grab, chip };
+  return { held, hint, away, take, chip };
 }
 
-/** What lies under the hand: the personal board itself, one of the player's buildings, or the map. */
+/** What lies under the hand: the personal board itself, the player's buildings at one mast (a
+ *  grouped mast names several), or the map. */
 type Target =
   | { readonly kind: 'board' }
-  | { readonly kind: 'building'; readonly building: Building }
+  | { readonly kind: 'buildings'; readonly buildings: ReadonlyArray<Building> }
   | { readonly kind: 'map' };
 
 function targetAt(x: number, y: number, board: HTMLElement | null, view: PlayerView): Target {
   const under = document.elementsFromPoint(x, y);
   if (board !== null && under.some((element) => board.contains(element))) return { kind: 'board' };
   for (const element of under) {
-    const id = element.closest<HTMLElement>('[data-building-id]')?.dataset.buildingId;
-    const building = id === undefined ? undefined : view.me.buildings.find((one) => one.id === id);
-    if (building !== undefined) return { kind: 'building', building };
+    const ids = element.closest<HTMLElement>('[data-building-id]')?.dataset.buildingId?.split(',');
+    const buildings = view.me.buildings.filter((one) => ids?.includes(one.id) === true);
+    if (buildings.length > 0) return { kind: 'buildings', buildings };
   }
   return { kind: 'map' };
 }
@@ -912,7 +1001,8 @@ function targetAt(x: number, y: number, board: HTMLElement | null, view: PlayerV
 /**
  * **Ce que la main lit sous elle**, dans les mots du serveur : une tuile sur sa pareille l'élève
  * (`upgradeHold`), ailleurs sur la carte le fantôme parle ; une pièce sur un site de projection
- * y est formée (`recruitRefusalOf`, puis le prix), ailleurs elle demande un site.
+ * y est formée (`recruitRefusalOf`), ailleurs elle demande un site. Sur un mât regroupé, la
+ * tuile vise sa pareille, la pièce le premier site qui la forme.
  */
 function readingOf(
   held: Held,
@@ -925,11 +1015,10 @@ function readingOf(
   if (target.kind === 'board') {
     return { kind: 'board', hint: { text: fr.personalBoard.dropBack, refused: false } };
   }
+  const under = target.kind === 'buildings' ? target.buildings : [];
   if (held.kind === 'tile') {
-    if (target.kind !== 'building' || target.building.key !== held.key) {
-      return { kind: 'map', hint: null };
-    }
-    const building = target.building;
+    const building = under.find((candidate) => candidate.key === held.key);
+    if (building === undefined) return { kind: 'map', hint: null };
     const hold = upgradeHold(building, view, Date.now());
     return {
       kind: 'act',
@@ -944,19 +1033,21 @@ function readingOf(
           : { text: upgradeHoldText(hold), refused: true },
     };
   }
-  if (target.kind !== 'building' || !PROJECTION_KEYS.includes(target.building.key)) {
+  const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
+  const sites = under.filter((candidate) => PROJECTION_KEYS.includes(candidate.key));
+  if (sites.length === 0 || workshop === undefined || entry === undefined) {
     return { kind: 'map', hint: { text: fr.personalBoard.dropOnSite, refused: true } };
   }
-  const site = target.building;
-  const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
-  if (workshop === undefined || entry === undefined) return { kind: 'map', hint: null };
-  const refusal = recruitRefusalOf(held.role, site, {
-    hqLevel: view.me.hqLevel,
-    army: workshop.troopsInService + workshop.troopsQueued,
-    siteQueue: workshop.facilities.find((facility) => facility.id === site.id)?.queue.length ?? 0,
-    costs: entry.unit.costs,
-    stocks: stocksAt(view, Date.now()),
-  });
+  const refusalAt = (site: Building) =>
+    recruitRefusalOf(held.role, site, {
+      hqLevel: view.me.hqLevel,
+      army: workshop.troopsInService + workshop.troopsQueued,
+      siteQueue: workshop.facilities.find((facility) => facility.id === site.id)?.queue.length ?? 0,
+      costs: entry.unit.costs,
+      stocks: stocksAt(view, Date.now()),
+    });
+  const site = sites.find((candidate) => refusalAt(candidate) === null) ?? sites[0]!;
+  const refusal = refusalAt(site);
   if (refusal !== null) {
     const { code, ...details } = refusal;
     return { kind: 'act', building: site, hint: { text: fr.errors[code](details), refused: true } };

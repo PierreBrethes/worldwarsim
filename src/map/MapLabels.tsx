@@ -1035,9 +1035,15 @@ export function MapLabels({
               register(groupAnchors.current, group.id, node);
             }}
           >
+            {/* Les mâts d'un groupe, pour ce qu'une main y lâche (plateau personnel). */}
             <div
               className={`label label--expanded label--group label--${group.kind}-group label--clickable`}
               style={ink === null ? undefined : ({ '--label-ink': ink } as CSSProperties)}
+              data-building-id={
+                members
+                  .flatMap((member) => (member.building === null ? [] : [member.building.id]))
+                  .join(',') || undefined
+              }
             >
               <button
                 type="button"
