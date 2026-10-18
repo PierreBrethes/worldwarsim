@@ -176,7 +176,6 @@ export function renderReference(snapshot) {
       'progress',
       'hqLevel',
       'tier2HqLevel',
-      'troopCap',
       'starving',
       'foundation',
       'recruiting',
@@ -249,13 +248,7 @@ export function renderReference(snapshot) {
     ]),
   );
 
-  say('---', '', '## Les emplacements — `me.siteSlots`');
-  say(
-    table(
-      ['outpostId', 'taken', 'total'],
-      me.siteSlots.map((budget) => [budget.site.outpostId, budget.taken, budget.total]),
-    ),
-  );
+  say('---', '');
 
   say(
     '## Les bâtiments, par site — `me.buildings`',

@@ -20,7 +20,7 @@ const upgrade = {
   pictogram: 'chevron',
   label: 'élever au niveau 2',
   cost: null,
-  consequence: 'un emplacement de plus',
+  consequence: 'le rayon suivant',
   buildingKey: 'mine',
   regionId: 'FRA-5333',
   figure: '40 alliage',

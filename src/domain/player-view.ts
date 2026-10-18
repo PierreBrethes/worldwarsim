@@ -438,9 +438,6 @@ type UpkeepView = {
  */
 export type SiteRef = { readonly outpostId: string | null };
 
-export const sameSite = (one: SiteRef, other: SiteRef): boolean =>
-  one.outpostId === other.outpostId;
-
 export type Resource = {
   readonly stock: number;
   readonly ratePerHour: number;

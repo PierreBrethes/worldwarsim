@@ -99,7 +99,7 @@ export function EconomyWindow({
           eyebrow={fr.economy.subtitle(nationLabel(view.me.nation), view.season.number)}
           title={fr.economy.header}
           onClose={onClose}
-        ></WindowHead>
+        />
 
         <RunningWork view={view} seat={seat} now={now} />
 

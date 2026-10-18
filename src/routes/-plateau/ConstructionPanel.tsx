@@ -63,8 +63,6 @@ export function ConstructionPanel({
    * ce qui revient est un clic sur le rivage, jamais une ligne de plus dans ce panneau.
    */
   onPlace: (option: BuildOption) => void;
-  /** **Le refus « avant-poste plein » mène à la porte, pas à un mur** (précision du 15/09) : la
-   *  phrase qui dit « améliorez-le » est désormais ce qui ouvre le panneau du point. */
 }) {
   const now = useClock();
   const [error, setError] = useState<string | null>(null);

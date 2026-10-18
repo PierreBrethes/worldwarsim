@@ -8,23 +8,14 @@ import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, regionFacts, type RegionFacts } from './regions';
 
 /**
- * **A site is what carries placements** (ADR 0020 §10): the national soil a player was born on,
- * or one outpost he founded. There are exactly those two, and the union says so — a building
- * cannot be anchored to something in between, and no reading has to guess which budget it eats.
- *
- * The number of placements a site carries is **its level**: two per headquarters level at home,
- * its own level for an outpost. The level is a decision the player paid for, where the wealth of
- * a region is a fact of the map that already pays through its deposits.
+ * **A site is what a building hangs from** (ADR 0020 §10): the national soil a player was born
+ * on, or one outpost he founded. There are exactly those two, and the union says so — a building
+ * cannot be anchored to something in between. It counts nothing: no placement budget (ADR 0027).
  */
 export type Site =
   { readonly kind: 'home' } | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> };
 
 export const HOME: Site = { kind: 'home' };
-
-export const sameSite = (one: Site, other: Site): boolean =>
-  one.kind === 'home'
-    ? other.kind === 'home'
-    : other.kind === 'outpost' && other.outpostId === one.outpostId;
 
 /** Un point tel qu'une portée le lit : son emplacement, son rayon — qui suit son niveau depuis le
  *  31/08 —, **ce que son disque touche** (révision du 17/09) et son identité, pour que l'ancrage

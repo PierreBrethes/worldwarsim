@@ -2369,7 +2369,7 @@ export const fr = {
       /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
        *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
       outpostRaised: (level: number, place: string) =>
-        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : un emplacement de plus et ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
+        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
       /**
        * **Le point qu'on a démonté soi-même** (décision du 16/09) — la seule fin d'un avant-poste
        * que personne ne subit, donc la seule qui n'ait pas besoin d'encre rouge. La phrase compte
@@ -3540,7 +3540,7 @@ export const fr = {
               ? []
               : [
                   `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
-                  'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
+                  'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — le rayon suivant, payé dans la file de chantier.',
                   `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
                 ]),
           ],
@@ -3815,7 +3815,7 @@ export const fr = {
      */
     myOutpost: (level: number) => `mon avant-poste · niveau ${level}`,
     raiseConsequence: (level: number) =>
-      `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon et l’emplacement qui vont avec.`,
+      `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon qui va avec.`,
     /** Le métier en cours : la branche est marquée, et cliquer ne change rien — il n'y a rien
      *  à changer. La phrase le dit plutôt que de laisser croire à un geste sans effet. */
     specializationHeld: 'Le métier que ce point exerce déjà.',
@@ -3842,7 +3842,7 @@ export const fr = {
     heading: (building: string, level: number) => `${building} — niveau ${level}`,
     /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
     noRefund: 'aucun remboursement de l’alliage payé',
-    freed: (region: string) => `libère ${region} et son emplacement de site`,
+    freed: (region: string) => `libère ${region}`,
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
     queueCancelled: 'chantier en file annulé',

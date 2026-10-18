@@ -148,7 +148,7 @@ async function remainingGarrison(
  * **Un point à soi se démonte** (décision de Pierre, 16/09, Registre 27). C'était le seul objet
  * du plateau qu'on posait sans pouvoir le reprendre : une bâtisse se rase depuis le 15/09, un
  * chantier s'annule, un avant-poste restait pour la saison — et avec lui le sol qu'il colore,
- * les emplacements qu'il ouvre et la portée qui relève.
+ * la portée qui relève.
  *
  * **C'est un événement de couleur**, et c'est l'essentiel de sa mécanique : régler à l'ancienne
  * couleur, écrire, rapporter — le même contrat que le lever (`standOutpost`) et la fin d'une
