@@ -9,7 +9,7 @@ import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatIn, unclocked } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -45,6 +45,7 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   return { seat, guest };
 }
 

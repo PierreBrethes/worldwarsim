@@ -20,7 +20,7 @@ import { distanceKm, type LonLat } from './geo';
  *
  * Rien n'est stocké de tout cela, jamais : la couleur se recalcule depuis les avant-postes
  * debout à l'instant où on la demande — même contrat que la capacité militaire
- * (`domain/victory.ts`), et pour la même raison. Un état dénormalisé se désynchronise le jour
+ * (la victoire de test, retirée le 18/10), et pour la même raison. Un état dénormalisé se désynchronise le jour
  * où un avant-poste est détruit, et personne ne le voit.
  */
 export type ControlledRegion = {

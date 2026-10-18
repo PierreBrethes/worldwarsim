@@ -21,7 +21,6 @@ const workName = (key: string, name: string): string =>
   key === 'outpost' ? fr.garrison.raiseWork : (fr.buildings[key as BuildingKey] ?? name);
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
-export type ServerBoard = FunctionReturnType<typeof api.victory.board>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
@@ -31,12 +30,7 @@ export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
 
-export function adaptServerView(
-  world: World,
-  server: ServerView,
-  /** Servi à part (`victory.board`) : `undefined` tant qu'il n'est pas arrivé. */
-  board?: ServerBoard,
-): PlayerView {
+export function adaptServerView(world: World, server: ServerView): PlayerView {
   const countryName = isNation(server.me.nation)
     ? COUNTRY_BY_NATION[server.me.nation]
     : server.me.nation;
@@ -46,14 +40,7 @@ export function adaptServerView(
   return {
     season: {
       ...server.season,
-      // Tant que `victory.board` n'est pas arrivé : un tableau vide, que `ReductionLine` tait,
-      // et une cible que personne ne lit sans tableau.
-      reduction: {
-        target: board?.target ?? 1,
-        standings: board?.standings ?? [],
-        concludedAt: server.season.reduction?.concludedAt ?? null,
-        winnerNation: server.season.reduction?.winnerNation ?? null,
-      },
+      race: server.season.race ?? null,
       verdict: server.season.verdict ?? null,
     },
     me: {
@@ -183,9 +170,7 @@ export function adaptServerView(
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
-      server.season.reduction === undefined
-        ? null
-        : { ...server.season.reduction, verdict: server.season.verdict ?? null },
+      { ...server.season.outcome, verdict: server.season.verdict ?? null },
       server.notices ?? [],
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,

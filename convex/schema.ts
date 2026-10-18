@@ -112,7 +112,7 @@ export default defineSchema({
     launchedAt: v.union(v.number(), v.null()),
     /**
      * Who took the season, and when. **No count travels beside them**: how many players one has
-     * reduced is read off the troops standing at the instant (`convex/victory.ts`), and a stored
+     * reduced was read off the troops standing at the instant (the retired test victory), and a stored
      * tally would disagree with the board at the first casualty or the first recruit. These two
      * are the opposite — a thing that happened once, which no later strength can un-happen.
      *
@@ -161,8 +161,16 @@ export default defineSchema({
      *  « dès que la table est complète ». */
     scheduledAt: v.optional(v.union(v.number(), v.null())),
     remind: v.optional(v.boolean()),
-    /** Mondiale (M15) : stocké et affiché, la capture de QG Mondiale n'existe pas encore. */
+    /** Mondiale (M15) : ce que dure la capture d'un QG, 12 ou 24 h (`captures.startCapture`). */
     hqCaptureHours: v.optional(v.number()),
+    /**
+     * **Le meneur de la course aux Sept, et depuis quand** (M1, P3) : celui qui tient quatre
+     * points, `raceSince` l'heure où il les a atteints. Absents tant que personne n'en tient
+     * quatre ; un seul meneur à la fois (4 + 4 > 7). Le travail `race.closeRace` le relit à
+     * l'échéance des 24 h.
+     */
+    raceLeaderId: v.optional(v.id('players')),
+    raceSince: v.optional(v.number()),
     seatCap: v.optional(v.number()),
     /** Le travail du rappel en attente, qu'un changement de l'ordre annule (`planReminder`). */
     reminderJobId: v.optional(v.id('_scheduled_functions')),
@@ -259,6 +267,9 @@ export default defineSchema({
      * function.
      */
     enteredWarAt: v.optional(v.union(v.number(), v.null())),
+    /** **Les heures de points stratégiques qu'il a tenues et perdues**, en ms — l'horloge en
+     *  départage la saison (M12). Ce qu'il tient encore court depuis `heldSince` sur le point. */
+    pointMs: v.optional(v.number()),
     /**
      * **The hour he last closed the journal**, absent while he never has. Read, never written,
      * by anything that counts: the banner's unread tally and the window's own greying both come
@@ -844,17 +855,9 @@ export default defineSchema({
     outpostId: v.union(v.id('outposts'), v.null()),
     /** Set by a won raid only: the hour the outpost comes back. */
     disabledUntil: v.union(v.number(), v.null()),
-    /**
-     * **This pass is the one that put the defender under the bar** — he stood above it before,
-     * he stands below it after. It is a fact about the engagement, settled once and never
-     * recomputed: a *capacity* would drift, "who struck the blow" cannot. It is what names the
-     * executioner of a reduced player and what the journal turns into "X a réduit Y".
-     *
-     * Test scaffolding, like everything the simplified Domination touches — see
-     * `src/domain/victory.ts`. Optional for the same reason the season's outcome is: an
-     * engagement filed before the bar existed carries no flag, and **absent reads as false** —
-     * a pass nobody measured cannot have been the one that crossed it.
-     */
+    /** **Legacy — plus jamais écrit ni lu** : la domination de test par réduction, remplacée par
+     *  les points stratégiques (ADR 0027 §4). Il reste au schéma pour les engagements déjà
+     *  écrits, et part au wipe de la saison test. */
     reducedDefender: v.optional(v.boolean()),
     /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
      *  passe à l'initiative. */
@@ -893,10 +896,7 @@ export default defineSchema({
     ),
   })
     .index('byAttacker', ['attackerId'])
-    .index('byDefender', ['defenderId'])
-    /** Le dernier coup qui a mis un joueur sous la barre, lu seul : `executionerOf` relisait
-     *  autrefois tous les engagements subis pour n'en garder qu'un. */
-    .index('byDefenderReduced', ['defenderId', 'reducedDefender', 'at']),
+    .index('byDefender', ['defenderId']),
 
   /**
    * **Le détail frappe par frappe, dans sa propre table** — la matière du rejeu visuel (surface

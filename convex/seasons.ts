@@ -598,6 +598,14 @@ export const launch = mutation({
       await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
         playerId: present[0]!._id,
       });
+      /** **L'horloge de la Mondiale sert de filet** (M4) : elle conclut à la durée du salon. */
+      if (season.durationHours !== null) {
+        const endsAt = now + season.durationHours * 3_600_000;
+        await ctx.scheduler.runAt(endsAt, internal.race.closeAtClock, {
+          seasonId: season._id,
+          expectedAt: endsAt,
+        });
+      }
     }
 
     /**

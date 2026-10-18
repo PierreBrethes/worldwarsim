@@ -9,7 +9,15 @@ import schema from './schema';
 import { modules } from './test.setup';
 import { reassessDetection } from './movement/detection';
 import { resolveContact } from './combat';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp, type Seat } from './seats.fixture';
+import {
+  foundSeat,
+  joinSeat,
+  placeHq,
+  seatIn,
+  surveyCamp,
+  type Seat,
+  unclocked,
+} from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
@@ -26,6 +34,7 @@ async function blitz(t: Bench) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   await placeHq(t, seat);
   await placeHq(t, guest);
   await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));

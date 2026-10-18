@@ -18,7 +18,6 @@ import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
 import { push, journalUrl, reportUrl } from '../src/domain/push';
 import { debit, economyOf } from './resources';
-import { claimVictory, isPlayerReduced } from './victory';
 import {
   combatCargoSnapshot,
   recoverDestroyedCombatCargo,
@@ -171,10 +170,6 @@ export async function resolveContact(
     }
   }
 
-  /** Read **before** the outcomes land: "this pass is the one that crossed the bar" needs the
-   *  state it crossed from, and one line later nothing on the board remembers it. */
-  const wasReduced = await isPlayerReduced(ctx, defender.playerId);
-
   const byId = new Map<string, Doc<'troops'>>(
     [...attacker.troops, ...defender.troops].map((troop) => [troop._id, troop]),
   );
@@ -192,11 +187,8 @@ export async function resolveContact(
    * **après** la passe : le tir n'a rien appris de la cargaison, c'est l'état d'après qui
    * répond. Les issues sont amendées ici et une seule fois — noyé devient `destroyed`, emporté
    * par un replié devient `routed` — et **c'est la liste amendée qui descend partout** : le
-   * compte de l'engagement, le règlement des charges, la réduction, la liste des repliés. Une
-   * seconde vérité à côté des issues aurait fait marcher un noyé jusqu'à son ancrage.
-   *
-   * Placé avant `reducedDefender` de propos délibéré : couler un transport chargé *est* une
-   * réduction, et la domination doit la compter dans la passe qui l'a franchie.
+   * compte de l'engagement, le règlement des charges, la liste des repliés. Une seconde vérité
+   * à côté des issues aurait fait marcher un noyé jusqu'à son ancrage.
    */
   /** **Un tir indirect ne noie que la cible** (B20) : la batterie tire de la côte, et la cible
    *  garde les coques de sa pile, qui ne sont pas dans la passe. */
@@ -222,8 +214,6 @@ export async function resolveContact(
     outcome.state === 'routed' ? [byId.get(outcome.id)!] : [],
   );
 
-  const reducedDefender = !wasReduced && (await isPlayerReduced(ctx, defender.playerId));
-
   const engagementId = await ctx.db.insert('engagements', {
     seasonId,
     attackerId: attacker.playerId,
@@ -235,7 +225,6 @@ export async function resolveContact(
     winner,
     outpostId,
     disabledUntil,
-    reducedDefender,
     ...(mode === 'shock' ? { shock: true } : {}),
     nations: {
       attacker: (await ctx.db.get(attacker.playerId))?.nation ?? null,
@@ -313,18 +302,6 @@ export async function resolveContact(
     });
     rank += 1;
   }
-
-  /**
-   * The season is claimed here and only here, because this is the one place an engagement is
-   * written: the condition of the test victory is "be the attacker of the pass that crosses the
-   * threshold" (`convex/victory.ts`), and there is no other moment at which that is true.
-   *
-   * **The attacker is whoever's order aimed at the other** (ADR 0024 §3): nothing fights
-   * without an order since 13/09, so a camp that answers an assault is its defender and never
-   * advances a victory by riposting.
-   */
-  const season = await ctx.db.get(seasonId);
-  if (season) await claimVictory(ctx, season, attacker.playerId, at);
 
   /** **Une seule liste d'issues sort d'ici** : l'appelant lit les survivants dessus pour les
    *  renvoyer chez eux (`engageAt`), et un noyé qui y serait encore `standing` marcherait. */

@@ -1,9 +1,10 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { heldOver } from './holding';
 import { regionFacts } from './regions';
+import { handOver } from './strategicPoints';
 import { STRATEGIC_POINT_KEYS } from '../src/domain/strategic-points';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -210,5 +211,101 @@ describe('taking a strategic point', () => {
       ).filter((notice) => notice.kind === 'captureStarted'),
     );
     expect(alarms).toHaveLength(1);
+  });
+});
+
+/**
+ * **La victoire de la Mondiale** (M1, M4, M12) : quatre points tenus vingt-quatre heures
+ * d'affilée prennent la saison ; à l'horloge, le cumul d'heures de points tenus, puis le
+ * territoire.
+ */
+describe('winning the race', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const give = (t: Bench, seat: Seat, keys: ReadonlyArray<Doc<'strategicPoints'>['key']>) =>
+    t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      for (const point of await ctx.db.query('strategicPoints').collect()) {
+        if (keys.includes(point.key)) await handOver(ctx, point, player._id, Date.now());
+      }
+    });
+  const seasonOf = (t: Bench) => t.run(async (ctx) => (await ctx.db.query('seasons').first())!);
+
+  it('goes to whoever holds four points for a full day', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik']);
+    expect((await seasonOf(t)).raceLeaderId).toBeUndefined();
+
+    await give(t, seat, ['istanbul']);
+    const racing = await seasonOf(t);
+    expect(racing.raceLeaderId).toBe((await playerOf(t, seat))._id);
+    expect(racing.raceSince).toBe(MIDDAY);
+    expect((await t.query(api.view.playerView, seat)).season.race).toEqual({
+      leaderNation: 'france',
+      endsAt: MIDDAY + 24 * HOUR,
+    });
+
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    await t.mutation(internal.race.closeRace, { seasonId: racing._id, since: MIDDAY });
+    const won = await seasonOf(t);
+    expect(won.status).toBe('concluded');
+    expect(won.winnerId).toBe((await playerOf(t, seat))._id);
+    expect(won.verdict?.reason).toBe('points');
+    // The countdown is gone with the race it counted.
+    expect((await t.query(api.view.playerView, seat)).season.race).toBeNull();
+  });
+
+  it('restarts the countdown when the leader falls below four, and not before', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+
+    vi.setSystemTime(MIDDAY + 10 * HOUR);
+    await give(t, guest, ['narvik']);
+    expect((await seasonOf(t)).raceLeaderId).toBeUndefined();
+
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    const season = await seasonOf(t);
+    await t.mutation(internal.race.closeRace, { seasonId: season._id, since: MIDDAY });
+    expect((await seasonOf(t)).status).toBe('launched');
+    // The ten hours he held Narvik count for him at the clock.
+    expect((await playerOf(t, seat)).pointMs).toBe(10 * HOUR);
+  });
+
+  it('goes at the clock to the most hours of points held', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon']);
+    vi.setSystemTime(MIDDAY + 5 * HOUR);
+    await give(t, guest, ['narvik', 'tangier']);
+
+    const season = await seasonOf(t);
+    const endsAt = season.launchedAt! + season.durationHours! * HOUR;
+    vi.setSystemTime(endsAt);
+    await t.mutation(internal.race.closeAtClock, { seasonId: season._id, expectedAt: endsAt });
+    const over = await seasonOf(t);
+    expect(over.status).toBe('concluded');
+    // Two points from 17:00 outweigh one from noon over a week.
+    expect(over.winnerId).toBe((await playerOf(t, guest))._id);
+    expect(over.verdict?.reason).toBe('clock');
+  });
+
+  it('is scheduled at the length set in the lobby', async () => {
+    const t = boot();
+    await launched(t);
+    const season = await seasonOf(t);
+    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(
+      jobs.some(
+        (job) =>
+          job.name.includes('closeAtClock') &&
+          job.scheduledTime === season.launchedAt! + season.durationHours! * HOUR,
+      ),
+    ).toBe(true);
   });
 });

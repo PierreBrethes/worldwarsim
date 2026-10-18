@@ -25,6 +25,7 @@ import {
   seatIn,
   seatsOf,
   setClock,
+  unclocked,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
@@ -203,11 +204,6 @@ describe('launching', () => {
    * **Une compagnie d'infanterie, en garnison au quartier général** (décision du 25/08). Elle
    * naissait à la dotation ; depuis le 13/09 elle naît **avec le QG**, parce que c'est lui qui
    * lui donne une adresse — et le joueur choisit laquelle.
-   *
-   * The consequence is accepted and graved here rather than left to be discovered: the company
-   * counts in the **nominal** the reduction rule measures against (`domain/victory.ts`), so a
-   * player who holds nothing else and loses it falls under half his nominal — reduced, hence
-   * scalpable by whoever took it.
    */
   it('gives one infantry with the headquarters, stationed at it', async () => {
     const t = boot();
@@ -371,6 +367,7 @@ describe('constructions', () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await unclocked(t);
     await placeHq(t, creator);
     for (let level = 1; level <= HQ_LEVEL_AT_LAUNCH; level += 1) {
       await t.mutation(api.constructions.start, {
@@ -667,9 +664,7 @@ describe('a season without a clock', () => {
         regionId: MOSELLE,
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
-    expect(
-      (await t.query(api.view.playerView, creator)).season.reduction.concludedAt,
-    ).not.toBeNull();
+    expect((await t.query(api.view.playerView, creator)).season.outcome.concludedAt).not.toBeNull();
   });
 });
 
@@ -758,6 +753,7 @@ describe('scrapping a season', () => {
       const t = boot();
       const { creator, guest } = await readyToLaunch(t);
       await t.mutation(api.seasons.launch, creator);
+      await unclocked(t);
 
       // A sentry of the guest's, forty kilometres off the road the column will walk: close
       // enough to file a sighting, far enough not to meet anybody.

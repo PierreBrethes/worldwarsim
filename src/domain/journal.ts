@@ -13,7 +13,7 @@ import type {
   JournalDispatch,
   MapPlace,
   Notice,
-  ReductionBoard,
+  SeasonOutcome,
   SeasonVerdict,
 } from './player-view';
 
@@ -52,16 +52,12 @@ const reachableSite = (
  */
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
-  /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
-  reduction:
-    | (Pick<ReductionBoard, 'concludedAt' | 'winnerNation'> & {
-        readonly verdict?: SeasonVerdict | null;
-      })
-    | null,
+  /** La fin de la saison, et son verdict quand il y en a un. */
+  outcome: (SeasonOutcome & { readonly verdict?: SeasonVerdict | null }) | null,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
-  const verdict = reduction?.verdict ?? null;
+  const verdict = outcome?.verdict ?? null;
   const closing =
     verdict !== null
       ? fr.victory.verdictConcluded(
@@ -69,48 +65,27 @@ export function journalDispatches(
           verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
           verdict.perMinute,
         )
-      : reduction === null || reduction.winnerNation === null
+      : outcome === null || outcome.winnerNation === null
         ? null
-        : fr.victory.concluded(nationName(reduction.winnerNation));
+        : fr.victory.concluded(nationName(outcome.winnerNation));
   const concluded: ReadonlyArray<Written> =
-    reduction === null || reduction.concludedAt === null || closing === null
+    outcome === null || outcome.concludedAt === null || closing === null
       ? []
       : [
           {
-            at: reduction.concludedAt,
+            at: outcome.concludedAt,
             severity: 'critical',
             kind: 'seasonConcluded',
             text: closing,
           },
         ];
 
-  /**
-   * **"X a réduit Y", named and read by everyone.** The test victory is public on purpose
-   * (`domain/victory.ts`): the condition is unique, so it is read out loud, and a skirmish
-   * between friends wants the ribbing.
-   */
-  const reductions: ReadonlyArray<Written> = reports.flatMap((report) =>
-    report.reduced === null
-      ? []
-      : [
-          {
-            at: report.at,
-            severity: 'critical' as const,
-            kind: 'reduction' as const,
-            text: fr.victory.dispatch(
-              report.reduced.by === null ? null : nationName(report.reduced.by),
-              nationName(report.reduced.whom),
-            ),
-          },
-        ],
-  );
-
   const filed: ReadonlyArray<Written> = notices.map((notice) => ({
     ...written(notice),
     place: notice.place ?? null,
   }));
 
-  const all = [...concluded, ...reductions, ...filed, ...reports.map(fromCombat)];
+  const all = [...concluded, ...filed, ...reports.map(fromCombat)];
 
   return all
     .sort((a, b) => b.at - a.at)

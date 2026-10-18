@@ -110,7 +110,8 @@ export function mendPlan<T extends Wounded & { readonly id: string }>(
 
 /** Pourquoi une Blitz s'est conclue : le dernier debout — QG pris ou capitulation —, ou
  *  l'horloge, au revenu ou à égalité (B10, B11). */
-export type VerdictReason = 'hqTaken' | 'lastStanding' | 'income' | 'draw';
+export type VerdictReason =
+  'hqTaken' | 'lastStanding' | 'income' | 'draw' | 'points' | 'clock' | 'territory';
 
 /**
  * **À deux heures, le plus gros revenu gagne** (B11) : les fonds par minute tenus à l'instant,

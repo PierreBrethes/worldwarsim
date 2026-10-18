@@ -50,6 +50,7 @@ import type * as plunder from "../plunder.js";
 import type * as press from "../press.js";
 import type * as production from "../production.js";
 import type * as pushSend from "../pushSend.js";
+import type * as race from "../race.js";
 import type * as readMarks from "../readMarks.js";
 import type * as regionGeometry from "../regionGeometry.js";
 import type * as regions from "../regions.js";
@@ -66,7 +67,6 @@ import type * as surveys from "../surveys.js";
 import type * as troops from "../troops.js";
 import type * as upkeep from "../upkeep.js";
 import type * as validators from "../validators.js";
-import type * as victory from "../victory.js";
 import type * as view from "../view.js";
 
 import type {
@@ -118,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   press: typeof press;
   production: typeof production;
   pushSend: typeof pushSend;
+  race: typeof race;
   readMarks: typeof readMarks;
   regionGeometry: typeof regionGeometry;
   regions: typeof regions;
@@ -134,7 +135,6 @@ declare const fullApi: ApiFromModules<{
   troops: typeof troops;
   upkeep: typeof upkeep;
   validators: typeof validators;
-  victory: typeof victory;
   view: typeof view;
 }>;
 

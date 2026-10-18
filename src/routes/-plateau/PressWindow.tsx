@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { fr, nationLabel } from '@/i18n/fr';
+import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
 import { outcomeOf, type EndingFacts } from '@/domain/ending';
 import type {
   PressEdition,
   PressLine,
   PressOwnLine,
+  RaceCountdown,
   SeasonVerdict,
   StrategicPointView,
 } from '@/domain/player-view';
@@ -39,6 +40,7 @@ export function PressWindow({
   ending,
   blitz,
   points,
+  race,
   onClose,
   ...windowProps
 }: WindowProps & {
@@ -48,6 +50,7 @@ export function PressWindow({
   blitz: boolean;
   /** Les Sept, tels que tout le monde les lit : la course se suit en direct, pas à l'édition. */
   points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
 }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
@@ -73,6 +76,7 @@ export function PressWindow({
           verdict={verdict}
           ending={ending}
           points={points}
+          race={race}
           sort={sort}
           onSort={setSort}
           onClose={onClose}
@@ -121,7 +125,7 @@ export function PressWindow({
           ending={ending}
           onClose={onClose}
         />
-        <Race points={points} />
+        <Race points={points} race={race} />
         {press === null ? (
           <p className="mx-auto max-w-[62ch] px-6 py-[56px] text-center font-(family-name:--font-display) text-[20px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.press.none}
@@ -505,6 +509,7 @@ function NarrowPress({
   verdict,
   ending,
   points,
+  race,
   sort,
   onSort,
   onClose,
@@ -513,6 +518,7 @@ function NarrowPress({
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
   points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
   sort: SortKey;
   onSort: (key: SortKey) => void;
   onClose: () => void;
@@ -559,7 +565,7 @@ function NarrowPress({
       </div>
 
       <Ending verdict={press?.final === true ? verdict : null} ending={ending} onClose={onClose} />
-      <Race points={points} />
+      <Race points={points} race={race} />
       {press === null ? (
         <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
           {fr.press.none}
@@ -781,7 +787,14 @@ function NarrowRegisters({ own }: { own: PressOwnLine }) {
  * **La course aux Sept** (P1-P12) : qui tient quoi, en direct — l'encadré que chaque édition
  * porte. Le teneur, jamais le contestant : un point contesté le dit, sans nom.
  */
-function Race({ points }: { points: ReadonlyArray<StrategicPointView> }) {
+function Race({
+  points,
+  race,
+}: {
+  points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
+}) {
+  const now = useClock(MINUTE);
   if (points.length === 0) return null;
   const byNation = new Map<string, Array<StrategicPointView>>();
   for (const point of points) {
@@ -795,6 +808,17 @@ function Race({ points }: { points: ReadonlyArray<StrategicPointView> }) {
         {fr.points.race.title}
       </h2>
       <p className="mt-[2px] text-[11px] text-[var(--ink-soft)] italic">{fr.points.race.chapo}</p>
+      {race !== null && (
+        <p
+          role="timer"
+          className="mt-[8px] font-(family-name:--font-display) text-[15px] font-bold text-[var(--critical)]"
+        >
+          {fr.points.race.countdown(
+            nationLabel(race.leaderNation),
+            countdownLabel(Math.max(0, race.endsAt - now)),
+          )}
+        </p>
+      )}
       {standings.length === 0 ? (
         <p className="mt-[8px] text-[12px] text-[var(--ink-quiet)]">{fr.points.race.waiting}</p>
       ) : (

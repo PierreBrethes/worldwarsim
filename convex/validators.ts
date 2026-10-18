@@ -851,6 +851,10 @@ export const VERDICT = v.object({
     v.literal('lastStanding'),
     v.literal('income'),
     v.literal('draw'),
+    /** Mondiale : quatre points tenus 24 h ; à l'horloge, le cumul d'heures, puis le territoire. */
+    v.literal('points'),
+    v.literal('clock'),
+    v.literal('territory'),
   ),
   perMinute: v.optional(v.number()),
 });

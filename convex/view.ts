@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { pointsView } from './strategicPoints';
+import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
@@ -389,12 +390,22 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       elapsedHours: season.launchedAt === null ? 0 : (now - season.launchedAt) / 3_600_000,
       players: others.length + 1,
       playableRegion: season.playableRegion ?? 'world',
-      /** Test scaffolding — it goes whole the day the share of the map replaces it
-       *  (ADR 0020). Le tableau, qui lit les troupes de tous, est servi à part (`victory.board`). */
-      reduction: {
+      /** **La fin de la saison**, `null` tant qu'elle se joue : quand, et qui l'a prise. */
+      outcome: {
         concludedAt: season.concludedAt ?? null,
         winnerNation: winner?.nation ?? null,
       },
+      /** **Le compte à rebours de la course** (M1, P3) : public, comme les Sept. `null` tant que
+       *  personne ne tient quatre points. */
+      race:
+        season.status !== 'launched' ||
+        season.raceLeaderId === undefined ||
+        season.raceSince === undefined
+          ? null
+          : {
+              leaderNation: nationOf.get(season.raceLeaderId) ?? '?',
+              endsAt: season.raceSince + RACE_HOLD_HOURS * 3_600_000,
+            },
       verdict:
         season.verdict === undefined
           ? null
@@ -736,21 +747,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         ...facedOf(engagement, side),
-        /**
-         * **Named on purpose**, like the board above it: the journal writes "X a réduit Y" so
-         * the table is legible from the account rather than from a second count. Both nations
-         * were in the same battle — neither learns anything from being named.
-         */
-        reduced: engagement.reducedDefender
-          ? {
-              /** Sauf à la cible d'un bombardement, qui ne sait pas d'où vient le coup (B20). */
-              by:
-                engagement.cause === 'bombardment' && side === 'defender'
-                  ? null
-                  : (nationOf.get(engagement.attackerId) ?? '?'),
-              whom: nationOf.get(engagement.defenderId) ?? '?',
-            }
-          : null,
       };
     }),
     /**

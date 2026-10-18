@@ -39,7 +39,7 @@ import {
 import { clipToStorage, settle } from './resources';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, unclocked } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -80,6 +80,7 @@ async function launchedWithoutHq(t: ReturnType<typeof boot>, nation = 'france') 
   });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   return seat;
 }
 

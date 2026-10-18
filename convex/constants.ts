@@ -928,14 +928,6 @@ export const routeMinutes = (costUnits: number): number =>
 
 export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
 
-/**
- * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
- * scaffold it serves the day the share of the map replaces it (ADR 0020).
- *
- * @a-mesurer the bar of a scaffold, measured by nothing — it leaves with the scaffold
- */
-export const REDUCTION_FACTOR = 0.5;
-
 /** Design sheet 07. The duration is **fixed, not chosen**: the window forbids any arrival while
  *  it lasts, so a player who set its length would set how long he is untouchable. He picks when
  *  he sleeps, never how long. */

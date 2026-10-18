@@ -507,6 +507,8 @@ export const fr = {
         'Sept lieux réels de 1940. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
       waiting: 'Les Sept attendent leurs teneurs.',
       count: (held: number) => `${num(held)} sur 7`,
+      countdown: (nation: string, left: string) =>
+        `${nation} tient quatre des Sept : victoire dans ${left} si rien ne bouge.`,
       contested: 'contesté',
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
@@ -1149,7 +1151,7 @@ export const fr = {
           ['horloge', '3 à 14 jours, deux ou trois visites par jour'],
           ['table', '2 à 8 joueurs, une nation et son atout'],
           ['terrain', 'le monde entier'],
-          ['victoire', 'réduire la moitié des adversaires'],
+          ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
         ],
       },
     } satisfies Record<
@@ -1412,7 +1414,7 @@ export const fr = {
       ['horloge', `${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
       ['nations', 'une chacune, avec son atout'],
-      ['victoire', 'réduire la moitié des adversaires'],
+      ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
       ['après le départ', 'la table se ferme'],
       ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
     ],
@@ -2155,25 +2157,15 @@ export const fr = {
     facedNation,
   },
 
-  /**
-   * **La victoire de test — un échafaudage, pas une décision de design.** La domination est
-   * le mode unique (ADR 0020) ; cette barre-là tient en attendant la part de carte qui la
-   * remplacera (`src/domain/victory.ts`). Le vocabulaire suit : on *réduit* un joueur, on ne
-   * l'élimine jamais — il rejoue, il reconstruit, et il sort alors du compte de son bourreau.
-   */
+  /** **Comment une saison se gagne** : quatre des Sept tenus 24 h, tous les QG, ou l'horloge. */
   victory: {
-    kicker: 'domination — victoire de test',
-    scaffold: 'condition unique et publique, en attendant la part de carte',
-    dispatch: (by: string | null, whom: string) =>
-      by === null ? `${whom} est réduit, sous un bombardement` : `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
-    tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
-    reducedMark: 'réduit',
-    standingMark: 'debout',
-    /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
+    /** **La fin d'une partie dit pourquoi** (B10, B11, M1, M12) : le journal et l'édition finale. */
     verdictConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
       reason === 'draw'
-        ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+        ? perMinute === null
+          ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+          : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
         : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
@@ -2182,7 +2174,13 @@ export const fr = {
           ? 'seul belligérant encore debout'
           : reason === 'income'
             ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
-            : 'revenu et caisse se valent',
+            : reason === 'points'
+              ? 'quatre des Sept tenus vingt-quatre heures d’affilée'
+              : reason === 'clock'
+                ? 'à l’horloge, le plus d’heures de points stratégiques tenus'
+                : reason === 'territory'
+                  ? 'à l’horloge, à heures égales, le plus grand territoire'
+                  : 'revenu et caisse se valent',
   },
 
   /**
@@ -2194,7 +2192,6 @@ export const fr = {
     /** La sorte de chaque dépêche, tamponnée dans la marge du journal. */
     dispatches: {
       seasonConcluded: 'saison close',
-      reduction: 'réduction',
       pointTaken: 'point stratégique',
       assault: 'assaut mené',
       attacked: 'attaque subie',

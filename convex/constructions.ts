@@ -269,12 +269,6 @@ function refuseRaise(hold: OutpostRaiseHold): never {
  * Elle naissait à la dotation ; elle naît maintenant avec le QG, parce que c'est lui qui lui
  * donne une adresse — et jamais à une élévation : seul le premier QG, celui que le socle offre,
  * l'amène.
- *
- * La conséquence est acceptée plutôt qu'esquivée : cette compagnie compte dans le **nominal**
- * que la règle de réduction mesure (`src/domain/victory.ts`), donc un joueur qui ne tient que
- * son infanterie offerte et la perd tombe sous la moitié de son nominal — scalpable par qui la
- * lui a prise. C'est le prix d'ouvrir avec une défense, et la forme dont la victoire de test doit
- * être remplacée, jamais rafistolée.
  */
 async function garrisonTheGift(
   ctx: MutationCtx,

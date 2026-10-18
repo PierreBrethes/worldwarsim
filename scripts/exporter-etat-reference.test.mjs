@@ -21,15 +21,7 @@ const snapshot = {
       elapsedHours: 21.7,
       players: 3,
       playableRegion: 'world',
-      reduction: {
-        target: 1,
-        concludedAt: null,
-        winnerNation: null,
-        standings: [
-          { nation: 'Japon', nickname: 'pierre', isMine: true, isReduced: false, reduced: 0 },
-          { nation: 'URSS', nickname: 'lena', isMine: false, isReduced: true, reduced: 1 },
-        ],
-      },
+      outcome: { concludedAt: null, winnerNation: null },
     },
     me: {
       nation: 'Japon',

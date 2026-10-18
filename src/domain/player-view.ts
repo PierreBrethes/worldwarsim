@@ -364,12 +364,6 @@ export type CombatReport = {
   /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
    *  la cible d'un bombardement, qui ne voit pas d'où vient le coup. */
   readonly faced?: Faced;
-  /**
-   * Set when this pass is the one that put the defender under the bar of the **test victory**
-   * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
-   * simplified Domination is public, which is where it departs from design sheet 05.
-   */
-  readonly reduced: { readonly by: string | null; readonly whom: string } | null;
 };
 
 export type CombatTally = {
@@ -591,7 +585,6 @@ export type DispatchSeverity = 'critical' | 'notable' | 'routine';
  */
 export type DispatchKind =
   | 'seasonConcluded'
-  | 'reduction'
   | 'pointTaken'
   /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
   | 'assault'
@@ -979,12 +972,6 @@ export type JournalDispatch = {
   readonly place: MapPlace | null;
 };
 
-/**
- * **The board of the test victory — scaffolding, to be replaced whole** by the share of the map
- * (ADR 0020; `domain/victory.ts` says why). It is the one place this type hands over something
- * about everybody: the condition is unique, public and named, deliberately, and a capacity is
- * neither a position nor a composition — the fog loses nothing.
- */
 export type SeasonVerdict = {
   readonly reason: VerdictReason;
   /** `null` à égalité. */
@@ -993,22 +980,14 @@ export type SeasonVerdict = {
   readonly perMinute: number | null;
 };
 
-export type ReductionBoard = {
-  /** How many distinct players one has to hold under the bar, `⌈(n−1)/2⌉`. */
-  readonly target: number;
+/** **La fin de la saison** : quand, et la nation qui l'a prise — `null` tant qu'elle se joue. */
+export type SeasonOutcome = {
   readonly concludedAt: number | null;
   readonly winnerNation: string | null;
-  readonly standings: ReadonlyArray<ReductionStanding>;
 };
 
-type ReductionStanding = {
-  readonly nation: string | null;
-  readonly nickname: string;
-  readonly isMine: boolean;
-  /** Read at the instant: he rebuilds over the bar, he leaves his executioner's count. */
-  readonly isReduced: boolean;
-  readonly reduced: number;
-};
+/** **Le compte à rebours de la course aux Sept** (M1, P3) : public, comme les points. */
+export type RaceCountdown = { readonly leaderNation: string; readonly endsAt: number };
 
 /**
  * **L'absence du fondateur, servie près du seuil seulement.** Aucune identité, aucune date de
@@ -1085,9 +1064,11 @@ export type PlayerView = {
     readonly hqCaptureHours: number;
     readonly players: number;
     readonly playableRegion: string;
-    readonly reduction: ReductionBoard;
-    /** **Pourquoi la Blitz s'est conclue** (B10, B11), `null` tant qu'elle se joue et en
-     *  Mondiale : l'édition finale le dit en manchette. */
+    readonly outcome: SeasonOutcome;
+    /** `null` tant que personne ne tient quatre des Sept, et en Blitz. */
+    readonly race: RaceCountdown | null;
+    /** **Pourquoi la saison s'est conclue** (B10, B11, M1, M12), `null` tant qu'elle se joue :
+     *  l'édition finale le dit en manchette. */
     readonly verdict: SeasonVerdict | null;
   };
   readonly me: {

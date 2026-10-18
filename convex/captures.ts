@@ -22,6 +22,7 @@ import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { irregularSeat } from './objectives';
+import { handOver, seasonPoints } from './strategicPoints';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
@@ -548,7 +549,7 @@ async function takePoint(
   takerId: Id<'players'>,
   now: number,
 ): Promise<void> {
-  await ctx.db.patch(point._id, { holderId: takerId, heldSince: now });
+  await handOver(ctx, point, takerId, now);
   const taker = await ctx.db.get(takerId);
   for (const seat of await seatsOf(ctx, point.seasonId)) {
     await ctx.db.insert('notices', {
@@ -655,6 +656,10 @@ async function toIrregulars(
     .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
     .collect()) {
     await ctx.db.patch(troop._id, { playerId: irregularId });
+  }
+  /** Ses points stratégiques redeviennent neutres : un irrégulier ne court pas la course. */
+  for (const point of await seasonPoints(ctx, fall.seasonId)) {
+    if (point.holderId === loser._id) await handOver(ctx, point, null, now);
   }
   await dropCapturesOf(ctx, loser._id, now);
   await handOverSieges(ctx, fall, irregularId, now);

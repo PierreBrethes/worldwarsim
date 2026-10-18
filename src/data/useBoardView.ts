@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { errorMessage } from './errors';
 import type { Seat } from './session';
-import type { ServerBoard, ServerView } from './serverView';
+import type { ServerView } from './serverView';
 
 /**
  * **The live view, and what stands in for it while the line is down.** `useQuery` throws what the
@@ -21,29 +21,24 @@ import type { ServerBoard, ServerView } from './serverView';
  */
 export function useBoardView(seat: Seat): {
   readonly server: ServerView | undefined;
-  /** Le tableau de la victoire d'essai, à part pour ne pas relancer la vue (`victory.board`) :
-   *  une erreur ici ne ferme rien, le tableau reste vide. */
-  readonly board: ServerBoard | undefined;
   readonly interrupted: boolean;
 } {
   const { token, seasonId } = seat;
   const queries = useMemo(
     () => ({
       view: { query: api.view.playerView, args: { token, seasonId } },
-      board: { query: api.victory.board, args: { token, seasonId } },
     }),
     [token, seasonId],
   );
   const answers = useQueries(queries);
   const answer = answers.view as ServerView | undefined | Error;
-  const board = answers.board instanceof Error ? undefined : (answers.board as ServerBoard);
   const [known, setKnown] = useState<ServerView | undefined>(undefined);
 
   if (!(answer instanceof Error)) {
     // The documented way to derive state from a render: set it, React re-renders at once.
     if (answer !== known) setKnown(answer);
-    return { server: answer, board, interrupted: false };
+    return { server: answer, interrupted: false };
   }
   if (known === undefined || errorMessage(answer) !== null) throw answer;
-  return { server: known, board, interrupted: true };
+  return { server: known, interrupted: true };
 }

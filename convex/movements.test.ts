@@ -40,6 +40,7 @@ import {
   seatIn,
   surveyCamp,
   surveyRegion,
+  unclocked,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
@@ -72,6 +73,7 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   await placeHq(t, seat);
   await placeHq(t, guest);
   await disbandTheGift(t, seat, guest);

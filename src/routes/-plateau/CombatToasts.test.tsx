@@ -38,7 +38,6 @@ const battle = (id: string, at: number): CombatReport => ({
   outpostDisabled: false,
   mine: { troops: 3, lost: 40, routed: 0, destroyed: 1 },
   theirs: { troops: 2, lost: 90, routed: 1, destroyed: 1 },
-  reduced: null,
 });
 
 const NOON = Date.UTC(2026, 9, 13, 12);

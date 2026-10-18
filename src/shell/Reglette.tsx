@@ -327,7 +327,7 @@ export function BlitzClock({
   openEnding?: BoardSearch;
 }) {
   const { season } = view;
-  const ended = season.reduction.concludedAt !== null;
+  const ended = season.outcome.concludedAt !== null;
   const out = !ended && view.me.eliminatedAt !== null;
   const minutesLeft = Math.max(
     0,

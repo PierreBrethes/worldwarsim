@@ -143,20 +143,8 @@ export function renderReference(snapshot) {
     fields(view.season, ['number', 'durationHours', 'elapsedHours', 'players', 'playableRegion']),
   );
 
-  say('### La domination — `season.reduction`');
-  say(
-    fields(view.season.reduction, ['target', 'winnerNation']),
-    table(
-      ['nation', 'nickname', 'isMine', 'isReduced', 'reduced'],
-      view.season.reduction.standings.map((line) => [
-        line.nation,
-        line.nickname,
-        line.isMine,
-        line.isReduced,
-        line.reduced,
-      ]),
-    ),
-  );
+  say('### La fin — `season.outcome`');
+  say(fields(view.season.outcome, ['concludedAt', 'winnerNation']));
 
   say('---', '', '## Le joueur — `me`');
   say(

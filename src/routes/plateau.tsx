@@ -350,13 +350,13 @@ function NoGame() {
 }
 
 function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
-  const { server, board, interrupted } = useBoardView(seat);
+  const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
   // it on each render would redo the labels and the compass on every keystroke elsewhere.
   const view = useMemo(
-    () => (server === undefined ? null : adaptServerView(world, server, board)),
-    [world, server, board],
+    () => (server === undefined ? null : adaptServerView(world, server)),
+    [world, server],
   );
   if (view === null) return <Loading />;
   return (
@@ -2805,6 +2805,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       ending={ending.facts}
                       blitz={blitz}
                       points={view.strategicPoints}
+                      race={view.season.race}
                       {...windowProps}
                     />
                   );

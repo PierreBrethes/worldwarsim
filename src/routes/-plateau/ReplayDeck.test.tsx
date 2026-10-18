@@ -24,7 +24,6 @@ const combat: CombatReport = {
   outpostDisabled: false,
   mine: { troops: 3, lost: 40, routed: 0, destroyed: 1 },
   theirs: { troops: 2, lost: 90, routed: 1, destroyed: 1 },
-  reduced: null,
 };
 
 const [fought, entered] = journalDispatches([combat], null, [

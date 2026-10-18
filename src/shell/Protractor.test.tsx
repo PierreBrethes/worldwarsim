@@ -33,7 +33,7 @@ const view = {
   arcs: [],
   captures: [],
   loadedAt: 0,
-  season: { reduction: { concludedAt: null } },
+  season: { outcome: { concludedAt: null } },
   journal: [{ unread: true }, { unread: false }],
   press: { mine: { rank: 2 } },
   me: {

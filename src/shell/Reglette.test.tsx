@@ -7,7 +7,7 @@ const view = (elapsedHours: number, concludedAt: number | null) =>
   ({
     loadedAt: 0,
     me: { eliminatedAt: null },
-    season: { durationHours: 2, elapsedHours, reduction: { concludedAt } },
+    season: { durationHours: 2, elapsedHours, outcome: { concludedAt } },
   }) as unknown as PlayerView;
 
 describe('BlitzClock', () => {

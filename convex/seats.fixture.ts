@@ -70,6 +70,24 @@ export async function foundSeat(
   return { seat: { token, seasonId }, code };
 }
 
+/**
+ * **Une saison lancée dont l'horloge ne tombera pas** : celle d'une Mondiale la conclut à sa
+ * durée (`race.closeAtClock`), et une suite qui joue tous les minuteurs pour faire arriver ses
+ * colonnes l'atteindrait. Ce qu'elle mesure n'est pas la fin de la saison : le rendez-vous est
+ * annulé, la durée reste (la presse s'arrête sur elle).
+ */
+export const unclocked = (t: Bench) =>
+  t.run(async (ctx) => {
+    for (const job of await ctx.db.system
+      .query('_scheduled_functions')
+      .withIndex('by_creation_time')
+      .collect()) {
+      if (job.name.includes('closeAtClock') && job.state.kind === 'pending') {
+        await ctx.scheduler.cancel(job._id);
+      }
+    }
+  });
+
 /** Un compte neuf qui rejoint par le code. */
 export async function joinSeat(t: Bench, code: string, nickname: string): Promise<Seat> {
   const token = await signIn(t, nickname);

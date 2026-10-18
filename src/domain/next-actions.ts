@@ -92,7 +92,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
    *  armes : pas une liste grisée de ce qu'il ne fera plus. */
   if (view.me.defeated) return [];
   /** Une saison conclue se relit : rien n'y attend plus personne. */
-  if (view.season.reduction.concludedAt !== null) return [];
+  if (view.season.outcome.concludedAt !== null) return [];
   /**
    * **Tant que le quartier général est dû, il est la seule chose qui attende** (décision 1b du
    * 13/09). Rien d'autre ne se bâtit avant lui (`HQ_FIRST`), donc « chantier libre — rien en

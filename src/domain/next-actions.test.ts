@@ -15,7 +15,7 @@ const board = (
     arcs,
     captures,
     loadedAt: 0,
-    season: { reduction: { concludedAt: null } },
+    season: { outcome: { concludedAt: null } },
     me: {
       homePosition: HOME,
       hqLevel: 1,
@@ -256,7 +256,7 @@ describe('what waits for the player', () => {
       ...view,
       season: {
         ...view.season,
-        reduction: { target: 1, concludedAt: 1, winnerNation: null, standings: [] },
+        outcome: { concludedAt: 1, winnerNation: null },
       },
     } as PlayerView;
     expect(kinds(over)).toEqual([]);

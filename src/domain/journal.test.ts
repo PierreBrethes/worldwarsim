@@ -29,7 +29,6 @@ const battle = (at: number): CombatReport => ({
   outpostDisabled: false,
   mine: { troops: 2, lost: 4, routed: 0, destroyed: 0 },
   theirs: { troops: 1, lost: 30, routed: 1, destroyed: 0 },
-  reduced: null,
 });
 
 const finished = (at: number): Notice => ({
@@ -114,17 +113,6 @@ describe('the journal', () => {
     };
     const [fired] = journalDispatches([shot], null, []);
     expect(fired!.text).toContain('sur URSS : infanterie ×1 (50 hommes)');
-  });
-
-  it('tells a reduction under bombardment without naming the gunner', () => {
-    const struck: CombatReport = {
-      ...battle(NOON),
-      cause: 'bombardment',
-      side: 'defender',
-      reduced: { by: null, whom: 'ussr' },
-    };
-    const said = journalDispatches([struck], null, []).find((d) => d.kind === 'reduction');
-    expect(said!.text).toBe('URSS est réduit, sous un bombardement');
   });
 
   it('merges the two streams by hour, newest first', () => {
