@@ -56,6 +56,7 @@ import type * as regions from "../regions.js";
 import type * as replay from "../replay.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
+import type * as seasonReport from "../seasonReport.js";
 import type * as seasons from "../seasons.js";
 import type * as seats from "../seats.js";
 import type * as sessions from "../sessions.js";
@@ -122,6 +123,7 @@ declare const fullApi: ApiFromModules<{
   replay: typeof replay;
   resources: typeof resources;
   routes: typeof routes;
+  seasonReport: typeof seasonReport;
   seasons: typeof seasons;
   seats: typeof seats;
   sessions: typeof sessions;

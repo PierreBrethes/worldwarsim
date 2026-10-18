@@ -56,7 +56,10 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 
    Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
-6. **Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7).
+6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
+   `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans
+   `src/domain/season-report.ts`). Séries dans le temps : boule de neige (éditions) et avant-postes
+   (journal) ; tortue, escouade et charge n'existent qu'à l'instant de la lecture : relancer chaque jour.
 7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.
 
 Plus tard : petites annonces et départ adaptatif (étape publique), bot Blitz, anglais.
