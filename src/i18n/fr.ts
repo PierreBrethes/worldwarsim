@@ -3212,6 +3212,7 @@ export const fr = {
       commandsItself: 'se commande',
       order: 'commander un lot',
       launch: 'lancer le lot',
+      empty: 'un lot de zéro ne se lance pas — tirez la réglette',
       cancel: 'annuler le lot',
       close: 'refermer',
       quantity: (output: string) => output,

@@ -112,7 +112,6 @@ export function LotControl({
             max={Math.max(1, maxOrder)}
             step={1}
             value={wanted}
-            disabled={maxOrder <= 0}
             onChange={(event) => setAsked(Number(event.target.value))}
             className="w-full cursor-pointer accent-[var(--ink)]"
           />
@@ -147,14 +146,18 @@ export function LotControl({
           </div>
 
           <div className="mt-[10px] flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              disabled={wanted <= 0}
-              onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
-              className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {fr.economy.lot.launch}
-            </button>
+            {/* Rien n'est grisé (ADR 0015) : à zéro, le bouton cède la place à ce qui manque. */}
+            {wanted > 0 ? (
+              <button
+                type="button"
+                onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
+                className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase"
+              >
+                {fr.economy.lot.launch}
+              </button>
+            ) : (
+              <span className="text-[11.5px] text-[var(--critical)]">{fr.economy.lot.empty}</span>
+            )}
             <button
               type="button"
               onClick={() => setSizing(false)}
