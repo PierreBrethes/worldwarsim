@@ -15,6 +15,7 @@ import type { PlayableRegion } from '@/domain/ids';
 import { frontPageOrder } from '@/domain/front-page';
 import { normalizeGameCode } from '@/domain/off-season';
 import { presenceOf } from '@/domain/operation-order';
+import { MODE_RULES } from '@/domain/season-mode';
 import { theatreById } from '@/domain/theatres';
 import { Wordmark } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
@@ -420,14 +421,6 @@ function storyOf(seat: Seat, now: number): Told {
     };
   }
   if (seat.status === 'launched') {
-    if (!seat.atWar) {
-      return {
-        kicker: `${mode} · ${seat.code}`,
-        headline: fr.home.latecomerHeadline,
-        stand: null,
-        action: fr.home.toLobby,
-      };
-    }
     const left =
       seat.launchedAt === null || seat.durationHours === null
         ? null
@@ -436,7 +429,7 @@ function storyOf(seat: Seat, now: number): Told {
       kicker:
         seat.mode === 'blitz'
           ? `${mode} · ${place}`
-          : `${mode} · ${fr.home.dayOf(seat.launchedAt ?? now, now)}`,
+          : `${mode} · ${fr.home.dayOf(seat.launchedAt ?? now, now, seat.durationHours ?? MODE_RULES.mondiale.clockHours)}`,
       headline: seat.defeated
         ? fr.home.observing(nationLabel(seat.nation))
         : seat.mode === 'blitz'

@@ -71,7 +71,7 @@ import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
-import { belligerentOf, isAtWar, seatsOf, warEntryOf } from './seats';
+import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
@@ -976,21 +976,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       status: objective.status,
       depot: objective.depot,
     })),
-    /**
-     * **Who came in after the launch, and when.** Everybody reads the same list: a new
-     * belligerent is not a secret — his flag is on the map from his first hour, and the
-     * journal is the only channel that says a nation has entered the war (nothing else on the
-     * board announces it).
-     *
-     * The launch itself is not in here. Those nations did not *enter* the war, they opened
-     * it, and a headline naming all of them at the same minute is a mobilisation order, not
-     * news.
-     */
-    warEntries: seats.flatMap((seat) => {
-      const at = warEntryOf(seat, season);
-      if (at === null || season.launchedAt === null || at <= season.launchedAt) return [];
-      return [{ nickname: seat.nickname, nation: seat.nation ?? seat.nickname, at }];
-    }),
     /**
      * **What happened to the player without him asking**, raw — a site finished, a company
      * delivered, a column landed, a point founded or put out of service, a thread a sentry

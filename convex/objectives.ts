@@ -315,7 +315,7 @@ async function raise(
  * tout ce qui demande « qui joue ici ».
  *
  * `enteredWarAt: null` explicitement, et ce n'est pas du zèle : sur une saison lancée, un champ
- * *absent* vaut « entré à l'ouverture » (`warEntryOf`), donc le silence en aurait fait un
+ * *absent* vaut « entré à l'ouverture » (`isAtWar`), donc le silence en aurait fait un
  * belligérant de plus au classement et à la presse.
  */
 export async function irregularSeat(

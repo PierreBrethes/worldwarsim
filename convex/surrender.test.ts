@@ -236,7 +236,7 @@ describe('capituler', () => {
     expect(seen.movements).toEqual([]);
   });
 
-  it('ne se capitule pas d’un salon, ni d’un siège encore à la porte', async () => {
+  it('ne se capitule pas d’un salon', async () => {
     const t = boot();
     const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     await expect(t.mutation(api.players.surrender, seat)).rejects.toThrow('SEASON_NOT_LAUNCHED');
@@ -248,9 +248,6 @@ describe('capituler', () => {
     await t.mutation(api.players.declareReady, { ...guest, ready: true });
     await t.mutation(api.seasons.launch, seat);
 
-    const latecomer = await joinSeat(t, code, 'Tard');
-    await expect(t.mutation(api.players.surrender, latecomer)).rejects.toThrow('NOT_AT_WAR');
-    // Et son siège ne gèle pas la fin : il ne compte pas parmi les belligérants debout.
     await t.mutation(api.players.surrender, guest);
     expect((await seasonOf(t)).winnerId).toBe((await playerOf(t, seat))._id);
   });

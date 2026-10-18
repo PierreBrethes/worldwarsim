@@ -185,8 +185,6 @@ export function adaptServerView(
       server.season.reduction === undefined
         ? null
         : { ...server.season.reduction, verdict: server.season.verdict ?? null },
-      // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
-      server.warEntries ?? [],
       server.notices ?? [],
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,

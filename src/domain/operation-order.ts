@@ -20,11 +20,21 @@ export type Settings = {
   readonly remind: boolean | null;
   readonly hqCaptureHours: number | null;
   readonly seatCap: number | null;
+  /** L'horloge d'une Mondiale, réglée au salon (ADR 0027 §4) ; `null` en Blitz, dont l'horloge
+   *  est celle du mode. */
+  readonly durationHours: number | null;
 };
 
 export const THEATRE_DRAW = 'draw';
 export const HQ_CAPTURE_HOURS = [12, 24] as const;
 export const DEFAULT_HQ_CAPTURE_HOURS = 12;
+/**
+ * **Les durées qu'une Mondiale offre** (ADR 0027 §4) : l'horloge sert de filet, la victoire aux
+ * points arrive normalement avant. Le défaut reste la semaine du mode (`MODE_RULES`).
+ *
+ * @a-mesurer posées pour la saison test, aucune saison jouée à une autre durée que sept jours
+ */
+export const MONDIALE_DURATION_DAYS = [3, 5, 7, 10, 14] as const;
 export const REMINDER_MINUTES = 15;
 /** Un battement toutes les 25 s au salon : trois manqués, on a quitté la table. */
 export const LOBBY_BEAT_SECONDS = 25;
@@ -34,6 +44,7 @@ export type SettingsRefusal =
   | CreationRefusal
   | 'SETTING_NOT_IN_MODE'
   | 'INVALID_CAPTURE_HOURS'
+  | 'INVALID_DURATION'
   | 'RENDEZVOUS_PAST'
   | 'SEATS_OUT_OF_RANGE'
   | 'THEATRE_TOO_SMALL';
@@ -54,7 +65,7 @@ export function settingsRefusalOf(
   if (created !== null) return created;
   if (
     blitz
-      ? settings.hqCaptureHours !== null
+      ? settings.hqCaptureHours !== null || settings.durationHours !== null
       : settings.scheduledAt !== null || settings.remind !== null
   ) {
     return 'SETTING_NOT_IN_MODE';
@@ -65,6 +76,13 @@ export function settingsRefusalOf(
     !HQ_CAPTURE_HOURS.some((hours) => hours === settings.hqCaptureHours)
   ) {
     return 'INVALID_CAPTURE_HOURS';
+  }
+  if (
+    !blitz &&
+    settings.durationHours !== null &&
+    !MONDIALE_DURATION_DAYS.some((days) => days * 24 === settings.durationHours)
+  ) {
+    return 'INVALID_DURATION';
   }
   if (
     settings.scheduledAt !== null &&

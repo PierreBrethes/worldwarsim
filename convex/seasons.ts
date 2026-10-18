@@ -4,25 +4,15 @@ import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import {
-  canJoinRegistration,
   gameCode,
   joinRefusalOf,
   normalizeGameCode,
   playableRegion,
-  registrationDeadline,
 } from '../src/domain/off-season';
 import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
-import {
-  accountOf,
-  everySeatOf,
-  isAtWar,
-  playerOf,
-  requirePlayable,
-  seatOf,
-  seatsOf,
-} from './seats';
+import { accountOf, everySeatOf, isAtWar, playerOf, seatOf, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
@@ -45,10 +35,8 @@ import {
 } from './constants';
 
 /**
- * **Le kit, et rien d'autre** — remis une fois, par les deux seules routes qui mènent à un
- * plateau : le lancement, pour tout le monde au salon, et l'entrée en guerre, pour qui arrive
- * après. Une seule écriture de la dotation, pour qu'un changement ne puisse pas atteindre une
- * route et manquer l'autre.
+ * **Le kit, et rien d'autre** — remis une fois, au lancement, à tout le monde au salon :
+ * personne n'entre après le départ (ADR 0027 §4).
  *
  * **Rien n'est planté ici** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2). Le quartier
  * général était posé d'office sur la capitale de 1940, et la compagnie d'infanterie avec lui ;
@@ -87,6 +75,7 @@ const settingsOf = (season: Doc<'seasons'>): Settings => ({
   remind: season.remind ?? null,
   hqCaptureHours: season.hqCaptureHours ?? null,
   seatCap: season.seatCap ?? null,
+  durationHours: modeOf(season.mode) === 'mondiale' ? season.durationHours : null,
 });
 
 const maximumOf = (season: Doc<'seasons'>): number => seatCapOf(settingsOf(season));
@@ -105,6 +94,7 @@ const SETTINGS_ARGS = {
   remind: v.optional(v.boolean()),
   hqCaptureHours: v.optional(v.number()),
   seatCap: v.optional(v.number()),
+  durationHours: v.optional(v.number()),
 };
 
 /** **Le rappel quinze minutes avant le rendez-vous** : un seul travail par saison. Tout
@@ -173,7 +163,7 @@ export const create = mutation({
     const seasonId = await ctx.db.insert('seasons', {
       code,
       status: 'lobby',
-      durationHours: MODE_RULES[mode].clockHours,
+      durationHours: settings.durationHours ?? MODE_RULES[mode].clockHours,
       mode,
       ...(mode === 'blitz' ? { theatre } : {}),
       ...stored(settings),
@@ -198,6 +188,7 @@ type Orders = {
   readonly remind?: boolean | undefined;
   readonly hqCaptureHours?: number | undefined;
   readonly seatCap?: number | undefined;
+  readonly durationHours?: number | undefined;
 };
 
 const settingsFrom = (mode: SeasonMode, theatre: string | undefined, orders: Orders): Settings => ({
@@ -207,6 +198,7 @@ const settingsFrom = (mode: SeasonMode, theatre: string | undefined, orders: Ord
   remind: orders.remind ?? null,
   hqCaptureHours: orders.hqCaptureHours ?? null,
   seatCap: orders.seatCap ?? null,
+  durationHours: orders.durationHours ?? null,
 });
 
 const stored = (settings: Settings) => ({
@@ -235,6 +227,7 @@ export const configure = mutation({
       ...(changes.remind === undefined ? {} : { remind: changes.remind }),
       ...(changes.hqCaptureHours === undefined ? {} : { hqCaptureHours: changes.hqCaptureHours }),
       ...(changes.seatCap === undefined ? {} : { seatCap: changes.seatCap }),
+      ...(changes.durationHours === undefined ? {} : { durationHours: changes.durationHours }),
     };
     const present = await seatsOf(ctx, season._id);
     const refusal = settingsRefusalOf(next, {
@@ -249,6 +242,7 @@ export const configure = mutation({
       remind: next.remind ?? undefined,
       hqCaptureHours: next.hqCaptureHours ?? undefined,
       seatCap: next.seatCap ?? undefined,
+      ...(next.durationHours === null ? {} : { durationHours: next.durationHours }),
     });
     for (const entry of present) if (entry.ready) await ctx.db.patch(entry._id, { ready: false });
     const patched = await ctx.db.get(season._id);
@@ -324,23 +318,15 @@ export const join = mutation({
     if (!season) fail('UNKNOWN_GAME_CODE');
     /**
      * **Les refus sont une seule fonction**, lue ici et par `seasons.invitation` (ADR 0015) :
-     * dans l'ordre, la place déjà tenue, la saison close, la fenêtre d'inscription, la nation
-     * libre, le plafond de places. Le détail de chaque ordre est écrit à côté d'elle, dans le
-     * domaine.
-     *
-     * The theatre is the one frozen at launch — a latecomer does not redraw it. It does not
-     * narrow the eight nations *yet*: the day a theatre carries its own roster, `freeNations`
-     * is where it is read.
+     * dans l'ordre, la place déjà tenue, la saison close, le départ, le plafond de places. Le
+     * détail de chaque ordre est écrit à côté d'elle, dans le domaine.
      */
     const present = await seatsOf(ctx, season._id);
     const maximum = maximumOf(season);
     const refusal = joinRefusalOf({
       seated: (await seatOf(ctx, account, season._id)) !== null,
       status: season.status,
-      launchedAt: season.launchedAt,
-      now: Date.now(),
       seats: present.length,
-      freeNations: freeNations(present).length,
       maximum,
       mode: modeOf(season.mode),
     });
@@ -388,7 +374,6 @@ export const invitation = query({
         seats: [],
         status: null,
         durationHours: null,
-        registrationClosesAt: null,
         seated: null,
       };
     }
@@ -396,12 +381,9 @@ export const invitation = query({
     const mine = account === null ? null : await seatOf(ctx, account, season._id);
     const present = await seatsOf(ctx, season._id);
     const maximum = maximumOf(season);
-    /** La table ne se montre à un inconnu que tant qu'on peut s'y asseoir : au salon, ou dans la
-     *  fenêtre d'inscription d'une Mondiale. Après, ce n'est plus public. */
-    const doorOpen =
-      season.status === 'lobby' ||
-      (modeOf(season.mode) === 'mondiale' &&
-        canJoinRegistration(season.status, season.launchedAt, Date.now()));
+    /** La table ne se montre à un inconnu que tant qu'on peut s'y asseoir, au salon. Après le
+     *  départ, ce n'est plus public. */
+    const doorOpen = season.status === 'lobby';
     return {
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
@@ -416,10 +398,7 @@ export const invitation = query({
       refusal: joinRefusalOf({
         seated: mine !== null,
         status: season.status,
-        launchedAt: season.launchedAt,
-        now: Date.now(),
         seats: present.length,
-        freeNations: freeNations(present).length,
         maximum,
         mode: modeOf(season.mode),
       }),
@@ -428,11 +407,7 @@ export const invitation = query({
       maximum,
       status: season.status,
       durationHours: season.durationHours,
-      registrationClosesAt: registrationDeadline(season.launchedAt),
-      seated:
-        mine === null
-          ? null
-          : { seasonId: season._id, status: season.status, atWar: isAtWar(mine, season) },
+      seated: mine === null ? null : { seasonId: season._id, status: season.status },
     };
   },
 });
@@ -486,9 +461,6 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
     nickname: player.nickname,
     creator: player.creator,
     nation: player.nation,
-    /** A seat on a running season whose owner has not entered the war goes back to the lobby,
-     *  not to the board: he holds no nation, and the board could not draw him. */
-    atWar: isAtWar(player, season),
     /** **« Défaite : observer »**, et c'est tout ce que la ligne d'accueil change : elle ouvre
      *  le même plateau, en l'état. Un observateur n'est pas sorti de sa saison — il la regarde. */
     defeated: player.defeated ?? false,
@@ -520,12 +492,9 @@ export const lobby = query({
       theatre: season.theatre ?? null,
       launchRefusal: season.launchRefusal ?? null,
       maximum: maximumOf(season),
-      registrationClosesAt:
-        season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
       durationHours: season.durationHours,
       orders: ordersOf(season),
-      /** Frozen at launch, and only widening while the lobby is still open: a latecomer joins a
-       *  theatre, he does not redraw it. */
+      /** Frozen at launch, and only widening while the lobby is still open. */
       playableRegion: season.playableRegion ?? playableRegion(present.length),
       me: {
         nickname: player.nickname,
@@ -533,9 +502,6 @@ export const lobby = query({
         nation: player.nation,
         ready: player.ready,
         restWindow: player.restWindow,
-        /** What tells the lobby which of its two faces to wear: the one before the launch, or
-         *  the entry into war of somebody who arrived after it (`enterWar`). */
-        atWar: isAtWar(player, season),
       },
       // The id travels so the lobby list has a stable React key: nicknames are not unique
       // (nothing forbids two "Pierre"), and keying on them collapses two rows into one.
@@ -549,9 +515,6 @@ export const lobby = query({
         mine: entry._id === player._id,
         restWindow: entry.restWindow,
         seenAt: seenAtOf(entry, season),
-        /** On a running season "prêt" means nothing any more: what a row says is whether that
-         *  seat is a nation in the field or somebody still at the door. */
-        atWar: isAtWar(entry, season),
       })),
     };
   },
@@ -651,37 +614,6 @@ export const launch = mutation({
       modeOf(season.mode) === 'blitz' ? internal.blitz.place : internal.objectives.place,
       { seasonId: season._id },
     );
-  },
-});
-
-/**
- * **The entry into war of a latecomer** — the launch he missed, for him alone. He is endowed
- * exactly as the others were (`endow`): same kit, same foundation still owed — headquarters included
- * since the decision of 13/09 —,
- * and no compensation for the hours he was not there. The measure of that handicap will come
- * from a real case, not from a number invented here.
- *
- * No "ready" and no relaunch: the launch happened, the season is running, and nobody waits for
- * him. What he has to have is what a seat needs to become a nation — a free flag.
- */
-export const enterWar = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons') },
-  handler: async (ctx, { token, seasonId }) => {
-    const { player, season } = await playerOf(ctx, token, seasonId);
-    requirePlayable(player, season);
-    /** Twice-clicked is not an error: the second call finds a belligerent and hands out
-     *  nothing. Answering with a refusal would be telling him his own entry failed. */
-    if (isAtWar(player, season)) return;
-    if (modeOf(season.mode) === 'blitz') fail('BLITZ_STARTED');
-    if (player.nation === null) fail('NATION_REQUIRED');
-
-    const present = await seatsOf(ctx, season._id);
-    const holder = present.find(
-      (entry) => entry.nation === player.nation && entry._id !== player._id,
-    );
-    if (holder) fail('NATION_TAKEN', { nation: player.nation, nickname: holder.nickname });
-
-    await endow(ctx, player, season, Date.now());
   },
 });
 

@@ -74,6 +74,33 @@ describe('the operation order', () => {
     expect(lobby.maximum).toBe(5);
   });
 
+  /** **La durée est un réglage du salon** (ADR 0027 §4) : la Mondiale la tient de sa fondation
+   *  et le fondateur la reprend jusqu'au lancement ; la Blitz n'en a pas d'autre que la sienne. */
+  it('founds a Mondiale on the duration asked, lets the founder change it, and refuses one on a Blitz', async () => {
+    const t = boot();
+    const token = await signIn(t, 'Ysé');
+    const { seasonId } = await t.mutation(api.seasons.create, {
+      token,
+      compensation: 0.5,
+      mode: 'mondiale',
+      durationHours: 5 * 24,
+    });
+    const seat = { token, seasonId };
+    expect((await t.query(api.seasons.lobby, seat)).durationHours).toBe(120);
+
+    await t.mutation(api.seasons.configure, { ...seat, durationHours: 14 * 24 });
+    expect((await t.query(api.seasons.lobby, seat)).durationHours).toBe(336);
+    await expect(t.mutation(api.seasons.configure, { ...seat, durationHours: 30 })).rejects.toThrow(
+      /INVALID_DURATION/,
+    );
+
+    const { founder } = await blitz(t);
+    await expect(
+      t.mutation(api.seasons.configure, { ...founder, durationHours: 168 }),
+    ).rejects.toThrow(/SETTING_NOT_IN_MODE/);
+    expect((await t.query(api.seasons.lobby, founder)).durationHours).toBe(2);
+  });
+
   it('is changed by the founder alone, before the launch, and every change lifts the readies', async () => {
     const t = boot();
     const { founder, code } = await blitz(t);
@@ -151,7 +178,6 @@ describe('the operation order', () => {
     const lobby = await t.query(api.seasons.lobby, founder);
     expect(lobby.status).toBe('launched');
     expect(lobby.players.map((player) => player.nickname)).toEqual(['Koval', 'Bastien', 'Lise']);
-    expect(lobby.players.every((player) => player.atWar)).toBe(true);
   });
 
   it('gives an absentee without a nation the first free one once the hour has passed', async () => {

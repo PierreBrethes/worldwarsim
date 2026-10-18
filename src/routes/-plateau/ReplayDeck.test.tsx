@@ -28,7 +28,12 @@ const combat: CombatReport = {
 };
 
 const [fought, entered] = journalDispatches([combat], null, [
-  { nickname: 'Hans', nation: 'germany', at: combat.at - 1000 },
+  {
+    kind: 'constructionCancelled',
+    at: combat.at - 1000,
+    building: 'farm',
+    regionName: 'Marne',
+  },
 ]);
 
 it('porte « rejouer » sur une dépêche de combat, pas ailleurs, et dit le refus sur place', async () => {

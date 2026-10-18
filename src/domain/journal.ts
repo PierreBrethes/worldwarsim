@@ -15,7 +15,6 @@ import type {
   Notice,
   ReductionBoard,
   SeasonVerdict,
-  WarEntry,
 } from './player-view';
 
 /**
@@ -59,7 +58,6 @@ export function journalDispatches(
         readonly verdict?: SeasonVerdict | null;
       })
     | null,
-  entries: ReadonlyArray<WarEntry>,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
@@ -107,24 +105,12 @@ export function journalDispatches(
         ],
   );
 
-  /**
-   * **One more nation walks into the war** — a headline, and critical like everything else that
-   * changes the table: this is the only announcement a player ever gets of it, and it carries
-   * the hour because a late entry is read by the hour it happened.
-   */
-  const arrivals: ReadonlyArray<Written> = entries.map((entry) => ({
-    at: entry.at,
-    severity: 'critical' as const,
-    kind: 'warEntry' as const,
-    text: fr.journal.warEntry(entry.nickname, nationName(entry.nation)),
-  }));
-
   const filed: ReadonlyArray<Written> = notices.map((notice) => ({
     ...written(notice),
     place: notice.place ?? null,
   }));
 
-  const all = [...concluded, ...reductions, ...arrivals, ...filed, ...reports.map(fromCombat)];
+  const all = [...concluded, ...reductions, ...filed, ...reports.map(fromCombat)];
 
   return all
     .sort((a, b) => b.at - a.at)

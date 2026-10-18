@@ -193,27 +193,6 @@ describe('the simplified Domination', () => {
   });
 
   /**
-   * **The threshold is read at the evaluation, never at the launch** — which is what makes a
-   * season joinable while it runs (`seasons.enterWar`). Three nations ask for one scalp; the
-   * hour a fourth enters the war, they ask for two. Sitting in the lobby of a running season
-   * moves nothing: a seat is not a belligerent.
-   */
-  it('recounts the threshold when a nation enters the war after the launch', async () => {
-    const t = boot();
-    const [creator] = await launchedSeason(t, 3);
-    const targetNow = async () => (await t.query(api.victory.board, creator!)).target;
-    expect(await targetNow()).toBe(1);
-
-    const { code } = await seasonOf(t);
-    const late = await joinSeat(t, code, 'Tard');
-    expect(await targetNow()).toBe(1);
-
-    await t.mutation(api.players.reserveNation, { ...late, nation: 'japan' });
-    await t.mutation(api.seasons.enterWar, late);
-    expect(await targetNow()).toBe(2);
-  });
-
-  /**
    * **La saison se gagne sur un ordre, et sur rien d'autre** (ADR 0024 §3, révision de l'ADR
    * 0019 §3). Un camp gagnait autrefois la passe qu'une marche imprudente lui amenait, et son
    * maître avançait sa condition en dormant. L'embuscade automatique est retirée : ce qui réduit

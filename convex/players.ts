@@ -55,10 +55,8 @@ export const beatLobby = mutation({
 });
 
 /**
- * **The choices of the lobby seal at the player's own entry into war**, not at the season's
- * launch. For everybody present at the launch the two hours are the same one; for a latecomer
- * they are not, and he has a nation to pick on a season already running
- * (`seasons.enterWar`).
+ * **The choices of the lobby seal at the player's entry into war** — the launch, since nobody
+ * enters after it (ADR 0027 §4).
  *
  * A concluded season answers with its own code: it is not "already launched", it is over.
  */

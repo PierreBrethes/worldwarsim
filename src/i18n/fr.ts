@@ -537,7 +537,7 @@ export const fr = {
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
     REGISTRATION_CLOSED: () =>
-      'les nouvelles inscriptions sont closes — cette place n’a pas été créée',
+      'la Mondiale est lancée — elle se joue entre ceux qui étaient au départ',
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
@@ -564,6 +564,7 @@ export const fr = {
       `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans les attendre`,
     SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
     INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
+    INVALID_DURATION: () => 'une Mondiale dure 3, 5, 7, 10 ou 14 jours',
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
@@ -951,8 +952,11 @@ export const fr = {
       ['nations', 'identiques : drapeau et figurines'],
       ['victoire', 'prendre le QG adverse ; à 2 h, le plus gros revenu'],
     ],
-    mondialeOrder: (capture: number): ReadonlyArray<readonly [string, string]> => [
-      ['mode', 'Mondiale — 7 jours, deux ou trois visites par jour'],
+    mondialeOrder: (
+      capture: number,
+      durationHours: number,
+    ): ReadonlyArray<readonly [string, string]> => [
+      ['mode', `Mondiale — ${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
       ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
       ['vos engagements', 'une plage de repos de 7 h, publique'],
@@ -1030,11 +1034,12 @@ export const fr = {
     waitingOthers: 'on attend les autres',
     blitzRunning: (theatre: string) => `La Blitz ${ofPlace(theatre)} est en cours`,
     mondialeRunning: (nation: string) => `La guerre court : ${nation} attend vos ordres`,
-    latecomerHeadline: 'La saison court sans vous : choisissez votre nation et entrez',
     observing: (nation: string) => `Défaite : vous observez la fin, depuis ${nation}`,
     endsIn: (left: string) => `fin dans ${left}`,
-    dayOf: (launchedAt: number, now: number) =>
-      `jour ${num(Math.min(7, Math.floor((now - launchedAt) / 86_400_000) + 1))} sur 7`,
+    dayOf: (launchedAt: number, now: number, durationHours: number) => {
+      const days = Math.ceil(durationHours / 24);
+      return `jour ${num(Math.min(days, Math.floor((now - launchedAt) / 86_400_000) + 1))} sur ${num(days)}`;
+    },
     day: (at: number) =>
       new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(new Date(at)),
     joinTable: 'rejoindre la table',
@@ -1063,13 +1068,8 @@ export const fr = {
     destroyConfirm: 'confirmer — tout est effacé',
     destroyCancel: 'annuler',
     destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
-    /** Un retardataire d'une Mondiale lancée : rien à déclarer prêt, personne à attendre. */
-    enterWar: 'entrer en guerre — irréversible',
-    enterWarSeedNote:
-      'La saison court sans vous : vous entrez avec la dotation de départ, sans compensation pour les heures écoulées.',
-    pace2: '2 heures',
-    pace48: '48 heures',
-    pace168: '7 jours',
+    pace: (hours: number) =>
+      hours < 72 ? `${num(hours)} heures` : `${num(Math.round(hours / 24))} jours`,
     paceNone: 'sans horloge',
   },
 
@@ -1093,9 +1093,9 @@ export const fr = {
         ],
       },
       mondiale: {
-        span: 'une semaine',
+        span: 'quelques jours',
         facts: [
-          ['horloge', '7 jours, deux ou trois visites par jour'],
+          ['horloge', '3 à 14 jours, deux ou trois visites par jour'],
           ['table', '2 à 8 joueurs, une nation et son atout'],
           ['terrain', 'le monde entier'],
           ['victoire', 'réduire la moitié des adversaires'],
@@ -1123,10 +1123,14 @@ export const fr = {
     customLabel: 'date et heure du rendez-vous',
     localTime: 'votre heure locale',
     remind: 'prévenir chaque joueur quinze minutes avant (notification)',
+    durationTitle: 'La durée',
+    durationNote:
+      'L’horloge sert de filet : qui tient quatre points stratégiques vingt-quatre heures l’emporte avant.',
     captureTitle: 'La capture d’un QG',
     captureNote:
       'Le temps de capturer un quartier général à pleine force. Elle s’arrête pendant le repos du défenseur.',
     hours: (hours: number) => `${num(hours)} heures`,
+    days: (days: number) => `${num(days)} jours`,
     captureTag: (hours: number) =>
       hours === 12 ? 'par défaut — la semaine bouge' : 'une journée pour répondre',
     seatsTitle: 'Les places',
@@ -1251,7 +1255,7 @@ export const fr = {
         month: 'long',
       }).format(new Date(at));
     },
-    worldClock: 'le monde · sept jours',
+    worldClock: (durationHours: number) => `le monde · ${clockLabel(durationHours)}`,
     captureLine: (hours: number) => `capture d’un QG en ${num(hours)} heures`,
     invite: (free: number) => `inviter · ${num(free)} place${plural(free, '', 's')}`,
     inviteLabel: 'inviter',
@@ -1330,6 +1334,8 @@ export const fr = {
     seatMore: 'une place de plus',
     victory: 'victoire',
     blitzVictory: 'prendre le QG adverse',
+    duration: 'durée',
+    durationNet: 'l’horloge sert de filet : quatre points tenus 24 h l’emportent avant',
     hqCapture: 'capture d’un QG',
     captureRest: 'suspendue pendant le repos du défenseur',
     remindShort: 'rappel 15 min avant',
@@ -1348,12 +1354,15 @@ export const fr = {
       ],
       ['après le lancement', 'la table se ferme'],
     ] as ReadonlyArray<readonly [string, string]>,
-    mondialeMore: (founder: string | null): ReadonlyArray<readonly [string, string]> => [
-      ['horloge', '7 jours, deux ou trois visites par jour'],
+    mondialeMore: (
+      founder: string | null,
+      durationHours: number,
+    ): ReadonlyArray<readonly [string, string]> => [
+      ['horloge', `${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
       ['nations', 'une chacune, avec son atout'],
       ['victoire', 'réduire la moitié des adversaires'],
-      ['inscriptions', 'encore 2 h après le lancement'],
+      ['après le départ', 'la table se ferme'],
       ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
     ],
     generalChannel: 'canal général',
@@ -1415,14 +1424,16 @@ export const fr = {
       mondialeLines: ({
         from,
         capture,
+        days,
         seats,
       }: {
         from: string;
         capture: number;
+        days: number;
         seats: { taken: number | null; cap: number };
       }) => [
         `${from} vous convie`,
-        'Mondiale STOP sept jours STOP le monde entier',
+        `Mondiale STOP ${spelled(days)} jours STOP le monde entier`,
         'Départ quand la table est prête',
         `Capture d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
         seats.taken === null
@@ -1464,17 +1475,11 @@ export const fr = {
         found: c.theatre === null ? 'fonder une Blitz' : `fonder une Blitz ${ofPlace(c.theatre)}`,
       }),
       REGISTRATION_CLOSED: () => ({
-        title: 'Inscriptions closes',
-        lines: ['Regrettons', 'Les inscriptions sont closes', 'La Mondiale court déjà'],
+        title: 'Partie commencée',
+        lines: ['Regrettons', 'La Mondiale a commencé', 'Elle ne se rejoint pas en cours'],
         paragraph:
-          'Une Mondiale admet les retardataires deux heures après son lancement, pas au-delà.',
+          'Une Mondiale se joue entre ceux qui étaient au départ : la table s’est fermée au lancement.',
         found: 'composer une Mondiale',
-      }),
-      NO_FREE_NATION: () => ({
-        title: 'Plus de nation libre',
-        lines: ['Regrettons', 'Les huit nations sont prises', 'La saison est complète'],
-        paragraph: 'Toutes les nations sont tenues : il n’y a plus de drapeau à vous donner.',
-        found: null,
       }),
       SEASON_CONCLUDED: () => ({
         title: 'Saison conclue',
@@ -2139,7 +2144,6 @@ export const fr = {
     dispatches: {
       seasonConcluded: 'saison close',
       reduction: 'réduction',
-      warEntry: 'entrée en guerre',
       assault: 'assaut mené',
       attacked: 'attaque subie',
       construction: 'chantier',
@@ -2208,10 +2212,6 @@ export const fr = {
 
   journal: {
     editionOf: (time: string) => `édition de ${time}`,
-    /** La manchette d'une entrée en guerre — le seul canal qui l'annonce (aucun autre écran ne
-     *  dit qu'un belligérant de plus est entré). */
-    warEntry: (nickname: string, nation: string) =>
-      `${nation.toUpperCase()} ENTRE EN GUERRE — ${nickname} rejoint le conflit`,
     /** Une entrée de la file annulée à son tour : le droit avait disparu entre la mise en file
      *  et le démarrage. La dépêche dit la restitution, sinon le joueur cherche sa matière. */
     constructionCancelled: (building: string, region: string) =>
@@ -4214,9 +4214,7 @@ export const placeLabel = (mode: SeasonMode, theatre: string | null, region: str
  * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
  */
 export function clockLabel(durationHours: number | null): string {
-  if (durationHours === null) return fr.lobby.paceNone;
-  if (durationHours === 2) return fr.lobby.pace2;
-  return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
+  return durationHours === null ? fr.lobby.paceNone : fr.lobby.pace(durationHours);
 }
 
 /** « ce soir, 21:00 » : le rendez-vous d'une Blitz, dans l'heure de qui le lit. */

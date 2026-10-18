@@ -509,8 +509,8 @@ export const NOTICE = v.union(
    * deux, et déposées chez tout le monde : qui ne joue plus change la table, et qui commande la
    * partie décide de sa fin — aucun des deux n'est un secret que le brouillard aurait à garder.
    *
-   * `nation` porte le drapeau du joueur, ou son pseudonyme quand il n'en a pas pris : c'est la
-   * même paire que `warEntries` sert, et le journal n'a pas d'autre nom à donner à un siège.
+   * `nation` porte le drapeau du joueur, ou son pseudonyme quand il n'en a pas pris : le journal
+   * n'a pas d'autre nom à donner à un siège.
    */
   v.object({
     ...NOTICE_HEAD,

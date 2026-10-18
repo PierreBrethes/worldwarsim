@@ -37,7 +37,6 @@ const OPEN = {
   maximum: 8,
   status: 'lobby',
   durationHours: 48,
-  registrationClosesAt: null,
   seated: null,
 };
 
@@ -152,7 +151,6 @@ const context = { founder: 'Pierre', maximum: 8, theatre: null };
 it.each([
   'UNKNOWN_GAME_CODE',
   'SEASON_CONCLUDED',
-  'NO_FREE_NATION',
   'LOBBY_FULL',
   'REGISTRATION_CLOSED',
   'BLITZ_STARTED',

@@ -104,8 +104,8 @@ export async function playingSeason(
 export async function belligerentOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
   const seated = await playerOf(ctx, token, seasonId);
   requireStarted(seated.season);
-  /** A seat taken on a running season is not a nation yet: its owner holds no flag, and the
-   *  board has nothing to draw. He is sent back to the lobby, to enter the war (`enterWar`). */
+  /** Only the irregular seat is seated and never at war: nobody enters after the start
+   *  (ADR 0027 §4). */
   if (!isAtWar(seated.player, seated.season)) fail('NOT_AT_WAR');
   return seated;
 }
@@ -117,11 +117,10 @@ export function requireStarted(season: Doc<'seasons'>): void {
 /**
  * **When this seat entered the war**, `null` while it is still out of it. The one reader of the
  * raw field, because the raw field has three states and only two meanings: a row written before
- * the latecomer landed carries **no** field, and its player entered the war with everybody else
- * at launch. An explicit `null` is the other thing entirely — a seat taken on a running season
- * whose owner is still picking his nation.
+ * the field carries **no** field, and its player entered the war with everybody else at launch.
+ * An explicit `null` is the other thing entirely — a lobby seat, or the irregular seat.
  */
-export function warEntryOf(player: Doc<'players'>, season: Doc<'seasons'>): number | null {
+function warEntryOf(player: Doc<'players'>, season: Doc<'seasons'>): number | null {
   if (player.enteredWarAt !== undefined) return player.enteredWarAt;
   return season.status === 'lobby' ? null : season.launchedAt;
 }

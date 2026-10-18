@@ -227,7 +227,6 @@ const snapshot = {
         detectorRegion: null,
       },
     ],
-    warEntries: [],
     reports: [],
     buildCatalog: {},
     opponents: [],

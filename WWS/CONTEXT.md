@@ -10,12 +10,12 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Saison** | Une partie complète, de la création au wipe. Elle se joue dans un **mode**. |
 | **Mode** | La façon dont une saison se joue, sur le même support (carte, unités, brouillard) : **Blitz** ou **Mondiale**. Les deux modes partagent la capture et le combat ; ils diffèrent par l'économie, la victoire et l'horloge. *(décision du 14/10/2026)* |
 | **Blitz** | Le mode court : 1 à 2 h, 2 à 4 joueurs présents ensemble, sur un théâtre. Une seule ressource, les fonds ; on ne bâtit rien, on capture. Gagne qui prend le QG adverse. Jamais « partie en temps réel » : c'est une partie **synchrone**. |
-| **Mondiale** | Le mode long : 7 jours, asynchrone, sur le monde entier. On bâtit, on élève, on capture ; on gagne par les points stratégiques ou par les QG. |
+| **Mondiale** | Le mode long : 3 à 14 jours réglés au salon, asynchrone, sur le monde entier. On bâtit, on élève, on capture ; on gagne par les points stratégiques ou par les QG. |
 | **Théâtre** | La portion de carte où se joue une Blitz (Europe, Pacifique…), tirée ou choisie au salon. |
 | **Compte** | Identité durable : pseudo unique et mot de passe, sans e-mail, conservée après la suppression des saisons. **Un compte possède ses places** — au plus une par saison — et l'accueil liste les siennes. *(ADR 0022)* |
 | **Place** | Le siège d'un compte dans une saison. Elle porte le pseudo copié à l'entrée et figé pour la saison, la nation, la plage de repos. On la quitte d'un écran, jamais du serveur : seule la destruction de la saison l'efface. |
 | **Session** | Accès à un compte par un jeton de 32 octets aléatoires. Plusieurs sessions indépendantes, sans expiration — un second appareil ouvre les mêmes places ; on déconnecte une session, ou on les révoque toutes lors d'une récupération admin. Le jeton de partie n'existe plus : chaque ordre voyage en `{ session, saison }`. |
-| **Horloge** | La durée d'une saison : 2 h en Blitz, 7 jours en Mondiale, toujours affichée. « Sans horloge » disparaît. *(décision du 14/10/2026 ; le code sert encore l'horloge optionnelle du 27/08)* |
+| **Horloge** | La durée d'une saison, toujours affichée : 2 h en Blitz ; en Mondiale, un réglage du salon (3 à 14 jours, 7 par défaut) qui sert de filet — la victoire aux points arrive normalement avant. *(décisions du 14/10 et du 17/10/2026, ADR 0027 §4)* |
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
 | **Pays neutre** | Un pays non joué. Support d'avant-postes, partenaire commercial, source de mercenaires. |

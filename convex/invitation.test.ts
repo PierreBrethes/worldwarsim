@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import { MAX_PLAYERS } from './constants';
 import { NATIONS } from '../src/domain/nations';
-import { REGISTRATION_WINDOW_HOURS } from '../src/domain/off-season';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, signIn, type Seat } from './seats.fixture';
@@ -73,7 +72,6 @@ describe('seasons.invitation', () => {
       seats: [{ nickname: 'Pierre', nation: null, seenAt: null }],
       status: 'lobby',
       durationHours: 168,
-      registrationClosesAt: null,
       seated: null,
     });
   });
@@ -96,7 +94,7 @@ describe('seasons.invitation', () => {
     const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     const answer = await t.query(api.seasons.invitation, { code, token: seat.token });
 
-    expect(answer.seated).toEqual({ seasonId: seat.seasonId, status: 'lobby', atWar: false });
+    expect(answer.seated).toEqual({ seasonId: seat.seasonId, status: 'lobby' });
     expect(answer.refusal).toBe('SEAT_TAKEN');
   });
 
@@ -109,23 +107,12 @@ describe('seasons.invitation', () => {
     expect(typed.refusal).toBeNull();
   });
 
-  it('names the hour the registration closes on a running season', async () => {
-    const t = boot();
-    const { creator, code } = await lobbyOf(t, 2);
-    await t.mutation(api.seasons.launch, creator);
-
-    const answer = await t.query(api.seasons.invitation, { code });
-    expect(answer.status).toBe('launched');
-    expect(answer.registrationClosesAt).toBe(NOON + REGISTRATION_WINDOW_HOURS * 3_600_000);
-  });
-
   it('shows the table to a stranger only while a seat can still be taken', async () => {
     const t = boot();
     const { creator, code } = await lobbyOf(t, 2);
-    await t.mutation(api.seasons.launch, creator);
     expect((await t.query(api.seasons.invitation, { code })).seats).toHaveLength(2);
 
-    vi.setSystemTime(NOON + (REGISTRATION_WINDOW_HOURS + 1) * 3_600_000);
+    await t.mutation(api.seasons.launch, creator);
     expect((await t.query(api.seasons.invitation, { code })).seats).toEqual([]);
   });
 });
@@ -149,21 +136,11 @@ describe('the invitation and join refuse alike', () => {
   > = [
     ['an open lobby', null, async (t) => (await lobbyOf(t, 2)).code],
     [
-      'a launched season inside the window',
-      null,
-      async (t) => {
-        const { creator, code } = await lobbyOf(t, 2);
-        await t.mutation(api.seasons.launch, creator);
-        return code;
-      },
-    ],
-    [
-      'a launched season after the window',
+      'a launched season',
       'REGISTRATION_CLOSED',
       async (t) => {
         const { creator, code } = await lobbyOf(t, 2);
         await t.mutation(api.seasons.launch, creator);
-        vi.setSystemTime(NOON + (REGISTRATION_WINDOW_HOURS * 3_600_000 + 1));
         return code;
       },
     ],
@@ -187,15 +164,6 @@ describe('the invitation and join refuse alike', () => {
         return code;
       },
     ],
-    [
-      'a running season with no free nation left',
-      'NO_FREE_NATION',
-      async (t) => {
-        const { creator, code } = await lobbyOf(t, NATIONS.length);
-        await t.mutation(api.seasons.launch, creator);
-        return code;
-      },
-    ],
   ];
 
   it.each(scenarios)('%s', async (_name, expected, build) => {
@@ -212,7 +180,6 @@ describe('the invitation and join refuse alike', () => {
     const t = boot();
     const { creator, code } = await lobbyOf(t, 2);
     await t.mutation(api.seasons.launch, creator);
-    vi.setSystemTime(NOON + (REGISTRATION_WINDOW_HOURS * 3_600_000 + 1));
 
     const announced = (await t.query(api.seasons.invitation, { code, token: creator.token }))
       .refusal;

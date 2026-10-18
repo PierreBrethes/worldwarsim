@@ -28,7 +28,7 @@ const attacked: CombatReport = {
   reduced: null,
 };
 
-const [dispatch] = journalDispatches([attacked], null, []);
+const [dispatch] = journalDispatches([attacked], null);
 
 it('dit les pertes et l’avant-poste désactivé, sans nommer l’assaillant d’un compte rendu d’avant', () => {
   render(
@@ -61,7 +61,7 @@ it('nomme la nation et les rôles qu’on a eus en face au feu (F1)', () => {
   };
   render(
     <DispatchSheet
-      dispatch={journalDispatches([seen], null, [])[0]!}
+      dispatch={journalDispatches([seen], null)[0]!}
       combat={seen}
       onOpenGarrison={() => {}}
       onOpenJournal={() => {}}
