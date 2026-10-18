@@ -81,12 +81,6 @@ export function adaptServerView(
       resources: server.me.resources,
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
-      /** A deployment one version behind serves no site at all: no budget, hence nothing
-       *  offered — never a placement the server would then refuse after the click. */
-      siteSlots: server.me.siteSlots ?? [],
-      // A deployment ahead of the client answers without the field: no relief served, no
-      // sentence — the site then says what it always said, and nothing breaks.
-      homeSlotRelief: server.me.homeSlotRelief ?? null,
       tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
       foundation: server.me.foundation ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,

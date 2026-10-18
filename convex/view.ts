@@ -50,7 +50,7 @@ import {
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
-import { homeSlotReliefOf, queueOf } from './constructions';
+import { queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
@@ -489,30 +489,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        *  Blitz, le QG que la carte de départ a posé. */
       openingPoint:
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
-      /**
-       * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
-       * per outpost. Without them the construction screen cannot tell what it may offer, and
-       * would propose a building the server then refuses — worse than a greyed-out line,
-       * because the refusal only lands after the click.
-       *
-       * `taken` counts what **stands**; the prepaid queue is added by the screen, which holds
-       * it in `constructionQueue`. Two servings of one count would diverge, and the exemption
-       * of the foundation is the server's own reading of its own debt.
-       */
-      siteSlots: sites.budgets.map((budget) => ({
-        site: siteRef(budget.site)!,
-        taken: budget.taken,
-        total: budget.total,
-      })),
-      /**
-       * **What the next headquarters level would carry at home**, `null` at the top of the
-       * ladder. Served rather than derived on the client for the reason the placements
-       * themselves are: the line that says "un quartier général niveau 2 les porte à 4" and
-       * the refusal that raised it have to be the same two numbers, and a client-side copy of
-       * `homeSlots` is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché
-       * sans sa condition, et une condition qui se chiffre est un plan).
-       */
-      homeSlotRelief: homeSlotReliefOf(hqLevel),
       /**
        * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
        * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the

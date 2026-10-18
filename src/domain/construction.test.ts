@@ -33,8 +33,6 @@ const site = (overrides: Partial<Site> = {}): Site => ({
   coastal: false,
   standing: null,
   site: { outpostId: null },
-  taken: 2,
-  slots: 5,
   hqLevel: 1,
   stocks: RICH,
   constructionHere: false,
@@ -60,7 +58,7 @@ describe('the rest of the catalogue', () => {
       { hqLevel: 0 },
       { standing: 'farm' as const },
       { constructionHere: true },
-      { taken: 5, slots: 5 },
+      { stocks: BROKE },
     ]) {
       const offered = keysOn(overrides);
       const blocked = blockedKeys(overrides);
@@ -68,10 +66,9 @@ describe('the rest of the catalogue', () => {
     }
   });
 
-  // A ceiling and an empty warehouse are holds, not facts about the ground: they must not
-  // move a single line onto the shelf, or the panel would teach the region wrong.
+  // An empty warehouse is a hold, not a fact about the ground: it must not move a single
+  // line onto the shelf, or the panel would teach the region wrong.
   it('leaves a held line in the offer rather than on the shelf', () => {
-    expect(blockedKeys({ taken: 5, slots: 5 })).toEqual(blockedKeys());
     expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
   });
 
@@ -180,12 +177,6 @@ describe('what a region can carry', () => {
 });
 
 describe('what merely holds a line back', () => {
-  it('keeps the lines when the ceiling is reached, and names the hold', () => {
-    const options = buildableOn(site({ taken: 5, slots: 5 }), CATALOG);
-    expect(options.length).toBeGreaterThan(0);
-    expect(options.every((option) => option.hold === 'siteSlots')).toBe(true);
-  });
-
   it('holds only what the stocks cannot pay for', () => {
     const cheap: Record<BuildingKey, BuildSpec> = {
       ...CATALOG,
@@ -222,22 +213,6 @@ describe('a placement the foundation owes, beside a queue', () => {
     expect(options.every((option) => option.hold === null)).toBe(true);
   });
 
-  /**
-   * **The ceiling does not hold an owed line either, since 25/08.** It did, and a debt of the
-   * season then became unpayable by a rule of the season — a headquarters at 1 carries five
-   * buildings, and an American ground is owed five extractors. The paid lines behind it
-   * are still held: the debt outranks the ambition, the ambition waits for the headquarters.
-   */
-  it('lets an offered line through at the building ceiling, and holds the paid ones', () => {
-    const options = buildableOn(site(owedSite({ taken: 5, slots: 5 })), CATALOG);
-    const free = options.filter((option) => option.free);
-    expect(free.map((option) => option.key)).toEqual(['mine']);
-    expect(free.every((option) => option.hold === null)).toBe(true);
-    expect(
-      options.filter((option) => !option.free).every((option) => option.hold === 'siteSlots'),
-    ).toBe(true);
-  });
-
   /** The ground under an entry of the queue is reserved by it: a free placement there would
    *  leave two buildings on one region once the `finish` lands. */
   it('offers nothing at all on the region an entry of the queue aims at', () => {
@@ -253,10 +228,7 @@ describe('a placement the foundation owes, beside a queue', () => {
 
   it('offers the headquarters alone while it is owed, and on any ground', () => {
     for (const deposit of [null, 'coal'] as const) {
-      const options = buildableOn(
-        site({ hqLevel: 0, taken: 0, slots: 0, deposit, foundation: HQ_OWED }),
-        CATALOG,
-      );
+      const options = buildableOn(site({ hqLevel: 0, deposit, foundation: HQ_OWED }), CATALOG);
       expect(options.map((option) => option.key)).toEqual(['hq']);
       expect(options[0]).toMatchObject({ free: true, cost: {}, minutes: 0, hold: null });
     }
@@ -391,7 +363,6 @@ describe('placement over the whole estate', () => {
     regions?: PlayerView['me']['regions'];
     buildings?: ReadonlyArray<{ key: BuildingKey; regionId: string }>;
     hqLevel?: number;
-    cap?: number;
     foundation?: PlayerView['me']['foundation'];
     construction?: PlayerView['me']['construction'];
     queue?: PlayerView['me']['constructionQueue'];
@@ -400,8 +371,6 @@ describe('placement over the whole estate', () => {
     ({
       me: {
         hqLevel: overrides.hqLevel ?? 1,
-        siteSlots: [{ site: { outpostId: null }, taken: 0, total: overrides.cap ?? 5 }],
-        homeSlotRelief: null,
         foundation: overrides.foundation ?? [],
         construction: overrides.construction ?? null,
         constructionQueue: overrides.queue ?? [],
@@ -434,8 +403,8 @@ describe('placement over the whole estate', () => {
     expect(placementOf(view, 'farm').regionIds).toEqual([]);
   });
 
-  it('names the deposit when no ground holds it, and never the ceiling first', () => {
-    const view = estate({ regions: [region('a')], cap: 0 });
+  it('names the deposit when no ground holds it', () => {
+    const view = estate({ regions: [region('a')] });
     expect(placementOf(view, 'oilWell').condition).toEqual({ kind: 'deposit', deposits: ['oil'] });
   });
 
@@ -448,11 +417,7 @@ describe('placement over the whole estate', () => {
     expect(placementOf(view, 'port').condition).toEqual({ kind: 'locked', hqLevel: 3 });
   });
 
-  it('separates a ceiling from a ground that is simply taken', () => {
-    const carriable = [region('a'), region('b')];
-    expect(placementOf(estate({ regions: carriable, cap: 0 }), 'barracks').condition).toEqual({
-      kind: 'siteFull',
-    });
+  it('names a ground that is simply taken', () => {
     expect(
       placementOf(
         estate({
@@ -485,7 +450,7 @@ describe('placement over the whole estate', () => {
 
   /** And so is one a **queued** entry aims at: it is paid for, and the server refuses a second
    *  entry on it exactly as it refuses one under the crane. */
-  it('leaves out the region an entry of the queue aims at, and counts it against the ceiling', () => {
+  it('leaves out the region an entry of the queue aims at', () => {
     const queued = [
       {
         id: 'construction-2',
@@ -499,9 +464,6 @@ describe('placement over the whole estate', () => {
     ];
     const view = estate({ regions: [region('a'), region('b')], queue: queued });
     expect(placementOf(view, 'barracks').regionIds).toEqual(['b']);
-
-    const full = estate({ regions: [region('a'), region('b')], queue: queued, cap: 1 });
-    expect(placementOf(full, 'barracks').condition).toEqual({ kind: 'siteFull' });
   });
 
   it('marks a key the foundation still owes as free', () => {
@@ -530,8 +492,6 @@ describe('placement over the whole estate', () => {
                 coastal: candidate.coastal,
                 standing: candidate.buildings[0]?.key ?? null,
                 site: { outpostId: null },
-                taken: view.me.buildings.length,
-                slots: view.me.siteSlots[0]!.total,
                 hqLevel: view.me.hqLevel,
                 foundation: view.me.foundation,
               }),

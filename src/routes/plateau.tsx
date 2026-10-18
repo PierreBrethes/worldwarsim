@@ -2437,10 +2437,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 regionId={buildingSite.regionId}
                 at={buildingSite}
                 onClose={() => setBuildingSite(null)}
-                onRaiseOutpost={(outpostId) => {
-                  setBuildingSite(null);
-                  openOutpost(outpostId);
-                }}
                 onPlace={(option) =>
                   setPlacing({
                     regionId: buildingSite.regionId,
@@ -2744,7 +2740,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       view={view}
                       seat={seat}
                       focused={focused ?? null}
-                      onRaiseOutpost={openOutpost}
                       {...windowProps}
                     />
                   );

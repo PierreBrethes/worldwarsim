@@ -43,7 +43,6 @@ const view = {
     construction: null,
     constructionQueue: [],
     resources: {},
-    siteSlots: [],
     buildings: [{ id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 }],
     recruiting: ['B-1'],
     regions: [{ id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7], linked: true }],

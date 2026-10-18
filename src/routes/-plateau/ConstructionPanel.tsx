@@ -16,11 +16,10 @@ import {
   type BlockedReason,
   type BuildOption,
   type BuildReason,
-  type Site,
 } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import type { BuildingKey } from '@/domain/ids';
-import type { PlayerView, SiteRef } from '@/domain/player-view';
+import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 import type { Seat } from '@/data/session';
@@ -52,7 +51,6 @@ export function ConstructionPanel({
   at,
   onClose,
   onPlace,
-  onRaiseOutpost,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -67,7 +65,6 @@ export function ConstructionPanel({
   onPlace: (option: BuildOption) => void;
   /** **Le refus « avant-poste plein » mène à la porte, pas à un mur** (précision du 15/09) : la
    *  phrase qui dit « améliorez-le » est désormais ce qui ouvre le panneau du point. */
-  onRaiseOutpost: (outpostId: string) => void;
 }) {
   const now = useClock();
   const [error, setError] = useState<string | null>(null);
@@ -187,19 +184,9 @@ export function ConstructionPanel({
           </button>
         </div>
 
-        {/* A deliberate echo of the nation sheet's bar: a datum reappears elsewhere when it is
-            the subject of the decision taken there, and choosing where to build is that
-            decision. **The site's budget, never a national total** (ADR 0020 §10) — the panel
-            is opened on one region, and one region hangs from exactly one site. */}
-        {site.site !== null && (
-          <p className="mt-2 shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-            {fr.construction.budget(siteName(site.site), site.taken, site.slots)}
-          </p>
-        )}
-
         <FoundationNotice owed={view.me.foundation} />
 
-        <HeldNotice view={view} site={site} options={options} onRaiseOutpost={onRaiseOutpost} />
+        <HeldNotice options={options} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-(color:--ink)/30 pb-[4px]">
           {fr.construction.offerHeader}
@@ -281,48 +268,11 @@ function FoundationNotice({ owed }: { owed: PlayerView['me']['foundation'] }) {
  * wall this rule exists to prevent; one line at the head of the panel says it better, and says
  * it with the deadline or the remedy the player actually needs.
  */
-function HeldNotice({
-  view,
-  site,
-  options,
-  onRaiseOutpost,
-}: {
-  view: PlayerView;
-  site: Site;
-  options: ReadonlyArray<BuildOption>;
-  onRaiseOutpost: (outpostId: string) => void;
-}) {
-  const full = options.some((option) => option.hold === 'siteSlots');
-  const outpostId = site.site?.outpostId ?? null;
-  const held = full
-    ? outpostId !== null
-      ? fr.construction.heldByOutpostSite(site.slots)
-      : fr.construction.heldBySite(fr.construction.siteHome, site.slots, view.me.homeSlotRelief)
-    : options.some((option) => option.hold === 'materials')
-      ? fr.construction.heldByMaterials
-      : null;
-
-  if (held === null) return null;
-  /**
-   * **La phrase est la porte** (précision du 15/09). « Améliorez-le pour en ouvrir un de plus »
-   * décrivait depuis toujours un geste qui n'existait pas ; maintenant qu'il existe, elle y mène
-   * — le panneau du point s'ouvre, où l'élévation se commande. Le sol national garde sa phrase
-   * seule : ce qui l'élargit est le quartier général, et il a déjà sa ligne ailleurs.
-   */
-  if (full && outpostId !== null) {
-    return (
-      <button
-        type="button"
-        onClick={() => onRaiseOutpost(outpostId)}
-        className="mt-2 shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-left text-[11.5px] leading-[1.4] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-      >
-        {held}
-      </button>
-    );
-  }
+function HeldNotice({ options }: { options: ReadonlyArray<BuildOption> }) {
+  if (!options.some((option) => option.hold === 'materials')) return null;
   return (
     <p className="mt-2 shrink-0 border border-[var(--ink)] px-2 py-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
-      {held}
+      {fr.construction.heldByMaterials}
     </p>
   );
 }
@@ -449,8 +399,3 @@ const reasonText = (reason: BuildReason): string =>
   reason.kind === 'coastal'
     ? fr.construction.coastalReason
     : fr.construction.depositReason(fr.deposits[reason.deposit]);
-
-/** The site a region hangs from, named. Ground no living site reaches prints no budget at all
- *  rather than "0 sur 0" — there is nothing there to spend. */
-const siteName = (site: SiteRef): string =>
-  site.outpostId === null ? fr.construction.siteHome : fr.construction.siteOutpost;

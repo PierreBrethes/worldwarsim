@@ -387,7 +387,7 @@ function OutpostRaise({
           eux « monter au niveau 2 » n'achète rien de lisible. */}
       {hold?.kind !== 'maxLevel' && (
         <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.garrison.raiseCarries(next, outpostReachKm(next))}
+          {fr.garrison.raiseCarries(outpostReachKm(next))}
         </p>
       )}
       {held !== null && (

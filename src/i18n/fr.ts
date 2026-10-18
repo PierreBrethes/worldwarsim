@@ -12,7 +12,7 @@ import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../co
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, Faced, HomeSlotRelief } from '../domain/player-view';
+import type { DispatchKind, Faced } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
@@ -603,19 +603,6 @@ export const fr = {
     POINT_OUTSIDE_REGION: () => 'ce rivage n’est pas celui de la région désignée',
     REGION_TAKEN: (d) =>
       `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
-    /**
-     * **Le refus nomme le site plein, jamais un total national** (ADR 0020 §10) : « sol
-     * national » et « avant-poste » appellent des gestes opposés — monter le QG, ou monter ce
-     * point — et un seul chiffre ne pourrait nommer ni l'un ni l'autre.
-     *
-     * Le remède du sol national est **chiffré** : « montez le QG » est un conseil, « un quartier
-     * général niveau 2 les porte à 4 » est un plan. Les deux nombres viennent de `homeSlots`,
-     * servis par le serveur — jamais recopiés ici (ADR 0015, révision du 24/08).
-     */
-    SITE_SLOTS_FULL: (d) =>
-      d.site === 'outpost'
-        ? `avant-poste plein : ${num(d.taken)} emplacement${plural(Number(d.taken), '', 's')} sur ${num(d.slots)} — améliorez-le pour en ouvrir un de plus`
-        : `sol national plein : ${num(d.taken)} emplacement${plural(Number(d.taken), '', 's')} sur ${num(d.slots)}${homeSlotRelief(d.nextHqLevel, d.nextSlots)}`,
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
     ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
@@ -2568,10 +2555,6 @@ export const fr = {
       `${count} troupe${plural(count, '', 's')} hors ravitaillement${place === null ? '' : ` — ${place}`}`,
     /** Où le prochain clic mène, parmi les occurrences d'une même sorte. */
     rank: (word: string, rank: number, total: number) => `${word} ${rank} / ${total}`,
-    /** **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09) : c'est la seule
-     *  attente que la fiche promettait déjà sans porte pour y aller. */
-    raiseOutpost: (place: string) => `avant-poste plein — montez-le · ${place}`,
-    raiseOutposts: (count: number) => `${count} avant-postes pleins à monter`,
     toOutpost: 'à l’avant-poste',
     unfold: 'déplier',
     fold: 'replier',
@@ -2673,8 +2656,7 @@ export const fr = {
     raiseAction: 'monter',
     raiseToLevel: (level: number) => `au niveau ${level}`,
     raiseTitle: (level: number) => `monter cet avant-poste au niveau ${level}`,
-    raiseCarries: (slots: number, reachKm: number) =>
-      `${slots} emplacement${plural(slots, '', 's')} · rayon ${num(reachKm)} km`,
+    raiseCarries: (reachKm: number) => `rayon ${num(reachKm)} km`,
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
@@ -3154,8 +3136,6 @@ export const fr = {
       deposit: (deposits: ReadonlyArray<string>) =>
         `demande une région à gisement de ${deposits.join(' ou ')}`,
       coastal: 'demande une région côtière tenue — aucune pour l’instant',
-      siteFull:
-        'plus un emplacement libre sur vos sites — élevez le quartier général ou un avant-poste',
       regionsTaken: 'toutes vos régions portent déjà un bâtiment',
       free: (count: number) =>
         `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
@@ -3249,33 +3229,10 @@ export const fr = {
     // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
     perHour: (rate: number) => `${tenths(rate)} / h`,
 
-    /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite — **sur le
-     *  site**, jamais sur la nation (ADR 0020 §10). */
-    budgetTaken: (taken: number, total: number) =>
-      `${taken} emplacement${plural(taken, '', 's')} sur ${total}`,
-    /**
-     * **Le site plein dit son remède, à l'endroit où le joueur décide quoi poser.** L'ordre de
-     * mobilisation dit quoi poser gratuitement ; celle-ci dit quand monter le QG — même règle
-     * que le refus ci-dessus, mêmes nombres, et rien de neuf à apprendre.
-     */
-    budgetRelief: (relief: { nextHqLevel: number; nextSlots: number }) =>
-      `un QG niveau ${relief.nextHqLevel} les porte à ${relief.nextSlots}`,
-    budgetAtCeiling: 'quartier général au maximum — le sol national ne s’élargira plus',
-    budgetFree: (free: number) =>
-      free <= 0
-        ? 'plus un emplacement libre'
-        : free === 1
-          ? '1 emplacement libre'
-          : `${free} emplacements libres`,
-    budgetHome: 'sol national',
-    budgetOutpost: (rank: number, level: number) => `avant-poste ${rank} · niveau ${level}`,
-    budgetRaiseOutpost: 'améliorez l’avant-poste pour en ouvrir un de plus',
     hqCarriesHeader: 'ce qu’il porte',
     hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     hqSlots: (total: number) => `${total} slots de mouvement`,
-    hqPlacements: (total: number) =>
-      `${total} emplacement${plural(total, '', 's')} sur le sol national`,
     hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
     hqTier2: 'palier 2 ouvert en production',
     hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
@@ -3951,30 +3908,11 @@ export const fr = {
     offerHeader: 'à poser',
     noDeposit: 'aucun gisement',
     coastal: 'côtière',
-    /**
-     * The budget, said **before** the ceiling bites. `heldByCap` below only speaks once every
-     * line is refused, which is the moment it is too late to plan — choosing where to build is
-     * the decision this panel exists for, and it is made against what is left.
-     */
-    budget: (site: string, taken: number, total: number) =>
-      `${site} — ${taken} sur ${total} emplacements, ${
-        total - taken <= 0
-          ? 'plus un libre'
-          : `${total - taken} libre${plural(total - taken, '', 's')}`
-      }`,
-    /** Le site que la région sert : le sol national, ou le point qui la couvre. Un site nommé
-     *  est la seule façon de dire « pas ici, mais là-bas » sans montrer une carte. */
-    siteHome: 'sol national',
-    siteOutpost: 'avant-poste',
     depositReason: (deposit: string) => `gisement de ${deposit}`,
     coastalReason: 'région côtière',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
-    // badges. A ceiling names its remedy; a running site names nothing, since the queue takes
+    // badges. A running site names nothing, since the queue takes
     // everything the player can pay for (25/08).
-    heldBySite: (site: string, total: number, relief: HomeSlotRelief) =>
-      `${site} : plus un emplacement libre sur ${total}${relief === null ? '' : homeSlotRelief(relief.nextHqLevel, relief.nextSlots)}.`,
-    heldByOutpostSite: (total: number) =>
-      `Avant-poste : plus un emplacement libre sur ${total} — améliorez-le pour en ouvrir un de plus.`,
     heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
     /**
      * A launched season whose foundation is not placed is a normal state — so it is said, and
@@ -4293,17 +4231,6 @@ export function countdownLabel(milliseconds: number): string {
   if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
   return `${Math.floor(hours / 24)} j ${String(hours % 24).padStart(2, '0')} h`;
 }
-
-/**
- * Le remède du sol national plein, en une demi-phrase — vide quand le QG est au maximum, parce
- * qu'il n'y a alors rien à faire et qu'une phrase qui ne dit rien vaut moins que le silence. Les
- * deux nombres arrivent servis (`me.homeSlotRelief`, `convex/constructions.ts`) : rien n'est
- * calculé ici.
- */
-const homeSlotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
-  typeof nextHqLevel === 'number' && typeof nextSlots === 'number'
-    ? ` — un quartier général niveau ${nextHqLevel} les porte à ${nextSlots}`
-    : ' — le quartier général est au maximum';
 
 const slotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
   typeof nextHqLevel === 'number' && typeof nextSlots === 'number'

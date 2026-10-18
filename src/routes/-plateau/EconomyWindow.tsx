@@ -24,10 +24,9 @@ import {
 } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
 import { unlinkedProducers } from '@/domain/next-actions';
-import { pledgedOn, placementOf, slotsOn, type Placement } from '@/domain/construction';
+import { placementOf, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
-import type { Building, ChainView, PlayerView, QueuedWork, SiteRef } from '@/domain/player-view';
-import { sameSite } from '@/domain/player-view';
+import type { Building, ChainView, PlayerView, QueuedWork } from '@/domain/player-view';
 import { currentMinutes, lotFinishesAt } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { conditionText } from './FoundationRows';
@@ -65,16 +64,12 @@ export function EconomyWindow({
   seat,
   focused,
   onClose,
-  onRaiseOutpost,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
   seat: Seat;
   /** The building whose line the window was opened on, `null` when it was opened bare. */
   focused: string | null;
-  /** **Le remède d'un point plein mène à sa porte** (précision du 15/09) : la fenêtre se ferme
-   *  et le panneau du point s'ouvre, où l'élévation se commande. */
-  onRaiseOutpost: (outpostId: string) => void;
 }) {
   const narrow = useNarrowScreen();
   const now = useClock();
@@ -82,12 +77,6 @@ export function EconomyWindow({
   // works all ask the same question of the same fifteen keys.
   const placements = useMemo(() => placementsOf(view), [view]);
   const columns = useMemo(() => supplyColumns(view), [view]);
-  /** **Le remède d'un point plein mène à sa porte** : la fenêtre se ferme, le panneau s'ouvre. */
-  const raiseOutpost = (outpostId: string) => {
-    onClose();
-    onRaiseOutpost(outpostId);
-  };
-
   if (narrow)
     return (
       <FloatingWindow name="economy" onClose={onClose} {...windowProps} width={1280}>
@@ -98,7 +87,6 @@ export function EconomyWindow({
           focused={focused}
           placements={placements}
           columns={columns}
-          onRaiseOutpost={raiseOutpost}
           onClose={onClose}
         />
       </FloatingWindow>
@@ -111,11 +99,7 @@ export function EconomyWindow({
           eyebrow={fr.economy.subtitle(nationLabel(view.me.nation), view.season.number)}
           title={fr.economy.header}
           onClose={onClose}
-        >
-          {/* L'arbitrage le plus structurant de la saison (ADR 0020 §10) monte au bandeau-titre :
-              plus bas, il se lisait après la décision qu'il gouverne. */}
-          <SiteBudget view={view} site={HOME_SITE} label={fr.economy.budgetHome} relief={true} />
-        </WindowHead>
+        ></WindowHead>
 
         <RunningWork view={view} seat={seat} now={now} />
 
@@ -190,13 +174,7 @@ export function EconomyWindow({
             <UpkeepFoot view={view} />
           </div>
 
-          <HeadquartersColumn
-            view={view}
-            seat={seat}
-            now={now}
-            focused={focused}
-            onRaiseOutpost={raiseOutpost}
-          />
+          <HeadquartersColumn view={view} seat={seat} now={now} focused={focused} />
         </div>
       </div>
     </FloatingWindow>
@@ -1077,7 +1055,7 @@ function AbsentKeys({
  * **The headquarters in its own column.** Every ceiling this window names points back to it —
  * the placements of the home ground, the chain speed, the tier-2 gate — and it spent the last
  * revision buried under the census it explains. Nothing here is a second implementation of a
- * rule: the ceiling and the slots arrive served, the chain speed and the tier-2 gate are read
+ * rule: the slots arrive served, the chain speed and the tier-2 gate are read
  * from `constants.ts` itself.
  */
 function HeadquartersColumn({
@@ -1085,9 +1063,7 @@ function HeadquartersColumn({
   seat,
   now,
   focused,
-  onRaiseOutpost,
 }: {
-  onRaiseOutpost: (outpostId: string) => void;
   view: PlayerView;
   seat: Seat;
   now: number;
@@ -1124,13 +1100,6 @@ function HeadquartersColumn({
           </p>
           <ul className="mt-[3px] flex flex-col gap-[3px] text-[12px] leading-[1.4] text-[var(--ink-soft)]">
             <li>{fr.economy.hqSlots(view.me.slots.total)}</li>
-            {/* Ce que le niveau porte vraiment depuis l'ADR 0020 §10 : les emplacements du sol
-                national, et non un plafond de bâtiments. Le nombre est servi, jamais recalculé. */}
-            <li>
-              {fr.economy.hqPlacements(
-                view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
-              )}
-            </li>
             <li>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
             <li>
               {level >= view.me.tier2HqLevel
@@ -1146,8 +1115,6 @@ function HeadquartersColumn({
           )}
         </div>
       )}
-
-      <OutpostBudgets view={view} onRaiseOutpost={onRaiseOutpost} />
 
       <UnlinkedSites view={view} />
     </div>
@@ -1176,134 +1143,6 @@ function UnlinkedSites({ view }: { view: PlayerView }) {
     </div>
   );
 }
-
-/**
- * The budget of **one site**, as a reading rather than a figure. A bar and not "9 / 13": this is
- * the most structuring trade of a season, and a fraction has to be parsed before it is
- * understood.
- *
- * There is no national total any more (ADR 0020 §10): a full home ground holds nothing back at
- * an outpost, and one bar for both would say the opposite of the rule. The count comes served
- * for what stands and is completed by the prepaid queue (`slotsOn`) — the view deliberately
- * serves the standing half only, because two servings of one fact disagree.
- */
-function SiteBudget({
-  view,
-  site,
-  label,
-  relief,
-  onRaise = null,
-}: {
-  view: PlayerView;
-  site: SiteRef;
-  label: string;
-  relief: boolean;
-  /** `null` pour le sol national : ce qui l'élargit est le quartier général, qui a sa ligne
-   *  ailleurs — seul un avant-poste a une porte à ouvrir ici. */
-  onRaise?: (() => void) | null;
-}) {
-  const { taken, total, free, said } = budgetOf(view, site, relief);
-  const filled = total === 0 ? 0 : Math.min(1, taken / total);
-
-  return (
-    <span className="flex min-w-[230px] flex-col items-end gap-[2px]">
-      <span className="flex items-center gap-2">
-        <span className="text-[10px] tracking-[.14em] text-[var(--ink-quiet)] uppercase">
-          {label}
-        </span>
-        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink)]">
-          {fr.economy.budgetTaken(taken, total)}
-        </span>
-        <span className="h-[8px] w-[70px] border border-[var(--ink)]">
-          <span
-            className="block h-full"
-            style={{
-              width: `${filled * 100}%`,
-              background: free <= 0 ? 'var(--critical)' : 'var(--ink)',
-            }}
-          />
-        </span>
-        <span
-          className="text-[11px] normal-case"
-          style={{ color: free <= 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
-        >
-          {fr.economy.budgetFree(free)}
-        </span>
-      </span>
-      {said !== null &&
-        (onRaise === null ? (
-          <span className="max-w-[34ch] text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)]">
-            {said}
-          </span>
-        ) : (
-          /* La phrase promettait un geste ; depuis le 15/09 il existe, donc elle y mène. */
-          <button
-            type="button"
-            onClick={onRaise}
-            className="max-w-[34ch] cursor-pointer text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)] underline decoration-dotted underline-offset-2 hover:text-[var(--ink)]"
-          >
-            {said}
-          </button>
-        ))}
-    </span>
-  );
-}
-
-/**
- * **Le budget d'un site, lu une fois pour ses deux cadres** — la barre du bureau, les cases du
- * téléphone. Le compte est servi pour ce qui se tient et complété par la file prépayée
- * (`slotsOn`).
- *
- * **Le site plein dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé — pas
- * avant : une ligne permanente sur la décision la plus structurante de la saison redevient du
- * bruit de fond, et c'est la faute que le chantier en tête a déjà coûtée une fois. Les deux
- * nombres arrivent servis (`me.homeSlotRelief`) : `homeSlots` est lu une fois, côté serveur, par
- * la phrase et par le refus qui la motive. Un avant-poste n'en a pas — ce qui l'élargit est son
- * propre niveau.
- */
-function budgetOf(view: PlayerView, site: SiteRef, relief: boolean) {
-  const total = view.me.siteSlots.find((budget) => sameSite(budget.site, site))?.total ?? 0;
-  const taken = slotsOn(view, site).taken;
-  const free = total - taken;
-  const said =
-    free > 0 && pledgedOn(view, site) === 0
-      ? null
-      : !relief
-        ? fr.economy.budgetRaiseOutpost
-        : view.me.homeSlotRelief === null
-          ? fr.economy.budgetAtCeiling
-          : fr.economy.budgetRelief(view.me.homeSlotRelief);
-  return { taken, total, free, said };
-}
-
-/** One line per outpost, in the headquarters column. A point is a site like the home ground, and
- *  what it carries is its level — which is what makes raising one a legible decision. */
-function OutpostBudgets({
-  view,
-  onRaiseOutpost,
-}: {
-  view: PlayerView;
-  onRaiseOutpost: (outpostId: string) => void;
-}) {
-  if (view.me.outposts.length === 0) return null;
-  return (
-    <div className="flex flex-col items-end gap-[4px] border-t border-(color:--ink)/35 px-4 py-[9px]">
-      {view.me.outposts.map((outpost, rank) => (
-        <SiteBudget
-          key={outpost.id}
-          view={view}
-          site={{ outpostId: outpost.id }}
-          label={fr.economy.budgetOutpost(rank + 1, outpost.level)}
-          relief={false}
-          onRaise={outpost.atMaxLevel ? null : () => onRaiseOutpost(outpost.id)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** National soil, as the view names it: the one site nobody founds. */
-const HOME_SITE: SiteRef = { outpostId: null };
 
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
@@ -1642,7 +1481,6 @@ function WorksSheet({
   focused,
   placements,
   columns,
-  onRaiseOutpost,
   onClose,
 }: {
   view: PlayerView;
@@ -1651,7 +1489,6 @@ function WorksSheet({
   focused: string | null;
   placements: Readonly<Record<BuildingKey, Placement>>;
   columns: ReadonlyArray<Column>;
-  onRaiseOutpost: (outpostId: string) => void;
   onClose: () => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -1748,19 +1585,6 @@ function WorksSheet({
       </div>
 
       <section ref={section('underway')}>
-        <div className="flex flex-col gap-2 px-4 pt-3 pb-3">
-          <BudgetLine view={view} site={HOME_SITE} label={fr.economy.budgetHome} relief />
-          {view.me.outposts.map((outpost, rank) => (
-            <BudgetLine
-              key={outpost.id}
-              view={view}
-              site={{ outpostId: outpost.id }}
-              label={fr.economy.budgetOutpost(rank + 1, outpost.level)}
-              relief={false}
-              onRaise={outpost.atMaxLevel ? null : () => onRaiseOutpost(outpost.id)}
-            />
-          ))}
-        </div>
         <div ref={head}>
           {running === null ? (
             <p className="mx-3 px-3 py-[10px] text-[12.5px] leading-[1.45] text-[var(--ink-soft)]">
@@ -1845,63 +1669,6 @@ function WorksSheet({
         <QueuedNotice queued={queued} view={view} seat={seat} onDone={() => setQueued(null)} />
       )}
       <div className="h-6" />
-    </div>
-  );
-}
-
-/**
- * **Le budget d'un site en cases** : une case pleine par emplacement pris, vide par libre — le
- * compte se lit avant d'être lu. Le remède suit quand le site mord, et celui d'un avant-poste
- * mène à sa porte.
- */
-function BudgetLine({
-  view,
-  site,
-  label,
-  relief,
-  onRaise = null,
-}: {
-  view: PlayerView;
-  site: SiteRef;
-  label: string;
-  relief: boolean;
-  onRaise?: (() => void) | null;
-}) {
-  const { taken, total, free, said } = budgetOf(view, site, relief);
-  return (
-    <div className="flex items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
-          {label}
-        </div>
-        <div className="mt-[3px] text-[14.5px]">
-          <b>{fr.economy.budgetTaken(taken, total)}</b>
-          <span style={{ color: free <= 0 ? 'var(--critical)' : undefined }}>
-            {' · '}
-            {fr.economy.budgetFree(free)}
-          </span>
-        </div>
-        {said !== null &&
-          (onRaise === null ? (
-            <div className="mt-[2px] text-[12px] text-[var(--ink-note)]">{said}</div>
-          ) : (
-            <button
-              type="button"
-              onClick={onRaise}
-              className="mt-[2px] cursor-pointer text-left text-[12px] text-[var(--ink-note)] underline decoration-dotted underline-offset-2"
-            >
-              {said}
-            </button>
-          ))}
-      </div>
-      <span aria-hidden className="flex flex-wrap justify-end gap-[3px]">
-        {Array.from({ length: total }, (_, rank) => (
-          <span
-            key={rank}
-            className={`h-[14px] w-[14px] ${rank < taken ? 'bg-[var(--ink)]' : 'border-[1.5px] border-[var(--ink)]'}`}
-          />
-        ))}
-      </span>
     </div>
   );
 }
@@ -2282,11 +2049,6 @@ function HeadquartersCard({
       </div>
       <div className="mt-[5px] grid grid-cols-2 gap-x-3 gap-y-1 text-[13px] text-[var(--ink-quiet)]">
         <span>{fr.economy.hqSlots(view.me.slots.total)}</span>
-        <span>
-          {fr.economy.hqPlacements(
-            view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
-          )}
-        </span>
         <span>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</span>
         <span>
           {level >= view.me.tier2HqLevel

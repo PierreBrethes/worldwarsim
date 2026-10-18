@@ -28,7 +28,6 @@ const viewOf = (lons: ReadonlyArray<number>): PlayerView =>
       construction: { id: 'W-1', outpostId: null },
       constructionQueue: [],
       resources: {},
-      siteSlots: [],
       buildings: [],
       recruiting: [],
       regions: [],

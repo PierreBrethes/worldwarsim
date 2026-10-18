@@ -441,14 +441,6 @@ export type SiteRef = { readonly outpostId: string | null };
 export const sameSite = (one: SiteRef, other: SiteRef): boolean =>
   one.outpostId === other.outpostId;
 
-/** What one site carries and what stands on it. `taken` is what **stands**: the prepaid queue
- *  is added by whoever reads it, so the two cannot be served twice and disagree. */
-type SiteSlots = {
-  readonly site: SiteRef;
-  readonly taken: number;
-  readonly total: number;
-};
-
 export type Resource = {
   readonly stock: number;
   readonly ratePerHour: number;
@@ -560,13 +552,6 @@ type Opponent = {
   readonly power: string;
   readonly restWindow: string;
 };
-
-/**
- * What the next headquarters level would carry **at home** — `null` at the top of the ladder. It
- * is what turns "plus un emplacement libre" from a wall into a plan, and it is **served** so the
- * sentence and the refusal that raised it read the same `homeSlots`.
- */
-export type HomeSlotRelief = { readonly nextHqLevel: number; readonly nextSlots: number } | null;
 
 type RunningWork = {
   readonly id: string;
@@ -1130,15 +1115,6 @@ export type PlayerView = {
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
-    /**
-     * **The placements, site by site** (ADR 0020 §10) — national soil first, then one line per
-     * outpost. There is no national total any more: a full home ground holds nothing back at an
-     * outpost, which is what makes expanding worth its upkeep.
-     */
-    readonly siteSlots: ReadonlyArray<SiteSlots>;
-    /** What the next headquarters level would carry at home — `null` at the top of the ladder.
-     *  It is what turns "plus un emplacement libre" from a wall into a plan. */
-    readonly homeSlotRelief: HomeSlotRelief;
     /** The headquarters level that opens mark 2 in this format — served, never derived here. */
     readonly tier2HqLevel: number;
     /**

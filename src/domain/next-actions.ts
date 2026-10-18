@@ -2,14 +2,13 @@ import { fr } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import { capturingAt } from './capture';
 import { captureSiteName } from './labels';
-import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
 import { BLITZ_SHARE } from '../../convex/constants';
 import { playedTheatre, theatreKm } from './theatres';
 import { rolesFormedBy } from './blitz';
-import type { BuildingKey, ResourceKey } from './ids';
+import type { BuildingKey } from './ids';
 import { distanceKm, type LonLat } from './geo';
-import { currentStock, type PlayerView, type TroopStation, type TroopView } from './player-view';
+import { type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
 
@@ -31,7 +30,6 @@ export type NextActionKind =
   | 'idleSite'
   | 'idleProjection'
   | 'unlinkedSites'
-  | 'raiseOutpost'
   | 'troopWithoutOrder'
   | 'unsupplied'
   /** Une ville neutre à portée, en Blitz : elle verse des fonds à qui la capture. */
@@ -110,7 +108,6 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
     ...captureLines(view),
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
-    ...raiseOutpostLine(view),
     ...(view.mode === 'blitz' ? [] : idleSiteLine(view)),
     ...idleProjectionLine(view),
     ...(view.mode === 'blitz' ? neutralCityLine(view) : []),
@@ -193,56 +190,6 @@ export function unlinkedProducers(
   );
   return view.me.buildings.filter(
     (building) => produces(building.key) && cut.has(building.regionId),
-  );
-}
-
-/**
- * **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09 de l'ADR 0020 §10). C'est
- * la seule attente que le jeu promettait déjà par écrit — « améliorez-le pour en ouvrir un de
- * plus » — sans qu'aucun geste ne la lève : le texte promettait, le jeu ne tenait pas.
- *
- * Deux conditions, et elles sont celles de la promesse : le point est **plein** (sinon il n'y a
- * rien à ouvrir) et rien ne retient l'élévation — `outpostRaiseHold`, la même fonction que le
- * bouton et la mutation. Le prix vient de la vue, jamais d'un barème recopié ici.
- */
-function raiseOutpostLine(view: PlayerView): ReadonlyArray<NextAction> {
-  const queued = pledgedOutposts(view);
-  const stocks = Object.fromEntries(
-    Object.entries(view.me.resources).map(([key, resource]) => [
-      key,
-      currentStock(resource, view.loadedAt, view.loadedAt),
-    ]),
-  ) as Record<ResourceKey, number>;
-
-  const ready = view.me.outposts.filter((outpost) => {
-    /** **Attendre n'est pas un problème** : un chantier n'a rien à élever et rien à décider,
-     *  la carte se tait (révision du 15/09 de l'ADR 0020 §10). */
-    if (!outpost.isMine || outpost.atMaxLevel || outpost.standsAt !== null) return false;
-    const budget = slotsOn(view, { outpostId: outpost.id });
-    if (budget.taken < budget.total) return false;
-    return (
-      outpostRaiseHold(
-        {
-          level: outpost.level,
-          disabled: outpost.disabledMinutesLeft !== null,
-          queued: queued.has(outpost.id),
-          stocks,
-        },
-        outpost.nextLevelCost,
-        outpost.level + 1,
-      ) === null
-    );
-  });
-  const [only, ...others] = ready;
-  if (only === undefined) return [];
-  return lineOf(
-    'raiseOutpost',
-    others.length === 0
-      ? fr.nextActions.raiseOutpost(
-          view.me.regions.find((region) => region.id === only.regionId)?.name ?? only.hostCountry,
-        )
-      : fr.nextActions.raiseOutposts(ready.length),
-    ready.map((outpost) => ({ kind: 'outpost', outpostId: outpost.id })),
   );
 }
 

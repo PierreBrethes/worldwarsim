@@ -1,13 +1,11 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import type { BuildingKey, DepositKey } from '../src/domain/ids';
-import { depositOfRegion } from '../src/domain/world';
 import { isStanding } from '../src/domain/outposts';
-import { homeSlots, outpostReachKm, settlesDebt, type FoundationDebt } from './constants';
+import { outpostReachKm } from './constants';
 import { levelOf, playerBuildings } from './buildingReads';
 import { outpostsOf, pointOf } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
-import { foundationOf, homeCountryOf, regionFacts, type RegionFacts } from './regions';
+import { homeCountryOf, regionFacts, type RegionFacts } from './regions';
 
 /**
  * **A site is what carries placements** (ADR 0020 §10): the national soil a player was born on,
@@ -113,15 +111,6 @@ const standingOutpostsOf = async (
 export const anchored = (site: Site | null): { outpostId?: Id<'outposts'> | null } =>
   site === null ? {} : site.kind === 'home' ? { outpostId: null } : { outpostId: site.outpostId };
 
-/** What one site carries, and what stands on it. `taken` counts what is **standing** only: the
- *  prepaid queue is added by whoever holds it, server-side at the enqueue and client-side on the
- *  panel — two numbers for one fact would disagree. */
-export type SiteBudget = {
-  readonly site: Site;
-  readonly taken: number;
-  readonly total: number;
-};
-
 export type Sites = {
   readonly buildings: ReadonlyArray<Doc<'buildings'>>;
   readonly outposts: ReadonlyArray<Doc<'outposts'>>;
@@ -129,9 +118,6 @@ export type Sites = {
   readonly hqLevel: number;
   /** Where a placement on this region would anchor — `null` when nothing living reaches it. */
   readonly siteAt: (regionId: string) => Site | null;
-  /** Home first, then the outposts in the order they were founded. */
-  readonly budgets: ReadonlyArray<SiteBudget>;
-  readonly budgetOf: (site: Site) => SiteBudget | null;
 };
 
 /**
@@ -150,78 +136,11 @@ export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Si
     return region === null ? null : siteFor(region, homeCountry, outposts);
   };
 
-  /**
-   * **The anchor is read off the row, never recomputed** — except for the rows written before
-   * the field existed, which carry no anchor at all and are re-read by geography once. Absent
-   * and `null` are therefore different answers here, and the whole tolerance leaves with the
-   * next wipe (`schema.ts`).
-   */
-  const siteOfBuilding = (building: Doc<'buildings'>): Site | null =>
-    building.outpostId === undefined
-      ? siteAt(building.regionId)
-      : building.outpostId === null
-        ? HOME
-        : { kind: 'outpost', outpostId: building.outpostId };
-
-  const placed = buildings.map((building) => ({
-    key: building.key,
-    deposit: depositOfRegion(building.regionId),
-    /** Un bâtiment capturé n'occupe aucun emplacement : personne ne l'a posé là. */
-    site: building.capturedAt === undefined ? siteOfBuilding(building) : null,
-  }));
-  const foundation = foundationOf(player.nation);
-
-  const budgets: ReadonlyArray<SiteBudget> = [
-    { site: HOME, taken: takenAtHome(placed, foundation), total: homeSlots(hqLevel) },
-    ...outposts.map((outpost) => {
-      const site: Site = { kind: 'outpost', outpostId: outpost._id };
-      return {
-        site,
-        taken: placed.filter((held) => held.site !== null && sameSite(held.site, site)).length,
-        total: outpost.level,
-      };
-    }),
-  ];
-
   return {
     buildings,
     outposts,
     homeCountry,
     hqLevel,
     siteAt,
-    budgets,
-    budgetOf: (site) => budgets.find((budget) => sameSite(budget.site, site)) ?? null,
   };
-}
-
-/**
- * **The headquarters and the foundation are outside the count.** Le quartier général n'est pas
- * un emplacement (ADR 0020 §10) : il les **porte**, et se les faire payer par le sol qu'il
- * ouvre serait une pose impossible depuis qu'il se pose (décision 1b du 13/09). Et ce que la
- * saison *offre* ne doit pas se payer en liberté : un sol qui doit cinq extracteurs ouvrirait
- * sinon avec moins de place qu'un pauvre, l'exacte inversion des garde-fous de l'ADR 0015.
- *
- * One free instance per debt, and no more, **et une dette s'acquitte sur son gisement** : une
- * nation qui a du fer et du charbon a sa mine de fer et sa mine de charbon hors du compte, une
- * seconde mine sur du charbon mange un emplacement. Le socle est le même (`foundationOf`) et
- * l'accord aussi (`settlesDebt`), donc l'exemption et la dette ne peuvent pas dire deux choses.
- */
-function takenAtHome(
-  placed: ReadonlyArray<{
-    readonly key: BuildingKey;
-    readonly deposit: DepositKey | null;
-    readonly site: Site | null;
-  }>,
-  foundation: ReadonlyArray<FoundationDebt>,
-): number {
-  const free = foundation.map((due) => ({ due, spent: false }));
-
-  let taken = 0;
-  for (const held of placed) {
-    if (held.site === null || held.site.kind !== 'home' || held.key === 'hq') continue;
-    const owed = free.find((entry) => !entry.spent && settlesDebt(entry.due, held));
-    if (owed) owed.spent = true;
-    else taken += 1;
-  }
-  return taken;
 }

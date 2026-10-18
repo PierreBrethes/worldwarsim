@@ -29,8 +29,6 @@ const view = {
       },
     ],
     hqLevel: 1,
-    siteSlots: [{ site: { outpostId: null }, taken: 0, total: 2 }],
-    homeSlotRelief: null,
     foundation: [],
     buildings: [],
     // Only home ground travels in the view: a region absent from it is a region the player
