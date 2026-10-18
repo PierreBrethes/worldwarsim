@@ -39,7 +39,7 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       coûte des vivres. L'armée mange par paliers (`UPKEEP_STEPS`, `src/domain/upkeep.ts`), un
       avant-poste debout mange des vivres selon son niveau, une écoute brûle du charbon. Prix en
       deux pictos partout (`Price`, rose, `CostLine`), palier lisible dans la fenêtre Économie et
-      sur la ligne de chaque troupe. Reste : l'écoute à sec ne se tait pas encore.
+      sur la ligne de chaque troupe. L'écoute sans charbon se tait (ni relevé ni sondage) et le dit sur la pièce ; la dotation de départ couvre la première projection dans toutes ses ressources (charbon 140).
    3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
       refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
       figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.
