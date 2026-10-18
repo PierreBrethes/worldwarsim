@@ -1,3 +1,4 @@
+import { roleHqLevel, roleSiteLevel } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
 import { BUILDINGS, type BuildingKey, type Medium, type UnitRole, type UnitTier } from './ids';
 import type {
@@ -37,6 +38,29 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
 
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
+
+export type RecruitRefusal =
+  | { readonly code: 'WRONG_PROJECTION_BUILDING'; readonly expected: BuildingKey }
+  | { readonly code: 'ROLE_LOCKED'; readonly requiredLevel: number }
+  | { readonly code: 'SITE_LEVEL_LOCKED'; readonly requiredLevel: number };
+
+/**
+ * **Ce qu'un site de projection refuse de former**, en Mondiale : le bon bâtiment pour le
+ * domaine du rôle, puis le niveau du QG qu'il attend, puis celui du site lui-même. La pièce
+ * lâchée sur un mât le dit avant le relâché, et `troops.recruit` refuse avec la même lecture.
+ */
+export function recruitRefusalOf(
+  role: UnitRole,
+  site: { readonly key: BuildingKey; readonly level: number },
+  hqLevel: number,
+): RecruitRefusal | null {
+  const expected = projectionKeyOf(role);
+  if (site.key !== expected) return { code: 'WRONG_PROJECTION_BUILDING', expected };
+  if (hqLevel < roleHqLevel(role)) return { code: 'ROLE_LOCKED', requiredLevel: roleHqLevel(role) };
+  if (site.level < roleSiteLevel(role))
+    return { code: 'SITE_LEVEL_LOCKED', requiredLevel: roleSiteLevel(role) };
+  return null;
+}
 
 /**
  * **Which buildings a role may enter as a garrison** (decision 70b, 01/09). The infantry enters

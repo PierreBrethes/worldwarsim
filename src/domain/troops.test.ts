@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ROLE_SITE_LEVEL, TIER_2_HQ_LEVEL } from '../../convex/constants';
 import {
+  recruitRefusalOf,
   marchingTroopIds,
   representativeRole,
   stackRows,
@@ -380,5 +382,26 @@ describe('stationAtCombat', () => {
     expect(
       stationAtCombat(mine, { point: { lon: 60, lat: 10 }, outpostId: null }, new Set(), 25),
     ).toBeNull();
+  });
+});
+
+describe('what a projection site refuses to form (the reserve of pieces, ADR 0028 §7)', () => {
+  it('forms a role in the building of its domain, and nowhere else', () => {
+    expect(recruitRefusalOf('infantry', { key: 'barracks', level: 1 }, 1)).toBeNull();
+    expect(recruitRefusalOf('cargo', { key: 'barracks', level: 1 }, 1)).toEqual({
+      code: 'WRONG_PROJECTION_BUILDING',
+      expected: 'port',
+    });
+  });
+
+  it('waits for the headquarters, then for the site, to reach the role', () => {
+    expect(recruitRefusalOf('armor', { key: 'barracks', level: 5 }, 1)).toEqual({
+      code: 'ROLE_LOCKED',
+      requiredLevel: TIER_2_HQ_LEVEL,
+    });
+    expect(recruitRefusalOf('armor', { key: 'barracks', level: 1 }, TIER_2_HQ_LEVEL)).toEqual({
+      code: 'SITE_LEVEL_LOCKED',
+      requiredLevel: ROLE_SITE_LEVEL.armor,
+    });
   });
 });

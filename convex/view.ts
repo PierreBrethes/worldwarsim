@@ -387,6 +387,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     : null;
   const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
+  const marks = await readMarksOf(ctx, player);
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
   // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
@@ -1015,7 +1016,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       .map(placed),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
-    journalReadAt: (await readMarksOf(ctx, player)).journalReadAt,
+    journalReadAt: marks.journalReadAt,
+    /** The last opening of the personal board and the stocks it showed: the harvest of the
+     *  next one is read against them. */
+    boardRead: marks.boardRead,
     journal: [],
     loadedAt: now,
     opponents: others.map((other) => ({

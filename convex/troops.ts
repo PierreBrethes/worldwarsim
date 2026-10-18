@@ -3,7 +3,12 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/domain/troops';
+import {
+  PROJECTION_BY_DOMAIN,
+  TIERS_BY_ROLE,
+  projectionKeyOf,
+  recruitRefusalOf,
+} from '../src/domain/troops';
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings } from './buildingReads';
@@ -139,9 +144,6 @@ export const recruit = mutation({
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
     if (blitzOnly(role)) fail('BLITZ_ONLY');
-    const expected = projectionKeyOf(role);
-    if (building.key !== expected)
-      fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
 
     const buildings = await playerBuildings(ctx, player._id);
@@ -149,13 +151,11 @@ export const recruit = mutation({
     if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
       fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
     }
-    // The tank waits for the level that arms its counter, whatever tier is asked for.
-    const roleLevel = roleHqLevel(role);
-    if (hqLevel < roleLevel) fail('ROLE_LOCKED', { role, requiredLevel: roleLevel });
-    // And the local one: the site itself has to have been raised to the role (67b).
-    const siteLevel = roleSiteLevel(role);
-    if (building.level < siteLevel)
-      fail('SITE_LEVEL_LOCKED', { building: building.key, requiredLevel: siteLevel });
+    const refusal = recruitRefusalOf(role, building, hqLevel);
+    if (refusal !== null) {
+      const { code, ...details } = refusal;
+      fail(code, { ...details, role, found: building.key, building: building.key });
+    }
 
     /**
      * The queue counts against the bound, or it would be where a nation stores the army the

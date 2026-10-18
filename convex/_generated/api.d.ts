@@ -45,6 +45,7 @@ import type * as notifications from "../notifications.js";
 import type * as objectives from "../objectives.js";
 import type * as outposts from "../outposts.js";
 import type * as passwords from "../passwords.js";
+import type * as personalBoard from "../personalBoard.js";
 import type * as placeNames from "../placeNames.js";
 import type * as players from "../players.js";
 import type * as plunder from "../plunder.js";
@@ -115,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   objectives: typeof objectives;
   outposts: typeof outposts;
   passwords: typeof passwords;
+  personalBoard: typeof personalBoard;
   placeNames: typeof placeNames;
   players: typeof players;
   plunder: typeof plunder;

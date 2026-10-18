@@ -1030,6 +1030,10 @@ export default defineSchema({
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
     telegraphPushedAt: v.optional(v.number()),
+    /** **La dernière ouverture du plateau personnel, et les stocks qu'il montrait alors** : la
+     *  récolte de la visite suivante est l'écart entre ces stocks et ceux de l'heure. */
+    boardReadAt: v.optional(v.number()),
+    boardReadStocks: v.optional(v.record(v.string(), v.number())),
   }).index('byPlayer', ['playerId']),
 
   /**

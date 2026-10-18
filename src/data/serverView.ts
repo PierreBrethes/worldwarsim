@@ -179,6 +179,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
     ),
+    boardRead: server.boardRead ?? null,
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,

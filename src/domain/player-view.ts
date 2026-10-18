@@ -16,6 +16,7 @@ import type {
   UnitTier,
 } from './ids';
 import type { ChainState } from './economy';
+import type { BoardRead } from './harvest';
 import type { ComputedRoute } from './routing';
 import type { ResourceAmounts } from './loot';
 
@@ -1260,6 +1261,8 @@ export type PlayerView = {
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;
   readonly journal: ReadonlyArray<JournalDispatch>;
+  /** The last opening of the personal board, `null` before the first: what its harvest reads. */
+  readonly boardRead: BoardRead | null;
   readonly opponents: ReadonlyArray<Opponent>;
   readonly coverage: { readonly visible: number; readonly total: number };
   readonly loadedAt: number;
