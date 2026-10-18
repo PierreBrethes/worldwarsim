@@ -622,7 +622,6 @@ export const preview = query({
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 
-    const fuel = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
     const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     return {
@@ -639,7 +638,7 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: { steps: fuel.steps, short: fuel.short, km: fuel.km },
+      fuel: fuelFacts(troops, route, column),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -685,12 +684,25 @@ const previewTroopsAt = async (
   const marching = new Set(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  return troops.length === troopIds.length &&
-    troops.every(
+  if (
+    troops.length !== troopIds.length ||
+    !troops.every(
       (troop) => sameStation(troop.stationedAt, departure.stationId) && !marching.has(troop._id),
     )
-    ? troops
-    : null;
+  )
+    return null;
+  /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
+  return (await toppedUp(ctx, playerId, troops, Date.now())).troops;
+};
+
+/** **Le plein que la route coûte** (ADR 0028 §3), et son refus avant le clic s'il manque. */
+const fuelFacts = (
+  troops: ReadonlyArray<Doc<'troops'>>,
+  route: ComputedRoute,
+  column: { readonly blitz?: unknown },
+) => {
+  const { steps, short, km } = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
+  return { steps, short, km };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -740,6 +752,7 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: fuelFacts(troops, route, column),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -786,6 +799,7 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: fuelFacts(troops, route, column),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -849,6 +863,7 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: fuelFacts(troops, route, column),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,

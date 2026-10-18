@@ -3035,18 +3035,11 @@ function choiceOf(action: OrderAction): OrderChoice {
 }
 
 /** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
-function fuelNotes(preview: object): ReadonlyArray<DropNote> {
-  if (!('fuel' in preview)) return [];
-  const { steps, short, km } = (preview as { fuel: MarchFuel }).fuel;
-  if (short !== null) return [{ text: fr.errors.NOT_ENOUGH_FUEL({ ...short, km }), alarm: true }];
-  return steps > 0 ? [{ text: fr.supplies.route(steps), alarm: false }] : [];
+function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
+  if (fuel.short !== null)
+    return [{ text: fr.errors.NOT_ENOUGH_FUEL({ ...fuel.short, km: fuel.km }), alarm: true }];
+  return fuel.steps > 0 ? [{ text: fr.supplies.route(fuel.steps), alarm: false }] : [];
 }
-
-type MarchFuel = {
-  readonly steps: number;
-  readonly km: number;
-  readonly short: { readonly needed: number; readonly held: number; readonly role: string } | null;
-};
 
 function armedColumn(
   view: PlayerView,
