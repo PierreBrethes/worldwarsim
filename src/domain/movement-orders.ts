@@ -284,7 +284,7 @@ export function captureOrderRefusalOf(
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
   const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
-  return captureRefusalOf(column.roles, isMine, mode) ?? closedGate(aim, column);
+  return captureRefusalOf(column.roles, isMine, mode) ?? dry(column) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */
@@ -304,8 +304,12 @@ export function plunderOrderRefusalOf(
   column: Column,
   isMine: boolean,
 ): PlunderRefusal | OrderRefusal | null {
-  return plunderRefusalOf(aim, column.roles, isMine) ?? closedGate(aim, column);
+  return plunderRefusalOf(aim, column.roles, isMine) ?? dry(column) ?? closedGate(aim, column);
 }
+
+/** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : capturer et piller, c'est aller au feu. */
+const dry = (column: Column): 'NO_ROUNDS' | null =>
+  column.outOfRounds === true ? 'NO_ROUNDS' : null;
 
 /** A collection walks like a march and must retain positive capacity after existing cargo. */
 export function lootCollectionOrderRefusalOf(

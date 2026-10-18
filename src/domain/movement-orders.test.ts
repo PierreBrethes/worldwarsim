@@ -14,6 +14,8 @@ import {
   lootCollectionRefusalOf,
   ORDERABLE_TYPES,
   plunderRefusalOf,
+  captureOrderRefusalOf,
+  plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
   routeModeOf,
@@ -115,6 +117,10 @@ describe('what an attack may be aimed at', () => {
     const dry = column(['infantry'], { outOfRounds: true });
     expect(refusalOf('attack', camp, dry)).toBe('NO_ROUNDS');
     expect(refusalOf('raid', outpost, dry)).toBe('NO_ROUNDS');
+    expect(captureOrderRefusalOf(outpost, dry, false)).toBe('NO_ROUNDS');
+    expect(
+      plunderOrderRefusalOf({ kind: 'building', buildingId: 'w', key: 'warehouse' }, dry, false),
+    ).toBe('NO_ROUNDS');
   });
 });
 
