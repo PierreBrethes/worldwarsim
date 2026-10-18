@@ -152,8 +152,11 @@ describe('radial menu', () => {
     expect(labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'ITA' })).toBeNull();
   });
 
-  it('withdraws the crane where a building already stands — nothing can go up there', () => {
-    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toBeNull();
+  /** **Une région ne compte plus rien** (ADR 0029) : un bâtiment debout n'y retire pas la grue. */
+  it('keeps the crane where a building already stands — the place is aimed at, not the region', () => {
+    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toEqual([
+      'Bâtir ici',
+    ]);
   });
 
   /** **Un point adverse ne se fait rien au repos** (décision du 31/08, inchangée le 16/09) : il
@@ -1048,6 +1051,7 @@ describe('raising a level from the map', () => {
     key: 'mine' as BuildingKey,
     name: 'Mine',
     regionId: 'FRA-9999',
+    point: [3, 50] as const,
     level: 1,
     nextLevelCost: { steel: 54 } as Cost,
     nextLevelMinutes: 54,
@@ -1072,7 +1076,7 @@ describe('raising a level from the map', () => {
     const compass = compassOf(mast, standing({}));
     expect(compass?.kicker).toBe('bâtiment · niveau 1');
     expect(compass?.name).toBe('Mine');
-    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'build', 'demolish']);
     expect(compass?.actions[0]).toMatchObject({
       pictogram: 'chevron',
       label: 'améliorer',
@@ -1112,19 +1116,27 @@ describe('raising a level from the map', () => {
       mast,
       standing(
         {},
-        { construction: { regionId: 'FRA-9999', key: 'mine', outpostId: null, minutesLeft: 10 } },
+        {
+          construction: {
+            regionId: 'FRA-9999',
+            key: 'mine',
+            outpostId: null,
+            point: [3, 50],
+            minutesLeft: 10,
+          },
+        },
       ),
     );
     /** Raser ne dépend d'aucune file : ce qu'on efface n'attend pas son tour. */
-    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
     expect(compass?.refusal).toBe(
-      'un chantier vise déjà cette région — annulez-le ou attendez son tour',
+      'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
     );
   });
 
   it('withdraws it under the headquarters ceiling, with the ceiling’s own sentence', () => {
     const compass = compassOf(mast, standing({ cappedByHq: true }));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
     expect(compass?.refusal).toBe('plafonné par le QG — montez le quartier général d’abord');
   });
 

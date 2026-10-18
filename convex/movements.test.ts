@@ -26,7 +26,7 @@ import {
   type MovementAim,
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
@@ -61,7 +61,6 @@ const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
  *  du 04/09 — et l'Alberta porte du pétrole, comme la Sibérie de la partie de test. */
 const ALBERTA = 'CAN-632';
 const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
-const SASKATCHEWAN = 'CAN-631';
 /** À plus de 600 km à l'ouest : aucune cellule dans le rayon d'un point neuf. */
 const BRITISH_COLUMBIA = 'CAN-633'; // voisine, son point à 659 km : hors de portée et elle le reste
 
@@ -124,6 +123,7 @@ async function raise(
       playerId,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level: 1,
       ...(point === undefined ? {} : { point }),
     });
@@ -579,7 +579,12 @@ describe('founding opens a construction site, and it has to be held', () => {
     ).toHaveLength(0);
     /** Et aucun emplacement : sa propre région lui est refusée. */
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: PRAHOVA }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'oilWell',
+        regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
@@ -604,6 +609,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -708,6 +714,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -833,31 +840,10 @@ describe('an outpost opens a radius to build in', () => {
   }
 
   /**
-   * **Un avant-poste atteint toujours la région où il se tient** (précision de l'ADR 0020 du
-   * 04/09). Le rayon se mesure au pôle d'inaccessibilité de la région, et celui d'une région
-   * grande comme l'Alberta est à 378 km du point où l'on plante : le puits de la région même de
-   * l'avant-poste se faisait refuser.
+   * **Le rayon se mesure du point de l'avant-poste au point visé** (ADR 0029) — jamais au pôle
+   * d'une région : un lieu à deux pas du mât se bâtit, quelle que soit la taille de l'Alberta.
    */
-  it('accepts the region the point stands in, however far its own point is', async () => {
-    const t = boot();
-    const { seat } = await launchedSeason(t);
-    await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
-
-    const started = await t.mutation(api.constructions.start, {
-      ...seat,
-      building: 'oilWell',
-      regionId: ALBERTA,
-    });
-    expect(started.finishesAt).toBeGreaterThan(Date.now());
-  });
-
-  /**
-   * **Là où je tiens est là où je peux bâtir** (révision du 17/09 de l'ADR 0020 §1) : le sol se
-   * mesure au disque, donc la voisine dont la frontière court à 84 km s'ouvre — son pôle à 659 km
-   * la fermait, et le joueur voyait à sa couleur une région où rien ne se posait. Ce qu'aucune
-   * cellule n'approche, lui, reste dehors.
-   */
-  it('opens the neighbouring region the disc touches, and nothing past it', async () => {
+  it('accepts a point within the reach, however far the point of its region is', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
@@ -865,33 +851,50 @@ describe('an outpost opens a radius to build in', () => {
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
-      regionId: SASKATCHEWAN,
+      regionId: ALBERTA,
+      point: { lon: FORT_MCMURRAY[0], lat: FORT_MCMURRAY[1] - 0.5 },
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
+  });
+
+  /** Ce que le disque ne couvre pas reste dehors, même dans la région où le mât se tient. */
+  it('refuses a point past the reach, in its own region as in the next', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
 
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
         building: 'warehouse',
+        regionId: ALBERTA,
+        point: pointOfRegion(ALBERTA),
+      }),
+    ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'warehouse',
         regionId: BRITISH_COLUMBIA,
+        point: pointOfRegion(BRITISH_COLUMBIA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
-  /**
-   * **Un avant-poste n'est pas un bâtiment**, et `REGION_TAKEN` ne le compte pas : le sol qu'il
-   * occupe reste constructible, ce qui est tout l'intérêt de l'y planter. Ce qui prend une
-   * région est le bâtiment qui s'y tient — la seconde entrée le montre.
-   */
-  it('never takes the region it stands in', async () => {
+  /** **Un avant-poste n'est pas un bâtiment** : l'espacement ne le compte pas, et le sol à son
+   *  pied reste constructible — c'est tout l'intérêt de l'y planter. */
+  it('lets a building stand at the foot of its mast', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
 
-    await t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: ALBERTA });
-    await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ALBERTA }),
-    ).rejects.toThrow('REGION_TAKEN');
+    const started = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: ALBERTA,
+      point: { lon: FORT_MCMURRAY[0] + 0.02, lat: FORT_MCMURRAY[1] },
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
   /** The whole point of the loop: the well the nation has no ground for at home. */
@@ -902,6 +905,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -913,7 +917,12 @@ describe('an outpost opens a radius to build in', () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: RUHR })
+      .mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
@@ -938,20 +947,31 @@ describe('an outpost opens a radius to build in', () => {
     await setHqLevel(t, seat, opensAt - 1);
 
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: PRAHOVA }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
+      }),
     ).rejects.toThrow('BUILDING_LOCKED');
 
     await setHqLevel(t, seat, opensAt);
 
     // The reach keeps its own say at that level: an opened tier is not a passport.
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: RUHR }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
 
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'airfield',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -964,6 +984,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'barracks',
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });

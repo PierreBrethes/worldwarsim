@@ -251,6 +251,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       id: installation.buildingId,
       key: canonicalBuildingKey(installation.key),
       regionId: survey.regionId,
+      point: pointOfBuilding(installation),
     })),
   );
   const lootSightings = await ctx.db
@@ -532,17 +533,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         id: building._id,
         key: canonicalBuildingKey(building.key),
         regionId: building.regionId,
-        /**
-         * **Where it stands, when it does not stand at its region's point** — the port and
-         * nothing else so far (ADR 0013, revision of 04/09). `null` leaves the mast hanging
-         * from the region, which is where the map layer has always planted it: serving the
-         * resolved point for every building would move fifteen masts off the ground they
-         * are drawn on, for one that needed moving.
-         */
-        point:
-          building.point === undefined
-            ? null
-            : ([building.point.lon, building.point.lat] as [number, number]),
+        /** **Where it stands** (ADR 0029 §1): the point written at its placement. */
+        point: pointOfBuilding(building),
         level: building.level,
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
         nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
@@ -591,7 +583,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               outpostId: construction.outpostId ?? null,
               regionId: construction.regionId,
               regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
-              /** The crane stands on the quay from the moment the port is enqueued: the point
+              /** The crane stands on its point from the moment the work is enqueued: the point
                *  was chosen at the order, and the mast has no reason to wait for `finish`. */
               point:
                 construction.point === undefined
@@ -613,6 +605,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
+        point:
+          entry.point === undefined
+            ? null
+            : ([entry.point.lon, entry.point.lat] as [number, number]),
         level: entry.level,
       })),
       armyPresent,

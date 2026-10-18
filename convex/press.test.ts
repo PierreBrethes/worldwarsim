@@ -1,3 +1,4 @@
+import { pointOfRegion } from './regions';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
@@ -294,6 +295,7 @@ describe('what the view serves', () => {
         playerId: me,
         key: 'barracks',
         regionId: 'ROU-310',
+        point: pointOfRegion('ROU-310'),
         level: 1,
         outpostId,
         capturedAt: Date.now(),

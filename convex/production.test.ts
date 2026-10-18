@@ -18,7 +18,7 @@ import {
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
 } from './constants';
 import { heldOver } from './holding';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf, settle } from './resources';
 import schema from './schema';
@@ -102,6 +102,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level,
     }),
   );

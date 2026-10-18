@@ -13,7 +13,7 @@ import {
   buildCost,
   nominalStrength,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import { GAME_TABLES } from './dev';
 import schema from './schema';
@@ -243,7 +243,12 @@ describe('launching', () => {
         await ctx.db.patch(held._id, { stock: 10_000, updatedAt: Date.now() });
       }
     });
-    await t.mutation(api.constructions.start, { ...creator, building: 'hq', regionId: MOSELLE });
+    await t.mutation(api.constructions.start, {
+      ...creator,
+      building: 'hq',
+      regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
+    });
 
     const view = await t.query(api.view.playerView, creator);
     // Une élévation passe par la file : ce qui compte ici est qu'elle n'ait rien enrôlé.
@@ -315,6 +320,7 @@ describe('constructions', () => {
       ...creator,
       building: 'warehouse',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
 
     const before = await t.query(api.view.playerView, creator);
@@ -344,6 +350,7 @@ describe('constructions', () => {
       ...creator,
       building: 'mine',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
 
     const after = await t.query(api.view.playerView, creator);
@@ -373,11 +380,17 @@ describe('constructions', () => {
         ...creator,
         building: 'mine',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
       });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
     }
     await expect(
-      t.mutation(api.constructions.start, { ...creator, building: 'mine', regionId: MOSELLE }),
+      t.mutation(api.constructions.start, {
+        ...creator,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      }),
     ).rejects.toThrow('CAPPED_BY_HQ');
   });
 });
@@ -465,6 +478,7 @@ describe('a concluded season', () => {
         playerId,
         key: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
         level: 1,
       }),
     );
@@ -477,6 +491,7 @@ describe('a concluded season', () => {
         playerId: theirs,
         key: 'barracks',
         regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
         level: 1,
       });
       await ctx.db.insert('troops', {
@@ -561,6 +576,7 @@ describe('a concluded season', () => {
         playerId,
         key: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
         level: 1,
       }),
     );
@@ -661,6 +677,7 @@ describe('a season without a clock', () => {
         ...creator,
         building: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
     expect((await t.query(api.view.playerView, creator)).season.outcome.concludedAt).not.toBeNull();
@@ -723,6 +740,7 @@ describe('scrapping a season', () => {
           playerId,
           key: 'barracks',
           regionId,
+          point: pointOfRegion(regionId),
           level: 1,
         }),
       );

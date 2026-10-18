@@ -106,6 +106,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: entry.regionName,
+        point: entry.point ?? null,
         level: entry.level,
       })),
       armyPresent: server.me.armyPresent ?? {},

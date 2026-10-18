@@ -113,25 +113,13 @@ describe('a port on the coast', () => {
 
   it('sends its column to sea with no land leg, where the centroid walked first', () => {
     const fromQuay = routeBetween(
-      pointOfBuilding({
-        regionId: HOKKAIDO,
-        point: { lon: HOKKAIDO_SHORE[0], lat: HOKKAIDO_SHORE[1] },
-      })!,
+      pointOfBuilding({ point: { lon: HOKKAIDO_SHORE[0], lat: HOKKAIDO_SHORE[1] } }),
       SEA_OF_JAPAN,
       'combined',
     );
-    const fromCentroid = routeBetween(
-      pointOfBuilding({ regionId: HOKKAIDO })!,
-      SEA_OF_JAPAN,
-      'combined',
-    );
+    const fromCentroid = routeBetween(regionFacts(HOKKAIDO)!.point, SEA_OF_JAPAN, 'combined');
     expect(fromQuay!.legs[0]!.medium).toBe('sea');
     expect(fromCentroid!.legs[0]!.medium).toBe('land');
-  });
-
-  /** A port from before the field reads where it always read: nothing is backfilled. */
-  it('falls back on its region when it carries no point of its own', () => {
-    expect(pointOfBuilding({ regionId: HOKKAIDO })).toEqual(regionFacts(HOKKAIDO)!.point);
   });
 });
 

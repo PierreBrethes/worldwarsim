@@ -1,5 +1,5 @@
 import depositsAsset from '../../public/deposits.json';
-import type { LonLat } from './geo';
+import { distanceKm, type LonLat } from './geo';
 import type { DepositKey, RegionType } from './ids';
 
 export type ProjectedCountry = {
@@ -48,25 +48,52 @@ export type RegionsData = {
 };
 
 /**
- * **La géologie est publique** (décision 65a du 01/09) : ce que le sol tient est fixe, identique
- * pour tout le monde et ne dit rien de ce que font les joueurs. Le brouillard couvre les
- * positions, les mouvements et les tenants — jamais la carte des ressources, qu'un atlas de 1940
- * donnait déjà. L'asset est le même que celui du serveur (`convex/regions.ts`), donc les deux
- * surfaces ne peuvent pas se contredire, et il pèse 4 ko : il est importé, pas récupéré.
+ * **Un gisement est un point** (ADR 0029 §3), visible de tous, et il porte une seule
+ * exploitation. **La géologie est publique** (décision 65a du 01/09) : ce que le sol tient est
+ * fixe, identique pour tout le monde et ne dit rien de ce que font les joueurs. L'asset est le
+ * même que celui du serveur, donc les deux surfaces ne peuvent pas se contredire, et il est
+ * importé, pas récupéré.
  *
- * Il est **creux** : une région sans gisement n'y figure pas, et aucune n'en tient deux.
+ * `regionId` est la région où le point se trouve — un fait de carte cuit avec lui, jamais une
+ * règle : ce que le point vaut est le gisement, et ce qui porte la couleur est la région.
  */
-const DEPOSIT_OF_REGION = depositsAsset as Readonly<Record<string, DepositKey | undefined>>;
+export type DepositPoint = {
+  readonly id: string;
+  readonly deposit: DepositKey;
+  readonly regionId: string;
+  /** L'`adm0_a3` de la région du point : le sol national se lit sans géométrie. */
+  readonly country: string;
+  readonly lonLat: LonLat;
+};
 
+type RawDeposit = {
+  id: string;
+  deposit: DepositKey;
+  regionId: string;
+  country: string;
+  lon: number;
+  lat: number;
+};
+
+export const DEPOSIT_POINTS: ReadonlyArray<DepositPoint> = (
+  depositsAsset as ReadonlyArray<RawDeposit>
+).map(({ lon, lat, ...rest }) => ({ ...rest, lonLat: [lon, lat] as const }));
+
+/**
+ * **Le gisement sous ce point**, ou aucun. Une exploitation s'aimante sur le point exact du
+ * gisement, et c'est ce point qu'elle écrit : la tolérance n'absorbe que l'aller-retour d'un
+ * flottant, jamais un bâtiment posé « à côté ».
+ */
+const DEPOSIT_MATCH_KM = 1;
+
+export const depositAt = (lonLat: LonLat): DepositPoint | null =>
+  DEPOSIT_POINTS.find((point) => distanceKm(point.lonLat, lonLat) <= DEPOSIT_MATCH_KM) ?? null;
+
+/** Le gisement qui se trouve dans cette région, s'il y en a un — une lecture d'affichage
+ *  (« la Moselle tient du charbon »), jamais ce qu'un bâtiment exploite : celui-là se lit à son
+ *  point (`depositAt`). */
 export const depositOfRegion = (regionId: string): DepositKey | null =>
-  DEPOSIT_OF_REGION[regionId] ?? null;
-
-/** Les 229 régions à gisement, dans l'ordre de l'asset — ce que la bascule « gisements » pose
- *  sur la carte, sans qu'aucune donnée de joueur n'entre dans le compte. */
-export const DEPOSIT_REGIONS: ReadonlyArray<readonly [regionId: string, deposit: DepositKey]> =
-  Object.entries(DEPOSIT_OF_REGION).flatMap(([regionId, deposit]) =>
-    deposit === undefined ? [] : [[regionId, deposit] as const],
-  );
+  DEPOSIT_POINTS.find((point) => point.regionId === regionId)?.deposit ?? null;
 
 /**
  * **La côte est publique elle aussi, mais elle ne se bundle pas** : elle vit dans

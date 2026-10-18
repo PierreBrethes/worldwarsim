@@ -5,7 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { DETECTION_RANGE_KM, REST_WINDOW_MINUTES, nominalStrength } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -78,7 +78,14 @@ async function raise(
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
   });
 }
 

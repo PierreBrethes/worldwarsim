@@ -55,6 +55,7 @@ describe('maquettesOf', () => {
       key: 'mine',
       regionId: 'FRA-5328',
       regionName: 'Nord',
+      point: null,
       level,
       rank: 0,
       finishesAt,
@@ -97,6 +98,7 @@ describe('maquettesOf', () => {
       buildingId: 'x',
       key: 'farm',
       regionId: 'DEU-DE21',
+      lonLat: [11.5, 48.1],
       name: 'Ferme',
       plate: 'farm.webp',
       washed: true,
@@ -113,13 +115,13 @@ describe('maquettesOf', () => {
       depot: '',
       emptied: true,
     };
-    const deposit: MapMarker = { kind: 'deposit', id: 'd', regionId: 'FRA-5328', deposit: 'coal' };
+    const deposit: MapMarker = { kind: 'deposit', id: 'd', lonLat: [6.6, 49], deposit: 'coal' };
     expect(
       maquettesOf([survey, objective, deposit], (id) => (id === 'o' ? 'fuelDump' : undefined)),
     ).toEqual([
       {
         id: 'installation-x',
-        at: { regionId: 'DEU-DE21' },
+        at: { lonLat: [11.5, 48.1] },
         url: buildingMaquette('farm', null),
         washed: true,
       },

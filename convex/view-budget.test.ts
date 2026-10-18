@@ -10,7 +10,7 @@ import type { LonLat } from '../src/domain/geo';
 import { outpostReachKm } from './constants';
 import { heldOver } from './holding';
 import { regionsWithinReach } from './regionGeometry';
-import { allRegions, regionFacts } from './regions';
+import { allRegions, regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { surveyRegion, foundSeat, joinSeat, seatIn } from './seats.fixture';
@@ -342,6 +342,7 @@ describe('aucune query ne rasterise le monde', () => {
         playerId: me._id,
         key: 'barracks' as const,
         regionId: MARNE,
+        point: pointOfRegion(MARNE),
         level: 1,
       });
       const troop = async (stationedAt: Id<'buildings'> | { lon: number; lat: number }) =>

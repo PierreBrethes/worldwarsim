@@ -11,7 +11,7 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
-import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
+import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, Faced } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
@@ -650,29 +650,20 @@ export const fr = {
     UNKNOWN_REGION: () => 'région inconnue',
     UNKNOWN_CAPITAL_REGION: (d) =>
       `capitale introuvable pour ${nationName(d.nation)} — la partie ne peut pas se lancer`,
-    /** **Le rayon touche une région, il ne la centre pas** (révision du 17/09 de l'ADR 0020 §1) :
-     *  la phrase dit ce qu'il faut amener — un cercle jusqu'ici — et non une distance, qui se
-     *  mesurerait au centre de la région et annoncerait des centaines de kilomètres là où la
-     *  frontière court à soixante. */
+    /** **Hors de son sol et de ses rayons** (ADR 0029) : la phrase dit ce qu'il faut amener —
+     *  un cercle jusqu'au point visé —, et le plus large des siens pour mesurer l'écart. */
     OUT_OF_OUTPOST_REACH: (d) =>
       d.hasOutposts === true
-        ? `aucun de vos avant-postes n’atteint cette région — le plus large porte à ${num(d.reachKm)} km`
-        : `hors de chez soi, il faut un avant-poste dont le rayon (${num(d.reachKm)} km) touche cette région — vous n’en avez aucun`,
+        ? `hors de votre sol et du rayon de vos avant-postes — le plus large porte à ${num(d.reachKm)} km`
+        : `hors de votre sol, et aucun avant-poste n’y porte son rayon`,
     DEPOSIT_REQUIRED: (d) =>
-      `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
-    NOT_COASTAL: () => 'un port se pose sur une région côtière',
-    /**
-     * **Les trois refus du point de côte** (ADR 0013, révision du 04/09). Les deux premiers
-     * répondent à un client qui a inventé son geste — le joueur ne les voit jamais, et ils se
-     * lisent quand même en français : un code nu dans un bandeau n'apprend rien à personne.
-     * Le troisième est la course entre le fantôme et le sol, et lui se rejoue.
-     */
-    POINT_FOR_PORT_ONLY: (d) =>
-      `${buildingName(d.building)} se pose sur une région, pas sur un point`,
-    PORT_NEEDS_A_COAST_POINT: () => 'un port se pose sur un point de côte — cliquez le rivage',
-    POINT_OUTSIDE_REGION: () => 'ce rivage n’est pas celui de la région désignée',
-    REGION_TAKEN: (d) =>
-      `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
+      `${buildingName(d.building)} se pose sur un gisement de ${depositNames(d.expected)} — visez son point`,
+    DEPOSIT_TAKEN: () => 'ce gisement porte déjà une exploitation',
+    NOT_COASTAL: () => 'un port se pose sur la côte',
+    POINT_OUTSIDE_REGION: () => 'ce point n’est pas dans la région visée',
+    /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
+    BUILDING_TOO_CLOSE: (d) => `trop près ${ofTheBuildingName(d.near)} : ${num(d.km)} km au moins`,
+    ALREADY_QUEUED_HERE: () => 'un chantier est déjà en file sur ce bâtiment',
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
     ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
@@ -1881,8 +1872,8 @@ export const fr = {
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
     regionTerrain: (terrain: string) => `terrain : ${terrain}`,
-    regionNoDeposit: 'aucun gisement — caserne, aérodrome',
-    regionCoastal: 'côtière — port possible',
+    regionNoDeposit: 'aucun gisement',
+    regionCoastal: 'côtière',
   },
 
   banner: {
@@ -3164,7 +3155,7 @@ export const fr = {
     neverOnDeposit: (none: string, deposit: string) => `jamais : ${none} de ${deposit}`,
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
     /** Une seule entrée par région, en cours ou en file — le refus que le serveur oppose. */
-    alreadyQueued: 'un chantier vise déjà cette région — annulez-le ou attendez son tour',
+    alreadyQueued: 'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
   },
 
   economy: {
@@ -3226,11 +3217,8 @@ export const fr = {
       foundation: 'pose de fondation offerte',
       locked: (level: number) => `demande un quartier général niveau ${level}`,
       deposit: (deposits: ReadonlyArray<string>) =>
-        `demande une région à gisement de ${deposits.join(' ou ')}`,
-      coastal: 'demande une région côtière tenue — aucune pour l’instant',
-      regionsTaken: 'toutes vos régions portent déjà un bâtiment',
-      free: (count: number) =>
-        `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
+        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
+      free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
 
     /** **La ligne que la colonne du QG gardait en réserve** (ADR 0020 §6). Zéro, elle n'est pas
@@ -3352,13 +3340,11 @@ export const fr = {
    * désormais ; ce qui reste ici est ce qu'on lit **dans** le dépli.
    */
   mobilization: {
-    pick: 'Choisissez une clé, puis sa région.',
-    eligible: (count: number) =>
-      `${count} région${plural(count, '', 's')} éligible${plural(count, '', 's')}`,
-    noneEligible: 'aucune région éligible',
-    chooseRegion: (condition: string) => `Choisissez la région — ${condition}`,
-    highlighted: 'Cliquez l’une des régions surlignées sur le plateau.',
-    zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
+    pick: 'Choisissez une clé, puis visez un lieu.',
+    aim: 'visez un lieu',
+    chooseRegion: (condition: string) => `Visez un lieu — ${condition}`,
+    highlighted:
+      'Le fantôme suit le pointeur et s’aimante sur un gisement libre ; cliquez pour poser.',
     cancel: 'annuler la sélection de clé',
     /** **Une dette de socle est un couple** : deux mines dues se liraient sinon comme deux fois
      *  la même ligne, alors que l'une ne s'acquitte que sur du fer et l'autre que sur du
@@ -3366,14 +3352,14 @@ export const fr = {
     onDeposit: (building: string, deposit: string) => `${building} — ${deposit}`,
     /** **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). La
      *  ligne dit l'absence de condition plutôt qu'un gisement vide — c'est la liberté qui est
-     *  l'information, puisqu'une bâtisse par région fait du sol qu'il prend un sol perdu. */
+     *  l'information. */
     anywhereAtHome: (building: string) => `${building} — à poser sur votre sol`,
     /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
      *  coup : rien d'affiché sans sa condition. */
     wants: {
       deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')} requis`,
-      coastal: 'région côtière requise',
-      any: 'toute région tenue',
+      coastal: 'côte requise',
+      any: 'tout lieu tenu',
       home: 'n’importe où sur votre sol',
     },
   },
@@ -4002,7 +3988,8 @@ export const fr = {
    * parce que c'est un état sans bouton, et qu'un état sans bouton doit dire sa sortie.
    */
   placing: {
-    hint: 'choisissez le point de côte — Échap pour renoncer',
+    hint: 'cliquez pour poser — Échap pour renoncer',
+    noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
   },
 
   construction: {
@@ -4010,8 +3997,9 @@ export const fr = {
     offerHeader: 'à poser',
     noDeposit: 'aucun gisement',
     coastal: 'côtière',
-    depositReason: (deposit: string) => `gisement de ${deposit}`,
-    coastalReason: 'région côtière',
+    depositReason: (deposits: ReadonlyArray<string>) =>
+      `sur un gisement libre de ${deposits.join(' ou ')}`,
+    coastalReason: 'sur la côte',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
     // badges. A running site names nothing, since the queue takes
     // everything the player can pay for (25/08).
@@ -4022,7 +4010,7 @@ export const fr = {
      * the region stays the player's, and the sentence has to make that difference audible.
      */
     foundationNotice: (owed: string) =>
-      `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
+      `Socle de la saison : ${owed}. Pose gratuite et immédiate — le lieu reste votre choix.`,
     /** **L'effet se produit hors du champ où l'on a cliqué** : le panneau se referme sur la carte
      *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le
      *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
@@ -4030,28 +4018,17 @@ export const fr = {
     queued: (building: string) => `${building} : chantier commandé — voir Économie.`,
     free: 'offert',
     immediate: 'immédiat',
-    /**
-     * The rest of the catalogue, below the offer. The header has to say *region*, not
-     * *impossible*: a port is not impossible, it is elsewhere — and a player who reads the
-     * shelf as a list of failures stops reading it.
-     */
-    elsewhereHeader: 'pas sur cette région',
+    /** The rest of the catalogue, below the offer: what the nation cannot order yet. */
+    elsewhereHeader: 'pas encore',
     /** After the name, never instead of it: what the nation already stands, all regions
      *  together. Hidden at zero — a column of « 0 déjà bâti » is noise, not a count. */
     built: (count: number) => `${count} déjà bâti${plural(count, '', 's')}`,
     blocked: {
-      constructionHere: 'un chantier vise déjà cette région',
       /** L'avant-poste qui couvrait cette région est détruit : ses bâtisses restent debout,
        *  son ancre est morte (ADR 0020 §10). */
       outOfReach: 'plus aucun avant-poste ne couvre cette région',
-      standing: 'déjà debout sur cette région',
-      regionTaken: (name: string) => `la région porte déjà ${name}`,
       unique: 'un seul quartier général par nation',
       locked: (level: number) => `demande un quartier général niveau ${level}`,
-      deposit: (deposits: ReadonlyArray<string>) =>
-        `demande une région à gisement de ${deposits.join(' ou ')}`,
-      coastal: 'demande une région côtière',
-      here: 'ne peut pas se poser sur cette région',
     },
   },
 
@@ -4237,6 +4214,48 @@ export const theRole = (role: UnitRole): string => {
 export const aSecondBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'une seconde' : 'un second'} ${lowerFirst(fr.buildings[key])}`;
 
+/**
+ * **Le refus sous le fantôme, dans les mots du serveur** (ADR 0029) : chaque code de
+ * `aimVerdict` passe par la phrase même que `constructions.start` renverrait.
+ */
+export function aimRefusalText(
+  refusal: NonNullable<AimVerdict['refusal']>,
+  key: BuildingKey,
+  reach: { readonly widestKm: number; readonly hasOutposts: boolean },
+  hq: { readonly requiredLevel: number; readonly hqLevel: number },
+  expected: ReadonlyArray<DepositKey>,
+): string {
+  const errors = fr.errors;
+  switch (refusal.code) {
+    case 'NO_GROUND':
+      return fr.placing.noGround;
+    case 'OUT_OF_REACH':
+      return errors.OUT_OF_OUTPOST_REACH({
+        reachKm: reach.widestKm,
+        hasOutposts: reach.hasOutposts,
+      });
+    case 'DEPOSIT_REQUIRED':
+      return errors.DEPOSIT_REQUIRED({ building: key, expected });
+    case 'TOO_CLOSE':
+      return errors.BUILDING_TOO_CLOSE({ near: refusal.near, km: refusal.km });
+    // Le serveur renomme le palier zéro en ordre de pose (`HQ_FIRST`) : la phrase suit.
+    case 'BUILDING_LOCKED':
+      return hq.hqLevel === 0
+        ? errors.HQ_FIRST()
+        : errors.BUILDING_LOCKED({ building: key, ...hq });
+    case 'DEPOSIT_TAKEN':
+    case 'NOT_COASTAL':
+    case 'UNKNOWN_BUILDING':
+      return errors[refusal.code]();
+  }
+}
+
+/** `de l’usine`, `du port`, `de la caserne` — the building a distance is measured from. */
+export const ofTheBuilding = (key: BuildingKey): string => {
+  const the = theBuilding(key);
+  return the.startsWith('le ') ? `du ${the.slice(3)}` : `de ${the}`;
+};
+
 /** `une caserne`, `un aérodrome` — the sentence that names the remedy. */
 export const aBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'une' : 'un'} ${lowerFirst(fr.buildings[key])}`;
@@ -4354,6 +4373,10 @@ const aRoleName = (value: unknown): string =>
   typeof value === 'string' && value in fr.roles
     ? `${fr.roleGender[value as UnitRole] === 'f' ? 'une' : 'un'} ${fr.roles[value as UnitRole].one}`
     : str(value);
+const ofTheBuildingName = (value: unknown): string =>
+  typeof value === 'string' && value in fr.buildings
+    ? ofTheBuilding(value as BuildingKey)
+    : `de ${str(value)}`;
 const buildingName = (value: unknown): string =>
   typeof value === 'string' && value in fr.buildings
     ? fr.buildings[value as BuildingKey]

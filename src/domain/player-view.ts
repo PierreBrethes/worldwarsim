@@ -473,12 +473,8 @@ export type Building = {
   readonly key: BuildingKey;
   readonly name: string;
   readonly regionId: string;
-  /**
-   * **Its own ground, when its region's is not where it stands** — the port and nothing else
-   * (ADR 0013, revision of 04/09): the coast point the player picked, served by the server and
-   * never recomputed here. `null` hangs the mast on the region, exactly as before.
-   */
-  readonly point: LonLat | null;
+  /** **Where it stands** (ADR 0029 §1): the point aimed at its placement, never moved since. */
+  readonly point: LonLat;
   readonly level: number;
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
@@ -579,8 +575,8 @@ type RunningWork = {
   readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
-  /** The quay a port was ordered on — the crane stands there from the queue, not from the
-   *  moment it is finished. `null` for everything that hangs from its region. */
+  /** The point a building is ordered on — the crane stands there from the queue, not from the
+   *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
 };
@@ -592,6 +588,8 @@ export type QueuedWork = {
   readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
+  /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
+  readonly point: LonLat | null;
   readonly level: number;
 };
 
@@ -1222,6 +1220,8 @@ export type PlayerView = {
     readonly id: string;
     readonly key: Exclude<BuildingKey, 'depot'>;
     readonly regionId: string;
+    /** Where it stood when seen (ADR 0029): its mast, and the point a capture marches at. */
+    readonly point: LonLat;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{

@@ -70,9 +70,12 @@ export function UpgradeControl({
           title={held ?? fr.upgrade.title(building.name, next)}
           onClick={() => {
             setError(null);
-            start({ ...seat, building: building.key, regionId: building.regionId }).catch(
-              (problem: unknown) => handleError(problem, setError),
-            );
+            start({
+              ...seat,
+              building: building.key,
+              regionId: building.regionId,
+              point: { lon: building.point[0], lat: building.point[1] },
+            }).catch((problem: unknown) => handleError(problem, setError));
           }}
           className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
         >

@@ -53,6 +53,8 @@ export const BUILD_COST_KEY = v.union(BUILDING_KEY, v.literal('outpost'));
 export const SURVEYED_INSTALLATION = v.object({
   buildingId: v.id('buildings'),
   key: BUILDING_KEY,
+  /** Where it stood when it was seen (ADR 0029): a capture or a strike marches at this point. */
+  point: LON_LAT,
 });
 
 export const RESOURCE_KEY = v.union(

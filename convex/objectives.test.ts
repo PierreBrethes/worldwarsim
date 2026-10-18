@@ -19,7 +19,7 @@ import {
   OBJECTIVE_SPREAD_KM,
   objectiveArchetype,
 } from './constants';
-import { capitalRegionOf, regionFacts } from './regions';
+import { capitalRegionOf, regionFacts, pointOfRegion as rowPointOf } from './regions';
 import { routeKmFrom } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -102,7 +102,14 @@ async function raise(
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: rowPointOf(regionId),
+      level: 1,
+    });
   });
 }
 

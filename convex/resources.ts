@@ -27,7 +27,8 @@ import {
 } from './constants';
 import { fail } from './errors';
 import { linkingOver } from './holding';
-import { regionFacts } from './regions';
+import { pointOfBuilding, regionFacts } from './regions';
+import { depositAt } from '../src/domain/world';
 import { upkeepOf, type Upkeep } from './upkeep';
 import type { ResourceAmounts } from '../src/domain/loot';
 
@@ -75,7 +76,8 @@ export function extractionSites(
   return buildings
     .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
     .map((building) => {
-      const deposit = regionFacts(building.regionId)?.deposit ?? null;
+      /** Ce que le point du bâtiment tient (ADR 0029 §3), jamais sa région. */
+      const deposit = depositAt(pointOfBuilding(building))?.deposit ?? null;
       const yielding = deposit !== null && exploits(building.key, deposit);
       const linked = isLinked(building, held, ownerId);
       return {

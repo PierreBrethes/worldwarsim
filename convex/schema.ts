@@ -333,17 +333,12 @@ export default defineSchema({
     regionId: v.string(),
     level: v.number(),
     /**
-     * **Where the building stands, when its region's point is not enough** — the port and only
-     * the port (ADR 0013, revision of 04/09). A ship leaves from the water, and a region as
-     * large as Hokkaido has several coasts: the player picks the coast point at the placement
-     * and it is written here, once, never moved by a raise.
-     *
-     * Absent everywhere else, and absent on a port put up before this landed: `pointOfBuilding`
-     * falls back on the region's point, which is exactly what those rows always meant. It is
-     * `v.optional` for the same reason as `outpostId` — a required field would make the
-     * deployment refuse every row already written (the lesson of 27/08 on `seasonId`).
+     * **Where the building stands** (ADR 0029 §1): the exact point the player aimed at, written
+     * once at the placement and never moved by a raise. `regionId` is the region that point lies
+     * in, read at the placement too: it carries the colour, the point carries everything else —
+     * the spacing, the deposit, the quay of a port, the march of a capture or a strike.
      */
-    point: v.optional(LON_LAT),
+    point: LON_LAT,
     /**
      * **Which site carries this building's placement** (ADR 0020 §10): `null` is national soil,
      * an id is the outpost the placement was anchored to. Written **at the placement and never
@@ -960,8 +955,9 @@ export default defineSchema({
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
-    /** The coast point a port was ordered on, carried through the queue so the mast is drawn
-     *  there from the moment it is enqueued and `finish` has nothing left to choose. */
+    /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
+     *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
+     *  Absent on an outpost's raise only: the point already stands on its own row. */
     point: v.optional(LON_LAT),
   }).index('byPlayer', ['playerId']),
 

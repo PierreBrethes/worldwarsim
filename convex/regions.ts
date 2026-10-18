@@ -3,7 +3,7 @@ import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
 import { foundationFor, settlesDebt, type FoundationDebt } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
-import { DEPOSIT_REGIONS, depositOfRegion } from '../src/domain/world';
+import { DEPOSIT_POINTS, depositAt, depositOfRegion } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
 import { fail } from './errors';
 
@@ -64,25 +64,21 @@ export function regionFacts(regionId: string): RegionFacts | null {
 }
 
 /**
- * **Where a building stands.** A building is its region's point — the pole of inaccessibility of
- * `region-index.json` — **except a port**, which carries the coast point the player picked at
- * the placement (ADR 0013, revision of 04/09): a ship leaves from the water, and a large region
- * has several coasts.
- *
- * Every reading of a building's position goes through here and through nothing else. The
- * alternative is eleven `regionFacts(building.regionId).point` that each have to remember the
- * exception — and the one that forgets sends a convoy inland to embark.
- *
- * A port put up before the field existed carries no point and reads at its centroid, as it
- * always did: nothing is backfilled (the lesson of 27/08 on `buildings.seasonId`), and the
- * tolerance leaves with the next wipe.
+ * **Where a building stands**: the point written at its placement (ADR 0029 §1). Every reading of
+ * a building's position goes through here, so that the shape of the row stays one file's business.
  */
 export function pointOfBuilding(building: {
-  readonly regionId: string;
-  readonly point?: { readonly lon: number; readonly lat: number } | undefined;
-}): LonLat | null {
-  if (building.point !== undefined) return [building.point.lon, building.point.lat];
-  return regionFacts(building.regionId)?.point ?? null;
+  readonly point: { readonly lon: number; readonly lat: number };
+}): LonLat {
+  return [building.point.lon, building.point.lat];
+}
+
+/** **The point of a region**, as a row carries a point — what a placement made without aiming
+ *  falls back on: the Blitz board and the test fixtures. */
+export function pointOfRegion(regionId: string): { lon: number; lat: number } {
+  const point = POINT_OF_REGION[regionId];
+  if (point === undefined) throw new Error(`region without a point: ${regionId}`);
+  return { lon: point[0], lat: point[1] };
 }
 
 /**
@@ -170,9 +166,7 @@ export const homeCountryOf = (nation: string | null): string | null =>
  */
 const DEPOSITS_BY_COUNTRY: ReadonlyMap<string, ReadonlySet<DepositKey>> = (() => {
   const held = new Map<string, Set<DepositKey>>();
-  for (const [regionId, deposit] of DEPOSIT_REGIONS) {
-    const country = COUNTRY_OF_REGION[regionId];
-    if (country === undefined) continue;
+  for (const { country, deposit } of DEPOSIT_POINTS) {
     const seen = held.get(country) ?? new Set<DepositKey>();
     seen.add(deposit);
     held.set(country, seen);
@@ -243,20 +237,26 @@ export const foundationOwedBy = (
 
 type Held = { readonly key: BuildingKey; readonly deposit: DepositKey | null };
 
-/** Ce qu'un bâtiment acquitte : sa clé et le gisement sous lui, jamais sa région. **Un bâtiment
- *  capturé n'acquitte rien** (14/10) : le socle est ce qu'on pose, pas ce qu'on prend. */
+/** Ce qu'un bâtiment acquitte : sa clé et le gisement sous son point (ADR 0029), jamais sa
+ *  région. **Un bâtiment capturé n'acquitte rien** (14/10) : le socle est ce qu'on pose, pas ce
+ *  qu'on prend. */
 export const heldPairs = (buildings: ReadonlyArray<SocleBuilding>): ReadonlyArray<Held> =>
   buildings.flatMap((building) =>
     building.capturedAt === undefined
-      ? [{ key: building.key, deposit: depositOfRegion(building.regionId) }]
+      ? [{ key: building.key, deposit: depositAt(lonLatOf(building.point))?.deposit ?? null }]
       : [],
   );
 
 type SocleBuilding = {
   readonly key: BuildingKey;
-  readonly regionId: string;
+  readonly point: { readonly lon: number; readonly lat: number };
   readonly capturedAt?: number;
 };
+
+const lonLatOf = (point: { readonly lon: number; readonly lat: number }): LonLat => [
+  point.lon,
+  point.lat,
+];
 
 /**
  * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges

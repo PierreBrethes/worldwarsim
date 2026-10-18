@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aimVerdict,
   blockedOn,
   buildableOn,
   outpostRaiseHold,
   placementOf,
+  PLACING_SNAP_KM,
   riseOf,
+  snapTo,
   upgradeHold,
   workSitesOf,
+  type Aim,
   type OutpostRaise,
   type Site,
 } from './construction';
@@ -18,6 +22,9 @@ import {
   type ResourceKey,
 } from './ids';
 import { unlockLevel } from '../../convex/constants';
+import { BUILDING_SPACING_KM } from './economy';
+import { destinationPoint, type LonLat } from './geo';
+import { DEPOSIT_POINTS } from './world';
 import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 
 /** Everything open at a headquarters of 1: the tier is under test on its own, below. */
@@ -29,13 +36,9 @@ const RICH = Object.fromEntries(RESOURCES.map((key) => [key, 1000])) as Record<R
 const BROKE = Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
 
 const site = (overrides: Partial<Site> = {}): Site => ({
-  deposit: null,
-  coastal: false,
-  standing: null,
   site: { outpostId: null },
   hqLevel: 1,
   stocks: RICH,
-  constructionHere: false,
   foundation: [],
   ...overrides,
 });
@@ -50,31 +53,18 @@ describe('the rest of the catalogue', () => {
   const reasonFor = (key: BuildingKey, overrides: Partial<Site> = {}) =>
     blockedOn(site(overrides), CATALOG).find((option) => option.key === key)?.reason;
 
-  it('partitions the current catalogue with the offer, whatever the ground', () => {
-    for (const overrides of [
-      {},
-      { deposit: 'coal' as const },
-      { coastal: true },
-      { hqLevel: 0 },
-      { standing: 'farm' as const },
-      { constructionHere: true },
-      { stocks: BROKE },
-    ]) {
+  it('partitions the current catalogue with the offer, whatever the player holds', () => {
+    for (const overrides of [{}, { hqLevel: 0 }, { stocks: BROKE }, { site: null }]) {
       const offered = keysOn(overrides);
       const blocked = blockedKeys(overrides);
       expect([...offered, ...blocked].sort()).toEqual([...BUILDABLE_BUILDINGS].sort());
     }
   });
 
-  // An empty warehouse is a hold, not a fact about the ground: it must not move a single
-  // line onto the shelf, or the panel would teach the region wrong.
+  // An empty warehouse is a hold, not a fact about the catalogue: it must not move a single
+  // line onto the shelf.
   it('leaves a held line in the offer rather than on the shelf', () => {
     expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
-  });
-
-  it('names the deposit a mine wants, not a bare refusal', () => {
-    expect(reasonFor('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'iron'] });
-    expect(reasonFor('port')).toEqual({ kind: 'coastal' });
   });
 
   it('names the tier the headquarters has not reached', () => {
@@ -87,32 +77,25 @@ describe('the rest of the catalogue', () => {
     expect(reasonFor('hq', { hqLevel: 2 })).toEqual({ kind: 'unique' });
   });
 
-  it('says what the region already carries', () => {
-    expect(reasonFor('farm', { standing: 'farm', deposit: 'food' })).toEqual({ kind: 'standing' });
-    expect(reasonFor('barracks', { standing: 'farm' })).toEqual({
-      kind: 'regionTaken',
-      by: 'farm',
-    });
+  it('says a ground no site reaches any more carries nothing', () => {
+    expect(reasonFor('barracks', { site: null })).toEqual({ kind: 'outOfReach' });
   });
 
   it('serves the bill of what it cannot place — that is what a plan is made of', () => {
-    const [port] = blockedOn(site(), CATALOG).filter((option) => option.key === 'port');
-    expect(port?.cost).toEqual({ steel: 20 });
-    expect(port?.minutes).toBe(30);
+    const [hq] = blockedOn(site(), CATALOG).filter((option) => option.key === 'hq');
+    expect(hq?.cost).toEqual({ steel: 20 });
+    expect(hq?.minutes).toBe(30);
   });
 });
 
-describe('what a region can carry', () => {
-  it('offers a mine only where the deposit is a mine’s', () => {
-    expect(keysOn({ deposit: 'coal' })).toContain('mine');
-    expect(keysOn({ deposit: 'iron' })).toContain('mine');
-    expect(keysOn({ deposit: 'oil' })).not.toContain('mine');
-    expect(keysOn()).not.toContain('mine');
-  });
-
-  it('offers a port only on a coast', () => {
-    expect(keysOn({ coastal: true })).toContain('port');
-    expect(keysOn()).not.toContain('port');
+/** **Choisir la clé, puis viser un lieu** (ADR 0029) : le catalogue ne lit plus aucun sol. */
+describe('what may be ordered before any point is aimed at', () => {
+  it('offers every exploitation and the port, and says what each asks of the point', () => {
+    const options = buildableOn(site(), CATALOG);
+    const reason = (key: BuildingKey) => options.find((option) => option.key === key)?.reason;
+    expect(reason('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'iron'] });
+    expect(reason('port')).toEqual({ kind: 'coastal' });
+    expect(reason('barracks')).toBeNull();
   });
 
   it('never offers a second headquarters', () => {
@@ -123,22 +106,8 @@ describe('what a region can carry', () => {
     expect(keysOn({ hqLevel: 0 })).toEqual(['hq']);
   });
 
-  /**
-   * A key the headquarters has not reached is **not drawn**, never drawn grey: the panel is
-   * contextual (ADR 0015), and a line that can only be refused teaches nothing about the ground
-   * it sits on. What holds a line back today it still says — that is `hold`, not this.
-   */
-  it('does not offer a key the headquarters has not opened yet', () => {
-    const gated: Record<BuildingKey, BuildSpec> = {
-      ...CATALOG,
-      airfield: { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: 3 },
-    };
-    expect(buildableOn(site({ hqLevel: 2 }), gated).map((option) => option.key)).not.toContain(
-      'airfield',
-    );
-    expect(buildableOn(site({ hqLevel: 3 }), gated).map((option) => option.key)).toContain(
-      'airfield',
-    );
+  it('offers nothing on ground no living site reaches', () => {
+    expect(keysOn({ site: null })).toEqual([]);
   });
 
   /**
@@ -155,24 +124,11 @@ describe('what a region can carry', () => {
     ) as Record<BuildingKey, BuildSpec>;
 
     const offered = (hqLevel: number) =>
-      buildableOn(site({ hqLevel, coastal: true }), catalog).map((option) => option.key);
+      buildableOn(site({ hqLevel }), catalog).map((option) => option.key);
 
     expect(offered(1)).not.toContain('port');
     expect(offered(1)).not.toContain('airfield');
     expect(offered(unlockLevel('port'))).toEqual(expect.arrayContaining(['port', 'airfield']));
-  });
-
-  it('offers nothing at all on a region already taken — one building per region', () => {
-    expect(keysOn({ standing: 'barracks' })).toEqual([]);
-  });
-
-  it('says why a building is offered, and stays silent when there is nothing to say', () => {
-    const [mine] = buildableOn(site({ deposit: 'coal' }), CATALOG).filter((o) => o.key === 'mine');
-    const [port] = buildableOn(site({ coastal: true }), CATALOG).filter((o) => o.key === 'port');
-    const [barracks] = buildableOn(site(), CATALOG).filter((o) => o.key === 'barracks');
-    expect(mine?.reason).toEqual({ kind: 'deposit', deposit: 'coal' });
-    expect(port?.reason).toEqual({ kind: 'coastal' });
-    expect(barracks?.reason).toBeNull();
   });
 });
 
@@ -190,65 +146,31 @@ describe('what merely holds a line back', () => {
   it('leaves a payable line clickable', () => {
     expect(buildableOn(site(), CATALOG).every((option) => option.hold === null)).toBe(true);
   });
-});
-
-/**
- * **A running site holds nothing back any more** (25/08): the queue is unbounded and paid at
- * the enqueue, so what is left of the holds is the ceiling and the bill. What survives of the
- * old rule is the ground — one entry per region, standing or queued.
- */
-describe('a placement the foundation owes, beside a queue', () => {
-  /** Une dette est un couple : elle ne s'acquitte que sur son gisement, donc le sol de ces cas
-   *  porte celui qu'elle nomme. */
-  const OWED = [{ key: 'mine', deposit: 'coal' }] as const;
-  const owedSite = (overrides: Partial<Site> = {}): Partial<Site> => ({
-    deposit: 'coal',
-    foundation: OWED,
-    ...overrides,
-  });
-
-  it('leaves every line clickable while chantiers are queued elsewhere', () => {
-    const options = buildableOn(site(owedSite()), CATALOG);
-    expect(options.length).toBeGreaterThan(0);
-    expect(options.every((option) => option.hold === null)).toBe(true);
-  });
-
-  /** The ground under an entry of the queue is reserved by it: a free placement there would
-   *  leave two buildings on one region once the `finish` lands. */
-  it('offers nothing at all on the region an entry of the queue aims at', () => {
-    expect(buildableOn(site(owedSite({ constructionHere: true })), CATALOG)).toEqual([]);
-  });
 
   /**
    * **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). À zéro,
-   * il est la seule chose qu'on offre — et il est offert sur n'importe quelle région, gisement
-   * ou non, ce qui est exactement la liberté que la décision achète.
+   * il est la seule chose qu'on offre, pour rien.
    */
-  const HQ_OWED = [{ key: 'hq', deposit: null }] as const;
-
-  it('offers the headquarters alone while it is owed, and on any ground', () => {
-    for (const deposit of [null, 'coal'] as const) {
-      const options = buildableOn(site({ hqLevel: 0, deposit, foundation: HQ_OWED }), CATALOG);
-      expect(options.map((option) => option.key)).toEqual(['hq']);
-      expect(options[0]).toMatchObject({ free: true, cost: {}, minutes: 0, hold: null });
-    }
-  });
-
-  /** Et plus jamais ensuite : rien ne remplace un quartier général debout. */
-  it('stops offering it the moment one stands', () => {
-    expect(keysOn({ hqLevel: 1, foundation: [] })).not.toContain('hq');
+  it('offers the headquarters alone while it is owed, for nothing', () => {
+    const options = buildableOn(
+      site({ hqLevel: 0, foundation: [{ key: 'hq', deposit: null }] }),
+      CATALOG,
+    );
+    expect(options.map((option) => option.key)).toEqual(['hq']);
+    expect(options[0]).toMatchObject({ free: true, cost: {}, minutes: 0, hold: null });
   });
 });
 
 describe('what holds a raise back', () => {
   const LOADED_AT = 1_000_000;
+  const POINT: LonLat = [6.6, 49.04];
 
   const building = (overrides: Partial<Building> = {}): Building => ({
     id: 'building-1',
     key: 'arsenal',
     name: 'Arsenal',
     regionId: 'FRA-5328',
-    point: null,
+    point: POINT,
     level: 1,
     nextLevelCost: { steel: 90, coal: 54 },
     nextLevelMinutes: 90,
@@ -281,8 +203,8 @@ describe('what holds a raise back', () => {
   });
 
   /** The queue is unbounded and prepaid (25/08), so a chantier elsewhere holds nothing: what
-   *  a raise still waits on is an entry already aimed at its own region. */
-  it('lets a raise through while a chantier runs on another region', () => {
+   *  a raise still waits on is an entry already aimed at its own point. */
+  it('lets a raise through while a chantier runs elsewhere', () => {
     const running = {
       id: 'construction-1',
       name: 'Mine',
@@ -290,13 +212,13 @@ describe('what holds a raise back', () => {
       regionId: 'FRA-5325',
       regionName: 'Meurthe-et-Moselle',
       outpostId: null,
-      point: null,
+      point: [6.2, 48.7] as LonLat,
       minutesLeft: 20,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
   });
 
-  it('holds a raise the queue already carries for this very region', () => {
+  it('holds a raise the queue already carries for this very point', () => {
     const queued = [
       {
         id: 'construction-2',
@@ -305,6 +227,7 @@ describe('what holds a raise back', () => {
         outpostId: null,
         regionId: 'FRA-5328',
         regionName: 'Moselle',
+        point: POINT,
         level: 2,
       },
     ];
@@ -346,162 +269,156 @@ describe('what holds a raise back', () => {
 });
 
 /**
- * Where a key goes down over the whole of a player's ground — the rule the mobilisation order
- * highlights with and the supply chart writes its conditions from. It must never offer ground
- * `constructions.start` would refuse, nor refuse for a reason the panel would not repeat.
+ * **La règle de pose, sous le pointeur** (ADR 0029) : ce que le fantôme dit avant le clic est le
+ * refus même de `constructions.start`, lu sur les faits que la vue et la carte portent.
  */
-describe('placement over the whole estate', () => {
-  const catalog = (overrides: Partial<Record<BuildingKey, number>> = {}) =>
-    Object.fromEntries(
-      BUILDINGS.map((key) => [
-        key,
-        { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: overrides[key] ?? 1 },
-      ]),
-    ) as Record<BuildingKey, BuildSpec>;
+describe('the point aimed at', () => {
+  const COAL = DEPOSIT_POINTS.find(
+    (deposit) => deposit.country === 'FRA' && deposit.deposit === 'coal',
+  )!;
+  const FRANCE = { id: 'FRA-5333', name: 'Paris', country: 'FRA' };
+  const PARIS: LonLat = [2.35, 48.85];
 
-  const estate = (overrides: {
-    regions?: PlayerView['me']['regions'];
-    buildings?: ReadonlyArray<{ key: BuildingKey; regionId: string }>;
-    hqLevel?: number;
+  const view = (overrides: {
+    buildings?: ReadonlyArray<{ key: BuildingKey; point: LonLat }>;
     foundation?: PlayerView['me']['foundation'];
-    construction?: PlayerView['me']['construction'];
-    queue?: PlayerView['me']['constructionQueue'];
-    unlocked?: Partial<Record<BuildingKey, number>>;
+    surveyed?: ReadonlyArray<LonLat>;
+    regions?: PlayerView['me']['regions'];
+    unlocked?: number;
   }): PlayerView =>
     ({
       me: {
-        hqLevel: overrides.hqLevel ?? 1,
+        nation: 'france',
+        hqLevel: 1,
         foundation: overrides.foundation ?? [],
-        construction: overrides.construction ?? null,
-        constructionQueue: overrides.queue ?? [],
+        construction: null,
+        constructionQueue: [],
         buildings: overrides.buildings ?? [],
+        outposts: [],
         regions: overrides.regions ?? [],
       },
-      buildCatalog: catalog(overrides.unlocked),
+      surveyedInstallations: (overrides.surveyed ?? []).map((point, k) => ({
+        id: `seen-${k}`,
+        key: 'mine',
+        regionId: 'x',
+        point,
+      })),
+      buildCatalog: Object.fromEntries(
+        BUILDINGS.map((key) => [
+          key,
+          { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: overrides.unlocked ?? 1 },
+        ]),
+      ),
     }) as unknown as PlayerView;
 
-  const region = (
-    id: string,
-    extra: Partial<PlayerView['me']['regions'][number]> = {},
-  ): PlayerView['me']['regions'][number] => ({
-    id,
-    name: id,
-    deposit: null,
+  const aim = (lonLat: LonLat, extra: Partial<Aim> = {}): Aim => ({
+    lonLat,
+    region: FRANCE,
     coastal: false,
-    point: [0, 0],
-    linked: true,
-    buildings: [],
-    site: { outpostId: null },
     ...extra,
   });
 
-  it('keeps only the regions whose deposit the exploitation works', () => {
-    const view = estate({
-      regions: [region('a', { deposit: 'coal' }), region('b'), region('c', { deposit: 'iron' })],
+  const refusalOf = (v: PlayerView, key: BuildingKey, at: Aim) =>
+    aimVerdict(v, key, at, []).refusal;
+
+  it('takes a point on national soil, and says nothing', () => {
+    expect(refusalOf(view({}), 'barracks', aim(PARIS))).toBeNull();
+  });
+
+  it('says the sea, or a map not yet drawn, is no ground', () => {
+    expect(refusalOf(view({}), 'barracks', aim(PARIS, { region: null }))).toEqual({
+      code: 'NO_GROUND',
     });
-    expect(placementOf(view, 'mine').regionIds).toEqual(['a', 'c']);
-    expect(placementOf(view, 'farm').regionIds).toEqual([]);
   });
 
-  it('names the deposit when no ground holds it', () => {
-    const view = estate({ regions: [region('a')] });
-    expect(placementOf(view, 'oilWell').condition).toEqual({ kind: 'deposit', deposits: ['oil'] });
-  });
-
-  /** The tier is the one refusal a player can always act on — it must outrank the ground. */
-  it('names the headquarters level a locked key waits on', () => {
-    const view = estate({
-      regions: [region('a', { coastal: true })],
-      unlocked: { port: 3 },
-    });
-    expect(placementOf(view, 'port').condition).toEqual({ kind: 'locked', hqLevel: 3 });
-  });
-
-  it('names a ground that is simply taken', () => {
+  it('refuses a point abroad no outpost reaches', () => {
+    const abroad = aim([7, 51], { region: { id: 'DEU-1572', name: 'Ruhr', country: 'DEU' } });
+    expect(refusalOf(view({}), 'barracks', abroad)).toEqual({ code: 'OUT_OF_REACH' });
     expect(
-      placementOf(
-        estate({
-          regions: [region('a', { buildings: [{ key: 'farm', level: 1 }] })],
-          buildings: [{ key: 'farm', regionId: 'a' }],
-        }),
-        'barracks',
-      ).condition,
-    ).toEqual({ kind: 'regionsTaken' });
+      aimVerdict(view({}), 'barracks', abroad, [{ id: 'o', lonLat: [7.2, 51], reachKm: 120 }])
+        .refusal,
+    ).toBeNull();
   });
 
-  /** A region under the crane is taken though nothing stands on it — the server refuses it
-   *  (`constructions.start`), so the order must not light it up. */
-  it('leaves out the region a construction is rising on', () => {
-    const view = estate({
-      regions: [region('a'), region('b')],
-      construction: {
-        id: 'construction-1',
-        name: 'Ferme',
-        key: 'farm',
-        outpostId: null,
-        regionId: 'a',
-        regionName: 'a',
-        point: null,
-        minutesLeft: 10,
-      },
+  it('wants an exploitation on its own free deposit', () => {
+    expect(refusalOf(view({}), 'mine', aim(PARIS))).toEqual({ code: 'DEPOSIT_REQUIRED' });
+    expect(refusalOf(view({}), 'mine', aim(COAL.lonLat))).toBeNull();
+    expect(refusalOf(view({}), 'farm', aim(COAL.lonLat))).toEqual({ code: 'DEPOSIT_REQUIRED' });
+    expect(refusalOf(view({ surveyed: [COAL.lonLat] }), 'mine', aim(COAL.lonLat))).toEqual({
+      code: 'DEPOSIT_TAKEN',
     });
-    expect(placementOf(view, 'barracks').regionIds).toEqual(['b']);
   });
 
-  /** And so is one a **queued** entry aims at: it is paid for, and the server refuses a second
-   *  entry on it exactly as it refuses one under the crane. */
-  it('leaves out the region an entry of the queue aims at', () => {
-    const queued = [
-      {
-        id: 'construction-2',
-        name: 'Ferme',
-        key: 'farm' as const,
-        outpostId: null,
-        regionId: 'a',
-        regionName: 'a',
-        level: 1,
-      },
-    ];
-    const view = estate({ regions: [region('a'), region('b')], queue: queued });
-    expect(placementOf(view, 'barracks').regionIds).toEqual(['b']);
+  it('wants a port on the coast', () => {
+    expect(refusalOf(view({}), 'port', aim(PARIS))).toEqual({ code: 'NOT_COASTAL' });
+    expect(refusalOf(view({}), 'port', aim(PARIS, { coastal: true }))).toBeNull();
   });
 
-  it('marks a key the foundation still owes as free', () => {
-    const view = estate({
-      regions: [region('a', { deposit: 'iron' })],
-      foundation: [{ key: 'mine', deposit: 'iron' }],
+  it(`names the neighbour closer than ${BUILDING_SPACING_KM} km`, () => {
+    const near = destinationPoint(PARIS, BUILDING_SPACING_KM - 5, 90);
+    const far = destinationPoint(PARIS, BUILDING_SPACING_KM + 5, 90);
+    const stood = view({ buildings: [{ key: 'arsenal', point: PARIS }] });
+    expect(refusalOf(stood, 'barracks', aim(near))).toEqual({
+      code: 'TOO_CLOSE',
+      near: 'arsenal',
+      km: BUILDING_SPACING_KM,
     });
-    expect(placementOf(view, 'mine')).toMatchObject({ free: true, condition: null });
-    expect(placementOf(view, 'warehouse').free).toBe(false);
+    expect(refusalOf(stood, 'barracks', aim(far))).toBeNull();
   });
 
-  /** The estate reading and the per-region reading are the same rule: whatever `placementOf`
-   *  hands the map, the panel opened on that very region has to offer. */
-  it('agrees with the region panel, region by region', () => {
-    const view = estate({
-      regions: [region('a', { deposit: 'coal' }), region('b', { coastal: true }), region('c')],
-      foundation: [{ key: 'mine', deposit: 'coal' }],
+  it('marks free what the foundation owes on this very deposit, and only there', () => {
+    const owed = view({ foundation: [{ key: 'mine', deposit: 'coal' }] });
+    expect(aimVerdict(owed, 'mine', aim(COAL.lonLat), []).free).toBe(true);
+    expect(aimVerdict(owed, 'mine', aim(PARIS), []).free).toBe(false);
+  });
+
+  describe('placementOf', () => {
+    const region = (id: string): PlayerView['me']['regions'][number] => ({
+      id,
+      name: id,
+      deposit: null,
+      coastal: false,
+      point: [0, 0],
+      linked: true,
+      buildings: [],
+      site: { outpostId: null },
     });
-    for (const key of BUILDINGS) {
-      const offered = new Set(
-        view.me.regions
-          .filter((candidate) =>
-            buildableOn(
-              site({
-                deposit: candidate.deposit,
-                coastal: candidate.coastal,
-                standing: candidate.buildings[0]?.key ?? null,
-                site: { outpostId: null },
-                hqLevel: view.me.hqLevel,
-                foundation: view.me.foundation,
-              }),
-              view.buildCatalog,
-            ).some((option) => option.key === key && option.hold === null),
-          )
-          .map((candidate) => candidate.id),
-      );
-      expect(new Set(placementOf(view, key).regionIds)).toEqual(offered);
-    }
+
+    it('names the headquarters level a locked key waits on', () => {
+      expect(placementOf(view({ unlocked: 3 }), 'port').condition).toEqual({
+        kind: 'locked',
+        hqLevel: 3,
+      });
+    });
+
+    it('names the deposit when no free one lies in the regions the player holds', () => {
+      expect(placementOf(view({}), 'mine').condition).toEqual({
+        kind: 'deposit',
+        deposits: ['coal', 'iron'],
+      });
+      expect(placementOf(view({ regions: [region(COAL.regionId)] }), 'mine').condition).toBeNull();
+      expect(
+        placementOf(view({ regions: [region(COAL.regionId)] }), 'mine', ['iron']).condition,
+      ).toEqual({ kind: 'deposit', deposits: ['iron'] });
+    });
+
+    it('leaves anything else to the aim', () => {
+      expect(placementOf(view({}), 'barracks').condition).toBeNull();
+    });
+  });
+});
+
+describe('snapTo', () => {
+  const POINTER: LonLat = [2.35, 48.85];
+
+  it(`leaps onto the closest magnet within ${PLACING_SNAP_KM} km`, () => {
+    const near = destinationPoint(POINTER, PLACING_SNAP_KM / 2, 0);
+    const nearer = destinationPoint(POINTER, PLACING_SNAP_KM / 4, 180);
+    expect(snapTo(POINTER, [near, nearer])).toEqual(nearer);
+  });
+
+  it('stays under the pointer when nothing is close enough', () => {
+    expect(snapTo(POINTER, [destinationPoint(POINTER, PLACING_SNAP_KM * 2, 0)])).toEqual(POINTER);
   });
 });
 
@@ -593,10 +510,19 @@ describe('riseOf', () => {
 
 describe('workSitesOf', () => {
   const LOADED = 1_000_000;
+  /** One point per region of the fixture: a raise is the work aimed at a building's point. */
+  const at = (regionId: string): LonLat => [regionId.charCodeAt(regionId.length - 1), 0];
   const me = (over: Partial<PlayerView['me']>) =>
     ({
       buildings: [
-        { id: 'b-arsenal', key: 'arsenal', regionId: 'r-f', level: 2, nextLevelMinutes: 90 },
+        {
+          id: 'b-arsenal',
+          key: 'arsenal',
+          regionId: 'r-f',
+          point: at('r-f'),
+          level: 2,
+          nextLevelMinutes: 90,
+        },
       ],
       construction: null,
       constructionQueue: [],
@@ -609,7 +535,7 @@ describe('workSitesOf', () => {
     outpostId: null,
     regionId,
     regionName: 'Marne',
-    point: null,
+    point: at(regionId),
     minutesLeft,
   });
   const queued = (
@@ -624,6 +550,7 @@ describe('workSitesOf', () => {
     outpostId,
     regionId,
     regionName: 'Meuse',
+    point: outpostId === null ? at(regionId) : null,
     level,
   });
 

@@ -83,15 +83,22 @@ export async function buildingLevel(
   return levelOf(await playerBuildings(ctx, playerId), key);
 }
 
+/** Two written points are one place: a point is copied whole from row to row, never recomputed. */
+export const samePoint = (
+  a: { readonly lon: number; readonly lat: number },
+  b: { readonly lon: number; readonly lat: number },
+): boolean => a.lon === b.lon && a.lat === b.lat;
+
+/** **The building of this family standing at this very point** — what a raise names (ADR 0029). */
 export const buildingAt = (
   buildings: ReadonlyArray<Doc<'buildings'>>,
   key: BuildingKey,
-  regionId: string,
+  point: { readonly lon: number; readonly lat: number },
 ): Doc<'buildings'> | undefined =>
   buildings.find(
     (building) =>
       canonicalBuildingKey(building.key) === canonicalBuildingKey(key) &&
-      building.regionId === regionId,
+      samePoint(building.point, point),
   );
 
 /**

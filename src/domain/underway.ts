@@ -1,6 +1,7 @@
 import { countryLabel, fr } from '@/i18n/fr';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
+import type { LonLat } from './geo';
 import { representativeRole } from './troops';
 
 /**
@@ -10,7 +11,13 @@ import { representativeRole } from './troops';
  */
 type UnderwayPlace =
   | { readonly kind: 'movement'; readonly arcId: string }
-  | { readonly kind: 'building'; readonly regionId: string; readonly key: BuildingKey }
+  | {
+      readonly kind: 'building';
+      readonly regionId: string;
+      readonly key: BuildingKey;
+      /** Where its mast stands (ADR 0029) — `null` when the view does not carry it. */
+      readonly point: LonLat | null;
+    }
   | { readonly kind: 'outpost'; readonly outpostId: string };
 
 /** Le visage d'une ligne : la planche de ce qui marche, ou celle de ce qui se bâtit. */
@@ -83,15 +90,20 @@ export function underwayOf(
     } else {
       /** La tête de file ne porte pas son niveau : il se lit sur le bâtiment qu'elle monte, et un
        *  bâtiment qui ne se tient pas encore monte au premier. */
+      const point = work.point;
       const standing = view.me.buildings.find(
-        (building) => building.regionId === work.regionId && building.key === work.key,
+        (building) =>
+          point !== null &&
+          building.point[0] === point[0] &&
+          building.point[1] === point[1] &&
+          building.key === work.key,
       );
       lines.push({
         id: `construction-${work.id}`,
         endsAt: at(work.minutesLeft),
         label: fr.underway.construction(work.name, (standing?.level ?? 0) + 1),
         face: { kind: 'building', key: work.key },
-        place: { kind: 'building', regionId: work.regionId, key: work.key },
+        place: { kind: 'building', regionId: work.regionId, key: work.key, point: work.point },
         moving: false,
       });
     }
@@ -115,7 +127,14 @@ export function underwayOf(
       endsAt: recruitment.endsAt,
       label: fr.underway.recruitment(recruitment.regionName),
       face: { kind: 'building', key: recruitment.key },
-      place: { kind: 'building', regionId: recruitment.regionId, key: recruitment.key },
+      place: {
+        kind: 'building',
+        regionId: recruitment.regionId,
+        key: recruitment.key,
+        point:
+          view.me.buildings.find((building) => building.id === recruitment.buildingId)?.point ??
+          null,
+      },
       moving: false,
     });
   }
@@ -129,7 +148,7 @@ export function underwayOf(
       endsAt: finishesAt,
       label: fr.underway.lot(chain.order.ordered, fr.resources[chain.output]),
       face: { kind: 'building', key: chain.by },
-      place: { kind: 'building', regionId: site.regionId, key: site.key },
+      place: { kind: 'building', regionId: site.regionId, key: site.key, point: site.point },
       moving: false,
     });
   }

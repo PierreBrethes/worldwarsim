@@ -7,7 +7,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { journalUrl, push, reportUrl, telegraphUrl, type PushType } from '../src/domain/push';
 import { DETECTION_RANGE_KM, nominalStrength } from './constants';
 import { notifyPlayer } from './notifications';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -130,7 +130,14 @@ async function raise(t: Bench, seat: Seat, key: BuildingKey, regionId: string) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
   });
 }
 

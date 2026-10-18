@@ -43,12 +43,14 @@ export type MapMarker =
       readonly buildingId: string;
       readonly key: Exclude<BuildingKey, 'depot'>;
       readonly regionId: string;
+      /** **Où il se tenait quand on l'a relevé** (ADR 0029) : son mât, et le point que la capture
+       *  et la frappe visent. */
+      readonly lonLat: LonLat;
       readonly name: string;
       readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
-      /** **Un neutre de la Blitz** (lot 4) : public, posé à son point — le quai d'un port —, et
-       *  jamais délavé ; `null` hors Blitz, où le relevé ne porte que la région. */
+      /** **Un neutre de la Blitz** (lot 4) : public et jamais délavé ; `null` hors Blitz. */
       readonly neutral: { readonly lonLat: LonLat } | null;
     }
   | {
@@ -232,7 +234,8 @@ export type MapMarker =
        */
       readonly kind: 'deposit';
       readonly id: string;
-      readonly regionId: string;
+      /** **Un gisement est un point** (ADR 0029 §3) : il se tient là où l'exploitation s'aimante. */
+      readonly lonLat: LonLat;
       readonly deposit: DepositKey;
     };
 
@@ -675,15 +678,9 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
 
 const exists = <T>(value: T | null): value is T => value !== null;
 
-/** A port hangs from its quay, a deposit and every other building from their region, and
- *  everything that carries a coordinate from that coordinate. */
+/** Everything hangs from its coordinate — a deposit, a building, a surveyed installation —
+ *  save a building the view serves without one. */
 function anchorOf(marker: MapMarker): LabelAnchor {
-  if (marker.kind === 'installation' && marker.neutral !== null) {
-    return { kind: 'ground', lonLat: marker.neutral.lonLat };
-  }
-  if (marker.kind === 'deposit' || marker.kind === 'installation') {
-    return { kind: 'region', regionId: marker.regionId };
-  }
   if (marker.kind === 'building') {
     return marker.lonLat === null
       ? { kind: 'region', regionId: marker.regionId }

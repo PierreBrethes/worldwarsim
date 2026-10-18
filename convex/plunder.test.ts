@@ -10,7 +10,7 @@ import {
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
@@ -66,6 +66,7 @@ async function building(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level: 1,
     }),
   );
@@ -246,7 +247,7 @@ describe('surveyed plunder targets', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.surveyedInstallations).toEqual([
-      { id: warehouseId, key: 'warehouse', regionId: PRAHOVA },
+      { id: warehouseId, key: 'warehouse', regionId: PRAHOVA, point: regionFacts(PRAHOVA)!.point },
     ]);
     expect(JSON.stringify(view.surveyedInstallations)).not.toContain('stock');
     expect(JSON.stringify(view.surveyedInstallations)).not.toContain('garrison');
@@ -260,7 +261,7 @@ describe('surveyed plunder targets', () => {
     await observe(t, seat);
 
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toEqual([
-      { id: depotId, key: 'warehouse', regionId: PRAHOVA },
+      { id: depotId, key: 'warehouse', regionId: PRAHOVA, point: regionFacts(PRAHOVA)!.point },
     ]);
     await expect(resolve(t, seat, depotId)).resolves.toMatchObject({ _id: depotId });
   });
@@ -372,7 +373,7 @@ describe('what a column surveys where it lands', () => {
     await attackArrival(t, seat, [await troop(t, seat, 'infantry', barracks)], PSKOV, 'RUS');
 
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toEqual([
-      { id: mine, key: 'mine', regionId: PSKOV },
+      { id: mine, key: 'mine', regionId: PSKOV, point: regionFacts(PSKOV)!.point },
     ]);
   });
 

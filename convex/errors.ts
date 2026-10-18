@@ -66,10 +66,12 @@ export type ErrorCode =
   | 'UNKNOWN_CAPITAL_REGION'
   | 'DEPOSIT_REQUIRED'
   | 'NOT_COASTAL'
-  | 'POINT_FOR_PORT_ONLY'
-  | 'PORT_NEEDS_A_COAST_POINT'
   | 'POINT_OUTSIDE_REGION'
-  | 'REGION_TAKEN'
+  /** **Le placement libre** (ADR 0029) : un gisement déjà exploité, un voisin trop proche, une
+   *  élévation déjà en file sur ce point. */
+  | 'DEPOSIT_TAKEN'
+  | 'BUILDING_TOO_CLOSE'
+  | 'ALREADY_QUEUED_HERE'
   | 'BUILDING_LOCKED'
   | 'ROLE_LOCKED'
   | 'SITE_LEVEL_LOCKED'

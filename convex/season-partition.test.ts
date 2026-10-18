@@ -9,7 +9,7 @@ import type { LonLat } from '../src/domain/geo';
 import { landCostOf } from '../src/domain/movement-orders';
 import { DETECTION_RANGE_KM, nominalStrength, routeMinutes } from './constants';
 import { GAME_TABLES, IDENTITY_TABLES } from './dev';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -73,7 +73,14 @@ async function disbandTheGift(t: ReturnType<typeof boot>, ...seats: ReadonlyArra
 async function raise(t: ReturnType<typeof boot>, seat: Seat, regionId: string) {
   const { _id: playerId, seasonId } = await playerOf(t, seat);
   return t.run(async (ctx) =>
-    ctx.db.insert('buildings', { seasonId, playerId, key: 'barracks', regionId, level: 1 }),
+    ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key: 'barracks',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    }),
   );
 }
 

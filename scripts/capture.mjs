@@ -2,12 +2,17 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms]
+ *       [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
  * l'identifiant de la dernière démo, ce qui fait entrer le compte sur sa place
  * (`/plateau?season={saison}`). Les erreurs de console sortent sur stdout.
+ *
+ * `--geste` se répète et se joue dans l'ordre, après l'attente et avant la capture, pour voir un
+ * état qu'il faut provoquer (le fantôme d'une pose) : `texte=Mine — charbon` clique le premier
+ * élément qui porte ce texte, `clic=x,y` clique en un point, `molette=x,y,dy` tourne la molette,
+ * `survol=x,y` y mène la souris, `pause=ms` attend.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -19,7 +24,8 @@ const option = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at < 0 ? fallback : args[at + 1];
 };
-const flags = new Set(['--compte', '--largeur', '--hauteur', '--attendre']);
+const flags = new Set(['--compte', '--largeur', '--hauteur', '--attendre', '--geste']);
+const gestures = args.flatMap((arg, k) => (args[k - 1] === '--geste' ? [arg] : []));
 const positional = args.filter((arg, k) => !arg.startsWith('--') && !flags.has(args[k - 1]));
 const [target, out] = positional;
 if (!target || !out) {
@@ -85,6 +91,19 @@ try {
     await understood.click();
   }
   await page.waitForTimeout(Number(option('attendre', 6000)));
+  for (const gesture of gestures) {
+    const [kind, value = ''] = gesture.split(/=(.*)/s);
+    const [x = 0, y = 0, dy = 0] = value.split(',').map(Number);
+    if (kind === 'texte') await page.getByText(value).first().click();
+    else if (kind === 'molette') {
+      await page.mouse.move(x, y);
+      await page.mouse.wheel(0, dy);
+    } else if (kind === 'survol') await page.mouse.move(x, y, { steps: 8 });
+    else if (kind === 'clic') await page.mouse.click(x, y);
+    else if (kind === 'pause') await page.waitForTimeout(x);
+    else throw new Error(`--geste inconnu : ${gesture}`);
+    await page.waitForTimeout(400);
+  }
   await page.screenshot({ path: out });
   console.log(`capture : ${out} (${url})`);
 } finally {

@@ -15,7 +15,7 @@ import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { firesIndirect } from '../../src/domain/indirect-fire';
-import { buildingAt, playerBuildings } from '../buildingReads';
+import { playerBuildings } from '../buildingReads';
 import {
   cargoTotal,
   movementCargoFields,
@@ -495,7 +495,12 @@ export async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Pr
     movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
   const barracks =
     movement.target.kind === 'region'
-      ? buildingAt(buildings, 'barracks', movement.target.regionId)
+      ? buildings.find(
+          (building) =>
+            building.key === 'barracks' &&
+            movement.target.kind === 'region' &&
+            building.regionId === movement.target.regionId,
+        )
       : undefined;
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);

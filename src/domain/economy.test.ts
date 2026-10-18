@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDING_SPACING_KM,
   clipToCapacity,
   placementRefusal,
+  siteOfPoint,
   emptyStocks,
   isLinked,
   produces,
@@ -11,6 +13,7 @@ import {
   type Stocks,
 } from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
+import type { LonLat } from './geo';
 
 const stocksOf = (held: Partial<Record<ResourceKey, number>>): Stocks => ({
   ...emptyStocks(),
@@ -374,15 +377,62 @@ describe('a reserve emptied by a negative rate', () => {
   });
 });
 
-describe('legacy storage placement', () => {
-  const region = { deposit: null, coastal: false };
+describe('placement at a point (ADR 0029)', () => {
+  const free = { reached: true, deposit: null, coastal: false, nearest: null } as const;
+  const coal = { key: 'coal', taken: false } as const;
+
   it('refuses a new depot even on free ground', () => {
-    expect(placementRefusal('depot', region, { onRegion: null, hqLevel: 2 }, 1)).toBe(
-      'UNKNOWN_BUILDING',
+    expect(placementRefusal('depot', free, 2, 1)).toBe('UNKNOWN_BUILDING');
+  });
+
+  it('refuses a point no soil and no reach of the player covers', () => {
+    expect(placementRefusal('barracks', { ...free, reached: false }, 2, 1)).toBe('OUT_OF_REACH');
+  });
+
+  it('wants an exploitation on its own deposit, and on a free one', () => {
+    expect(placementRefusal('mine', free, 2, 1)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, 1)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, 1)).toBeNull();
+    expect(placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, 1)).toBe(
+      'DEPOSIT_TAKEN',
     );
   });
-  it('raises an old depot as a warehouse', () => {
-    expect(placementRefusal('warehouse', region, { onRegion: 'depot', hqLevel: 2 }, 1)).toBeNull();
+
+  it('wants a port on a coast', () => {
+    expect(placementRefusal('port', free, 2, 1)).toBe('NOT_COASTAL');
+    expect(placementRefusal('port', { ...free, coastal: true }, 2, 1)).toBeNull();
+  });
+
+  it(`keeps ${BUILDING_SPACING_KM} km between two buildings of the player`, () => {
+    const near = (km: number) => ({ ...free, nearest: { key: 'arsenal' as const, km } });
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, 1)).toBe('TOO_CLOSE');
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, 1)).toBeNull();
+  });
+
+  it('counts no region: two buildings far enough apart stand in the same one', () => {
+    expect(placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, 1)).toBe(
+      null,
+    );
+  });
+});
+
+describe('siteOfPoint', () => {
+  const paris: LonLat = [2.35, 48.85];
+  const outposts = [
+    { id: 'far', lonLat: [10, 48.85] as LonLat, reachKm: 120 },
+    { id: 'near', lonLat: [3, 48.85] as LonLat, reachKm: 120 },
+  ];
+
+  it('hangs national soil from home', () => {
+    expect(siteOfPoint(paris, true, outposts)).toEqual({ kind: 'home' });
+  });
+
+  it('hangs a point abroad from the closest outpost that reaches it', () => {
+    expect(siteOfPoint(paris, false, outposts)).toEqual({ kind: 'outpost', outpostId: 'near' });
+  });
+
+  it('answers nothing out of every reach', () => {
+    expect(siteOfPoint([-60, 0], false, outposts)).toBeNull();
   });
 });
 

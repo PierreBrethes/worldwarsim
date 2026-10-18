@@ -173,7 +173,7 @@ export type SurveyedPlunderTarget = {
   readonly _id: Id<'buildings'>;
   readonly key: Doc<'buildings'>['key'];
   readonly regionId: string;
-  readonly point: LonLat | null;
+  readonly point: LonLat;
 };
 
 /**
@@ -230,8 +230,7 @@ export async function surveyedTarget(
     _id: buildingId,
     key: seen.key,
     regionId: seen.regionId,
-    point:
-      building === null ? (regionFacts(seen.regionId)?.point ?? null) : pointOfBuilding(building),
+    point: pointOfBuilding(building ?? seen),
   };
 }
 

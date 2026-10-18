@@ -16,7 +16,7 @@ import {
   nominalStrength,
   routeMinutes,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import { forgetMovement } from './movement/arrival';
@@ -121,7 +121,14 @@ async function station(t: ReturnType<typeof boot>, seat: Seat, regionId: string)
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key: 'listening', regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key: 'listening',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
   });
 }
 

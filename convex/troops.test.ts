@@ -1,3 +1,4 @@
+import { pointOfRegion } from './regions';
 import { convexTest } from 'convex-test';
 import { describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
@@ -82,7 +83,14 @@ async function raise(
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level,
+    });
   });
 }
 

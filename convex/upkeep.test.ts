@@ -15,7 +15,7 @@ import {
   recruitmentCost,
 } from './constants';
 import { armyUpkeep } from '../src/domain/upkeep';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { landAtPoint } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -104,6 +104,7 @@ async function raise(t: ReturnType<typeof boot>, seat: Seat, key: 'farm' | 'barr
       playerId,
       key,
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
       level: 1,
     }),
   );

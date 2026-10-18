@@ -1,10 +1,6 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useRef, useState } from 'react';
-import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
-import { handleError } from '@/data/errors';
-import { notify } from '@/shell/notifications';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { Draggable } from './Draggable';
 import { followDrag, scaleOf, type Grab } from './dragging';
@@ -22,7 +18,6 @@ import type { BuildingKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
-import type { Seat } from '@/data/session';
 import { CostLine } from './UpgradeControl';
 
 const MIN_WIDTH = 260;
@@ -46,27 +41,20 @@ const GEOMETRY = 'construction';
  */
 export function ConstructionPanel({
   view,
-  seat,
   regionId,
   at,
   onClose,
   onPlace,
 }: {
   view: PlayerView;
-  seat: Seat;
   regionId: string;
   at: { x: number; y: number };
   onClose: () => void;
-  /**
-   * **Le port ne se commande pas d'ici** (ADR 0013, révision du 04/09) : il se pose à un point de
-   * côte, et le panneau n'a pas de carte. Il rend la main au plateau, qui arme le mode de pose ;
-   * ce qui revient est un clic sur le rivage, jamais une ligne de plus dans ce panneau.
-   */
+  /** **Le panneau choisit la clé, la carte choisit le lieu** (ADR 0029) : il rend la main au
+   *  plateau, qui arme le fantôme. */
   onPlace: (option: BuildOption) => void;
 }) {
   const now = useClock();
-  const [error, setError] = useState<string | null>(null);
-  const start = useMutation(api.constructions.start);
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(() => readWindowGeometry(GEOMETRY).size);
 
@@ -123,26 +111,13 @@ export function ConstructionPanel({
   const built = countByKey(view.me.buildings);
 
   /**
-   * **Le seul geste du plateau dont l'effet se produit ailleurs** : le panneau se referme sur la
-   * carte, et le chantier commandé n'apparaît qu'en Économie. D'où l'avis.
-   *
-   * **Sauf pour une clé du socle** : elle est debout à l'instant, sur la région qu'on vient de
-   * désigner. Ce qui se voit sous la souris n'a pas besoin qu'on l'annonce.
+   * **Choisir la clé, puis viser un lieu** (ADR 0029) : le panneau ne commande plus rien
+   * lui-même. Il rend la main au plateau, qui arme le fantôme ; ce qui revient est un clic sur la
+   * carte, et le refus éventuel se dit sous le pointeur avant ce clic.
    */
   const order = (option: BuildOption) => {
-    if (option.key === 'port') {
-      onPlace(option);
-      onClose();
-      return;
-    }
-    setError(null);
-    start({ ...seat, building: option.key, regionId }).then(
-      () => {
-        if (!option.free) notify(fr.construction.queued(fr.buildings[option.key]), 'info');
-        onClose();
-      },
-      (problem: unknown) => handleError(problem, setError),
-    );
+    onPlace(option);
+    onClose();
   };
 
   return (
@@ -214,12 +189,6 @@ export function ConstructionPanel({
             </>
           )}
         </div>
-
-        {error && (
-          <p className="mt-2 shrink-0 border border-[var(--critical)] px-2 py-[6px] text-[12px] text-[var(--ink)]">
-            {error}
-          </p>
-        )}
       </Panel>
       <div
         aria-hidden
@@ -372,28 +341,16 @@ function BlockedRow({ option, built }: { option: BlockedOption; built: number })
 const blockedText = (reason: BlockedReason): string => {
   const said = fr.construction.blocked;
   switch (reason.kind) {
-    case 'constructionHere':
-      return said.constructionHere;
     case 'outOfReach':
       return said.outOfReach;
-    case 'standing':
-      return said.standing;
-    case 'regionTaken':
-      return said.regionTaken(fr.buildings[reason.by]);
     case 'unique':
       return said.unique;
     case 'locked':
       return said.locked(reason.hqLevel);
-    case 'deposit':
-      return said.deposit(reason.deposits.map((key) => fr.deposits[key]));
-    case 'coastal':
-      return said.coastal;
-    case 'here':
-      return said.here;
   }
 };
 
 const reasonText = (reason: BuildReason): string =>
   reason.kind === 'coastal'
     ? fr.construction.coastalReason
-    : fr.construction.depositReason(fr.deposits[reason.deposit]);
+    : fr.construction.depositReason(reason.deposits.map((key) => fr.deposits[key]));

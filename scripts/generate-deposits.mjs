@@ -1,8 +1,10 @@
 /**
- * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) laid on
- * admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as `id`.
+ * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) as **points** on
+ * the map (ADR 0029 §3): `{ id, deposit, regionId, country, lon, lat }`, one per deposit. The
+ * draw still chooses admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as
+ * `id`, and each chosen region gives its point; no region gives two yet.
  *
- * The file is **sparse**: a region without a deposit is absent, and a region never holds two.
+ * Run after `generate-region-index.mjs`: the point is the one that index measures from.
  * Everything is decided here, offline: no client rule derives a deposit from a region type at
  * runtime, so the map stays a fact the server and the client read, never recompute.
  *
@@ -590,23 +592,47 @@ for (const id of Object.keys(CORRECTIONS.remove)) {
   else deposits.delete(id);
 }
 
-const output = Object.fromEntries([...deposits].sort(([a], [b]) => (a < b ? -1 : 1)));
+/**
+ * **A deposit is a point, and it carries one exploitation** (ADR 0029 §3). The draw above still
+ * picks the regions — that is where the band, the profiles and the exceptions are argued — and
+ * each pick becomes one point: the region's own, the pole of inaccessibility `region-index.json`
+ * already measures every distance from. Reading it rather than recomputing it keeps one point per
+ * place: a deposit and the region it lies in can never be measured from two spots.
+ *
+ * The region travels with the point as a fact of the map, never as a rule: which region a point
+ * lies in is what the board colours (`heldRegions`); what the point is worth is the deposit.
+ */
+const index = JSON.parse(readFileSync('public/region-index.json', 'utf8'));
+const output = [...deposits]
+  .sort(([a], [b]) => (a < b ? -1 : 1))
+  .map(([regionId, deposit]) => {
+    const [lon, lat] = index.point[regionId];
+    return {
+      id: `${deposit}-${regionId}`,
+      deposit,
+      regionId,
+      country: index.country[regionId],
+      lon,
+      lat,
+    };
+  });
 writeFileSync('public/deposits.json', JSON.stringify(output));
 
-const total = Object.keys(output).length;
+const total = output.length;
 const perKey = DEPOSITS.map(
-  (key) => `${key} ${[...deposits.values()].filter((v) => v === key).length}`,
+  (key) => `${key} ${output.filter((point) => point.deposit === key).length}`,
 ).join(', ');
-console.log(`${total} deposits on ${regions.length} regions — ${perKey}\n`);
+console.log(`${total} deposit points over ${regions.length} regions — ${perKey}\n`);
 
+/** The audits count **points** on home ground (ADR 0029 §3): what a nation can work is how
+ *  many exploitations it can put down, one per point. */
 const home = Object.fromEntries(
   NATIONS.map((nation) => [
     nation,
     DEPOSITS.map(
       (key) =>
-        regions.filter(
-          (region) =>
-            region.country === NATION_COUNTRIES[nation] && deposits.get(region.id) === key,
+        output.filter(
+          (point) => point.country === NATION_COUNTRIES[nation] && point.deposit === key,
         ).length,
     ),
   ]),

@@ -69,6 +69,8 @@ import {
   type HeldClaim,
   type PieceClick,
   type PieceHold,
+  type PlacingMagnet,
+  type PlacingSpot,
   type SearchArea,
   type StandingMaquette,
   type StandingPile,
@@ -194,13 +196,14 @@ type Props = {
   /** The board wears the trowel while a construction panel is open. */
   building?: boolean;
   /**
-   * **A building held over one region, waiting for the point it goes down on** (ADR 0013,
-   * revision of 04/09) — the port and nothing else so far. The ghost snaps onto the coast cells
-   * of that region; the click hands back the one it landed on, and everything else about the
-   * mode — what it costs, what it is called, when it ends — stays on the board.
+   * **A building held over the board, waiting for the point it goes down on** (ADR 0029). The
+   * ghost follows the pointer and leaps onto what its magnet picks; the board hears every point
+   * it moves onto, and the click hands back the one it holds. What it costs, what it is called,
+   * what refuses it and when it ends stay on the board.
    */
   placing?: PlacingBuilding | null;
-  onPlacePoint?: (point: LonLat) => void;
+  onPlacePoint?: (spot: PlacingSpot) => void;
+  onPlacingAim?: (spot: PlacingSpot | null) => void;
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
   /**
@@ -276,17 +279,20 @@ type Props = {
 };
 
 /**
- * What the board is holding: the region the ghost may land in, its plate, and the card that
- * follows the pointer while it looks for a shore. The card's lines arrive written (ADR 0016):
- * the map prices nothing and names nothing.
+ * What the board is holding: its plate, its magnet, and the card that follows the pointer. The
+ * card's lines arrive written (ADR 0016): the map prices nothing, names nothing and refuses
+ * nothing — `refusal` is the placement rule's sentence for the point the ghost holds.
  */
 export type PlacingBuilding = {
-  readonly regionId: string;
   readonly sprite: string | null;
+  readonly magnet: PlacingMagnet;
   readonly title: string;
   readonly name: string;
   readonly cost: Cost;
+  /** Owed by the foundation on the point aimed at: the price line says so instead. */
+  readonly free: boolean;
   readonly duration: string;
+  readonly refusal: string | null;
 };
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
@@ -346,6 +352,7 @@ export function WorldMap({
   building = false,
   placing = null,
   onPlacePoint,
+  onPlacingAim,
   aiming = false,
   designatedRegions = NO_REGIONS,
   onDesignateRegion,
@@ -970,13 +977,30 @@ export function WorldMap({
     readyEngine?.setAiming(aiming);
   }, [readyEngine, aiming]);
 
+  /** Re-armed only when what is held changes, never when its card is rewritten: the ghost keeps
+   *  its point while the board re-reads the refusal under it. */
+  const heldSprite = placing?.sprite ?? null;
+  const heldMagnet = placing?.magnet ?? null;
+  const heldPlacing = useMemo(
+    () => (heldMagnet === null ? null : { sprite: heldSprite, magnet: heldMagnet }),
+    [heldSprite, heldMagnet],
+  );
   useEffect(() => {
-    readyEngine?.setPlacing(placing?.regionId ?? null, placing?.sprite ?? null);
-  }, [readyEngine, placing]);
+    readyEngine?.setPlacing(heldPlacing);
+  }, [readyEngine, heldPlacing]);
+
+  const refused = placing?.refusal != null;
+  useEffect(() => {
+    readyEngine?.setPlacingRefused(refused);
+  }, [readyEngine, refused]);
 
   useEffect(() => {
     if (engine.current) engine.current.onPlacePoint = onPlacePoint ?? (() => {});
   }, [onPlacePoint]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onPlacingAim = onPlacingAim ?? (() => {});
+  }, [onPlacingAim]);
 
   // A key with no ground to go down on designates nothing: the trowel only comes out when a
   // click can actually land, so the mode is the list and not a separate flag to keep in step.
@@ -1377,14 +1401,20 @@ function PlacingCard({
   placing: PlacingBuilding;
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [at, setAt] = useState<{ x: number; y: number; flipX: boolean; flipY: boolean } | null>(
+    null,
+  );
 
+  /** **Le carton ne sort pas de l'écran** : sur la moitié droite ou basse il passe de l'autre côté
+   *  du pointeur, sinon un refus lu à la frontière se lirait hors champ. */
   useEffect(() => {
     const element = container.current;
     if (element === null) return;
     const follow = (event: PointerEvent) => {
       const rect = element.getBoundingClientRect();
-      setAt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      setAt({ x, y, flipX: x > rect.width * 0.6, flipY: y > rect.height * 0.6 });
     };
     element.addEventListener('pointermove', follow);
     const forget = () => setAt(null);
@@ -1396,16 +1426,37 @@ function PlacingCard({
   }, [container]);
 
   if (at === null) return null;
+  /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. */
   return (
     <div
-      className="hud paper-grain pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)] float"
-      style={{ left: at.x + PLACING_CARD_GAP, top: at.y + PLACING_CARD_GAP }}
+      className="pointer-events-none absolute z-10"
+      style={{
+        left: at.x + (at.flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        top: at.y + (at.flipY ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        transform: `translate(${at.flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
+      }}
     >
+      <PlacingLines placing={placing} />
+    </div>
+  );
+}
+
+function PlacingLines({ placing }: { placing: PlacingBuilding }) {
+  return (
+    <div className="hud paper-grain float max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)]">
       <span className="block font-semibold">{placing.title}</span>
       <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {placing.name} · <Price costs={placing.cost} size={11} /> · {placing.duration}
+        {placing.name} ·{' '}
+        {placing.free ? fr.construction.free : <Price costs={placing.cost} size={11} />} ·{' '}
+        {placing.duration}
       </span>
-      <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
+      {placing.refusal === null ? (
+        <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
+      ) : (
+        <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
+          {placing.refusal}
+        </span>
+      )}
     </div>
   );
 }

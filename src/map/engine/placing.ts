@@ -3,14 +3,6 @@ import type { LonLat } from '@/domain/geo';
 import { faceCamera, textureOf } from './billboard';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 
-/** A coast cell, in the two frames the magnet needs: the board's, to measure, and the game's,
- *  to order the building on. */
-export type CoastSpot = {
-  readonly x: number;
-  readonly y: number;
-  readonly lonLat: LonLat;
-};
-
 /** The same share as a movement's pawn: the ghost is the piece the player is about to put
  *  down, and it must weigh what a piece weighs on this board. */
 const GHOST_SHARE = 0.031;
@@ -19,20 +11,19 @@ const GHOST_SHARE = 0.031;
 const GHOST_LIFT = COUNTRY_THICKNESS + 0.02;
 
 /**
- * **The building the player is holding, before it is anywhere.** It follows the pointer and
- * snaps onto the nearest coast cell of the region it was armed on — never inland, never onto
- * a neighbour's shore: the candidates are computed once at arming, and the magnet only picks
- * the closest one.
+ * **The building the player is holding, before it is anywhere** (ADR 0029). It follows the
+ * pointer and, when it is armed with a magnet, leaps onto the place the magnet picks — a free
+ * deposit, a quay — so that the click orders the very point the server reads.
  *
  * It is drawn in the engine rather than as a card following the mouse, because it designates a
- * place on the ground: an HTML ghost would sit at the pointer, half a region away from the quay
- * the click is actually going to take.
+ * place on the ground: an HTML ghost would sit at the pointer, away from the point the click is
+ * actually going to take.
  */
 export class PlacingGhost {
   readonly object = new Group();
   private readonly mesh: Mesh<PlaneGeometry, MeshBasicMaterial>;
-  private candidates: ReadonlyArray<CoastSpot> = [];
-  private held: CoastSpot | null = null;
+  private snap: ((pointer: LonLat) => LonLat) | null = null;
+  private held: LonLat | null = null;
   private aspect = 1;
   private measured = false;
 
@@ -55,13 +46,13 @@ export class PlacingGhost {
     this.object.visible = false;
   }
 
-  /** What a click would order, `null` while the ghost has found no shore to stand on. */
-  get spot(): CoastSpot | null {
+  /** What a click would order, `null` while the pointer has not been on the board. */
+  get spot(): LonLat | null {
     return this.held;
   }
 
-  arm(sprite: string | null, candidates: ReadonlyArray<CoastSpot>): void {
-    this.candidates = candidates;
+  arm(sprite: string | null, snap: (pointer: LonLat) => LonLat): void {
+    this.snap = snap;
     this.held = null;
     this.object.visible = false;
     const map = sprite === null ? null : textureOf(sprite);
@@ -72,33 +63,21 @@ export class PlacingGhost {
   }
 
   disarm(): void {
-    this.candidates = [];
+    this.snap = null;
     this.held = null;
     this.object.visible = false;
   }
 
   /**
-   * **The magnet.** The nearest candidate in projected units — the board's own frame, where a
-   * distance is the one the eye reads. A pointer off the board entirely leaves the ghost where
-   * it stood: it is still holding a legal place, and blinking it out at the edge of the map
-   * would say the opposite.
+   * **The pointer, or what the magnet makes of it.** A pointer off the board entirely leaves the
+   * ghost where it stood: blinking it out at the edge of the map would say nothing.
    */
   aimAt(projectedX: number | null, projectedY: number | null): void {
-    if (this.candidates.length === 0) return;
-    if (projectedX === null || projectedY === null) return;
-    let best: CoastSpot | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const candidate of this.candidates) {
-      const distance =
-        (candidate.x - projectedX) * (candidate.x - projectedX) +
-        (candidate.y - projectedY) * (candidate.y - projectedY);
-      if (distance >= bestDistance) continue;
-      bestDistance = distance;
-      best = candidate;
-    }
-    if (best === null || best === this.held) return;
-    this.held = best;
-    this.object.position.copy(this.frame.toWorld(best.x, best.y, GHOST_LIFT));
+    if (this.snap === null || projectedX === null || projectedY === null) return;
+    const spot = this.snap(this.frame.lonLatAt(projectedX, projectedY));
+    if (this.held !== null && spot[0] === this.held[0] && spot[1] === this.held[1]) return;
+    this.held = spot;
+    this.object.position.copy(this.frame.projectLonLat(spot, GHOST_LIFT));
     this.object.visible = true;
   }
 

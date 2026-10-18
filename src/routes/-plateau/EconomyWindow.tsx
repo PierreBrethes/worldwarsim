@@ -855,7 +855,7 @@ const conditionOf = (placement: Placement): string =>
     ? fr.economy.condition.foundation
     : placement.condition !== null
       ? conditionText(placement.condition)
-      : fr.economy.condition.free(placement.regionIds.length);
+      : fr.economy.condition.free;
 
 function ConditionLine({ placement }: { placement: Placement }) {
   const said = conditionOf(placement);

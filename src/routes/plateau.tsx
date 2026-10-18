@@ -28,11 +28,11 @@ import {
   detectionRangeOf,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
-import { fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalText, fr, nationLabel } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
-import type { PieceClick, StandingPile } from '@/map/engine';
+import type { PieceClick, PlacingMagnet, PlacingSpot, StandingPile } from '@/map/engine';
 import {
   readWindows,
   toggleWindow,
@@ -75,7 +75,7 @@ import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
-import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
+import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
   type Compass,
@@ -83,7 +83,14 @@ import {
   type CompassTarget,
   type OrderAction,
 } from '@/domain/compass-rose';
-import { placementOf, workSitesOf } from '@/domain/construction';
+import {
+  aimVerdict,
+  freeDeposits,
+  placementOf,
+  reachesOf,
+  workSitesOf,
+} from '@/domain/construction';
+import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
@@ -176,9 +183,17 @@ type Demolition = { buildingId: string; x: number; y: number };
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
 
-/** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
- *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
-type HeldBuilding = PlacingBuilding & { readonly key: BuildingKey };
+/**
+ * **Un bâtiment tenu en main** (ADR 0029) : la clé choisie, et la dette du socle qu'il vient
+ * acquitter s'il a été pris dans l'ordre de mobilisation — c'est elle qui dit sur quel gisement
+ * il s'aimante. Le lieu, c'est la carte qui le donne.
+ */
+type HeldBuilding = {
+  readonly key: BuildingKey;
+  readonly debt: FoundationDebt | null;
+  /** Ce que la carte dit avant que le fantôme ait trouvé un point : la région du panneau. */
+  readonly title: string;
+};
 
 /** The garrison panel's subject and the point it is anchored to. */
 type OpenGarrison = {
@@ -393,12 +408,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   /**
-   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
-   * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
-   * Échap le lâche, aucune rose ne s'ouvre pendant — et il vit ici parce que c'est un geste de
-   * carte, comme la visée et l'ordre de mobilisation.
+   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0029) : toute clé,
+   * choisie au panneau de construction ou dans l'ordre de mobilisation. C'est le cousin de la
+   * visée — même priorité sur les clics, Échap le lâche, aucune rose ne s'ouvre pendant — et il
+   * vit ici parce que c'est un geste de carte.
    */
   const [placing, setPlacing] = useState<HeldBuilding | null>(null);
+  /** Le point que le fantôme tient, et ce que la carte en sait : ce que le refus lit. */
+  const [placingAim, setPlacingAim] = useState<PlacingSpot | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
   // the frame after the pointer slides from one to the other, and a single variable would let
@@ -498,9 +515,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * other two map gestures — a construction site and an aim — because it is one of them: a
    * click on the map that means something because of what is armed.
    */
-  /** La dette armée dans l'ordre de mobilisation, par son couple (`debtKey`) : le quartier
-   *  général n'a pas de gisement, et deux mines dues ne se distinguent que par le leur. */
-  const [mobilized, setMobilized] = useState<string | null>(null);
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
@@ -907,6 +921,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             ...seat,
             building: action.buildingKey,
             regionId: action.regionId,
+            point: { lon: action.point[0], lat: action.point[1] },
           }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         /**
@@ -1119,99 +1134,125 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', drop);
   }, [placing]);
 
+  /** Ce que le fantôme lit : les gisements que personne n'exploite à sa connaissance, et la
+   *  portée de ses avant-postes debout. */
+  const freeDepositPoints = useMemo(() => freeDeposits(view), [view]);
+  const reaches = useMemo(() => reachesOf(view, outpostReachKm), [view]);
+
   /**
-   * **Le clic sur le rivage commande le chantier**, par la mutation qui commande tous les
-   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
-   * qu'un point soit nommé. Le refus se lit au bandeau du plateau, comme une fondation refusée.
+   * **L'aimant de la clé tenue** : un extracteur saute sur un gisement libre de son espèce — celui
+   * que sa dette nomme, s'il en acquitte une —, un port sur un quai, le reste se pose sous le
+   * pointeur. Mémoïsé sur la clé et la liste : la carte ne réarme le fantôme qu'à leur changement.
    */
-  const placePort = useCallback(
-    (point: LonLat) => {
-      if (placing === null) return;
+  const magnet = useMemo<PlacingMagnet | null>(() => {
+    if (placing === null) return null;
+    const kinds =
+      placing.debt?.deposit != null ? [placing.debt.deposit] : EXPLOITED_DEPOSITS[placing.key];
+    if (kinds !== undefined) {
+      return {
+        kind: 'points',
+        points: freeDepositPoints
+          .filter((deposit) => kinds.includes(deposit.deposit))
+          .map((deposit) => deposit.lonLat),
+      };
+    }
+    return placing.key === 'port' ? { kind: 'coast' } : { kind: 'free' };
+  }, [placing, freeDepositPoints]);
+
+  const verdict =
+    placing === null || placingAim === null
+      ? null
+      : aimVerdict(view, placing.key, placingAim, reaches);
+
+  /** La carte du fantôme, écrite ici (ADR 0016) : le nom, la facture, et le refus du point visé
+   *  dans les mots du serveur (`aimRefusalText`). */
+  const placingCard = useMemo<PlacingBuilding | null>(() => {
+    if (placing === null || magnet === null) return null;
+    const spec = view.buildCatalog[placing.key];
+    const free = verdict?.free ?? false;
+    const widest = reaches.map((reach) => reach.reachKm);
+    return {
+      sprite: buildingSprite(placing.key),
+      magnet,
+      title: placingAim?.region?.name ?? placing.title,
+      name: fr.buildings[placing.key],
+      cost: spec.cost,
+      free,
+      duration: free ? fr.construction.immediate : asDuration(spec.minutes),
+      refusal:
+        verdict?.refusal == null
+          ? null
+          : aimRefusalText(
+              verdict.refusal,
+              placing.key,
+              {
+                widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
+                hasOutposts: widest.length > 0,
+              },
+              { requiredLevel: spec.unlockedAtHqLevel, hqLevel: view.me.hqLevel },
+              placing.debt?.deposit != null
+                ? [placing.debt.deposit]
+                : (EXPLOITED_DEPOSITS[placing.key] ?? []),
+            ),
+    };
+  }, [placing, magnet, placingAim, verdict, reaches, view]);
+
+  const hold = useCallback((held: HeldBuilding | null) => {
+    setPlacingAim(null);
+    setPlacing(held);
+  }, []);
+
+  /**
+   * **Le clic sur la carte commande le chantier**, par la mutation qui commande tous les
+   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
+   * qu'un point soit nommé. **Un point refusé ne part pas** : la carte du fantôme dit déjà
+   * pourquoi, et la main reste pleine pour viser ailleurs.
+   */
+  const placeAt = useCallback(
+    (spot: PlacingSpot) => {
+      if (placing === null || spot.region === null) return;
+      if (aimVerdict(view, placing.key, spot, reaches).refusal !== null) return;
       const ordered = placing;
-      setPlacing(null);
+      const free = aimVerdict(view, placing.key, spot, reaches).free;
+      hold(null);
       setOrderError(null);
+      setMobilizeError(null);
       startConstruction({
         ...seat,
         building: ordered.key,
-        regionId: ordered.regionId,
-        point: { lon: point[0], lat: point[1] },
+        regionId: spot.region.id,
+        point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
       }).then(
-        () => notify(fr.construction.queued(fr.buildings[ordered.key]), 'info'),
-        (problem: unknown) => handleError(problem, setOrderError),
+        () => {
+          if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
+        },
+        (problem: unknown) =>
+          handleError(problem, ordered.debt === null ? setOrderError : setMobilizeError),
       );
     },
-    [placing, startConstruction, seat],
+    [placing, startConstruction, seat, view, reaches, hold],
   );
 
   /**
-   * **The keys the season still owes, and the ground each one accepts.** The eligibility is
-   * `placementOf` — the placement refusal the server itself raises, read over the player's own
-   * regions. Nothing is re-decided here, which is the whole point: the order can only ever
-   * highlight ground `constructions.start` would take.
+   * **The keys the season still owes, and whether any point takes them.** The condition is
+   * `placementOf` — what no point at all can take yet; where exactly, the ghost says.
    */
   const foundation = useMemo(
     () =>
-      view.me.foundation.map((due) => {
-        const placement = placementOf(view, due.key);
-        /** **Une dette ne s'acquitte que sur son gisement** (`owedFreely`) : allumer tout le sol
-         *  que la clé accepte ferait poser la mine du fer sur du charbon, et le serveur la
-         *  facturerait plein tarif sans que rien ne l'ait dit. La dette du quartier général ne
-         *  nomme aucun gisement : tout le sol qu'elle accepte l'acquitte (`settlesDebt`). */
-        const regionIds =
-          due.deposit === null
-            ? placement.regionIds
-            : placement.regionIds.filter((regionId) => depositOfRegion(regionId) === due.deposit);
-        return {
-          ...placement,
-          deposit: due.deposit,
-          regionIds,
-          condition:
-            regionIds.length === 0 && placement.condition === null
-              ? ({ kind: 'regionsTaken' } as const)
-              : placement.condition,
-        };
-      }),
+      view.me.foundation.map((due) => ({
+        ...placementOf(view, due.key, due.deposit === null ? undefined : [due.deposit]),
+        deposit: due.deposit,
+      })),
     [view],
-  );
-
-  const designated = useMemo(
-    () => foundation.find((placement) => debtKey(placement) === mobilized)?.regionIds ?? [],
-    [foundation, mobilized],
   );
 
   // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
   // so a couple that has left it has no line left to be armed on.
   const armed =
-    mobilized !== null && view.me.foundation.some((due) => debtKey(due) === mobilized)
-      ? mobilized
+    placing?.debt != null &&
+    view.me.foundation.some((due) => debtKey(due) === debtKey(placing.debt!))
+      ? debtKey(placing.debt)
       : null;
-
-  const place = useMutation(api.constructions.start);
-
-  /**
-   * **The foundation goes down where it is clicked, through the one mutation that places.**
-   * There is no second door: `constructions.start` reads the free placement off `foundationOwed`
-   * and stands the building at once — the order only chooses the region, which is the single
-   * gesture of the opening that is a decision.
-   */
-  const placeFoundation = useCallback(
-    (regionId: string | null) => {
-      const due =
-        armed === null ? undefined : view.me.foundation.find((debt) => debtKey(debt) === armed);
-      if (due === undefined || regionId === null) return;
-      if (!designated.includes(regionId)) return;
-      setMobilizeError(null);
-      /**
-       * **The key stays armed.** A skirmish owes two mines, and disarming after the first would
-       * make the second placement a fresh hunt through the card. It disarms on its own when the
-       * debt is paid: `armed` is read off `me.foundation`, which the placement empties.
-       */
-      place({ ...seat, building: due.key, regionId }).catch((problem: unknown) =>
-        handleError(problem, setMobilizeError),
-      );
-    },
-    [armed, designated, place, seat, view.me.foundation],
-  );
 
   const inkByCountry = useMemo(
     () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
@@ -1345,18 +1386,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * mouvements, tenants — et le sol n'est ni l'un ni l'autre. Un gisement est fixe, identique
      * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
      * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
-     * (`DEPOSIT_REGIONS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
+     * (`DEPOSIT_POINTS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
      * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
      * au dézoom, rien ne pleut sur la carte.
      */
     /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
     const deposits: ReadonlyArray<MapMarker> =
       toggles.deposits && view.mode !== 'blitz'
-        ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+        ? DEPOSIT_POINTS.map((point) => ({
             kind: 'deposit' as const,
-            id: `deposit-${regionId}`,
-            regionId,
-            deposit,
+            id: `deposit-${point.id}`,
+            lonLat: point.lonLat,
+            deposit: point.deposit,
           }))
         : [];
 
@@ -1486,6 +1527,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         buildingId: installation.id,
         key: installation.key,
         regionId: installation.regionId,
+        lonLat: installation.point,
         name: fr.buildings[installation.key],
         plate: buildingSprite(installation.key),
         washed: knownRegionById.get(installation.regionId)?.state !== 'current',
@@ -1499,6 +1541,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       buildingId: site.id,
       key: site.key,
       regionId: site.regionId,
+      lonLat: site.point,
       name: fr.buildings[site.key],
       plate: buildingSprite(site.key),
       washed: false,
@@ -1509,8 +1552,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
-    const worksOn = (regionId: string, key: string) =>
-      works.find((site) => site.regionId === regionId && site.key === key) ?? null;
+    const worksOn = (point: LonLat, key: string) =>
+      works.find(
+        (site) =>
+          site.point !== null &&
+          site.point[0] === point[0] &&
+          site.point[1] === point[1] &&
+          site.key === key,
+      ) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât,
@@ -1543,7 +1592,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       level: building.level,
       plate: buildingSprite(building.key),
       // An upgrade is work on a building that already stands: its own mast wears the pennant.
-      works: worksOn(building.regionId, building.key),
+      works: worksOn(building.point, building.key),
       /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
        *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
@@ -1553,11 +1602,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ink: view.me.ink,
     }));
 
-    // A first level has no building to hang its works on: the site gets its own mast, from
-    // the queue on — a region paid for reads as such before anything stands. **Une élévation
-    // d'avant-poste ne plante rien** : le point a déjà son mât (précision du 15/09), et
-    // `workSitesOf` laisse ses travaux au panneau du point.
-    const head = view.me.construction;
+    // A first level has no building to hang its works on: the site gets its own mast at its
+    // point, from the queue on. **Une élévation d'avant-poste ne plante rien** : le point a déjà
+    // son mât (précision du 15/09), et `workSitesOf` laisse ses travaux au panneau du point.
     const raising = works
       .filter((site) => site.phase !== 'raising')
       .map((site) => ({
@@ -1568,8 +1615,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         key: site.key,
         regionId: site.regionId,
         regionName: site.regionName,
-        // Only the head is served its quay; a queued port hangs from its region.
-        lonLat: site.phase === 'rising' ? (head?.point ?? null) : null,
+        lonLat: site.point,
         hostCountry: host,
         name: fr.buildings[site.key],
         level: null,
@@ -2277,14 +2323,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
   const focusBuilding = useCallback(
-    (regionId: string, key: string, distance?: number) => {
-      const point = view.me.regions.find((region) => region.id === regionId)?.point;
+    (building: { key: string; point: LonLat | null }, distance?: number) => {
       const at = distance === undefined ? {} : { distance };
-      if (!toggles.buildings && point !== undefined)
-        setFocus({ ids: [], places: [point], ...at, nonce: Date.now() });
-      else setFocus({ ids: [buildingLabelId({ regionId, key })], ...at, nonce: Date.now() });
+      if (!toggles.buildings && building.point !== null)
+        setFocus({ ids: [], places: [building.point], ...at, nonce: Date.now() });
+      else setFocus({ ids: [buildingLabelId(building)], ...at, nonce: Date.now() });
     },
-    [view.me.regions, toggles.buildings],
+    [toggles.buildings],
   );
 
   const locateUnderway = useCallback(
@@ -2293,7 +2338,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
       else if (place.kind === 'outpost')
         setFocus({ ids: [`outpost-${place.outpostId}`], nonce: Date.now() });
-      else focusBuilding(place.regionId, place.key);
+      else focusBuilding(place);
     },
     [focusBuilding],
   );
@@ -2303,7 +2348,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  pour y lire ses pièces, pas pour revoir le monde autour. */
   const recenterOnHome = useCallback(() => {
     const hq = view.me.buildings.find((building) => building.key === 'hq');
-    if (hq !== undefined) focusBuilding(hq.regionId, 'hq', DISPATCH_VIEW_DISTANCE);
+    if (hq !== undefined) focusBuilding(hq, DISPATCH_VIEW_DISTANCE);
     else if (view.me.capitalPoint !== null)
       setFocus({
         ids: [],
@@ -2330,7 +2375,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       error={mobilizeError}
       onArm={(debt) => {
         setMobilizeError(null);
-        setMobilized(debt);
+        const due = view.me.foundation.find((candidate) => debtKey(candidate) === debt);
+        hold(due === undefined ? null : { key: due.key, debt: due, title: fr.buildings[due.key] });
       }}
       onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
       onOpenSurface={openWindow}
@@ -2419,11 +2465,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               building={buildingSite !== null}
-              placing={placing}
-              onPlacePoint={placePort}
+              placing={placingCard}
+              onPlacePoint={placeAt}
+              onPlacingAim={setPlacingAim}
               aiming={column !== null}
-              designatedRegions={designated}
-              onDesignateRegion={placeFoundation}
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
@@ -2474,19 +2519,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <ConstructionPanel
                 key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
                 view={view}
-                seat={seat}
                 regionId={buildingSite.regionId}
                 at={buildingSite}
                 onClose={() => setBuildingSite(null)}
                 onPlace={(option) =>
-                  setPlacing({
-                    regionId: buildingSite.regionId,
+                  hold({
                     key: option.key,
-                    sprite: buildingSprite(option.key),
+                    debt: null,
                     title: regionName(view, buildingSite.regionId),
-                    name: fr.buildings[option.key],
-                    cost: option.cost,
-                    duration: asDuration(option.minutes),
                   })
                 }
               />
@@ -3217,9 +3257,10 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
   return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
 }
 
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché. */
-const buildingLabelId = ({ regionId, key }: { regionId: string; key: string }): string =>
-  `building-${regionId}-${key}`;
+/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
+ *  deux mines d'une même région sont deux mâts. */
+const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
+  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
 
 const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(

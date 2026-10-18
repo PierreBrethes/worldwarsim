@@ -363,6 +363,8 @@ export type CompassAction =
       readonly consequence: string;
       readonly buildingKey: BuildingKey;
       readonly regionId: string;
+      /** Le point du bâtiment — ce qu'une élévation nomme (ADR 0029). */
+      readonly point: LonLat;
       /** Le coût à plat, dans la rose : « 54 », multi-matières « 108 · 72 ». */
       readonly figure: Cost;
       /** Une ligne par matière due, avec le stock en regard — celle qui manque se marque. */
@@ -1772,6 +1774,7 @@ function upgradeBranch(
       consequence: fr.upgrade.title(building.name, building.level + 1),
       buildingKey: building.key,
       regionId: building.regionId,
+      point: building.point,
       figure: building.nextLevelCost,
       bill: due.map((resource) => ({
         resource,

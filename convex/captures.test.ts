@@ -8,7 +8,7 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
-import { foundationOwedBy, regionFacts } from './regions';
+import { foundationOwedBy, regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
@@ -52,6 +52,7 @@ async function building(t: Bench, seat: Seat, regionId: string, level = 2) {
       playerId: player._id,
       key: 'barracks',
       regionId,
+      point: pointOfRegion(regionId),
       level,
       outpostId: null,
     }),
@@ -78,11 +79,6 @@ async function troop(
     }),
   );
 }
-
-const pointOfRegion = (regionId: string) => {
-  const [lon, lat] = regionFacts(regionId)!.point;
-  return { lon, lat };
-};
 
 async function captureArrival(
   t: Bench,
@@ -406,6 +402,7 @@ describe('capturing an outpost', () => {
         playerId: owner._id,
         key: 'mine',
         regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
         level: 1,
         outpostId,
       }),
@@ -457,7 +454,9 @@ describe('taking a site back', () => {
             .unique()
         )?.installations,
     );
-    expect(surveyed).toEqual([{ buildingId: barracks, key: 'barracks' }]);
+    expect(surveyed).toEqual([
+      { buildingId: barracks, key: 'barracks', point: pointOfRegion(PSKOV) },
+    ]);
 
     const home = await building(t, guest, 'RUS-2336', 1);
     const mine = await troop(t, guest, 'infantry', home);
@@ -569,7 +568,9 @@ describe('the foundation and a captured building', () => {
     const owed = foundationOwedBy({ nation: 'france' }, []);
     const first = owed[0]!;
     expect(
-      foundationOwedBy({ nation: 'france' }, [{ key: first.key, regionId: MARNE, capturedAt: 1 }]),
+      foundationOwedBy({ nation: 'france' }, [
+        { key: first.key, point: pointOfRegion(MARNE), capturedAt: 1 },
+      ]),
     ).toEqual(owed);
   });
 });
@@ -911,7 +912,12 @@ describe('a Mondiale headquarters', () => {
     await t.mutation(api.messages.post, { ...guest, text: 'je vous avais prévenus' });
     expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).not.toBeNull();
     await expect(
-      t.mutation(api.constructions.start, { ...guest, building: 'barracks', regionId: MARNE }),
+      t.mutation(api.constructions.start, {
+        ...guest,
+        building: 'barracks',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+      }),
     ).rejects.toThrow('PLAYER_DEFEATED');
   });
 

@@ -120,6 +120,7 @@ const view = {
         key: 'barracks',
         name: 'Caserne',
         regionId: 'FR-NOR',
+        point: [3, 50],
         level: 1,
         cappedByHq: false,
         nextLevelCost: { steel: 72 },

@@ -5,6 +5,7 @@ import {
   type DepositKey,
   type ResourceKey,
 } from './ids';
+import { distanceKm, type LonLat } from './geo';
 
 export type Stocks = Readonly<Record<ResourceKey, number>>;
 
@@ -78,53 +79,124 @@ export const settlesDebt = (
 ): boolean => due.key === held.key && (due.deposit === null || due.deposit === held.deposit);
 
 /**
- * Why a region refuses a building — `null` when it takes it. The rule lives here, in the pure
- * domain, because both sides need it and neither may own it: the server refuses the placement
- * with it, and the construction screen offers only what it accepts — the catalogue shelf under
- * the offer shows the rest, but nothing there is clickable. Two copies of this rule would grey a
- * button the server still takes, or the reverse.
+ * **Combien de kilomètres au moins entre deux bâtiments d'un même joueur** (ADR 0029 §1). C'est
+ * ce qui tient lieu de « une bâtisse par région » : sans lui, dix mines s'empileraient sur le même
+ * bassin. Mesuré de point à point, jamais en régions (ADR 0015).
+ * @a-mesurer l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test
  */
-export type PlacementRefusal =
-  'UNKNOWN_BUILDING' | 'REGION_TAKEN' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';
+export const BUILDING_SPACING_KM = 30;
 
 /**
- * What the player already holds **on the region he is aiming at**, as placement reads it.
- * `onRegion` is the building standing on it, if any: when it is the one being ordered, this is
- * a **level being raised**, not a second building, and the one-per-region rule does not apply.
- * No site carries a count of placements any more (ADR 0027): the economy is the only brake.
+ * Why a building cannot go down at the point aimed at — `null` when it can. The rule lives here,
+ * in the pure domain, because both sides need it and neither may own it: the server refuses the
+ * placement with it, and the ghost under the pointer says the same refusal before the click
+ * (ADR 0015, ADR 0029). Two copies of this rule would offer a point the server refuses.
  */
-export type Holdings = {
-  readonly onRegion: BuildingKey | null;
-  /** What the headquarters stands at, which is what opens the catalogue by tier. */
-  readonly hqLevel: number;
+export type PlacementRefusal =
+  | 'UNKNOWN_BUILDING'
+  | 'BUILDING_LOCKED'
+  | 'OUT_OF_REACH'
+  | 'DEPOSIT_REQUIRED'
+  | 'DEPOSIT_TAKEN'
+  | 'NOT_COASTAL'
+  | 'TOO_CLOSE';
+
+/**
+ * **The point aimed at, as placement reads it** — the facts each side gathers its own way (the
+ * server off its rows and its grid, the screen off its view and its map) and hands to one rule.
+ */
+export type Spot = {
+  /** On the player's national soil, or within the reach of one of his standing outposts. */
+  readonly reached: boolean;
+  /** The deposit under the point (`depositAt`), and whether a building already holds it. */
+  readonly deposit: { readonly key: DepositKey; readonly taken: boolean } | null;
+  /** A coast the routing can sail from (`isCoastCell`). */
+  readonly coastal: boolean;
+  /** The closest of the player's other buildings, standing or ordered, and how far. */
+  readonly nearest: { readonly key: BuildingKey; readonly km: number } | null;
 };
 
 /**
- * Refusals are ordered from the most local to the most general, because that is the order in
- * which they are actionable: a taken region names another region to aim at.
+ * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before
+ * any point exists. `unlockedAtHqLevel` comes in as a number rather than being read from a table
+ * here: the tiers are balance figures and live with the other ones (`convex/constants.ts`,
+ * `UNLOCKED_AT`), which the pure domain may not import.
+ */
+export function keyRefusal(
+  key: BuildingKey,
+  hqLevel: number,
+  unlockedAtHqLevel: number,
+): 'UNKNOWN_BUILDING' | 'BUILDING_LOCKED' | null {
+  if (canonicalBuildingKey(key) !== key) return 'UNKNOWN_BUILDING';
+  // The headquarters gates every other key and never itself: at level 0 it is what the player
+  // is missing, not what he is refused (ADR 0015).
+  if (key !== 'hq' && hqLevel < unlockedAtHqLevel) return 'BUILDING_LOCKED';
+  return null;
+}
+
+/**
+ * The whole placement rule. Ordered from what the key is to what the ground is, then to what
+ * stands around: a point out of reach names a site to found, a missing deposit a point to aim
+ * at, a neighbour too close a step to take.
  *
- * `unlockedAtHqLevel` comes in as a number rather than being read from a table here: the tiers
- * are balance figures and live with the other ones (`convex/constants.ts`, `UNLOCKED_AT`),
- * which the pure domain may not import. The server passes the table's entry, the screen passes
- * the one served in its catalogue — one value, one place it is decided.
+ * **A raise never reads it**: the point is already written and never moves (ADR 0029 §1).
  */
 export function placementRefusal(
   key: BuildingKey,
-  region: { readonly deposit: DepositKey | null; readonly coastal: boolean },
-  holdings: Holdings,
+  spot: Spot,
+  hqLevel: number,
   unlockedAtHqLevel: number,
 ): PlacementRefusal | null {
-  const raising =
-    holdings.onRegion !== null &&
-    canonicalBuildingKey(holdings.onRegion) === canonicalBuildingKey(key);
-  if (canonicalBuildingKey(key) !== key && !raising) return 'UNKNOWN_BUILDING';
-  if (holdings.onRegion !== null && !raising) return 'REGION_TAKEN';
-  // The headquarters gates every other key and never itself: at level 0 it is what the player
-  // is missing, not what he is refused, and a season plants it anyway (ADR 0015).
-  if (key !== 'hq' && holdings.hqLevel < unlockedAtHqLevel) return 'BUILDING_LOCKED';
-  if (EXPLOITED_DEPOSITS[key] && !exploits(key, region.deposit)) return 'DEPOSIT_REQUIRED';
-  if (key === 'port' && !region.coastal) return 'NOT_COASTAL';
+  const byKey = keyRefusal(key, hqLevel, unlockedAtHqLevel);
+  if (byKey !== null) return byKey;
+  if (!spot.reached) return 'OUT_OF_REACH';
+  if (EXPLOITED_DEPOSITS[key] !== undefined) {
+    if (!exploits(key, spot.deposit?.key ?? null)) return 'DEPOSIT_REQUIRED';
+    if (spot.deposit?.taken === true) return 'DEPOSIT_TAKEN';
+  }
+  if (key === 'port' && !spot.coastal) return 'NOT_COASTAL';
+  if (spot.nearest !== null && spot.nearest.km < BUILDING_SPACING_KM) return 'TOO_CLOSE';
   return null;
+}
+
+/** A standing outpost as a reach reads it: where it stands and how far it carries. */
+export type Reach<Id extends string = string> = {
+  readonly id: Id;
+  readonly lonLat: LonLat;
+  readonly reachKm: number;
+};
+
+/**
+ * **What a building put down here would hang from** (ADR 0020 §10): national soil, or the closest
+ * standing outpost whose reach covers the point — `null` when nothing does, which is ground
+ * nothing goes up on. The server writes the answer as the anchor; both sides read `reached` off it.
+ */
+export function siteOfPoint<Id extends string>(
+  point: LonLat,
+  onHomeSoil: boolean,
+  outposts: ReadonlyArray<Reach<Id>>,
+): { readonly kind: 'home' } | { readonly kind: 'outpost'; readonly outpostId: Id } | null {
+  if (onHomeSoil) return { kind: 'home' };
+  let nearest: { readonly outpostId: Id; readonly km: number } | null = null;
+  for (const outpost of outposts) {
+    const km = distanceKm(point, outpost.lonLat);
+    if (km > outpost.reachKm) continue;
+    if (nearest === null || km < nearest.km) nearest = { outpostId: outpost.id, km };
+  }
+  return nearest === null ? null : { kind: 'outpost', outpostId: nearest.outpostId };
+}
+
+/** The closest of a list of buildings to a point, and how far — `null` for an empty list. */
+export function nearestBuilding(
+  point: LonLat,
+  others: ReadonlyArray<{ readonly key: BuildingKey; readonly lonLat: LonLat }>,
+): { readonly key: BuildingKey; readonly km: number } | null {
+  let nearest: { readonly key: BuildingKey; readonly km: number } | null = null;
+  for (const other of others) {
+    const km = distanceKm(point, other.lonLat);
+    if (nearest === null || km < nearest.km) nearest = { key: other.key, km };
+  }
+  return nearest;
 }
 
 /** A transformation, as the settlement reads it: what one unit of output costs in inputs, and

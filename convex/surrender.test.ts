@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { attacking, foundSeat, joinSeat, seatDoc, seatsOf, unclocked } from './seats.fixture';
@@ -61,6 +61,7 @@ async function raise(t: ReturnType<typeof boot>, seat: Seat, regionId: string) {
       playerId: player._id,
       key: 'barracks' as const,
       regionId,
+      point: pointOfRegion(regionId),
       level: 1,
       outpostId: null,
     }),
@@ -109,6 +110,7 @@ describe('capituler', () => {
         ...guest!,
         building: 'barracks',
         regionId: MARNE,
+        point: pointOfRegion(MARNE),
       }),
     ).rejects.toThrow('PLAYER_DEFEATED');
     await expect(

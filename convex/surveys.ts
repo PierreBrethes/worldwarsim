@@ -170,12 +170,16 @@ export async function fileSurvey(
   const truth = await heldOver(ctx, player.seasonId, seen, at);
   const installationsByRegion = new Map<
     string,
-    Array<{ buildingId: Id<'buildings'>; key: Doc<'buildings'>['key'] }>
+    Array<{
+      buildingId: Id<'buildings'>;
+      key: Doc<'buildings'>['key'];
+      point: Doc<'buildings'>['point'];
+    }>
   >();
   for (const building of await seasonBuildings(ctx, player.seasonId)) {
     if (building.playerId === playerId || !covered.has(building.regionId)) continue;
     const installations = installationsByRegion.get(building.regionId) ?? [];
-    installations.push({ buildingId: building._id, key: building.key });
+    installations.push({ buildingId: building._id, key: building.key, point: building.point });
     installationsByRegion.set(building.regionId, installations);
   }
 

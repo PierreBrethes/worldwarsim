@@ -14,9 +14,9 @@ import { BuildingPlate } from '@/emblems/Plate';
  * le joueur, et la fondation est une attente comme les autres — la plus vieille, donc la première.
  * Ce fichier n'a plus d'en-tête ni de cadre ; il est le corps qu'on déplie.
  *
- * Le geste n'a pas bougé : **on clique une clé, le plateau allume le sol qu'elle accepte, on
- * clique la région.** Aucune règle propre — `placementOf` est le refus de pose du serveur, lu
- * deux fois — et aucun état de ce qui a été posé : le corps est dessiné depuis `me.foundation`,
+ * Le geste : **on clique une clé, puis on vise un lieu** (ADR 0029) — le fantôme suit le
+ * pointeur et s'aimante sur un gisement libre. Aucune règle propre — le fantôme lit le refus de
+ * pose du serveur (`aimVerdict`) — et aucun état de ce qui a été posé : le corps est dessiné depuis `me.foundation`,
  * donc il se vide à mesure que la saison s'acquitte, et sa ligne disparaît avec.
  *
  * **Une ligne par dette, et une dette est un couple** : la mine du fer et celle du charbon sont
@@ -117,7 +117,7 @@ function KeyRow({
 }
 
 /**
- * What the region must be for this debt to go down — said before it is chosen, never after.
+ * What the point must be for this debt to go down — said before it is aimed at, never after.
  * **Le gisement de la dette, pas ceux de la clé** : une mine due pour le fer ne dit pas « fer ou
  * charbon », sinon le joueur la poserait sur le charbon et la paierait plein tarif. Le quartier
  * général ne demande rien qu'un sol à soi, et le dit ainsi.
@@ -128,15 +128,11 @@ const wantsText = (placement: FoundationPlacement): string =>
     : fr.mobilization.wants.deposit([fr.deposits[placement.deposit]]);
 
 const offerText = (placement: FoundationPlacement): string =>
-  placement.regionIds.length === 0
-    ? fr.mobilization.noneEligible
-    : fr.mobilization.eligible(placement.regionIds.length);
+  placement.condition === null ? fr.mobilization.aim : conditionText(placement.condition);
 
 /**
- * The foot of the body once a key is armed: what the board is now waiting for, where it lit
- * the ground, and the way out. **A mode one cannot leave is a trap** — the same rule the aim
- * banner follows. The lit regions are not listed: the board shows them, and a list of dozens of
- * names is read by nobody (Pierre, 11/10).
+ * The foot of the body once a key is armed: what the board is now waiting for, and the way out.
+ * **A mode one cannot leave is a trap** — the same rule the aim banner follows.
  */
 function Aimed({ placement, onCancel }: { placement: FoundationPlacement; onCancel: () => void }) {
   return (
@@ -149,9 +145,6 @@ function Aimed({ placement, onCancel }: { placement: FoundationPlacement; onCanc
             </p>
             <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-soft)]">
               {fr.mobilization.highlighted}
-            </p>
-            <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-quiet)] italic">
-              {fr.mobilization.zoomIn}
             </p>
           </>
         ) : (
@@ -182,9 +175,5 @@ export function conditionText(condition: PlacementCondition): string {
       return said.locked(condition.hqLevel);
     case 'deposit':
       return said.deposit(condition.deposits.map((deposit) => fr.deposits[deposit]));
-    case 'coastal':
-      return said.coastal;
-    case 'regionsTaken':
-      return said.regionsTaken;
   }
 }

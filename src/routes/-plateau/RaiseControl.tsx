@@ -63,7 +63,12 @@ export function RaiseControl({
         title={fr.works.raiseTitle(building.name, next)}
         onClick={() => {
           setError(null);
-          start({ ...seat, building: building.key, regionId: building.regionId }).then(
+          start({
+            ...seat,
+            building: building.key,
+            regionId: building.regionId,
+            point: { lon: building.point[0], lat: building.point[1] },
+          }).then(
             () =>
               onQueued?.({ key: building.key, regionId: building.regionId, name: building.name }),
             (problem: unknown) => handleError(problem, setError),

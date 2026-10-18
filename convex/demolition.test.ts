@@ -10,7 +10,7 @@ import {
   nominalStrength,
   recruitmentCost,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { scoresOf } from '../src/domain/standings';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -51,6 +51,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level,
       outpostId: null,
     });
@@ -134,7 +135,12 @@ describe('raser un bâtiment', () => {
     // La région ne refuse plus : une caserne s'y met en file là où la station se tenait.
     await fillAll(t, seat);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -232,7 +238,12 @@ describe('raser un bâtiment', () => {
     const due = owed.find((debt) => debt.key === 'mine' && debt.deposit === 'coal')!;
     expect(due).toBeDefined();
 
-    await t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
+    });
     const placed = (await buildingsOf(t, seat)).find((building) => building.regionId === MOSELLE)!;
     expect(
       (await t.query(api.view.playerView, seat)).me.foundation.some(
@@ -271,11 +282,13 @@ describe('raser un bâtiment', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',
       regionId: MEURTHE,
+      point: pointOfRegion(MEURTHE),
     });
     const refund = buildCost('listening', 2).steel ?? 0;
 

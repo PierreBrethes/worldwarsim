@@ -5,7 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { nicknameKey } from '../src/domain/account';
 import { isNation } from '../src/domain/nations';
-import { capitalRegionOf } from './regions';
+import { capitalRegionOf, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
 
@@ -139,7 +139,12 @@ export async function placeHq(t: Bench, seat: Seat, regionId?: string): Promise<
       if (!isNation(player.nation)) throw new Error('seat without a nation');
       return capitalRegionOf(player.nation);
     }));
-  await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: region });
+  await t.mutation(api.constructions.start, {
+    ...seat,
+    building: 'hq',
+    regionId: region,
+    point: pointOfRegion(region),
+  });
   return region;
 }
 
@@ -174,7 +179,7 @@ async function writeSurvey(ctx: MutationCtx, seat: Seat, regionId: string): Prom
     .unique();
   const row = {
     seenAt: Date.now(),
-    installations: [{ buildingId: building._id, key: building.key }],
+    installations: [{ buildingId: building._id, key: building.key, point: building.point }],
     hasInstallations: true,
   };
   if (existing === null) {
