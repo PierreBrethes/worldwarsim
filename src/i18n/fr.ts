@@ -498,6 +498,26 @@ export const fr = {
     neutral: 'neutre — personne ne le tient',
     heldBy: (nation: string, since: string) => `tenu par ${nation} depuis ${since}`,
     yoursSince: (since: string) => `à vous depuis ${since}`,
+    readAtLisbon: (nation: string) => `${nation} — lu à Lisbonne`,
+    istanbul: {
+      title: 'Lire un télégramme',
+      between: 'entre',
+      and: 'et',
+      read: (from: string, to: string, text: string) =>
+        `LU À ISTANBUL — ${from} à ${to} : « ${text} »`,
+      overheard: (from: string, to: string) =>
+        `Un télégramme de ${from} à ${to} a été lu à Istanbul.`,
+      act: 'lire le dernier — une fois par jour',
+      nothing: 'Aucun télégramme privé entre eux : rien n’a été lu, la règle reste à vous.',
+      stamp: 'lu à Istanbul',
+    },
+    tangier: {
+      title: 'Le comptoir',
+      give: 'céder',
+      get: 'recevoir',
+      act: (give: number, get: number) => `échanger ${give} contre ${get} — une fois par édition`,
+      done: (got: number) => `Comptoir de Tanger : ${got} reçus.`,
+    },
     contested: 'contesté — une capture est en cours',
     how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
     needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
@@ -619,6 +639,11 @@ export const fr = {
     INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
     INVALID_DURATION: () => 'une Mondiale dure 3, 5, 7, 10 ou 14 jours',
     UNKNOWN_STRATEGIC_POINT: () => 'ce point stratégique n’existe pas dans cette saison',
+    POINT_NOT_HELD: () => 'il faut tenir ce point stratégique pour user de sa règle',
+    POWER_SPENT: () => 'la règle de ce point a déjà servi — elle revient à la période suivante',
+    SAME_RESOURCE: () => 'le comptoir échange une ressource contre une autre',
+    STORAGE_FULL: (d) =>
+      `vos magasins ne peuvent pas recevoir ${num(Number(d.needed))} de ${resourceName(d.resource)} — bâtissez un entrepôt ou videz-les d’abord`,
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',

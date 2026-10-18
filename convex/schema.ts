@@ -810,6 +810,9 @@ export default defineSchema({
     point: LON_LAT,
     holderId: v.union(v.id('players'), v.null()),
     heldSince: v.union(v.number(), v.null()),
+    /** **L'heure où son pouvoir a servi** (Istanbul, Tanger) : il revient à la période suivante
+     *  (`powerReady`). Il reste au point quand il change de main — le pouvoir est au lieu. */
+    usedAt: v.optional(v.number()),
   }).index('bySeason', ['seasonId']),
 
   objectives: defineTable({
@@ -1048,6 +1051,8 @@ export default defineSchema({
     /** The lobby's thread, apart from the season's: `true` there, absent in war and on rows
      *  written before the split. Erased at the launch, as the war thread is at the conclusion. */
     lobby: v.optional(v.boolean()),
+    /** **Lu à Istanbul** (P11) : le teneur l'a lu ; les deux correspondants voient le tampon. */
+    readAtIstanbul: v.optional(v.literal(true)),
   })
     .index('bySeason', ['seasonId'])
     .index('byChannel', ['seasonId', 'lobby', 'to', 'at'])
@@ -1076,6 +1081,9 @@ export default defineSchema({
     /** The observer, never the owner of what was seen. */
     playerId: v.id('players'),
     movementId: v.id('movements'),
+    /** **Whose column it was**, kept for the memory once the movement is gone. Never served —
+     *  except as a nation to the holder of Lisbon (P11). Absent on rows written before it. */
+    ownerId: v.optional(v.id('players')),
     from: v.number(),
     to: v.number(),
     /**

@@ -41,6 +41,25 @@ export async function heldOver(
 }
 
 /**
+ * **La couleur que la production lit** (ADR 0020 §6) : celle de la carte, sauf pour le teneur de
+ * **Narvik**, dont les exploitations produisent même hors réseau (P11) — chacune des régions
+ * demandées lui revient alors. Un seul lecteur pour l'économie (`resources.heldFor`) et pour le
+ * tampon « relié » de la vue : la règle cassée ne peut pas l'être d'un côté seulement.
+ */
+export async function linkingOver(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  regions: ReadonlyArray<RegionFacts>,
+  now: number,
+): Promise<ReadonlyMap<string, string>> {
+  const narvik = (await seasonPoints(ctx, player.seasonId)).find((point) => point.key === 'narvik');
+  if (narvik?.holderId === player._id) {
+    return new Map(regions.map((region) => [region.id, player._id as string]));
+  }
+  return heldOver(ctx, player.seasonId, regions, now);
+}
+
+/**
  * Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`), et
  * les points stratégiques tenus : **un point colore sa région pour son teneur** (P1), sans y
  * ouvrir de chantier ni y ravitailler personne — ni l'un ni l'autre ne lit la couleur.

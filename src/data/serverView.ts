@@ -281,6 +281,7 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
      *  of his caught it. It survives into `lastKnown` — a memory keeps the eye that made it. */
     detector: seen.detector,
     detectorRegion: seen.detectorRegion,
+    ...(seen.nation === undefined ? {} : { nation: seen.nation }),
     headingDegrees: seen.headingDegrees,
     progress: window <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.seenFrom) / window)),
   };

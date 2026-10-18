@@ -473,6 +473,16 @@ function written(notice: Notice): Written {
       };
     case 'pointsDrawn':
       return { at: notice.at, severity: 'notable', kind: 'pointTaken', text: fr.points.drawn() };
+    case 'readAtIstanbul':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text:
+          notice.text === undefined
+            ? fr.points.istanbul.overheard(nationName(notice.from), nationName(notice.to))
+            : fr.points.istanbul.read(nationName(notice.from), nationName(notice.to), notice.text),
+      };
     /**
      * **Le rendez-vous collectif, et il est routinier** : l'édition paraît à l'heure dite, elle
      * n'annonce rien qui exige un geste. Son rang seul y figure — la table se lit à la page de

@@ -1,14 +1,25 @@
+import { v } from 'convex/values';
 import { internal } from './_generated/api';
+import { mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
+  ISTANBUL_PERIOD_HOURS,
   RACE_HOLD_HOURS,
   STRATEGIC_POINTS,
   STRATEGIC_POINT_KEYS,
+  TANGIER_LOT,
+  TANGIER_PERIOD_HOURS,
+  powerReady,
   raceLeaderOf,
+  type StrategicPointKey,
 } from '../src/domain/strategic-points';
+import { fail } from './errors';
+import { emptyStocks } from '../src/domain/economy';
+import { creditToStorage, debit, economyOf } from './resources';
+import { playerOf, requirePlayable, seatsOf } from './seats';
+import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
-import { seatsOf } from './seats';
 
 /**
  * **Les sept, posés neutres au lancement d'une Mondiale** (P11), et annoncés à toute la table —
@@ -142,3 +153,119 @@ export const heldMsOf = (
         : sum,
     0,
   );
+
+/** **Le pouvoir d'un point, à son teneur seul et s'il est rechargé** (P4) — refusé sinon. */
+async function spendPower(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  season: Doc<'seasons'>,
+  key: StrategicPointKey,
+  periodHours: number,
+): Promise<Doc<'strategicPoints'>> {
+  const point = (await seasonPoints(ctx, season._id)).find((one) => one.key === key);
+  if (point === undefined || point.holderId !== player._id) fail('POINT_NOT_HELD', { key });
+  const now = Date.now();
+  if (!powerReady(point.usedAt, season.launchedAt ?? now, periodHours, now)) {
+    fail('POWER_SPENT', { key });
+  }
+  return point;
+}
+
+/**
+ * **Istanbul** (P11) : une fois par jour, le teneur lit le dernier télégramme privé entre deux
+ * autres joueurs, nommés par leur nation. Le télégramme porte ensuite le tampon « lu à Istanbul »
+ * chez eux, et chacun des deux l'apprend. Rien de lu, rien de dépensé.
+ */
+export const listen = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), between: v.array(v.string()) },
+  handler: async (ctx, { token, seasonId, between }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    const point = await spendPower(ctx, player, season, 'istanbul', ISTANBUL_PERIOD_HOURS);
+    const seats = await seatsOf(ctx, season._id);
+    const pair = between.map((nation) => seats.find((seat) => seat.nation === nation));
+    const [a, b] = pair;
+    if (
+      pair.length !== 2 ||
+      a === undefined ||
+      b === undefined ||
+      a._id === b._id ||
+      a._id === player._id ||
+      b._id === player._id
+    ) {
+      fail('UNKNOWN_NATION');
+    }
+    const lastFrom = (from: Doc<'players'>, to: Doc<'players'>) =>
+      ctx.db
+        .query('messages')
+        .withIndex('byPair', (q) =>
+          q
+            .eq('seasonId', season._id)
+            .eq('lobby', undefined)
+            .eq('to', to._id)
+            .eq('playerId', from._id),
+        )
+        .order('desc')
+        .first();
+    const last = [await lastFrom(a, b), await lastFrom(b, a)]
+      .filter((message) => message !== null)
+      .sort((left, right) => right.at - left.at)[0];
+    if (last === undefined) return null;
+
+    const now = Date.now();
+    await ctx.db.patch(point._id, { usedAt: now });
+    await ctx.db.patch(last._id, { readAtIstanbul: true });
+    const sender = last.playerId === a._id ? a : b;
+    const recipient = sender === a ? b : a;
+    const words = {
+      from: sender.nation ?? sender.nickname,
+      to: recipient.nation ?? recipient.nickname,
+    };
+    await ctx.db.insert('notices', {
+      playerId: player._id,
+      at: now,
+      kind: 'readAtIstanbul',
+      ...words,
+      text: last.text,
+    });
+    for (const seat of [a, b]) {
+      await ctx.db.insert('notices', {
+        playerId: seat._id,
+        at: now,
+        kind: 'readAtIstanbul',
+        ...words,
+      });
+    }
+    return { ...words, text: last.text, at: last.at };
+  },
+});
+
+/**
+ * **Tanger** (P11) : le teneur, et lui seul, commerce avec le comptoir neutre — un lot de trois
+ * contre un, une fois par édition. Ce qui revient entre dans ses magasins comme une livraison.
+ */
+export const trade = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), give: RESOURCE_KEY, get: RESOURCE_KEY },
+  handler: async (ctx, { token, seasonId, give, get }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    if (give === get) fail('SAME_RESOURCE');
+    const point = await spendPower(ctx, player, season, 'tangier', TANGIER_PERIOD_HOURS);
+    const now = Date.now();
+    /** Un lot qui ne tiendrait pas dans ses magasins se refuse avant de rien prendre : le
+     *  comptoir ne garde pas la monnaie. */
+    const economy = await economyOf(ctx, player._id, now);
+    if (economy.cap[get] - economy.stocks[get] < TANGIER_LOT.get) {
+      fail('STORAGE_FULL', { resource: get, needed: TANGIER_LOT.get });
+    }
+    await debit(ctx, player._id, { [give]: TANGIER_LOT.give }, now);
+    const { delivered } = await creditToStorage(
+      ctx,
+      player._id,
+      { ...emptyStocks(), [get]: TANGIER_LOT.get },
+      now,
+    );
+    await ctx.db.patch(point._id, { usedAt: now });
+    return { gave: TANGIER_LOT.give, got: delivered[get] };
+  },
+});

@@ -110,6 +110,8 @@ export type ArcView =
        *  sighting into a reason to have built the thing that made it. */
       readonly detector: Detector;
       readonly detectorRegion: string | null;
+      /** La nation de la colonne, servie au seul teneur de Lisbonne (P11). */
+      readonly nation?: string;
       /** Where the column was pointing **as it left the radius**, which is what a window's close
        *  reveals: the far end of the thread served is not a destination. */
       readonly headingDegrees: number;
@@ -138,6 +140,7 @@ export type ArcView =
       readonly route: ComputedRoute;
       readonly detector: Detector;
       readonly detectorRegion: string | null;
+      readonly nation?: string;
       readonly headingDegrees: number;
       readonly seenMinutesAgo: number;
       /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
@@ -203,6 +206,8 @@ export type CampView = {
   readonly detector: Detector;
   readonly detectorRegion: string | null;
   readonly lastKnown: boolean;
+  /** La nation du camp, servie au seul teneur de Lisbonne (P11). */
+  readonly nation?: string;
 };
 
 /**
@@ -844,6 +849,14 @@ type NoticeBody =
       readonly nation: string;
     }
   | { readonly kind: 'pointsDrawn'; readonly at: number }
+  /** Istanbul (P11) : au teneur, le télégramme lu ; aux correspondants, le fait sans le texte. */
+  | {
+      readonly kind: 'readAtIstanbul';
+      readonly at: number;
+      readonly from: string;
+      readonly to: string;
+      readonly text?: string;
+    }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
    *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
   | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number }

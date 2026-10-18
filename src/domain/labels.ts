@@ -1,6 +1,6 @@
 import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { countryLabel, fr } from '@/i18n/fr';
+import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
@@ -66,6 +66,8 @@ export type MapMarker =
       readonly since: number;
       readonly seenMinutesAgo: number | null;
       readonly lastSeenAt: number | null;
+      /** Lisbonne (P11) : la nation du camp, à son seul teneur. */
+      readonly nation?: string;
     }
   | {
       /**
@@ -787,6 +789,7 @@ function markerLabel(marker: MapMarker): MapLabel {
                 ? fr.camps.seenAt(asLocalTime(marker.since))
                 : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
           },
+          ...lisbonLine(marker.nation),
         ],
       };
     /**
@@ -1062,7 +1065,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       force: null,
-      lines: [{ role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) }],
+      lines: [
+        { role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) },
+        ...lisbonLine(arc.nation),
+      ],
     };
   }
   if (arc.state !== 'enemyDetected') return null;
@@ -1110,9 +1116,15 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     building: null,
     station: null,
     force: null,
-    lines: [...schedule, second],
+    lines: [...schedule, second, ...lisbonLine(arc.nation)],
   };
 }
+
+/** **Ce que Lisbonne fait lire** (P11) : la nation d'un relevé, à son seul teneur. */
+const lisbonLine = (nation: string | undefined): ReadonlyArray<LabelLine> =>
+  nation === undefined
+    ? []
+    : [{ role: 'figures', text: fr.points.readAtLisbon(nationLabel(nation)) }];
 
 /**
  * **Une arrivée retenue ne se compte pas à rebours** : la colonne se tient à la frontière, elle

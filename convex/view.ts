@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { pointsView } from './strategicPoints';
+import { pointsView, seasonPoints } from './strategicPoints';
+import { slotHolders } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
@@ -57,7 +58,7 @@ import { queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
-import { heldOver } from './holding';
+import { linkingOver } from './holding';
 import { regionsWithinReach } from './regionGeometry';
 import { regionNameAt } from './placeNames';
 import { restHold } from './movements';
@@ -228,7 +229,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * c'est là que le joueur la lit — la modale d'un site, la colonne d'une filière et la carte
    * « à faire maintenant » posent toutes la même question sur la même région.
    */
-  const held = await heldOver(ctx, season._id, [...carrying.values()], now);
+  const held = await linkingOver(ctx, player, [...carrying.values()], now);
 
   const locked = await specializationsServed(ctx, season._id, outposts);
   const sealed = outposts.map((outpost) => ({
@@ -373,6 +374,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const belligerents = seats.filter((seat) => isAtWar(seat, season));
   const nationOf = new Map(belligerents.map((seat) => [seat._id, seat.nation ?? seat.nickname]));
+  /** **Le teneur de Lisbonne lit la nation de ce qu'il relève** (P11) — la seule brèche du
+   *  brouillard que les Sept ouvrent, et à lui seul. */
+  const readsNations = (await seasonPoints(ctx, season._id)).some(
+    (point) => point.key === 'lisbon' && point.holderId === player._id,
+  )
+    ? (ownerId: Id<'players'> | undefined) =>
+        ownerId === undefined ? undefined : nationOf.get(ownerId)
+    : null;
   const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
@@ -480,8 +489,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // make, even with its capital flattened.
       slots: {
         total: movementSlots(hqLevel),
-        // A return is not an order and holds nothing (`movements.ts`), so it is not counted.
-        used: movements.filter((movement) => movement.type !== 'return').length,
+        // A return holds nothing, nor a fleet of the holder of Halifax (`slotHolders`).
+        used: (await slotHolders(ctx, player, movements)).length,
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
@@ -889,7 +898,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * turns into the last known position ADR 0005 asks for — the client reads the two dates
      * and decides which of the two states it is in.
      */
-    detected: await detectedArcs(ctx, player, outposts, now),
+    detected: await detectedArcs(ctx, player, outposts, now, readsNations),
     /**
      * **Ce qu'on a relevé de posé** (ADR 0024 §1) : une position, un milieu, deux dates, et ce
      * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte une composition,
@@ -920,6 +929,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               detector: camp.detector,
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,
+              ...lisbonNation(readsNations, camp.ownerId),
             },
           ],
     ),
@@ -1236,11 +1246,23 @@ function placed(notice: PlayableNotice) {
  * of his outposts (`isAnchored`, the same reading the aim already gives him). A column that
  * passes beside him without coming for him is no longer critical; the label says « estimé ».
  */
+/** La nation d'un relevé, servie au teneur de Lisbonne seul (P11) — rien sinon. */
+const lisbonNation = (
+  nationOf: ((ownerId: Id<'players'> | undefined) => string | undefined) | null,
+  ownerId: Id<'players'> | undefined,
+): { nation?: string } => {
+  const nation = nationOf?.(ownerId);
+  return nation === undefined ? {} : { nation };
+};
+
 async function detectedArcs(
   ctx: QueryCtx,
   player: Doc<'players'>,
   outposts: ReadonlyArray<Doc<'outposts'>>,
   now: number,
+  /** **Lisbonne** (P11) : la nation de ce qu'il relève, à son teneur et à lui seul ; `null`
+   *  partout ailleurs, et le relevé reste sans nation. */
+  nationOf: ((ownerId: Id<'players'> | undefined) => string | undefined) | null,
 ) {
   const anchors = outposts.map(anchorOf);
   const home = homeCountryOf(player.nation);
@@ -1293,6 +1315,7 @@ async function detectedArcs(
         seenTo: frozen.closedAt,
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
+        ...lisbonNation(nationOf, sighting.ownerId),
       });
       continue;
     }
@@ -1327,6 +1350,7 @@ async function detectedArcs(
        *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
+      ...lisbonNation(nationOf, movement.playerId),
     });
   }
   return seen;

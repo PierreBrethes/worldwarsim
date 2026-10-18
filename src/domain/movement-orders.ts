@@ -325,6 +325,16 @@ export function lootCollectionOrderRefusalOf(
 export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
 
 /**
+ * **Un mouvement maritime** : des coques, et ce qu'elles portent. C'est ce que **Halifax** sort
+ * du compte des slots de son teneur (P11) — la marche, l'air et un débarquement à pied y restent.
+ */
+export const isMaritime = (
+  troops: ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>,
+): boolean =>
+  troops.length > 0 &&
+  troops.every((troop) => troop.carried || DOMAIN_BY_ROLE[troop.role] === 'sea');
+
+/**
  * The three marches a player orders. **The return is not among them**: it is created by the
  * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things
  * one can ask for — see the note in the brief's implementation.

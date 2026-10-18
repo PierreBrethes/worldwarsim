@@ -59,3 +59,29 @@ export function clockVerdictOf<Id extends string>(
     ? { winnerId: byLand[0]!.id, reason: 'territory' }
     : { winnerId: null, reason: 'draw' };
 }
+
+/** Istanbul se recharge chaque jour de saison, Tanger à chaque édition (P4, `PRESS_EDITION_HOURS`). */
+export const ISTANBUL_PERIOD_HOURS = 24;
+export const TANGIER_PERIOD_HOURS = 3;
+
+/**
+ * **Le comptoir de Tanger** : trois d'une ressource contre une d'une autre, par lot fixe.
+ *
+ * @a-mesurer posé pour la saison test ; rien ne mesure ce que vaut un échange par édition
+ */
+export const TANGIER_LOT = { give: 300, get: 100 } as const;
+
+/**
+ * **Un pouvoir de point se recharge par période de la saison, sans cumul** (P4) : servi une fois
+ * dans une période, il revient à la suivante, quelle que soit l'heure où il a servi.
+ */
+export function powerReady(
+  usedAt: number | undefined,
+  launchedAt: number,
+  periodHours: number,
+  now: number,
+): boolean {
+  if (usedAt === undefined) return true;
+  const period = (at: number) => Math.floor((at - launchedAt) / (periodHours * 3_600_000));
+  return period(now) > period(usedAt);
+}

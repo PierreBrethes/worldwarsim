@@ -1439,6 +1439,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         since: camp.since,
         seenMinutesAgo: camp.seenMinutesAgo,
         lastSeenAt: camp.lastSeenAt,
+        ...(camp.nation === undefined ? {} : { nation: camp.nation }),
       }));
 
     /**
@@ -2463,6 +2464,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 key={selectedPoint.id}
                 point={selectedPointView}
                 mine={selectedPointView.holder?.nation === view.me.nation}
+                seat={seat}
+                nations={view.opponents.map((opponent) => opponent.nation)}
                 at={selectedPoint}
                 onClose={() => setSelectedPoint(null)}
               />

@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { heldOver } from './holding';
+import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
 import { STRATEGIC_POINT_KEYS } from '../src/domain/strategic-points';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -307,5 +308,160 @@ describe('winning the race', () => {
           job.scheduledTime === season.launchedAt! + season.durationHours! * HOUR,
       ),
     ).toBe(true);
+  });
+});
+
+/**
+ * **Les règles que les Sept cassent** (P11). Narvik se lit dans `production.test.ts`, avec le
+ * réseau qu'il casse ; les autres ici.
+ */
+describe('the rules the points break', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const holdPoint = (t: Bench, seat: Seat, key: Doc<'strategicPoints'>['key']) =>
+    t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      const point = (await ctx.db.query('strategicPoints').collect()).find((p) => p.key === key)!;
+      await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
+    });
+  const posted = async (t: Bench, seat: Seat, role: 'escort' | 'infantry', at: LonLat) => {
+    const player = await playerOf(t, seat);
+    return t.run((ctx) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        role,
+        tier: 1,
+        nominalStrength: 50,
+        currentStrength: 50,
+        stationedAt: { lon: at[0], lat: at[1] },
+      }),
+    );
+  };
+  const sail = (t: Bench, seat: Seat, troopId: Id<'troops'>, from: LonLat, to: LonLat) =>
+    t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: from[0], lat: from[1] } },
+      troopIds: [troopId],
+      point: { lon: to[0], lat: to[1] },
+    });
+
+  /** Lisbonne : vous lisez la nation de tout ce que vous relevez — et rien d'autre. */
+  it('tells the holder of Lisbon the nation of a camp he sights, and nobody else', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const CAMP: LonLat = [24, 50];
+    await posted(t, guest, 'infantry', CAMP);
+    await surveyCamp(t, seat, { lon: CAMP[0], lat: CAMP[1] });
+    const campsOf = async () => (await t.query(api.view.playerView, seat)).camps;
+    expect((await campsOf())[0]).not.toHaveProperty('nation');
+
+    await holdPoint(t, seat, 'lisbon');
+    expect((await campsOf())[0]).toMatchObject({ nation: 'ussr' });
+  });
+
+  /** Halifax : vos mouvements maritimes ne prennent pas de slot. */
+  it('lets the holder of Halifax sail with every slot taken, and counts no fleet on his banner', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const ATLANTIC: LonLat = [-30, 45];
+    const FURTHER: LonLat = [-32, 46];
+    const LOIRET: LonLat = [2.3, 47.9];
+    const BEAUCE: LonLat = [1.6, 48.3];
+    const { total } = (await t.query(api.view.playerView, seat)).me.slots;
+    for (let rank = 0; rank < total; rank += 1) {
+      await sail(t, seat, await posted(t, seat, 'infantry', LOIRET), LOIRET, BEAUCE);
+    }
+    const fleet = await posted(t, seat, 'escort', ATLANTIC);
+    await expect(sail(t, seat, fleet, ATLANTIC, FURTHER)).rejects.toThrow('MOVEMENT_IN_FLIGHT');
+
+    await holdPoint(t, seat, 'halifax');
+    await sail(t, seat, fleet, ATLANTIC, FURTHER);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(total);
+  });
+
+  /** Istanbul : une fois par jour, le dernier télégramme privé entre deux joueurs. */
+  it('lets the holder of Istanbul read the last private telegram between two others, once a day', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const guest = await joinSeat(t, code, 'Léa');
+    const third = await joinSeat(t, code, 'Marc');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+      [third, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    const marc = await playerOf(t, third);
+    const lea = await playerOf(t, guest);
+    await t.mutation(api.messages.post, { ...guest, text: 'on frappe à l’aube', to: marc._id });
+    vi.setSystemTime(MIDDAY + 2_000);
+    await t.mutation(api.messages.post, { ...third, text: 'compris', to: lea._id });
+
+    const listen = () =>
+      t.mutation(api.strategicPoints.listen, { ...seat, between: ['ussr', 'germany'] });
+    await expect(listen()).rejects.toThrow('POINT_NOT_HELD');
+    await holdPoint(t, seat, 'istanbul');
+    expect(await listen()).toMatchObject({ from: 'germany', to: 'ussr', text: 'compris' });
+    await expect(listen()).rejects.toThrow('POWER_SPENT');
+
+    const stamped = (await t.query(api.messages.recent, guest)).direct.find(
+      (channel) => channel.with === marc._id,
+    );
+    expect(stamped!.messages.map((message) => message.readAtIstanbul)).toEqual([false, true]);
+
+    vi.setSystemTime(MIDDAY + 25 * HOUR);
+    await expect(listen()).resolves.not.toBeNull();
+  });
+
+  /** Tanger : vous seul commercez avec le comptoir neutre, trois contre un, une fois par édition. */
+  it('lets the holder of Tangier trade three for one at the counter, once an edition', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const me = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
+        .collect()) {
+        await ctx.db.patch(row._id, { stock: row.key === 'food' ? 400 : 0, updatedAt: Date.now() });
+      }
+    });
+    const trade = () =>
+      t.mutation(api.strategicPoints.trade, { ...seat, give: 'food', get: 'ammunition' });
+    await expect(trade()).rejects.toThrow('POINT_NOT_HELD');
+    await holdPoint(t, seat, 'tangier');
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
+          .collect()
+      ).find((one) => one.key === 'ammunition')!;
+      await ctx.db.patch(row._id, { stock: 400 });
+    });
+    // Full magazines: the counter takes nothing, and the rule is not spent.
+    await expect(trade()).rejects.toThrow('STORAGE_FULL');
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
+          .collect()
+      ).find((one) => one.key === 'ammunition')!;
+      await ctx.db.patch(row._id, { stock: 0 });
+    });
+    expect(await trade()).toEqual({ gave: 300, got: 100 });
+    await expect(trade()).rejects.toThrow('POWER_SPENT');
+    const stocks = (await t.query(api.view.playerView, seat)).me.resources;
+    expect(stocks.food.stock).toBeLessThanOrEqual(100);
+    expect(stocks.ammunition.stock).toBeGreaterThanOrEqual(100);
   });
 });

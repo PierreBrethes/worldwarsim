@@ -218,6 +218,11 @@ function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
         >
           {message.text}
         </p>
+        {message.readAtIstanbul === true && (
+          <span className="mx-[2px] mt-[2px] font-(family-name:--font-mono) text-[9px] tracking-[.18em] text-[var(--critical)] uppercase">
+            {fr.points.istanbul.stamp}
+          </span>
+        )}
       </div>
     </div>
   ));

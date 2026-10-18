@@ -557,6 +557,14 @@ export const NOTICE = v.union(
   }),
   /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
   v.object({ ...NOTICE_HEAD, kind: v.literal('pointsDrawn') }),
+  /** **Lu à Istanbul** (P11) : au teneur, le télégramme ; aux deux correspondants, le fait. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('readAtIstanbul'),
+    from: v.string(),
+    to: v.string(),
+    text: v.optional(v.string()),
+  }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous
    * collectif que l'audit du 25/08 réclamait, à coût nul : tout le monde la reçoit à la même

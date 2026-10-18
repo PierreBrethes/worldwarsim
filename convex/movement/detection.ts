@@ -881,8 +881,10 @@ async function insertSighting(
   sighting: Caught,
   now: number,
 ): Promise<void> {
+  const owner = (await ctx.db.get(movementId))?.playerId;
   const sightingId = await ctx.db.insert('sightings', {
     movementId,
+    ...(owner === undefined ? {} : { ownerId: owner }),
     ...sightingFields(sighting),
   });
   if (sighting.from <= now) await revealSighting(ctx, sightingId, now);

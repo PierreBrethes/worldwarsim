@@ -14,6 +14,7 @@ import {
   captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
+  isMaritime,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -22,6 +23,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
+import { seasonPoints } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
@@ -626,14 +628,52 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
   return { ...column, blitz: { ...column.blitz, occupiedBuildingIds: occupied } };
 }
 
-export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+/**
+ * **Les mouvements qui tiennent un slot** : tous, sauf un retour — et, au teneur de **Halifax**,
+ * sauf un mouvement maritime (P11). Le même compte pour la porte (`claimSlot`) et pour la
+ * bannière de la vue : une règle, une fonction.
+ */
+export async function slotHolders(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  movements: ReadonlyArray<Doc<'movements'>>,
+): Promise<ReadonlyArray<Doc<'movements'>>> {
+  const flying = movements.filter((movement) => movement.type !== 'return');
+  if (!(await holdsHalifax(ctx, player))) return flying;
+  const kept: Array<Doc<'movements'>> = [];
+  for (const movement of flying) {
+    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept.push(movement);
+  }
+  return kept;
+}
+
+const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
+  (await seasonPoints(ctx, player.seasonId)).some(
+    (point) => point.key === 'halifax' && point.holderId === player._id,
+  );
+
+async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
+  const crew = [];
+  for (const troopId of troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop !== null) crew.push({ role: troop.role, carried: troop.carriedBy !== undefined });
+  }
+  return crew;
+}
+
+export async function claimSlot(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+): Promise<void> {
   /** **Pas de slots en Blitz** (B5) : la cadence est le rechargement, pas le QG. */
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
+  const player = await ctx.db.get(playerId);
+  if (player === null) return;
+  if ((await holdsHalifax(ctx, player)) && isMaritime(await crewOf(ctx, troopIds))) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
-  const flying = (await movementsOf(ctx, playerId)).filter(
-    (movement) => movement.type !== 'return',
-  );
+  const flying = await slotHolders(ctx, player, await movementsOf(ctx, playerId));
   if (flying.length >= maximum) {
     fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
   }
@@ -673,7 +713,7 @@ export async function march(
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
-  await claimSlot(ctx, playerId);
+  await claimSlot(ctx, playerId, troopIds);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the
    *  address the troops hang from, so a garrison abroad is not ordered out of a barracks. */

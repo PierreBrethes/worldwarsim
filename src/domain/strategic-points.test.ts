@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RACE_HOLD_HOURS, clockVerdictOf, raceLeaderOf } from './strategic-points';
+import { RACE_HOLD_HOURS, clockVerdictOf, powerReady, raceLeaderOf } from './strategic-points';
 
 /**
  * **La victoire de la Mondiale** (M1, M12, ADR 0027 §4) : quatre points sur sept tenus vingt-quatre
@@ -60,5 +60,25 @@ describe('the clock, as a net', () => {
         { id: 'it', heldMs: 0, regions: 99 },
       ]),
     ).toEqual({ winnerId: null, reason: 'draw' });
+  });
+});
+
+/**
+ * **Les pouvoirs des points se rechargent, sans cumul** (P4) : Istanbul une fois par jour de
+ * saison, Tanger une fois par édition. Le compte part du lancement, comme le jour de la presse.
+ */
+describe('a point power', () => {
+  const HOUR = 3_600_000;
+  const LAUNCH = Date.UTC(2026, 9, 18, 12);
+
+  it('is ready when never used', () => {
+    expect(powerReady(undefined, LAUNCH, 24, LAUNCH + HOUR)).toBe(true);
+  });
+
+  it('is spent until the next period of the season, whatever the hour it was used', () => {
+    expect(powerReady(LAUNCH + 23 * HOUR, LAUNCH, 24, LAUNCH + 23.5 * HOUR)).toBe(false);
+    expect(powerReady(LAUNCH + 23 * HOUR, LAUNCH, 24, LAUNCH + 24 * HOUR)).toBe(true);
+    expect(powerReady(LAUNCH + 1 * HOUR, LAUNCH, 3, LAUNCH + 2.9 * HOUR)).toBe(false);
+    expect(powerReady(LAUNCH + 1 * HOUR, LAUNCH, 3, LAUNCH + 3 * HOUR)).toBe(true);
   });
 });
