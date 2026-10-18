@@ -68,6 +68,14 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.
       *Se voit* : barre de charge par couleur, boucle tracée à l'encre, transport qui attend,
       navire qui accoste le long du quai.
+      A faite le 19/10 : dépôt d'avant-poste (`outposts.depot`, 400 par niveau) qui recharge les
+      troupes ancrées dans son rayon à la place du plateau personnel ; charger en glissant des
+      jetons d'un bac ou du dépôt sur l'étiquette d'un transport (`logistics.load`, camion 200,
+      cargo 800, avion 120) ; livrer en lâchant le transport chargé sur un de ses avant-postes
+      (`logistics.deliver`, un slot, retour seul) ; escale aérienne au niveau 2 ; barre de charge
+      par couleur sur l'étiquette et sur le dépôt, coques le long du quai. Démo :
+      `npm run demo:mondiale -- --livraison`. Reste B : tournée, interception et caisse, Dakar,
+      transport qui attend.
    8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
       et y atterrit, paquet sous parachute.
    9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),

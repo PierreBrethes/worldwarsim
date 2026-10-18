@@ -944,8 +944,14 @@
 }
 /* Its string reaches down to the top of its figurines, wherever they stand off the point
    (`--cargo-x`, `--cargo-y`, written by the label layer in screen pixels). */
+/* Un avant-poste n'a pas de figurines : ses transports pendent à son mât désigné (ADR 0028 §4),
+   à gauche de son cartouche, pour laisser ses jetons de dépôt à portée de main. */
+.label--outpost.label--pointed .cargo-tags {
+  --cargo-x: -110px;
+}
 .label-anchor.label-anchor--dressed .cargo-tags,
-.label--expanded:not(.label--grouped) .cargo-tags {
+.label--expanded:not(.label--grouped) .cargo-tags,
+.label--outpost.label--pointed .cargo-tags {
   position: absolute;
   top: 0;
   left: 0;

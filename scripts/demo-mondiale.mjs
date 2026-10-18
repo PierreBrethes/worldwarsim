@@ -5,7 +5,9 @@
  * `--crans` pose en plus, pour la France, une escouade en Rhénanie aux crans entamés : une
  * infanterie à sec et un blindé à un cran de plein (coups et plein, ADR 0028 §3). `--recolte`
  * date une visite du plateau personnel de neuf heures plus tôt : la prochaine ouverture montre la
- * récolte, des vivres et de l'acier entrés, du pétrole sorti (ADR 0028 §7).
+ * récolte, des vivres et de l'acier entrés, du pétrole sorti (ADR 0028 §7). `--livraison` pose
+ * pour la France un avant-poste près de Bruxelles, son dépôt entamé, un camion chargé au QG et un
+ * autre au point (ADR 0028 §4).
  *
  *     npm run demo:mondiale
  *
@@ -25,6 +27,7 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 const bare = process.argv.includes('--nu');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
+const logistics = process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -120,6 +123,9 @@ if (!bare) {
         'dev:spawnTroops',
         JSON.stringify({ playerId: scene.a, count: 1, lon: 7.1, lat: 50.4, ...troop }),
       ]);
+  /** Un avant-poste et son dépôt, un camion chargé au QG, un autre au point (ADR 0028 §4). */
+  if (logistics && scene.a !== null)
+    cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a })]);
   if (harvest)
     cli([
       'run',

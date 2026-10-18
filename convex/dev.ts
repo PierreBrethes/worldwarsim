@@ -318,3 +318,50 @@ export const spawnTroops = internalMutation({
     return ids;
   },
 });
+
+/**
+ * **La scène de la logistique** (ADR 0028 §4), pour la démo : un avant-poste de niveau 2 près de
+ * Bruxelles, son dépôt entamé, un camion chargé au QG et un autre en garnison au point.
+ *
+ * `npx convex run dev:logisticsScene '{"playerId":"…"}'`
+ */
+export const logisticsScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const outpostId = await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 4.35, lat: 50.85 },
+      hostCountry: 'BEL',
+      level: 2,
+      specialization: 'relay',
+      foundedAt: now - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+      depot: { ammunition: 260, oil: 150, coal: 90 },
+    });
+    const hq = (
+      await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).find((building) => building.key === 'hq');
+    const truck = (stationedAt: Id<'buildings'> | Id<'outposts'>, load: Doc<'troops'>['load']) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'landTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('landTransport', 1),
+        currentStrength: nominalStrength('landTransport', 1),
+        stationedAt,
+        ...(load === undefined ? {} : { load }),
+      });
+    if (hq !== undefined) await truck(hq._id, { ammunition: 90, oil: 50, coal: 20 });
+    await truck(outpostId, { ammunition: 30, oil: 0, coal: 0 });
+    return outpostId;
+  },
+});

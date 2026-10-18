@@ -98,6 +98,13 @@ export function useTokenDrag<From>({
       const carrierId = carrierAt(step.clientX, step.clientY);
       const hint = latest.current.read(from, carrierId, resource, grabbed);
       finish();
+      /** Le lâcher n'est pas un clic : l'étiquette dessous n'ouvre rien. */
+      const swallow = (click: MouseEvent) => {
+        click.stopPropagation();
+        click.preventDefault();
+      };
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, true), 0);
       if (moved && carrierId !== null && !hint.refused && hint.amount > 0)
         latest.current.drop(from, carrierId, resource, hint.amount);
     };
