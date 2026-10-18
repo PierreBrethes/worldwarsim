@@ -3142,10 +3142,11 @@ export const fr = {
     full: 'bac plein',
     harvest: (hours: number) =>
       hours < 1
-        ? 'Récolte depuis votre dernière visite'
-        : `Récolte · ${num(hours)} h depuis votre dernière visite`,
+        ? 'Récolte depuis que vous avez quitté le plateau personnel'
+        : `Récolte · ${num(hours)} h depuis que vous avez quitté le plateau personnel`,
     harvestNone: 'Rien n’est entré ni sorti depuis votre dernière visite.',
     harvestFirst: 'Ce qui entre se lira ici à votre prochaine visite.',
+    lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesHeader: 'tuiles',
     tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',

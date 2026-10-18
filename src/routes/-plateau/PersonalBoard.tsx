@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -98,11 +99,12 @@ export function PersonalBoard({
   const [open, setOpen] = useState(true);
   const observing = view.me.defeated;
 
-  const { shown, deltas, ledger } = useHarvest(view, seat, motion, binRefs);
+  const { shown, deltas, ledger, mark } = useHarvest(view, seat, motion, binRefs);
   const workshop = useQuery(api.troops.workshop, seat);
   const { held, hint, away, grab, chip } = useHand({
     view,
     workshop,
+    onSpent: mark,
     seat,
     board,
     motion,
@@ -256,7 +258,7 @@ export function PersonalBoard({
           </button>
           {details && (
             <div className="grid gap-x-5 gap-y-3 px-3 pb-3 md:grid-cols-3 md:px-4">
-              <Works view={view} seat={seat} now={now} observing={observing} />
+              <Works view={view} seat={seat} now={now} observing={observing} onSpent={mark} />
               <Upkeep view={view} />
               <Shortages shortages={shortages} />
             </div>
@@ -300,9 +302,8 @@ const stocksAt = (view: PlayerView, now: number): Record<ResourceKey, number> =>
   ) as Record<ResourceKey, number>;
 
 /**
- * **La récolte, une fois par ouverture** : l'écart avec la dernière visite, lu au montage et
- * jamais relu — la vue change sous les pastilles, la récolte non. La visite est datée au serveur
- * à l'ouverture même : ce qui tombe ici ne retombera pas à la suivante.
+ * **La récolte, une fois par ouverture** : l'écart avec la dernière lecture, pris au montage et
+ * jamais repris — la vue change sous les pastilles, la récolte non.
  *
  * Les bacs montrent ce qui est déjà tombé (`shown`) le temps du vol ; « coupées », rien ne vole et
  * les écarts s'affichent seuls ; « réduites », les pastilles naissent au bac sans trajet.
@@ -316,7 +317,7 @@ function useHarvest(
   const [opened] = useState(() => {
     const at = Date.now();
     return {
-      harvest: harvestOf(view.boardRead, stocksAt(view, at), at),
+      harvest: harvestOf(view.boardRead, stocksAt(view, at), at, view.me.resources),
       first: view.boardRead === null,
     };
   });
@@ -328,10 +329,22 @@ function useHarvest(
     harvest === null || motion !== 'off' ? null : deltasOf(harvest),
   );
   const markRead = useMutation(api.personalBoard.markRead);
+  const mark = useCallback(() => void markRead(seat).catch(() => {}), [markRead, seat]);
 
+  /** **Lu à l'ouverture, relu en le quittant** — fermé, démonté ou la page masquée — et après
+   *  chaque dépense faite depuis lui : la récolte suivante dit ce qui a bougé depuis qu'on l'a
+   *  quitté, jamais le prix de ce qu'on vient d'y acheter. */
   useEffect(() => {
-    void markRead(seat).catch(() => {});
-  }, [markRead, seat]);
+    mark();
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') mark();
+    };
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      document.removeEventListener('visibilitychange', hidden);
+      mark();
+    };
+  }, [mark]);
 
   useEffect(() => {
     if (harvest === null || motion === 'off') return;
@@ -379,12 +392,15 @@ function useHarvest(
         : fr.personalBoard.harvestNone
       : [
           fr.personalBoard.harvest(harvest.hours),
-          ...harvest.deltas.map(
-            ({ resource, amount }) => `${fr.resources[resource]} ${fr.personalBoard.delta(amount)}`,
+          ...harvest.deltas.map(({ resource, amount, lost }) =>
+            [
+              `${fr.resources[resource]}${amount === 0 ? '' : ` ${fr.personalBoard.delta(amount)}`}`,
+              ...(lost > 0 ? [fr.personalBoard.lost(lost)] : []),
+            ].join(', '),
           ),
         ].join(' · ');
 
-  return { shown, deltas, ledger };
+  return { shown, deltas, ledger, mark };
 }
 
 const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number> => {
@@ -394,7 +410,11 @@ const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number>
 };
 
 const deltasOf = (harvest: Harvest): Partial<Record<ResourceKey, number>> =>
-  Object.fromEntries(harvest.deltas.map(({ resource, amount }) => [resource, amount]));
+  Object.fromEntries(
+    harvest.deltas
+      .filter(({ amount }) => amount !== 0)
+      .map(({ resource, amount }) => [resource, amount]),
+  );
 
 /**
  * **Une pastille qui tombe dans son bac, ou qui en sort** : un disque à la couleur de la
@@ -684,6 +704,7 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
 function useHand({
   view,
   workshop,
+  onSpent,
   seat,
   board,
   motion,
@@ -692,6 +713,8 @@ function useHand({
 }: {
   view: PlayerView;
   workshop: Workshop | undefined;
+  /** A spend made from the board: its reading is renewed, so the next harvest does not bill it. */
+  onSpent: () => void;
   seat: Seat;
   board: { readonly current: HTMLElement | null };
   motion: MapMotion;
@@ -708,8 +731,8 @@ function useHand({
   const latest = useRef({ view, workshop });
   latest.current = { view, workshop };
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
-  const callbacks = useRef({ onHoldTile, onPlaceTile });
-  callbacks.current = { onHoldTile, onPlaceTile };
+  const callbacks = useRef({ onHoldTile, onPlaceTile, onSpent });
+  callbacks.current = { onHoldTile, onPlaceTile, onSpent };
   const gesture = useRef<{ cancel: () => void } | null>(null);
 
   useEffect(() => () => gesture.current?.cancel(), []);
@@ -814,7 +837,8 @@ function useHand({
       }
       if (reading.kind === 'map' && what.kind === 'tile') {
         const placed = callbacks.current.onPlaceTile();
-        if (!placed) callbacks.current.onHoldTile(null);
+        if (placed) callbacks.current.onSpent();
+        else callbacks.current.onHoldTile(null);
         return settle(placed, at);
       }
       arm(false);
@@ -828,7 +852,10 @@ function useHand({
           regionId: building.regionId,
           point: { lon: building.point[0], lat: building.point[1] },
         }).then(
-          () => notify(fr.personalBoard.raised(building.name, building.level + 1), 'info'),
+          () => {
+            callbacks.current.onSpent();
+            notify(fr.personalBoard.raised(building.name, building.level + 1), 'info');
+          },
           (problem: unknown) => handleError(problem, (said) => notify(said)),
         );
       } else if (what.kind === 'piece' && reading.building !== null) {
@@ -838,7 +865,10 @@ function useHand({
           role: what.role,
           tier: 1,
         }).then(
-          () => notify(fr.personalBoard.formed(roleLabel(what.role, 1)), 'info'),
+          () => {
+            callbacks.current.onSpent();
+            notify(fr.personalBoard.formed(roleLabel(what.role, 1)), 'info');
+          },
           (problem: unknown) => handleError(problem, (said) => notify(said)),
         );
       }
@@ -960,11 +990,13 @@ function Works({
   seat,
   now,
   observing,
+  onSpent,
 }: {
   view: PlayerView;
   seat: Seat;
   now: number;
   observing: boolean;
+  onSpent: () => void;
 }) {
   const drop = useMutation(api.constructions.cancel);
   const [error, setError] = useState<string | null>(null);
@@ -1002,7 +1034,8 @@ function Works({
               title={fr.economy.queueCancelTitle}
               onClick={() => {
                 setError(null);
-                drop({ ...seat, constructionId: entry.id as Id<'constructions'> }).catch(
+                drop({ ...seat, constructionId: entry.id as Id<'constructions'> }).then(
+                  onSpent,
                   (problem: unknown) => handleError(problem, setError),
                 );
               }}
