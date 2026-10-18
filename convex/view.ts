@@ -719,6 +719,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
         depot: outpost.depot ?? emptyLoad(),
         depotCapacity: depotCapacity(outpost.level),
+        coastal: coastAtPoint([outpost.point.lon, outpost.point.lat]),
       })),
     },
     /**

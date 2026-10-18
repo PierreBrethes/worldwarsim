@@ -27,7 +27,8 @@ import { seasonPoints } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
-import { AIR_STOP_LEVEL, MAX_HQ_LEVEL } from '../constants';
+import { MAX_HQ_LEVEL } from '../constants';
+import { isAirStop } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -90,8 +91,8 @@ type Departure = {
   /**
    * **La plage d'où une coque repart** (ADR 0019 §2, révision du 04/09). Une colonne débarquée
    * se tient sur un point de côte : elle y est arrivée par la mer, et lui réclamer un quai
-   * l'échouerait là pour la saison. Un bâtiment porte déjà sa porte, un avant-poste n'embarque
-   * pas — `false` pour les deux, et ce n'est pas un trou.
+   * l'échouerait là pour la saison. Un bâtiment porte déjà sa porte (`false`) ; un avant-poste
+   * côtier est une côte, d'où le cargo qui s'y est chargé repart (ADR 0028 §4).
    */
   readonly coastal: boolean;
   /** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de niveau 2 est un aérodrome pour
@@ -116,8 +117,9 @@ export async function departureOf(
       stationId: outpost._id,
       fromBuildingId: null,
       afloat: false,
-      coastal: false,
-      airStop: outpost.level >= AIR_STOP_LEVEL,
+      /** **Un point côtier est une côte** : un cargo qui s'y est chargé en repart (ADR 0028 §4). */
+      coastal: coastAtPoint(pointOf(outpost.point)),
+      airStop: isAirStop(outpost.level),
     };
   }
   if (origin.kind === 'point') {

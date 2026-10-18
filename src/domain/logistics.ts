@@ -53,9 +53,13 @@ export type LoadRefusal =
       readonly available: number;
     };
 
-/** **Un avion ne se pose qu'à une escale** (ADR 0028 §5) : un avant-poste de niveau 2. */
+/** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de niveau 2 reçoit l'avion, qui s'y
+ *  charge, y livre et en repart comme d'un aérodrome — la lecture du départ des deux côtés. */
+export const isAirStop = (level: number): boolean => level >= AIR_STOP_LEVEL;
+
+/** **Un avion ne se pose qu'à une escale**. */
 const airStopRefusal = (role: UnitRole, level: number) =>
-  role === 'airTransport' && level < AIR_STOP_LEVEL
+  role === 'airTransport' && !isAirStop(level)
     ? ({ code: 'NO_AIR_STOP', level: AIR_STOP_LEVEL } as const)
     : null;
 

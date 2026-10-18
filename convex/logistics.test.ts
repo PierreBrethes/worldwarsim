@@ -293,6 +293,37 @@ describe('delivering to an outpost', () => {
     expect(notices).toMatchObject([{ delivered: { ammunition: 100 }, kept: { ammunition: 50 } }]);
   });
 
+  /** **Un avant-poste côtier est une côte** : un cargo s'y charge à son dépôt et en repart. */
+  it('loads a cargo at a coastal outpost and sails it to another', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const coast = { hostCountry: 'FRA', regionId: MARNE };
+    const marseille = await plant(t, seat, [5.37, 43.3], 1, coast);
+    await t.run(async (ctx) =>
+      ctx.db.patch(marseille, { depot: { ammunition: 0, oil: 0, coal: 300 } }),
+    );
+    const agde = await plant(t, seat, [3, 43.3], 1, coast);
+    const cargo = await form(t, seat, 'cargo', marseille);
+
+    await t.mutation(api.logistics.load, {
+      ...seat,
+      troopId: cargo,
+      resource: 'coal',
+      amount: 120,
+    });
+    const { arrivesAt } = await t.mutation(api.logistics.deliver, {
+      ...seat,
+      origin: { kind: 'outpost', outpostId: marseille },
+      troopIds: [cargo],
+      outpostId: agde,
+    });
+    vi.setSystemTime(arrivesAt + 1);
+    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
+    await t.mutation(internal.movements.arrive, { movementId: movement._id });
+
+    expect((await depotOf(t, agde))?.coal).toBe(120);
+  });
+
   it('takes a slot on the way out and none on the way home', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

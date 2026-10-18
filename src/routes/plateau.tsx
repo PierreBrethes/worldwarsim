@@ -1,5 +1,5 @@
 import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
-import { emptyLoad } from '@/domain/logistics';
+import { emptyLoad, isAirStop } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import {
@@ -69,7 +69,7 @@ import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/d
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
-import { AIR_STOP_LEVEL, CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
+import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { objectiveSprite } from '@/emblems/objectives/manifest';
 import { lootWords } from '@/domain/journal';
@@ -3180,6 +3180,10 @@ function armedColumn(
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
       : undefined;
+  const outpost =
+    station.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === station.outpostId)
+      : undefined;
   return {
     station,
     troopIds,
@@ -3196,11 +3200,7 @@ function armedColumn(
               .filter((building) => building.regionId === departure.regionId)
               .map((building) => building.key)),
         /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
-        ...(station.kind === 'outpost' &&
-        (view.me.outposts.find((outpost) => outpost.id === station.outpostId)?.level ?? 0) >=
-          AIR_STOP_LEVEL
-          ? [PROJECTION_BY_DOMAIN.air]
-          : []),
+        ...(outpost !== undefined && isAirStop(outpost.level) ? [PROJECTION_BY_DOMAIN.air] : []),
       ]),
       /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
        *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
@@ -3209,7 +3209,7 @@ function armedColumn(
       afloat: station.kind === 'point' && station.afloat,
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
-      coastal: station.kind === 'point' && station.coastal,
+      coastal: station.kind === 'point' ? station.coastal : (outpost?.coastal ?? false),
       captureRate: captureRate(troops),
       ...roundsOf(view, troops),
       ...blitzOf(view, troops),

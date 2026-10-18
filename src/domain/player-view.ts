@@ -342,6 +342,8 @@ export type OutpostView = {
    *  se partagent (`depotCapacity`). Le point est à moi : le brouillard ne sert rien d'autre. */
   readonly depot: SupplyLoad;
   readonly depotCapacity: number;
+  /** **Un point sur la côte** (grille de routage du serveur) : un cargo en repart. */
+  readonly coastal: boolean;
 };
 
 /**
