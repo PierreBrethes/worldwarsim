@@ -182,6 +182,33 @@ function memberOf(raster: RegionRaster, regionId: string): (cell: number) => boo
 }
 
 /**
+ * **Le point tombe-t-il dans la région, ou à `ring` cellules d'elle ?** La région d'un point se lit
+ * sur les polygones du client, que le serveur n'a pas : il vérifie qu'elle est bien là, à la
+ * maille près. Le carré de (2·ring+1)² cellules absorbe l'écart entre le polygone et le raster ;
+ * une région revendiquée à des centaines de kilomètres n'y entre pas.
+ */
+export function regionNear(
+  raster: RegionRaster,
+  lonLat: LonLat,
+  regionId: string,
+  ring: number,
+): boolean {
+  const isMember = memberOf(raster, regionId);
+  const cell = cellAt(raster, lonLat);
+  const column = cell % raster.width;
+  const row = Math.floor(cell / raster.width);
+  for (let dy = -ring; dy <= ring; dy += 1) {
+    const next = row + dy;
+    if (next < 0 || next >= raster.height) continue;
+    for (let dx = -ring; dx <= ring; dx += 1) {
+      if (isMember(next * raster.width + ((column + dx + raster.width) % raster.width)))
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
  * **Une cellule de bordure de la région**, ce que le polygone appelait « le point est sur le
  * contour ». Le raster n'a pas de contour : il a des cellules qui touchent autre chose. C'est le
  * contrôle du point d'entrée gravé d'un retour chargé (`plunder.ts`), et il accepte exactement ce

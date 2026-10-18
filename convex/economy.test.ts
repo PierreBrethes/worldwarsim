@@ -526,6 +526,21 @@ describe('placement', () => {
       ).rejects.toThrow('POINT_OUTSIDE_REGION');
     });
 
+    /** Une région revendiquée loin du point ne prend pas sa couleur (ADR 0029). */
+    it('refuses a region claimed far from the point aimed at', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'barracks',
+          regionId: MARNE,
+          point: pointOfRegion(MOSELLE),
+        }),
+      ).rejects.toThrow('POINT_OUTSIDE_REGION');
+    });
+
     /** The queue carries it, the finished building keeps it, and the view serves it: the mast
      *  stands on its point from the order to the end of the season. */
     it('travels from the queue to the standing building and out to the board', async () => {

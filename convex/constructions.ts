@@ -34,7 +34,7 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { coastAtPoint, hostAtPoint } from './routes';
+import { coastAtPoint, pointInRegion } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, reachesOf, sitesOf } from './sites';
@@ -553,11 +553,11 @@ async function refusalFor(
   const standing = buildingAt(buildings, building, point);
 
   /**
-   * **The point lies in the region named with it.** The server holds no admin-1 polygon
-   * (`regions.ts`), so the region is the client's; what it can check is the country, on the
-   * raster every rule keys a host on. A raise is not asked: its point was checked once.
+   * **The point lies in the region named with it** (`pointInRegion`): the region carries the
+   * colour and the surveys, so a twisted client must not pick it. A raise is not asked: its
+   * point was checked once.
    */
-  if (standing === undefined && hostAtPoint(lonLat) !== region.country) {
+  if (standing === undefined && !pointInRegion(lonLat, region)) {
     return { code: 'POINT_OUTSIDE_REGION', details: { regionId } };
   }
 

@@ -9,6 +9,7 @@ import {
   hostAt,
   isRegionBorderCell,
   regionAt,
+  regionNear,
   type RegionEntry,
   type RegionGoal,
   type RegionRaster,
@@ -47,6 +48,9 @@ const rasterOf = (): RegionRaster =>
 export const regionAtRoutePoint = (point: LonLat): string | null => regionAt(rasterOf(), point);
 
 export const hostAtRoutePoint = (point: LonLat): string | null => hostAt(rasterOf(), point);
+
+export const regionNearRoutePoint = (point: LonLat, regionId: string, ring: number): boolean =>
+  regionNear(rasterOf(), point, regionId, ring);
 
 export const hostAmongAtRoutePoint = (point: LonLat, adm0s: ReadonlySet<string>): string | null =>
   hostAmong(rasterOf(), point, adm0s);

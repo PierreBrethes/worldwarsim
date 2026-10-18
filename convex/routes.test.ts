@@ -7,7 +7,7 @@ import {
   STRATEGIC_POINT_KEYS,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
-import { coastAtPoint, hostAtPoint, routeBetween, routeToRegions } from './routes';
+import { coastAtPoint, hostAtPoint, pointInRegion, routeBetween, routeToRegions } from './routes';
 import { routeMinutes } from './constants';
 
 /**
@@ -233,5 +233,26 @@ describe('the strategic points of the test season', () => {
     const regionId = regionAtRoutePoint(STRATEGIC_POINTS[key]);
     expect(regionId).not.toBeNull();
     expect(regionFacts(regionId!)!.country).toBe(COUNTRY[key]);
+  });
+});
+
+/** **La région nommée par le client se vérifie** (ADR 0029) : à la maille près, et au point de
+ *  la région pour les trois que l'anneau manque. */
+describe('pointInRegion', () => {
+  const at = (id: string) => ({ id, point: regionFacts(id)!.point });
+
+  it('takes the point of every region, the three the ring misses included', () => {
+    for (const id of ['UGA-5616', 'IND-3262', 'PRT-735', 'FRA-5323', 'CAN-632']) {
+      expect({ id, inside: pointInRegion(regionFacts(id)!.point, at(id)) }).toEqual({
+        id,
+        inside: true,
+      });
+    }
+  });
+
+  it('refuses a region claimed 200 km away', () => {
+    const [lon, lat] = regionFacts('FRA-5323')!.point;
+    const away: LonLat = [lon + 2.75, lat];
+    expect(pointInRegion(away, at('FRA-5323'))).toBe(false);
   });
 });
