@@ -24,7 +24,7 @@ import {
   type Costs,
 } from './constants';
 import { fail } from './errors';
-import { heldOver } from './holding';
+import { linkingOver } from './holding';
 import { regionFacts } from './regions';
 import { upkeepOf, type Upkeep } from './upkeep';
 import type { ResourceAmounts } from '../src/domain/loot';
@@ -335,7 +335,7 @@ export async function economyOf(
  * **La couleur, sur le sol que ce joueur-là a bâti, et rien de plus.** Le classement dépouille le
  * planisphère parce que c'est sa question ; un règlement de stock n'a besoin que des régions qui
  * portent un bâtiment — une poignée — et mesurer les 4 589 à chaque débit serait payer un
- * dépouillement pour une adresse. Même fonction (`heldOver`), même réponse, moins de sol.
+ * dépouillement pour une adresse. Même fonction (`linkingOver`, qui lit `heldOver`), moins de sol.
  *
  * **Ce que ça coûte au fan-out, dit une fois** (`technique/brouillard-et-fanout.md`) : la table
  * des avant-postes de la saison entre dans la dépendance de `playerView`, qui se réinvalide donc
@@ -358,7 +358,7 @@ async function heldFor(
       return facts === null ? [] : [[facts.id, facts] as const];
     }),
   );
-  return heldOver(ctx, player.seasonId, [...regions.values()], now);
+  return linkingOver(ctx, player, [...regions.values()], now);
 }
 
 export async function ordersOf(

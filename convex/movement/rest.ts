@@ -20,6 +20,11 @@ export async function restHold(
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', owner.seasonId))
       .collect()
-  ).find((player) => player._id !== owner._id && homeCountryOf(player.nation) === hostCountry);
+  ).find(
+    (player) =>
+      player._id !== owner._id &&
+      (player.eliminatedAt ?? null) === null &&
+      homeCountryOf(player.nation) === hostCountry,
+  );
   return host ? windowExit(at, host.restWindow) : null;
 }

@@ -9,7 +9,9 @@
 > perte de capacité.
 
 **Statut :** acceptée — **critère de distribution renforcé le 15/08/2026**, **règle du grisé
-révisée le 24/08/2026** (voir plus bas)
+révisée le 24/08/2026** (voir plus bas) — **révisée par l'[ADR 0028](0028-l-economie-de-la-mondiale.md)**
+(18/10/2026) pour la Mondiale : cinq ressources, le fer donne l'acier, la recherche remplace le QG
+comme verrou.
 
 > ⚠️ **Révision (15/08/2026) : « un manque volontaire, jamais deux » ne suffit pas — il est
 > **complété**, pas remplacé.** Le critère mesure une **présence**, jamais une quantité ni une
@@ -19,6 +21,10 @@ révisée le 24/08/2026** (voir plus bas)
 > écart résiduel de 1,33×. Trois garde-fous s'y ajoutent, décrits à la fin de ce document, et
 > la règle du manque unique devient **exceptionnable sur déclaration**. Le reste de l'ADR est
 > inchangé.
+
+> **Révisée le 18/10/2026 par l'[ADR 0029](0029-placement-libre-et-gisements-ponctuels.md)** : une
+> bâtisse par région et le gisement par région disparaissent ; un bâtiment se pose à une position
+> exacte, un gisement est un point qui porte une seule exploitation.
 
 ## Contexte
 

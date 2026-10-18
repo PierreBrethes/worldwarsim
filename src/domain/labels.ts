@@ -1,6 +1,6 @@
 import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { countryLabel, fr } from '@/i18n/fr';
+import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
@@ -66,6 +66,8 @@ export type MapMarker =
       readonly since: number;
       readonly seenMinutesAgo: number | null;
       readonly lastSeenAt: number | null;
+      /** Lisbonne (P11) : la nation du camp, à son seul teneur. */
+      readonly nation?: string;
     }
   | {
       /**
@@ -85,6 +87,20 @@ export type MapMarker =
       readonly plate: string | null;
       readonly depot: string;
       readonly emptied: boolean;
+    }
+  | {
+      /**
+       * **Un point stratégique** (P1-P12) : public comme un objectif, il porte l'encre de son
+       * teneur — la couleur est un attribut de possession —, aucune s'il est neutre.
+       */
+      readonly kind: 'strategic';
+      readonly id: string;
+      readonly pointId: string;
+      readonly lonLat: LonLat;
+      readonly name: string;
+      readonly ink: string | null;
+      /** Ce que tout le monde lit : neutre, tenu par qui, ou contesté. */
+      readonly state: string;
     }
   | {
       readonly kind: 'outpost';
@@ -224,7 +240,7 @@ export type MapMarker =
  * One outpost pictogram whatever the specialization: three drawings for a distinction the
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
-export type LabelPictogram = 'outpost' | 'stack' | 'construction' | 'objective';
+export type LabelPictogram = 'outpost' | 'stack' | 'construction' | 'objective' | 'strategic';
 
 /**
  * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
@@ -252,6 +268,7 @@ export type LabelType =
   | 'installation'
   | 'camp'
   | 'objective'
+  | 'strategic'
   | 'outpost'
   | 'stack'
   | 'construction'
@@ -404,6 +421,9 @@ export type MapLabel = {
     readonly depot: string;
     readonly emptied: boolean;
   } | null;
+  /** **Le point stratégique que ce mât porte** : ce qu'un clic gauche lit et ce qu'un clic droit
+   *  vise (P2). */
+  readonly strategic: { readonly id: string; readonly name: string } | null;
   /**
    * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
    * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
@@ -438,6 +458,7 @@ const NAMED_WHEN_POINTED: ReadonlySet<LabelType> = new Set([
   'stack',
   'outpost',
   'objective',
+  'strategic',
   'installation',
   'camp',
 ]);
@@ -472,6 +493,8 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   /** **Un objectif se lit avant tout ce qui ne bouge pas** : c'est le seul endroit de la carte
    *  où le jeu envoie tout le monde, et le manquer sous un mât serait manquer la partie. */
   objective: 4,
+  /** La course se lit avant tout le reste du décor : c'est elle qui gagne la saison. */
+  strategic: 4,
   stack: 2,
   building: 1,
   /** Le mât d'un autre ne prend jamais la place du sien : à encombrement égal, c'est le joueur
@@ -593,6 +616,7 @@ function withCaptures(
       installation: null,
       camp: null,
       objective: null,
+      strategic: null,
       station: null,
       force: null,
     })),
@@ -602,7 +626,9 @@ function withCaptures(
 export const captureSiteName = (capture: Pick<CaptureView, 'site' | 'regionName'>): string =>
   capture.site.kind === 'building'
     ? fr.capture.buildingSite(fr.buildings[capture.site.building], capture.regionName ?? '')
-    : fr.capture.outpostSite(capture.site.level, countryLabel(capture.site.hostCountry));
+    : capture.site.kind === 'point'
+      ? fr.points.site(capture.site.key)
+      : fr.capture.outpostSite(capture.site.level, countryLabel(capture.site.hostCountry));
 
 /**
  * **Chacun de mes mouvements finit par un drapeau** (carte-lisible, 03/10), planté au bout du
@@ -636,6 +662,7 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     installation: null,
     camp: null,
     objective: null,
+    strategic: null,
     station: null,
     force: null,
   };
@@ -689,6 +716,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     installation: null,
     camp: null,
     objective: null,
+    strategic: null,
     station: null,
     force: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
@@ -761,6 +789,7 @@ function markerLabel(marker: MapMarker): MapLabel {
                 ? fr.camps.seenAt(asLocalTime(marker.since))
                 : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
           },
+          ...lisbonLine(marker.nation),
         ],
       };
     /**
@@ -788,6 +817,19 @@ function markerLabel(marker: MapMarker): MapLabel {
         lines: [
           { role: 'nature', text: marker.name },
           { role: 'figures', text: marker.emptied ? fr.objectives.emptied : marker.depot },
+        ],
+      };
+    case 'strategic':
+      return {
+        ...common,
+        type: 'strategic',
+        priority: PRIORITY.strategic,
+        pictogram: 'strategic',
+        strategic: { id: marker.pointId, name: marker.name },
+        hostCountry: null,
+        lines: [
+          { role: 'nature', text: marker.name },
+          { role: 'figures', text: marker.state },
         ],
       };
     /** **Un chantier ne se lit pas comme un point** : il n'a ni niveau ni métier tant qu'il
@@ -953,6 +995,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       type: 'my-movement',
       priority: PRIORITY['my-movement'],
       objective: null,
+      strategic: null,
       washed: false,
       installation: null,
       camp: null,
@@ -1005,6 +1048,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       installation: null,
       camp: null,
       objective: null,
+      strategic: null,
       anchor: { kind: 'movementHead', arc: arc.id },
       reach: null,
       ink: null,
@@ -1021,7 +1065,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       force: null,
-      lines: [{ role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) }],
+      lines: [
+        { role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) },
+        ...lisbonLine(arc.nation),
+      ],
     };
   }
   if (arc.state !== 'enemyDetected') return null;
@@ -1052,6 +1099,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     installation: null,
     camp: null,
     objective: null,
+    strategic: null,
     anchor: { kind: 'movementHead', arc: arc.id },
     reach: null,
     ink: null,
@@ -1068,9 +1116,15 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     building: null,
     station: null,
     force: null,
-    lines: [...schedule, second],
+    lines: [...schedule, second, ...lisbonLine(arc.nation)],
   };
 }
+
+/** **Ce que Lisbonne fait lire** (P11) : la nation d'un relevé, à son seul teneur. */
+const lisbonLine = (nation: string | undefined): ReadonlyArray<LabelLine> =>
+  nation === undefined
+    ? []
+    : [{ role: 'figures', text: fr.points.readAtLisbon(nationLabel(nation)) }];
 
 /**
  * **Une arrivée retenue ne se compte pas à rebours** : la colonne se tient à la frontière, elle

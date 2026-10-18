@@ -11,7 +11,6 @@ export function resumeSeat(
   seat: {
     readonly seasonId: Id<'seasons'>;
     readonly status: SeasonStatus;
-    readonly atWar: boolean;
   },
   to: { readonly salon: () => void; readonly plateau: () => void },
 ): void {

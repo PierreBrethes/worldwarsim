@@ -22,7 +22,7 @@ import { economyOf, settle } from './resources';
 import schema from './schema';
 import { surveyFoundation } from './surveys';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
+import { foundSeat, joinSeat, seatDoc, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -440,6 +440,29 @@ describe('a building only produces when its region carries its colour', () => {
     // La carte « à faire maintenant » n'existe pas pour un observateur (décision du 31/08) ;
     // l'état, lui, se lit toujours.
     expect(unlinkedProducers(seen)).toHaveLength(1);
+  });
+
+  /** **Narvik** (P11) : le teneur produit même hors réseau — le site coupé redevient relié, à
+   *  la vue comme à l'économie, et retombe dès qu'il perd le point. */
+  it('keeps the holder of Narvik linked off the network, and only while he holds it', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    const well = await raise(t, seat, 'oilWell', PRAHOVA);
+    await disable(t, outpostId, MIDDAY);
+    expect(unlinkedProducers(await view(t, seat)).map((building) => building.id)).toContain(well);
+
+    const player = await t.run((ctx) => seatIn(ctx, seat));
+    const narvik = await t.run(async (ctx) =>
+      (await ctx.db.query('strategicPoints').collect()).find((point) => point.key === 'narvik'),
+    );
+    await t.run((ctx) => ctx.db.patch(narvik!._id, { holderId: player._id, heldSince: MIDDAY }));
+    const held = await view(t, seat);
+    expect(unlinkedProducers(held)).toHaveLength(0);
+    expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
+
+    await t.run((ctx) => ctx.db.patch(narvik!._id, { holderId: null, heldSince: null }));
+    expect(unlinkedProducers(await view(t, seat))).toHaveLength(1);
   });
 
   /** La carte « à faire maintenant » compte les sites coupés, et mène au premier. */

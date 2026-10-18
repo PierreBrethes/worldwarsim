@@ -95,6 +95,7 @@ export function MapLabels({
   onOpenLoot,
   onOpenCamp,
   onOpenObjective,
+  onOpenStrategic,
   onAct,
   mapping,
   holding,
@@ -143,6 +144,7 @@ export function MapLabels({
   /** **Le cartouche d'un objectif neutre** : il lit ce qui est public — nom, palier, dépôt
    *  restant — et jamais ce qui le tient. Comme le camp, il ne commande rien. */
   onOpenObjective: (objectiveId: string, clientX: number, clientY: number) => void;
+  onOpenStrategic: (pointId: string, clientX: number, clientY: number) => void;
   /** **Le geste qui agit, quel que soit le bouton qui le porte** (`mouseMapping`) : la rose
    *  s'ouvre sur l'étiquette comme elle s'ouvre sur le sol. */
   onAct: (label: MapLabel, clientX: number, clientY: number) => void;
@@ -744,6 +746,8 @@ export function MapLabels({
         onOpenCamp(label.camp.id, clientX, clientY);
       } else if (label.objective !== null) {
         onOpenObjective(label.objective.id, clientX, clientY);
+      } else if (label.strategic !== null) {
+        onOpenStrategic(label.strategic.id, clientX, clientY);
       } else if (label.hostCountry !== null) onSelect(label.hostCountry);
     }
     // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
@@ -1259,6 +1263,8 @@ const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   /** Le tas de caisses : un objectif neutre *est* une réserve, et c'est ce que le mât dit tant
    *  que la planche de son archétype n'est pas dessinée. */
   objective: 'supply',
+  /** Le drapeau : un point stratégique *est* une possession disputée. */
+  strategic: 'nation',
 };
 
 type RenderState = {

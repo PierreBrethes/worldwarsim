@@ -117,23 +117,19 @@ describe('raser un bâtiment', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  /** Cas 1 : la région redevient libre, l'emplacement rendu, et rien ne revient en caisse. */
-  it('efface le bâtiment, libère sa région et son emplacement, et ne rend rien', async () => {
+  /** Cas 1 : la région redevient libre, et rien ne revient en caisse. */
+  it('efface le bâtiment, libère sa région, et ne rend rien', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await promoteHq(t, seat, 3);
-    /** Une station d'écoute, et pas une mine : la pose d'une dette du socle est **hors compte**
-     *  (ADR 0020 §10), donc elle ne prouverait rien d'un emplacement rendu. */
     const station = await raise(t, seat, 'listening', ARDENNES, 2);
 
     const before = await stocks(t, seat);
-    const slotsBefore = (await t.query(api.view.playerView, seat)).me.siteSlots[0]!.taken;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: station });
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.some((building) => building.id === station)).toBe(false);
     expect(view.me.resources.alloy.stock).toBeCloseTo(before.alloy.stock, 5);
-    expect(view.me.siteSlots[0]!.taken).toBe(slotsBefore - 1);
 
     // La région ne refuse plus : une caserne s'y met en file là où la station se tenait.
     await fillAll(t, seat);
@@ -271,7 +267,11 @@ describe('raser un bâtiment', () => {
     const station = await raise(t, seat, 'listening', MEURTHE, 1);
     // Une première entrée occupe la tête — elle court, donc la seconde attend, et c'est celle-là
     // qui se rembourse.
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',

@@ -16,7 +16,6 @@ import {
 } from './economy';
 import {
   currentStock,
-  sameSite,
   type Building,
   type BuildSpec,
   type Cost,
@@ -42,7 +41,7 @@ export type BuildReason =
  * A running site is no longer one of them: the queue is unbounded and paid at the enqueue
  * (25/08), so a chantier holds back nothing but its own turn.
  */
-type BuildHold = 'siteSlots' | 'materials';
+type BuildHold = 'materials';
 
 export type BuildOption = {
   readonly key: BuildingKey;
@@ -65,11 +64,6 @@ export type Site = {
    * player reaches any more, and nothing goes up there.
    */
   readonly site: SiteRef | null;
-  /** What stands on that site **plus what the queue has pledged there**: an entry has paid for
-   *  its placement, and leaving it out would make the queue where a nation keeps what it may
-   *  not hold. Never a national total — a full home ground holds nothing back at an outpost. */
-  readonly taken: number;
-  readonly slots: number;
   readonly hqLevel: number;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
   /** A construction aimed at **this very region**, running or queued: nothing stands yet, but
@@ -113,37 +107,19 @@ export function buildableOn(
     const byNature = placementRefusal(
       key,
       region,
-      {
-        onRegion: site.standing,
-        taken: 0,
-        slots: Number.POSITIVE_INFINITY,
-        hqLevel: site.hqLevel,
-      },
+      { onRegion: site.standing, hqLevel: site.hqLevel },
       spec.unlockedAtHqLevel,
     );
     if (byNature !== null) return [];
 
-    const asThingsStand = placementRefusal(
-      key,
-      region,
-      {
-        onRegion: site.standing,
-        taken: site.taken,
-        slots: site.slots,
-        hqLevel: site.hqLevel,
-      },
-      spec.unlockedAtHqLevel,
-    );
-
     /**
      * A key the foundation still owes is placed for nothing and stands at once — so it carries
-     * no bill and no delay, and **nothing at all holds it back**: neither matter, nor a running
-     * site, nor the ceiling since 25/08. The debt of the format outranks the ambition of the
+     * no bill and no delay, and **nothing at all holds it back**: neither matter nor a running
+     * site. The debt of the format outranks the ambition of the
      * player, and the ambition is what waits for the headquarters.
      */
     const free = site.foundation.some((due) => settlesDebt(due, { key, deposit: site.deposit }));
     const cost = free ? {} : spec.cost;
-    const siteFull = !free && asThingsStand === 'SITE_SLOTS_FULL';
 
     return [
       {
@@ -152,7 +128,7 @@ export function buildableOn(
         minutes: free ? 0 : spec.minutes,
         reason: reasonFor(key, site.deposit),
         free,
-        hold: holdOn(site, free, cost, siteFull),
+        hold: holdOn(site, free, cost),
       } satisfies BuildOption,
     ];
   });
@@ -236,13 +212,11 @@ function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedR
 /**
  * What stands between a line and the click, most immediate first. **A running site holds
  * nothing back any more** (the queue is unbounded and paid at the enqueue), and **neither do
- * the placements on a key the season owes** (25/08): a debt of the format is not refused by a
- * rule of the format, and the server places it the same way (`constructions.start`). What is
- * left on a free line is nothing at all, and on a paid one the site and the bill.
+ * a key the season owes** (25/08): a debt of the format is not refused by a rule of the
+ * format. What is left on a free line is nothing at all, and on a paid one the bill.
  */
-function holdOn(site: Site, free: boolean, cost: Cost, siteFull: boolean): BuildHold | null {
+function holdOn(site: Site, free: boolean, cost: Cost): BuildHold | null {
   if (free) return null;
-  if (siteFull) return 'siteSlots';
   return affordable(cost, site.stocks) ? null : 'materials';
 }
 
@@ -274,7 +248,7 @@ export const pledgedWork = (
     : [view.me.construction, ...view.me.constructionQueue];
 
 /** Ce que la file bâtit, l'élévation d'un avant-poste retirée : elle ne pose rien sur un sol,
- *  donc elle ne prend ni région ni emplacement (précision du 15/09). */
+ *  donc elle ne prend aucune région (précision du 15/09). */
 const pledgedBuildings = (view: PlayerView) =>
   pledgedWork(view).filter((work) => work.outpostId === null);
 
@@ -282,37 +256,6 @@ const pledgedBuildings = (view: PlayerView) =>
  *  regions no further entry may take (`convex/constructions.ts`). */
 const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
   new Set(pledgedBuildings(view).map((work) => work.regionId));
-
-/**
- * How many placements of **one site** the queue has already claimed. A pledge on a bare region
- * is a building coming; a pledge on a region that already carries one is a raise, and a raise
- * moves neither the count nor the site's budget — the server counts it exactly this way.
- *
- * Per site and never nationally (ADR 0020 §10): a queue filling an outpost holds nothing back
- * at home, which is the whole point of a local budget.
- */
-export const pledgedOn = (view: PlayerView, site: SiteRef | null): number =>
-  site === null
-    ? 0
-    : pledgedBuildings(view).filter((work) => {
-        if (view.me.buildings.some((building) => building.regionId === work.regionId)) return false;
-        const aimed = view.me.regions.find((region) => region.id === work.regionId)?.site ?? null;
-        return aimed !== null && sameSite(aimed, site);
-      }).length;
-
-/** What a site carries and what stands on it, straight from the view — zeroes for a region no
- *  site of the player's reaches, which is a region nothing goes up on. */
-export const slotsOn = (
-  view: PlayerView,
-  site: SiteRef | null,
-): { readonly taken: number; readonly total: number } => {
-  const budget =
-    site === null ? undefined : view.me.siteSlots.find((held) => sameSite(held.site, site));
-  return {
-    taken: (budget?.taken ?? 0) + pledgedOn(view, site),
-    total: budget?.total ?? 0,
-  };
-};
 
 /**
  * The site a player's view describes for one region, or `null` when that region is none of
@@ -333,14 +276,11 @@ export function siteOf(view: PlayerView, regionId: string, now: number): Site | 
     ]),
   ) as Record<ResourceKey, number>;
 
-  const slots = slotsOn(view, region.site);
   return {
     deposit: region.deposit,
     coastal: region.coastal,
     standing: region.buildings[0]?.key ?? null,
     site: region.site,
-    taken: slots.taken,
-    slots: slots.total,
     hqLevel: view.me.hqLevel,
     stocks,
     constructionHere: pledgedRegions(view).has(regionId),
@@ -582,8 +522,6 @@ export type PlacementCondition =
   | { readonly kind: 'locked'; readonly hqLevel: number }
   | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> }
   | { readonly kind: 'coastal' }
-  /** Every site of his is full — the headquarters or an outpost has to rise (ADR 0020 §10). */
-  | { readonly kind: 'siteFull' }
   | { readonly kind: 'regionsTaken' };
 
 export type Placement = {
@@ -623,12 +561,7 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
   let carriable = false;
 
   for (const region of impossible ? [] : view.me.regions) {
-    const byNature = placementRefusal(
-      key,
-      region,
-      { onRegion: null, taken: 0, slots: Number.POSITIVE_INFINITY, hqLevel },
-      unlockedAtHqLevel,
-    );
+    const byNature = placementRefusal(key, region, { onRegion: null, hqLevel }, unlockedAtHqLevel);
     if (byNature !== null) {
       natures.add(byNature);
       continue;
@@ -640,17 +573,10 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
     if (pledged.has(region.id)) continue;
     // Ground no living site reaches carries nothing at all, whatever its deposit.
     if (region.site === null) continue;
-    const slots = slotsOn(view, region.site);
     const asThingsStand = placementRefusal(
       key,
       region,
-      {
-        onRegion: region.buildings[0]?.key ?? null,
-        taken: slots.taken,
-        // A key the season owes escapes the budget, exactly as the server places it (25/08).
-        slots: free ? Number.POSITIVE_INFINITY : slots.total,
-        hqLevel,
-      },
+      { onRegion: region.buildings[0]?.key ?? null, hqLevel },
       unlockedAtHqLevel,
     );
     if (asThingsStand === null) regionIds.push(region.id);
@@ -661,9 +587,8 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
 }
 
 /**
- * The single sentence that would open a key. Nature before circumstance: a player told his
- * sites are full will raise his headquarters, and find the well still refused for want of a
- * deposit — the ground is the fact, a full site is only today.
+ * The single sentence that would open a key. Nature before circumstance: the ground is the
+ * fact, a taken region is only today.
  */
 function conditionOf(
   view: PlayerView,
@@ -682,11 +607,7 @@ function conditionOf(
     // headquarters, or the second headquarters that never exists.
     return { kind: 'locked', hqLevel: Math.max(1, view.buildCatalog[key].unlockedAtHqLevel) };
   }
-  // A key the season owes is never held by a full site, so its only remaining excuse is ground.
-  return !view.me.foundation.some((due) => due.key === key) &&
-    view.me.siteSlots.every((held) => slotsOn(view, held.site).taken >= held.total)
-    ? { kind: 'siteFull' }
-    : { kind: 'regionsTaken' };
+  return { kind: 'regionsTaken' };
 }
 
 /**

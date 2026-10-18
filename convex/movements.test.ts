@@ -40,6 +40,7 @@ import {
   seatIn,
   surveyCamp,
   surveyRegion,
+  unclocked,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
@@ -72,6 +73,7 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   await placeHq(t, seat);
   await placeHq(t, guest);
   await disbandTheGift(t, seat, guest);
@@ -720,7 +722,9 @@ describe('the rest window holds an arrival at the border', () => {
   afterEach(() => vi.useRealTimers());
 
   it('waits for the window of the player whose home it reaches', async () => {
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    // Marne to Pskov is some eight and a half hours on foot: leaving at 16h30 UTC lands in the
+    // guest's night.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -754,7 +758,7 @@ describe('the rest window holds an arrival at the border', () => {
   /** La vue relisait `arrivesAt` repoussé comme une date de marche : le pion repartait à 5 % du
    *  trajet avec sept heures devant lui. `heldAt` est ce qui distingue les deux lectures. */
   it('serves the hold as taken rather than recomputing it from the pushed arrival', async () => {
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -886,7 +890,7 @@ describe('an outpost opens a radius to build in', () => {
 
     await t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: ALBERTA });
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ALBERTA }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ALBERTA }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -909,7 +913,7 @@ describe('an outpost opens a radius to build in', () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'billets', regionId: RUHR })
+      .mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: RUHR })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
@@ -955,10 +959,10 @@ describe('an outpost opens a radius to build in', () => {
   it('keeps home free of any reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await setHqLevel(t, seat, unlockLevel('billets'));
+    await setHqLevel(t, seat, unlockLevel('barracks'));
     const started = await t.mutation(api.constructions.start, {
       ...seat,
-      building: 'billets',
+      building: 'barracks',
       regionId: MARNE,
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
@@ -1238,8 +1242,9 @@ describe('the preview says what the march will be', () => {
   });
 
   it('names the hour the column would be let in when the arrival bites a rest window', async () => {
-    // The guest's declared window opens at 23h00 — the same clock the border test leans on.
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    // Leaving at 16h30 UTC, the eight-hour march lands in the guest's night — the same clock
+    // the border test leans on.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);

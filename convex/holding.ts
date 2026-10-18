@@ -7,6 +7,7 @@ import { pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, type RegionFacts } from './regions';
 import { isBlitz } from './blitz';
+import { seasonPoints } from './strategicPoints';
 
 /**
  * **La vérité de la couleur, en un seul endroit.** Qui tient quoi se calcule depuis les
@@ -39,17 +40,44 @@ export async function heldOver(
   });
 }
 
-/** Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`). */
+/**
+ * **La couleur que la production lit** (ADR 0020 §6) : celle de la carte, sauf pour le teneur de
+ * **Narvik**, dont les exploitations produisent même hors réseau (P11) — chacune des régions
+ * demandées lui revient alors. Un seul lecteur pour l'économie (`resources.heldFor`) et pour le
+ * tampon « relié » de la vue : la règle cassée ne peut pas l'être d'un côté seulement.
+ */
+export async function linkingOver(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  regions: ReadonlyArray<RegionFacts>,
+  now: number,
+): Promise<ReadonlyMap<string, string>> {
+  const narvik = (await seasonPoints(ctx, player.seasonId)).find((point) => point.key === 'narvik');
+  if (narvik?.holderId === player._id) {
+    return new Map(regions.map((region) => [region.id, player._id as string]));
+  }
+  return heldOver(ctx, player.seasonId, regions, now);
+}
+
+/**
+ * Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`), et
+ * les points stratégiques tenus : **un point colore sa région pour son teneur** (P1), sans y
+ * ouvrir de chantier ni y ravitailler personne — ni l'un ni l'autre ne lit la couleur.
+ */
 export async function occupationsOf(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
 ): Promise<ReadonlyArray<Occupation>> {
-  return (
+  const captured = (
     await ctx.db
       .query('buildings')
       .withIndex('bySeasonCaptured', (q) => q.eq('seasonId', seasonId).gt('capturedAt', 0))
       .collect()
   ).map((building) => ({ regionId: building.regionId, owner: building.playerId as string }));
+  const held = (await seasonPoints(ctx, seasonId)).flatMap((point) =>
+    point.holderId === null ? [] : [{ regionId: point.regionId, owner: point.holderId as string }],
+  );
+  return [...captured, ...held];
 }
 
 /**
@@ -137,8 +165,12 @@ export async function homeGroundsOf(
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
+  /** **Un éliminé n'a plus de sol** (M16) : son QG tombé, sa nation ne tient plus rien que ses
+   *  irréguliers ne tiennent à sa place. Qui a seulement capitulé garde le sien. */
   return seats.flatMap((seat) => {
     const country = homeCountryOf(seat.nation);
-    return country === null ? [] : [{ owner: seat._id as string, country }];
+    return country === null || (seat.eliminatedAt ?? null) !== null
+      ? []
+      : [{ owner: seat._id as string, country }];
   });
 }

@@ -1,9 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { fr, nationLabel } from '@/i18n/fr';
+import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
 import { outcomeOf, type EndingFacts } from '@/domain/ending';
-import type { PressEdition, PressLine, PressOwnLine, SeasonVerdict } from '@/domain/player-view';
+import type {
+  PressEdition,
+  PressLine,
+  PressOwnLine,
+  RaceCountdown,
+  SeasonVerdict,
+  StrategicPointView,
+} from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
@@ -32,6 +39,8 @@ export function PressWindow({
   verdict,
   ending,
   blitz,
+  points,
+  race,
   onClose,
   ...windowProps
 }: WindowProps & {
@@ -39,6 +48,9 @@ export function PressWindow({
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
   blitz: boolean;
+  /** Les Sept, tels que tout le monde les lit : la course se suit en direct, pas à l'édition. */
+  points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
 }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
@@ -63,6 +75,8 @@ export function PressWindow({
           press={press}
           verdict={verdict}
           ending={ending}
+          points={points}
+          race={race}
           sort={sort}
           onSort={setSort}
           onClose={onClose}
@@ -111,6 +125,7 @@ export function PressWindow({
           ending={ending}
           onClose={onClose}
         />
+        <Race points={points} race={race} />
         {press === null ? (
           <p className="mx-auto max-w-[62ch] px-6 py-[56px] text-center font-(family-name:--font-display) text-[20px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.press.none}
@@ -209,7 +224,7 @@ function Ending({
       )}
       <p className="mt-[6px] font-(family-name:--font-display) text-[19px] leading-[1.3] font-bold text-[var(--ink)]">
         {verdict !== null
-          ? fr.victory.blitzConcluded(
+          ? fr.victory.verdictConcluded(
               verdict.reason,
               verdict.winnerNation === null ? null : nationLabel(verdict.winnerNation),
               verdict.perMinute,
@@ -493,6 +508,8 @@ function NarrowPress({
   press,
   verdict,
   ending,
+  points,
+  race,
   sort,
   onSort,
   onClose,
@@ -500,6 +517,8 @@ function NarrowPress({
   press: PressEdition | null;
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
+  points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
   sort: SortKey;
   onSort: (key: SortKey) => void;
   onClose: () => void;
@@ -546,6 +565,7 @@ function NarrowPress({
       </div>
 
       <Ending verdict={press?.final === true ? verdict : null} ending={ending} onClose={onClose} />
+      <Race points={points} race={race} />
       {press === null ? (
         <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
           {fr.press.none}
@@ -759,6 +779,96 @@ function NarrowRegisters({ own }: { own: PressOwnLine }) {
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+/**
+ * **La course aux Sept** (P1-P12) : qui tient quoi, en direct — l'encadré que chaque édition
+ * porte. Le teneur, jamais le contestant : un point contesté le dit, sans nom. La saison conclue,
+ * le palmarès par lieu, que le serveur ne sert qu'alors.
+ */
+function Race({
+  points,
+  race,
+}: {
+  points: ReadonlyArray<StrategicPointView>;
+  race: RaceCountdown | null;
+}) {
+  const now = useClock(MINUTE);
+  if (points.length === 0) return null;
+  const byNation = new Map<string, Array<StrategicPointView>>();
+  for (const point of points) {
+    if (point.holder === null) continue;
+    byNation.set(point.holder.nation, [...(byNation.get(point.holder.nation) ?? []), point]);
+  }
+  const standings = [...byNation].sort((left, right) => right[1].length - left[1].length);
+  return (
+    <section className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px]">
+      <h2 className="font-(family-name:--font-display) text-[17px] font-bold text-[var(--ink)]">
+        {fr.points.race.title}
+      </h2>
+      <p className="mt-[2px] text-[11px] text-[var(--ink-soft)] italic">{fr.points.race.chapo}</p>
+      {race !== null && (
+        <p
+          role="timer"
+          className="mt-[8px] font-(family-name:--font-display) text-[15px] font-bold text-[var(--critical)]"
+        >
+          {fr.points.race.countdown(
+            nationLabel(race.leaderNation),
+            countdownLabel(Math.max(0, race.endsAt - now)),
+          )}
+        </p>
+      )}
+      {standings.length === 0 ? (
+        <p className="mt-[8px] text-[12px] text-[var(--ink-quiet)]">{fr.points.race.waiting}</p>
+      ) : (
+        <ul className="mt-[8px] flex flex-col gap-[4px]">
+          {standings.map(([nation, held]) => (
+            <li key={nation} className="flex items-baseline gap-2 text-[12.5px]">
+              <span className="font-bold">{nationLabel(nation)}</span>
+              <span className="font-(family-name:--font-mono) text-[var(--critical)]">
+                {fr.points.race.count(held.length)}
+              </span>
+              <span className="text-[var(--ink-soft)]">
+                {held.map((point) => fr.points.names[point.key]).join(', ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {points.some((point) => point.longest !== null) && (
+        <>
+          <h3 className="mt-[10px] text-[10px] font-bold tracking-[.16em] uppercase">
+            {fr.points.race.palmares}
+          </h3>
+          <ul className="mt-[4px] flex flex-col gap-[3px]">
+            {points.map((point) => (
+              <li key={point.id} className="flex items-baseline gap-2 text-[12px]">
+                <span className="font-bold">{fr.points.names[point.key]}</span>
+                {point.longest === null ? (
+                  <span className="text-[var(--ink-quiet)]">{fr.points.race.neverHeld}</span>
+                ) : (
+                  <>
+                    <span>{nationLabel(point.longest.nation)}</span>
+                    <span className="font-(family-name:--font-mono) text-[var(--critical)]">
+                      {countdownLabel(point.longest.heldMs)}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="mt-[8px] text-[11px] text-[var(--ink-soft)]">
+        {points
+          .map(
+            (point) =>
+              `${fr.points.names[point.key]}${point.contested ? ` (${fr.points.race.contested})` : ''}`,
+          )
+          .join(' · ')}
+      </p>
     </section>
   );
 }

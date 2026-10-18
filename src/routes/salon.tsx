@@ -16,6 +16,7 @@ import type { PlayableRegion } from '@/domain/ids';
 import {
   HQ_CAPTURE_HOURS,
   LOBBY_BEAT_SECONDS,
+  MONDIALE_DURATION_DAYS,
   THEATRE_DRAW,
   launchPlanOf,
   nextEvening,
@@ -23,7 +24,7 @@ import {
   settingsRefusalOf,
   type Settings,
 } from '@/domain/operation-order';
-import { seatRangeOf } from '@/domain/season-mode';
+import { MODE_RULES, seatRangeOf } from '@/domain/season-mode';
 import { THEATRES, theatreById, type TheatreId } from '@/domain/theatres';
 import { invitationUrl } from '@/domain/off-season';
 import { toLocalMinutes, toUtcMinutes } from '@/domain/rest-window';
@@ -118,7 +119,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
       </OffSeasonPage>
     );
   }
-  const launching = lobby.status === 'launched' && lobby.me.atWar;
+  const launching = lobby.status === 'launched';
   return (
     <OffSeasonPage>
       <Table seat={seat} lobby={lobby} />
@@ -147,7 +148,6 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const reserve = useMutation(api.players.reserveNation);
   const declareReady = useMutation(api.players.declareReady);
   const launch = useMutation(api.seasons.launch);
-  const enterWar = useMutation(api.seasons.enterWar);
   const destroy = useMutation(api.seasons.destroy);
   const configure = useMutation(api.seasons.configure);
   const { run } = useSingleFlight();
@@ -160,8 +160,6 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
 
   const blitz = lobby.mode === 'blitz';
   const founder = lobby.me.creator;
-  /** Un retardataire d'une Mondiale lancée : une nation libre, puis il entre. Rien à attendre. */
-  const entering = lobby.status === 'launched' && !lobby.me.atWar;
   const open = lobby.status === 'lobby';
   const meRow = lobby.players.find((player) => player.mine);
   const founderNick = lobby.players.find((player) => player.creator)?.nickname ?? '';
@@ -182,6 +180,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
     remind: lobby.orders.remind,
     hqCaptureHours: lobby.orders.hqCaptureHours,
     seatCap: lobby.orders.seatCap,
+    durationHours: blitz ? null : lobby.durationHours,
   };
   /** Modifier l'ordre : ce que la fonction de refus partagée laisse passer est offert, le reste
    *  ne l'est pas — rien n'est grisé (ADR 0015). Le serveur lève les « prêt ». */
@@ -205,6 +204,9 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         ...(patch.seatCap === undefined || patch.seatCap === null
           ? {}
           : { seatCap: patch.seatCap }),
+        ...(patch.durationHours === undefined || patch.durationHours === null
+          ? {}
+          : { durationHours: patch.durationHours }),
       });
       notify(fr.table.orderChanged(say), 'info');
     });
@@ -222,7 +224,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
       seenAt: player.seenAt,
     })),
   });
-  const status = statusOf({ lobby, plan, now, founderNick, entering });
+  const status = statusOf({ lobby, plan, now, founderNick });
 
   const copy = (what: 'link' | 'code') =>
     void navigator.clipboard
@@ -235,7 +237,6 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
     { length: Math.max(lobby.maximum, lobby.players.length) },
     (_, rank) => lobby.players[rank] ?? null,
   );
-  if (entering) slots.splice(lobby.players.length);
   const half = Math.ceil(slots.length / 2);
 
   const quit = () => {
@@ -283,7 +284,9 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         ) : (
           <div className="rdv">
             <div>
-              <div className="eyebrow">{fr.table.worldClock}</div>
+              <div className="eyebrow">
+                {fr.table.worldClock(lobby.durationHours ?? MODE_RULES.mondiale.clockHours)}
+              </div>
               <div className="when">
                 {fr.table.captureLine(lobby.orders.hqCaptureHours ?? HQ_CAPTURE_HOURS[0])}
               </div>
@@ -456,54 +459,39 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
             )}
           </div>
           <div className="acts">
-            {entering ? (
-              <button
-                type="button"
-                className="btn alarm"
-                aria-disabled={lobby.me.nation === null || undefined}
-                onClick={() =>
-                  lobby.me.nation === null
-                    ? notify(fr.table.chooseFirst(false), 'info')
-                    : act(() => enterWar(seat))
-                }
-              >
-                {fr.lobby.enterWar}
-              </button>
-            ) : (
-              <>
-                {lobby.me.nation !== null ? (
-                  <button
-                    type="button"
-                    className={`btn ${lobby.me.ready ? 'primary' : ''}`}
-                    aria-pressed={lobby.me.ready}
-                    onClick={() => act(() => declareReady({ ...seat, ready: !lobby.me.ready }))}
-                  >
-                    {lobby.me.ready ? fr.table.readyLift : fr.table.readyStamp}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn"
-                    aria-disabled
-                    onClick={() => notify(fr.table.chooseFirst(blitz), 'info')}
-                  >
-                    {fr.table.chooseFirst(blitz)}
-                  </button>
-                )}
-                {founder && open && (
-                  <button
-                    type="button"
-                    className="btn alarm"
-                    aria-disabled={plan.refusal !== null || undefined}
-                    onClick={() =>
-                      plan.refusal !== null ? notify(status, 'info') : act(() => launch(seat))
-                    }
-                  >
-                    {blitz ? fr.table.launchBlitz : fr.table.launchSeason}
-                  </button>
-                )}
-              </>
-            )}
+            <>
+              {lobby.me.nation !== null ? (
+                <button
+                  type="button"
+                  className={`btn ${lobby.me.ready ? 'primary' : ''}`}
+                  aria-pressed={lobby.me.ready}
+                  onClick={() => act(() => declareReady({ ...seat, ready: !lobby.me.ready }))}
+                >
+                  {lobby.me.ready ? fr.table.readyLift : fr.table.readyStamp}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn"
+                  aria-disabled
+                  onClick={() => notify(fr.table.chooseFirst(blitz), 'info')}
+                >
+                  {fr.table.chooseFirst(blitz)}
+                </button>
+              )}
+              {founder && open && (
+                <button
+                  type="button"
+                  className="btn alarm"
+                  aria-disabled={plan.refusal !== null || undefined}
+                  onClick={() =>
+                    plan.refusal !== null ? notify(status, 'info') : act(() => launch(seat))
+                  }
+                >
+                  {blitz ? fr.table.launchBlitz : fr.table.launchSeason}
+                </button>
+              )}
+            </>
             <p className="status" aria-live="polite">
               {status}
             </p>
@@ -529,17 +517,13 @@ function statusOf({
   plan,
   now,
   founderNick,
-  entering,
 }: {
   lobby: LobbyView;
   plan: { readonly refusal: string | null };
   now: number;
   founderNick: string;
-  entering: boolean;
 }): string {
   const blitz = lobby.mode === 'blitz';
-  if (entering)
-    return lobby.me.nation === null ? fr.table.chooseFirst(false) : fr.lobby.enterWarSeedNote;
   if (lobby.status !== 'lobby') return '';
   if (plan.refusal === null) {
     return lobby.me.creator ? fr.table.allReadyYou : fr.table.allReadyFounder(founderNick);
@@ -850,6 +834,7 @@ function Orders({
   const blitz = lobby.mode === 'blitz';
   const scheduledAt = lobby.orders.scheduledAt;
   const capture = lobby.orders.hqCaptureHours ?? HQ_CAPTURE_HOURS[0];
+  const days = Math.round((lobby.durationHours ?? MODE_RULES.mondiale.clockHours) / 24);
   const range = seatRangeOf(lobby.mode, lobby.theatre);
   const evening = nextEvening(new Date(now));
   const seatStepper = (
@@ -957,6 +942,31 @@ function Orders({
       ]
     : [
         [
+          fr.table.duration,
+          editing ? (
+            <div className="segm compact" role="radiogroup" aria-label={fr.table.duration}>
+              {MONDIALE_DURATION_DAYS.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  role="radio"
+                  aria-checked={days === choice}
+                  onClick={() =>
+                    days !== choice && change({ durationHours: choice * 24 }, fr.found.days(choice))
+                  }
+                >
+                  {fr.found.days(choice)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <b>{fr.found.days(days)}</b>
+              <span className="note">{fr.table.durationNet}</span>
+            </>
+          ),
+        ],
+        [
           fr.table.hqCapture,
           editing ? (
             <div className="segm compact" role="radiogroup" aria-label={fr.table.hqCapture}>
@@ -986,7 +996,9 @@ function Orders({
           editing ? seatStepper : <b>{fr.table.seatsOf(lobby.players.length, lobby.maximum)}</b>,
         ],
       ];
-  const more = blitz ? fr.table.blitzMore : fr.table.mondialeMore(founder ? null : founderNick);
+  const more = blitz
+    ? fr.table.blitzMore
+    : fr.table.mondialeMore(founder ? null : founderNick, days * 24);
   return (
     <section className="panel orders" aria-labelledby="t-ord">
       <div className="ph">

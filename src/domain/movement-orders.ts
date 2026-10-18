@@ -1,6 +1,6 @@
 import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
-import { captureRefusalOf, type CaptureRefusal, type CaptureTarget } from './capture';
+import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
 import { firesIndirect } from './indirect-fire';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
@@ -73,6 +73,17 @@ export type MovementAim =
   | {
       readonly kind: 'objective';
       readonly objectiveId: string;
+      readonly lon: number;
+      readonly lat: number;
+      readonly hostCountry: string;
+    }
+  /**
+   * **Un point stratégique** (P1-P12) : public comme un objectif — tout le monde sait où il est et
+   * qui le tient —, il se vise sans relevé. On ne fait qu'y marcher ou le capturer.
+   */
+  | {
+      readonly kind: 'strategic';
+      readonly pointId: string;
       readonly lon: number;
       readonly lat: number;
       readonly hostCountry: string;
@@ -261,13 +272,12 @@ export function plunderRefusalOf(
  * lecture pour la branche de la rose et pour `movements.capture`, rien de grisé.
  */
 export function captureOrderRefusalOf(
-  target: CaptureTarget,
   aim: MovementAim,
   column: Column,
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
   const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
-  return captureRefusalOf(target, column.roles, isMine, mode) ?? closedGate(aim, column);
+  return captureRefusalOf(column.roles, isMine, mode) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */
@@ -313,6 +323,16 @@ export function lootCollectionOrderRefusalOf(
  * of the ceiling, so the callers filter their own list before counting it.
  */
 export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
+
+/**
+ * **Un mouvement maritime** : des coques, et ce qu'elles portent. C'est ce que **Halifax** sort
+ * du compte des slots de son teneur (P11) — la marche, l'air et un débarquement à pied y restent.
+ */
+export const isMaritime = (
+  troops: ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>,
+): boolean =>
+  troops.length > 0 &&
+  troops.every((troop) => troop.carried || DOMAIN_BY_ROLE[troop.role] === 'sea');
 
 /**
  * The three marches a player orders. **The return is not among them**: it is created by the
@@ -478,6 +498,7 @@ const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
     case 'camp':
     case 'outpost':
     case 'objective':
+    case 'strategic':
       return null;
     case 'track':
       return 'NOTHING_TO_ATTACK';

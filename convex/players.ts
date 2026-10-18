@@ -6,6 +6,7 @@ import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
 import { isAtWar, playerOf, requirePlayable, seatsOf } from './seats';
+import { handOver, seasonPoints } from './strategicPoints';
 import { refreshSession } from './sessions';
 
 /**
@@ -55,10 +56,8 @@ export const beatLobby = mutation({
 });
 
 /**
- * **The choices of the lobby seal at the player's own entry into war**, not at the season's
- * launch. For everybody present at the launch the two hours are the same one; for a latecomer
- * they are not, and he has a nation to pick on a season already running
- * (`seasons.enterWar`).
+ * **The choices of the lobby seal at the player's entry into war** — the launch, since nobody
+ * enters after it (ADR 0027 §4).
  *
  * A concluded season answers with its own code: it is not "already launched", it is over.
  */
@@ -167,12 +166,18 @@ export async function leaveTheWar(
         readonly kind: 'playerEliminated';
         readonly by: string;
         readonly capturerId: Id<'players'>;
+        readonly irregulars: boolean;
       },
 ): Promise<void> {
   await ctx.db.patch(
     player._id,
     exit.kind === 'playerEliminated' ? { defeated: true, eliminatedAt: now } : { defeated: true },
   );
+  /** **Qui sort de la guerre sort de la course** (M1) : ses points stratégiques redeviennent
+   *  neutres, et le compte à rebours qu'il menait tombe avec eux. */
+  for (const point of await seasonPoints(ctx, season._id)) {
+    if (point.holderId === player._id) await handOver(ctx, point, null, now);
+  }
 
   const present = await seatsOf(ctx, season._id);
   const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
@@ -207,6 +212,7 @@ export async function leaveTheWar(
         : {
             kind: exit.kind,
             ...(seat._id === player._id || seat._id === exit.capturerId ? { by: exit.by } : {}),
+            ...(exit.irregulars ? { irregulars: true as const } : {}),
           }),
     });
     if (successor !== null) {
@@ -231,14 +237,10 @@ export async function leaveTheWar(
   const belligerents = standing.filter((seat) => isAtWar(seat, season));
   const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
   if (survivor === undefined) return;
-  /** **En Blitz, l'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé ou
-   *  par la capitulation des autres. */
-  const verdict =
-    modeOf(season.mode) === 'blitz'
-      ? {
-          reason:
-            exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
-        }
-      : undefined;
+  /** **L'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé — l'écrasement
+   *  d'une Mondiale (M2a) — ou par la capitulation des autres. */
+  const verdict = {
+    reason: exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
+  };
   await concludeSeason(ctx, season._id, survivor._id, now, verdict);
 }

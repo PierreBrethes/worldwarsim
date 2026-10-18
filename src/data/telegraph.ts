@@ -14,6 +14,8 @@ export type TelegraphMessage = {
   readonly nation: string | null;
   readonly ink: string;
   readonly mine: boolean;
+  /** Lu par le teneur d'Istanbul (P11) : le fil porte le tampon. Absent d'un serveur d'avant. */
+  readonly readAtIstanbul?: boolean;
 };
 
 type DirectChannel = {

@@ -119,6 +119,8 @@ export const recent = query({
         nation: sender?.nation ?? null,
         ink: nationInk(sender?.nation ?? null),
         mine: message.playerId === player._id,
+        /** Le tampon d'Istanbul (P11), que les deux correspondants voient sur leur fil. */
+        readAtIstanbul: message.readAtIstanbul === true,
       };
     };
     const general = () =>

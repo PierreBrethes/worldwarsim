@@ -12,12 +12,13 @@ import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../co
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, Faced, HomeSlotRelief } from '../domain/player-view';
+import type { DispatchKind, Faced } from '../domain/player-view';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
 import type { RacePoint } from '../domain/landing';
+import type { StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -278,7 +279,6 @@ export const fr = {
     airfield: 'Aérodrome',
     port: 'Port',
     listening: 'Station d’écoute',
-    billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
     city: 'Ville',
@@ -303,7 +303,6 @@ export const fr = {
     airfield: 'm',
     port: 'm',
     listening: 'f',
-    billets: 'm',
     warehouse: 'm',
     depot: 'm',
     city: 'f',
@@ -322,7 +321,6 @@ export const fr = {
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
-    billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des huit ressources — se pille',
     depot: 'relève le plafond des huit ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
@@ -468,6 +466,81 @@ export const fr = {
    * Les noms sont indexés par clé d'archétype parce que la palette est une **donnée** : ajouter
    * une entrée à `OBJECTIVE_ARCHETYPES` est une ligne ici, jamais une branche.
    */
+  /**
+   * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
+   * Rangoun et Hong Kong comptent pour la victoire, leur règle attend sa feature (décision du
+   * 18/10) : la fiche le dit plutôt que de promettre une règle qui ne joue pas.
+   */
+  points: {
+    names: {
+      tangier: 'Tanger',
+      istanbul: 'Istanbul',
+      rangoon: 'Rangoun',
+      hongKong: 'Hong Kong',
+      halifax: 'Halifax',
+      narvik: 'Narvik',
+      lisbon: 'Lisbonne',
+    } satisfies Record<StrategicPointKey, string>,
+    rules: {
+      tangier:
+        'Vous seul commercez avec le comptoir neutre : trois d’une ressource contre une d’une autre, une fois par édition.',
+      istanbul:
+        'Une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs — tamponné « lu à Istanbul » chez eux.',
+      rangoon: null,
+      hongKong: null,
+      halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
+      narvik: 'Vos exploitations produisent même hors réseau.',
+      lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
+    } satisfies Record<StrategicPointKey, string | null>,
+    ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
+    kicker: 'point stratégique',
+    site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
+    neutral: 'neutre — personne ne le tient',
+    heldBy: (nation: string, since: string, total: string) =>
+      `tenu par ${nation} depuis ${since} · ${total} en tout`,
+    yoursSince: (since: string, total: string) => `à vous depuis ${since} · ${total} en tout`,
+    readAtLisbon: (nation: string) => `${nation} — lu à Lisbonne`,
+    istanbul: {
+      title: 'Lire un télégramme',
+      between: 'entre',
+      and: 'et',
+      read: (from: string, to: string, text: string) =>
+        `LU À ISTANBUL — ${from} à ${to} : « ${text} »`,
+      overheard: (from: string, to: string) =>
+        `Un télégramme de ${from} à ${to} a été lu à Istanbul.`,
+      act: 'lire le dernier — une fois par jour',
+      nothing: 'Aucun télégramme privé entre eux : la lecture du jour a servi pour rien.',
+      stamp: 'lu à Istanbul',
+    },
+    tangier: {
+      title: 'Le comptoir',
+      give: 'céder',
+      get: 'recevoir',
+      act: (give: number, get: number) => `échanger ${give} contre ${get} — une fois par édition`,
+      done: (got: number) => `Comptoir de Tanger : ${got} reçus.`,
+    },
+    contested: 'contesté — une capture est en cours',
+    how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
+    needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
+    race: {
+      title: 'La course aux Sept',
+      chapo:
+        'Sept lieux réels de 1940. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
+      waiting: 'Les Sept attendent leurs teneurs.',
+      count: (held: number) => `${num(held)} sur 7`,
+      countdown: (nation: string, left: string) =>
+        `${nation} tient quatre des Sept : victoire dans ${left} si rien ne bouge.`,
+      contested: 'contesté',
+      palmares: 'Le palmarès — qui a tenu chaque lieu le plus longtemps',
+      neverHeld: 'jamais tenu',
+    },
+    taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
+    drawn: () => {
+      const names = Object.values(fr.points.names);
+      return `LES SEPT SONT DÉSIGNÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
+    },
+  },
+
   objectives: {
     names: {
       abandonedStores: 'réserves abandonnées',
@@ -540,7 +613,7 @@ export const fr = {
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
     REGISTRATION_CLOSED: () =>
-      'les nouvelles inscriptions sont closes — cette place n’a pas été créée',
+      'la Mondiale est lancée — elle se joue entre ceux qui étaient au départ',
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
@@ -567,6 +640,13 @@ export const fr = {
       `pas à la table : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'} — à l’heure dite, vous pourrez lancer sans les attendre`,
     SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
     INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
+    INVALID_DURATION: () => 'une Mondiale dure 3, 5, 7, 10 ou 14 jours',
+    UNKNOWN_STRATEGIC_POINT: () => 'ce point stratégique n’existe pas dans cette saison',
+    POINT_NOT_HELD: () => 'il faut tenir ce point stratégique pour user de sa règle',
+    POWER_SPENT: () => 'la règle de ce point a déjà servi — elle revient à la période suivante',
+    SAME_RESOURCE: () => 'le comptoir échange une ressource contre une autre',
+    STORAGE_FULL: (d) =>
+      `vos magasins ne peuvent pas recevoir ${num(Number(d.needed))} de ${resourceName(d.resource)} — bâtissez un entrepôt ou videz-les d’abord`,
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
@@ -606,19 +686,6 @@ export const fr = {
     POINT_OUTSIDE_REGION: () => 'ce rivage n’est pas celui de la région désignée',
     REGION_TAKEN: (d) =>
       `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
-    /**
-     * **Le refus nomme le site plein, jamais un total national** (ADR 0020 §10) : « sol
-     * national » et « avant-poste » appellent des gestes opposés — monter le QG, ou monter ce
-     * point — et un seul chiffre ne pourrait nommer ni l'un ni l'autre.
-     *
-     * Le remède du sol national est **chiffré** : « montez le QG » est un conseil, « un quartier
-     * général niveau 2 les porte à 4 » est un plan. Les deux nombres viennent de `homeSlots`,
-     * servis par le serveur — jamais recopiés ici (ADR 0015, révision du 24/08).
-     */
-    SITE_SLOTS_FULL: (d) =>
-      d.site === 'outpost'
-        ? `avant-poste plein : ${num(d.taken)} emplacement${plural(Number(d.taken), '', 's')} sur ${num(d.slots)} — améliorez-le pour en ouvrir un de plus`
-        : `sol national plein : ${num(d.taken)} emplacement${plural(Number(d.taken), '', 's')} sur ${num(d.slots)}${homeSlotRelief(d.nextHqLevel, d.nextSlots)}`,
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
     ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
@@ -637,8 +704,6 @@ export const fr = {
     HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
-    TROOP_CAP_REACHED: (d) =>
-      `plafond atteint : ${num(d.cap)} troupes, file comprise — bâtissez ou montez des baraquements`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
@@ -675,12 +740,11 @@ export const fr = {
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
-    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
         ? 'les fonds ne suffisent pas'
         : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
-    TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
+    TROOP_BOUND_REACHED: () => 'l’état-major ne peut en suivre davantage',
     NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
     BLITZ_MAP_UNFAIR: () =>
       'aucune carte équitable sur ce théâtre pour ce nombre de joueurs — la partie revient au salon',
@@ -969,8 +1033,11 @@ export const fr = {
       ['nations', 'identiques : drapeau et figurines'],
       ['victoire', 'prendre le QG adverse ; à 2 h, le plus gros revenu'],
     ],
-    mondialeOrder: (capture: number): ReadonlyArray<readonly [string, string]> => [
-      ['mode', 'Mondiale — 7 jours, deux ou trois visites par jour'],
+    mondialeOrder: (
+      capture: number,
+      durationHours: number,
+    ): ReadonlyArray<readonly [string, string]> => [
+      ['mode', `Mondiale — ${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
       ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
       ['vos engagements', 'une plage de repos de 7 h, publique'],
@@ -1048,11 +1115,12 @@ export const fr = {
     waitingOthers: 'on attend les autres',
     blitzRunning: (theatre: string) => `La Blitz ${ofPlace(theatre)} est en cours`,
     mondialeRunning: (nation: string) => `La guerre court : ${nation} attend vos ordres`,
-    latecomerHeadline: 'La saison court sans vous : choisissez votre nation et entrez',
     observing: (nation: string) => `Défaite : vous observez la fin, depuis ${nation}`,
     endsIn: (left: string) => `fin dans ${left}`,
-    dayOf: (launchedAt: number, now: number) =>
-      `jour ${num(Math.min(7, Math.floor((now - launchedAt) / 86_400_000) + 1))} sur 7`,
+    dayOf: (launchedAt: number, now: number, durationHours: number) => {
+      const days = Math.ceil(durationHours / 24);
+      return `jour ${num(Math.min(days, Math.floor((now - launchedAt) / 86_400_000) + 1))} sur ${num(days)}`;
+    },
     day: (at: number) =>
       new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(new Date(at)),
     joinTable: 'rejoindre la table',
@@ -1081,13 +1149,8 @@ export const fr = {
     destroyConfirm: 'confirmer — tout est effacé',
     destroyCancel: 'annuler',
     destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
-    /** Un retardataire d'une Mondiale lancée : rien à déclarer prêt, personne à attendre. */
-    enterWar: 'entrer en guerre — irréversible',
-    enterWarSeedNote:
-      'La saison court sans vous : vous entrez avec la dotation de départ, sans compensation pour les heures écoulées.',
-    pace2: '2 heures',
-    pace48: '48 heures',
-    pace168: '7 jours',
+    pace: (hours: number) =>
+      hours < 72 ? `${num(hours)} heures` : `${num(Math.round(hours / 24))} jours`,
     paceNone: 'sans horloge',
   },
 
@@ -1111,12 +1174,12 @@ export const fr = {
         ],
       },
       mondiale: {
-        span: 'une semaine',
+        span: 'quelques jours',
         facts: [
-          ['horloge', '7 jours, deux ou trois visites par jour'],
+          ['horloge', '3 à 14 jours, deux ou trois visites par jour'],
           ['table', '2 à 8 joueurs, une nation et son atout'],
           ['terrain', 'le monde entier'],
-          ['victoire', 'réduire la moitié des adversaires'],
+          ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
         ],
       },
     } satisfies Record<
@@ -1141,10 +1204,14 @@ export const fr = {
     customLabel: 'date et heure du rendez-vous',
     localTime: 'votre heure locale',
     remind: 'prévenir chaque joueur quinze minutes avant (notification)',
+    durationTitle: 'La durée',
+    durationNote:
+      'L’horloge sert de filet : qui tient quatre points stratégiques vingt-quatre heures l’emporte avant.',
     captureTitle: 'La capture d’un QG',
     captureNote:
       'Le temps de capturer un quartier général à pleine force. Elle s’arrête pendant le repos du défenseur.',
     hours: (hours: number) => `${num(hours)} heures`,
+    days: (days: number) => `${num(days)} jours`,
     captureTag: (hours: number) =>
       hours === 12 ? 'par défaut — la semaine bouge' : 'une journée pour répondre',
     seatsTitle: 'Les places',
@@ -1269,7 +1336,7 @@ export const fr = {
         month: 'long',
       }).format(new Date(at));
     },
-    worldClock: 'le monde · sept jours',
+    worldClock: (durationHours: number) => `le monde · ${clockLabel(durationHours)}`,
     captureLine: (hours: number) => `capture d’un QG en ${num(hours)} heures`,
     invite: (free: number) => `inviter · ${num(free)} place${plural(free, '', 's')}`,
     inviteLabel: 'inviter',
@@ -1348,6 +1415,8 @@ export const fr = {
     seatMore: 'une place de plus',
     victory: 'victoire',
     blitzVictory: 'prendre le QG adverse',
+    duration: 'durée',
+    durationNet: 'l’horloge sert de filet : quatre points tenus 24 h l’emportent avant',
     hqCapture: 'capture d’un QG',
     captureRest: 'suspendue pendant le repos du défenseur',
     remindShort: 'rappel 15 min avant',
@@ -1366,12 +1435,15 @@ export const fr = {
       ],
       ['après le lancement', 'la table se ferme'],
     ] as ReadonlyArray<readonly [string, string]>,
-    mondialeMore: (founder: string | null): ReadonlyArray<readonly [string, string]> => [
-      ['horloge', '7 jours, deux ou trois visites par jour'],
+    mondialeMore: (
+      founder: string | null,
+      durationHours: number,
+    ): ReadonlyArray<readonly [string, string]> => [
+      ['horloge', `${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
       ['nations', 'une chacune, avec son atout'],
-      ['victoire', 'réduire la moitié des adversaires'],
-      ['inscriptions', 'encore 2 h après le lancement'],
+      ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
+      ['après le départ', 'la table se ferme'],
       ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
     ],
     generalChannel: 'canal général',
@@ -1433,14 +1505,16 @@ export const fr = {
       mondialeLines: ({
         from,
         capture,
+        days,
         seats,
       }: {
         from: string;
         capture: number;
+        days: number;
         seats: { taken: number | null; cap: number };
       }) => [
         `${from} vous convie`,
-        'Mondiale STOP sept jours STOP le monde entier',
+        `Mondiale STOP ${spelled(days)} jours STOP le monde entier`,
         'Départ quand la table est prête',
         `Capture d’un QG en ${capture === 24 ? 'vingt-quatre' : 'douze'} heures`,
         seats.taken === null
@@ -1482,17 +1556,11 @@ export const fr = {
         found: c.theatre === null ? 'fonder une Blitz' : `fonder une Blitz ${ofPlace(c.theatre)}`,
       }),
       REGISTRATION_CLOSED: () => ({
-        title: 'Inscriptions closes',
-        lines: ['Regrettons', 'Les inscriptions sont closes', 'La Mondiale court déjà'],
+        title: 'Partie commencée',
+        lines: ['Regrettons', 'La Mondiale a commencé', 'Elle ne se rejoint pas en cours'],
         paragraph:
-          'Une Mondiale admet les retardataires deux heures après son lancement, pas au-delà.',
+          'Une Mondiale se joue entre ceux qui étaient au départ : la table s’est fermée au lancement.',
         found: 'composer une Mondiale',
-      }),
-      NO_FREE_NATION: () => ({
-        title: 'Plus de nation libre',
-        lines: ['Regrettons', 'Les huit nations sont prises', 'La saison est complète'],
-        paragraph: 'Toutes les nations sont tenues : il n’y a plus de drapeau à vous donner.',
-        found: null,
       }),
       SEASON_CONCLUDED: () => ({
         title: 'Saison conclue',
@@ -1822,7 +1890,7 @@ export const fr = {
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
     regionTerrain: (terrain: string) => `terrain : ${terrain}`,
-    regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
+    regionNoDeposit: 'aucun gisement — caserne, aérodrome',
     regionCoastal: 'côtière — port possible',
   },
 
@@ -2117,26 +2185,16 @@ export const fr = {
     facedNation,
   },
 
-  /**
-   * **La victoire de test — un échafaudage, pas une décision de design.** La domination est
-   * le mode unique (ADR 0020) ; cette barre-là tient en attendant la part de carte qui la
-   * remplacera (`src/domain/victory.ts`). Le vocabulaire suit : on *réduit* un joueur, on ne
-   * l'élimine jamais — il rejoue, il reconstruit, et il sort alors du compte de son bourreau.
-   */
+  /** **Comment une saison se gagne** : quatre des Sept tenus 24 h, tous les QG, ou l'horloge. */
   victory: {
-    kicker: 'domination — victoire de test',
-    scaffold: 'condition unique et publique, en attendant la part de carte',
-    dispatch: (by: string | null, whom: string) =>
-      by === null ? `${whom} est réduit, sous un bombardement` : `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
-    tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
-    reducedMark: 'réduit',
-    standingMark: 'debout',
-    /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
-    blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
+    /** **La fin d'une partie dit pourquoi** (B10, B11, M1, M12) : le journal et l'édition finale. */
+    verdictConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
       reason === 'draw'
-        ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
-        : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+        ? perMinute === null
+          ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+          : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+        : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
         ? 'son infanterie a capturé le dernier quartier général adverse'
@@ -2144,7 +2202,13 @@ export const fr = {
           ? 'seul belligérant encore debout'
           : reason === 'income'
             ? `le plus gros revenu à deux heures, ${num(perMinute ?? 0)} fonds par minute`
-            : 'revenu et caisse se valent',
+            : reason === 'points'
+              ? 'quatre des Sept tenus vingt-quatre heures d’affilée'
+              : reason === 'clock'
+                ? 'à l’horloge, le plus d’heures de points stratégiques tenus'
+                : reason === 'territory'
+                  ? 'à l’horloge, à heures égales, le plus grand territoire'
+                  : 'revenu et caisse se valent',
   },
 
   /**
@@ -2156,8 +2220,7 @@ export const fr = {
     /** La sorte de chaque dépêche, tamponnée dans la marge du journal. */
     dispatches: {
       seasonConcluded: 'saison close',
-      reduction: 'réduction',
-      warEntry: 'entrée en guerre',
+      pointTaken: 'point stratégique',
       assault: 'assaut mené',
       attacked: 'attaque subie',
       construction: 'chantier',
@@ -2226,10 +2289,6 @@ export const fr = {
 
   journal: {
     editionOf: (time: string) => `édition de ${time}`,
-    /** La manchette d'une entrée en guerre — le seul canal qui l'annonce (aucun autre écran ne
-     *  dit qu'un belligérant de plus est entré). */
-    warEntry: (nickname: string, nation: string) =>
-      `${nation.toUpperCase()} ENTRE EN GUERRE — ${nickname} rejoint le conflit`,
     /** Une entrée de la file annulée à son tour : le droit avait disparu entre la mise en file
      *  et le démarrage. La dépêche dit la restitution, sinon le joueur cherche sa matière. */
     constructionCancelled: (building: string, region: string) =>
@@ -2292,10 +2351,12 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
-      playerEliminatedAside: (nation: string) =>
-        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.`,
-      playerEliminated: (nation: string, by: string) =>
-        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
+      playerEliminatedAside: (nation: string, irregulars = false) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.${irregulars ? ' Ce qu’il tenait passe aux irréguliers : chacun peut le prendre ou le piller.' : ''}`,
+      playerEliminated: (nation: string, by: string, irregulars = false) =>
+        irregulars
+          ? `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}, avec ses réserves au-dessus du seuil scellé. Le reste passe aux irréguliers : chacun peut le prendre ou le piller.`
+          : `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
@@ -2387,7 +2448,7 @@ export const fr = {
       /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
        *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
       outpostRaised: (level: number, place: string) =>
-        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : un emplacement de plus et ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
+        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
       /**
        * **Le point qu'on a démonté soi-même** (décision du 16/09) — la seule fin d'un avant-poste
        * que personne ne subit, donc la seule qui n'ait pas besoin d'encre rouge. La phrase compte
@@ -2573,10 +2634,6 @@ export const fr = {
       `${count} troupe${plural(count, '', 's')} hors ravitaillement${place === null ? '' : ` — ${place}`}`,
     /** Où le prochain clic mène, parmi les occurrences d'une même sorte. */
     rank: (word: string, rank: number, total: number) => `${word} ${rank} / ${total}`,
-    /** **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09) : c'est la seule
-     *  attente que la fiche promettait déjà sans porte pour y aller. */
-    raiseOutpost: (place: string) => `avant-poste plein — montez-le · ${place}`,
-    raiseOutposts: (count: number) => `${count} avant-postes pleins à monter`,
     toOutpost: 'à l’avant-poste',
     unfold: 'déplier',
     fold: 'replier',
@@ -2678,8 +2735,7 @@ export const fr = {
     raiseAction: 'monter',
     raiseToLevel: (level: number) => `au niveau ${level}`,
     raiseTitle: (level: number) => `monter cet avant-poste au niveau ${level}`,
-    raiseCarries: (slots: number, reachKm: number) =>
-      `${slots} emplacement${plural(slots, '', 's')} · rayon ${num(reachKm)} km`,
+    raiseCarries: (reachKm: number) => `rayon ${num(reachKm)} km`,
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
@@ -2957,15 +3013,12 @@ export const fr = {
     queueHeader: 'files de production',
     /**
      * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : un seul gabarit pour la
-     * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le plafond collé
+     * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le décompte collé
      * sous eux. Ce qui n'est pas encore ouvert descend sous « plus haut » avec sa condition.
      */
     sheet: {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
-      capFree: (free: number, cap: number) =>
-        `${free} place${plural(free, '', 's')} libre${plural(free, '', 's')} sur ${cap}`,
-      capFull: (cap: number) => `plafond atteint — ${cap} sur ${cap}`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
       opens: (level: number, roles: string) => `Le niveau ${level} ouvre ${roles}`,
       waits: (role: string, level: number) => `${role} attend le niveau ${level}`,
@@ -2976,8 +3029,6 @@ export const fr = {
       lockedNote: 'le site doit monter',
       bill: (alloy: number, duration: string) => `${alloy} all. · ${duration}`,
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
-      capReached: (cap: number) =>
-        `Plafond atteint — ${cap} troupes sur ${cap}. Montez les baraquements.`,
       queueFull: (max: number) => `File pleine — ${max} lots sur ${max}.`,
       alloyShort: (missing: number) => `Il manque ${missing} alliage.`,
       running: 'en chaîne',
@@ -3016,19 +3067,11 @@ export const fr = {
     atWaking: 'au réveil',
     wakingNote:
       'Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle. Une troupe déjà commencée ne s’annule plus ; les suivantes sont remboursées intégralement.',
-    /**
-     * The ceiling as three readings of one number, not one sentence: the figures are set apart
-     * so the strip of pips beside them can be read as the same count drawn — filled for what
-     * stands, half for what is queued, empty for what is left.
-     */
     inService: 'en service',
     inQueue: 'en file',
-    capOf: (cap: number) => `plafond ${cap} troupes`,
     /** The two halves of a card's ledger. Kept as eyebrows, never as sentences. */
     costLabel: 'coût',
     trainingLabel: 'formation',
-    troopCapNote:
-      'Les hommes ne sont pas une ressource : une troupe coûte des matières, et l’armée est bornée en nombre de troupes par les baraquements. La file compte dans le plafond.',
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
@@ -3172,8 +3215,6 @@ export const fr = {
       deposit: (deposits: ReadonlyArray<string>) =>
         `demande une région à gisement de ${deposits.join(' ou ')}`,
       coastal: 'demande une région côtière tenue — aucune pour l’instant',
-      siteFull:
-        'plus un emplacement libre sur vos sites — élevez le quartier général ou un avant-poste',
       regionsTaken: 'toutes vos régions portent déjà un bâtiment',
       free: (count: number) =>
         `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
@@ -3267,33 +3308,10 @@ export const fr = {
     // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
     perHour: (rate: number) => `${tenths(rate)} / h`,
 
-    /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite — **sur le
-     *  site**, jamais sur la nation (ADR 0020 §10). */
-    budgetTaken: (taken: number, total: number) =>
-      `${taken} emplacement${plural(taken, '', 's')} sur ${total}`,
-    /**
-     * **Le site plein dit son remède, à l'endroit où le joueur décide quoi poser.** L'ordre de
-     * mobilisation dit quoi poser gratuitement ; celle-ci dit quand monter le QG — même règle
-     * que le refus ci-dessus, mêmes nombres, et rien de neuf à apprendre.
-     */
-    budgetRelief: (relief: { nextHqLevel: number; nextSlots: number }) =>
-      `un QG niveau ${relief.nextHqLevel} les porte à ${relief.nextSlots}`,
-    budgetAtCeiling: 'quartier général au maximum — le sol national ne s’élargira plus',
-    budgetFree: (free: number) =>
-      free <= 0
-        ? 'plus un emplacement libre'
-        : free === 1
-          ? '1 emplacement libre'
-          : `${free} emplacements libres`,
-    budgetHome: 'sol national',
-    budgetOutpost: (rank: number, level: number) => `avant-poste ${rank} · niveau ${level}`,
-    budgetRaiseOutpost: 'améliorez l’avant-poste pour en ouvrir un de plus',
     hqCarriesHeader: 'ce qu’il porte',
     hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     hqSlots: (total: number) => `${total} slots de mouvement`,
-    hqPlacements: (total: number) =>
-      `${total} emplacement${plural(total, '', 's')} sur le sol national`,
     hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
     hqTier2: 'palier 2 ouvert en production',
     hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
@@ -3601,7 +3619,7 @@ export const fr = {
               ? []
               : [
                   `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
-                  'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
+                  'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — le rayon suivant, payé dans la file de chantier.',
                   `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
                 ]),
           ],
@@ -3860,8 +3878,10 @@ export const fr = {
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
-    captureConsequence: (duration: string) =>
-      `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
+    captureConsequence: (duration: string, hq = false) =>
+      hq
+        ? `L’infanterie tient le QG ${duration} à sa force d’aujourd’hui : s’il tombe, son joueur est éliminé.`
+        : `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',
@@ -3876,7 +3896,7 @@ export const fr = {
      */
     myOutpost: (level: number) => `mon avant-poste · niveau ${level}`,
     raiseConsequence: (level: number) =>
-      `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon et l’emplacement qui vont avec.`,
+      `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon qui va avec.`,
     /** Le métier en cours : la branche est marquée, et cliquer ne change rien — il n'y a rien
      *  à changer. La phrase le dit plutôt que de laisser croire à un geste sans effet. */
     specializationHeld: 'Le métier que ce point exerce déjà.',
@@ -3903,7 +3923,7 @@ export const fr = {
     heading: (building: string, level: number) => `${building} — niveau ${level}`,
     /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
     noRefund: 'aucun remboursement de l’alliage payé',
-    freed: (region: string) => `libère ${region} et son emplacement de site`,
+    freed: (region: string) => `libère ${region}`,
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
     queueCancelled: 'chantier en file annulé',
@@ -3969,30 +3989,11 @@ export const fr = {
     offerHeader: 'à poser',
     noDeposit: 'aucun gisement',
     coastal: 'côtière',
-    /**
-     * The budget, said **before** the ceiling bites. `heldByCap` below only speaks once every
-     * line is refused, which is the moment it is too late to plan — choosing where to build is
-     * the decision this panel exists for, and it is made against what is left.
-     */
-    budget: (site: string, taken: number, total: number) =>
-      `${site} — ${taken} sur ${total} emplacements, ${
-        total - taken <= 0
-          ? 'plus un libre'
-          : `${total - taken} libre${plural(total - taken, '', 's')}`
-      }`,
-    /** Le site que la région sert : le sol national, ou le point qui la couvre. Un site nommé
-     *  est la seule façon de dire « pas ici, mais là-bas » sans montrer une carte. */
-    siteHome: 'sol national',
-    siteOutpost: 'avant-poste',
     depositReason: (deposit: string) => `gisement de ${deposit}`,
     coastalReason: 'région côtière',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
-    // badges. A ceiling names its remedy; a running site names nothing, since the queue takes
+    // badges. A running site names nothing, since the queue takes
     // everything the player can pay for (25/08).
-    heldBySite: (site: string, total: number, relief: HomeSlotRelief) =>
-      `${site} : plus un emplacement libre sur ${total}${relief === null ? '' : homeSlotRelief(relief.nextHqLevel, relief.nextSlots)}.`,
-    heldByOutpostSite: (total: number) =>
-      `Avant-poste : plus un emplacement libre sur ${total} — améliorez-le pour en ouvrir un de plus.`,
     heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
     /**
      * A launched season whose foundation is not placed is a normal state — so it is said, and
@@ -4294,16 +4295,14 @@ export const placeLabel = (mode: SeasonMode, theatre: string | null, region: str
  * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
  */
 export function clockLabel(durationHours: number | null): string {
-  if (durationHours === null) return fr.lobby.paceNone;
-  if (durationHours === 2) return fr.lobby.pace2;
-  return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
+  return durationHours === null ? fr.lobby.paceNone : fr.lobby.pace(durationHours);
 }
 
 /** « ce soir, 21:00 » : le rendez-vous d'une Blitz, dans l'heure de qui le lit. */
 export const rendezvousLabel = (at: number, now: number): string =>
   `${fr.table.dayWord(at, now)}, ${fr.table.hour(at)}`;
 
-/** « 2 h 14 », « 14 min », « 3 j 06 h » : ce qui reste avant une heure dite. */
+/** « 2 h 14 », « 14 min », « 3 j 06 h » : ce qui reste avant une heure dite, ou ce qu'on a tenu. */
 export function countdownLabel(milliseconds: number): string {
   const minutes = Math.max(0, Math.floor(milliseconds / 60_000));
   if (minutes < 60) return `${minutes} min`;
@@ -4311,17 +4310,6 @@ export function countdownLabel(milliseconds: number): string {
   if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
   return `${Math.floor(hours / 24)} j ${String(hours % 24).padStart(2, '0')} h`;
 }
-
-/**
- * Le remède du sol national plein, en une demi-phrase — vide quand le QG est au maximum, parce
- * qu'il n'y a alors rien à faire et qu'une phrase qui ne dit rien vaut moins que le silence. Les
- * deux nombres arrivent servis (`me.homeSlotRelief`, `convex/constructions.ts`) : rien n'est
- * calculé ici.
- */
-const homeSlotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
-  typeof nextHqLevel === 'number' && typeof nextSlots === 'number'
-    ? ` — un quartier général niveau ${nextHqLevel} les porte à ${nextSlots}`
-    : ' — le quartier général est au maximum';
 
 const slotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
   typeof nextHqLevel === 'number' && typeof nextSlots === 'number'

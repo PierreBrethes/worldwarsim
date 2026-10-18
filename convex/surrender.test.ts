@@ -6,7 +6,7 @@ import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, seatDoc, seatsOf } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatDoc, seatsOf, unclocked } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -37,6 +37,7 @@ async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
     await t.mutation(api.players.declareReady, { ...seated, ready: true });
   }
   await t.mutation(api.seasons.launch, seat);
+  await unclocked(t);
   return seats;
 }
 
@@ -106,7 +107,7 @@ describe('capituler', () => {
     await expect(
       t.mutation(api.constructions.start, {
         ...guest!,
-        building: 'billets',
+        building: 'barracks',
         regionId: MARNE,
       }),
     ).rejects.toThrow('PLAYER_DEFEATED');
@@ -230,13 +231,14 @@ describe('capituler', () => {
     // Sa vue est toujours la sienne : ni omniscience, ni fenêtre sur les colonnes adverses.
     const seen = await t.query(api.view.playerView, victim!);
     expect(seen.me.defeated).toBe(true);
-    // Sa vue est celle qu'elle était : aucun arc adverse ne lui est servi, et la capitulation
-    // n'a rien débloqué. Lever le brouillard ici ferait d'elle un acte de renseignement.
-    expect(seen.detected).toEqual([]);
+    // Sa vue est celle qu'elle était : ce que ses compagnies encore posées relèvent, et rien
+    // d'autre — la capitulation n'a rien débloqué. Lever le brouillard ici ferait d'elle un acte
+    // de renseignement.
+    expect(seen.detected.every((arc) => arc.detector === 'troop')).toBe(true);
     expect(seen.movements).toEqual([]);
   });
 
-  it('ne se capitule pas d’un salon, ni d’un siège encore à la porte', async () => {
+  it('ne se capitule pas d’un salon', async () => {
     const t = boot();
     const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
     await expect(t.mutation(api.players.surrender, seat)).rejects.toThrow('SEASON_NOT_LAUNCHED');
@@ -248,9 +250,6 @@ describe('capituler', () => {
     await t.mutation(api.players.declareReady, { ...guest, ready: true });
     await t.mutation(api.seasons.launch, seat);
 
-    const latecomer = await joinSeat(t, code, 'Tard');
-    await expect(t.mutation(api.players.surrender, latecomer)).rejects.toThrow('NOT_AT_WAR');
-    // Et son siège ne gèle pas la fin : il ne compte pas parmi les belligérants debout.
     await t.mutation(api.players.surrender, guest);
     expect((await seasonOf(t)).winnerId).toBe((await playerOf(t, seat))._id);
   });

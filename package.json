@@ -10,6 +10,7 @@
     "build": "npm run types && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "rapport": "node scripts/rapport-de-saison.mjs",
     "routes": "node scripts/generer-routes.mjs",
     "types": "npm run routes && tsc --noEmit && tsc -p convex --noEmit",
     "lint": "eslint .",

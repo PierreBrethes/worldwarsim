@@ -21,7 +21,6 @@ const workName = (key: string, name: string): string =>
   key === 'outpost' ? fr.garrison.raiseWork : (fr.buildings[key as BuildingKey] ?? name);
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
-export type ServerBoard = FunctionReturnType<typeof api.victory.board>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
@@ -31,12 +30,7 @@ export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
 
-export function adaptServerView(
-  world: World,
-  server: ServerView,
-  /** Servi à part (`victory.board`) : `undefined` tant qu'il n'est pas arrivé. */
-  board?: ServerBoard,
-): PlayerView {
+export function adaptServerView(world: World, server: ServerView): PlayerView {
   const countryName = isNation(server.me.nation)
     ? COUNTRY_BY_NATION[server.me.nation]
     : server.me.nation;
@@ -46,14 +40,7 @@ export function adaptServerView(
   return {
     season: {
       ...server.season,
-      // Tant que `victory.board` n'est pas arrivé : un tableau vide, que `ReductionLine` tait,
-      // et une cible que personne ne lit sans tableau.
-      reduction: {
-        target: board?.target ?? 1,
-        standings: board?.standings ?? [],
-        concludedAt: server.season.reduction?.concludedAt ?? null,
-        winnerNation: server.season.reduction?.winnerNation ?? null,
-      },
+      race: server.season.race ?? null,
       verdict: server.season.verdict ?? null,
     },
     me: {
@@ -81,12 +68,6 @@ export function adaptServerView(
       resources: server.me.resources,
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
-      /** A deployment one version behind serves no site at all: no budget, hence nothing
-       *  offered — never a placement the server would then refuse after the click. */
-      siteSlots: server.me.siteSlots ?? [],
-      // A deployment ahead of the client answers without the field: no relief served, no
-      // sentence — the site then says what it always said, and nothing breaks.
-      homeSlotRelief: server.me.homeSlotRelief ?? null,
       tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
       foundation: server.me.foundation ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
@@ -129,7 +110,6 @@ export function adaptServerView(
       })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
-      troopCap: server.me.troopCap,
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({
@@ -182,6 +162,7 @@ export function adaptServerView(
     /** Un déploiement d'une version en retard n'en pose aucun : la carte n'a pas de marqueur à
      *  dessiner, et rien d'autre ne les lit. */
     objectives: server.objectives ?? [],
+    strategicPoints: server.strategicPoints ?? [],
     /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
     mode: modeOf(server.mode),
     theatre: server.theatre ?? null,
@@ -189,11 +170,7 @@ export function adaptServerView(
     captures: server.captures ?? [],
     journal: journalDispatches(
       server.reports ?? [],
-      server.season.reduction === undefined
-        ? null
-        : { ...server.season.reduction, verdict: server.season.verdict ?? null },
-      // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
-      server.warEntries ?? [],
+      { ...server.season.outcome, verdict: server.season.verdict ?? null },
       server.notices ?? [],
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
@@ -304,6 +281,7 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
      *  of his caught it. It survives into `lastKnown` — a memory keeps the eye that made it. */
     detector: seen.detector,
     detectorRegion: seen.detectorRegion,
+    ...(seen.nation === undefined ? {} : { nation: seen.nation }),
     headingDegrees: seen.headingDegrees,
     progress: window <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.seenFrom) / window)),
   };

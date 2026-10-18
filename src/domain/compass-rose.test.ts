@@ -6,6 +6,7 @@ import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
 
 const view = {
+  season: { hqCaptureHours: 12 },
   me: {
     nation: 'france',
     slots: { total: 4, used: 1 },
@@ -29,8 +30,6 @@ const view = {
       },
     ],
     hqLevel: 1,
-    siteSlots: [{ site: { outpostId: null }, taken: 0, total: 2 }],
-    homeSlotRelief: null,
     foundation: [],
     buildings: [],
     // Only home ground travels in the view: a region absent from it is a region the player
@@ -572,6 +571,40 @@ describe('in aim', () => {
     ]);
   });
 
+  /** **Un point stratégique se vise sans relevé** (P2) : la rose offre sa capture, six heures à
+   *  pleine force ; à son teneur, rien à prendre. */
+  it('offers the capture of a strategic point, and not to its holder', () => {
+    const point = {
+      id: 'point-lisbon',
+      key: 'lisbon' as const,
+      regionId: 'PRT-746',
+      point: [-9.14, 38.72] as const,
+      holder: null,
+      heldSince: null,
+      mine: false,
+      contested: false,
+      longest: null,
+    };
+    const target = {
+      kind: 'strategic' as const,
+      id: point.id,
+      point: point.point,
+      country: 'PRT',
+      name: 'Lisbonne',
+    };
+    const neutral = compassOf(target, { ...view, strategicPoints: [point] }, column);
+    expect(neutral?.actions).toContainEqual(
+      expect.objectContaining({
+        key: 'capture',
+        target: { kind: 'point', id: 'point-lisbon' },
+        consequence: expect.stringContaining('06:00:00'),
+      }),
+    );
+    const held = { ...point, holder: { nation: 'france', heldMs: 0 }, mine: true };
+    const mine = compassOf(target, { ...view, strategicPoints: [held] }, column);
+    expect(mine?.actions.some((action) => action.key === 'capture')).toBe(false);
+  });
+
   it('announces the duration at the strength the column really has', () => {
     const worn = compassOf(
       {
@@ -590,13 +623,18 @@ describe('in aim', () => {
     });
   });
 
-  it('says why a headquarters is not captured', () => {
+  /** La chute d'un QG élimine (M2a) : la rose le dit avant l'envoi, à la durée du salon. */
+  it('offers to capture a headquarters, saying its fall eliminates', () => {
     const hq = compassOf(
       { kind: 'installation', id: 'hq-enemy', key: 'hq', regionId: 'ROU-310', name: 'QG' },
       view,
       column,
     );
-    expect(hq).toMatchObject({ actions: [], refusal: fr.errors.HQ_NOT_CAPTURABLE() });
+    expect(hq!.actions[0]).toMatchObject({
+      key: 'capture',
+      consequence: expect.stringContaining('éliminé'),
+    });
+    expect(hq!.actions[0]!.consequence).toContain('12:00:00');
   });
 
   it('offers collection only on the selected private sighting and with free capacity', () => {

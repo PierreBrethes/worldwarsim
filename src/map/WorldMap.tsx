@@ -158,6 +158,7 @@ type Props = {
   /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
   onOpenCamp?: (campId: string, clientX: number, clientY: number) => void;
   onOpenObjective?: (objectiveId: string, clientX: number, clientY: number) => void;
+  onOpenStrategic?: (pointId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   /** Le visage de la pile mise en avant — ce qui est coché, et non la majorité de la pile. */
@@ -324,6 +325,7 @@ export function WorldMap({
   onOpenLoot,
   onOpenCamp,
   onOpenObjective,
+  onOpenStrategic,
   selectedLabel = null,
   selectedPlate = null,
   selectedLootLabel = null,
@@ -1198,6 +1200,7 @@ export function WorldMap({
         onOpenLoot={onOpenLoot ?? (() => {})}
         onOpenCamp={onOpenCamp ?? (() => {})}
         onOpenObjective={onOpenObjective ?? (() => {})}
+        onOpenStrategic={onOpenStrategic ?? (() => {})}
         onAct={onLabelAct}
         mapping={mapping}
         holding={holding !== null}
@@ -1528,6 +1531,16 @@ export function targetOfLabel(
       country,
       name: label.objective.name,
       tier: label.objective.tier,
+    };
+  }
+  /** **Un point stratégique est une cible publique** (P2) : la poignée est le mât lui-même. */
+  if (label.strategic !== null) {
+    return {
+      kind: 'strategic',
+      id: label.strategic.id,
+      point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
+      country,
+      name: label.strategic.name,
     };
   }
   /**

@@ -18,6 +18,7 @@ import { useSingleFlight } from '@/data/useSingleFlight';
 import { isNation } from '@/domain/nations';
 import { normalizeGameCode, type JoinRefusal } from '@/domain/off-season';
 import { DEFAULT_HQ_CAPTURE_HOURS, THEATRE_DRAW, presenceOf } from '@/domain/operation-order';
+import { MODE_RULES } from '@/domain/season-mode';
 import { theatreById, type TheatreId } from '@/domain/theatres';
 
 export const Route = createFileRoute('/rejoindre/$code')({ component: Invitation });
@@ -134,6 +135,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
   const taken = invitation.seats.length;
   const theatre = theatreById(invitation.theatre ?? '');
   const scheduledAt = invitation.orders?.scheduledAt ?? null;
+  const durationHours = invitation.durationHours ?? MODE_RULES.mondiale.clockHours;
   const now = Date.now();
   const when = scheduledAt === null ? null : rendezvousLabel(scheduledAt, now);
   const lines = blitz
@@ -146,6 +148,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
     : fr.table.telegram.mondialeLines({
         from: founder,
         capture: invitation.orders?.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
+        days: Math.round(durationHours / 24),
         seats: { taken, cap: invitation.maximum },
       });
   const others = Math.max(0, invitation.maximum - taken - 1);
@@ -181,6 +184,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
                 ? fr.invitation.blitzOrder(theatreName(invitation.theatre), when)
                 : fr.invitation.mondialeOrder(
                     invitation.orders?.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
+                    durationHours,
                   )
               ).map(([term, value]) => (
                 <Row key={term} term={term} value={value} />

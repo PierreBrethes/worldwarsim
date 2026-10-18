@@ -9,6 +9,7 @@ import {
   landCostOf,
   legalMovementTypes,
   motorized,
+  isMaritime,
   movementSlots,
   lootCollectionRefusalOf,
   ORDERABLE_TYPES,
@@ -224,6 +225,26 @@ describe('an empty manifest', () => {
   it('would still cost a slot, because the ceiling counts movements and not kinds', () => {
     expect(movementSlots(0)).toBe(1);
     expect(movementSlots(2)).toBe(3);
+  });
+
+  /** **Halifax** (P11) : les mouvements maritimes de son teneur ne prennent pas de slot. Est
+   *  maritime ce qui navigue : des coques, et ce qu'elles portent. */
+  it('calls maritime a column of hulls and what they carry, and nothing that walks or flies', () => {
+    expect(
+      isMaritime([
+        { role: 'cargo', carried: false },
+        { role: 'infantry', carried: true },
+      ]),
+    ).toBe(true);
+    expect(isMaritime([{ role: 'escort', carried: false }])).toBe(true);
+    expect(isMaritime([{ role: 'infantry', carried: false }])).toBe(false);
+    expect(
+      isMaritime([
+        { role: 'escort', carried: false },
+        { role: 'fighter', carried: false },
+      ]),
+    ).toBe(false);
+    expect(isMaritime([])).toBe(false);
   });
 });
 

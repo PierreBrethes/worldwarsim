@@ -16,6 +16,7 @@ import {
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
+  STRATEGIC_POINT_KEY,
   NOTICE,
   PUSH_PREFERENCES,
   PUSH_TYPE,
@@ -111,7 +112,7 @@ export default defineSchema({
     launchedAt: v.union(v.number(), v.null()),
     /**
      * Who took the season, and when. **No count travels beside them**: how many players one has
-     * reduced is read off the troops standing at the instant (`convex/victory.ts`), and a stored
+     * reduced was read off the troops standing at the instant (the retired test victory), and a stored
      * tally would disagree with the board at the first casualty or the first recruit. These two
      * are the opposite — a thing that happened once, which no later strength can un-happen.
      *
@@ -160,8 +161,16 @@ export default defineSchema({
      *  « dès que la table est complète ». */
     scheduledAt: v.optional(v.union(v.number(), v.null())),
     remind: v.optional(v.boolean()),
-    /** Mondiale (M15) : stocké et affiché, la capture de QG Mondiale n'existe pas encore. */
+    /** Mondiale (M15) : ce que dure la capture d'un QG, 12 ou 24 h (`captures.startCapture`). */
     hqCaptureHours: v.optional(v.number()),
+    /**
+     * **Le meneur de la course aux Sept, et depuis quand** (M1, P3) : celui qui tient quatre
+     * points, `raceSince` l'heure où il les a atteints. Absents tant que personne n'en tient
+     * quatre ; un seul meneur à la fois (4 + 4 > 7). Le travail `race.closeRace` le relit à
+     * l'échéance des 24 h.
+     */
+    raceLeaderId: v.optional(v.id('players')),
+    raceSince: v.optional(v.number()),
     seatCap: v.optional(v.number()),
     /** Le travail du rappel en attente, qu'un changement de l'ordre annule (`planReminder`). */
     reminderJobId: v.optional(v.id('_scheduled_functions')),
@@ -245,15 +254,15 @@ export default defineSchema({
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
-     * he became a belligerent. `null` is a seat that has not entered yet: a lobby, or a
-     * latecomer who joined a running season and is still choosing his nation (`seasons.join`).
+     * he became a belligerent. `null` is a seat that has not entered yet: a lobby, or the
+     * irregular seat. Nobody enters after the launch (ADR 0027 §4).
      *
      * It is an event, not a second truth: nothing recomputes it, and the endowment is written
      * in the same transaction that stamps it (`seasons.ts`, `endow`).
      *
      * `v.optional` for the same reason as the season's `winnerId`: rows written before this
      * landed carry no field at all. **Absent and `null` do not mean the same thing here** —
-     * absent is a legacy row, resolved against the season's own launch by `warEntryOf`, and
+     * absent is a legacy row, resolved against the season's own launch by `isAtWar`, and
      * `null` is a seat explicitly still out of the war. Every reader goes through that one
      * function.
      */
@@ -363,8 +372,9 @@ export default defineSchema({
     /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
      *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
     startedNeutral: v.optional(v.literal(true)),
-    /** **Le QG de départ d'une Blitz, et de qui** : sa chute élimine ce joueur-là (B10), pas
-     *  celui qui le tenait après l'avoir pris. */
+    /** **Le QG de départ, et de qui** — posé par la carte d'une Blitz, ou par le joueur au socle
+     *  d'une Mondiale : sa chute élimine ce joueur-là (B10, M2a), pas celui qui le tenait après
+     *  l'avoir pris. */
     homeOf: v.optional(v.id('players')),
   })
     .index('byPlayer', ['playerId'])
@@ -783,6 +793,30 @@ export default defineSchema({
    * Aucun index par joueur : un objectif n'appartient à personne. La saison le balaye whole, et
    * `destroy` l'emporte par le même index.
    */
+  /**
+   * **Les points stratégiques d'une Mondiale** (P1-P12, ADR 0027 §4), posés neutres au lancement
+   * (`strategicPoints.layOut`). Publics par nature : chacun sait où ils sont et qui les tient ;
+   * seul celui qui en conteste un reste caché jusqu'à la prise (P2).
+   *
+   * `heldSince` est l'heure de la prise du teneur, `null` sur un point neutre.
+   */
+  strategicPoints: defineTable({
+    seasonId: v.id('seasons'),
+    key: STRATEGIC_POINT_KEY,
+    regionId: v.string(),
+    point: LON_LAT,
+    holderId: v.union(v.id('players'), v.null()),
+    heldSince: v.union(v.number(), v.null()),
+    /** **Les heures que chaque teneur y a tenues et perdues**, en ms : la fiche les dit (P2),
+     *  l'horloge en départage la saison (M12). Ce que le teneur tient encore court depuis
+     *  `heldSince`. */
+    heldMs: v.optional(v.record(v.id('players'), v.number())),
+    /** **L'heure où son pouvoir a servi, et à qui** (Istanbul, Tanger) : il revient à la période
+     *  suivante (`powerReady`) ; un nouveau teneur ne l'hérite pas usé. */
+    usedAt: v.optional(v.number()),
+    usedBy: v.optional(v.id('players')),
+  }).index('bySeason', ['seasonId']),
+
   objectives: defineTable({
     seasonId: v.id('seasons'),
     key: v.string(),
@@ -826,17 +860,9 @@ export default defineSchema({
     outpostId: v.union(v.id('outposts'), v.null()),
     /** Set by a won raid only: the hour the outpost comes back. */
     disabledUntil: v.union(v.number(), v.null()),
-    /**
-     * **This pass is the one that put the defender under the bar** — he stood above it before,
-     * he stands below it after. It is a fact about the engagement, settled once and never
-     * recomputed: a *capacity* would drift, "who struck the blow" cannot. It is what names the
-     * executioner of a reduced player and what the journal turns into "X a réduit Y".
-     *
-     * Test scaffolding, like everything the simplified Domination touches — see
-     * `src/domain/victory.ts`. Optional for the same reason the season's outcome is: an
-     * engagement filed before the bar existed carries no flag, and **absent reads as false** —
-     * a pass nobody measured cannot have been the one that crossed it.
-     */
+    /** **Legacy — plus jamais écrit ni lu** : la domination de test par réduction, remplacée par
+     *  les points stratégiques (ADR 0027 §4). Il reste au schéma pour les engagements déjà
+     *  écrits, et part au wipe de la saison test. */
     reducedDefender: v.optional(v.boolean()),
     /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
      *  passe à l'initiative. */
@@ -875,10 +901,7 @@ export default defineSchema({
     ),
   })
     .index('byAttacker', ['attackerId'])
-    .index('byDefender', ['defenderId'])
-    /** Le dernier coup qui a mis un joueur sous la barre, lu seul : `executionerOf` relisait
-     *  autrefois tous les engagements subis pour n'en garder qu'un. */
-    .index('byDefenderReduced', ['defenderId', 'reducedDefender', 'at']),
+    .index('byDefender', ['defenderId']),
 
   /**
    * **Le détail frappe par frappe, dans sa propre table** — la matière du rejeu visuel (surface
@@ -1030,6 +1053,8 @@ export default defineSchema({
     /** The lobby's thread, apart from the season's: `true` there, absent in war and on rows
      *  written before the split. Erased at the launch, as the war thread is at the conclusion. */
     lobby: v.optional(v.boolean()),
+    /** **Lu à Istanbul** (P11) : le teneur l'a lu ; les deux correspondants voient le tampon. */
+    readAtIstanbul: v.optional(v.literal(true)),
   })
     .index('bySeason', ['seasonId'])
     .index('byChannel', ['seasonId', 'lobby', 'to', 'at'])
@@ -1058,6 +1083,9 @@ export default defineSchema({
     /** The observer, never the owner of what was seen. */
     playerId: v.id('players'),
     movementId: v.id('movements'),
+    /** **Whose column it was**, kept for the memory once the movement is gone. Never served —
+     *  except as a nation to the holder of Lisbon (P11). Absent on rows written before it. */
+    ownerId: v.optional(v.id('players')),
     from: v.number(),
     to: v.number(),
     /**

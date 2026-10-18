@@ -15,7 +15,7 @@ const board = (
     arcs,
     captures,
     loadedAt: 0,
-    season: { reduction: { concludedAt: null } },
+    season: { outcome: { concludedAt: null } },
     me: {
       homePosition: HOME,
       hqLevel: 1,
@@ -23,7 +23,6 @@ const board = (
       construction: { id: 'W-1', outpostId: null },
       constructionQueue: [],
       resources: {},
-      siteSlots: [],
       buildings: [{ id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 }],
       recruiting: ['B-1'],
       regions: [{ id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7], linked: true }],
@@ -257,7 +256,7 @@ describe('what waits for the player', () => {
       ...view,
       season: {
         ...view.season,
-        reduction: { target: 1, concludedAt: 1, winnerNation: null, standings: [] },
+        outcome: { concludedAt: 1, winnerNation: null },
       },
     } as PlayerView;
     expect(kinds(over)).toEqual([]);

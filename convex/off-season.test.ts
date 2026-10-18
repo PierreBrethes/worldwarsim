@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id, TableNames } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
-import { REGISTRATION_WINDOW_HOURS } from '../src/domain/off-season';
 import {
   HQ_LEVEL_AT_LAUNCH,
-  NATIONS,
   DETECTION_RANGE_KM,
   STARTING_AMMUNITION,
   STARTING_KIT,
@@ -27,6 +25,7 @@ import {
   seatIn,
   seatsOf,
   setClock,
+  unclocked,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
@@ -88,276 +87,36 @@ describe('creating and joining', () => {
   });
 });
 
-describe('registration deadline', () => {
-  const launchedAt = Date.UTC(2040, 0, 1);
-  const deadline = launchedAt + REGISTRATION_WINDOW_HOURS * 3_600_000;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(launchedAt);
-  });
-  afterEach(() => vi.useRealTimers());
-
-  it.each([-1, 0, 1])('checks a new seat at deadline %+d ms on the server', async (offset) => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    const opening = await t.query(api.seasons.lobby, creator);
-    expect(opening.registrationClosesAt).toBe(deadline);
-    const before = await t.run(async (ctx) => ({
-      players: await ctx.db.query('players').collect(),
-      resources: await ctx.db.query('resources').collect(),
-      buildings: await ctx.db.query('buildings').collect(),
-      troops: await ctx.db.query('troops').collect(),
-    }));
-
-    vi.setSystemTime(deadline + offset);
-    if (offset < 0) {
-      const late = await joinSeat(t, code, 'Tard');
-      expect((await t.query(api.seasons.lobby, late)).players).toHaveLength(3);
-    } else {
-      await expect(joinSeat(t, code, 'Tard')).rejects.toThrow('REGISTRATION_CLOSED');
-      expect(
-        await t.run(async (ctx) => ({
-          players: await ctx.db.query('players').collect(),
-          resources: await ctx.db.query('resources').collect(),
-          buildings: await ctx.db.query('buildings').collect(),
-          troops: await ctx.db.query('troops').collect(),
-        })),
-      ).toEqual(before);
-    }
-    expect((await t.query(api.seasons.lobby, creator)).registrationClosesAt).toBe(deadline);
-  });
-
-  async function endowment(t: ReturnType<typeof boot>, seat: Seat) {
-    return t.run(async (ctx) => {
-      const player = await seatIn(ctx, seat);
-      return {
-        enteredWarAt: player.enteredWarAt,
-        resources: await ctx.db
-          .query('resources')
-          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-          .collect(),
-        buildings: await ctx.db
-          .query('buildings')
-          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-          .collect(),
-        troops: await ctx.db
-          .query('troops')
-          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-          .collect(),
-      };
-    });
-  }
-
-  it('resumes an existing seat, finishes preparation and endows it only once after closure', async () => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    vi.setSystemTime(deadline - 1);
-    const late = await joinSeat(t, code, 'Tard');
-    vi.setSystemTime(deadline + 1);
-    expect(await seatsOf(t, late)).toEqual([
-      expect.objectContaining({
-        seasonId: late.seasonId,
-        status: 'launched',
-        atWar: false,
-        nation: null,
-      }),
-    ]);
-    expect((await t.query(api.seasons.lobby, late)).me.atWar).toBe(false);
-    await t.mutation(api.players.reserveNation, { ...late, nation: 'germany' });
-    await t.mutation(api.players.setRestWindow, { ...late, startMinutes: 300 });
-    await t.mutation(api.seasons.enterWar, late);
-    const first = await endowment(t, late);
-    expect(first.enteredWarAt).toBe(deadline + 1);
-    expect(first.resources).toHaveLength(Object.keys(KIT).length);
-    expect(Object.fromEntries(first.resources.map(({ key, stock }) => [key, stock]))).toEqual(KIT);
-    // Rien n'est planté : la dotation est le kit, et le socle attend ses poses (13/09).
-    expect(first.buildings).toHaveLength(0);
-    expect(first.troops).toHaveLength(0);
-    expect((await t.query(api.seasons.lobby, late)).me.restWindow.startMinutes).toBe(300);
-    expect((await t.query(api.view.playerView, late)).me.nation).toBe('germany');
-    vi.setSystemTime(deadline + 3_600_000);
-    await t.mutation(api.seasons.enterWar, late);
-    expect(await endowment(t, late)).toEqual(first);
-    expect(await seatsOf(t, creator)).toEqual([
-      expect.objectContaining({ seasonId: creator.seasonId, atWar: true }),
-    ]);
-    expect(await seatsOf(t, late)).toEqual([
-      expect.objectContaining({ seasonId: late.seasonId, atWar: true }),
-    ]);
-  });
-
-  it('keeps legacy participants without an entry timestamp at war after closure', async () => {
-    const t = boot();
-    const { creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    await t.run(async (ctx) => {
-      const player = await seatIn(ctx, creator);
-      await ctx.db.patch(player._id, { enteredWarAt: undefined });
-    });
-    const before = await endowment(t, creator);
-    vi.setSystemTime(deadline + 1);
-    expect((await t.query(api.seasons.lobby, creator)).me.atWar).toBe(true);
-    expect(await seatsOf(t, creator)).toEqual([
-      expect.objectContaining({ seasonId: creator.seasonId, atWar: true }),
-    ]);
-    expect((await t.query(api.view.playerView, creator)).me.nation).toBe('france');
-    await t.mutation(api.seasons.enterWar, creator);
-    expect(await endowment(t, creator)).toEqual(before);
-  });
-
-  it.each([launchedAt + 1, deadline + 1])('keeps a concluded season closed at %d', async (at) => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    const late = await joinSeat(t, code, 'Tard');
-    await t.run(async (ctx) => {
-      const season = (await ctx.db.query('seasons').collect())[0]!;
-      await ctx.db.patch(season._id, { status: 'concluded', concludedAt: at });
-    });
-    vi.setSystemTime(at);
-    await expect(joinSeat(t, code, 'Trop tard')).rejects.toThrow('SEASON_CONCLUDED');
-    await expect(t.mutation(api.seasons.enterWar, late)).rejects.toThrow('SEASON_CONCLUDED');
-    expect((await t.query(api.seasons.lobby, creator)).registrationClosesAt).toBeNull();
-  });
-});
-
 /**
- * **L'entrée en guerre** — an existing seat can enter after registration closes, and the season answers by
- * handing out the launch kit and nothing more (decision of 24/08). What these cases pin down is
- * the part a reader would not guess: the endowment is the very one the launch hands out, the
- * theatre does not move, and the threshold of the test victory recounts on the entry rather than
- * on the join.
+ * **Personne n'entre après le départ** (ADR 0027 §4) : la fenêtre de deux heures est partie avec
+ * la saison à durée fixe. Le refus n'écrit rien — ni place, ni dotation.
  */
-describe('joining a running season', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  /** A free flag reserved on a season already running — everything the door asks for. */
-  async function enlist(t: ReturnType<typeof boot>, code: string, nation: string) {
-    const seat = await joinSeat(t, code, 'Tard');
-    await t.mutation(api.players.reserveNation, { ...seat, nation });
-    return seat;
-  }
-
-  it('is accepted on a launched season and refused on a concluded one', async () => {
+describe('nobody enters after the start', () => {
+  it('refuses a new seat the moment the season is launched, and writes nothing', async () => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
-    await joinSeat(t, code, 'Tard');
+    const rows = () =>
+      t.run(async (ctx) => ({
+        players: await ctx.db.query('players').collect(),
+        resources: await ctx.db.query('resources').collect(),
+      }));
+    const before = await rows();
 
+    await expect(joinSeat(t, code, 'Tard')).rejects.toThrow('REGISTRATION_CLOSED');
+    expect(await rows()).toEqual(before);
+  });
+
+  it('keeps a concluded season closed', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, creator);
     await t.run(async (ctx) => {
-      const season = (await ctx.db.query('seasons').collect())[0]!;
+      const season = (await ctx.db.query('seasons').first())!;
       await ctx.db.patch(season._id, { status: 'concluded', concludedAt: Date.now() });
     });
-    await expect(joinSeat(t, code, 'Trop tard')).rejects.toThrow('SEASON_CONCLUDED');
-  });
 
-  /** The kit as it is, the headquarters at the level the season plants, the foundation still
-   *  owed: the very endowment of the launch, because it is the very same function. */
-  it('endows the latecomer exactly as the launch endowed the others', async () => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await expect(t.query(api.victory.board, creator)).rejects.toThrow('SEASON_NOT_LAUNCHED');
-    await t.mutation(api.seasons.launch, creator);
-    const opening = await t.query(api.view.playerView, creator);
-
-    const late = await enlist(t, code, 'germany');
-    await expect(t.query(api.view.playerView, late)).rejects.toThrow('NOT_AT_WAR');
-    await expect(t.query(api.victory.board, late)).rejects.toThrow('NOT_AT_WAR');
-    vi.advanceTimersByTime(90 * 60_000);
-    await t.mutation(api.seasons.enterWar, late);
-
-    const view = await t.query(api.view.playerView, late);
-    expect(view.me.nation).toBe('germany');
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
-    expect(view.me.resources.food.stock).toBe(KIT.food);
-    // Rien n'est planté pour lui non plus : il doit son socle entier, QG compris (13/09).
-    expect(view.me.buildings).toEqual([]);
-    // Germany holds coal, ore, bread and cloth, and no oil: four extractors, no well.
-    expect(view.me.foundation).toEqual([
-      { key: 'hq', deposit: null },
-      { key: 'mine', deposit: 'ore' },
-      { key: 'mine', deposit: 'coal' },
-      { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
-    ]);
-    expect(view.me.foundation).toEqual(opening.me.foundation);
-    // The theatre was frozen at launch: a latecomer joins it, he does not redraw it.
-    expect(view.season.playableRegion).toBe(opening.season.playableRegion);
-  });
-
-  /** The choices seal at his own entry, not at a launch he was not there for. */
-  it('seals nation and rest window at the entry into war', async () => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    const late = await enlist(t, code, 'germany');
-    await t.mutation(api.players.setRestWindow, { ...late, startMinutes: 120 });
-    await t.mutation(api.seasons.enterWar, late);
-
-    await expect(
-      t.mutation(api.players.reserveNation, { ...late, nation: 'italy' }),
-    ).rejects.toThrow('SEASON_ALREADY_LAUNCHED');
-    await expect(
-      t.mutation(api.players.setRestWindow, { ...late, startMinutes: 300 }),
-    ).rejects.toThrow('REST_WINDOW_FROZEN');
-    // Entering twice endows nobody twice: the second call finds a belligerent and returns.
-    await t.mutation(api.seasons.enterWar, late);
-    await placeHq(t, late);
-    expect((await t.query(api.view.playerView, late)).me.buildings).toHaveLength(1);
-  });
-
-  it('refuses a seat on a running season with no free nation left', async () => {
-    const t = boot();
-    const { code, creator, guest } = await seasonWithTwoPlayers(t);
-    const seated = [creator, guest];
-    for (let rank = 2; rank < NATIONS.length; rank += 1) {
-      seated.push(await joinSeat(t, code, `Joueur ${rank}`));
-    }
-    for (const [rank, seat] of seated.entries()) {
-      await t.mutation(api.players.reserveNation, { ...seat, nation: NATIONS[rank]! });
-      await t.mutation(api.players.declareReady, { ...seat, ready: true });
-    }
-    await t.mutation(api.seasons.launch, creator);
-
-    await expect(joinSeat(t, code, 'Tard')).rejects.toThrow('NO_FREE_NATION');
-  });
-
-  /** The only channel that says a belligerent has come in: everybody's journal, the newcomer's
-   *  included. The client turns the row into a headline (`src/domain/journal.ts`). */
-  it('announces the entry in the view of every belligerent', async () => {
-    const t = boot();
-    const { code, creator, guest } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    const late = await enlist(t, code, 'germany');
-    vi.advanceTimersByTime(90 * 60_000);
-    await t.mutation(api.seasons.enterWar, late);
-
-    for (const seat of [creator, guest, late]) {
-      const entries = (await t.query(api.view.playerView, seat)).warEntries;
-      expect(entries).toEqual([expect.objectContaining({ nickname: 'Tard', nation: 'germany' })]);
-    }
-    // The launch cohort opened the war, it did not enter it: no headline for the founders.
-    expect(
-      (await t.query(api.view.playerView, creator)).warEntries.map((e) => e.nation),
-    ).not.toContain('france');
-  });
-
-  /** Nobody's opponent until he is in the field: a seat still choosing its flag is neither an
-   *  opponent on the board nor a nation the victory has to reduce. */
-  it('keeps a seat that has not entered out of the board of the others', async () => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    await enlist(t, code, 'germany');
-
-    const view = await t.query(api.view.playerView, creator);
-    expect(view.opponents).toHaveLength(1);
-    expect(view.season.players).toBe(2);
-    expect((await t.query(api.victory.board, creator)).standings).toHaveLength(2);
+    await expect(joinSeat(t, code, 'Tard')).rejects.toThrow('SEASON_CONCLUDED');
   });
 });
 
@@ -445,11 +204,6 @@ describe('launching', () => {
    * **Une compagnie d'infanterie, en garnison au quartier général** (décision du 25/08). Elle
    * naissait à la dotation ; depuis le 13/09 elle naît **avec le QG**, parce que c'est lui qui
    * lui donne une adresse — et le joueur choisit laquelle.
-   *
-   * The consequence is accepted and graved here rather than left to be discovered: the company
-   * counts in the **nominal** the reduction rule measures against (`domain/victory.ts`), so a
-   * player who holds nothing else and loses it falls under half his nominal — reduced, hence
-   * scalpable by whoever took it.
    */
   it('gives one infantry with the headquarters, stationed at it', async () => {
     const t = boot();
@@ -513,26 +267,6 @@ describe('launching', () => {
     // engagement would be a nation disarmed by its first contact.
     const onePass = Math.ceil(nominalStrength('infantry', 1) / STRENGTH_PER_ROUND);
     expect(view.me.resources.ammunition.stock).toBeGreaterThan(onePass * 3);
-  });
-
-  /** Same endowment on the other road into a board: a latecomer is not a poorer player. */
-  it('gives the same infantry to a nation that enters the war late', async () => {
-    const t = boot();
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, creator);
-    const late = await joinSeat(t, code, 'Tard');
-    await t.mutation(api.players.reserveNation, { ...late, nation: 'germany' });
-    await t.mutation(api.seasons.enterWar, late);
-    // Même socle, même geste : il pose son quartier général comme les autres (13/09).
-    await placeHq(t, late);
-
-    const view = await t.query(api.view.playerView, late);
-    const hq = view.me.buildings.find((building) => building.key === 'hq')!;
-    expect(view.me.troops).toHaveLength(1);
-    expect(view.me.troops[0]).toMatchObject({ role: 'infantry', tier: 1 });
-    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
-    // The kit too, ammunition included: one endowment, written once, read by both roads.
-    expect(view.me.resources.ammunition.stock).toBe(STARTING_AMMUNITION);
   });
 });
 
@@ -633,6 +367,7 @@ describe('constructions', () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await unclocked(t);
     await placeHq(t, creator);
     for (let level = 1; level <= HQ_LEVEL_AT_LAUNCH; level += 1) {
       await t.mutation(api.constructions.start, {
@@ -786,7 +521,7 @@ describe('a concluded season', () => {
       });
       await ctx.db.insert('constructions', {
         playerId,
-        building: 'billets',
+        building: 'barracks',
         regionId: MOSELLE,
         level: 1,
         rank: 0,
@@ -909,11 +644,14 @@ describe('a season without a clock', () => {
 
     /** Une dépêche par belligérant : c'est le seul écran qui annonce la fin. Elle arrive avec
      *  celle de l'**édition finale** — la conclusion écrit un dernier classement avant de fermer
-     *  (`convex/press.ts`), et une édition dépose sa convocation chez chacun comme les autres. */
+     *  (`convex/press.ts`), et une édition dépose sa convocation chez chacun comme les autres.
+     *  La une des Sept du lancement (`pointsDrawn`) est la seule autre. */
     const notices = await t.run(async (ctx) => ctx.db.query('notices').collect());
     expect(notices.map((notice) => notice.kind).sort()).toEqual([
       'editionPublished',
       'editionPublished',
+      'pointsDrawn',
+      'pointsDrawn',
       'seasonClosed',
       'seasonClosed',
     ]);
@@ -922,13 +660,11 @@ describe('a season without a clock', () => {
     await expect(
       t.mutation(api.constructions.start, {
         ...creator,
-        building: 'billets',
+        building: 'barracks',
         regionId: MOSELLE,
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
-    expect(
-      (await t.query(api.view.playerView, creator)).season.reduction.concludedAt,
-    ).not.toBeNull();
+    expect((await t.query(api.view.playerView, creator)).season.outcome.concludedAt).not.toBeNull();
   });
 });
 
@@ -1017,6 +753,7 @@ describe('scrapping a season', () => {
       const t = boot();
       const { creator, guest } = await readyToLaunch(t);
       await t.mutation(api.seasons.launch, creator);
+      await unclocked(t);
 
       // A sentry of the guest's, forty kilometres off the road the column will walk: close
       // enough to file a sighting, far enough not to meet anybody.
@@ -1199,7 +936,7 @@ describe('scrapping a season', () => {
         });
         await ctx.db.insert('constructions', {
           playerId,
-          building: 'billets',
+          building: 'barracks',
           regionId: MOSELLE,
           level: 1,
           rank: 0,

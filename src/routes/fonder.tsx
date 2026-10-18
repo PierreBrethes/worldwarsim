@@ -5,11 +5,12 @@ import { api } from '../../convex/_generated/api';
 import { fr, rendezvousLabel } from '@/i18n/fr';
 import {
   DEFAULT_HQ_CAPTURE_HOURS,
+  MONDIALE_DURATION_DAYS,
   HQ_CAPTURE_HOURS,
   THEATRE_DRAW,
   nextEvening,
 } from '@/domain/operation-order';
-import { seatRangeOf, type SeasonMode } from '@/domain/season-mode';
+import { MODE_RULES, seatRangeOf, type SeasonMode } from '@/domain/season-mode';
 import { THEATRES, type TheatreId } from '@/domain/theatres';
 import { Wordmark } from '@/shell/Masthead';
 import { EngravedMap, WORLD_BOX } from '@/emblems/EngravedMap';
@@ -59,6 +60,7 @@ function Found() {
   const [customAt, setCustomAt] = useState(localInput(evening + DAY_MS));
   const [remind, setRemind] = useState(true);
   const [capture, setCapture] = useState<number>(DEFAULT_HQ_CAPTURE_HOURS);
+  const [days, setDays] = useState<number>(MODE_RULES.mondiale.clockHours / 24);
   const range = seatRangeOf(mode, mode === 'blitz' ? theatre : null);
   const [seatsAsked, setSeats] = useState<number | null>(null);
   const seats = Math.min(seatsAsked ?? range.max, range.max);
@@ -87,7 +89,12 @@ function Found() {
         when: scheduledAt === null ? null : rendezvousLabel(scheduledAt, now),
         seats: { taken: null, cap: seats },
       })
-    : fr.table.telegram.mondialeLines({ from, capture, seats: { taken: null, cap: seats } });
+    : fr.table.telegram.mondialeLines({
+        from,
+        capture,
+        days,
+        seats: { taken: null, cap: seats },
+      });
 
   const found = () =>
     void run(async () => {
@@ -102,7 +109,9 @@ function Found() {
           compensation: 0.5,
           mode,
           ...(seats < range.max ? { seatCap: seats } : {}),
-          ...(blitz ? { theatre, scheduledAt, remind } : { hqCaptureHours: capture }),
+          ...(blitz
+            ? { theatre, scheduledAt, remind }
+            : { hqCaptureHours: capture, durationHours: days * 24 }),
         });
         keepSeat(seasonId);
         void navigate({ to: '/salon' });
@@ -314,31 +323,53 @@ function Found() {
                 </section>
               </>
             ) : (
-              <section className="sect" aria-labelledby="t-s2">
-                <span className="no">II.</span>
-                <div>
-                  <h2 id="t-s2">{fr.found.captureTitle}</h2>
-                  <p className="note">{fr.found.captureNote}</p>
-                  <div className="segm" role="radiogroup" aria-labelledby="t-s2">
-                    {HQ_CAPTURE_HOURS.map((hours) => (
-                      <button
-                        key={hours}
-                        type="button"
-                        role="radio"
-                        aria-checked={capture === hours}
-                        onClick={() => touch(3, () => setCapture(hours))}
-                      >
-                        {fr.found.hours(hours)}
-                        <small>{fr.found.captureTag(hours)}</small>
-                      </button>
-                    ))}
+              <>
+                <section className="sect" aria-labelledby="t-s2d">
+                  <span className="no">II.</span>
+                  <div>
+                    <h2 id="t-s2d">{fr.found.durationTitle}</h2>
+                    <p className="note">{fr.found.durationNote}</p>
+                    <div className="segm" role="radiogroup" aria-labelledby="t-s2d">
+                      {MONDIALE_DURATION_DAYS.map((choice) => (
+                        <button
+                          key={choice}
+                          type="button"
+                          role="radio"
+                          aria-checked={days === choice}
+                          onClick={() => touch(1, () => setDays(choice))}
+                        >
+                          {fr.found.days(choice)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+                <section className="sect" aria-labelledby="t-s2">
+                  <span className="no">III.</span>
+                  <div>
+                    <h2 id="t-s2">{fr.found.captureTitle}</h2>
+                    <p className="note">{fr.found.captureNote}</p>
+                    <div className="segm" role="radiogroup" aria-labelledby="t-s2">
+                      {HQ_CAPTURE_HOURS.map((hours) => (
+                        <button
+                          key={hours}
+                          type="button"
+                          role="radio"
+                          aria-checked={capture === hours}
+                          onClick={() => touch(3, () => setCapture(hours))}
+                        >
+                          {fr.found.hours(hours)}
+                          <small>{fr.found.captureTag(hours)}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              </>
             )}
 
             <section className="sect" aria-labelledby="t-s4">
-              <span className="no">{blitz ? 'IV.' : 'III.'}</span>
+              <span className="no">IV.</span>
               <div>
                 <h2 id="t-s4">{fr.found.seatsTitle}</h2>
                 <p className="note">{fr.found.seatsNote(blitz, range.max)}</p>

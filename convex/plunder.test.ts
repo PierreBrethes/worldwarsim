@@ -26,13 +26,19 @@ const PRAHOVA = 'ROU-310';
 const RUHR = 'DEU-1572';
 const PSKOV = 'RUS-2335'; // sol soviétique : la région adverse de la partie de contrôle
 
-async function launchedSeason(t: ReturnType<typeof boot>) {
+/** `third`: a German at the table too, for a surrender that must not end the season. */
+async function launchedSeason(t: ReturnType<typeof boot>, third = false) {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  if (third) {
+    const marc = await joinSeat(t, code, 'Marc');
+    await t.mutation(api.players.reserveNation, { ...marc, nation: 'germany' });
+    await t.mutation(api.players.declareReady, { ...marc, ready: true });
+  }
   await t.mutation(api.seasons.launch, seat);
   await placeHq(t, seat);
   await placeHq(t, guest);
@@ -783,16 +789,11 @@ describe('plunder presence', () => {
 
   it('keeps resolving an expedition ordered before capitulation', async () => {
     const t = boot();
-    const { seat, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t, true);
     const barracks = await building(t, seat, 'barracks', undefined, MARNE);
     const infantry = await troop(t, seat, 'infantry', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry], barracks);
-    const player = await playerOf(t, seat);
-    const code = await t.run(async (ctx) => (await ctx.db.get(player.seasonId))!.code);
-    const third = await joinSeat(t, code, 'Marc');
-    await t.mutation(api.players.reserveNation, { ...third, nation: 'germany' });
-    await t.mutation(api.seasons.enterWar, third);
     await t.mutation(api.players.surrender, seat);
 
     await completePresence(t, movementId);

@@ -15,7 +15,7 @@ import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
 import { playedTheatre } from './theatres';
-import { captureDurationAt } from './capture';
+import { captureDurationAt, type CaptureTarget } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
@@ -162,6 +162,17 @@ export type CompassTarget =
       readonly name: string;
       /** Le palier en toutes lettres, pour le motif — jamais la composition de la garnison. */
       readonly tier: string;
+    }
+  | {
+      /**
+       * **Un point stratégique** (P1-P12) : public comme un objectif, il se vise sans relevé. La
+       * rose y offre la marche et la capture ; à son teneur, la marche seule.
+       */
+      readonly kind: 'strategic';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly country: string | null;
+      readonly name: string;
     }
   | {
       /**
@@ -382,7 +393,7 @@ export type CompassAction =
       readonly label: string;
       readonly cost: string | null;
       readonly consequence: string;
-      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+      readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
       readonly aim: MovementAim;
     }
   /**
@@ -789,14 +800,14 @@ function plunderFan(
  * l'aperçu du serveur lit aussi.
  */
 function captureBranch(
-  site: Parameters<typeof captureOrderRefusalOf>[0],
-  target: { readonly kind: 'building' | 'outpost'; readonly id: string },
+  site: CaptureTarget,
+  target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string },
   aimed: MovementAim,
   view: PlayerView,
   column: Column,
   isMine: boolean,
 ): { readonly action: CompassAction | null; readonly refusal: string | null } {
-  const refused = captureOrderRefusalOf(site, aimed, column, isMine);
+  const refused = captureOrderRefusalOf(aimed, column, isMine);
   if (refused !== null) {
     return { action: null, refusal: fr.errors[refused](refusalDetails(aimed, column)) };
   }
@@ -807,7 +818,11 @@ function captureBranch(
       label: fr.compass.capture,
       cost: slotCost(view),
       consequence: fr.compass.captureConsequence(
-        asDuration(captureDurationAt(view.mode, site, column.captureRate ?? 1) / 60_000),
+        asDuration(
+          captureDurationAt(view.mode, site, column.captureRate ?? 1, view.season.hqCaptureHours) /
+            60_000,
+        ),
+        site.kind === 'building' && site.key === 'hq',
       ),
       target,
       aim: aimed,
@@ -968,6 +983,30 @@ function aim(
       false,
     );
     if (capture.action === null) return fan;
+    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
+  }
+  if (target.kind === 'strategic') {
+    const aimed: MovementAim = {
+      kind: 'strategic',
+      pointId: target.id,
+      lon: target.point[0],
+      lat: target.point[1],
+      hostCountry: target.country ?? '',
+    };
+    const fan = fanOf(target.name, view, column, [aimed]);
+    const held = view.strategicPoints.find((point) => point.id === target.id);
+    if (held?.mine === true) return fan;
+    const capture = captureBranch(
+      { kind: 'point' },
+      { kind: 'point', id: target.id },
+      aimed,
+      view,
+      column,
+      false,
+    );
+    if (capture.action === null) {
+      return fan.actions.length > 0 ? fan : { ...fan, refusal: capture.refusal ?? fan.refusal };
+    }
     return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
   }
   /**
@@ -1404,6 +1443,13 @@ function build(
         name: target.name,
         actions: [],
         refusal: fr.objectives.needsAColumn,
+      };
+    case 'strategic':
+      return {
+        kicker: fr.points.kicker,
+        name: target.name,
+        actions: [],
+        refusal: fr.points.needsAColumn,
       };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,

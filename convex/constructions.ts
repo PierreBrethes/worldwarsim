@@ -18,14 +18,13 @@ import {
   unlockLevel,
   buildCost,
   buildMinutes,
-  homeSlots,
   nominalStrength,
   settlesDebt,
 } from './constants';
 import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
-import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
+import { anchorAt, anchored, sitesOf } from './sites';
 import { credit, debit, economyOf, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
@@ -73,7 +72,7 @@ const owedFreely = (
  * the server holds no admin-1 polygon (`regions.ts` — 2.5 MB drawn for the screen). The client
  * guarantees it, and the consequence of a twisted one is bounded: it files its port in the
  * wrong region, it does not gain a second one — `regionId` is what holds "one building per
- * region", and the placement, the site budget and the coastal rule are all read off it.
+ * region", and the placement and the coastal rule are both read off it.
  */
 function pointRefusal(
   building: BuildingKey,
@@ -145,7 +144,7 @@ export const start = mutation({
     if (owedFreely(player, buildings, building, regionId)) {
       /** **Le QG se pose au niveau du lancement**, les extracteurs au premier — la seule
        *  différence entre les dettes du socle, et elle vient de l'ADR 0017 §2 : ce que le
-       *  quartier général ouvre (les paliers, les emplacements, les slots) n'a jamais été une
+       *  quartier général ouvre (les paliers, les slots) n'a jamais été une
        *  décision du joueur, seulement l'endroit. */
       const placed = building === 'hq' ? HQ_LEVEL_AT_LAUNCH : 1;
       const standingId = await ctx.db.insert('buildings', {
@@ -155,6 +154,8 @@ export const start = mutation({
         regionId,
         level: placed,
         ...anchored(await anchorAt(ctx, player, regionId)),
+        /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
+        ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
       if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
       return { finishesAt: now, cost: {}, level: placed, rank: null };
@@ -268,12 +269,6 @@ function refuseRaise(hold: OutpostRaiseHold): never {
  * Elle naissait à la dotation ; elle naît maintenant avec le QG, parce que c'est lui qui lui
  * donne une adresse — et jamais à une élévation : seul le premier QG, celui que le socle offre,
  * l'amène.
- *
- * La conséquence est acceptée plutôt qu'esquivée : cette compagnie compte dans le **nominal**
- * que la règle de réduction mesure (`src/domain/victory.ts`), donc un joueur qui ne tient que
- * son infanterie offerte et la perd tombe sous la moitié de son nominal — scalpable par qui la
- * lui a prise. C'est le prix d'ouvrir avec une défense, et la forme dont la victoire de test doit
- * être remplacée, jamais rafistolée.
  */
 async function garrisonTheGift(
   ctx: MutationCtx,
@@ -622,60 +617,12 @@ async function refusalFor(
   }
 
   const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
-  const budget = sites.budgetOf(site);
-  const slots = budget?.total ?? 0;
   const requiredLevel = unlockLevel(building);
-  /**
-   * **The placements of this site, standing plus pledged** — never a national total (ADR 0020
-   * §10). A pledge on a bare region is a building coming; a pledge on a region that already
-   * carries one is a raise, and a raise moves neither the count nor the site's budget. Only
-   * the pledges aimed at **this** site count: a queue filling an outpost holds nothing back at
-   * home, which is the whole point of the local budget.
-   */
-  const taken =
-    (budget?.taken ?? 0) +
-    pledged.filter(
-      (entry) =>
-        !buildings.some((held) => held.regionId === entry.regionId) &&
-        anchorOfRegion(sites, entry.regionId, site),
-    ).length;
 
-  /**
-   * **A key the season owes is never refused by the placements** (decision of 25/08). It was,
-   * and it made a debt of the season unpayable by a rule of the season: an American ground is
-   * owed five extractors where a level-1 headquarters carries two placements. Depuis le 13/09 le
-   * QG lui-même en dépend — `homeSlots(0)` vaut zéro, et sa propre pose serait refusée par le
-   * budget d'un sol qu'il n'a pas encore ouvert.
-   *
-   * Since ADR 0020 §10 the foundation is out of the count altogether (`sitesOf`), so this only
-   * covers the moment of the placement itself — the debt outranks a site already full, and what
-   * it puts down never fills one.
-   */
-  const owed = owedFreely(player, buildings, building, regionId);
-
-  const refusal = placementRefusal(
-    building,
-    region,
-    { onRegion, taken, slots: owed ? Number.POSITIVE_INFINITY : slots, hqLevel },
-    requiredLevel,
-  );
+  const refusal = placementRefusal(building, region, { onRegion, hqLevel }, requiredLevel);
   if (refusal === 'UNKNOWN_BUILDING') return { code: refusal };
   if (refusal === 'REGION_TAKEN')
     return { code: refusal, details: { regionId, standing: onRegion } };
-  /**
-   * **The refusal names the site that is full, never a national total.** "Sol national : 2
-   * emplacements sur 2" and "avant-poste : 1 sur 1" call for opposite moves — raise the
-   * headquarters, or raise that point — and a single figure could name neither.
-   */
-  if (refusal === 'SITE_SLOTS_FULL') {
-    return {
-      code: refusal,
-      details:
-        site.kind === 'home'
-          ? { site: 'home', taken, slots, hqLevel, ...homeRelief(hqLevel) }
-          : { site: 'outpost', taken, slots },
-    };
-  }
   // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
   // a wall — and the tier is the one refusal a player can always act on.
   if (refusal === 'BUILDING_LOCKED') {
@@ -696,26 +643,6 @@ async function refusalFor(
   if (cappedByHq(building, level - 1, hqLevel)) return { code: 'CAPPED_BY_HQ' };
   return null;
 }
-
-/** Whether a queued entry aims at the very site being measured. A region no site of the
- *  player's reaches any more belongs to none, so it holds nothing back anywhere. */
-function anchorOfRegion(sites: Sites, regionId: string, site: Site): boolean {
-  const aimed = sites.siteAt(regionId);
-  return aimed !== null && sameSite(aimed, site);
-}
-
-/**
- * What the next headquarters level would carry **on national soil**, `null` at the top of the
- * ladder. Two numbers rather than a sentence (ADR 0016), and both out of `homeSlots` — the
- * screen that says "un quartier général niveau 2 les porte à 4" and the refusal that raised it
- * must be reading the same ladder, never two copies of it.
- */
-export const homeSlotReliefOf = (
-  hqLevel: number,
-): { readonly nextHqLevel: number; readonly nextSlots: number } | null =>
-  hqLevel >= MAX_HQ_LEVEL ? null : { nextHqLevel: hqLevel + 1, nextSlots: homeSlots(hqLevel + 1) };
-
-const homeRelief = (hqLevel: number) => homeSlotReliefOf(hqLevel) ?? {};
 
 /** Everything a player has pledged to build, head first. */
 export async function queueOf(

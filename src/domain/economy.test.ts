@@ -128,15 +128,7 @@ describe('a building only produces when its region carries its colour', () => {
     ] as const) {
       expect(produces(key)).toBe(true);
     }
-    for (const key of [
-      'hq',
-      'warehouse',
-      'depot',
-      'barracks',
-      'port',
-      'airfield',
-      'billets',
-    ] as const) {
+    for (const key of ['hq', 'warehouse', 'depot', 'barracks', 'port', 'airfield'] as const) {
       expect(produces(key)).toBe(false);
     }
   });
@@ -429,18 +421,11 @@ describe('a reserve emptied by a negative rate', () => {
 describe('legacy storage placement', () => {
   const region = { deposit: null, coastal: false };
   it('refuses a new depot even on free ground', () => {
-    expect(
-      placementRefusal('depot', region, { onRegion: null, taken: 0, slots: 4, hqLevel: 2 }, 1),
-    ).toBe('UNKNOWN_BUILDING');
+    expect(placementRefusal('depot', region, { onRegion: null, hqLevel: 2 }, 1)).toBe(
+      'UNKNOWN_BUILDING',
+    );
   });
-  it('raises an old depot as a warehouse without taking another slot', () => {
-    expect(
-      placementRefusal(
-        'warehouse',
-        region,
-        { onRegion: 'depot', taken: 4, slots: 4, hqLevel: 2 },
-        1,
-      ),
-    ).toBeNull();
+  it('raises an old depot as a warehouse', () => {
+    expect(placementRefusal('warehouse', region, { onRegion: 'depot', hqLevel: 2 }, 1)).toBeNull();
   });
 });

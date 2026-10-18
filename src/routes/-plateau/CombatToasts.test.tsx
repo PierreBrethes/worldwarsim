@@ -38,12 +38,11 @@ const battle = (id: string, at: number): CombatReport => ({
   outpostDisabled: false,
   mine: { troops: 3, lost: 40, routed: 0, destroyed: 1 },
   theirs: { troops: 2, lost: 90, routed: 1, destroyed: 1 },
-  reduced: null,
 });
 
 const NOON = Date.UTC(2026, 9, 13, 12);
-const opened = journalDispatches([battle('old', NOON)], null, []);
-const later = journalDispatches([battle('old', NOON), battle('new', NOON + 60_000)], null, []);
+const opened = journalDispatches([battle('old', NOON)], null);
+const later = journalDispatches([battle('old', NOON), battle('new', NOON + 60_000)], null);
 const fresh = later.find((dispatch) => dispatch.combat?.id === 'new')!;
 
 const board = (journal: typeof later, quiet = false, onShow = vi.fn()) => (
@@ -89,7 +88,6 @@ it('ne dit rien pendant un rejeu, ni après de ce qui est arrivé pendant', () =
 const four = journalDispatches(
   [battle('old', NOON), ...[1, 2, 3, 4].map((n) => battle(`b${n}`, NOON + n * 60_000))],
   null,
-  [],
 );
 const timeOf = (id: string) => four.find((dispatch) => dispatch.combat?.id === id)!.t;
 

@@ -29,7 +29,6 @@ const battle = (at: number): CombatReport => ({
   outpostDisabled: false,
   mine: { troops: 2, lost: 4, routed: 0, destroyed: 0 },
   theirs: { troops: 1, lost: 30, routed: 1, destroyed: 0 },
-  reduced: null,
 });
 
 const finished = (at: number): Notice => ({
@@ -48,7 +47,6 @@ describe('the journal', () => {
     const dispatches = journalDispatches(
       [battle(NOON)],
       { concludedAt: NOON - 3 * HOUR, winnerNation: 'france' },
-      [],
       [placed, finished(NOON - 2 * HOUR)],
     );
 
@@ -74,8 +72,8 @@ describe('the journal', () => {
       mine: shot.theirs,
       theirs: shot.mine,
     };
-    const [fired] = journalDispatches([shot], null, [], []);
-    const [taken] = journalDispatches([struck], null, [], []);
+    const [fired] = journalDispatches([shot], null, []);
+    const [taken] = journalDispatches([struck], null, []);
     expect(fired!.text).toMatch(/^bombardement .* notre tir en abat 30, sans riposte possible$/);
     expect(taken!.text).toMatch(/^bombardés .* leur tir en abat 30, aucune riposte possible$/);
     expect(taken!.kind).toBe('attacked');
@@ -94,11 +92,11 @@ describe('the journal', () => {
         ],
       },
     };
-    const [said] = journalDispatches([fought], null, [], []);
+    const [said] = journalDispatches([fought], null, []);
     expect(said!.text).toContain(
       '2 contre 3 — en face, Allemagne : blindé ×1 (12 machines), infanterie ×2 (100 hommes)',
     );
-    const [old] = journalDispatches([battle(NOON)], null, [], []);
+    const [old] = journalDispatches([battle(NOON)], null, []);
     expect(old!.text).toContain('2 contre 1, ');
   });
 
@@ -113,28 +111,15 @@ describe('the journal', () => {
         ],
       },
     };
-    const [fired] = journalDispatches([shot], null, [], []);
+    const [fired] = journalDispatches([shot], null, []);
     expect(fired!.text).toContain('sur URSS : infanterie ×1 (50 hommes)');
   });
 
-  it('tells a reduction under bombardment without naming the gunner', () => {
-    const struck: CombatReport = {
-      ...battle(NOON),
-      cause: 'bombardment',
-      side: 'defender',
-      reduced: { by: null, whom: 'ussr' },
-    };
-    const said = journalDispatches([struck], null, [], []).find((d) => d.kind === 'reduction');
-    expect(said!.text).toBe('URSS est réduit, sous un bombardement');
-  });
-
   it('merges the two streams by hour, newest first', () => {
-    const dispatches = journalDispatches(
-      [battle(NOON - 2 * HOUR), battle(NOON)],
-      null,
-      [],
-      [finished(NOON - HOUR), finished(NOON - 3 * HOUR)],
-    );
+    const dispatches = journalDispatches([battle(NOON - 2 * HOUR), battle(NOON)], null, [
+      finished(NOON - HOUR),
+      finished(NOON - 3 * HOUR),
+    ]);
 
     expect(dispatches.map((dispatch) => dispatch.at)).toEqual([
       NOON,
@@ -147,23 +132,20 @@ describe('the journal', () => {
   it('reads unread off journalReadAt and nothing else', () => {
     const stream = [finished(NOON - 3 * HOUR), finished(NOON - HOUR)];
 
-    const never = journalDispatches([battle(NOON)], null, [], stream);
+    const never = journalDispatches([battle(NOON)], null, stream);
     expect(never.every((dispatch) => dispatch.unread)).toBe(true);
 
-    const midway = journalDispatches([battle(NOON)], null, [], stream, NOON - 2 * HOUR);
+    const midway = journalDispatches([battle(NOON)], null, stream, NOON - 2 * HOUR);
     expect(midway.map((dispatch) => dispatch.unread)).toEqual([true, true, false]);
 
-    const caughtUp = journalDispatches([battle(NOON)], null, [], stream, NOON);
+    const caughtUp = journalDispatches([battle(NOON)], null, stream, NOON);
     expect(caughtUp.some((dispatch) => dispatch.unread)).toBe(false);
   });
 
   it('words a cancelled outpost raise without throwing', () => {
-    const [cancelled] = journalDispatches(
-      [],
-      null,
-      [],
-      [{ kind: 'constructionCancelled', at: NOON, building: 'outpost', regionName: 'Marne' }],
-    );
+    const [cancelled] = journalDispatches([], null, [
+      { kind: 'constructionCancelled', at: NOON, building: 'outpost', regionName: 'Marne' },
+    ]);
     expect(cancelled!.text).toContain(fr.garrison.raiseWork);
     expect(cancelled!.text).not.toContain('undefined');
   });
@@ -177,7 +159,7 @@ describe('the journal', () => {
       hostCountry: 'RUS',
       resolvesAt: NOON + 5 * HOUR,
     };
-    const [waking, built] = journalDispatches([], null, [], [stalled, finished(NOON - HOUR)]);
+    const [waking, built] = journalDispatches([], null, [stalled, finished(NOON - HOUR)]);
 
     expect(waking!.resolutionAt).not.toBeNull();
     expect(built!.resolutionAt).toBeNull();
@@ -189,21 +171,16 @@ describe('the journal', () => {
    * **celui d'où l'on a regardé**, et la phrase le dit.
    */
   it('words a sighting from the sentry, with a place and a heading', () => {
-    const [sighted] = journalDispatches(
-      [],
-      null,
-      [],
-      [
-        {
-          kind: 'movementSighted',
-          at: NOON,
-          hostCountry: 'FRA',
-          headingDegrees: 45,
-          detector: 'troop',
-          detectorRegion: null,
-        },
-      ],
-    );
+    const [sighted] = journalDispatches([], null, [
+      {
+        kind: 'movementSighted',
+        at: NOON,
+        hostCountry: 'FRA',
+        headingDegrees: 45,
+        detector: 'troop',
+        detectorRegion: null,
+      },
+    ]);
 
     expect(sighted!.text).toContain('inconnue');
     expect(sighted!.text).toContain('guetteurs');
@@ -213,20 +190,15 @@ describe('the journal', () => {
   /** La colonne bredouille : sans cette dépêche, la plus longue marche d'une saison se lit
    *  « rien à signaler ». */
   it('words the arrival that found nobody', () => {
-    const [nothing] = journalDispatches(
-      [],
-      null,
-      [],
-      [
-        {
-          kind: 'columnFoundNothing',
-          at: NOON,
-          movementType: 'attack',
-          hostCountry: 'ROU',
-          troops: 3,
-        },
-      ],
-    );
+    const [nothing] = journalDispatches([], null, [
+      {
+        kind: 'columnFoundNothing',
+        at: NOON,
+        movementType: 'attack',
+        hostCountry: 'ROU',
+        troops: 3,
+      },
+    ]);
     expect(nothing!.text).toContain('personne');
     expect(nothing!.severity).toBe('notable');
   });
@@ -239,21 +211,16 @@ describe('the journal', () => {
    */
   it('names the surveyed installation the bredouille column is standing next to', () => {
     const dispatchOf = (installation?: BuildingKey) =>
-      journalDispatches(
-        [],
-        null,
-        [],
-        [
-          {
-            kind: 'columnFoundNothing',
-            at: NOON,
-            movementType: 'attack',
-            hostCountry: 'ROU',
-            troops: 3,
-            ...(installation === undefined ? {} : { installation }),
-          },
-        ],
-      )[0]!;
+      journalDispatches([], null, [
+        {
+          kind: 'columnFoundNothing',
+          at: NOON,
+          movementType: 'attack',
+          hostCountry: 'ROU',
+          troops: 3,
+          ...(installation === undefined ? {} : { installation }),
+        },
+      ])[0]!;
 
     const mine = dispatchOf('mine');
     expect(mine.text).toContain('mine');
@@ -273,15 +240,10 @@ describe('the journal', () => {
    * routinier — le titre a changé de main, la guerre n'a pas bougé.
    */
   it('words a surrender loudly and the command it passes soberly', () => {
-    const [surrendered, transferred] = journalDispatches(
-      [],
-      null,
-      [],
-      [
-        { kind: 'playerSurrendered', at: NOON, nation: 'ussr' },
-        { kind: 'commandTransferred', at: NOON - HOUR, nation: 'germany' },
-      ],
-    );
+    const [surrendered, transferred] = journalDispatches([], null, [
+      { kind: 'playerSurrendered', at: NOON, nation: 'ussr' },
+      { kind: 'commandTransferred', at: NOON - HOUR, nation: 'germany' },
+    ]);
 
     expect(surrendered!.text).toContain('CAPITULE');
     expect(surrendered!.text).toContain(fr.nations.ussr.toUpperCase());
@@ -292,6 +254,33 @@ describe('the journal', () => {
     expect(transferred!.text).toContain('direction de la partie');
     expect(transferred!.severity).toBe('routine');
   });
+
+  /** **La course se lit par toute la table** (P2) : qui prend quel point, là où il est. */
+  it('says who takes which strategic point, where it stands', () => {
+    const [taken] = journalDispatches([], null, [
+      {
+        kind: 'pointTaken',
+        at: NOON,
+        key: 'narvik',
+        nation: 'germany',
+        place: { lon: 17.43, lat: 68.44 },
+      },
+    ]);
+    expect(taken!.text).toBe(`${fr.nations.germany} prend Narvik.`);
+    expect(taken!.place).toEqual({ lon: 17.43, lat: 68.44 });
+  });
+
+  /** En Mondiale, la chute d'un QG ne dissout rien : le reste passe aux irréguliers (M16), et
+   *  toute la table l'apprend, puisque chacun peut le prendre. */
+  it('says where a Mondiale elimination leaves the rest, to the parties and to the table', () => {
+    const fall = { kind: 'playerEliminated', at: NOON, nation: 'ussr', irregulars: true } as const;
+    const [aside] = journalDispatches([], null, [fall]);
+    const [mine] = journalDispatches([], null, [{ ...fall, by: 'france' }]);
+
+    expect(aside!.text).toContain('irréguliers');
+    expect(mine!.text).toContain('irréguliers');
+    expect(mine!.text).not.toContain('dissoutes');
+  });
 });
 
 /**
@@ -301,8 +290,8 @@ describe('the journal', () => {
  */
 describe('the sort a dispatch is stamped with', () => {
   it('splits the two faces of one pass, and only the suffered one is an alarm', () => {
-    const [led] = journalDispatches([battle(NOON)], null, []);
-    const [suffered] = journalDispatches([{ ...battle(NOON), side: 'defender' }], null, []);
+    const [led] = journalDispatches([battle(NOON)], null);
+    const [suffered] = journalDispatches([{ ...battle(NOON), side: 'defender' }], null);
 
     expect(led!.kind).toBe('assault');
     expect(suffered!.kind).toBe('attacked');
@@ -326,7 +315,7 @@ describe('the sort a dispatch is stamped with', () => {
       },
     ];
     for (const notice of alarms) {
-      expect(isAlarm(journalDispatches([], null, [], [notice])[0]!.kind)).toBe(true);
+      expect(isAlarm(journalDispatches([], null, [notice])[0]!.kind)).toBe(true);
     }
 
     const quiet: ReadonlyArray<Notice> = [
@@ -335,52 +324,41 @@ describe('the sort a dispatch is stamped with', () => {
       { kind: 'columnArrived', at: NOON, movementType: 'march', hostCountry: 'ROU', troops: 2 },
     ];
     for (const notice of quiet) {
-      expect(isAlarm(journalDispatches([], null, [], [notice])[0]!.kind)).toBe(false);
+      expect(isAlarm(journalDispatches([], null, [notice])[0]!.kind)).toBe(false);
     }
   });
 
   /** Une saison close se relit, elle ne se joue plus : elle n'exige plus rien de personne, donc
    *  pas d'encre rouge — c'est la limite de la règle, et elle se vérifie. */
   it('leaves the concluded season to the plain ink', () => {
-    const [closed] = journalDispatches([], { concludedAt: NOON, winnerNation: 'france' }, []);
+    const [closed] = journalDispatches([], { concludedAt: NOON, winnerNation: 'france' });
     expect(closed!.kind).toBe('seasonConcluded');
     expect(isAlarm(closed!.kind)).toBe(false);
   });
 
   it('names who took the HQ to the two sides only (B10)', () => {
-    const [aside] = journalDispatches(
-      [],
-      null,
-      [],
-      [{ kind: 'playerEliminated', at: NOON, nation: 'ussr' }],
-    );
+    const [aside] = journalDispatches([], null, [
+      { kind: 'playerEliminated', at: NOON, nation: 'ussr' },
+    ]);
     expect(aside!.text).not.toMatch(/France|vainqueur/);
-    const [mine] = journalDispatches(
-      [],
-      null,
-      [],
-      [{ kind: 'playerEliminated', at: NOON, nation: 'ussr', by: 'france' }],
-    );
+    const [mine] = journalDispatches([], null, [
+      { kind: 'playerEliminated', at: NOON, nation: 'ussr', by: 'france' },
+    ]);
     expect(mine!.text).toMatch(/France/);
   });
 
   it('says why a Blitz ended, a draw included (B10, B11)', () => {
     const board = { target: 1, concludedAt: NOON, winnerNation: null, standings: [] };
-    const [draw] = journalDispatches(
-      [],
-      { ...board, verdict: { reason: 'draw', winnerNation: null, perMinute: 40 } },
-      [],
-    );
+    const [draw] = journalDispatches([], {
+      ...board,
+      verdict: { reason: 'draw', winnerNation: null, perMinute: 40 },
+    });
     expect(draw!.text).toMatch(/égalité/);
-    const [income] = journalDispatches(
-      [],
-      {
-        ...board,
-        winnerNation: 'france',
-        verdict: { reason: 'income', winnerNation: 'france', perMinute: 40 },
-      },
-      [],
-    );
+    const [income] = journalDispatches([], {
+      ...board,
+      winnerNation: 'france',
+      verdict: { reason: 'income', winnerNation: 'france', perMinute: 40 },
+    });
     expect(income!.text).toMatch(/40 fonds par minute/);
   });
 
@@ -393,12 +371,9 @@ describe('the sort a dispatch is stamped with', () => {
 });
 
 describe('the combats a map toast announces', () => {
-  const journal = journalDispatches(
-    [battle(NOON), battle(NOON + HOUR)],
-    null,
-    [],
-    [finished(NOON + 2 * HOUR)],
-  );
+  const journal = journalDispatches([battle(NOON), battle(NOON + HOUR)], null, [
+    finished(NOON + 2 * HOUR),
+  ]);
 
   it('keeps out what the map opened with', () => {
     expect(combatsSince(journal, latestDispatchAt(journal))).toEqual([]);

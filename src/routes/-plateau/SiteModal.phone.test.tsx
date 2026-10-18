@@ -77,7 +77,7 @@ const GRID = [
 ];
 const workshopWith = (
   queue: ReadonlyArray<unknown>,
-  { inService = 3, cap = 12 }: { inService?: number; cap?: number } = {},
+  { inService = 3 }: { inService?: number } = {},
 ) => ({
   loadedAt: NOW,
   captures: [],
@@ -85,7 +85,6 @@ const workshopWith = (
   tier2Unlocked: true,
   requiredHqLevel: 2,
   maxQueue: 5,
-  troopCap: cap,
   troopsInService: inService,
   troopsQueued: queue.length,
   facilities: [{ id: 'B-1', key: 'barracks', domain: 'land', level: 1, regionName: 'Nord', queue }],
@@ -144,7 +143,7 @@ describe('a site sheet on a phone', () => {
     workshop = workshopWith([]);
     mount();
 
-    expect(screen.getByText(fr.production.sheet.capFree(9, 12))).toBeTruthy();
+    expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
     expect(screen.getByText(fr.production.sheet.opens(2, 'le transport terrestre'))).toBeTruthy();
     expect(screen.getByText(fr.production.sheet.waits('le blindé', 3))).toBeTruthy();
     expect(screen.getByText(fr.production.formsIn('une caserne', 3))).toBeTruthy();
@@ -155,15 +154,6 @@ describe('a site sheet on a phone', () => {
     expect(sent).toHaveBeenCalledWith(
       expect.objectContaining({ buildingId: 'B-1', role: 'infantry', tier: 2 }),
     );
-  });
-
-  it('says the ceiling in place of the button once it is reached', () => {
-    workshop = workshopWith([], { inService: 12 });
-    mount();
-
-    expect(screen.getByText(fr.production.sheet.capFull(12))).toBeTruthy();
-    expect(screen.getByText(fr.production.sheet.capReached(12))).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /\+ 1 troupe/ })).toBeNull();
   });
 
   it('lists the queue from the nearest to the farthest, only the waiting ones cancellable', () => {

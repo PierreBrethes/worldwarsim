@@ -2,6 +2,7 @@ import { CAPTURE_MINUTES } from '../../convex/constants';
 import type { BuildingKey, UnitRole } from './ids';
 import type { TimeWindow } from './rest-window';
 import type { SeasonMode } from './season-mode';
+import { DEFAULT_HQ_CAPTURE_HOURS } from './operation-order';
 
 /**
  * **La capture** (décision du 14/10, `WWS/CONTEXT.md`) : une infanterie tient un bâtiment ou un
@@ -10,44 +11,51 @@ import type { SeasonMode } from './season-mode';
  * horloge des deux côtés.
  */
 export type CaptureTarget =
-  { readonly kind: 'building'; readonly key: BuildingKey } | { readonly kind: 'outpost' };
+  | { readonly kind: 'building'; readonly key: BuildingKey }
+  | { readonly kind: 'outpost' }
+  /** Un point stratégique — Mondiale seule. */
+  | { readonly kind: 'point' };
 
 export type CaptureRefusal =
-  | 'EMPTY_MOVEMENT'
-  | 'FRIENDLY_TARGET'
-  | 'HQ_NOT_CAPTURABLE'
-  | 'CAPTURE_NEEDS_INFANTRY'
-  | 'CAPTURE_ON_FOOT';
+  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'CAPTURE_NEEDS_INFANTRY' | 'CAPTURE_ON_FOOT';
 
-/** **Le QG ne se capture qu'en Blitz**, où sa chute élimine (B10) ; en Mondiale il attend la
- *  victoire par les QG. **En Blitz l'infanterie capture à pied** (retour de Pierre, 15/10) : une
- *  unité est un transport et ce qu'il porte, et on fait descendre l'infanterie avant. */
+/** **Le QG se capture dans les deux modes**, et sa chute élimine (B10, M2a). **En Blitz
+ *  l'infanterie capture à pied** (retour de Pierre, 15/10) : une unité est un transport et ce
+ *  qu'il porte, et on fait descendre l'infanterie avant. */
 export function captureRefusalOf(
-  target: CaptureTarget,
   roles: ReadonlyArray<UnitRole>,
   isMine: boolean,
   mode: SeasonMode,
 ): CaptureRefusal | null {
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (isMine) return 'FRIENDLY_TARGET';
-  if (isHq(target) && mode === 'mondiale') return 'HQ_NOT_CAPTURABLE';
   if (!roles.includes('infantry')) return 'CAPTURE_NEEDS_INFANTRY';
   return mode === 'blitz' && roles.some((role) => role !== 'infantry') ? 'CAPTURE_ON_FOOT' : null;
 }
 
 const isHq = (target: CaptureTarget): boolean => target.kind === 'building' && target.key === 'hq';
 
-export const captureDurationMs = (mode: SeasonMode, target: CaptureTarget): number =>
-  (mode === 'blitz' && isHq(target)
-    ? CAPTURE_MINUTES.blitz.hq
-    : CAPTURE_MINUTES[mode][target.kind]) * 60_000;
+/** `hqCaptureHours` : le réglage du salon d'une Mondiale (M15), que seul son QG lit. */
+export function captureDurationMs(
+  mode: SeasonMode,
+  target: CaptureTarget,
+  hqCaptureHours: number = DEFAULT_HQ_CAPTURE_HOURS,
+): number {
+  if (target.kind === 'point') return CAPTURE_MINUTES.mondiale.point * 60_000;
+  if (!isHq(target)) return CAPTURE_MINUTES[mode][target.kind] * 60_000;
+  return mode === 'blitz' ? CAPTURE_MINUTES.blitz.hq * 60_000 : hqCaptureHours * 3_600_000;
+}
 
 /** La durée qu'une infanterie à ce rythme mettrait, hors plage de repos. */
-export const captureDurationAt = (mode: SeasonMode, target: CaptureTarget, rate: number): number =>
-  captureDurationMs(mode, target) / rate;
+export const captureDurationAt = (
+  mode: SeasonMode,
+  target: CaptureTarget,
+  rate: number,
+  hqCaptureHours?: number,
+): number => captureDurationMs(mode, target, hqCaptureHours) / rate;
 
 export const isHqSite = (site: {
-  readonly kind: 'building' | 'outpost';
+  readonly kind: 'building' | 'outpost' | 'point';
   readonly building?: BuildingKey;
 }): boolean => site.kind === 'building' && site.building === 'hq';
 

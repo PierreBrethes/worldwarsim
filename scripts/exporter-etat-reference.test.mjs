@@ -21,16 +21,7 @@ const snapshot = {
       elapsedHours: 21.7,
       players: 3,
       playableRegion: 'world',
-      travelMinutesPer1000km: 14,
-      reduction: {
-        target: 1,
-        concludedAt: null,
-        winnerNation: null,
-        standings: [
-          { nation: 'Japon', nickname: 'pierre', isMine: true, isReduced: false, reduced: 0 },
-          { nation: 'URSS', nickname: 'lena', isMine: false, isReduced: true, reduced: 1 },
-        ],
-      },
+      outcome: { concludedAt: null, winnerNation: null },
     },
     me: {
       nation: 'Japon',
@@ -42,7 +33,6 @@ const snapshot = {
       progress: 0,
       hqLevel: 2,
       tier2HqLevel: 3,
-      troopCap: 12,
       starving: false,
       restWindow: { startMinutes: 720, endMinutes: 1140 },
       foundation: ['hq'],
@@ -75,10 +65,6 @@ const snapshot = {
         outpostFoodPerHour: 2,
         outpostCoalPerHour: 2,
       },
-      siteSlots: [
-        { site: { outpostId: null }, taken: 3, total: 4 },
-        { site: { outpostId: 'o1' }, taken: 1, total: 1 },
-      ],
       regions: [
         {
           id: 'JPN.20',
@@ -134,8 +120,8 @@ const snapshot = {
       constructionQueue: [
         {
           id: 'c2',
-          name: 'billets',
-          key: 'billets',
+          name: 'caserne',
+          key: 'barracks',
           regionId: 'JPN.20',
           regionName: 'Kanto',
           level: 1,
@@ -233,7 +219,6 @@ const snapshot = {
         detectorRegion: null,
       },
     ],
-    warEntries: [],
     reports: [],
     buildCatalog: {},
     opponents: [],

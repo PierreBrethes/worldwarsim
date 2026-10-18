@@ -41,7 +41,6 @@ export const BUILDING_KEY = v.union(
   v.literal('airfield'),
   v.literal('port'),
   v.literal('listening'),
-  v.literal('billets'),
   v.literal('warehouse'),
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
   v.literal('city'),
@@ -223,14 +222,28 @@ const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.strin
  * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
  * le voit pas, il voit un bloc s'il le relève.
  */
+/** Les sept du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
+ *  clé du domaine absente d'ici refuse son écriture au typage (`strategicPoints.layOut`). */
+export const STRATEGIC_POINT_KEY = v.union(
+  v.literal('tangier'),
+  v.literal('istanbul'),
+  v.literal('rangoon'),
+  v.literal('hongKong'),
+  v.literal('halifax'),
+  v.literal('narvik'),
+  v.literal('lisbon'),
+);
+
 export const CAPTURE_SITE = v.union(
   v.object({ kind: v.literal('building'), building: BUILDING_KEY, regionId: v.string() }),
   v.object({ kind: v.literal('outpost'), hostCountry: v.string(), level: v.number() }),
+  v.object({ kind: v.literal('point'), key: STRATEGIC_POINT_KEY }),
 );
 
 export const CAPTURE_TARGET = v.union(
   v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
   v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+  v.object({ kind: v.literal('point'), pointId: v.id('strategicPoints') }),
 );
 
 const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
@@ -510,8 +523,8 @@ export const NOTICE = v.union(
    * deux, et déposées chez tout le monde : qui ne joue plus change la table, et qui commande la
    * partie décide de sa fin — aucun des deux n'est un secret que le brouillard aurait à garder.
    *
-   * `nation` porte le drapeau du joueur, ou son pseudonyme quand il n'en a pas pris : c'est la
-   * même paire que `warEntries` sert, et le journal n'a pas d'autre nom à donner à un siège.
+   * `nation` porte le drapeau du joueur, ou son pseudonyme quand il n'en a pas pris : le journal
+   * n'a pas d'autre nom à donner à un siège.
    */
   v.object({
     ...NOTICE_HEAD,
@@ -531,6 +544,26 @@ export const NOTICE = v.union(
     kind: v.literal('playerEliminated'),
     nation: v.string(),
     by: v.optional(v.string()),
+    /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
+    irregulars: v.optional(v.literal(true)),
+  }),
+  /** **Un point stratégique change de teneur** (P2) : public, déposé chez toute la table. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pointTaken'),
+    key: STRATEGIC_POINT_KEY,
+    nation: v.string(),
+    point: v.optional(LON_LAT),
+  }),
+  /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
+  v.object({ ...NOTICE_HEAD, kind: v.literal('pointsDrawn') }),
+  /** **Lu à Istanbul** (P11) : au teneur, le télégramme ; aux deux correspondants, le fait. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('readAtIstanbul'),
+    from: v.string(),
+    to: v.string(),
+    text: v.optional(v.string()),
   }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous
@@ -826,6 +859,10 @@ export const VERDICT = v.object({
     v.literal('lastStanding'),
     v.literal('income'),
     v.literal('draw'),
+    /** Mondiale : quatre points tenus 24 h ; à l'horloge, le cumul d'heures, puis le territoire. */
+    v.literal('points'),
+    v.literal('clock'),
+    v.literal('territory'),
   ),
   perMinute: v.optional(v.number()),
 });

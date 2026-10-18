@@ -13,9 +13,8 @@ import type {
   JournalDispatch,
   MapPlace,
   Notice,
-  ReductionBoard,
+  SeasonOutcome,
   SeasonVerdict,
-  WarEntry,
 } from './player-view';
 
 /**
@@ -53,78 +52,40 @@ const reachableSite = (
  */
 export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
-  /** Le verdict d'une Blitz voyage avec le tableau : c'est la même fin, dite autrement. */
-  reduction:
-    | (Pick<ReductionBoard, 'concludedAt' | 'winnerNation'> & {
-        readonly verdict?: SeasonVerdict | null;
-      })
-    | null,
-  entries: ReadonlyArray<WarEntry>,
+  /** La fin de la saison, et son verdict quand il y en a un. */
+  outcome: (SeasonOutcome & { readonly verdict?: SeasonVerdict | null }) | null,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
-  const verdict = reduction?.verdict ?? null;
+  const verdict = outcome?.verdict ?? null;
   const closing =
     verdict !== null
-      ? fr.victory.blitzConcluded(
+      ? fr.victory.verdictConcluded(
           verdict.reason,
           verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
           verdict.perMinute,
         )
-      : reduction === null || reduction.winnerNation === null
+      : outcome === null || outcome.winnerNation === null
         ? null
-        : fr.victory.concluded(nationName(reduction.winnerNation));
+        : fr.victory.concluded(nationName(outcome.winnerNation));
   const concluded: ReadonlyArray<Written> =
-    reduction === null || reduction.concludedAt === null || closing === null
+    outcome === null || outcome.concludedAt === null || closing === null
       ? []
       : [
           {
-            at: reduction.concludedAt,
+            at: outcome.concludedAt,
             severity: 'critical',
             kind: 'seasonConcluded',
             text: closing,
           },
         ];
 
-  /**
-   * **"X a réduit Y", named and read by everyone.** The test victory is public on purpose
-   * (`domain/victory.ts`): the condition is unique, so it is read out loud, and a skirmish
-   * between friends wants the ribbing.
-   */
-  const reductions: ReadonlyArray<Written> = reports.flatMap((report) =>
-    report.reduced === null
-      ? []
-      : [
-          {
-            at: report.at,
-            severity: 'critical' as const,
-            kind: 'reduction' as const,
-            text: fr.victory.dispatch(
-              report.reduced.by === null ? null : nationName(report.reduced.by),
-              nationName(report.reduced.whom),
-            ),
-          },
-        ],
-  );
-
-  /**
-   * **One more nation walks into the war** — a headline, and critical like everything else that
-   * changes the table: this is the only announcement a player ever gets of it, and it carries
-   * the hour because a late entry is read by the hour it happened.
-   */
-  const arrivals: ReadonlyArray<Written> = entries.map((entry) => ({
-    at: entry.at,
-    severity: 'critical' as const,
-    kind: 'warEntry' as const,
-    text: fr.journal.warEntry(entry.nickname, nationName(entry.nation)),
-  }));
-
   const filed: ReadonlyArray<Written> = notices.map((notice) => ({
     ...written(notice),
     place: notice.place ?? null,
   }));
 
-  const all = [...concluded, ...reductions, ...arrivals, ...filed, ...reports.map(fromCombat)];
+  const all = [...concluded, ...filed, ...reports.map(fromCombat)];
 
   return all
     .sort((a, b) => b.at - a.at)
@@ -344,7 +305,9 @@ function written(notice: Notice): Written {
       const site =
         notice.site.kind === 'building'
           ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
-          : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
+          : notice.site.kind === 'point'
+            ? fr.points.site(notice.site.key)
+            : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {
         const until = asClockTime(notice.completesAt);
@@ -352,7 +315,7 @@ function written(notice: Notice): Written {
           at: notice.at,
           severity: defending ? 'critical' : 'notable',
           kind: defending ? 'captureThreat' : 'captureStarted',
-          /** Seul un QG de Blitz se capture, et sa chute élimine (B10) : la dépêche le dit. */
+          /** La chute d'un QG élimine (B10, M2a) : la dépêche le dit. */
           text: defending
             ? isHqSite(notice.site)
               ? said.hqThreat(site, until)
@@ -484,8 +447,12 @@ function written(notice: Notice): Written {
         kind: 'elimination',
         text:
           notice.by === undefined
-            ? said.playerEliminatedAside(nationName(notice.nation))
-            : said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
+            ? said.playerEliminatedAside(nationName(notice.nation), notice.irregulars === true)
+            : said.playerEliminated(
+                nationName(notice.nation),
+                nationName(notice.by),
+                notice.irregulars === true,
+              ),
       };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':
@@ -494,6 +461,27 @@ function written(notice: Notice): Written {
         severity: 'routine',
         kind: 'command',
         text: said.commandTransferred(nationName(notice.nation)),
+      };
+    /** **La course aux Sept change de main** (P2) : la table entière le lit, et la victoire s'y
+     *  joue — notable, jamais une alarme, qui est la capture qui s'ouvre contre soi. */
+    case 'pointTaken':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.taken(nationName(notice.nation), notice.key),
+      };
+    case 'pointsDrawn':
+      return { at: notice.at, severity: 'notable', kind: 'pointTaken', text: fr.points.drawn() };
+    case 'readAtIstanbul':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text:
+          notice.text === undefined
+            ? fr.points.istanbul.overheard(nationName(notice.from), nationName(notice.to))
+            : fr.points.istanbul.read(nationName(notice.from), nationName(notice.to), notice.text),
       };
     /**
      * **Le rendez-vous collectif, et il est routinier** : l'édition paraît à l'heure dite, elle

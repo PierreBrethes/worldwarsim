@@ -49,7 +49,7 @@ export const levelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: Buildin
 
 /**
  * What a family of buildings is worth altogether. **A ceiling adds up over sites** — storage
- * reads this, and so does the troop ceiling the billets carry. What reads the best instance
+ * reads this. What reads the best instance
  * alone is `levelOf`: the headquarters cap and the tier gates, which are gates, not ceilings.
  *
  * The comment used to claim the opposite while `resources.ts` already summed. Summing is the

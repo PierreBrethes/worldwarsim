@@ -2,6 +2,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { StrategicPointKey } from './strategic-points';
 import type {
   BuildCostKey,
   BuildingKey,
@@ -109,6 +110,8 @@ export type ArcView =
        *  sighting into a reason to have built the thing that made it. */
       readonly detector: Detector;
       readonly detectorRegion: string | null;
+      /** La nation de la colonne, servie au seul teneur de Lisbonne (P11). */
+      readonly nation?: string;
       /** Where the column was pointing **as it left the radius**, which is what a window's close
        *  reveals: the far end of the thread served is not a destination. */
       readonly headingDegrees: number;
@@ -137,6 +140,7 @@ export type ArcView =
       readonly route: ComputedRoute;
       readonly detector: Detector;
       readonly detectorRegion: string | null;
+      readonly nation?: string;
       readonly headingDegrees: number;
       readonly seenMinutesAgo: number;
       /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
@@ -177,6 +181,26 @@ export type ObjectiveView = {
   readonly depot: ResourceAmounts;
 };
 
+/**
+ * **Un point stratégique, tel que tout le monde le lit** (P2) : neutre (`holder: null`), tenu, ou
+ * contesté — jamais par qui. `holder.nation` est le drapeau du teneur, ou son pseudonyme.
+ */
+export type StrategicPointView = {
+  readonly id: string;
+  readonly key: StrategicPointKey;
+  readonly regionId: string;
+  readonly point: LonLat;
+  /** `heldMs` : les heures qu'il l'a tenu avant `heldSince`, et perdu depuis. */
+  readonly holder: { readonly nation: string; readonly heldMs: number } | null;
+  readonly heldSince: number | null;
+  /** Il est à moi : la rose n'offre pas de le prendre, la fiche offre sa règle. */
+  readonly mine: boolean;
+  readonly contested: boolean;
+  /** **Qui l'a tenu le plus longtemps**, compté jusqu'à la conclusion : le palmarès de l'édition
+   *  finale. `null` tant que la saison se joue, ou s'il n'a jamais été tenu. */
+  readonly longest: { readonly nation: string; readonly heldMs: number } | null;
+};
+
 export type CampView = {
   readonly id: string;
   readonly point: LonLat;
@@ -188,6 +212,8 @@ export type CampView = {
   readonly detector: Detector;
   readonly detectorRegion: string | null;
   readonly lastKnown: boolean;
+  /** La nation du camp, servie au seul teneur de Lisbonne (P11). */
+  readonly nation?: string;
 };
 
 /**
@@ -349,23 +375,6 @@ export type CombatReport = {
   /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
    *  la cible d'un bombardement, qui ne voit pas d'où vient le coup. */
   readonly faced?: Faced;
-  /**
-   * Set when this pass is the one that put the defender under the bar of the **test victory**
-   * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
-   * simplified Domination is public, which is where it departs from design sheet 05.
-   */
-  readonly reduced: { readonly by: string | null; readonly whom: string } | null;
-};
-
-/**
- * A nation that entered a season already running (`convex/seasons.ts`, `enterWar`). Public to
- * everybody, and deliberately: the journal is the only place that says a belligerent has come
- * in, and his flag is on the map from that hour anyway.
- */
-export type WarEntry = {
-  readonly nickname: string;
-  readonly nation: string;
-  readonly at: number;
 };
 
 export type CombatTally = {
@@ -437,17 +446,6 @@ type UpkeepView = {
  * a tag: a site is an outpost or it is home, and there is no third answer.
  */
 export type SiteRef = { readonly outpostId: string | null };
-
-export const sameSite = (one: SiteRef, other: SiteRef): boolean =>
-  one.outpostId === other.outpostId;
-
-/** What one site carries and what stands on it. `taken` is what **stands**: the prepaid queue
- *  is added by whoever reads it, so the two cannot be served twice and disagree. */
-type SiteSlots = {
-  readonly site: SiteRef;
-  readonly taken: number;
-  readonly total: number;
-};
 
 export type Resource = {
   readonly stock: number;
@@ -561,13 +559,6 @@ type Opponent = {
   readonly restWindow: string;
 };
 
-/**
- * What the next headquarters level would carry **at home** — `null` at the top of the ladder. It
- * is what turns "plus un emplacement libre" from a wall into a plan, and it is **served** so the
- * sentence and the refusal that raised it read the same `homeSlots`.
- */
-export type HomeSlotRelief = { readonly nextHqLevel: number; readonly nextSlots: number } | null;
-
 type RunningWork = {
   readonly id: string;
   readonly name: string;
@@ -605,8 +596,7 @@ export type DispatchSeverity = 'critical' | 'notable' | 'routine';
  */
 export type DispatchKind =
   | 'seasonConcluded'
-  | 'reduction'
-  | 'warEntry'
+  | 'pointTaken'
   /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
   | 'assault'
   | 'attacked'
@@ -853,8 +843,26 @@ type NoticeBody =
       readonly at: number;
       readonly nation: string;
       readonly by?: string;
+      /** En Mondiale, ce qu'il tenait est passé au siège irrégulier (M16). */
+      readonly irregulars?: true;
     }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
+  /** Un point stratégique change de teneur (P2) : public, chez toute la table. */
+  | {
+      readonly kind: 'pointTaken';
+      readonly at: number;
+      readonly key: StrategicPointKey;
+      readonly nation: string;
+    }
+  | { readonly kind: 'pointsDrawn'; readonly at: number }
+  /** Istanbul (P11) : au teneur, le télégramme lu ; aux correspondants, le fait sans le texte. */
+  | {
+      readonly kind: 'readAtIstanbul';
+      readonly at: number;
+      readonly from: string;
+      readonly to: string;
+      readonly text?: string;
+    }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
    *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
   | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number }
@@ -942,7 +950,7 @@ type NoticeBody =
 export type CaptureView = {
   readonly id: string;
   readonly side: 'capturer' | 'defender';
-  readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+  readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
   readonly site: CaptureSite;
   readonly regionName: string | null;
   readonly point: LonLat;
@@ -955,7 +963,8 @@ export type CaptureView = {
 /** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */
 type CaptureSite =
   | { readonly kind: 'building'; readonly building: BuildingKey; readonly regionId: string }
-  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number };
+  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number }
+  | { readonly kind: 'point'; readonly key: StrategicPointKey };
 
 /** The server serves `place` on every notice; fixtures may leave it out. */
 export type Notice = NoticeBody & { readonly place?: MapPlace | null };
@@ -982,12 +991,6 @@ export type JournalDispatch = {
   readonly place: MapPlace | null;
 };
 
-/**
- * **The board of the test victory — scaffolding, to be replaced whole** by the share of the map
- * (ADR 0020; `domain/victory.ts` says why). It is the one place this type hands over something
- * about everybody: the condition is unique, public and named, deliberately, and a capacity is
- * neither a position nor a composition — the fog loses nothing.
- */
 export type SeasonVerdict = {
   readonly reason: VerdictReason;
   /** `null` à égalité. */
@@ -996,22 +999,14 @@ export type SeasonVerdict = {
   readonly perMinute: number | null;
 };
 
-export type ReductionBoard = {
-  /** How many distinct players one has to hold under the bar, `⌈(n−1)/2⌉`. */
-  readonly target: number;
+/** **La fin de la saison** : quand, et la nation qui l'a prise — `null` tant qu'elle se joue. */
+export type SeasonOutcome = {
   readonly concludedAt: number | null;
   readonly winnerNation: string | null;
-  readonly standings: ReadonlyArray<ReductionStanding>;
 };
 
-type ReductionStanding = {
-  readonly nation: string | null;
-  readonly nickname: string;
-  readonly isMine: boolean;
-  /** Read at the instant: he rebuilds over the bar, he leaves his executioner's count. */
-  readonly isReduced: boolean;
-  readonly reduced: number;
-};
+/** **Le compte à rebours de la course aux Sept** (M1, P3) : public, comme les points. */
+export type RaceCountdown = { readonly leaderNation: string; readonly endsAt: number };
 
 /**
  * **L'absence du fondateur, servie près du seuil seulement.** Aucune identité, aucune date de
@@ -1084,12 +1079,15 @@ export type PlayerView = {
      *  clôt à la main (révision du 27/08 de l'ADR 0017). */
     readonly durationHours: number | null;
     readonly elapsedHours: number;
+    /** Combien d'heures dure la capture d'un QG de Mondiale (réglage du salon, M15). */
+    readonly hqCaptureHours: number;
     readonly players: number;
     readonly playableRegion: string;
-    readonly travelMinutesPer1000km: number;
-    readonly reduction: ReductionBoard;
-    /** **Pourquoi la Blitz s'est conclue** (B10, B11), `null` tant qu'elle se joue et en
-     *  Mondiale : l'édition finale le dit en manchette. */
+    readonly outcome: SeasonOutcome;
+    /** `null` tant que personne ne tient quatre des Sept, et en Blitz. */
+    readonly race: RaceCountdown | null;
+    /** **Pourquoi la saison s'est conclue** (B10, B11, M1, M12), `null` tant qu'elle se joue :
+     *  l'édition finale le dit en manchette. */
     readonly verdict: SeasonVerdict | null;
   };
   readonly me: {
@@ -1130,15 +1128,6 @@ export type PlayerView = {
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
-    /**
-     * **The placements, site by site** (ADR 0020 §10) — national soil first, then one line per
-     * outpost. There is no national total any more: a full home ground holds nothing back at an
-     * outpost, which is what makes expanding worth its upkeep.
-     */
-    readonly siteSlots: ReadonlyArray<SiteSlots>;
-    /** What the next headquarters level would carry at home — `null` at the top of the ladder.
-     *  It is what turns "plus un emplacement libre" from a wall into a plan. */
-    readonly homeSlotRelief: HomeSlotRelief;
     /** The headquarters level that opens mark 2 in this format — served, never derived here. */
     readonly tier2HqLevel: number;
     /**
@@ -1169,8 +1158,6 @@ export type PlayerView = {
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
-    /** How many troops may stand at once, carried by the billets. `troops` holds the count. */
-    readonly troopCap: number;
     readonly troops: ReadonlyArray<TroopView>;
     /** Shared stationed loads are grouped once by their connected carrier set. */
     readonly stationedCargo: ReadonlyArray<{
@@ -1239,6 +1226,8 @@ export type PlayerView = {
    * tient se relève comme toute force posée (ADR 0024 §1), dans `camps`.
    */
   readonly objectives: ReadonlyArray<ObjectiveView>;
+  /** Vide en Blitz, et sur une Mondiale d'avant les points. */
+  readonly strategicPoints: ReadonlyArray<StrategicPointView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
   readonly mode: SeasonMode;
   /** Le théâtre d'une Blitz, `null` en Mondiale. */

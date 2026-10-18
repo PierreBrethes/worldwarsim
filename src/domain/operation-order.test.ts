@@ -17,6 +17,7 @@ const blitz: Settings = {
   remind: true,
   hqCaptureHours: null,
   seatCap: null,
+  durationHours: null,
 };
 const mondiale: Settings = {
   mode: 'mondiale',
@@ -25,6 +26,7 @@ const mondiale: Settings = {
   remind: null,
   hqCaptureHours: 12,
   seatCap: null,
+  durationHours: 168,
 };
 const refusal = (settings: Settings, seated = 1, rendezvousChanged = true) =>
   settingsRefusalOf(settings, { seated, now: NOW, rendezvousChanged });
@@ -44,6 +46,16 @@ describe('settingsRefusalOf', () => {
     expect(refusal({ ...mondiale, theatre: 'europe' })).toBe('THEATRE_ONLY_IN_BLITZ');
     expect(refusal({ ...blitz, theatre: 'x' })).toBe('UNKNOWN_THEATRE');
     expect(refusal({ ...mondiale, hqCaptureHours: 6 })).toBe('INVALID_CAPTURE_HOURS');
+  });
+
+  /** **La durée d'une Mondiale se règle au salon** (ADR 0027 §4) : l'horloge sert de filet. */
+  it('takes a Mondiale of three days to a fortnight, and no clock on a Blitz', () => {
+    for (const days of [3, 5, 7, 10, 14]) {
+      expect(refusal({ ...mondiale, durationHours: days * 24 })).toBeNull();
+    }
+    expect(refusal({ ...mondiale, durationHours: 48 })).toBe('INVALID_DURATION');
+    expect(refusal({ ...mondiale, durationHours: 169 })).toBe('INVALID_DURATION');
+    expect(refusal({ ...blitz, durationHours: 168 })).toBe('SETTING_NOT_IN_MODE');
   });
 
   it('refuses a rendezvous already past, but only when it is the one being set', () => {

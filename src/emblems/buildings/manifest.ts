@@ -2,7 +2,7 @@ import type { BuildingKey, DepositKey } from '@/domain/ids';
 import airfieldMaquette from './airfield.glb';
 import arsenalMaquette from './arsenal.glb';
 import barracksMaquette from './barracks.glb';
-import billetsMaquette from './billets.glb';
+import cityMaquette from './city.glb';
 import coalMineMaquette from './coalMine.glb';
 import farmMaquette from './farm.glb';
 import foundryMaquette from './foundry.glb';
@@ -17,7 +17,7 @@ import warehouseMaquette from './warehouse.glb';
 import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
 import barracks from './barracks.webp';
-import billets from './billets.webp';
+import city from './city.webp';
 import farm from './farm.webp';
 import foundry from './foundry.webp';
 import hq from './hq.webp';
@@ -57,11 +57,9 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
   airfield,
   port,
   listening,
-  billets,
   warehouse,
   depot: warehouse,
-  // ponytail: la ville de la Blitz porte la planche des baraquements, en attendant la sienne.
-  city: billets,
+  city,
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];
@@ -85,10 +83,9 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
   airfield: airfieldMaquette,
   port: portMaquette,
   listening: listeningMaquette,
-  billets: billetsMaquette,
   warehouse: warehouseMaquette,
   depot: warehouseMaquette,
-  city: billetsMaquette,
+  city: cityMaquette,
 };
 
 /** The one mine that changes with its ground: the region decides what it digs (`economy.ts`),

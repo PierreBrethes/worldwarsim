@@ -14,6 +14,7 @@ import {
   captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
+  isMaritime,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -22,6 +23,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
+import { seasonPoints } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
@@ -259,6 +261,11 @@ export async function captureAimOf(
     }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
   }
+  if (target.kind === 'point') {
+    const aimed = await aimOf(ctx, player._id, { kind: 'strategic', pointId: target.pointId });
+    if ((await ctx.db.get(target.pointId))?.holderId === player._id) fail('FRIENDLY_TARGET');
+    return aimed;
+  }
   const aimed = await aimOf(ctx, player._id, { kind: 'outpost', outpostId: target.outpostId });
   if ((await ctx.db.get(target.outpostId))?.playerId === player._id) fail('FRIENDLY_TARGET');
   return aimed;
@@ -339,6 +346,7 @@ export type AimTarget =
   | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
   | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> }
+  | { readonly kind: 'strategic'; readonly pointId: Id<'strategicPoints'> }
   | { readonly kind: 'track'; readonly movementId: Id<'movements'> };
 
 const seasonIdOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<Id<'seasons'> | null> =>
@@ -451,6 +459,28 @@ export async function aimOf(
         hostCountry: country,
       },
       target: { kind: 'point', point: objective.point },
+      point,
+      name: regionNameAt(point) ?? country,
+      host: country,
+    };
+  }
+  /** **Un point stratégique se résout en sa position** : public, comme un objectif (P2). */
+  if (target.kind === 'strategic') {
+    const strategic = await ctx.db.get(target.pointId);
+    if (strategic === null || strategic.seasonId !== (await seasonIdOf(ctx, playerId))) {
+      fail('UNKNOWN_STRATEGIC_POINT');
+    }
+    const point = pointOf(strategic.point);
+    const country = hostAtPoint(point);
+    return {
+      aim: {
+        kind: 'strategic',
+        pointId: strategic._id,
+        lon: point[0],
+        lat: point[1],
+        hostCountry: country,
+      },
+      target: { kind: 'point', point: strategic.point },
       point,
       name: regionNameAt(point) ?? country,
       host: country,
@@ -598,14 +628,52 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
   return { ...column, blitz: { ...column.blitz, occupiedBuildingIds: occupied } };
 }
 
-export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+/**
+ * **Les mouvements qui tiennent un slot** : tous, sauf un retour — et, au teneur de **Halifax**,
+ * sauf un mouvement maritime (P11). Le même compte pour la porte (`claimSlot`) et pour la
+ * bannière de la vue : une règle, une fonction.
+ */
+export async function slotHolders(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  movements: ReadonlyArray<Doc<'movements'>>,
+): Promise<ReadonlyArray<Doc<'movements'>>> {
+  const flying = movements.filter((movement) => movement.type !== 'return');
+  if (!(await holdsHalifax(ctx, player))) return flying;
+  const kept: Array<Doc<'movements'>> = [];
+  for (const movement of flying) {
+    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept.push(movement);
+  }
+  return kept;
+}
+
+const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
+  (await seasonPoints(ctx, player.seasonId)).some(
+    (point) => point.key === 'halifax' && point.holderId === player._id,
+  );
+
+async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
+  const crew = [];
+  for (const troopId of troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop !== null) crew.push({ role: troop.role, carried: troop.carriedBy !== undefined });
+  }
+  return crew;
+}
+
+export async function claimSlot(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+): Promise<void> {
   /** **Pas de slots en Blitz** (B5) : la cadence est le rechargement, pas le QG. */
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
+  const player = await ctx.db.get(playerId);
+  if (player === null) return;
+  if ((await holdsHalifax(ctx, player)) && isMaritime(await crewOf(ctx, troopIds))) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
-  const flying = (await movementsOf(ctx, playerId)).filter(
-    (movement) => movement.type !== 'return',
-  );
+  const flying = await slotHolders(ctx, player, await movementsOf(ctx, playerId));
   if (flying.length >= maximum) {
     fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
   }
@@ -645,7 +713,7 @@ export async function march(
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
-  await claimSlot(ctx, playerId);
+  await claimSlot(ctx, playerId, troopIds);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the
    *  address the troops hang from, so a garrison abroad is not ordered out of a barracks. */
@@ -684,12 +752,7 @@ export async function march(
   const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
   const refusal =
     capture !== undefined
-      ? captureOrderRefusalOf(
-          aim.aim.kind === 'building' ? aim.aim : { kind: 'outpost' },
-          aim.aim,
-          column,
-          false,
-        )
+      ? captureOrderRefusalOf(aim.aim, column, false)
       : plunder === undefined
         ? refusalOf(type, aim.aim, column)
         : plunderOrderRefusalOf(

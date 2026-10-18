@@ -1,5 +1,9 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
+import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
+import { pointsView, seasonPoints } from './strategicPoints';
+import { slotHolders } from './movement/orders';
+import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
@@ -47,15 +51,14 @@ import {
   LAST_KNOWN_HOURS,
   isCommanded,
   unlockLevel,
-  troopCap,
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
-import { homeSlotReliefOf, queueOf } from './constructions';
+import { queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
-import { heldOver } from './holding';
+import { linkingOver } from './holding';
 import { regionsWithinReach } from './regionGeometry';
 import { regionNameAt } from './placeNames';
 import { restHold } from './movements';
@@ -72,7 +75,7 @@ import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
-import { belligerentOf, isAtWar, seatsOf, warEntryOf } from './seats';
+import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
@@ -226,7 +229,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * c'est là que le joueur la lit — la modale d'un site, la colonne d'une filière et la carte
    * « à faire maintenant » posent toutes la même question sur la même région.
    */
-  const held = await heldOver(ctx, season._id, [...carrying.values()], now);
+  const held = await linkingOver(ctx, player, [...carrying.values()], now);
 
   const locked = await specializationsServed(ctx, season._id, outposts);
   const sealed = outposts.map((outpost) => ({
@@ -371,6 +374,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const belligerents = seats.filter((seat) => isAtWar(seat, season));
   const nationOf = new Map(belligerents.map((seat) => [seat._id, seat.nation ?? seat.nickname]));
+  /** **Le teneur de Lisbonne lit la nation de ce qu'il relève** (P11) — la seule brèche du
+   *  brouillard que les Sept ouvrent, et à lui seul. */
+  const readsNations = (await seasonPoints(ctx, season._id)).some(
+    (point) => point.key === 'lisbon' && point.holderId === player._id,
+  )
+    ? (ownerId: Id<'players'> | undefined) =>
+        ownerId === undefined ? undefined : nationOf.get(ownerId)
+    : null;
   const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
@@ -379,22 +390,31 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
   //   `journal`        — the dispatches are built on the client from `reports` below.
-  // `travelMinutesPer1000km: 14` is different: it is a measured value (simulation report),
-  // hard-coded here until the seasons table carries its own pace.
   return {
     season: {
       number: 1,
       durationHours: season.durationHours,
+      /** Le réglage du salon que la rose lit pour dater la capture d'un QG (M15). */
+      hqCaptureHours: season.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
       elapsedHours: season.launchedAt === null ? 0 : (now - season.launchedAt) / 3_600_000,
       players: others.length + 1,
       playableRegion: season.playableRegion ?? 'world',
-      travelMinutesPer1000km: 14,
-      /** Test scaffolding — it goes whole the day the share of the map replaces it
-       *  (ADR 0020). Le tableau, qui lit les troupes de tous, est servi à part (`victory.board`). */
-      reduction: {
+      /** **La fin de la saison**, `null` tant qu'elle se joue : quand, et qui l'a prise. */
+      outcome: {
         concludedAt: season.concludedAt ?? null,
         winnerNation: winner?.nation ?? null,
       },
+      /** **Le compte à rebours de la course** (M1, P3) : public, comme les Sept. `null` tant que
+       *  personne ne tient quatre points. */
+      race:
+        season.status !== 'launched' ||
+        season.raceLeaderId === undefined ||
+        season.raceSince === undefined
+          ? null
+          : {
+              leaderNation: nationOf.get(season.raceLeaderId) ?? '?',
+              endsAt: season.raceSince + RACE_HOLD_HOURS * 3_600_000,
+            },
       verdict:
         season.verdict === undefined
           ? null
@@ -469,8 +489,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // make, even with its capital flattened.
       slots: {
         total: movementSlots(hqLevel),
-        // A return is not an order and holds nothing (`movements.ts`), so it is not counted.
-        used: movements.filter((movement) => movement.type !== 'return').length,
+        // A return holds nothing, nor a fleet of the holder of Halifax (`slotHolders`).
+        used: (await slotHolders(ctx, player, movements)).length,
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
@@ -490,30 +510,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        *  Blitz, le QG que la carte de départ a posé. */
       openingPoint:
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
-      /**
-       * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
-       * per outpost. Without them the construction screen cannot tell what it may offer, and
-       * would propose a building the server then refuses — worse than a greyed-out line,
-       * because the refusal only lands after the click.
-       *
-       * `taken` counts what **stands**; the prepaid queue is added by the screen, which holds
-       * it in `constructionQueue`. Two servings of one count would diverge, and the exemption
-       * of the foundation is the server's own reading of its own debt.
-       */
-      siteSlots: sites.budgets.map((budget) => ({
-        site: siteRef(budget.site)!,
-        taken: budget.taken,
-        total: budget.total,
-      })),
-      /**
-       * **What the next headquarters level would carry at home**, `null` at the top of the
-       * ladder. Served rather than derived on the client for the reason the placements
-       * themselves are: the line that says "un quartier général niveau 2 les porte à 4" and
-       * the refusal that raised it have to be the same two numbers, and a client-side copy of
-       * `homeSlots` is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché
-       * sans sa condition, et une condition qui se chiffre est un plan).
-       */
-      homeSlotRelief: homeSlotReliefOf(hqLevel),
       /**
        * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
        * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the
@@ -632,12 +628,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outposts: economy.upkeep.outposts,
       },
       starving: economy.starving,
-      /**
-       * How many troops may stand at once, carried by the billets (ADR 0014). Served beside
-       * the troops themselves so the board can say "18 / 24" without a second count of its
-       * own — the list below is complete, so its length is the count.
-       */
-      troopCap: troopCap(totalLevelOf(buildings, 'billets')),
       /**
        * **Les bâtiments de projection qui forment quelque chose**, et rien de la file
        * elle-même : c'est la seule question qu'une carte « à faire maintenant » pose, et la
@@ -766,21 +756,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         ...facedOf(engagement, side),
-        /**
-         * **Named on purpose**, like the board above it: the journal writes "X a réduit Y" so
-         * the table is legible from the account rather than from a second count. Both nations
-         * were in the same battle — neither learns anything from being named.
-         */
-        reduced: engagement.reducedDefender
-          ? {
-              /** Sauf à la cible d'un bombardement, qui ne sait pas d'où vient le coup (B20). */
-              by:
-                engagement.cause === 'bombardment' && side === 'defender'
-                  ? null
-                  : (nationOf.get(engagement.attackerId) ?? '?'),
-              whom: nationOf.get(engagement.defenderId) ?? '?',
-            }
-          : null,
       };
     }),
     /**
@@ -923,7 +898,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * turns into the last known position ADR 0005 asks for — the client reads the two dates
      * and decides which of the two states it is in.
      */
-    detected: await detectedArcs(ctx, player, outposts, now),
+    detected: await detectedArcs(ctx, player, outposts, now, readsNations),
     /**
      * **Ce qu'on a relevé de posé** (ADR 0024 §1) : une position, un milieu, deux dates, et ce
      * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte une composition,
@@ -954,6 +929,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               detector: camp.detector,
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,
+              ...lisbonNation(readsNations, camp.ownerId),
             },
           ],
     ),
@@ -1002,6 +978,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .filter((capture) => capture.stoppedAt === undefined)
         .map((capture) => captureView(capture, 'defender')),
     ],
+    /** **Les Sept** (P2) : publics, teneur compris ; qui conteste ne sort pas. */
+    strategicPoints: await pointsView(ctx, season, player._id),
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,
@@ -1010,21 +988,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       status: objective.status,
       depot: objective.depot,
     })),
-    /**
-     * **Who came in after the launch, and when.** Everybody reads the same list: a new
-     * belligerent is not a secret — his flag is on the map from his first hour, and the
-     * journal is the only channel that says a nation has entered the war (nothing else on the
-     * board announces it).
-     *
-     * The launch itself is not in here. Those nations did not *enter* the war, they opened
-     * it, and a headline naming all of them at the same minute is a mobilisation order, not
-     * news.
-     */
-    warEntries: seats.flatMap((seat) => {
-      const at = warEntryOf(seat, season);
-      if (at === null || season.launchedAt === null || at <= season.launchedAt) return [];
-      return [{ nickname: seat.nickname, nation: seat.nation ?? seat.nickname, at }];
-    }),
     /**
      * **What happened to the player without him asking**, raw — a site finished, a company
      * delivered, a column landed, a point founded or put out of service, a thread a sentry
@@ -1230,7 +1193,9 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
   target:
     capture.target.kind === 'building'
       ? { kind: 'building' as const, id: capture.target.buildingId as string }
-      : { kind: 'outpost' as const, id: capture.target.outpostId as string },
+      : capture.target.kind === 'outpost'
+        ? { kind: 'outpost' as const, id: capture.target.outpostId as string }
+        : { kind: 'point' as const, id: capture.target.pointId as string },
   site: capture.site,
   regionName:
     capture.site.kind === 'building' ? (regionFacts(capture.site.regionId)?.name ?? null) : null,
@@ -1281,11 +1246,23 @@ function placed(notice: PlayableNotice) {
  * of his outposts (`isAnchored`, the same reading the aim already gives him). A column that
  * passes beside him without coming for him is no longer critical; the label says « estimé ».
  */
+/** La nation d'un relevé, servie au teneur de Lisbonne seul (P11) — rien sinon. */
+const lisbonNation = (
+  nationOf: ((ownerId: Id<'players'> | undefined) => string | undefined) | null,
+  ownerId: Id<'players'> | undefined,
+): { nation?: string } => {
+  const nation = nationOf?.(ownerId);
+  return nation === undefined ? {} : { nation };
+};
+
 async function detectedArcs(
   ctx: QueryCtx,
   player: Doc<'players'>,
   outposts: ReadonlyArray<Doc<'outposts'>>,
   now: number,
+  /** **Lisbonne** (P11) : la nation de ce qu'il relève, à son teneur et à lui seul ; `null`
+   *  partout ailleurs, et le relevé reste sans nation. */
+  nationOf: ((ownerId: Id<'players'> | undefined) => string | undefined) | null,
 ) {
   const anchors = outposts.map(anchorOf);
   const home = homeCountryOf(player.nation);
@@ -1338,6 +1315,7 @@ async function detectedArcs(
         seenTo: frozen.closedAt,
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
+        ...lisbonNation(nationOf, sighting.ownerId),
       });
       continue;
     }
@@ -1372,6 +1350,7 @@ async function detectedArcs(
        *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
+      ...lisbonNation(nationOf, movement.playerId),
     });
   }
   return seen;

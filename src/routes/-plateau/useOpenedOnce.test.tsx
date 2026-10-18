@@ -40,7 +40,7 @@ describe('useOpenedOnce', () => {
 });
 
 describe('endingOf', () => {
-  it('names the final edition of a concluded Blitz', () => {
+  it('names the final edition of a concluded season', () => {
     expect(endingOf(view({ press: { final: true } })).key).toBe('final');
   });
 
@@ -58,11 +58,10 @@ describe('endingOf', () => {
     ).toBeNull();
   });
 
-  it('leaves a Mondiale alone', () => {
-    expect(
-      endingOf(
-        view({ mode: 'mondiale', me: { nation: 'france', defeated: true, eliminatedAt: 1 } }),
-      ).key,
-    ).toBeNull();
+  /** La chute d'un QG élimine aussi en Mondiale (M2a, M17) : l'éliminé reçoit la même page. */
+  it('says it in a Mondiale too, and names its final edition', () => {
+    const mondiale = { nation: 'france', defeated: true, eliminatedAt: 1 };
+    expect(endingOf(view({ mode: 'mondiale', me: mondiale })).key).toBe('out');
+    expect(endingOf(view({ mode: 'mondiale', press: { final: true } })).key).toBe('final');
   });
 });

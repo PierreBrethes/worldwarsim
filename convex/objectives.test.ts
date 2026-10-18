@@ -438,7 +438,6 @@ describe('the neutral objectives', () => {
       expect(await t.query(api.accounts.seats, { token: seats[0]!.token })).toHaveLength(1);
 
       const view = await t.query(api.view.playerView, seats[0]!);
-      expect((await t.query(api.victory.board, seats[0]!)).standings).toHaveLength(2);
       expect(view.opponents).toHaveLength(1);
       /** Sa nation est `null`, donc elle n'en réserve aucune : le salon en offre toujours huit. */
       expect(irregular!.nation).toBeNull();

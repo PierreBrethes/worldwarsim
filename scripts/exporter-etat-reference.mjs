@@ -140,30 +140,11 @@ export function renderReference(snapshot) {
 
   say('---', '', '## La saison — `season`');
   say(
-    fields(view.season, [
-      'number',
-      'durationHours',
-      'elapsedHours',
-      'players',
-      'playableRegion',
-      'travelMinutesPer1000km',
-    ]),
+    fields(view.season, ['number', 'durationHours', 'elapsedHours', 'players', 'playableRegion']),
   );
 
-  say('### La domination — `season.reduction`');
-  say(
-    fields(view.season.reduction, ['target', 'winnerNation']),
-    table(
-      ['nation', 'nickname', 'isMine', 'isReduced', 'reduced'],
-      view.season.reduction.standings.map((line) => [
-        line.nation,
-        line.nickname,
-        line.isMine,
-        line.isReduced,
-        line.reduced,
-      ]),
-    ),
-  );
+  say('### La fin — `season.outcome`');
+  say(fields(view.season.outcome, ['concludedAt', 'winnerNation']));
 
   say('---', '', '## Le joueur — `me`');
   say(
@@ -176,7 +157,6 @@ export function renderReference(snapshot) {
       'progress',
       'hqLevel',
       'tier2HqLevel',
-      'troopCap',
       'starving',
       'foundation',
       'recruiting',
@@ -249,13 +229,7 @@ export function renderReference(snapshot) {
     ]),
   );
 
-  say('---', '', '## Les emplacements — `me.siteSlots`');
-  say(
-    table(
-      ['outpostId', 'taken', 'total'],
-      me.siteSlots.map((budget) => [budget.site.outpostId, budget.taken, budget.total]),
-    ),
-  );
+  say('---', '');
 
   say(
     '## Les bâtiments, par site — `me.buildings`',

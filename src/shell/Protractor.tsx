@@ -46,7 +46,7 @@ export function Protractor({
   const frame = useRef<HTMLElement>(null);
   const hub = useRef<HTMLButtonElement>(null);
   const blitz = view.mode === 'blitz';
-  const playing = view.season.reduction.concludedAt === null;
+  const playing = view.season.outcome.concludedAt === null;
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = blitz ? null : (view.press?.mine?.rank ?? null);

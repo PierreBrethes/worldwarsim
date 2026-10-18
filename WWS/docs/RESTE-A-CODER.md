@@ -8,6 +8,67 @@ Relecture code du 08/09 : [bilan daté, vérifications et recommandations](techn
 Le bilan relève notamment les cas à préciser dans les briefs de victoire et d'objectifs neutres
 avant de les exécuter. La file historique ci-dessous est complétée par la direction V1 du 08/09.
 
+## La file au 17/10 — vers la saison test Mondiale v2
+
+Le cap est l'[ADR 0027](adr/0027-la-mondiale-au-centre.md). Tout ce qui suit cette section date
+d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
+
+1. ~~**Proposition « Mondiale : économie, logistique, escouades »**~~ : faite et grillée le 18/10
+   ([proposition](design/propositions/mondiale-economie-logistique-escouades.md),
+   [ADR 0028](adr/0028-l-economie-de-la-mondiale.md)). Ses lots forment le point 4.
+2. ~~**Retirer les plafonds**~~ : faite le 18/10. Plafond de troupes et casernements remplacés par
+   la borne invisible `MONDIALE_TROOP_BOUND` (150, `@a-mesurer`) ; emplacements par site retirés.
+3. ~~**Le socle Mondiale du 14/10**~~ : fait le 18/10. Vitesses ×12 (`MONDIALE_PACE`), durée
+   réglée au salon (3 à 14 jours), plus d'entrée après le départ, QG capturé en 12 ou 24 h =
+   éliminé (le reste au siège irrégulier), les Sept posés à chaque saison et leurs règles —
+   Halifax, Narvik, Lisbonne, Istanbul, Tanger ; Rangoun et Hong Kong comptent, « règle à
+   venir » —, victoire 4 sur 7 tenus 24 h, écrasement, horloge en filet. La domination de test
+   par réduction est retirée.
+4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md),
+   [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en dix features vues du joueur.
+   Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario de démo, et le
+   code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
+   1. **Cinq ressources** : retirer tissus, bandages, minerai, filature, intendance, fonderie ; le
+      fer donne l'acier ; relire le socle (avec le wipe). *Se voit* : pictos et couleurs des cinq,
+      l'alliage renommé acier.
+   2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
+      d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
+   3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
+      refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
+      figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.
+   4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
+      trois versions ; il sert de référence aux features 5 à 8.
+   5. **Placement libre et gisements ponctuels** (ADR 0029) : un point par bâtiment, espacement,
+      gisements cuits en points, `placementRefusal` refaite. *Se voit* : tuile fantôme à l'endroit
+      visé, gisements sur la carte, refus d'espacement.
+   6. **Le plateau personnel** : nombres et barres par ressource, récolte animée, tuiles, réserve
+      de pièces ; remplace la fenêtre Économie. *Se voit* : barres, pastilles qui volent, tuile qui
+      se pose.
+   7. **Livrer et tournées** : dépôt d'avant-poste, charge unique, charger au QG, à l'entrepôt, au
+      port ou à l'aérodrome, aller-retour, tournée en boucle depuis le point de chargement qui saute
+      un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.
+      *Se voit* : barre de charge par couleur, boucle tracée à l'encre, transport qui attend,
+      navire qui accoste le long du quai.
+   8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
+      et y atterrit, paquet sous parachute.
+   9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
+      verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
+      recherche, pose sur le QG, carte qui avance.
+   10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
+       serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
+
+   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7 ; Rangoun (« aucun envoi
+   vers lui ») attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la
+   une, et le vivier s'élargit avec eux pour que le tirage du 14/10 tienne ses contraintes.
+5. **Le tutoriel de manipulation** (ADR 0027 §2).
+6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
+   `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans
+   `src/domain/season-report.ts`). Séries dans le temps : boule de neige (éditions) et avant-postes
+   (journal) ; tortue, escouade et charge n'existent qu'à l'instant de la lecture : relancer chaque jour.
+7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.
+
+Plus tard : petites annonces et départ adaptatif (étape publique), bot Blitz, anglais.
+
 ## Direction V1 retenue le 08/09
 
 Pierre accueille favorablement **les points 1 à 8** de la proposition de version plus complète :

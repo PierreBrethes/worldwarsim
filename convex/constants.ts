@@ -107,7 +107,6 @@ export const BUILDING_SPEC: Readonly<
   airfield: { cost: { alloy: 70, oil: 20 }, minutes: 70 },
   port: { cost: { alloy: 65, coal: 20 }, minutes: 65 },
   listening: { cost: { alloy: 35, coal: 15 }, minutes: 40 },
-  billets: { cost: { alloy: 25, food: 40 }, minutes: 30 },
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
@@ -139,7 +138,6 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   warehouse: 1,
   depot: 1,
   barracks: 2,
-  billets: 2,
   arsenal: 2,
   listening: 2,
   airfield: 2,
@@ -157,27 +155,6 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
  * reprojection it used to do existed only to squeeze that ladder onto a shorter format.
  */
 export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
-
-/**
- * **Placements are carried by each site, never by the nation** (ADR 0020 §10). National soil
- * carries two per headquarters level; an outpost carries **its own level**, which is why an
- * outpost is worth raising and why a level-3 one is a ranked target — putting it out of service
- * freezes three buildings.
- *
- * The global ceiling `buildingCap(hqLevel)` it replaces refused for a reason nobody could read:
- * at the launch the national foundation ate the whole of it — zero free placement, and *fewer*
- * the richer the ground, since the debt follows the deposits. That inverted the distribution
- * guard rails of ADR 0015, and it punished the expansion ADR 0020 exists to ask for. Le frein
- * d'expansion est le **prix**, par niveau — la fondation puis les élévations (`buildCost`,
- * révision du 15/09) —, jamais un compte et plus un entretien.
- *
- * ADR 0015 still holds: no game quantity is counted in regions. Two per level is a count of
- * *levels*, and the reach of an outpost stays a radius in kilometres.
- */
-export const PLACEMENTS_PER_HQ_LEVEL = 2;
-
-/** What national soil carries. An outpost carries its level and needs no function for it. */
-export const homeSlots = (hqLevel: number): number => PLACEMENTS_PER_HQ_LEVEL * hqLevel;
 
 /**
  * **Une seule ligne de départ** (ADR 0020 §11). L'escarmouche et la campagne ont disparu le
@@ -462,42 +439,19 @@ export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
 
 export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
 
-/** Nearly inert since a batch became a single troop — the troop ceiling below bites first. Kept
+/** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob. */
 export const MAX_QUEUED_BATCHES = 12;
 
 /**
- * **One ceiling, and it counts troops — never men**: adding the nominal strengths would add tanks
- * to destroyers. The step is derived, so the simulator can sweep `TROOP_CAP_TARGET` alone.
+ * **The invisible bound of the Mondiale** (ADR 0027, 0028 §6): the economy is the brake, this
+ * only keeps the server from carrying an unbounded army. It counts troops — never men — standing
+ * and queued, and nothing shows it ahead of time; the refusal alone says it. Blitz keeps its own
+ * (`BLITZ.troopBound`).
  *
- * **Assumed: this is an anti-swarm rule, not a balance between domains.** It only bites on the
- * cheap roles — 24 infantries cost 432 alloy, 24 carriers 10 320 — so the ceiling speaks for the
- * infantry and the cost for the navy; without it one barracks turns out some 500 infantries over
- * a seven-day season. Making it bite everywhere would take a per-role price in slots, refused on
- * purpose. Do not "fix" this. No per-domain ceiling either: one stock, like the movement slots
- * (ADR 0006).
+ * @a-mesurer ADR 0028 §6 chiffre ~150 troupes par joueur ; à mesurer sur une saison avant de le tenir
  */
-export const TROOP_CAP_BASE = 8;
-export const TROOP_CAP_TARGET = 24;
-export const BILLETS_LEVELS_TO_CAP = 8;
-
-export const TROOP_CAP_PER_BILLETS_LEVEL =
-  (TROOP_CAP_TARGET - TROOP_CAP_BASE) / BILLETS_LEVELS_TO_CAP;
-
-/**
- * The **sum of the levels of every billets** — a ceiling adds up over sites, where the
- * headquarters cap and the tier gates read the best instance alone.
- *
- * **The second billets is a compulsory toll, and that is the decision**: `cappedByHq` stops a
- * billets at 4 under a headquarters at 5, so one caps a nation at 16 troops and reaching 24 costs
- * at least two building slots. Each extra site saves matter (2×4: 594 alloy, 4×2: 280), so the
- * trade hides no optimum.
- */
-export const troopCap = (billetsTotalLevel: number): number =>
-  Math.min(
-    TROOP_CAP_TARGET,
-    Math.floor(TROOP_CAP_BASE + TROOP_CAP_PER_BILLETS_LEVEL * billetsTotalLevel),
-  );
+export const MONDIALE_TROOP_BOUND = 150;
 
 export function chainSpeed(hqLevel: number): number {
   return 1 + Math.max(0, hqLevel - 1) * 0.225;
@@ -859,11 +813,13 @@ export const PLUNDER_DISABLED_HOURS = 12;
  * joués
  */
 export const CAPTURE_MINUTES = {
-  mondiale: { building: 360, outpost: 360 },
+  /** Un point stratégique se prend comme un bâtiment : six heures (P1), à mesurer comme le reste. */
+  mondiale: { building: 360, outpost: 360, point: 360 },
   /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit
    *  avoir le temps de revenir. */
   blitz: { building: 2.4, outpost: 2.4, hq: 4.8 },
 } as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>> & {
+  mondiale: { point: number };
   blitz: { hq: number };
 };
 
@@ -882,11 +838,12 @@ export const LAST_KNOWN_HOURS = 24;
 
 /**
  * A battlefield remainder gets one fixed window from the pass that created it. Collecting part
- * of it never starts a fresh window.
+ * of it never starts a fresh window. A day, since marches went twelve times slower
+ * (`MONDIALE_PACE`): two hours left no column but the victor's own the time to reach it.
  *
  * @a-mesurer provisional lifetime; no season simulation models crate discovery or collection
  */
-export const LOOT_CRATE_HOURS = 2;
+export const LOOT_CRATE_HOURS = 24;
 
 /**
  * The public rumor waits after the physical remainder appears, then names only a search disk.
@@ -944,29 +901,32 @@ export const outpostReachKm = (level: number): number =>
 export const RELAY_SPEED_MULTIPLIER = 1.5;
 
 /**
- * **The one measured number of movement**, straight out of the simulation report: 14 minutes per
- * 1 000 km on land. Everything else about a duration is derived from it — a route already carries
- * its cost in sea-equivalent units (ADR 0012), so the minute price of one cost unit is that
- * measurement read back through the land multiplier. Two hand-written numbers would drift, and a
- * drift here moves every trip in the game.
+ * **The base pace of movement**: 14 minutes per 1 000 km on land. It came out of a simulation
+ * since retired, so it is no longer a measurement but the order of magnitude of the Blitz (Q3,
+ * 14/10); the Mondiale runs it `MONDIALE_PACE` times slower. Everything else about a duration is
+ * derived from it — a route already carries its cost in sea-equivalent units (ADR 0012), so the
+ * minute price of one cost unit is this pace read back through the land multiplier. Two
+ * hand-written numbers would drift, and a drift here moves every trip in the game.
  */
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
 
 export const MINUTES_PER_ROUTE_UNIT =
   (MINUTES_PER_1000_KM_ON_LAND * KM_PER_UNIT) / (1000 * COST_BY_MEDIUM.land);
 
+/**
+ * **La Mondiale va douze fois moins vite que la mesure** (M5, 14/10) : une opération y dure une
+ * demi à deux visites — Paris-Berlin ≈ 2 h 30. La mesure reste l'ordre de grandeur de la Blitz,
+ * qui la relit à l'échelle de son théâtre (`pacedMinutes`).
+ *
+ * @a-mesurer posé par la fiche pour la saison test, jamais joué
+ */
+export const MONDIALE_PACE = 12;
+
+/** Une route en minutes de Mondiale. */
 export const routeMinutes = (costUnits: number): number =>
-  Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
+  Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT * MONDIALE_PACE));
 
 export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
-
-/**
- * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
- * scaffold it serves the day the share of the map replaces it (ADR 0020).
- *
- * @a-mesurer the bar of a scaffold, measured by nothing — it leaves with the scaffold
- */
-export const REDUCTION_FACTOR = 0.5;
 
 /** Design sheet 07. The duration is **fixed, not chosen**: the window forbids any arrival while
  *  it lasts, so a player who set its length would set how long he is untouchable. He picks when

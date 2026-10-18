@@ -237,7 +237,7 @@ async function writeEdition(
  * raid ne le déracine pas (ADR 0004), il lui prend sa part. C'est précisément ce que
  * l'édition doit montrer.
  */
-async function heldCounts(
+export async function heldCounts(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
   at: number,

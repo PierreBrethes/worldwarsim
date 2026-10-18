@@ -12,7 +12,6 @@ import {
   type JournalDispatch,
   type DispatchSeverity,
   type PlayerView,
-  type ReductionBoard,
   type TroopStation,
 } from '@/domain/player-view';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -133,7 +132,6 @@ export function JournalWindow({
         >
           <div className="px-4 pb-6">
             <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-            {!blitz && <ReductionLine board={view.season.reduction} />}
           </div>
         </NarrowJournal>
       </FloatingWindow>
@@ -162,7 +160,6 @@ export function JournalWindow({
       >
         <div className="px-5 pb-5">
           <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-          {!blitz && <ReductionLine board={view.season.reduction} />}
         </div>
       </DeskJournal>
     </FloatingWindow>
@@ -227,7 +224,7 @@ function DeskJournal({
         title={fr.journal.masthead}
         onClose={onClose}
       >
-        {view.season.reduction.concludedAt !== null && (
+        {view.season.outcome.concludedAt !== null && (
           <Stamp label={fr.stamps.seasonClosed} size="small" />
         )}
       </WindowHead>
@@ -292,9 +289,11 @@ function DeskJournal({
                 </span>
               </button>
               {open &&
-                lines.map(({ dispatch, earlier }) => (
+                lines.map(({ dispatch, earlier }, rank) => (
                   <DeskLine
-                    key={keyOf(dispatch)}
+                    /** Deux camps relevés à la même heure disent la même phrase : le rang les
+                     *  tient apart. */
+                    key={`${keyOf(dispatch)}-${rank}`}
                     dispatch={dispatch}
                     earlier={earlier}
                     picked={keyOf(dispatch) === picked}
@@ -484,7 +483,7 @@ function NarrowJournal({
         </div>
         <div className="pt-[7px] text-center text-[10.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
           {nationLabel(view.me.nation)} · {fr.journal.dispatches(dispatches.length)}
-          {view.season.reduction.concludedAt !== null && (
+          {view.season.outcome.concludedAt !== null && (
             <span className="ml-2 inline-block align-middle">
               <Stamp label={fr.stamps.seasonClosed} size="small" />
             </span>
@@ -761,61 +760,6 @@ function WorldEvents({
           })}
         </div>
       )}
-    </section>
-  );
-}
-
-/**
- * **Le tableau de la victoire de test — public et nominatif, et c'est voulu.** La condition est
- * unique (ADR 0020 §9), donc rien à protéger, et un test entre amis veut qu'on se chambre
- * (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour où la part de carte
- * arrive — il ne se transforme pas en barre de progression.
- *
- * **Il tient en pied du fil et au défilement** — jamais posé à demeure sous les colonnes : c'est
- * un état de table qu'on longe du regard en sortant, et une bande permanente en ferait un P1 qui
- * disputerait la manchette. Le titre porte l'aveu de l'échafaudage sur sa propre ligne, et les
- * nations coulent en dessous : à huit joueurs elles passent à la ligne au lieu de pousser un
- * défilement latéral que personne ne va chercher.
- */
-function ReductionLine({ board }: { board: ReductionBoard }) {
-  if (board.standings.length === 0) return null;
-  return (
-    <section className="mt-4 border-t border-[var(--ink)] pt-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
-          {fr.victory.kicker}
-        </span>
-        <span className="font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic">
-          {fr.victory.scaffold}
-        </span>
-      </div>
-      <div className="mt-[7px] flex flex-wrap gap-x-5 gap-y-[6px]">
-        {board.standings.map((standing) => (
-          <span
-            key={standing.nickname}
-            className="flex items-baseline gap-[7px] text-[13px] whitespace-nowrap"
-          >
-            <span
-              className="h-2 w-2 shrink-0 self-center"
-              style={{
-                background: standing.isReduced ? 'var(--critical)' : 'transparent',
-                border: standing.isReduced
-                  ? 'none'
-                  : '1px solid color-mix(in srgb, var(--ink) 50%, transparent)',
-              }}
-            />
-            <span className={standing.isMine ? 'font-bold text-[var(--ink)]' : 'text-[var(--ink)]'}>
-              {standing.nation === null ? standing.nickname : nationLabel(standing.nation)}
-            </span>
-            <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-              {fr.victory.tally(standing.reduced, board.target)}
-            </span>
-            <span className="text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
-              {standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark}
-            </span>
-          </span>
-        ))}
-      </div>
     </section>
   );
 }

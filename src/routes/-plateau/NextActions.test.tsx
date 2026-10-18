@@ -19,7 +19,7 @@ const viewOf = (lons: ReadonlyArray<number>): PlayerView =>
   ({
     arcs: [],
     loadedAt: 0,
-    season: { reduction: { concludedAt: null } },
+    season: { outcome: { concludedAt: null } },
     captures: [],
     me: {
       homePosition: [2, 47],
@@ -28,7 +28,6 @@ const viewOf = (lons: ReadonlyArray<number>): PlayerView =>
       construction: { id: 'W-1', outpostId: null },
       constructionQueue: [],
       resources: {},
-      siteSlots: [],
       buildings: [],
       recruiting: [],
       regions: [],

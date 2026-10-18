@@ -383,11 +383,11 @@ function OutpostRaise({
           {fr.garrison.raiseAction} {fr.garrison.raiseToLevel(next)}
         </button>
       </div>
-      {/* Ce que le niveau ouvre, en chiffres : un emplacement de plus et le rayon suivant. Sans
+      {/* Ce que le niveau ouvre, en chiffres : le rayon suivant. Sans
           eux « monter au niveau 2 » n'achète rien de lisible. */}
       {hold?.kind !== 'maxLevel' && (
         <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.garrison.raiseCarries(next, outpostReachKm(next))}
+          {fr.garrison.raiseCarries(outpostReachKm(next))}
         </p>
       )}
       {held !== null && (
