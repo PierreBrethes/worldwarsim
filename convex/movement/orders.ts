@@ -698,13 +698,16 @@ export function fuelBill(
   distanceUnits: number,
   blitz: boolean,
 ) {
-  const seated = seatLoose(troops.map(seatedOf));
+  const column = troops.map(seatedOf);
+  const seated = seatLoose(column);
+  /** À bord, c'est le transport de la colonne qui le porte — un `carriedBy` resté d'un
+   *  transport parti ailleurs ne fait rouler personne gratis (`carrierIn`). */
   const drivers = blitz
     ? []
     : troops.filter(
         (troop) =>
           fullSupplies(troop.role).fuel > 0 &&
-          troop.carriedBy === undefined &&
+          carrierIn(seatedOf(troop), column) === null &&
           !seated.has(troop._id),
       );
   const km = Math.round(distanceUnits * KM_PER_UNIT);

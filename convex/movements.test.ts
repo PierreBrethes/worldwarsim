@@ -1107,6 +1107,19 @@ describe('the fuel a route takes', () => {
     await expect(marchTo(t, seat, barracks, tank, PLOIESTI)).rejects.toThrow('NOT_ENOUGH_FUEL');
   });
 
+  it('bills a tank whose transport left without it, whatever its stale seat says', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const tank = await form(t, seat, 'armor', barracks);
+    const gone = await form(t, seat, 'cargo', null);
+    await t.run(async (ctx) => ctx.db.patch(tank, { carriedBy: gone }));
+
+    await marchTo(t, seat, barracks, tank, { lon: 4.35, lat: 50.85 });
+
+    expect((await t.run(async (ctx) => ctx.db.get(tank)))!.fuel).toBeLessThan(3);
+  });
+
   it('fills an empty truck at home before it leaves, and takes the road off its fuel', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
