@@ -18,9 +18,12 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
    [ADR 0028](adr/0028-l-economie-de-la-mondiale.md)). Ses lots forment le point 4.
 2. ~~**Retirer les plafonds**~~ : faite le 18/10. Plafond de troupes et casernements remplacés par
    la borne invisible `MONDIALE_TROOP_BOUND` (150, `@a-mesurer`) ; emplacements par site retirés.
-3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
-   vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
-   24 h, durée réglée au salon, fin de l'entrée tardive.
+3. ~~**Le socle Mondiale du 14/10**~~ : fait le 18/10. Vitesses ×12 (`MONDIALE_PACE`), durée
+   réglée au salon (3 à 14 jours), plus d'entrée après le départ, QG capturé en 12 ou 24 h =
+   éliminé (le reste au siège irrégulier), les Sept posés à chaque saison et leurs règles —
+   Halifax, Narvik, Lisbonne, Istanbul, Tanger ; Rangoun et Hong Kong comptent, « règle à
+   venir » —, victoire 4 sur 7 tenus 24 h, écrasement, horloge en filet. La domination de test
+   par réduction est retirée.
 4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md),
    [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en dix features vues du joueur.
    Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario de démo, et le
@@ -54,7 +57,9 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
    10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
        serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
 
-   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7.
+   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7 ; Rangoun (« aucun envoi
+   vers lui ») attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la
+   une, et le vivier s'élargit avec eux pour que le tirage du 14/10 tienne ses contraintes.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
 6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
    `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans

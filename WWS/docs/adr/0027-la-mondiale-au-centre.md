@@ -8,6 +8,16 @@ de saison), le plafond de troupes (`TROOP_CAP_*`) et le Registre 24-26 (bots). L
 [gameplay deux modes](../design/propositions/gameplay-deux-modes-2026-10-14.md) (14/10) ; rien de
 ce qui suit n'est codé au 17/10.
 
+> **Précisée le 18/10/2026, au codage du socle** (point 3 de la file, décisions de Pierre) :
+> - **les Sept de la saison test** sont le premier vivier (P11) moins Bakou, Dakar et Singapour :
+>   ils sont sept, donc tous posés à chaque saison, sans les contraintes de tirage du 14/10.
+>   Rangoun et Hong Kong comptent pour la victoire ; leur règle attend sa feature (« règle à
+>   venir ») ;
+> - **les pouvoirs quotidiens** se rechargent par jour de saison (Istanbul) et par édition
+>   (Tanger), comptés depuis le lancement, et non à l'édition de 9 h ;
+> - **le compte à rebours des 24 h** court tant que le meneur tient quatre points, et repart à zéro
+>   s'il passe sous quatre.
+
 ## Contexte
 
 La fiche 01 décrivait un seul jeu de 7 jours, « pas Advance Wars ». Le 14/10, le jeu s'est scindé
