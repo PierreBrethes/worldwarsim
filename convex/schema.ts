@@ -439,6 +439,24 @@ export default defineSchema({
     /** **La charge d'un transport** (ADR 0028 §4) : munitions, pétrole et charbon dans une seule
      *  capacité (`LOAD_CAPACITY_BY_ROLE`), séparée de ses places. Absente, vide. */
     load: v.optional(SUPPLY_LOAD),
+    /**
+     * **Sa tournée** (ADR 0028, précision du 18/10) : une boucle depuis son point de chargement
+     * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
+     * est l'arrêt que le tour en cours visite après celui-ci ; `waitingSince` dit qu'elle attend
+     * au chargement, `recalled` qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son
+     * slot tant qu'elle tourne.
+     */
+    tour: v.optional(
+      v.object({
+        base: v.union(v.id('buildings'), v.id('outposts')),
+        stops: v.array(v.id('outposts')),
+        consigne: SUPPLY_LOAD,
+        next: v.number(),
+        waitingSince: v.optional(v.number()),
+        recalled: v.optional(v.boolean()),
+        retryJobId: v.optional(v.id('_scheduled_functions')),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -603,6 +621,9 @@ export default defineSchema({
      *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
      *  reste en garnison. */
     delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
+    /** **Un pas de tournée** : vers un de ses dépôts (`stop`), ou de retour au chargement
+     *  (`base`), où elle recharge sa consigne et repart. */
+    tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

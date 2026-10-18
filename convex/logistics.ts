@@ -10,6 +10,7 @@ import {
   loadRefusalOf,
   type Busy,
   type LoadingPlace,
+  type SupplyLoad,
 } from '../src/domain/logistics';
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { isStanding } from '../src/domain/outposts';
@@ -32,7 +33,7 @@ import { MOVEMENT_ORIGIN, RESOURCE_KEY } from './validators';
  */
 
 /** Là où se tient la troupe, pour charger : un de mes bâtiments, un de mes avant-postes debout. */
-async function placeOf(
+export async function placeOf(
   ctx: QueryCtx,
   troop: Doc<'troops'>,
   now: number,
@@ -60,7 +61,7 @@ export async function busyOf(ctx: QueryCtx, troop: Doc<'troops'>): Promise<Busy>
   const marching = (await movementsOf(ctx, troop.playerId)).some((movement) =>
     movement.troopIds.includes(troop._id),
   );
-  return marching ? 'underway' : null;
+  return troop.tour !== undefined ? 'touring' : marching ? 'underway' : null;
 }
 
 /**
@@ -114,7 +115,7 @@ export const load = mutation({
 });
 
 /** Les transports d'une colonne, ceux qui ne sont pas à bord d'un autre. */
-const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
+export const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
   const column = troops.map(seatedOf);
   return troops.filter(
     (troop) => loadCapacityOf(troop.role) > 0 && carrierIn(seatedOf(troop), column) === null,
@@ -162,19 +163,23 @@ export const deliver = mutation({
 });
 
 /**
- * **À l'arrivée d'une livraison** : chaque transport décharge dans la limite du dépôt, dans
- * l'ordre des identifiants, garde à bord ce qui ne tient pas, et rentre seul — un retour, sans
- * slot ni plein. Ce qu'il portait d'autre reste en garnison. `false` : le point n'est plus à moi
- * ou n'est plus debout, et la colonne arrive comme une marche.
+ * **Décharger au dépôt** : chaque transport de la colonne dépose ce qui tient, dans l'ordre des
+ * identifiants, et garde le reste à bord ; ce qu'il portait d'autre y reste en garnison et s'y
+ * recharge. `null` : le point n'est plus à moi, ou n'est plus debout.
  */
-export async function arriveToDeliver(
+export async function unloadAt(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
-): Promise<boolean> {
+): Promise<{
+  readonly outpost: Doc<'outposts'>;
+  readonly carriers: ReadonlyArray<Doc<'troops'>>;
+  readonly delivered: SupplyLoad;
+  readonly kept: SupplyLoad;
+} | null> {
   const outpost = await ctx.db.get(movement.delivery!.outpostId);
   if (outpost === null || outpost.playerId !== movement.playerId || !isStanding(outpost, now))
-    return false;
+    return null;
   const troops = await troopsAmong(ctx, movement.playerId, movement.troopIds);
   const carriers = carriersOf(troops).sort((a, b) => (a._id < b._id ? -1 : 1));
   const capacity = depotCapacity(outpost.level);
@@ -192,38 +197,42 @@ export async function arriveToDeliver(
   const riders = troops.filter((troop) => !carriers.some((carrier) => carrier._id === troop._id));
   for (const rider of riders)
     await ctx.db.patch(rider._id, { stationedAt: outpost._id, carriedBy: undefined });
+  await forgetMovement(ctx, movement._id, now);
+  const ids = (list: ReadonlyArray<Doc<'troops'>>) => list.map((one) => one._id);
+  await resupply(
+    ctx,
+    movement.playerId,
+    await troopsAmong(ctx, movement.playerId, ids(riders)),
+    now,
+  );
+  return {
+    outpost,
+    carriers: await troopsAmong(ctx, movement.playerId, ids(carriers)),
+    delivered,
+    kept,
+  };
+}
+
+/**
+ * **À l'arrivée d'une livraison** : décharger, le dire, et rentrer seul — un retour, sans slot ni
+ * plein. `false` : le point est perdu ou tombé, et la colonne arrive comme une marche.
+ */
+export async function arriveToDeliver(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  now: number,
+): Promise<boolean> {
+  const unloaded = await unloadAt(ctx, movement, now);
+  if (unloaded === null) return false;
   await ctx.db.insert('notices', {
     playerId: movement.playerId,
     at: now,
     kind: 'supplyDelivered',
-    hostCountry: outpost.hostCountry,
-    point: outpost.point,
-    delivered,
-    kept,
+    hostCountry: unloaded.outpost.hostCountry,
+    point: unloaded.outpost.point,
+    delivered: unloaded.delivered,
+    kept: unloaded.kept,
   });
-  await forgetMovement(ctx, movement._id, now);
-  await resupply(
-    ctx,
-    movement.playerId,
-    await troopsAmong(
-      ctx,
-      movement.playerId,
-      riders.map((one) => one._id),
-    ),
-    now,
-  );
-  await walkHome(
-    ctx,
-    {
-      winners: await troopsAmong(
-        ctx,
-        movement.playerId,
-        carriers.map((one) => one._id),
-      ),
-      beaten: [],
-    },
-    pointOf(movement.to),
-    now,
-  );
+  await walkHome(ctx, { winners: unloaded.carriers, beaten: [] }, pointOf(movement.to), now);
   return true;
 }

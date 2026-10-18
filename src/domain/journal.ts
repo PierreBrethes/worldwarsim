@@ -395,6 +395,24 @@ function written(notice: Notice): Written {
         kind: 'foundNothing',
         text: said.pursuitLost(countryLabel(notice.hostCountry)),
       };
+    case 'tourWaiting':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.tourWaiting(
+          fr.roles[notice.role].one,
+          notice.why,
+          notice.resource === undefined ? '' : fr.resources[notice.resource],
+        ),
+      };
+    case 'tourEnded':
+      return {
+        at: notice.at,
+        severity: notice.why === 'cut' ? 'critical' : 'notable',
+        kind: 'supply',
+        text: said.tourEnded(fr.roles[notice.role].one, notice.why),
+      };
     case 'supplyDelivered':
       return {
         at: notice.at,

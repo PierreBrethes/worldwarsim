@@ -121,7 +121,10 @@ export function MapLabels({
   availableLabels = NO_LABELS,
   carriersShown = false,
   onTakeDepot,
+  onTour,
 }: {
+  /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
+  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
   carriersShown?: boolean;
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
@@ -1047,6 +1050,7 @@ export function MapLabels({
                   onDisembark={onDisembark}
                   aim={cargoAim?.labelId === label.id ? cargoAim : null}
                   available={carriersShown || availableLabels.has(label.id)}
+                  onTour={onTour}
                 />
               )}
           </div>

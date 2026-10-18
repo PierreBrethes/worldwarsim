@@ -35,7 +35,13 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
-import { deliverRefusalOf, loadCapacityOf, loadTotal } from './logistics';
+import {
+  deliverRefusalOf,
+  loadCapacityOf,
+  loadTotal,
+  tourRefusalOf,
+  type LoadingPlace,
+} from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import {
   carrierIn,
@@ -527,6 +533,20 @@ export type CompassAction =
       readonly outpostId: string;
       /** Le nom du point, pour le cartouche « transmis ». */
       readonly destination: string;
+    }
+  /**
+   * **Tracer une tournée** (ADR 0028, précision du 18/10) : le premier dépôt d'une boucle qui
+   * part du point de chargement où le transport se tient ; les suivants s'ajoutent (`tourStop`),
+   * et l'étiquette du transport la lance. Rien ne part avant.
+   */
+  | {
+      readonly key: 'tour' | 'tourStop';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly carrierId: string;
     }
   /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
@@ -1162,15 +1182,41 @@ function withDelivery(
     !fan.actions.some((action) => action.key === 'aim' && action.type === 'march')
   )
     return fan;
-  const refusal = deliverRefusalOf(carriers, {
+  const depot = {
     level: outpost.level,
     standing: outpost.standsAt === null,
     depot: outpost.depot,
     capacity: outpost.depotCapacity,
-  });
+  };
+  const carrier = carriers.length === 1 ? carriers[0]! : null;
+  const touring =
+    carrier !== null &&
+    tourRefusalOf({
+      role: carrier.role,
+      place: loadingPlaceOf(view, carrier),
+      busy: carrier.tour === undefined ? null : 'touring',
+      load: carrier.load,
+      stops: [outpostId],
+      baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
+    }) === null &&
+    deliverRefusalOf([carrier], depot, true) === null;
+  const tour: ReadonlyArray<CompassAction> = touring
+    ? [
+        {
+          key: 'tour',
+          pictogram: 'crate',
+          label: fr.compass.tour,
+          cost: slotCost(view),
+          consequence: fr.compass.tourConsequence,
+          outpostId,
+          carrierId: carrier!.id,
+        },
+      ]
+    : [];
+  const refusal = deliverRefusalOf(carriers, depot);
   if (refusal !== null) {
     const { code, ...details } = refusal;
-    return { ...fan, actions: [], refusal: fr.errors[code](details) };
+    return { ...fan, actions: tour, refusal: tour.length > 0 ? null : fr.errors[code](details) };
   }
   const deliver: CompassAction = {
     key: 'deliver',
@@ -1181,7 +1227,84 @@ function withDelivery(
     outpostId,
     destination: fan.name,
   };
-  return { ...fan, actions: [deliver, ...fan.actions], refusal: null };
+  return { ...fan, actions: [deliver, ...tour, ...fan.actions], refusal: null };
+}
+
+/** **Où se tient le transport, pour charger ou partir en tournée** : un de mes bâtiments, un de
+ *  mes avant-postes debout, ou ailleurs — la lecture de `logistics.placeOf`. */
+export function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace {
+  const at = troop.stationedAt;
+  if (at.kind === 'building') {
+    const building = view.me.buildings.find((one) => one.id === at.buildingId);
+    if (building !== undefined) return { kind: 'building', key: building.key };
+  }
+  if (at.kind === 'outpost') {
+    const outpost = view.me.outposts.find((one) => one.id === at.outpostId);
+    if (outpost !== undefined && outpost.standsAt === null)
+      return { kind: 'outpost', level: outpost.level };
+  }
+  return { kind: 'elsewhere' };
+}
+
+/**
+ * **La tournée en cours de tracé** : le transport en main ne fait plus qu'ajouter des dépôts à sa
+ * boucle, quatre au plus, chacun une fois ; ailleurs, la rose dit où le lâcher. L'étiquette du
+ * transport la lance ou l'efface.
+ */
+export function traceCompass(
+  target: CompassTarget,
+  view: PlayerView,
+  trace: { readonly carrierId: string; readonly stops: ReadonlyArray<string> },
+): Compass {
+  const carrier = view.me.troops.find((troop) => troop.id === trace.carrierId);
+  const outpost =
+    target.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === target.id)
+      : undefined;
+  const name = target.kind === 'outpost' ? target.name : fr.compass.fallbackOutpost;
+  const kicker = fr.compass.tracing(trace.stops.length);
+  if (carrier === undefined || outpost === undefined)
+    return { kicker, name, actions: [], refusal: fr.compass.traceElsewhere };
+  const stops = [...trace.stops, outpost.id];
+  const refusal =
+    tourRefusalOf({
+      role: carrier.role,
+      place: loadingPlaceOf(view, carrier),
+      busy: null,
+      load: carrier.load,
+      stops,
+      baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
+    }) ??
+    deliverRefusalOf(
+      [carrier],
+      {
+        level: outpost.level,
+        standing: outpost.standsAt === null,
+        depot: outpost.depot,
+        capacity: outpost.depotCapacity,
+      },
+      true,
+    );
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    return { kicker, name, actions: [], refusal: fr.errors[code](details) };
+  }
+  return {
+    kicker,
+    name,
+    refusal: null,
+    actions: [
+      {
+        key: 'tourStop',
+        pictogram: 'crate',
+        label: fr.compass.tourStop(stops.length),
+        cost: null,
+        consequence: fr.compass.tourConsequence,
+        outpostId: outpost.id,
+        carrierId: carrier.id,
+      },
+    ],
+  };
 }
 
 /**

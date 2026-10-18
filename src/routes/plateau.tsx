@@ -81,6 +81,7 @@ import { producingSites } from '@/domain/producing';
 import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
+  traceCompass,
   type Compass,
   type CompassAction,
   type CompassTarget,
@@ -846,18 +847,26 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return Math.max(0, capacity - carried);
   }, [column, view.me.troops, view.me.stationedCargo]);
 
+  /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
+   *  l'étiquette du transport la lance ou l'efface. */
+  const [trace, setTrace] = useState<{
+    readonly carrierId: string;
+    readonly stops: ReadonlyArray<string>;
+  } | null>(null);
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      compassOf(
-        target,
-        view,
-        column?.rule ?? null,
-        column?.station ?? null,
-        freeCapacity,
-        column?.troopIds ?? null,
-        Date.now(),
-      ),
-    [view, column, freeCapacity],
+      trace !== null && column?.troopIds.includes(trace.carrierId) === true
+        ? traceCompass(target, view, trace)
+        : compassOf(
+            target,
+            view,
+            column?.rule ?? null,
+            column?.station ?? null,
+            freeCapacity,
+            column?.troopIds ?? null,
+            Date.now(),
+          ),
+    [view, column, freeCapacity, trace],
   );
 
   const foundHere = useMutation(api.movements.foundOutpostHere);
@@ -884,6 +893,60 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     onHold: setCarryingTokens,
   });
+  const startTour = useMutation(api.tours.start);
+  const recallTour = useMutation(api.tours.recall);
+  /** **La tournée depuis l'étiquette** : lancer celle qu'on a tracée, l'effacer, la rappeler. */
+  const onTour = useCallback(
+    (carrierId: string, act: 'launch' | 'clear' | 'recall') => {
+      setOrderError(null);
+      const refused = (problem: unknown) => handleError(problem, setOrderError);
+      if (act === 'recall') {
+        recallTour({ ...seat, troopId: carrierId as Id<'troops'> }).catch(refused);
+        return;
+      }
+      const traced = trace;
+      setTrace(null);
+      if (act === 'clear' || traced === null || traced.carrierId !== carrierId) return;
+      startTour({
+        ...seat,
+        troopId: carrierId as Id<'troops'>,
+        stops: traced.stops.map((stop) => stop as Id<'outposts'>),
+      }).then(() => notify(fr.logistics.tourStarted, 'info'), refused);
+    },
+    [recallTour, startTour, seat, trace],
+  );
+  /** **Les boucles à l'encre** : chaque tournée, et celle qu'on trace, du chargement au
+   *  chargement par ses dépôts. */
+  const tourLoops = useMemo(() => {
+    const pointOfStation = (id: string) =>
+      view.me.buildings.find((building) => building.id === id)?.point ??
+      view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
+    const loopOf = (baseId: string, stops: ReadonlyArray<string>, tracing: boolean) => {
+      const base = pointOfStation(baseId);
+      const points = stops.flatMap((stop) => {
+        const at = pointOfStation(stop);
+        return at === undefined ? [] : [at];
+      });
+      return base === undefined ? [] : [{ points: [base, ...points, base], tracing }];
+    };
+    const tracedFrom = view.me.troops.find((troop) => troop.id === trace?.carrierId)?.stationedAt;
+    return [
+      ...view.me.troops.flatMap((troop) =>
+        troop.tour === undefined ? [] : loopOf(troop.tour.baseId, troop.tour.stops, false),
+      ),
+      ...(trace === null || tracedFrom === undefined
+        ? []
+        : loopOf(
+            tracedFrom.kind === 'building'
+              ? tracedFrom.buildingId
+              : tracedFrom.kind === 'outpost'
+                ? tracedFrom.outpostId
+                : '',
+            trace.stops,
+            true,
+          )),
+    ];
+  }, [view.me.troops, view.me.buildings, view.me.outposts, trace]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -1022,6 +1085,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           );
           return;
         }
+        /** **Tracer une tournée** (ADR 0028) : le premier dépôt, puis les suivants ; rien ne part
+         *  avant que l'étiquette du transport la lance. */
+        case 'tour':
+          setOrderError(null);
+          setTrace({ carrierId: action.carrierId, stops: [action.outpostId] });
+          dropHand();
+          return;
+        case 'tourStop':
+          setTrace((was) =>
+            was === null ? was : { ...was, stops: [...was.stops, action.outpostId] },
+          );
+          dropHand();
+          return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
          *  la pièce reste posée et la main se repose. */
         case 'bombard':
@@ -1508,7 +1584,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
       cargo: cargoTagsOf(
         troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
-        { afloat: false, atAirfield: false },
+        { afloat: false, atAirfield: false, trace },
       ),
     }));
 
@@ -1651,6 +1727,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         cargo: cargoTagsOf(held, {
           afloat: false,
           atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
+          trace,
         }),
       };
     };
@@ -1715,6 +1792,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     ];
   }, [
     marching,
+    trace,
     regionAt,
     view.me,
     view.loadedAt,
@@ -2541,6 +2619,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
               carriersShown={carryingTokens}
+              onTour={view.me.defeated ? undefined : onTour}
+              tourLoops={tourLoops}
               onTakeDepot={
                 view.me.defeated
                   ? undefined

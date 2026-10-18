@@ -421,6 +421,22 @@ export const NOTICE = v.union(
     delivered: SUPPLY_LOAD,
     kept: SUPPLY_LOAD,
   }),
+  /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
+   *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('tourWaiting'),
+    role: UNIT_ROLE,
+    why: v.union(v.literal('stock'), v.literal('full'), v.literal('road')),
+    resource: v.optional(RESOURCE_KEY),
+  }),
+  /** **Une tournée qui finit** : rappelée, ou coupée — chargement ou dépôts perdus, route refusée. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('tourEnded'),
+    role: UNIT_ROLE,
+    why: v.union(v.literal('recalled'), v.literal('cut')),
+  }),
   /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
    *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */
   v.object({
