@@ -168,7 +168,7 @@ function Aimed({ placement, onCancel }: { placement: FoundationPlacement; onCanc
  * The one sentence that would open a key nothing accepts. It reads the condition the shared
  * placement rule produced, so a screen and a server refusal can never name different things.
  */
-export function conditionText(condition: PlacementCondition): string {
+function conditionText(condition: PlacementCondition): string {
   const said = fr.economy.condition;
   switch (condition.kind) {
     case 'locked':

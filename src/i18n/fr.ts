@@ -25,7 +25,6 @@ import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
 import type { LandPace } from '../domain/routing';
-import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
   DepositKey,
@@ -3102,44 +3101,14 @@ export const fr = {
     cancel: 'annuler',
   },
 
-  /**
-   * **« Chantiers », la fenêtre Économie du téléphone** (refonte mobile, 1f et 1g) : un seul
-   * défilement, l'en-tête collé, quatre onglets qui y mènent. Les phrases de l'Économie y sont
-   * reprises telles quelles ; celles-ci n'existent que parce que la ligne d'un site y porte son
-   * bouton et sa facture.
-   */
+  /** **La ligne d'élévation d'un site au téléphone** (`RaiseControl`) : son bouton et sa facture. */
   works: {
-    header: 'chantiers',
-    tabs: { underway: 'en cours', sites: 'sites', chains: 'filière', hq: 'QG' },
-    remaining: 'restant',
-    raising: (region: string, from: number, to: number) => `en ${region} · niveau ${from} → ${to}`,
-    queueNote: 'payé d’avance · remboursé si annulé',
-    sitesHeader: 'les sites',
-    sitesNote: 'un toucher met en file',
-    families: {
-      extraction: 'extraction',
-      transformation: 'transformation',
-      projection: 'projection',
-      command: 'commandement',
-    },
     raise: (level: number, duration: string) => `▲ niv ${level} · ${duration}`,
     raiseTitle: (name: string, level: number) =>
       `mettre ${lowerFirst(name)} en file pour le niveau ${level}`,
     underway: (time: string) => `en chantier · ${time}`,
     queued: (rank: number) => `en file · ${rank}ᵉ`,
     lacking: (amount: number, resource: string) => `il manque ${num(amount)} ${resource}`,
-    queuedToast: (name: string, region: string, rank: number) =>
-      `${name} en ${region} — ${rank}ᵉ en file`,
-    startedToast: (name: string, region: string) => `${name} en ${region} — chantier en cours`,
-    toastNote: 'payé d’avance — remboursé intégralement si annulé',
-    chainsLead:
-      'Une ligne par ressource : son débit réel, son état, et ce qui manque. Les réserves restent au bandeau.',
-    deposits: (count: number) => `gisement${plural(count, '', 's')} ×${count}`,
-    linkLevel: (building: string, level: number) => `${building} · ${level}`,
-    lot: (made: number, ordered: number) => `lot ${made} / ${ordered}`,
-    /** L'heure du chantier remonte à l'en-tête une fois sa carte passée. */
-    headCountdown: (building: string, time: string) => `${lowerFirst(building)} · ${time}`,
-    hqWhere: (region: string) => `quartier général · ${region}`,
   },
 
   upgrade: {
@@ -3210,57 +3179,13 @@ export const fr = {
   },
 
   economy: {
-    header: 'économie',
-    lead: 'Tout ce qui se pose et tout ce qui coule. Aucun stock chiffré ici : les réserves sont au panneau haut-droit — cette fenêtre dit quelle entrée manque, jamais combien il en reste.',
-    subtitle: (nation: string, season: number) => `${nation} — saison ${season}`,
-
-    /**
-     * **Le chantier, en tête et une seule fois.** La phrase se répétait sur chaque ligne
-     * d'élévation : répétée quatre fois, l'information la plus importante de la fenêtre était
-     * devenue du bruit de fond (`ordre-de-mobilisation-et-fenetre-economie.md` §2).
-     */
-    constructionHeader: 'chantier en cours',
     constructionNone:
       'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
-    constructionRemaining: (time: string) => `${time} restant`,
 
-    /**
-     * **La file, sous la tête et sobrement.** Aucun temps restant sur une ligne en attente : rien
-     * derrière la tête n'est daté en base, précisément pour qu'une annulation ne redate rien
-     * (`convex/constructions.ts`). Le rang est ce qui est vrai, un compte à rebours serait inventé.
-     */
-    queueHeader: (count: number) => `en file — ${count} chantier${plural(count, '', 's')}`,
     queueRank: (rank: number) => `${rank}ᵉ`,
     queueLevel: (level: number) => `niveau ${level}`,
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
-    queuePaid: 'payé d’avance',
-
-    /**
-     * **La filière, dessinée.** Un maillon bâti porte son débit réel, un maillon en chantier son
-     * temps restant, un maillon manquant sa condition en clair. « Rien de caché ne se débloque,
-     * rien d'affiché sans sa condition » — la règle qui remplace le grisé (ADR 0015, révision du
-     * 24/08/2026).
-     */
-    chartHeader: 'la filière',
-    legendBuilt: 'bâti',
-    legendUnderway: 'en chantier',
-    legendQueued: 'en file',
-    legendMissing: 'manquant',
-    roleDeposit: 'gisement',
-    roleDepositNone: 'gisement — aucun',
-    roleExtraction: 'extracteur',
-    roleConversion: 'conversion',
-    roleConversionMissing: 'conversion — manquante',
-    roleConversionUnderway: 'conversion — en chantier',
-    roleConversionQueued: 'conversion — en file',
-    roleOutput: 'sortie',
-    /** L'intitulé de la tête de colonne : le seul chiffre que la filière promet (P1). */
-    realRate: 'débit réel',
-    depositHeld: (count: number) =>
-      `${count} gisement${plural(count, '', 's')} sur votre territoire`,
-    depositNoneHeld: (deposit: string) =>
-      `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
@@ -3277,28 +3202,6 @@ export const fr = {
      *  chantier en tête a déjà coûtée une fois. */
     unlinkedSites: (count: number) =>
       `${count} site${plural(count, '', 's')} hors réseau — la région ne porte plus vos couleurs`,
-
-    sitesHeader: 'les sites de la filière',
-    /** Les clés que rien ne porte, regroupées : une condition par ligne, jamais un vide
-     *  intercalé entre deux bâtisses debout. */
-    absentKeys: 'clés absentes',
-    /** La projection, en bas : la section de ce qui arme. Deux sections, pas trois onglets. */
-    projectionHeader: 'la projection — ce qui arme',
-    worksHeader: 'commandement et ouvrages',
-    built: 'bâti',
-
-    chainStates: {
-      off: 'éteinte',
-      /** **Un site coupé n'est pas à sec, il est coupé** (ADR 0020 §6) : le premier envoie
-       *  reprendre une frontière, le second envoie creuser une mine. Le tampon passe donc avant
-       *  « à sec » et avant « tourne » — c'est l'ordre de lecture de la filière. */
-      unlinked: 'hors réseau',
-      idle: 'en attente d’ordre',
-      running: 'tourne',
-      starved: 'à sec',
-      overflowing: 'débordée',
-    } satisfies Record<ChainState, string>,
-    starvedOn: (resource: string) => `à sec — ${resource}`,
 
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
@@ -3358,28 +3261,11 @@ export const fr = {
     listeningSilentFix:
       'Une mine sur du charbon, ou du charbon livré, la fera entendre de nouveau.',
     upkeepCoalDrain: (perHour: number) => `− ${tenths(perHour)} charbon / h`,
-    upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
     upkeepBalance: (net: number) =>
       `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} vivres / h`,
     upkeepStarving:
       'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
 
-    listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
-    listeningTemporary:
-      'La station d’écoute est ici en attendant la fenêtre Espionnage : un jalon inerte serait pire.',
-
-    level: (level: number) => `niveau ${level}`,
-    // The real rate is a settled quantity, not a table entry: it arrives with a tail of
-    // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
-    perHour: (rate: number) => `${tenths(rate)} / h`,
-
-    hqCarriesHeader: 'ce qu’il porte',
-    hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
-    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
-    hqSlots: (total: number) => `${total} slots de mouvement`,
-    hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
-    hqTier2: 'palier 2 ouvert en production',
-    hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
     cappedByHq: 'plafonné par le QG',
     inRegion: (region: string) => `en ${region}`,
   },

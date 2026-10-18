@@ -358,18 +358,6 @@ body {
   zoom: var(--hud-scale);
 }
 
-/* Un maillon en chantier : la hachure du plan d'architecte. Elle n'est ni le plein du bâti ni
-   le pointillé du manquant — trois états, trois peaux, et la légende en tête de la filière les
-   nomme (fenêtre Économie). */
-.chart-underway {
-  background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--ink) 20%, transparent) 0 3px,
-    transparent 3px 7px
-  );
-}
-
 /* Le surtitre des affiches (table d'état-major) : Archivo 600, majuscules espacées. */
 .eyebrow {
   font-size: 10px;
