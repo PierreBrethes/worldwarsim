@@ -152,10 +152,10 @@ function Review() {
               {fr.deposits[deposit]}
             </strong>
             <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>
-              <DepositMark resource={deposit} size={96} />
-              <DepositMark resource={deposit} size={30} />
+              <DepositMark deposit={deposit} size={96} />
+              <DepositMark deposit={deposit} size={30} />
               <span className="label-deposit">
-                <DepositMark resource={deposit} />
+                <DepositMark deposit={deposit} />
               </span>
             </Sheet>
             <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>

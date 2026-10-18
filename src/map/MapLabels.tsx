@@ -932,7 +932,7 @@ export function MapLabels({
                   className="label-deposit"
                   style={{ color: resourceColor(YIELD_OF[label.deposit], true) }}
                 >
-                  <DepositMark resource={label.deposit} />
+                  <DepositMark deposit={label.deposit} />
                 </span>
               )}
               {label.lootSightingId !== null && (

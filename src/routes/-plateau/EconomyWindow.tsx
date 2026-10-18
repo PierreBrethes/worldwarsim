@@ -652,7 +652,7 @@ function BoxLabel({ children, ink = 'var(--ink-soft)' }: { children: string; ink
 }
 
 /**
- * The ground, or the column upstream. A deposit the nation does not hold is the one line of the
+ * The ground under a column. A deposit the nation does not hold is the one line of the
  * chart that names an *elsewhere*: it is the ADR 0015 gap, and the honest sentence is the one
  * the nation sheet already uses — what is missing is taken abroad.
  */

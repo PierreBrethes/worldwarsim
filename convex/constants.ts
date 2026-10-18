@@ -162,16 +162,14 @@ export const DEFAULT_DURATION_HOURS = 168;
  * **La première projection par mer doit tenir dans la dotation** (333 acier : quartier général
  * au niveau 2, caserne, port, un cargo — `invariants.test.ts`), et c'est la règle de design de la
  * décision 66a du 04/09 qui fixe la borne : une île ne doit pas être tarifée au-dessus de son
- * voisin. Le chiffre de 400 date de la fonderie, qui entrait dans cette facture (383) ; le fer
- * rend l'acier directement depuis l'ADR 0028, et la marge a grandi d'autant.
+ * voisin. 400 laisse une marge à cette facture : la mine sur du fer, offerte au socle, rend
+ * l'acier sans rien bâtir d'autre.
  */
 export const STARTING_STEEL = 400;
 
 /**
- * **The fuse.** Oil is the one resource a nation can be born unable to make, so this reserve
- * pays the *first journey towards* oil and the fact that it runs out is the engine of the
- * nations that lack it. Short-lived as a *quantity*: the day `consommation-continue.md` makes
- * the motorised drink it becomes a dated fuse, **sized in journeys, never in litres**.
+ * Oil is the one resource a nation can be born unable to make, so this reserve pays the *first
+ * journey towards* oil, and running out of it is what drives the nations that lack it.
  *
  * No table per nation, deliberately: the asymmetry comes from the map, and eight hand-written
  * values would be eight more numbers to balance for an effect geography gives away free.

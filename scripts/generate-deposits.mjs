@@ -14,11 +14,8 @@
  * the ADR 0015 rule: every playable nation holds three of the four deposits at home, one
  * deliberate gap, never two — unless the profile declares the exception and says why.
  *
- * The iron table is the old ore table renamed (ADR 0028): a few of its mines dug copper or lead
- * in 1940, and they stay as iron because the map's balance is what they are for. What the move
- * to four deposits cost the band was paid in facts (18/10): Norilsk is nickel and left the
- * iron, Vorkuta gave next to nothing before the Pechora railway of 1941 and left the coal, and
- * Japan gained the Nagasaki pits it lost its silk to.
+ * A few mines of the iron table dug copper or lead in 1940. They stay as iron: the map's
+ * balance is what they are for, and the game names no other metal.
  *
  * The audit at the end guards three things and fails the build on any of them: an id matching
  * no region, a nation short of two resources, and a home count outside the band — presence is
@@ -424,8 +421,7 @@ const CORRECTIONS = {
  * Germany was dealt on its sixteen Länder. Cutting Bavaria, Baden-Württemberg and Hesse into
  * their districts (07/10/2026) changed the candidates and the shuffle with them, and the draw
  * re-dealt its food deposits — a map edit is not a reason for a nation to wake up with other
- * fields. Each deposit stays on its Land. Its three textile deposits left with the resource
- * (ADR 0028).
+ * fields. Each deposit stays on its Land.
  */
 const FROZEN_DRAWS = {
   DEU: {

@@ -59,7 +59,7 @@ const ENGRAVING: Readonly<Record<DepositKey, ReactNode>> = {
 
 /** Drawn on 24 units like `ResourceIcon`, and called the same way, so a deposit label swaps one
  *  for the other without touching its box. */
-export function DepositMark({ resource, size = 18 }: { resource: DepositKey; size?: number }) {
+export function DepositMark({ deposit, size = 18 }: { deposit: DepositKey; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -72,7 +72,7 @@ export function DepositMark({ resource, size = 18 }: { resource: DepositKey; siz
       strokeLinejoin="round"
       aria-hidden
     >
-      {ENGRAVING[resource]}
+      {ENGRAVING[deposit]}
     </svg>
   );
 }

@@ -19,8 +19,8 @@ export const EXPLOITED_DEPOSITS: Readonly<Partial<Record<BuildingKey, ReadonlyAr
     oilWell: ['oil'],
   };
 
-/** What a deposit gives once worked. **Iron gives steel straight away** (ADR 0028 §1): the
- *  foundry left with the one pure ingredient the game had. */
+/** What a deposit gives once worked. **Iron gives steel straight away** (ADR 0028 §1): no
+ *  resource is only an ingredient, so nothing stands between the ore and what it builds. */
 export const YIELD_OF: Readonly<Record<DepositKey, ResourceKey>> = {
   food: 'food',
   iron: 'steel',
@@ -237,8 +237,13 @@ export type Settled = {
  *
  * **A window is an integration, not a step.** Reading three days as one accrual clipped to the
  * ceiling, then one conversion off the clipped figure, would lose in silence what flowed through
- * the bacs over the absence. Hence the two ledgers below — what *flowed*, and what is *stored*.
+ * the stores over the absence. Hence the two ledgers below — what *flowed*, and what is *stored*.
  * The whole thing stays analytic: **no loop here counts hours.**
+ *
+ * **No chain may eat another chain's output** (ADR 0028 §1: one transformation, fed by the
+ * ground). A chain's room is its output's free space alone; a second chain drawing on the first
+ * would need the downstream allowance this pass no longer computes, and would under-produce
+ * without a word.
  */
 export function settleStocks({
   stocks,

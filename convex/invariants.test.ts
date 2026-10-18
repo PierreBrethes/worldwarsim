@@ -53,7 +53,7 @@ const hqClimb = (target: number): number => {
 const firstOf = (key: BuildingKey): number => buildCost(key, 1).steel ?? 0;
 
 describe('la première projection tient dans la dotation', () => {
-  // Plus de fonderie dans la facture : la mine sur du fer, offerte au socle, rend l'acier.
+  // La mine sur du fer, offerte au socle, rend l'acier : rien d'autre à bâtir avant la caserne.
   it('par voie de mer : quartier général, port, caserne et un cargo', () => {
     const bill =
       hqClimb(unlockLevel('port')) +

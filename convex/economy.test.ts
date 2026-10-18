@@ -195,7 +195,7 @@ describe('exploitation', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.coal.ratePerHour).toBe(EXTRACTION_PER_HOUR.coal);
-    // Iron is the ground, steel what comes up: no foundry between them (ADR 0028 §1).
+    // Iron is the ground, steel what comes up (ADR 0028 §1).
     expect(view.me.resources.steel.ratePerHour).toBe(EXTRACTION_PER_HOUR.iron);
     expect(view.me.resources.steel.stock).toBe(EXTRACTION_PER_HOUR.iron);
   });
