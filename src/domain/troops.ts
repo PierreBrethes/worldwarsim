@@ -1,6 +1,19 @@
-import { roleHqLevel, roleSiteLevel } from '../../convex/constants';
+import {
+  MAX_QUEUED_BATCHES,
+  MONDIALE_TROOP_BOUND,
+  roleHqLevel,
+  roleSiteLevel,
+} from '../../convex/constants';
+import { shortfallOf } from './economy';
 import { distanceKm, type LonLat } from './geo';
-import { BUILDINGS, type BuildingKey, type Medium, type UnitRole, type UnitTier } from './ids';
+import {
+  BUILDINGS,
+  type BuildingKey,
+  type Medium,
+  type ResourceKey,
+  type UnitRole,
+  type UnitTier,
+} from './ids';
 import type {
   ArcView,
   CombatReport,
@@ -40,25 +53,67 @@ export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
 
 export type RecruitRefusal =
-  | { readonly code: 'WRONG_PROJECTION_BUILDING'; readonly expected: BuildingKey }
-  | { readonly code: 'ROLE_LOCKED'; readonly requiredLevel: number }
-  | { readonly code: 'SITE_LEVEL_LOCKED'; readonly requiredLevel: number };
+  | {
+      readonly code: 'WRONG_PROJECTION_BUILDING';
+      readonly expected: BuildingKey;
+      readonly found: BuildingKey;
+    }
+  | { readonly code: 'ROLE_LOCKED'; readonly role: UnitRole; readonly requiredLevel: number }
+  | {
+      readonly code: 'SITE_LEVEL_LOCKED';
+      readonly building: BuildingKey;
+      readonly requiredLevel: number;
+    }
+  | { readonly code: 'TROOP_BOUND_REACHED' }
+  | { readonly code: 'QUEUE_FULL' }
+  | {
+      readonly code: 'INSUFFICIENT_RESOURCE';
+      readonly resource: ResourceKey;
+      readonly needed: number;
+      readonly available: number;
+    };
+
+/** What a recruitment is read against, beside the site: the nation as it stands. */
+export type RecruitSituation = {
+  readonly hqLevel: number;
+  /** Troops standing and queued, all sites together: what the invisible bound counts. */
+  readonly army: number;
+  /** Batches already waiting at this site. */
+  readonly siteQueue: number;
+  readonly costs: Readonly<Partial<Record<ResourceKey, number>>>;
+  readonly stocks: Readonly<Record<ResourceKey, number>>;
+};
 
 /**
  * **Ce qu'un site de projection refuse de former**, en Mondiale : le bon bâtiment pour le
- * domaine du rôle, puis le niveau du QG qu'il attend, puis celui du site lui-même. La pièce
- * lâchée sur un mât le dit avant le relâché, et `troops.recruit` refuse avec la même lecture.
+ * domaine du rôle, le niveau du QG qu'il attend puis celui du site, la borne invisible, la file
+ * du site, enfin le prix. La pièce lâchée sur un mât le dit avant le relâché, et `troops.recruit`
+ * refuse avec la même lecture ; chaque refus porte ce que sa phrase nomme.
  */
 export function recruitRefusalOf(
   role: UnitRole,
   site: { readonly key: BuildingKey; readonly level: number },
-  hqLevel: number,
+  situation: RecruitSituation,
 ): RecruitRefusal | null {
   const expected = projectionKeyOf(role);
-  if (site.key !== expected) return { code: 'WRONG_PROJECTION_BUILDING', expected };
-  if (hqLevel < roleHqLevel(role)) return { code: 'ROLE_LOCKED', requiredLevel: roleHqLevel(role) };
+  if (site.key !== expected)
+    return { code: 'WRONG_PROJECTION_BUILDING', expected, found: site.key };
+  if (situation.hqLevel < roleHqLevel(role))
+    return { code: 'ROLE_LOCKED', role, requiredLevel: roleHqLevel(role) };
   if (site.level < roleSiteLevel(role))
-    return { code: 'SITE_LEVEL_LOCKED', requiredLevel: roleSiteLevel(role) };
+    return { code: 'SITE_LEVEL_LOCKED', building: site.key, requiredLevel: roleSiteLevel(role) };
+  if (situation.army >= MONDIALE_TROOP_BOUND) return { code: 'TROOP_BOUND_REACHED' };
+  if (situation.siteQueue >= MAX_QUEUED_BATCHES) return { code: 'QUEUE_FULL' };
+  const short = shortfallOf(situation.costs, (resource) => situation.stocks[resource]);
+  if (short !== null) {
+    const available = situation.stocks[short.resource];
+    return {
+      code: 'INSUFFICIENT_RESOURCE',
+      resource: short.resource,
+      needed: available + short.missing,
+      available,
+    };
+  }
   return null;
 }
 

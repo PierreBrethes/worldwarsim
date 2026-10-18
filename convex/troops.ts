@@ -26,7 +26,6 @@ import {
   recruitmentCost,
   roleHqLevel,
   roleSiteLevel,
-  MONDIALE_TROOP_BOUND,
 } from './constants';
 import { fail } from './errors';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -151,25 +150,28 @@ export const recruit = mutation({
     if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
       fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
     }
-    const refusal = recruitRefusalOf(role, building, hqLevel);
-    if (refusal !== null) {
-      const { code, ...details } = refusal;
-      fail(code, { ...details, role, found: building.key, building: building.key });
-    }
-
     /**
      * The queue counts against the bound, or it would be where a nation stores the army the
-     * server cannot follow. Nothing serves the number: only this refusal says it.
+     * server cannot follow. Nothing serves the number: only the refusal says it.
      */
-    const standing = (await troopsOf(ctx, player._id)).length;
-    const queued = (await recruitmentsOf(ctx, player._id)).length;
-    if (standing + queued >= MONDIALE_TROOP_BOUND) fail('TROOP_BOUND_REACHED');
-
+    const army =
+      (await troopsOf(ctx, player._id)).length + (await recruitmentsOf(ctx, player._id)).length;
     const queue = await queueOf(ctx, buildingId);
-    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL');
-
     const now = Date.now();
     const cost = recruitmentCost(role, tier, hqLevel);
+    const { stocks } = await economyOf(ctx, player._id, now);
+    const refusal = recruitRefusalOf(role, building, {
+      hqLevel,
+      army,
+      siteQueue: queue.length,
+      costs: cost.costs,
+      stocks,
+    });
+    if (refusal !== null) {
+      const { code, ...details } = refusal;
+      fail(code, details);
+    }
+
     await debit(ctx, player._id, cost.costs, now);
 
     const last = queue[queue.length - 1];

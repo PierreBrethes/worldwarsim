@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
@@ -52,6 +53,8 @@ type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: 
 
 type Cost = Readonly<Partial<Record<ResourceKey, number>>>;
 
+type Workshop = FunctionReturnType<typeof api.troops.workshop>;
+
 /** Under this travel a press is a click, not a drag: the tile stays in hand for a click on the map. */
 const DRAG_THRESHOLD_PX = 5;
 
@@ -96,8 +99,10 @@ export function PersonalBoard({
   const observing = view.me.defeated;
 
   const { shown, deltas, ledger } = useHarvest(view, seat, motion, binRefs);
+  const workshop = useQuery(api.troops.workshop, seat);
   const { held, hint, away, grab, chip } = useHand({
     view,
+    workshop,
     seat,
     board,
     motion,
@@ -210,7 +215,7 @@ export function PersonalBoard({
             </Rack>
             <Pieces
               view={view}
-              seat={seat}
+              workshop={workshop}
               held={held}
               onGrab={observing ? null : (role, event) => grab({ kind: 'piece', role }, event)}
             />
@@ -595,16 +600,15 @@ function Tile({
  */
 function Pieces({
   view,
-  seat,
+  workshop,
   held,
   onGrab,
 }: {
   view: PlayerView;
-  seat: Seat;
+  workshop: Workshop | undefined;
   held: Held | null;
   onGrab: ((role: UnitRole, event: ReactPointerEvent<HTMLElement>) => void) | null;
 }) {
-  const workshop = useQuery(api.troops.workshop, seat);
   const roles = (workshop?.grid ?? []).filter(
     (entry) => entry.unlockedAtHqLevel <= view.me.hqLevel,
   );
@@ -679,6 +683,7 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
  */
 function useHand({
   view,
+  workshop,
   seat,
   board,
   motion,
@@ -686,6 +691,7 @@ function useHand({
   onPlaceTile,
 }: {
   view: PlayerView;
+  workshop: Workshop | undefined;
   seat: Seat;
   board: { readonly current: HTMLElement | null };
   motion: MapMotion;
@@ -699,8 +705,8 @@ function useHand({
   const chip = useRef<HTMLDivElement>(null);
   const start = useMutation(api.constructions.start);
   const recruit = useMutation(api.troops.recruit);
-  const latest = useRef(view);
-  latest.current = view;
+  const latest = useRef({ view, workshop });
+  latest.current = { view, workshop };
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
   const callbacks = useRef({ onHoldTile, onPlaceTile });
   callbacks.current = { onHoldTile, onPlaceTile };
@@ -745,7 +751,7 @@ function useHand({
       if (Math.hypot(drag.clientX - from.x, drag.clientY - from.y) > DRAG_THRESHOLD_PX)
         moved = true;
       follow(drag.clientX, drag.clientY);
-      const target = targetAt(drag.clientX, drag.clientY, board.current, latest.current);
+      const target = targetAt(drag.clientX, drag.clientY, board.current, latest.current.view);
       const reading = readingOf(what, target, latest.current);
       arm(reading.kind === 'map');
       say(reading.hint);
@@ -798,9 +804,8 @@ function useHand({
       if (up.pointerId !== event.pointerId) return;
       finish();
       const at = { x: up.clientX, y: up.clientY };
-      const current = latest.current;
-      const target = targetAt(at.x, at.y, board.current, current);
-      const reading = readingOf(what, target, current);
+      const target = targetAt(at.x, at.y, board.current, latest.current.view);
+      const reading = readingOf(what, target, latest.current);
       // Pressed without a drag, a tile stays in hand: the next click on the map puts it down.
       if (!moved && what.kind === 'tile') {
         setHeld(null);
@@ -882,7 +887,7 @@ function targetAt(x: number, y: number, board: HTMLElement | null, view: PlayerV
 function readingOf(
   held: Held,
   target: Target,
-  view: PlayerView,
+  { view, workshop }: { view: PlayerView; workshop: Workshop | undefined },
 ):
   | { readonly kind: 'board'; readonly hint: Hint }
   | { readonly kind: 'map'; readonly hint: Hint }
@@ -913,17 +918,18 @@ function readingOf(
     return { kind: 'map', hint: { text: fr.personalBoard.dropOnSite, refused: true } };
   }
   const site = target.building;
-  const refusal = recruitRefusalOf(held.role, site, view.me.hqLevel);
+  const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
+  if (workshop === undefined || entry === undefined) return { kind: 'map', hint: null };
+  const refusal = recruitRefusalOf(held.role, site, {
+    hqLevel: view.me.hqLevel,
+    army: workshop.troopsInService + workshop.troopsQueued,
+    siteQueue: workshop.facilities.find((facility) => facility.id === site.id)?.queue.length ?? 0,
+    costs: entry.unit.costs,
+    stocks: stocksAt(view, Date.now()),
+  });
   if (refusal !== null) {
     const { code, ...details } = refusal;
-    return {
-      kind: 'act',
-      building: site,
-      hint: {
-        text: fr.errors[code]({ ...details, found: site.key, building: site.key }),
-        refused: true,
-      },
-    };
+    return { kind: 'act', building: site, hint: { text: fr.errors[code](details), refused: true } };
   }
   return {
     kind: 'act',
