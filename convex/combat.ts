@@ -18,7 +18,6 @@ import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
 import { push, journalUrl, reportUrl } from '../src/domain/push';
 import { resupply } from './supplies';
-import { dropTransportCrate } from './crateStock';
 import { suppliesOf } from '../src/domain/supplies';
 import {
   combatCargoSnapshot,
@@ -278,36 +277,6 @@ export async function resolveContact(
     at,
   });
   const routedCargo = cargoSettlement.homeward;
-
-  /**
-   * **Un ravitaillement s'intercepte** (ADR 0028 §4) : un transport détruit laisse sa charge en
-   * caisse au point de la passe, et une tournée dont le transport se replie finit — il rentre
-   * en déroute, pas au chargement.
-   */
-  for (const outcome of outcomes) {
-    const troop = byId.get(outcome.id)!;
-    const finderId = troop.playerId === attacker.playerId ? defender.playerId : attacker.playerId;
-    if (outcome.state === 'destroyed' && troop.load !== undefined)
-      await dropTransportCrate(ctx, {
-        seasonId,
-        engagementId,
-        ownerId: troop.playerId,
-        finderId,
-        load: troop.load,
-        point,
-        at,
-      });
-    if (outcome.state === 'routed' && troop.tour !== undefined) {
-      await ctx.db.patch(troop._id, { tour: undefined });
-      await ctx.db.insert('notices', {
-        playerId: troop.playerId,
-        at,
-        kind: 'tourEnded',
-        role: troop.role,
-        why: 'cut',
-      });
-    }
-  }
 
   /**
    * **The blow-by-blow hangs from the account, it is not part of it.** The report is read on

@@ -8,15 +8,7 @@ import { nominalStrength } from './constants';
 import { pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import {
-  attacking,
-  foundSeat,
-  joinSeat,
-  placeHq,
-  seatIn,
-  unclocked,
-  type Seat,
-} from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, unclocked, type Seat } from './seats.fixture';
 
 /**
  * **La logistique passe par les pièces** (ADR 0028 §4) : le dépôt d'avant-poste, charger,
@@ -455,56 +447,5 @@ describe('the supply tour', () => {
     await expect(
       t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [stop] }),
     ).rejects.toThrow('TOUR_NOT_AT_LOADING_POINT');
-  });
-});
-
-describe('intercepting a supply', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(MIDDAY);
-  });
-  afterEach(() => vi.useRealTimers());
-
-  it('leaves the charge of a destroyed transport in a crate, and tells its owner', async () => {
-    const t = boot();
-    const { seat, guest } = await launchedSeason(t);
-    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
-    const truck = await form(t, guest, 'landTransport', theirs);
-    await t.run(async (ctx) =>
-      ctx.db.patch(truck, { currentStrength: 1, load: { ammunition: 80, oil: 40, coal: 0 } }),
-    );
-    const barracks = await raise(t, seat, 'barracks', MARNE);
-    const rifles = [
-      await form(t, seat, 'infantry', barracks),
-      await form(t, seat, 'infantry', barracks),
-    ];
-
-    await attacking(t, {
-      ...seat,
-      origin: { kind: 'building', buildingId: barracks },
-      troopIds: rifles,
-      target: { kind: 'region', regionId: PRAHOVA },
-    });
-    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
-    vi.setSystemTime(movement.arrivesAt + 1);
-    await t.mutation(internal.movements.arrive, { movementId: movement._id });
-
-    expect(await get(t, truck)).toBeNull();
-    const crates = await t.run(async (ctx) => ctx.db.query('lootRecoveries').collect());
-    expect(crates).toMatchObject([
-      {
-        dispossessedPlayerId: await playerOf(t, guest),
-        recoveringPlayerId: await playerOf(t, seat),
-      },
-    ]);
-    const lost = await t.run(async (ctx) =>
-      ctx.db
-        .query('notices')
-        .filter((q) => q.eq(q.field('kind'), 'lootLost'))
-        .collect(),
-    );
-    expect(lost).toMatchObject([{ loot: { ammunition: 80, oil: 40 } }]);
-    const [crate] = await t.run(async (ctx) => ctx.db.query('lootCrates').collect());
-    expect(crate?.loot).toMatchObject({ ammunition: 80, oil: 40, food: 0 });
   });
 });
