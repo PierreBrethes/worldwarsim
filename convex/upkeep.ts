@@ -16,8 +16,8 @@ import { modeOf } from '../src/domain/season-mode';
 /**
  * **What an army costs to hold, and why it costs more far from home** (ADR 0019 §4).
  *
- * `consommation-continue.md` settled the shape: one flat rate per troop, no table of nine, and
- * nothing dies when the reserve runs out. Read alone, that made a sentinel at the end of the
+ * `consommation-continue.md` settled the shape: one rate per troop, no table of nine (steps by rank
+ * since ADR 0028 §2), and nothing dies when the reserve runs out. Read alone, that made a sentinel at the end of the
  * world cost exactly what a garrison at home costs and never die of it — so ADR 0019 multiplies
  * the rate by where the troop stands. It is the only punishment the project's rule 3 allows: a
  * continuous cost, visible, and repaired by walking home or by founding a point.

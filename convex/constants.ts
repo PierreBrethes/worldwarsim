@@ -807,7 +807,7 @@ export const LISTENING_COAL_PER_HOUR = 1;
 
 /**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
- * risk and peril" names no risk: a flat rate plus "nothing dies when dry" (D3) would make twenty
+ * risk and peril" names no risk: a plain rate plus "nothing dies when dry" (D3) would make twenty
  * free sentinels the cheapest way to empty the fog (ADR 0005).
  *
  * **Two is an assumed starting point, never a measured value**, chosen so the rule exists and can

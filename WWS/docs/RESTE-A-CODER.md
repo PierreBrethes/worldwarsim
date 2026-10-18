@@ -34,8 +34,12 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       régénérés sur quatre types, trois sur quatre chez soi : Norilsk et Vorkouta sortent, Nagasaki
       entre au Japon, pour tenir la bande. « Sur 12 » retiré de la fiche de caserne. Le schéma
       change : `npx convex run dev:reset` avant de pousser.
-   2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
-      d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
+   2. ~~**Ce que ça coûte**~~ : faite le 18/10. Chaque troupe et chaque bâtiment coûte de l'acier
+      plus la ressource de sa famille (`FAMILY_RESOURCE_OF_ROLE`, `BUILDING_SPEC`) ; l'avant-poste
+      coûte des vivres. L'armée mange par paliers (`UPKEEP_STEPS`, `src/domain/upkeep.ts`), un
+      avant-poste debout mange des vivres selon son niveau, une écoute brûle du charbon. Prix en
+      deux pictos partout (`Price`, rose, `CostLine`), palier lisible dans la fenêtre Économie et
+      sur la ligne de chaque troupe. Reste : l'écoute à sec ne se tait pas encore.
    3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
       refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
       figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.

@@ -269,7 +269,7 @@ export type TroopView = {
   /**
    * **Whether it is fed at the plain rate** (ADR 0019 §4): on national soil, or inside the reach
    * of one of its owner's standing outposts. `false` is a troop eating
-   * `UPKEEP_UNSUPPLIED_MULTIPLIER` times the flat rate, and it travels per troop because that is
+   * `UPKEEP_UNSUPPLIED_MULTIPLIER` times the plain rate, and it travels per troop because that is
    * where the player looks — a surcharge only visible on an accounting screen is the invisible
    * punishment D3 refused for attrition.
    */
