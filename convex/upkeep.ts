@@ -106,7 +106,7 @@ export type Upkeep = {
   /** How many outposts stand (a site under construction is not counted yet). */
   readonly outposts: number;
   /** **Où chaque troupe ancrée se recharge** (`storeAt`) ; une troupe absente ne l'est pas. */
-  readonly storeOf: ReadonlyMap<Id<'troops'>, AnchorStore>;
+  readonly storeOf: Readonly<Record<string, AnchorStore>>;
 };
 
 /**
@@ -144,7 +144,7 @@ export async function upkeepOf(
       listeningCoalPerHour: 0,
       unsuppliedTroopIds: [],
       outposts: 0,
-      storeOf: new Map(),
+      storeOf: {},
     };
   }
   const home = homeCountryOf(player?.nation ?? null);
@@ -170,7 +170,7 @@ export async function upkeepOf(
    *  troupe — ce calcul passe à chaque vue, à chaque règlement et à chaque débit. */
   const stationed = new Map<string, LonLat | null>();
   const unsuppliedTroopIds: Array<Id<'troops'>> = [];
-  const storeOf = new Map<Id<'troops'>, AnchorStore>();
+  const storeOf: Record<string, AnchorStore> = {};
   for (const troop of troops) {
     const address = troop.stationedAt;
     let point: LonLat | null;
@@ -186,7 +186,7 @@ export async function upkeepOf(
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
     const store = point === null ? 'board' : storeAt(point, home, supplying);
     if (store === null) unsuppliedTroopIds.push(troop._id);
-    else storeOf.set(troop._id, store);
+    else storeOf[troop._id] = store;
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;

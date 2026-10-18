@@ -33,7 +33,7 @@ export async function toppedUp(
   );
   const byStore = new Map<AnchorStore, Array<Doc<'troops'>>>();
   for (const troop of troops) {
-    const store = storeOf.get(troop._id);
+    const store = storeOf[troop._id];
     if (store === undefined || marching.has(troop._id)) continue;
     byStore.set(store, [...(byStore.get(store) ?? []), troop]);
   }

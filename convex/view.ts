@@ -264,7 +264,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
-    const store = economy.upkeep.storeOf.get(troopId);
+    const store = economy.upkeep.storeOf[troopId];
     return store === undefined || store === 'board' ? null : store;
   };
   const funds = blitz ? await fundsServed(ctx, player, season.concludedAt ?? null, now) : null;
