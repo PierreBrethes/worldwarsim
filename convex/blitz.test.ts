@@ -410,7 +410,7 @@ describe('un site capturé avec sa file', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('perd la recrue déjà en formation, sans fonds ni alliage rendus', async () => {
+  it('perd la recrue déjà en formation, sans fonds ni acier rendus', async () => {
     const t = boot();
     const { seat, guest } = await blitzLaunched(t);
     const me = await playerOf(t, seat);
@@ -459,15 +459,15 @@ describe('un site capturé avec sa file', () => {
     const minutes = (capture!.completesAt - MIDDAY) / MINUTE;
     expect((await playerOf(t, guest)).funds).toBe(before + minutes * BLITZ.fundsPerMinute.hq!);
     expect(await t.run((ctx) => ctx.db.query('recruitments').collect())).toEqual([]);
-    const alloy = await t.run(async (ctx) =>
+    const steel = await t.run(async (ctx) =>
       (
         await ctx.db
           .query('resources')
           .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
           .collect()
-      ).find((row) => row.key === 'alloy'),
+      ).find((row) => row.key === 'steel'),
     );
-    expect(alloy!.stock).toBe(0);
+    expect(steel!.stock).toBe(0);
   });
 });
 

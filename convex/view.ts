@@ -467,7 +467,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           inputs: conversion.inputs.map(([resource, quantity]) => ({ resource, quantity })),
           /**
            * **The real rate first, the nominal second.** A starved arsenal printing "3 / h"
-           * beside "À SEC — ALLIAGE" tells the player he is making three an hour; he is
+           * beside "À SEC — CHARBON" tells the player he is making three an hour; he is
            * making none. The real one is what the outlook actually pushed through, so it
            * cannot disagree with the badge next to it.
            */
@@ -571,7 +571,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /**
          * **La région porte-t-elle sa couleur** (ADR 0020 §6) — c'est ce qui décide si ce qui s'y
          * tient produit. Servi par région et non par bâtiment : c'est la région qui est tenue ou
-         * perdue, et une mine et une fonderie posées sur le même sol ne peuvent pas répondre
+         * perdue, et une mine et un arsenal posés sur le même sol ne peuvent pas répondre
          * différemment. Son propre pays est toujours relié, ce que la règle rend seule.
          */
         linked: held.get(facts.id) === player._id,

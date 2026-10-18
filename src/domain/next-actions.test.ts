@@ -61,7 +61,7 @@ const capture = (
   id: `C-${side}`,
   side,
   target: { kind: 'building', id: 'B-9' },
-  site: { kind: 'building', building: 'foundry', regionId: 'FRA-69' },
+  site: { kind: 'building', building: 'arsenal', regionId: 'FRA-69' },
   regionName: 'Lyon',
   point: [4.8, 45.7],
   clock: { progress: 0, at: 0, rate: 1, durationMs: 3_600_000, rest: null },
@@ -91,7 +91,7 @@ describe('a capture', () => {
   it('puts the defender’s site first, with the hour it is lost, and recentres on it', () => {
     const [first] = nextActionsOf(board({}, [], [capture('defender')]));
     expect(first?.kind).toBe('siteUnderCapture');
-    expect(first?.label).toMatch(/^Fonderie de Lyon : capture en cours, perdue vers /);
+    expect(first?.label).toMatch(/^Arsenal de Lyon : capture en cours, perdue vers /);
     expect(first?.targets).toEqual([{ kind: 'map', point: [4.8, 45.7] }]);
   });
 
@@ -99,9 +99,7 @@ describe('a capture', () => {
     expect(kinds(board({}, [], [capture('capturer')]))).toEqual([]);
     const [stopped] = nextActionsOf(board({}, [], [capture('capturer', 10)]));
     expect(stopped?.kind).toBe('captureStopped');
-    expect(stopped?.label).toBe(
-      'Capture de Fonderie de Lyon arrêtée : plus d’infanterie sur place',
-    );
+    expect(stopped?.label).toBe('Capture de Arsenal de Lyon arrêtée : plus d’infanterie sur place');
   });
 });
 
@@ -114,7 +112,7 @@ describe('what waits for the player', () => {
     const owed = nextActionsOf(
       board({
         foundation: [
-          { key: 'mine', deposit: 'ore' },
+          { key: 'mine', deposit: 'iron' },
           { key: 'mine', deposit: 'coal' },
         ],
       }),
@@ -154,7 +152,7 @@ describe('what waits for the player', () => {
       buildings: [
         { id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 },
         { id: 'B-2', key: 'oilWell', name: 'Puits', regionId: 'ROU-1', level: 1 },
-        { id: 'B-3', key: 'foundry', name: 'Fonderie', regionId: 'ROU-1', level: 1 },
+        { id: 'B-3', key: 'arsenal', name: 'Arsenal', regionId: 'ROU-1', level: 1 },
       ],
       regions: [
         { id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7], linked: true },
@@ -240,7 +238,7 @@ describe('what waits for the player', () => {
   /** Rien n'attend un observateur : la carte n'a pas d'état fermé, son absence est cet état. */
   it('disparaît pour un joueur qui a déposé les armes', () => {
     const owing = {
-      foundation: [{ key: 'mine', deposit: 'ore' } as const],
+      foundation: [{ key: 'mine', deposit: 'iron' } as const],
       construction: null,
       recruiting: [],
       slots: { total: 2, used: 1 },
@@ -264,7 +262,7 @@ describe('what waits for the player', () => {
 
   it('holds the reading order: what is owed, then what produces, then what stands', () => {
     const busy = board({
-      foundation: [{ key: 'mine', deposit: 'ore' }],
+      foundation: [{ key: 'mine', deposit: 'iron' }],
       construction: null,
       recruiting: [],
       slots: { total: 2, used: 1 },

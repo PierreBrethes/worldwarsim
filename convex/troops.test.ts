@@ -105,7 +105,7 @@ async function raze(t: ReturnType<typeof boot>, buildingId: Id<'buildings'>) {
   });
 }
 
-/** The starting kit does not pay for a season's worth of troops; this saves building a foundry. */
+/** The starting kit does not pay for a season's worth of troops; this saves building a mine. */
 async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
   const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
@@ -114,7 +114,7 @@ async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .collect();
     for (const row of rows) {
-      if (row.key === 'alloy') {
+      if (row.key === 'steel') {
         await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
       }
     }
@@ -217,7 +217,7 @@ describe('a queue per projection building', () => {
 
     const after = await t.query(api.troops.workshop, seat);
     expect(after.troopsQueued).toBe(1);
-    expect(after.alloy.stock).toBe(before.alloy.stock + cost.alloy);
+    expect(after.steel.stock).toBe(before.steel.stock + cost.steel);
   });
 });
 
@@ -472,12 +472,12 @@ describe('tiers', () => {
 });
 
 /**
- * **A troop is bought in alloy and in nothing else** (question 18, settled 25/08). Ammunition
+ * **A troop is bought in steel and in nothing else** (question 18, settled 25/08). Ammunition
  * used to be billed here *as well* as at the pass, which priced the same rounds twice; the
  * recruitment now says the whole of its price, and the whole of its price is what it takes.
  */
 describe('what a recruitment costs', () => {
-  it('debits the alloy of the announced price and not one round', async () => {
+  it('debits the steel of the announced price and not one round', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -491,14 +491,14 @@ describe('what a recruitment costs', () => {
       tier: 1,
     });
 
-    // The price on the card, the price the mutation answers, the alloy that actually left.
-    expect(cost.alloy).toBe(shown.alloy);
+    // The price on the card, the price the mutation answers, the steel that actually left.
+    expect(cost.steel).toBe(shown.steel);
     const after = await t.query(api.troops.workshop, seat);
-    expect(after.alloy.stock).toBe(before.alloy.stock - shown.alloy);
+    expect(after.steel.stock).toBe(before.steel.stock - shown.steel);
     expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
 
-  it('hands the same alloy back and takes no round back when a waiting batch is withdrawn', async () => {
+  it('hands the same steel back and takes no round back when a waiting batch is withdrawn', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -522,8 +522,8 @@ describe('what a recruitment costs', () => {
     await t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[1]!.id });
 
     const after = await t.query(api.troops.workshop, seat);
-    const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.alloy;
-    expect(after.alloy.stock).toBe(before.alloy.stock - one);
+    const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.steel;
+    expect(after.steel.stock).toBe(before.steel.stock - one);
     expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
 });
@@ -531,7 +531,7 @@ describe('what a recruitment costs', () => {
 /**
  * The reverse of what this file used to record. Steel came from extraction outposts that do
  * not exist, so a fresh nation could produce nothing at all; the starting kit now carries an
- * advance of alloy and of ammunition, and the first light troop is affordable on the first
+ * advance of steel and of ammunition, and the first light troop is affordable on the first
  * minute — once a barracks stands, which is the new gate.
  */
 describe('a fresh nation', () => {
@@ -541,8 +541,8 @@ describe('a fresh nation', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const workshop = await t.query(api.troops.workshop, seat);
 
-    expect(workshop.alloy.stock).toBe(KIT.alloy);
-    expect(workshop.grid.every((entry) => entry.unit.alloy > 0)).toBe(true);
+    expect(workshop.steel.stock).toBe(KIT.steel);
+    expect(workshop.grid.every((entry) => entry.unit.steel > 0)).toBe(true);
     await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,

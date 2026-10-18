@@ -55,7 +55,7 @@ export function Pictogram({
  * pictograms are baked PNG masks and there is no industry plate to bake from — the same
  * reason the buildings bascule and the settings icon are drawn.
  *
- * Two chimneys over a shed: it says *what transforms*, where a foundry or a mine would name
+ * Two chimneys over a shed: it says *what transforms*, where an arsenal or a mine would name
  * one of the ten buildings the window gathers.
  */
 export function IndustryGlyph({ size = 19 }: { size?: number }) {
@@ -95,7 +95,7 @@ type Mark = { readonly pictogram: PictogramName } | { readonly stroke: ReactNode
 const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
   /**
    * A drawn stroke, not a pictogram: the fifteen buildings share no silhouette, and picking
-   * one of them — the foundry, the port — would say a nature where the bascule speaks of all
+   * one of them — the arsenal, the port — would say a nature where the bascule speaks of all
    * of them. The roof-and-chimney reads as "what stands", which is exactly the category.
    */
   buildings: {

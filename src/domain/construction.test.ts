@@ -22,7 +22,7 @@ import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 
 /** Everything open at a headquarters of 1: the tier is under test on its own, below. */
 const CATALOG = Object.fromEntries(
-  BUILDINGS.map((key) => [key, { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: 1 }]),
+  BUILDINGS.map((key) => [key, { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: 1 }]),
 ) as Record<BuildingKey, BuildSpec>;
 
 const RICH = Object.fromEntries(RESOURCES.map((key) => [key, 1000])) as Record<ResourceKey, number>;
@@ -73,7 +73,7 @@ describe('the rest of the catalogue', () => {
   });
 
   it('names the deposit a mine wants, not a bare refusal', () => {
-    expect(reasonFor('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'ore'] });
+    expect(reasonFor('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'iron'] });
     expect(reasonFor('port')).toEqual({ kind: 'coastal' });
   });
 
@@ -97,7 +97,7 @@ describe('the rest of the catalogue', () => {
 
   it('serves the bill of what it cannot place — that is what a plan is made of', () => {
     const [port] = blockedOn(site(), CATALOG).filter((option) => option.key === 'port');
-    expect(port?.cost).toEqual({ alloy: 20 });
+    expect(port?.cost).toEqual({ steel: 20 });
     expect(port?.minutes).toBe(30);
   });
 });
@@ -105,7 +105,7 @@ describe('the rest of the catalogue', () => {
 describe('what a region can carry', () => {
   it('offers a mine only where the deposit is a mine’s', () => {
     expect(keysOn({ deposit: 'coal' })).toContain('mine');
-    expect(keysOn({ deposit: 'ore' })).toContain('mine');
+    expect(keysOn({ deposit: 'iron' })).toContain('mine');
     expect(keysOn({ deposit: 'oil' })).not.toContain('mine');
     expect(keysOn()).not.toContain('mine');
   });
@@ -131,7 +131,7 @@ describe('what a region can carry', () => {
   it('does not offer a key the headquarters has not opened yet', () => {
     const gated: Record<BuildingKey, BuildSpec> = {
       ...CATALOG,
-      airfield: { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: 3 },
+      airfield: { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: 3 },
     };
     expect(buildableOn(site({ hqLevel: 2 }), gated).map((option) => option.key)).not.toContain(
       'airfield',
@@ -150,7 +150,7 @@ describe('what a region can carry', () => {
     const catalog = Object.fromEntries(
       BUILDINGS.map((key) => [
         key,
-        { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key) },
+        { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key) },
       ]),
     ) as Record<BuildingKey, BuildSpec>;
 
@@ -180,9 +180,9 @@ describe('what merely holds a line back', () => {
   it('holds only what the stocks cannot pay for', () => {
     const cheap: Record<BuildingKey, BuildSpec> = {
       ...CATALOG,
-      barracks: { cost: { alloy: 5 }, minutes: 10, unlockedAtHqLevel: 1 },
+      barracks: { cost: { steel: 5 }, minutes: 10, unlockedAtHqLevel: 1 },
     };
-    const options = buildableOn(site({ stocks: { ...BROKE, alloy: 5 } }), cheap);
+    const options = buildableOn(site({ stocks: { ...BROKE, steel: 5 } }), cheap);
     expect(options.find((option) => option.key === 'barracks')?.hold).toBeNull();
     expect(options.find((option) => option.key === 'airfield')?.hold).toBe('materials');
   });
@@ -245,12 +245,12 @@ describe('what holds a raise back', () => {
 
   const building = (overrides: Partial<Building> = {}): Building => ({
     id: 'building-1',
-    key: 'foundry',
-    name: 'Fonderie',
+    key: 'arsenal',
+    name: 'Arsenal',
     regionId: 'FRA-5328',
     point: null,
     level: 1,
-    nextLevelCost: { alloy: 90, coal: 54 },
+    nextLevelCost: { steel: 90, coal: 54 },
     nextLevelMinutes: 90,
     cappedByHq: false,
     ...overrides,
@@ -300,8 +300,8 @@ describe('what holds a raise back', () => {
     const queued = [
       {
         id: 'construction-2',
-        name: 'Fonderie',
-        key: 'foundry' as const,
+        name: 'Arsenal',
+        key: 'arsenal' as const,
         outpostId: null,
         regionId: 'FRA-5328',
         regionName: 'Moselle',
@@ -355,7 +355,7 @@ describe('placement over the whole estate', () => {
     Object.fromEntries(
       BUILDINGS.map((key) => [
         key,
-        { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: overrides[key] ?? 1 },
+        { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: overrides[key] ?? 1 },
       ]),
     ) as Record<BuildingKey, BuildSpec>;
 
@@ -397,7 +397,7 @@ describe('placement over the whole estate', () => {
 
   it('keeps only the regions whose deposit the exploitation works', () => {
     const view = estate({
-      regions: [region('a', { deposit: 'coal' }), region('b'), region('c', { deposit: 'ore' })],
+      regions: [region('a', { deposit: 'coal' }), region('b'), region('c', { deposit: 'iron' })],
     });
     expect(placementOf(view, 'mine').regionIds).toEqual(['a', 'c']);
     expect(placementOf(view, 'farm').regionIds).toEqual([]);
@@ -468,8 +468,8 @@ describe('placement over the whole estate', () => {
 
   it('marks a key the foundation still owes as free', () => {
     const view = estate({
-      regions: [region('a', { deposit: 'ore' })],
-      foundation: [{ key: 'mine', deposit: 'ore' }],
+      regions: [region('a', { deposit: 'iron' })],
+      foundation: [{ key: 'mine', deposit: 'iron' }],
     });
     expect(placementOf(view, 'mine')).toMatchObject({ free: true, condition: null });
     expect(placementOf(view, 'warehouse').free).toBe(false);
@@ -529,7 +529,7 @@ describe('raising an outpost', () => {
     ...over,
   });
 
-  const COST: Cost = { alloy: 117, coal: 36 };
+  const COST: Cost = { steel: 117, coal: 36 };
 
   it('lets a payable raise through', () => {
     expect(outpostRaiseHold(point(), COST, 3)).toBeNull();
@@ -556,12 +556,12 @@ describe('raising an outpost', () => {
   /** Le premier manque dans l'ordre des ressources, jamais une liste : une facture se paie
    *  entière ou pas du tout. */
   it('names the first resource short, and only it', () => {
-    const short = point({ stocks: { ...STOCKED, alloy: 40, coal: 0 } });
+    const short = point({ stocks: { ...STOCKED, steel: 40, coal: 0 } });
     expect(outpostRaiseHold(short, COST, 3)).toEqual({
       kind: 'materials',
-      resource: 'coal',
-      needed: 36,
-      available: 0,
+      resource: 'steel',
+      needed: 117,
+      available: 40,
     });
   });
 
@@ -596,7 +596,7 @@ describe('workSitesOf', () => {
   const me = (over: Partial<PlayerView['me']>) =>
     ({
       buildings: [
-        { id: 'b-foundry', key: 'foundry', regionId: 'r-f', level: 2, nextLevelMinutes: 90 },
+        { id: 'b-arsenal', key: 'arsenal', regionId: 'r-f', level: 2, nextLevelMinutes: 90 },
       ],
       construction: null,
       constructionQueue: [],
@@ -638,10 +638,10 @@ describe('workSitesOf', () => {
         minutes: 30,
       }),
     ]);
-    expect(workSitesOf(me({ construction: head('foundry', 'r-f', 45) }), CATALOG, LOADED)).toEqual([
+    expect(workSitesOf(me({ construction: head('arsenal', 'r-f', 45) }), CATALOG, LOADED)).toEqual([
       expect.objectContaining({
         phase: 'raising',
-        key: 'foundry',
+        key: 'arsenal',
         level: 3,
         finishesAt: LOADED + 2_700_000,
         minutes: 90,
@@ -654,8 +654,8 @@ describe('workSitesOf', () => {
       me({
         construction: head('farm', 'r-a', 10),
         constructionQueue: [
-          queued('mill', 'r-b', 1),
-          queued('foundry', 'r-f', 3),
+          queued('warehouse', 'r-b', 1),
+          queued('arsenal', 'r-f', 3),
           queued('barracks', 'r-c', 1),
         ],
       }) as PlayerView['me'],

@@ -130,7 +130,7 @@
 
 /* The building's own plate, hung where a pictogram would be. All fifteen share one height and
    there is no size hierarchy between them: an assumed decision, taken on the real plates at
-   the map's real scale (`WWS/sprites/README.md` §7). What tells a foundry from a listening
+   the map's real scale (`WWS/sprites/README.md` §7). What tells an arsenal from a listening
    post is the silhouette, never the pixels. Height is the pinned axis because the marker hangs
    by its top; widths differ freely. Its reserve is thinner than the pictograms' — a full
    illustration needs a rim, not a halo. */
@@ -496,7 +496,7 @@
 /* Une pile posée porte le même apparat qu'un bâtiment, et pour la même raison : sa plaque *est*
    la troupe. Sans elle, une colonne laissée en campagne ou une coque tenant un bout de mer
    n'était qu'une flaque d'ombre sur l'eau — visible de personne, y compris de son propriétaire.
-   Plus basse que la plaque d'un bâtiment : une escorte ne tient pas le terrain d'une fonderie. */
+   Plus basse que la plaque d'un bâtiment : une escorte ne tient pas le terrain d'un arsenal. */
 .label--stack .label-pictogram {
   top: auto;
   bottom: -2px;

@@ -28,29 +28,29 @@ const board = (over: {
 
 describe('the band’s one mark', () => {
   it('marks full at the ceiling and never one unit under it', () => {
-    const under = marksOf(board({ resources: { alloy: { stock: 399, cap: 400 } } }), NOW);
-    expect(under.alloy).toBeNull();
+    const under = marksOf(board({ resources: { steel: { stock: 399, cap: 400 } } }), NOW);
+    expect(under.steel).toBeNull();
 
-    const at = marksOf(board({ resources: { alloy: { stock: 400, cap: 400 } } }), NOW);
-    expect(at.alloy?.kind).toBe('full');
+    const at = marksOf(board({ resources: { steel: { stock: 400, cap: 400 } } }), NOW);
+    expect(at.steel?.kind).toBe('full');
 
-    const over = marksOf(board({ resources: { alloy: { stock: 900, cap: 400 } } }), NOW);
-    expect(over.alloy?.kind).toBe('full');
+    const over = marksOf(board({ resources: { steel: { stock: 900, cap: 400 } } }), NOW);
+    expect(over.steel?.kind).toBe('full');
   });
 
   /** A ceiling of nothing is a season without a store served yet, not a saturated reserve. */
   it('says nothing of a reserve whose ceiling is zero', () => {
-    expect(marksOf(board({ resources: { alloy: { stock: 0, cap: 0 } } }), NOW).alloy).toBeNull();
+    expect(marksOf(board({ resources: { steel: { stock: 0, cap: 0 } } }), NOW).steel).toBeNull();
   });
 
   /** La tournure, mot pour mot : le pavé est lu, jamais deviné. */
   it('names the producer and the store it has outgrown', () => {
     const full = marksOf(
-      board({ resources: { alloy: { stock: 400, cap: 400, ratePerHour: 12 } } }),
+      board({ resources: { steel: { stock: 400, cap: 400, ratePerHour: 12 } } }),
       NOW,
     );
-    expect(full.alloy?.diagnosis).toBe(
-      'la fonderie tourne pour rien — 12 / h perdus, agrandir l’entrepôt',
+    expect(full.steel?.diagnosis).toBe(
+      'la mine tourne pour rien — 12 / h perdus, agrandir l’entrepôt',
     );
 
     const oil = marksOf(
@@ -65,15 +65,15 @@ describe('the band’s one mark', () => {
 
 describe('the source of a resource', () => {
   const chain = (over: Partial<ChainView>): ChainView =>
-    ({ by: 'foundry', output: 'alloy', level: 1, perHour: 12, ...over }) as ChainView;
+    ({ by: 'arsenal', output: 'ammunition', level: 1, perHour: 12, ...over }) as ChainView;
 
   it('names the chain that makes it, with its level', () => {
     const view = board({ chains: [chain({ level: 2 })] });
-    expect(sourceOf(view, 'alloy')).toEqual({ by: 'foundry', level: 2 });
+    expect(sourceOf(view, 'ammunition')).toEqual({ by: 'arsenal', level: 2 });
   });
 
   it('gives no source to a resource nothing transforms', () => {
-    expect(sourceOf(board({ chains: [chain({})] }), 'ore')).toBeNull();
+    expect(sourceOf(board({ chains: [chain({})] }), 'steel')).toBeNull();
   });
 });
 

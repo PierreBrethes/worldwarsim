@@ -451,7 +451,7 @@ export class LandingTable {
     const paris = PLACES.paris;
     this.maquette('hq', 0.83, this.at(paris, -0.35, 0.15), 0.3);
     const smokeFrom: Object3D[] = [];
-    this.maquette('foundry', 0.73, this.at(PLACES.lille, 0, 0.2), -0.4, (model) =>
+    this.maquette('arsenal', 0.73, this.at(PLACES.lille, 0, 0.2), -0.4, (model) =>
       model.traverse((part) => {
         if (part.name === 'fx_smoke') smokeFrom.push(part);
       }),

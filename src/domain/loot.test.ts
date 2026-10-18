@@ -9,13 +9,10 @@ const resources = (
   held: Partial<Record<ResourceKey, number>>,
 ): Readonly<Record<ResourceKey, number>> => ({
   food: 0,
-  textile: 0,
   coal: 0,
   oil: 0,
-  ore: 0,
-  alloy: 0,
+  steel: 0,
   ammunition: 0,
-  bandages: 0,
   ...held,
 });
 
@@ -65,36 +62,36 @@ describe('carryCapacityOf', () => {
 
 describe('lootFromSurplus', () => {
   it('protects the base reserve and takes only positive surplus', () => {
-    expect(lootFromSurplus(resources({ food: 430, textile: 399, coal: 410 }), 400, 100)).toEqual(
+    expect(lootFromSurplus(resources({ food: 430, oil: 399, coal: 410 }), 400, 100)).toEqual(
       resources({ food: 30, coal: 10 }),
     );
   });
 
   it('shares a limited capacity in proportion to the positive surpluses', () => {
-    expect(lootFromSurplus(resources({ food: 460, textile: 430, coal: 410 }), 400, 50)).toEqual(
-      resources({ food: 30, textile: 15, coal: 5 }),
+    expect(lootFromSurplus(resources({ food: 460, oil: 430, coal: 410 }), 400, 50)).toEqual(
+      resources({ food: 30, oil: 15, coal: 5 }),
     );
   });
 
   it('returns no loot when capacity is not positive', () => {
-    expect(lootFromSurplus(resources({ alloy: 900 }), 400, 0)).toEqual(resources({}));
+    expect(lootFromSurplus(resources({ steel: 900 }), 400, 0)).toEqual(resources({}));
   });
 });
 
 describe('trimLootToCapacity', () => {
   it('reduces every carried resource proportionally after capacity losses', () => {
-    expect(trimLootToCapacity(resources({ food: 60, textile: 30, coal: 10 }), 50)).toEqual(
-      resources({ food: 30, textile: 15, coal: 5 }),
+    expect(trimLootToCapacity(resources({ food: 60, oil: 30, coal: 10 }), 50)).toEqual(
+      resources({ food: 30, oil: 15, coal: 5 }),
     );
   });
 
   it('never creates cargo through floating-point residue', () => {
-    const trimmed = trimLootToCapacity(resources({ food: 1, textile: 1, coal: 1 }), 2);
+    const trimmed = trimLootToCapacity(resources({ food: 1, oil: 1, coal: 1 }), 2);
     const total = Object.values(trimmed).reduce((sum, amount) => sum + amount, 0);
 
     expect(total).toBe(2);
     expect(trimmed.food).toBeLessThanOrEqual(1);
-    expect(trimmed.textile).toBeLessThanOrEqual(1);
+    expect(trimmed.oil).toBeLessThanOrEqual(1);
     expect(trimmed.coal).toBeLessThanOrEqual(1);
   });
 

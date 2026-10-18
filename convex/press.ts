@@ -29,7 +29,7 @@ import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { rankedByTerritory, scoresOf, type AlloyPrices } from '../src/domain/standings';
+import { rankedByTerritory, scoresOf, type SteelPrices } from '../src/domain/standings';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { buildingCostKey, seasonBuildings } from './buildingReads';
 import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './constants';
@@ -43,16 +43,16 @@ import { isAtWar, playingSeason, seatsOf } from './seats';
  * seconde grille de points dériverait de celle-ci et s'en désaccorderait au premier réglage
  * d'équilibrage, et l'écran mentirait alors sur des chiffres que le jeu ne joue plus.
  */
-const ALLOY: AlloyPrices = {
+const STEEL: SteelPrices = {
   /**
-   * **Le niveau 1 d'un avant-poste ne coûte pas d'alliage** (précision du 15/09) : on le fonde
+   * **Le niveau 1 d'un avant-poste ne coûte pas d'acier** (précision du 15/09) : on le fonde
    * en y marchant, et seule l'élévation se paie. Compter son prix de barème ici créditerait le
    * joueur d'une facture que personne n'a réglée — la ligne rouvrira le jour où
    * `fondation-en-chantier` la fera payer.
    */
   ofLevel: (key, level) =>
-    key === 'outpost' && level <= 1 ? 0 : (buildCost(key as BuildingKey, level).alloy ?? 0),
-  ofTroop: (role, tier) => COST_BY_ROLE[role as UnitRole].alloy * (tier === 2 ? TIER_2_FACTOR : 1),
+    key === 'outpost' && level <= 1 ? 0 : (buildCost(key as BuildingKey, level).steel ?? 0),
+  ofTroop: (role, tier) => COST_BY_ROLE[role as UnitRole].steel * (tier === 2 ? TIER_2_FACTOR : 1),
 };
 
 /**
@@ -156,8 +156,8 @@ async function writeEdition(
   for (const player of players) {
     const scores = scoresOf({
       /**
-       * **L'alliage d'une élévation tombe en industrie** (précision du 15/09). Le territoire est
-       * une *part* — régions tenues sur régions tenues — et de l'alliage n'y a pas d'unité ; ce
+       * **L'acier d'une élévation tombe en industrie** (précision du 15/09). Le territoire est
+       * une *part* — régions tenues sur régions tenues — et de l'acier n'y a pas d'unité ; ce
        * qu'un point monté ajoute au théâtre, il l'ajoute déjà par les régions qu'il tient, et
        * cette part-là le compte. Reste ce qu'il a coûté, qui est de la construction, pesée
        * comme toute construction : la somme des niveaux gravis.
@@ -197,7 +197,7 @@ async function writeEdition(
       engagements: await deedsOf(ctx, player._id),
       heldCount: held.get(player._id as string) ?? 0,
       heldByAnyone,
-      alloy: ALLOY,
+      steel: STEEL,
     });
     lines.push({ playerId: player._id, ...scores });
   }

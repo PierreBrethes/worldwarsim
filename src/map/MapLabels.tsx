@@ -46,6 +46,7 @@ import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
 import { DepositMark } from '@/emblems/DepositMark';
 import { resourceColor } from '@/emblems/ResourceIcon';
+import { YIELD_OF } from '@/domain/economy';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
@@ -929,7 +930,7 @@ export function MapLabels({
               {label.deposit !== null && (
                 <span
                   className="label-deposit"
-                  style={{ color: resourceColor(label.deposit, true) }}
+                  style={{ color: resourceColor(YIELD_OF[label.deposit], true) }}
                 >
                   <DepositMark resource={label.deposit} />
                 </span>

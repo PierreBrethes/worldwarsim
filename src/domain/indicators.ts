@@ -7,7 +7,7 @@ import { URGENCY_MS, isCountdown, type LabelType, type MapLabel } from './labels
  *
  * `buildings` are what stands, `constructions` what is being raised: two states of the same
  * object, but one is an economy read on the map and the other a duration to watch. Merging
- * them would light a crane over a foundry finished three seasons ago.
+ * them would light a crane over an arsenal finished three seasons ago.
  *
  * `deposits` are neither: what the ground holds, whether or not anything works it. They ride
  * the same bascule idiom because they answer the same question — *what is on this region* —

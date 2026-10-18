@@ -23,7 +23,7 @@ export type Marks = Readonly<Record<ResourceKey, Mark | null>>;
 /**
  * Where a resource comes from, as the tooltip names it — `null` for one nothing transforms. An
  * extracted or received matter has no chain, and naming its mine here would say the wrong thing
- * about ore, which no foundry makes.
+ * about steel, which comes straight out of the iron.
  */
 export type Source = { readonly by: BuildingKey; readonly level: number };
 
@@ -53,7 +53,7 @@ export function marksOf(view: PlayerView, now: number): Marks {
 }
 
 /**
- * The producer opens the sentence, never the resource: "la fonderie tourne pour rien" names the
+ * The producer opens the sentence, never the resource: "l'arsenal tourne pour rien" names the
  * thing that is wasting itself, and the store to raise names the cure. A reserve nothing fills
  * says so instead — sending a player to enlarge a warehouse for a matter he is not making would
  * send him to build the wrong thing.

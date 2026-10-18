@@ -380,7 +380,7 @@ export class MapEngine {
   /**
    * A clean left click while the board is **designating** — a mobilisation key is armed and
    * the next click names the ground it goes down on. It replaces the selection rather than
-   * doubling it: a click that both places a foundry and re-frames the country would answer
+   * doubling it: a click that both places an arsenal and re-frames the country would answer
    * two questions where the player asked one.
    */
   onRegionClick: (regionId: string | null) => void = () => {};

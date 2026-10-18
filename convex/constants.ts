@@ -3,10 +3,10 @@
  * simulator takes over — nothing numeric belongs anywhere else. The report calibrated on three
  * resources (ADR 0015) does not carry over. Orders of magnitude were chosen so a fresh nation
  * raises its first buildings within the first hours of the one season the game has (168 h since
- * ADR 0020 §11), and so a foundry is worth more than the ore it eats.
+ * ADR 0020 §11).
  *
- * **Première mesure des tables économiques, le 14/09/2026** : la chaîne de l'alliage — le débit
- * de la fonderie, le fer et le charbon qui la nourrissent, l'alliage de la dotation — est lue sur
+ * **Première mesure des tables économiques, le 14/09/2026** : la chaîne de l’alliage — le débit
+ * de la fonderie, le fer et le charbon qui la nourrissaient, la dotation — est lue sur
  * la grille du simulateur d'ouverture (108 cases, retiré le 17/10/2026) et non plus posée à
  * vue. Rapport : `WWS/docs/rapports/2026-09-14-chaine-de-l-alliage.md`. **Placeholder tout de
  * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
@@ -32,50 +32,42 @@ export { NATIONS } from '../src/domain/ids';
 export type Costs = Readonly<Partial<Record<ResourceKey, number>>>;
 
 /**
- * Per hour and per level of the exploitation building sitting on the deposit.
+ * Per hour and per level of the exploitation building sitting on the deposit, counted in what it
+ * gives (`YIELD_OF`): a mine on iron brings up steel.
  *
- * **Le fer et le charbon sont l'appétit exact d'une fonderie** (mesure du 14/09) : une fonderie
- * de niveau 1 mange 16 minerai et 8 charbon par heure, et le sol doit la suivre *dans ces
- * proportions* — pas d'un même facteur. Une extraction ×1,5 uniforme laissait le minerai à zéro
- * pendant que le charbon gâchait 2 000 unités au plafond de stock. Le surplus de charbon (12
- * contre 8) est ce que les chantiers paient à côté de la fonte.
+ * **Le fer rend ce que la fonderie coulait** (ADR 0028 §1) : huit d'acier par heure au niveau 1,
+ * le débit de l'ancienne fonderie, avec un bâtiment au lieu de deux.
  */
 export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
   food: 12,
-  textile: 8,
+  iron: 8,
   coal: 12,
   oil: 6,
-  ore: 16,
 };
 
 /**
- * The three chains, in the order they settle. Foundry first: the alloy it makes in a window is
- * what the arsenal spends in the same one, and reversing them would idle the arsenal for a
- * reading every time both are built.
+ * The one chain left (ADR 0028 §1): the arsenal casts a round from a coal and a steel, both of
+ * which have a direct use of their own. One of each a round, three an hour and a level: set by
+ * eye.
  */
 export const CHAINS: Readonly<
-  Record<
-    'foundry' | 'arsenal' | 'quartermaster',
-    Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }
-  >
+  Record<'arsenal', Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }>
 > = {
-  foundry: {
-    output: 'alloy',
+  arsenal: {
+    output: 'ammunition',
     inputs: [
-      ['ore', 2],
       ['coal', 1],
+      ['steel', 1],
     ],
-    perHourPerLevel: 8,
+    perHourPerLevel: 3,
   },
-  arsenal: { output: 'ammunition', inputs: [['alloy', 1]], perHourPerLevel: 3 },
-  quartermaster: { output: 'bandages', inputs: [['textile', 1]], perHourPerLevel: 3 },
 };
 
 export type ChainKey = keyof typeof CHAINS;
 
 /**
  * **A chain that eats a matter spent elsewhere is commanded by the player.** An arsenal at level
- * 3 quietly takes 216 alloy a day from a nation saving 430 for a carrier, and no screen names it.
+ * 3 quietly takes 216 steel a day from a nation saving 430 for a carrier, and no screen names it.
  *
  * Written down rather than derived from the cost tables: coal appears in half the building bills,
  * so a derivation would command every chain and the decision would stop being one.
@@ -87,7 +79,7 @@ export const isCommanded = (key: BuildingKey): boolean =>
 
 /**
  * Low by default so warehouses become necessary targets (fiche 02).
- * Each level raises all eight ceilings; legacy depots count as warehouses.
+ * Each level raises all five ceilings; legacy depots count as warehouses.
  */
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
@@ -95,21 +87,18 @@ export const STORAGE_CAP_PER_LEVEL = 600;
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
 > = {
-  hq: { cost: { alloy: 60, coal: 40 }, minutes: 45 },
-  farm: { cost: { alloy: 20 }, minutes: 20 },
-  mill: { cost: { alloy: 20 }, minutes: 20 },
-  mine: { cost: { alloy: 30 }, minutes: 30 },
-  oilWell: { cost: { alloy: 45 }, minutes: 40 },
-  foundry: { cost: { alloy: 50, coal: 30 }, minutes: 50 },
-  arsenal: { cost: { alloy: 60, coal: 20 }, minutes: 55 },
-  quartermaster: { cost: { alloy: 35, textile: 20 }, minutes: 35 },
-  barracks: { cost: { alloy: 40, food: 30 }, minutes: 40 },
-  airfield: { cost: { alloy: 70, oil: 20 }, minutes: 70 },
-  port: { cost: { alloy: 65, coal: 20 }, minutes: 65 },
-  listening: { cost: { alloy: 35, coal: 15 }, minutes: 40 },
-  warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
+  hq: { cost: { steel: 60, coal: 40 }, minutes: 45 },
+  farm: { cost: { steel: 20 }, minutes: 20 },
+  mine: { cost: { steel: 30 }, minutes: 30 },
+  oilWell: { cost: { steel: 45 }, minutes: 40 },
+  arsenal: { cost: { steel: 60, coal: 20 }, minutes: 55 },
+  barracks: { cost: { steel: 40, food: 30 }, minutes: 40 },
+  airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
+  port: { cost: { steel: 65, coal: 20 }, minutes: 65 },
+  listening: { cost: { steel: 35, coal: 15 }, minutes: 40 },
+  warehouse: { cost: { steel: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
-  depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
+  depot: { cost: { steel: 40, coal: 15 }, minutes: 30 },
   // La ville de la Blitz ne se bâtit pas (`BUILDABLE_BUILDINGS`) : le barème l'exige, rien ne le lit.
   city: { cost: {}, minutes: 0 },
 };
@@ -118,7 +107,7 @@ export const BUILDING_SPEC: Readonly<
  * `plan-progression-v1.md`: one headquarters level, one new question — the ground at 1, then the
  * army at 2. **The age of the army carries the sea and the air with it** (66a, 04/09): the port
  * and the airfield used to wait for 3, and the test season measured what that cost an island —
- * 577 alloy for the first projection by sea against 198 by land, on an endowment of 500. A
+ * 577 steel for the first projection by sea against 198 by land, on an endowment of 500. A
  * nation whose only way out is the water cannot have that way out priced two levels above its
  * neighbour's road. What stays at 3 is the tank and the whole mark-2 step, which is a depth.
  *
@@ -130,11 +119,8 @@ export const BUILDING_SPEC: Readonly<
 export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   hq: 1,
   farm: 1,
-  mill: 1,
   mine: 1,
   oilWell: 1,
-  foundry: 1,
-  quartermaster: 1,
   warehouse: 1,
   depot: 1,
   barracks: 2,
@@ -173,18 +159,13 @@ export const MAX_HQ_LEVEL = 5;
 export const DEFAULT_DURATION_HOURS = 168;
 
 /**
- * **Le plus bas où la première projection par mer tient** (383 alliage : fonderie, quartier
- * général au niveau 2, caserne, port, un cargo — `invariants.test.ts`). Ce n'est plus un chiffre
- * du simulateur : la grille du 14/09 (`node run.mjs --grille`) le mesure **indifférent entre 250
- * et 500** une fois la fonderie à 8/h, l'ouverture ne dépendant plus du portefeuille mais de la
- * fonte. Ce qui fixe la borne est donc la règle de design de la décision 66a du 04/09 — une île
- * ne doit pas être tarifée au-dessus de son voisin — et rien d'autre.
- *
- * À 300 la facture casse ; à 400 elle tient, de justesse. Descendre plus bas demande de rouvrir
- * 66a (« dans la dotation *plus une journée de fonderie* », par exemple) : ce serait une décision
- * signalée, pas un réglage.
+ * **La première projection par mer doit tenir dans la dotation** (333 acier : quartier général
+ * au niveau 2, caserne, port, un cargo — `invariants.test.ts`), et c'est la règle de design de la
+ * décision 66a du 04/09 qui fixe la borne : une île ne doit pas être tarifée au-dessus de son
+ * voisin. Le chiffre de 400 date de la fonderie, qui entrait dans cette facture (383) ; le fer
+ * rend l'acier directement depuis l'ADR 0028, et la marge a grandi d'autant.
  */
-export const STARTING_ALLOY = 400;
+export const STARTING_STEEL = 400;
 
 /**
  * **The fuse.** Oil is the one resource a nation can be born unable to make, so this reserve
@@ -213,21 +194,20 @@ export const STARTING_AMMUNITION = 80;
  * **The foundation is read off the ground, never off a list** (decision of 25/08): one extractor
  * per dry resource the player's own country holds, and a well **only** where there is oil — six
  * nations out of eight hold none, and a debt they could never place opens on nothing. The
- * `foundry`, `warehouse` and `arsenal` left with it: they are what a player decides to do with a
+ * `warehouse` and the `arsenal` left with it: they are what a player decides to do with a
  * ground, not what the ground carries.
  *
  * The order is fixed rather than natural, because a season has to name its debts in the same
  * order twice running: `me.foundation[0]` is what the card points at first.
  */
-const FOUNDATION_ORDER: ReadonlyArray<DepositKey> = ['ore', 'coal', 'food', 'textile', 'oil'];
+const FOUNDATION_ORDER: ReadonlyArray<DepositKey> = ['iron', 'coal', 'food', 'oil'];
 
 /** Which extractor works which ground. The inverse of `EXPLOITED_DEPOSITS`, and the one place
  *  the *mine on two deposits* becomes two separate debts rather than one. */
 export const FOUNDATION_EXTRACTORS: Readonly<Record<DepositKey, BuildingKey>> = {
-  ore: 'mine',
+  iron: 'mine',
   coal: 'mine',
   food: 'farm',
-  textile: 'mill',
   oil: 'oilWell',
 };
 
@@ -266,13 +246,13 @@ export const LEVEL_COST_FACTOR = 1.8;
  * `buildMinutes('outpost', 1)` la durée du chantier. Un seul barème pour poser le point et pour
  * le monter — le frein d'expansion est ce prix par niveau, en place de l'entretien retiré, qui
  * vidait le stock de vivres sans que le joueur sache pourquoi. Le classement laisse le niveau 1
- * à zéro alliage malgré ce prix (`convex/press.ts`) : le territoire est une part, pas de
- * l'alliage.
+ * à zéro acier malgré ce prix (`convex/press.ts`) : le territoire est une part, pas de
+ * l'acier.
  *
  * @a-mesurer calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09)
  */
 export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
-  cost: { alloy: 65, coal: 20 },
+  cost: { steel: 65, coal: 20 },
   minutes: 65,
 };
 
@@ -297,25 +277,22 @@ export function buildMinutes(key: BuildCostKey, level: number): number {
 
 /**
  * Enough to **deploy**, not to settle (fiche 02). The headquarters is not in the list — it stands
- * from the launch (ADR 0015). **The alloy, the oil and the ammunition are missing on purpose**:
+ * from the launch (ADR 0015). **The steel, the oil and the ammunition are missing on purpose**:
  * they are the three figures of the starting line, each named on its own above, and everything
  * else is shared. Never a figure per nation — the asymmetry comes from the map.
  */
 export const STARTING_STOCK: Readonly<
-  Record<Exclude<ResourceKey, 'alloy' | 'oil' | 'ammunition'>, number>
+  Record<Exclude<ResourceKey, 'steel' | 'oil' | 'ammunition'>, number>
 > = {
   food: 120,
-  textile: 40,
   coal: 20,
-  ore: 20,
-  bandages: 0,
 };
 
 /** The whole endowment, the three figures of the starting line included — what `endow` hands
  *  out and what a test reads to say what a player opens with. */
 export const STARTING_KIT: Readonly<Record<ResourceKey, number>> = {
   ...STARTING_STOCK,
-  alloy: STARTING_ALLOY,
+  steel: STARTING_STEEL,
   oil: STARTING_OIL,
   ammunition: STARTING_AMMUNITION,
 };
@@ -370,17 +347,17 @@ export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
  * Cost and duration of **one tier-1 troop**. A batch is a troop, so nothing here multiplies by
  * a count any more (ADR 0014).
  */
-export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: number }>> = {
-  infantry: { alloy: 18, minutes: 20 },
-  armor: { alloy: 95, minutes: 70 },
-  landTransport: { alloy: 40, minutes: 45 },
-  artillery: { alloy: 80, minutes: 60 },
-  fighter: { alloy: 110, minutes: 90 },
-  bomber: { alloy: 160, minutes: 120 },
-  airTransport: { alloy: 90, minutes: 75 },
-  escort: { alloy: 175, minutes: 180 },
-  cargo: { alloy: 120, minutes: 100 },
-  carrier: { alloy: 430, minutes: 480 },
+export const COST_BY_ROLE: Readonly<Record<UnitRole, { steel: number; minutes: number }>> = {
+  infantry: { steel: 18, minutes: 20 },
+  armor: { steel: 95, minutes: 70 },
+  landTransport: { steel: 40, minutes: 45 },
+  artillery: { steel: 80, minutes: 60 },
+  fighter: { steel: 110, minutes: 90 },
+  bomber: { steel: 160, minutes: 120 },
+  airTransport: { steel: 90, minutes: 75 },
+  escort: { steel: 175, minutes: 180 },
+  cargo: { steel: 120, minutes: 100 },
+  carrier: { steel: 430, minutes: 480 },
 };
 
 /**
@@ -461,7 +438,7 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
   const base = COST_BY_ROLE[role];
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
   return {
-    alloy: Math.round(base.alloy * factor),
+    steel: Math.round(base.steel * factor),
     minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
   };
 }
@@ -746,7 +723,7 @@ export const PURSUIT_STEP_SECONDS = 15;
  *
  * A hundred and twenty kilometres is a placement in the ordering the design asks for and nothing
  * more: longer than an infantry company's 60 km, because a station bought for forty minutes and
- * thirty-five of alloy has to be worth more than a rifleman standing still. It hears and catches
+ * thirty-five of steel has to be worth more than a rifleman standing still. It hears and catches
  * nothing by itself.
  *
  * A station has no point of its own: it listens from its region's (`regionFacts`).
@@ -776,10 +753,10 @@ export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
  * free sentinels the cheapest way to empty the fog (ADR 0005).
  *
  * **Two is an assumed starting point, never a measured value**, chosen so the rule exists and can
- * be measured. The known risk is that at ×2 the surcharge drowns in an economy where alloy is the
+ * be measured. The known risk is that at ×2 the surcharge drowns in an economy where steel is the
  * bottleneck and food abundant; if the measurement says so, the value rises and the rule does not.
  *
- * @a-mesurer assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck
+ * @a-mesurer assumed; at ×2 the surcharge may drown in an economy where steel is the bottleneck
  */
 export const UPKEEP_UNSUPPLIED_MULTIPLIER = 2;
 
@@ -1051,7 +1028,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { alloy: 60 },
+    depot: { steel: 60 },
   },
   {
     key: 'stalledConvoy',
@@ -1061,7 +1038,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { alloy: 150, ammunition: 40 },
+    depot: { steel: 150, ammunition: 40 },
   },
   {
     key: 'fuelDump',
@@ -1071,7 +1048,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { alloy: 150, oil: 60 },
+    depot: { steel: 150, oil: 60 },
   },
   {
     key: 'irregularArsenal',
@@ -1081,7 +1058,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'armor', tier: 1 },
     ],
-    depot: { alloy: 300, ammunition: 80 },
+    depot: { steel: 300, ammunition: 80 },
   },
 ];
 

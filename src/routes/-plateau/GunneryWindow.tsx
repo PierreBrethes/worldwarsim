@@ -362,7 +362,7 @@ function Mark({
 }: {
   mark: UnitTier;
   marked: boolean;
-  cost: { alloy: number; minutes: number; strength: number };
+  cost: { steel: number; minutes: number; strength: number };
   role: UnitRole;
   roster: number;
   locked: boolean;
@@ -390,9 +390,9 @@ function Mark({
         </span>
       ) : (
         <span className="flex items-center gap-[7px]">
-          <StatGlyph stat="alloy" onHover={setHovered} />
+          <StatGlyph stat="steel" onHover={setHovered} />
           <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
-            {cost.alloy}
+            {cost.steel}
           </span>
         </span>
       )}
@@ -452,7 +452,7 @@ type StatHover = {
 const STAT_POPIN_WIDTH = 232;
 
 const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
-  alloy: IngotGlyph,
+  steel: IngotGlyph,
   training: ClockGlyph,
   strength: HeartGlyph,
   range: EyeGlyph,

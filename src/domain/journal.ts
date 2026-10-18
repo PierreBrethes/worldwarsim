@@ -149,7 +149,7 @@ function written(notice: Notice): Written {
         ),
       };
     /** **Rasé sur ordre**, jamais subi : encre normale, et la ligne dit le niveau perdu — c'est
-     *  l'alliage que le classement ne comptera plus à la prochaine édition. */
+     *  l'acier que le classement ne comptera plus à la prochaine édition. */
     case 'buildingDemolished':
       return {
         at: notice.at,
@@ -225,7 +225,7 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
-    /** Encre rouge : un chantier perdu est de l'alliage dépensé qui ne rend rien, et rien
+    /** Encre rouge : un chantier perdu est de l'acier dépensé qui ne rend rien, et rien
      *  d'autre sur le plateau ne le dira. */
     case 'foundationLost':
       return {

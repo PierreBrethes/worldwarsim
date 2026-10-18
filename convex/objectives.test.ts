@@ -478,7 +478,7 @@ describe('the neutral objectives', () => {
         expect(view.objectives).toHaveLength(1);
         const [objective] = view.objectives;
         expect(objective).toMatchObject({ key: 'abandonedStores', regionId: HAINAUT });
-        expect(objective!.depot.alloy).toBe(60);
+        expect(objective!.depot.steel).toBe(60);
         expect(Object.keys(objective!)).not.toContain('garrison');
         /** La garnison n'est pas servie : elle se relève comme toute force posée, ou pas. */
         expect(view.camps).toHaveLength(0);
@@ -531,8 +531,8 @@ describe('the neutral objectives', () => {
 
       const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
       expect(objective.status).toBe('taken');
-      expect(objective.depot.alloy).toBe(0);
-      /** La capacité de la colonne dépasse les soixante d'alliage : rien ne reste au sol. */
+      expect(objective.depot.steel).toBe(0);
+      /** La capacité de la colonne dépasse les soixante d'acier : rien ne reste au sol. */
       expect(
         carryCapacityOf(
           column.map(() => ({
@@ -577,7 +577,7 @@ describe('the neutral objectives', () => {
 
       const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
       expect(objective.status).toBe('standing');
-      expect(objective.depot.alloy).toBe(300);
+      expect(objective.depot.steel).toBe(300);
       const garrisonAfter = await garrisonStrength(t, seats[0]!);
       expect(garrisonAfter).toBeGreaterThan(0);
       expect(garrisonAfter).toBeLessThan(garrisonBefore);

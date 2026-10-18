@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from '../src/domain/ids';
 import {
   EXPLOITED_DEPOSITS,
+  YIELD_OF,
   clipToCapacity,
   emptyStocks,
   exploits,
@@ -90,7 +91,7 @@ export function extractionSites(
 /**
  * What a nation produces every hour, read off the map rather than off a stored number: an
  * exploitation building only yields what the region under it holds, so a mine gives coal on a
- * coal deposit and ore on an ore one, and nothing at all on neither.
+ * coal deposit and steel on an iron one, and nothing at all on neither.
  *
  * It sums the sites rather than walking the buildings a second time: the national rate and the
  * per-site detail are the same numbers, and two readings of "does this building yield" would
@@ -103,7 +104,7 @@ export function extractionRates(
 ): Record<ResourceKey, number> {
   const rates = emptyStocks();
   for (const site of extractionSites(buildings, held, ownerId)) {
-    if (site.deposit !== null) rates[site.deposit] += site.perHour;
+    if (site.deposit !== null) rates[YIELD_OF[site.deposit]] += site.perHour;
   }
   return rates;
 }
@@ -170,14 +171,14 @@ export type Economy = {
   readonly stocks: Record<ResourceKey, number>;
   /** What **accrues**: the mines, less what the army eats. This is the rate the settlement
    *  integrates, and it must stay free of the chains — they are applied inside the same pass,
-   *  and adding them here would convert the same ore twice. */
+   *  and adding them here would convert the same coal twice. */
   readonly ratePerHour: Record<ResourceKey, number>;
   /**
    * **What the player actually reads move**: the accrual plus what the chains make, less what
    * they eat, taken from the outlook the industry window already prints. The client extrapolates
    * a stock between two readings from this number and nothing else — served the accrual alone,
-   * an alloy the foundry casts at four an hour sat frozen at `0 / h` until an unrelated mutation
-   * happened to bank it, and the ore it eats climbed on screen while it was being spent.
+   * the rounds an arsenal casts at three an hour sat frozen at `0 / h` until an unrelated mutation
+   * happened to bank them, and the coal it eats climbed on screen while it was being spent.
    */
   readonly netRatePerHour: Record<ResourceKey, number>;
   readonly cap: Record<ResourceKey, number>;
@@ -213,7 +214,7 @@ export type Economy = {
  * The window the chains are diagnosed over. The one just settled cannot serve: a player who
  * just paid for a construction reads zero minutes, where nothing was asked of any chain and
  * every one of them would report as running. An hour ahead of the settled stocks answers the
- * question actually being asked — *why is my alloy not rising* — in the present tense.
+ * question actually being asked — *why is my steel not rising* — in the present tense.
  */
 export const OUTLOOK_HOURS = 1;
 
@@ -254,7 +255,7 @@ export async function economyOf(
    * `settleStocks` is alone is that two of them disagree.
    *
    * **Before the conversions, therefore, and not after.** The army eats first: a nation that
-   * cannot feed its troops is a nation whose foundry has to wait, not one whose surplus alone
+   * cannot feed its troops is a nation whose arsenal has to wait, not one whose surplus alone
    * is at risk. Food feeds no chain today, so the ordering costs nothing yet — it is written
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
@@ -276,7 +277,7 @@ export async function economyOf(
   });
 
   /**
-   * A lot advances by exactly what the settlement made, never by elapsed time: if the alloy
+   * A lot advances by exactly what the settlement made, never by elapsed time: if the steel
    * ran out halfway through the night, the lot is that much less far along, and the two
    * figures cannot drift because only one of them was ever computed.
    */
@@ -302,7 +303,7 @@ export async function economyOf(
 
   /**
    * `made` is what the outlook says the chain gets through over `OUTLOOK_HOURS` — a real rate
-   * and not a nominal one, so a starved foundry prints what it truly casts and a full one
+   * and not a nominal one, so a starved arsenal prints what it truly casts and a full one
    * prints nothing. Same arbitration as the stocks: the two cannot disagree, being one reading.
    */
   const netRatePerHour = { ...ratePerHour };

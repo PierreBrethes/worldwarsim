@@ -441,7 +441,7 @@ describe('abbreviateStack', () => {
  * et reste sur la pièce désignée.
  */
 describe('cartoucheShown', () => {
-  const named = { role: 'nature', text: 'Fonderie' } as const;
+  const named = { role: 'nature', text: 'Arsenal' } as const;
   const rest = { pointed: false, selected: false };
 
   it('keeps a building, a pile and a neutral objective quiet at rest', () => {

@@ -22,7 +22,7 @@ import {
   type DepositKey,
   type ResourceKey,
 } from '@/domain/ids';
-import { PRODUCER_OF } from '@/domain/economy';
+import { PRODUCER_OF, YIELD_OF } from '@/domain/economy';
 import { unlinkedProducers } from '@/domain/next-actions';
 import { placementOf, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
@@ -181,11 +181,11 @@ export function EconomyWindow({
   );
 }
 
-const EXTRACTION_KEYS: ReadonlyArray<BuildingKey> = ['farm', 'mill', 'mine', 'oilWell'];
+const EXTRACTION_KEYS: ReadonlyArray<BuildingKey> = ['farm', 'mine', 'oilWell'];
 
-const TRANSFORMATION_KEYS: ReadonlyArray<BuildingKey> = ['foundry', 'arsenal', 'quartermaster'];
+const TRANSFORMATION_KEYS: ReadonlyArray<BuildingKey> = ['arsenal'];
 
-/** The seven keys the chart draws — exploitation and transformation, in family order. */
+/** The keys the chart draws — exploitation and transformation, in family order. */
 const CHAIN_KEYS: ReadonlyArray<BuildingKey> = [...EXTRACTION_KEYS, ...TRANSFORMATION_KEYS];
 
 /** What arms: the section of the projection. */
@@ -351,39 +351,35 @@ function useQueueCancel(seat: Seat) {
 export type Column = {
   readonly id: string;
   readonly sources: ReadonlyArray<Source>;
-  /** The exploitation buildings that work the deposits above — empty when the input is an
-   *  output of another column, as the arsenal's alloy is. */
+  /** The exploitation buildings that work the deposits above. */
   readonly extraction: ReadonlyArray<BuildingKey>;
   readonly conversion: ChainView | null;
   readonly output: { readonly resource: ResourceKey; readonly perHour: number };
 };
 
-export type Source =
-  | { readonly kind: 'deposit'; readonly deposit: DepositKey; readonly held: number }
-  | { readonly kind: 'chain'; readonly resource: ResourceKey; readonly by: BuildingKey };
+export type Source = { readonly deposit: DepositKey; readonly held: number };
 
 /**
- * **Every deposit is a filière of its own, converted or not.** The ore a foundry eats is still
- * ore the nation pulls out and spends on its buildings: folding its column into the alloy's
- * hid the only place the mine's real rate was ever printed. The ground first, in the domain's
- * own order, then the three transformations — the page reads left to right from what is dug
- * to what is made.
+ * **Every deposit is a filière of its own, converted or not.** The coal an arsenal eats is still
+ * coal the nation pulls out and spends on its buildings: folding its column into the rounds'
+ * would hide the only place the mine's real rate is printed. The ground first, in the domain's
+ * own order, then the arsenal — the page reads left to right from what is dug to what is made.
  */
 function supplyColumns(view: PlayerView): ReadonlyArray<Column> {
-  const heldDeposits = (deposit: DepositKey) =>
-    view.me.regions.filter((region) => region.deposit === deposit).length;
-  const isDeposit = (resource: ResourceKey): resource is DepositKey =>
-    (DEPOSITS as ReadonlyArray<string>).includes(resource);
+  const sourceOf = (deposit: DepositKey): Source => ({
+    deposit,
+    held: view.me.regions.filter((region) => region.deposit === deposit).length,
+  });
 
   const raw = DEPOSITS.map(
     (deposit) =>
       ({
         id: deposit,
-        sources: [{ kind: 'deposit', deposit, held: heldDeposits(deposit) }],
-        extraction: [PRODUCER_OF[deposit]],
+        sources: [sourceOf(deposit)],
+        extraction: [PRODUCER_OF[YIELD_OF[deposit]]],
         conversion: null,
         output: {
-          resource: deposit,
+          resource: YIELD_OF[deposit],
           perHour: view.me.extraction
             .filter((site) => site.deposit === deposit)
             .reduce((total, site) => total + site.perHour, 0),
@@ -391,22 +387,15 @@ function supplyColumns(view: PlayerView): ReadonlyArray<Column> {
       }) satisfies Column,
   );
 
+  // No chain feeds another since ADR 0028: every input of the arsenal comes out of the ground.
   const chains = view.me.chains.map((chain) => {
-    const sources = chain.inputs.map<Source>((input) =>
-      isDeposit(input.resource)
-        ? { kind: 'deposit', deposit: input.resource, held: heldDeposits(input.resource) }
-        : { kind: 'chain', resource: input.resource, by: PRODUCER_OF[input.resource] },
-    );
+    const sources = DEPOSITS.filter((deposit) =>
+      chain.inputs.some((input) => input.resource === YIELD_OF[deposit]),
+    ).map(sourceOf);
     return {
       id: chain.output,
       sources,
-      extraction: [
-        ...new Set(
-          sources.flatMap((source) =>
-            source.kind === 'deposit' ? [PRODUCER_OF[source.deposit]] : [],
-          ),
-        ),
-      ],
+      extraction: [...new Set(sources.map((source) => PRODUCER_OF[YIELD_OF[source.deposit]]))],
       conversion: chain,
       output: { resource: chain.output, perHour: chain.perHour },
     } satisfies Column;
@@ -426,9 +415,7 @@ function SupplyColumn({
   placements: Readonly<Record<BuildingKey, Placement>>;
   now: number;
 }) {
-  const worked = column.sources.flatMap((source) =>
-    source.kind === 'deposit' ? [source.deposit] : [],
-  );
+  const worked = column.sources.map((source) => source.deposit);
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -438,11 +425,7 @@ function SupplyColumn({
         raw={rawVerdictOf(view, column)}
       />
       {column.sources.map((source, rank) => (
-        <SourceBox
-          key={source.kind === 'deposit' ? source.deposit : source.resource}
-          source={source}
-          first={rank === 0}
-        />
+        <SourceBox key={source.deposit} source={source} first={rank === 0} />
       ))}
       {column.extraction.map((key) => (
         <StepBox
@@ -533,7 +516,7 @@ export type RawVerdict = 'noDeposit' | 'missing' | 'dry' | null;
 
 export function rawVerdictOf(view: PlayerView, column: Column): RawVerdict {
   if (column.conversion !== null || column.output.perHour > 0) return null;
-  if (column.sources.every((source) => source.kind === 'deposit' && source.held === 0)) {
+  if (column.sources.every((source) => source.held === 0)) {
     return 'noDeposit';
   }
   return column.extraction.every((key) => stateOf(view, key).kind === 'missing')
@@ -560,7 +543,7 @@ function isCut(view: PlayerView, column: Column, worked: ReadonlyArray<DepositKe
 }
 
 /** How much this exploitation actually pulls out of the deposits this column stands on — the
- *  mine works coal and ore, so the column, not the key, decides what counts. */
+ *  mine works coal and iron, so the column, not the key, decides what counts. */
 const extractionRate = (
   view: PlayerView,
   key: BuildingKey,
@@ -571,8 +554,8 @@ const extractionRate = (
     .reduce((total, site) => total + site.perHour, 0);
 
 /**
- * The four states of a link. **A raise is not a state**: a foundry standing at level 2 while its
- * level 3 rises is *built*, and drawing it hatched would tell the player the alloy has stopped.
+ * The four states of a link. **A raise is not a state**: an arsenal standing at level 2 while its
+ * level 3 rises is *built*, and drawing it hatched would tell the player the steel has stopped.
  * The site rows below carry the raise.
  *
  * `queued` exists because the queue is prepaid (25/08): a link the player has already bought and
@@ -674,27 +657,6 @@ function BoxLabel({ children, ink = 'var(--ink-soft)' }: { children: string; ink
  * the nation sheet already uses — what is missing is taken abroad.
  */
 function SourceBox({ source, first }: { source: Source; first: boolean }) {
-  if (source.kind === 'chain') {
-    return (
-      <>
-        {!first && <Connector />}
-        <div className="border border-[var(--ink)] bg-(--ink)/6 px-[8px] py-[6px]">
-          <BoxLabel>{fr.economy.roleUpstream}</BoxLabel>
-          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
-            <span className="flex min-w-0 items-center gap-[5px] text-[13px] font-semibold text-[var(--ink)]">
-              <ResourcePlate resource={source.resource} height={17} />
-              <span className="min-w-0 leading-[1.25]">{fr.resources[source.resource]}</span>
-            </span>
-            <span className="text-[10.5px] text-[var(--ink-soft)]">
-              {fr.economy.fromChain(fr.buildings[source.by])}
-            </span>
-          </div>
-        </div>
-        <Connector />
-      </>
-    );
-  }
-
   const none = source.held === 0;
   return (
     <>
@@ -767,7 +729,7 @@ function StepBox({
 
 /**
  * The transformation. A built link carries its **real** rate and the settlement's own verdict:
- * a starved foundry printing its nominal is the interface telling the player he is producing
+ * a starved arsenal printing its nominal is the interface telling the player he is producing
  * when he is not, which is the lie this whole surface exists to stop.
  */
 function ConversionBox({
@@ -1209,8 +1171,8 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
 
 /**
  * **A chain that eats a matter spent elsewhere waits to be told how much.** The arsenal turned
- * alloy into ammunition three an hour per level, forever, with no way to stop it: a player
- * saving 430 alloy for a carrier lost 216 a day to it, and no screen ever said so. The lot
+ * steel into ammunition three an hour per level, forever, with no way to stop it: a player
+ * saving 430 steel for a carrier lost 216 a day to it, and no screen ever said so. The lot
  * fixes it without adding a knob — exactly this many units, once, then silence.
  *
  * **There is deliberately no rate control.** The rate belongs to the building's level; a slider
@@ -1875,13 +1837,12 @@ function QueuedNotice({
 /** Le maillon d'une filière, en étiquette : ce qu'il est, et comment il se tient. */
 type Link = {
   readonly text: string;
-  readonly skin: 'deposit' | 'none' | 'input' | LinkState['kind'];
+  readonly skin: 'deposit' | 'none' | LinkState['kind'];
 };
 
 const LINK_SKIN: Readonly<Record<Link['skin'], string>> = {
   deposit: 'border border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]',
   none: 'border border-dashed border-[var(--critical)] text-[var(--critical)]',
-  input: 'border border-(color:--ink)/40 text-[var(--ink-soft)] italic',
   built: 'border border-[var(--ink)]',
   underway: 'chart-underway border border-[var(--ink)]',
   queued: 'chart-underway border border-dashed border-[var(--ink)]',
@@ -1907,9 +1868,7 @@ function ChainLine({
   seat: Seat;
   now: number;
 }) {
-  const worked = column.sources.flatMap((source) =>
-    source.kind === 'deposit' ? [source.deposit] : [],
-  );
+  const worked = column.sources.map((source) => source.deposit);
   const cut = isCut(view, column, worked);
   const dry = column.output.perHour <= 0;
   const stepOf = (key: BuildingKey): Link => {
@@ -1926,11 +1885,9 @@ function ChainLine({
   const order = chain?.commanded ? chain.order : null;
   const links: ReadonlyArray<Link> = [
     ...column.sources.map<Link>((source) =>
-      source.kind === 'chain'
-        ? { text: fr.resources[source.resource], skin: 'input' }
-        : source.held === 0
-          ? { text: fr.economy.roleDepositNone, skin: 'none' }
-          : { text: fr.works.deposits(source.held), skin: 'deposit' },
+      source.held === 0
+        ? { text: fr.economy.roleDepositNone, skin: 'none' }
+        : { text: fr.works.deposits(source.held), skin: 'deposit' },
     ),
     ...column.extraction.map(stepOf),
     ...(chain === null ? [] : [stepOf(chain.by)]),
@@ -1941,10 +1898,7 @@ function ChainLine({
   const missing = [...column.extraction, ...(chain === null ? [] : [chain.by])].find(
     (key) => stateOf(view, key).kind === 'missing',
   );
-  const bare = column.sources.find(
-    (source): source is Extract<Source, { kind: 'deposit' }> =>
-      source.kind === 'deposit' && source.held === 0,
-  );
+  const bare = column.sources.find((source) => source.held === 0);
   const note =
     bare !== undefined
       ? fr.economy.depositNoneHeld(fr.deposits[bare.deposit])

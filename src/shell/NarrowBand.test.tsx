@@ -74,9 +74,9 @@ async function mount(onShowBriefing = () => {}, shown = view): Promise<AnyRouter
 const dossierButton = () => screen.getByTitle(fr.dossier.open(nationLabel('france')));
 
 describe('the narrow band', () => {
-  it('reads eight columns under the nation line, and the slots beside it', async () => {
+  it('reads five columns under the nation line, and the slots beside it', async () => {
     await mount();
-    expect(columns()).toHaveLength(8);
+    expect(columns()).toHaveLength(5);
     expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
   });
 
@@ -85,7 +85,7 @@ describe('the narrow band', () => {
       ...view.me.resources,
       coal: { ...view.me.resources.coal, stock: 400 },
       oil: { ...view.me.resources.oil, stock: 0, ratePerHour: 0 },
-      ore: { ...view.me.resources.ore, stock: 30, ratePerHour: -2.9 },
+      steel: { ...view.me.resources.steel, stock: 30, ratePerHour: -2.9 },
     };
     await mount(() => {}, { ...view, me: { ...view.me, resources } } as PlayerView);
     expect(screen.getByText(fr.resourceBand.dry)).toBeTruthy();

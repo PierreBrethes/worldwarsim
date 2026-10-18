@@ -80,7 +80,7 @@ export function renderReport({ code, launchedAt, now, players, report }) {
   say(
     '## 1. Boule de neige',
     'Le premier est le plus haut `industry + military` des éditions (les deux chiffres du ' +
-      "classement). `industry` est l'alliage payé en bâtiments et en points, **pas un débit** : la " +
+      "classement). `industry` est l'acier payé en bâtiments et en points, **pas un débit** : la " +
       "production en flux n'est pas gardée. Les parts sont celles du premier dans le total des joueurs.",
     report.snowball.length === 0
       ? '*aucune édition à ces heures.*'

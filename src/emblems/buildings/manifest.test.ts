@@ -3,7 +3,7 @@ import { BUILDINGS } from '@/domain/ids';
 import { BUILDING_SPRITES, buildingMaquette, buildingSprite } from './manifest';
 
 describe('building sprite manifest', () => {
-  it('answers for each of the fifteen keys, and for nothing else', () => {
+  it('answers for each key, and for nothing else', () => {
     for (const key of BUILDINGS) {
       expect(BUILDING_SPRITES, key).toHaveProperty(key);
     }
@@ -29,8 +29,8 @@ describe('building maquette manifest', () => {
   });
 
   it('sinks a coal mine on coal, and the plain mine anywhere else', () => {
-    expect(buildingMaquette('mine', 'coal')).not.toBe(buildingMaquette('mine', 'ore'));
-    expect(buildingMaquette('mine', 'ore')).toBe(buildingMaquette('mine', null));
+    expect(buildingMaquette('mine', 'coal')).not.toBe(buildingMaquette('mine', 'iron'));
+    expect(buildingMaquette('mine', 'iron')).toBe(buildingMaquette('mine', null));
     expect(buildingMaquette('farm', 'coal')).toBe(buildingMaquette('farm', null));
   });
 });

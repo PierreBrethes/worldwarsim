@@ -1,18 +1,24 @@
 /**
- * Bakes `public/deposits.json` — the five map resources of the economy v2 (ADR 0015) laid on
+ * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) laid on
  * admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as `id`.
  *
  * The file is **sparse**: a region without a deposit is absent, and a region never holds two.
  * Everything is decided here, offline: no client rule derives a deposit from a region type at
  * runtime, so the map stays a fact the server and the client read, never recompute.
  *
- * Two regimes, on purpose. Coal, oil and ore come **only** from the curated tables below: an
+ * Two regimes, on purpose. Coal, oil and iron come **only** from the curated tables below: an
  * oil field cannot be guessed from a latitude, and a procedural pass would put petroleum in
- * Auvergne. Food and textile are drawn, under a per-nation profile rather than one ceiling for
- * everyone — a deposit must be earned, not wallpapered, and a nation is a shape before it is a
- * size. CORRECTIONS then names the mines that give coal and ore their national shape, and
- * enforces the ADR 0015 rule: every playable nation holds four of the five resources at home,
- * one deliberate gap, never two — unless the profile declares the exception and says why.
+ * Auvergne. Food is drawn, under a per-nation profile rather than one ceiling for everyone — a
+ * deposit must be earned, not wallpapered, and a nation is a shape before it is a size.
+ * CORRECTIONS then names the mines that give coal and iron their national shape, and enforces
+ * the ADR 0015 rule: every playable nation holds three of the four deposits at home, one
+ * deliberate gap, never two — unless the profile declares the exception and says why.
+ *
+ * The iron table is the old ore table renamed (ADR 0028): a few of its mines dug copper or lead
+ * in 1940, and they stay as iron because the map's balance is what they are for. What the move
+ * to four deposits cost the band was paid in facts (18/10): Norilsk is nickel and left the
+ * iron, Vorkuta gave next to nothing before the Pechora railway of 1941 and left the coal, and
+ * Japan gained the Nagasaki pits it lost its silk to.
  *
  * The audit at the end guards three things and fails the build on any of them: an id matching
  * no region, a nation short of two resources, and a home count outside the band — presence is
@@ -79,7 +85,6 @@ const COAL = {
   'UKR-327': 'Donbass — the Soviet furnace',
   'UKR-329': 'Donbass east — Voroshilovgrad pits',
   'RUS-2401': 'Kuzbass — the eastern basin, out of bomber reach',
-  'RUS-2383': 'Vorkuta — arctic coal, opened at any cost',
   'FRA-5334': 'Nord-Pas-de-Calais — the French basin',
   'FRA-5328': 'Lorraine coal, next door to the ore',
   'GBR-2764': 'Midlands — Nottinghamshire pits',
@@ -126,7 +131,7 @@ const OIL = {
   'MYS-1187': 'Miri — Sarawak',
 };
 
-const ORE = {
+const IRON = {
   'FRA-5325': 'Lorraine — the minette iron ore',
   'SWE-190': 'Kiruna — Norrbotten magnetite',
   'NOR-1062': 'Sydvaranger — Kirkenes',
@@ -150,7 +155,7 @@ const ORE = {
   'AUS-2651': 'Yampi Sound — Western Australia',
 };
 
-const CURATED = { coal: COAL, oil: OIL, ore: ORE };
+const CURATED = { coal: COAL, oil: OIL, iron: IRON };
 
 /**
  * A latitude band alone puts wheat in New Mexico and in the Altai: temperate says nothing
@@ -259,76 +264,16 @@ const FOOD_ZONES = [
 const FOOD = { spacing: 2.5 };
 
 /**
- * Textile follows no belt but a handful of named lands: cotton, silk, wool. Everywhere else
- * wove for itself, not for a war.
- */
-const TEXTILE_ZONES = [
-  { note: 'US cotton belt', countries: ['USA'], latitudes: [28, 37], longitudes: [-100, -76] },
-  { note: 'Nile cotton', countries: ['EGY'], latitudes: [24, 32], longitudes: [29, 34] },
-  { note: 'Indian cotton', countries: ['IND', 'PAK'], latitudes: [15, 32], longitudes: [67, 84] },
-  { note: 'Central Asian cotton', countries: ['UZB'], latitudes: [37, 46], longitudes: [58, 74] },
-  { note: 'Yangzi delta silk', countries: ['CHN'], latitudes: [27, 33], longitudes: [114, 123] },
-  { note: 'Japanese silk', countries: ['JPN'], latitudes: [33.5, 39], longitudes: [131, 142] },
-  {
-    note: 'Saxon and Bavarian mills',
-    countries: ['DEU'],
-    latitudes: [48, 51.5],
-    longitudes: [8, 14],
-  },
-  { note: 'Lyon silk', countries: ['FRA'], latitudes: [45, 46.5], longitudes: [3.5, 5.8] },
-  {
-    note: 'northern French wool',
-    countries: ['FRA'],
-    latitudes: [49.5, 51],
-    longitudes: [1.5, 4.5],
-  },
-  {
-    note: 'Lancashire and West Riding mills',
-    countries: ['GBR'],
-    latitudes: [53, 54.5],
-    longitudes: [-3, -1],
-  },
-  { note: 'Ulster linen', countries: ['GBR'], latitudes: [54, 55.3], longitudes: [-8, -5.5] },
-  {
-    note: 'Biella wool and Como silk',
-    countries: ['ITA'],
-    latitudes: [45.4, 46.2],
-    longitudes: [7.6, 9.4],
-  },
-  {
-    note: 'Tuscan wool, Prato and Lucca',
-    countries: ['ITA'],
-    latitudes: [43.5, 44.3],
-    longitudes: [10.3, 11.6],
-  },
-  { note: 'Spanish wool', countries: ['ESP'], latitudes: [39, 42], longitudes: [-7, -1] },
-  {
-    note: 'Australasian and South African wool',
-    countries: ['AUS', 'NZL', 'ZAF'],
-    latitudes: [-46, -22],
-    longitudes: [-180, 180],
-  },
-  {
-    note: 'Patagonian and Uruguayan wool',
-    countries: ['ARG', 'URY'],
-    latitudes: [-52, -30],
-    longitudes: [-74, -53],
-  },
-];
-
-const TEXTILE = { spacing: 2.5 };
-
-/**
  * One ceiling for everyone bought fairness by spending variety: seven nations out of eight
  * ended at exactly four food, and outside oil the spread between nations fell to 1.33×. The
  * band belongs on the totals; the shape belongs to each nation. So the ceiling becomes a
  * profile — how much of each resource a nation may hold at home — and every departure from
  * the common profile carries the fact it comes from, never a balancing argument.
  *
- * Only food and textile are drawn, so only those two are capped here; coal, oil and ore are
- * placed one by one, and a nation's share of them is shaped in CORRECTIONS instead.
+ * Only food is drawn, so only food is capped here; coal, oil and iron are placed one by one,
+ * and a nation's share of them is shaped in CORRECTIONS instead.
  */
-const COMMON_PROFILE = { food: 4, textile: 3 };
+const COMMON_PROFILE = { food: 4 };
 
 /**
  * The two ways out of "one deliberate gap, never two" (ADR 0015). Both are declarations, not
@@ -345,34 +290,32 @@ const declaredSecondGap = (nation) => PROFILES[nation].secondGap?.[0];
 
 const PROFILES = {
   // Iron, not bread: Lorraine minette, Normandy at Soumont, Anjou at Segré. Oil is the gap.
-  france: { food: 3, textile: 2 },
+  france: { food: 3 },
   // The island that imports its bread — the one nation whose lack is what defines it — and
   // pays for it with Wales, the Midlands and Yorkshire.
-  uk: { food: 2, textile: 2 },
+  uk: { food: 2 },
   // The profile only keeps the United States from topping the food column as well. This is the
   // open 🔴 of the project, not a slip — the most unreachable player is also the least short of
   // anything, and it is the simulator's job to price that, not this script's to hide it.
   usa: {
     food: 3,
-    textile: 3,
     noGap:
-      'nothing among these five resources was short in the United States of 1940 — its real shortages were rubber, tin and chromium, which the game does not name; inventing an American gap would be the one dishonest line of the table',
+      'nothing among these four deposits was short in the United States of 1940 — its real shortages were rubber, tin and chromium, which the game does not name; inventing an American gap would be the one dishonest line of the table',
   },
-  // Black earth and the Urals, and cloth from Ivanovo alone.
-  ussr: { food: 6, textile: 1 },
-  // Ruhr, Saar and the central lignite; the ore is the gap, which is why the iron came from
-  // Sweden through Narvik.
-  germany: { food: 3, textile: 3 },
-  // Silk, first exporter in the world, against imported rice and one single iron mine. The
-  // nation that went to war because it had nothing — **oil is the gap**, and it is the whole
+  // Black earth and the Urals.
+  ussr: { food: 6 },
+  // Ruhr, Saar and the central lignite; the iron is the gap, which is why it came from Sweden
+  // through Narvik.
+  germany: { food: 3 },
+  // Imported rice and one single iron mine. The nation that went to war because it had nothing — **oil is the gap**, and it is the whole
   // fuse: the carrier exists in this game to go and fetch it. The second gap it used to declare
-  // on ore is withdrawn (25/08/2026): a nation that can neither buy nor take iron cannot play,
+  // on iron is withdrawn (25/08/2026): a nation that can neither buy nor take iron cannot play,
   // and Kamaishi is what makes the shortage a shape instead of a wall.
-  japan: { food: 2, textile: 4 },
-  // Sardinia and Elba for ore; the coal is the gap, hence the dependency on German deliveries.
-  italy: { food: 4, textile: 2 },
-  // Plains and silk on a scale nothing else matches, over almost no coal and less ore.
-  china: { food: 6, textile: 4 },
+  japan: { food: 2 },
+  // Sardinia and Elba for iron; the coal is the gap, hence the dependency on German deliveries.
+  italy: { food: 4 },
+  // Plains on a scale nothing else matches, over almost no coal and less iron.
+  china: { food: 6 },
 };
 
 const malformed = NATIONS.flatMap((nation) => {
@@ -409,52 +352,45 @@ const capOf = (country, key) => {
  * absolute threshold that would mean nothing across French departments and Australian states
  * alike. The floor catches the countries whose admin-1 set mixes both scales — the United
  * Kingdom lists Yorkshire next to a London borough, so its median says nothing on its own.
- *
- * Textile skips the filter on purpose: a mill sits in a town and a farm does not. Como, Biella
- * and the Lancashire cotton boroughs are small *because* they are textile districts.
  */
 const AREA_SHARE_OF_MEDIAN = 0.4;
 const AREA_FLOOR = 0.1;
 
 /**
  * The manual pass that turns a realistic map into a playable one (ADR 0015), and the place
- * where coal and ore take their national shape — the draw only handles food and textile, so
+ * where coal and iron take their national shape — the draw only handles food, so
  * a profile's mines are named here one by one. Every line carries the deposit it comes from,
  * never a balancing argument. What is *not* corrected matters as much: France has no oil, and
  * that is the canonical deliberate gap of the game.
  */
 const CORRECTIONS = {
   add: {
-    'RUS-2355': [
-      'textile',
-      'Ivanovo, the Russian cotton mills — the USSR would otherwise weave nothing at home',
-    ],
-
     // France — iron, not bread: the three basins that fed its steel.
-    'ITA-5372': ['ore', 'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente'],
+    'ITA-5372': ['iron', 'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente'],
     'FRA-5275': [
-      'ore',
+      'iron',
       'Soumont and May-sur-Orne, the Normandy iron basin — second to Lorraine, and exported to the Ruhr',
     ],
-    'FRA-5321': ['ore', 'Segré in Anjou, worked without interruption through the period'],
+    'FRA-5321': ['iron', 'Segré in Anjou, worked without interruption through the period'],
 
     // Japan — the third basin, after Chikuhō and Ishikari: coal is the one thing the archipelago
     // does hold in quantity, which is what makes its lack of oil a shape rather than poverty.
     'JPN-1864': ['coal', 'the Jōban coalfield around Iwaki, which burned in the Tokyo factories'],
+    'JPN-3500': ['coal', 'Takashima and Hashima, the Mitsubishi undersea pits off Nagasaki'],
     /**
-     * And the one iron. Drawn from nothing, Japan held **no** ore at all, and with looting not
+     * And the one iron. Drawn from nothing, Japan held **no** iron at all, and with looting not
      * coded there is no road to any: at that point the lack stops being a shape and the nation
      * stops being playable — a nation is never annexed, so it cannot even take a mine (ADR
      * 0004). One region and not two: what is corrected here is the unplayable, never the
      * unequal, and the asymmetry still comes from the map.
      */
     'JPN-1865': [
-      'ore',
+      'iron',
       'Kamaishi in Iwate, the first blast furnace of Japan and the only iron mine of the archipelago',
     ],
 
-    // United Kingdom — coal is the profile, and the ore that goes with Cumbrian haematite.
-    'GBR-2032': ['ore', 'Cleveland ironstone, which fed the Teesside furnaces'],
+    // United Kingdom — coal is the profile, and the iron that goes with Cumbrian haematite.
+    'GBR-2032': ['iron', 'Cleveland ironstone, which fed the Teesside furnaces'],
     'GBR-5688': [
       'coal',
       'the South Yorkshire coalfield around Barnsley — the third of the three, with Wales and the Midlands',
@@ -465,14 +401,13 @@ const CORRECTIONS = {
     'DEU-3487': ['coal', 'the Lusatian lignite of Brandenburg'],
 
     // Italy — the third iron, and the reason its steel could exist at all.
-    'ITA-5442': ['ore', 'Cogne magnetite in the Aosta valley, smelted on the spot'],
+    'ITA-5442': ['iron', 'Cogne magnetite in the Aosta valley, smelted on the spot'],
 
     // USSR — the Urals and the Moscow basin, the depth that let it move its industry east.
     'RUS-2379': [
-      'ore',
+      'iron',
       'Magnitnaya mountain at Magnitogorsk, the largest iron works of the country',
     ],
-    'RUS-2603': ['ore', 'Norilsk nickel and copper, opened in 1935'],
     'RUS-2368': [
       'coal',
       'the Moscow basin lignite around Tula, which kept the capital working when the Donbass fell',
@@ -488,21 +423,12 @@ const CORRECTIONS = {
  *
  * Germany was dealt on its sixteen Länder. Cutting Bavaria, Baden-Württemberg and Hesse into
  * their districts (07/10/2026) changed the candidates and the shuffle with them, and the draw
- * re-dealt all six food and textile deposits — a map edit is not a reason for a nation to wake
- * up with other fields. Each deposit stays on its Land; the two that sat on a Land now cut
- * move to the district that carries the trade.
+ * re-dealt its food deposits — a map edit is not a reason for a nation to wake up with other
+ * fields. Each deposit stays on its Land. Its three textile deposits left with the resource
+ * (ADR 0028).
  */
 const FROZEN_DRAWS = {
   DEU: {
-    'DEU-DE27': [
-      'textile',
-      'Augsburg, the Bavarian Manchester — the Land it was drawn on, Bayern, is cut',
-    ],
-    'DEU-DE14': [
-      'textile',
-      'Reutlingen and the Swabian Alb mills — the Land it was drawn on, Baden-Württemberg, is cut',
-    ],
-    'DEU-1601': ['textile', 'as drawn'],
     'DEU-1577': ['food', 'as drawn'],
     'DEU-1580': ['food', 'as drawn'],
     'DEU-3488': ['food', 'as drawn'],
@@ -661,9 +587,6 @@ function scatter(key, candidates, { spacing }) {
   }
 }
 
-// Textile first: its zones are the narrow ones, so where the two overlap — Lyon, the Po
-// valley — the named craft wins over the generic plain.
-scatter('textile', inAnyZone(TEXTILE_ZONES, { farmland: false }), TEXTILE);
 scatter('food', inAnyZone(FOOD_ZONES, { farmland: true }), FOOD);
 
 for (const id of Object.keys(CORRECTIONS.remove)) {

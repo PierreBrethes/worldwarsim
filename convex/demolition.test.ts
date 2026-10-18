@@ -21,7 +21,7 @@ const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // food
 const MOSELLE = 'FRA-5328'; // coal, inland
-const MEURTHE = 'FRA-5325'; // ore
+const MEURTHE = 'FRA-5325'; // iron
 const ARDENNES = 'FRA-5268'; // no deposit at all
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
@@ -129,7 +129,7 @@ describe('raser un bâtiment', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.some((building) => building.id === station)).toBe(false);
-    expect(view.me.resources.alloy.stock).toBeCloseTo(before.alloy.stock, 5);
+    expect(view.me.resources.steel.stock).toBeCloseTo(before.steel.stock, 5);
 
     // La région ne refuse plus : une caserne s'y met en file là où la station se tenait.
     await fillAll(t, seat);
@@ -171,13 +171,13 @@ describe('raser un bâtiment', () => {
       role: 'infantry',
       tier: 1,
     });
-    const waiting = recruitmentCost('infantry', 1, 1).alloy;
+    const waiting = recruitmentCost('infantry', 1, 1).steel;
 
-    const before = (await stocks(t, seat)).alloy.stock;
+    const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: barracks });
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBeCloseTo(before + waiting, 5);
+    expect(view.me.resources.steel.stock).toBeCloseTo(before + waiting, 5);
     const point = regionFacts(MARNE)!.point;
     const garrison = view.me.troops.filter(
       (troop) => troop.stationedAt.kind === 'point' && troop.stationedAt.lonLat[0] === point[0],
@@ -252,7 +252,7 @@ describe('raser un bâtiment', () => {
     // Et la dette du fer, elle, n'a pas bougé : une dette se solde sur son gisement.
     expect(
       (await t.query(api.view.playerView, seat)).me.foundation.some(
-        (debt) => debt.key === 'mine' && debt.deposit === 'ore',
+        (debt) => debt.key === 'mine' && debt.deposit === 'iron',
       ),
     ).toBe(true);
   });
@@ -277,13 +277,13 @@ describe('raser un bâtiment', () => {
       building: 'listening',
       regionId: MEURTHE,
     });
-    const refund = buildCost('listening', 2).alloy ?? 0;
+    const refund = buildCost('listening', 2).steel ?? 0;
 
-    const before = (await stocks(t, seat)).alloy.stock;
+    const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: station });
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBeCloseTo(before + refund, 5);
+    expect(view.me.resources.steel.stock).toBeCloseTo(before + refund, 5);
     const filed = [
       ...(view.me.construction === null ? [] : [view.me.construction]),
       ...view.me.constructionQueue,
@@ -291,8 +291,8 @@ describe('raser un bâtiment', () => {
     expect(filed.some((work) => work.regionId === MEURTHE)).toBe(false);
   });
 
-  /** Cas 7 : le classement lit ce qui est debout — l'alliage d'un bâtiment rasé en sort. */
-  it('retire l’alliage du bâtiment rasé du score d’industrie', async () => {
+  /** Cas 7 : le classement lit ce qui est debout — l'acier d'un bâtiment rasé en sort. */
+  it('retire l’acier du bâtiment rasé du score d’industrie', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const mine = await raise(t, seat, 'mine', MOSELLE, 2);
@@ -301,7 +301,7 @@ describe('raser un bâtiment', () => {
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: mine });
     const without = industryOf(await buildingsOf(t, seat));
 
-    expect(withMine - without).toBe(buildCost('mine', 1).alloy! + buildCost('mine', 2).alloy!);
+    expect(withMine - without).toBe(buildCost('mine', 1).steel! + buildCost('mine', 2).steel!);
   });
 });
 
@@ -318,8 +318,8 @@ const industryOf = (buildings: ReadonlyArray<{ key: BuildingKey; level: number }
     engagements: 0,
     heldCount: 0,
     heldByAnyone: 0,
-    alloy: {
-      ofLevel: (key, level) => buildCost(key as BuildingKey, level).alloy ?? 0,
+    steel: {
+      ofLevel: (key, level) => buildCost(key as BuildingKey, level).steel ?? 0,
       ofTroop: () => 0,
     },
   }).industry;

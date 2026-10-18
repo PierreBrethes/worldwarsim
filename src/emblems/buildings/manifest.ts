@@ -5,32 +5,26 @@ import barracksMaquette from './barracks.glb';
 import cityMaquette from './city.glb';
 import coalMineMaquette from './coalMine.glb';
 import farmMaquette from './farm.glb';
-import foundryMaquette from './foundry.glb';
 import hqMaquette from './hq.glb';
 import listeningMaquette from './listening.glb';
-import millMaquette from './mill.glb';
 import mineMaquette from './mine.glb';
 import oilWellMaquette from './oilWell.glb';
 import portMaquette from './port.glb';
-import quartermasterMaquette from './quartermaster.glb';
 import warehouseMaquette from './warehouse.glb';
 import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
 import barracks from './barracks.webp';
 import city from './city.webp';
 import farm from './farm.webp';
-import foundry from './foundry.webp';
 import hq from './hq.webp';
 import listening from './listening.webp';
-import mill from './mill.webp';
 import mine from './mine.webp';
 import oilWell from './oilWell.webp';
 import port from './port.webp';
-import quartermaster from './quartermaster.webp';
 import warehouse from './warehouse.webp';
 
 /**
- * **Fifteen visuals, not a hundred and twenty.** One per `BuildingKey` — a pagoda barracks for
+ * **One visual per key, not one per nation.** One per `BuildingKey` — a pagoda barracks for
  * Japan would be beautiful and would cost eight plates for a sprite two centimetres tall on
  * screen.
  *
@@ -47,12 +41,9 @@ import warehouse from './warehouse.webp';
 export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
   hq,
   farm,
-  mill,
   mine,
   oilWell,
-  foundry,
   arsenal,
-  quartermaster,
   barracks,
   airfield,
   port,
@@ -73,12 +64,9 @@ export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRI
 export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = {
   hq: hqMaquette,
   farm: farmMaquette,
-  mill: millMaquette,
   mine: mineMaquette,
   oilWell: oilWellMaquette,
-  foundry: foundryMaquette,
   arsenal: arsenalMaquette,
-  quartermaster: quartermasterMaquette,
   barracks: barracksMaquette,
   airfield: airfieldMaquette,
   port: portMaquette,

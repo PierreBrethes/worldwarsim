@@ -6,7 +6,7 @@ import type { BuildingKey } from './ids';
  * pièces »). Read on what the view already serves and on nothing else: the region's colour
  * (`regions[].linked`, the rule of `isLinked`), then the rate — the site's own for an
  * extractor, its chain's for a converter. A chain's rate is national, which is why the region is
- * read first: a cut foundry does not smoke on the strength of its sister.
+ * read first: a cut arsenal does not smoke on the strength of its sister.
  */
 export function producingSites(me: {
   readonly buildings: ReadonlyArray<{

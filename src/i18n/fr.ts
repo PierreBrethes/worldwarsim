@@ -91,7 +91,7 @@ const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + la
 /** Et l'inverse, quand le nom désigné ouvre la phrase : `La mine y est debout`. */
 const upperFirst = (label: string): string => label.charAt(0).toUpperCase() + label.slice(1);
 
-/** L'élision devant une voyelle — `l’alliage` et jamais `le alliage`. */
+/** L'élision devant une voyelle — `l’acier` et jamais `le acier`. */
 const startsWithVowel = (word: string): boolean =>
   'aeiouyâàäéèêëîïôöûüœ'.includes(word.charAt(0).toLowerCase());
 
@@ -248,33 +248,26 @@ export const fr = {
   } satisfies Record<MovementType, string>,
 
   resources: {
-    food: 'nourriture',
-    textile: 'tissus',
+    food: 'vivres',
+    steel: 'acier',
     coal: 'charbon',
     oil: 'pétrole',
-    ore: 'minerais',
-    alloy: 'alliage',
     ammunition: 'munitions',
-    bandages: 'bandages',
   } satisfies Record<ResourceKey, string>,
 
   deposits: {
-    food: 'nourriture',
-    textile: 'tissus',
+    food: 'terres',
+    iron: 'fer',
     coal: 'charbon',
     oil: 'pétrole',
-    ore: 'minerais',
   } satisfies Record<DepositKey, string>,
 
   buildings: {
     hq: 'Quartier général',
     farm: 'Ferme',
-    mill: 'Filature',
     mine: 'Mine',
     oilWell: 'Puits de pétrole',
-    foundry: 'Fonderie',
     arsenal: 'Arsenal',
-    quartermaster: 'Intendance',
     barracks: 'Caserne',
     airfield: 'Aérodrome',
     port: 'Port',
@@ -293,12 +286,9 @@ export const fr = {
   buildingGender: {
     hq: 'm',
     farm: 'f',
-    mill: 'f',
     mine: 'f',
     oilWell: 'm',
-    foundry: 'f',
     arsenal: 'm',
-    quartermaster: 'f',
     barracks: 'f',
     airfield: 'm',
     port: 'm',
@@ -310,19 +300,16 @@ export const fr = {
 
   buildingEffects: {
     hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
-    farm: 'exploite un gisement de nourriture',
-    mill: 'exploite un gisement de tissus',
-    mine: 'exploite un gisement de charbon ou de minerais, selon la région',
+    farm: 'exploite des terres',
+    mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
-    foundry: 'minerais + charbon → alliage, en continu',
-    arsenal: 'alliage → munitions, sur commande',
-    quartermaster: 'tissus → bandages, en continu',
+    arsenal: 'charbon + acier → munitions, sur commande',
     barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
-    warehouse: 'relève le plafond des huit ressources — se pille',
-    depot: 'relève le plafond des huit ressources — se pille',
+    warehouse: 'relève le plafond des cinq ressources — se pille',
+    depot: 'relève le plafond des cinq ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
 
@@ -1928,19 +1915,16 @@ export const fr = {
     /** L'étiquette qui pend sous une réserve à sec (réglette), seule encre rouge de la ligne. */
     dry: 'à sec',
     drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
-    /** Huit colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
+    /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
-    /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : huit colonnes sur un téléphone,
+    /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : cinq colonnes sur un téléphone,
      *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
     abbreviations: {
-      food: 'nou',
-      textile: 'tis',
+      food: 'viv',
       coal: 'cha',
       oil: 'pét',
-      ore: 'min',
-      alloy: 'all',
+      steel: 'aci',
       ammunition: 'mun',
-      bandages: 'ban',
     } satisfies Record<ResourceKey, string>,
     slots: 'mouvements',
   },
@@ -2564,9 +2548,9 @@ export const fr = {
      * et la fenêtre Économie le décompose par nation ; ici c'est la ligne d'une seule troupe —
      * le seul endroit où le surcoût du hors-ravitaillement se lit à côté de qui le paie.
      */
-    upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} nourriture / h`,
+    upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} vivres / h`,
     upkeepRaised: (perHour: number, factor: number) =>
-      `entretien ${tenths(perHour)} nourriture / h — hors ravitaillement ×${factor}`,
+      `entretien ${tenths(perHour)} vivres / h — hors ravitaillement ×${factor}`,
     /**
      * **La punition doit se voir là où le joueur regarde la troupe** (ADR 0019 §4). Un surcoût
      * qu'on ne lit que sur un écran de comptabilité est une punition invisible, exactement ce
@@ -2956,8 +2940,8 @@ export const fr = {
      * entamée tire bien au prorata de ce qui lui reste.
      */
     stats: {
-      alloy: {
-        name: 'coût — alliage',
+      steel: {
+        name: 'coût — acier',
         note: 'Ce que la troupe coûte à former, prélevé au lancement du lot.',
       },
       training: {
@@ -2972,7 +2956,7 @@ export const fr = {
         name: 'portée de détection',
         note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
       },
-    } satisfies Record<'alloy' | 'training' | 'strength' | 'range', { name: string; note: string }>,
+    } satisfies Record<'steel' | 'training' | 'strength' | 'range', { name: string; note: string }>,
     /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
      *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
      *  carte lève. */
@@ -3027,10 +3011,10 @@ export const fr = {
       formNote: 'un toucher, une troupe',
       lockedHeader: 'Plus haut',
       lockedNote: 'le site doit monter',
-      bill: (alloy: number, duration: string) => `${alloy} all. · ${duration}`,
+      bill: (steel: number, duration: string) => `${steel} aci. · ${duration}`,
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
       queueFull: (max: number) => `File pleine — ${max} lots sur ${max}.`,
-      alloyShort: (missing: number) => `Il manque ${missing} alliage.`,
+      steelShort: (missing: number) => `Il manque ${missing} acier.`,
       running: 'en chaîne',
       remaining: 'restant',
       deliveredAround: (time: string) => `livrée vers ${time}`,
@@ -3192,7 +3176,6 @@ export const fr = {
     legendMissing: 'manquant',
     roleDeposit: 'gisement',
     roleDepositNone: 'gisement — aucun',
-    roleUpstream: 'entrée',
     roleExtraction: 'extracteur',
     roleConversion: 'conversion',
     roleConversionMissing: 'conversion — manquante',
@@ -3205,7 +3188,6 @@ export const fr = {
       `${count} gisement${plural(count, '', 's')} sur votre territoire`,
     depositNoneHeld: (deposit: string) =>
       `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
-    fromChain: (building: string) => `de ${lowerFirst(building)}`,
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
@@ -3286,18 +3268,18 @@ export const fr = {
     },
 
     /**
-     * **L'entretien se lit à côté de ce qu'il mange.** Le débit de nourriture du bandeau est
+     * **L'entretien se lit à côté de ce qu'il mange.** Le débit de vivres du bandeau est
      * déjà net : cette section n'ajoute aucun chiffre, elle décompose celui-là.
      */
     upkeepTroops: (count: number) => `${count} troupe${plural(count, '', 's')} en service`,
-    upkeepDrain: (perHour: number) => `− ${tenths(perHour)} nourriture / h`,
+    upkeepDrain: (perHour: number) => `− ${tenths(perHour)} vivres / h`,
     upkeepUnsupplied: (count: number, factor: number) =>
       `dont ${count} hors ravitaillement — entretien ×${factor}`,
     upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
     upkeepBalance: (net: number) =>
-      `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} nourriture / h`,
+      `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} vivres / h`,
     upkeepStarving:
-      'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que la nourriture revient.',
+      'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
 
     listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
     listeningTemporary:
@@ -3888,7 +3870,7 @@ export const fr = {
     /** **Raser** (demande du 15/09) : en dernière position et en encre rouge, parce que c'est
      *  la seule branche de la rose dont rien ne revient. La confirmation dit le détail. */
     demolish: 'raser',
-    demolishConsequence: 'Efface ce bâtiment. Rien de l’alliage payé n’est rendu.',
+    demolishConsequence: 'Efface ce bâtiment. Rien de l’acier payé n’est rendu.',
     /**
      * **Un point à soi se commande au clic droit** (décision de Pierre, 16/09, Registre 27). La
      * qualification décisionnelle est son niveau, comme pour un bâtiment : c'est lui qui dit ce
@@ -3906,7 +3888,7 @@ export const fr = {
      *  confirmation, qui a la place de le dire en chiffres. */
     dismantle: 'démanteler',
     dismantleConsequence:
-      'Efface ce point, sa couleur et ce qu’il ancre. Rien de l’alliage payé n’est rendu.',
+      'Efface ce point, sa couleur et ce qu’il ancre. Rien de l’acier payé n’est rendu.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
@@ -3922,7 +3904,7 @@ export const fr = {
     kicker: 'démolition',
     heading: (building: string, level: number) => `${building} — niveau ${level}`,
     /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
-    noRefund: 'aucun remboursement de l’alliage payé',
+    noRefund: 'aucun remboursement de l’acier payé',
     freed: (region: string) => `libère ${region}`,
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
@@ -4195,7 +4177,7 @@ export function raiseHoldText(hold: OutpostRaiseHold): string {
 export const noBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'aucune' : 'aucun'} ${lowerFirst(fr.buildings[key])}`;
 
-/** `l’entrepôt`, `le dépôt`, `la fonderie` — the building designated rather than counted, for
+/** `l’entrepôt`, `le dépôt`, `la caserne` — the building designated rather than counted, for
  *  a sentence that tells the player which one to go and raise. */
 export const theBuilding = (key: BuildingKey): string => {
   const name = lowerFirst(fr.buildings[key]);
