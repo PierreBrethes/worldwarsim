@@ -274,6 +274,12 @@ function Site({
                     hqLevel={workshop.hqLevel}
                     siteLevel={facility.level}
                     siteName={facility.regionName}
+                    lacking={lackOf(
+                      view,
+                      now,
+                      roleTermsOf(entry, tiers[entry.role] ?? 1, workshop.hqLevel, facility.level)
+                        .cost.costs,
+                    )}
                     onEnqueue={enqueueOf(entry.role)}
                   />
                 ))}
@@ -549,6 +555,16 @@ type Batch = Facility['queue'][number];
 
 /** Ce qu'un rôle coûte au palier choisi, et ce qui le retient : la carte du bureau et la ligne
  *  du téléphone lisent la même règle. */
+/** The resource a price is short in, read off the live stocks: what `Price` turns critical. */
+const lackOf = (
+  view: PlayerView,
+  now: number,
+  costs: GridEntry['unit']['costs'],
+): ResourceKey | null =>
+  shortfallOf(costs, (resource) =>
+    Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now)),
+  )?.resource ?? null;
+
 function roleTermsOf(entry: GridEntry, tier: UnitTier, hqLevel: number, siteLevel: number) {
   return {
     // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
@@ -795,6 +811,7 @@ function NarrowSite({
               cost={termsOf(entry).cost}
               siteName={facility.regionName}
               blocked={blockOf(entry)}
+              lacking={lackOf(view, now, termsOf(entry).cost.costs)}
               onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
             />
           ))}
@@ -984,6 +1001,7 @@ function RoleSheetCard({
   cost,
   siteName,
   blocked,
+  lacking,
   onEnqueue,
 }: {
   entry: GridEntry;
@@ -996,6 +1014,7 @@ function RoleSheetCard({
   cost: GridEntry['unit'];
   siteName: string;
   blocked: string | null;
+  lacking: ResourceKey | null;
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
@@ -1076,7 +1095,7 @@ function RoleSheetCard({
                 {fr.production.enqueue}
               </span>
               <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper-dim-2)]">
-                <Price costs={cost.costs} onPaper={false} size={11} />
+                <Price costs={cost.costs} onPaper={false} lacking={lacking} size={11} />
                 {` · ${asDuration(cost.minutes)}`}
               </span>
             </button>
@@ -1311,6 +1330,7 @@ function RoleCard({
   hqLevel,
   siteLevel,
   siteName,
+  lacking,
   onEnqueue,
 }: {
   entry: GridEntry;
@@ -1323,6 +1343,7 @@ function RoleCard({
   hqLevel: number;
   siteLevel: number;
   siteName: string;
+  lacking: ResourceKey | null;
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
@@ -1399,7 +1420,7 @@ function RoleCard({
             {fr.production.costLabel}
           </div>
           <div className="mt-[3px] font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
-            <Price costs={cost.costs} size={12} />
+            <Price costs={cost.costs} lacking={lacking} size={12} />
           </div>
         </div>
         <div className="w-px self-stretch bg-(--ink)/16" />

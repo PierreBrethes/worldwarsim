@@ -6,6 +6,16 @@ import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 export const buildingCostKey = (building: Doc<'buildings'>): BuildingKey =>
   building.costKey ?? building.key;
 
+/** A raided site is out of service until its date has passed: the one bound every reading uses. */
+export const inService = (disabledUntil: number | null | undefined, now: number): boolean =>
+  disabledUntil == null || disabledUntil < now;
+
+export const activeBuildings = (
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  now: number,
+): Array<Doc<'buildings'>> =>
+  buildings.filter((building) => inService(building.disabledUntil, now));
+
 export async function playerBuildings(
   ctx: QueryCtx,
   playerId: Id<'players'>,

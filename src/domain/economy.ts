@@ -18,8 +18,11 @@ export function shortfallOf(
   stockOf: (resource: ResourceKey) => number,
 ): { readonly resource: ResourceKey; readonly missing: number } | null {
   for (const resource of ['steel', ...RESOURCES.filter((key) => key !== 'steel')] as const) {
-    const missing = (costs[resource] ?? 0) - stockOf(resource);
-    if (missing > 0) return { resource, missing };
+    const cost = costs[resource] ?? 0;
+    if (cost <= 0) continue;
+    const held = stockOf(resource);
+    // A negation, so that a stock which is not a number covers nothing instead of everything.
+    if (!(held >= cost)) return { resource, missing: cost - held };
   }
   return null;
 }

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { BillLine, CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
+import { Price } from '@/shell/Price';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { fr } from '@/i18n/fr';
 
@@ -210,7 +211,7 @@ export function CompassRose({
                     className={`rose-figure${held ? ' rose-figure--held' : ''}`}
                     style={figureAt(angle, radius + (finger === null ? FIGURE_OFFSET : 36))}
                   >
-                    {candidate.figure}
+                    <Price costs={candidate.figure} size={11} />
                   </div>
                 )}
                 <button

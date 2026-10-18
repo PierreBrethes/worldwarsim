@@ -2,9 +2,9 @@ import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { Price } from '@/shell/Price';
 import { fr } from '@/i18n/fr';
 import { pledgedWork } from '@/domain/construction';
-import { RESOURCES } from '@/domain/ids';
 import type { OutpostView, PlayerView } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
@@ -109,9 +109,13 @@ export function DismantleCard({
             {queued !== undefined && (
               <li>
                 {fr.demolition.queueCancelled} —{' '}
-                {running
-                  ? fr.demolition.queueRunning
-                  : fr.demolition.queueRefund(priceOf(outpost.nextLevelCost))}
+                {running ? (
+                  fr.demolition.queueRunning
+                ) : (
+                  <>
+                    {fr.demolition.queueRefund} <Price costs={outpost.nextLevelCost} size={11} />
+                  </>
+                )}
               </li>
             )}
             {garrison > 0 && <li>{fr.dismantle.garrison(garrison)}</li>}
@@ -151,10 +155,3 @@ export function DismantleCard({
     </div>
   );
 }
-
-/** La facture d'une entrée de file, en une phrase — les mêmes chiffres que la branche
- *  « élever » de la rose annonçait. */
-const priceOf = (cost: OutpostView['nextLevelCost']): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => `${cost[key]} ${fr.resources[key]}`)
-    .join(' · ');

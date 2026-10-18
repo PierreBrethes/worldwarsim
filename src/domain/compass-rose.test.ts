@@ -1078,7 +1078,7 @@ describe('raising a level from the map', () => {
       label: 'améliorer',
       buildingKey: 'mine',
       regionId: 'FRA-9999',
-      figure: '54',
+      figure: { steel: 54 },
       bill: [{ text: 'acier 54 / 1000', lacking: false }],
       duration: '00:54:00',
       consequence: 'passer Mine au niveau 2',
@@ -1161,7 +1161,7 @@ describe('raising a level from the map', () => {
     /** L'ordre est celui de `RESOURCES`, comme la ligne d'élévation des fenêtres facture déjà
      *  (`CostLine`) : le même prix lu à deux endroits ne doit pas s'écrire dans deux ordres. */
     expect(compass?.actions[0]).toMatchObject({
-      figure: '108 · 72',
+      figure: { steel: 108, coal: 72 },
       bill: [
         { text: 'acier 108 / 1000', lacking: false },
         { text: 'charbon 72 / 20', lacking: true },

@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { BuildingKey, UnitRole } from '../src/domain/ids';
+import type { BuildingKey, ResourceKey, UnitRole } from '../src/domain/ids';
 import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
 import {
   cellAt,
@@ -19,13 +19,13 @@ import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
 import worldAsset from '../public/world.json';
 import {
-  COST_BY_ROLE,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
   ROLE_SITE_LEVEL,
-  STARTING_STEEL,
+  STARTING_KIT,
   TIER_2_HQ_LEVEL,
   buildCost,
+  recruitmentCost,
   roleHqLevel,
   unlockLevel,
 } from './constants';
@@ -41,33 +41,62 @@ import {
  * repasse au-dessus de la dotation, quel que soit le nombre qu'on aura bougé.
  */
 
-/** Ce que coûte la montée du quartier général du lancement jusqu'au niveau visé. */
-const hqClimb = (target: number): number => {
-  let steel = 0;
-  for (let level = HQ_LEVEL_AT_LAUNCH + 1; level <= target; level += 1) {
-    steel += buildCost('hq', level).steel ?? 0;
+type Bill = Partial<Record<ResourceKey, number>>;
+
+const sum = (...bills: ReadonlyArray<Bill>): Bill => {
+  const total: Bill = {};
+  for (const bill of bills) {
+    for (const [key, amount] of Object.entries(bill) as ReadonlyArray<[ResourceKey, number]>) {
+      total[key] = (total[key] ?? 0) + amount;
+    }
   }
-  return steel;
+  return total;
 };
 
-const firstOf = (key: BuildingKey): number => buildCost(key, 1).steel ?? 0;
+/** Ce que coûte la montée du quartier général du lancement jusqu'au niveau visé, ressource par
+ *  ressource : depuis le 18/10 un prix est mêlé (ADR 0028 §2), l'acier ne suffit plus à le dire. */
+const hqClimb = (target: number): Bill => {
+  const bills: Array<Bill> = [];
+  for (let level = HQ_LEVEL_AT_LAUNCH + 1; level <= target; level += 1) {
+    bills.push(buildCost('hq', level));
+  }
+  return sum(...bills);
+};
+
+const firstOf = (key: BuildingKey): Bill => buildCost(key, 1);
+
+/** Chaque ressource de la facture tient dans la dotation, nommée quand elle ne tient pas. */
+const fitsTheKit = (bill: Bill) => {
+  for (const [key, amount] of Object.entries(bill) as ReadonlyArray<[ResourceKey, number]>) {
+    expect(amount, key).toBeLessThanOrEqual(STARTING_KIT[key]);
+  }
+};
 
 describe('la première projection tient dans la dotation', () => {
   // La mine sur du fer, offerte au socle, rend l'acier : rien d'autre à bâtir avant la caserne.
-  it('par voie de mer : quartier général, port, caserne et un cargo', () => {
-    const bill =
-      hqClimb(unlockLevel('port')) +
-      firstOf('barracks') +
-      firstOf('port') +
-      COST_BY_ROLE.cargo.steel;
-
-    expect(bill).toBeLessThanOrEqual(STARTING_STEEL);
+  it('par voie de mer : quartier général, port, caserne et un cargo, dans toutes leurs ressources', () => {
+    fitsTheKit(
+      sum(
+        hqClimb(unlockLevel('port')),
+        firstOf('barracks'),
+        firstOf('port'),
+        recruitmentCost('cargo', 1, 1).costs,
+      ),
+    );
   });
 
-  it('par voie de terre : quartier général et caserne', () => {
-    const bill = hqClimb(unlockLevel('barracks')) + firstOf('barracks');
+  it('par voie de terre : quartier général, caserne et une première troupe, dans toutes leurs ressources', () => {
+    fitsTheKit(
+      sum(
+        hqClimb(unlockLevel('barracks')),
+        firstOf('barracks'),
+        recruitmentCost('infantry', 1, 1).costs,
+      ),
+    );
+  });
 
-    expect(bill).toBeLessThanOrEqual(STARTING_STEEL);
+  it('laisse former au moins un blindé', () => {
+    fitsTheKit(recruitmentCost('armor', 1, 1).costs);
   });
 });
 

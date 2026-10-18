@@ -627,6 +627,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  the two are repaired by opposite moves. */
         outpostFoodPerHour: economy.upkeep.outpostFoodPerHour,
         listeningCoalPerHour: economy.upkeep.listeningCoalPerHour,
+        listeningSilent: economy.listeningSilent,
         outposts: economy.upkeep.outposts,
       },
       starving: economy.starving,

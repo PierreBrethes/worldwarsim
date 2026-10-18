@@ -45,6 +45,8 @@ import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
+import { Price } from '@/shell/Price';
+import type { Cost } from '@/domain/player-view';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
@@ -282,7 +284,9 @@ export type PlacingBuilding = {
   readonly regionId: string;
   readonly sprite: string | null;
   readonly title: string;
-  readonly figures: string;
+  readonly name: string;
+  readonly cost: Cost;
+  readonly duration: string;
 };
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
@@ -1399,7 +1403,7 @@ function PlacingCard({
     >
       <span className="block font-semibold">{placing.title}</span>
       <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {placing.figures}
+        {placing.name} · <Price costs={placing.cost} size={11} /> · {placing.duration}
       </span>
       <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
     </div>

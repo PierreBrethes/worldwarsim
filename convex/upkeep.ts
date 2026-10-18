@@ -8,7 +8,7 @@ import {
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   outpostReachKm,
 } from './constants';
-import { playerBuildings } from './buildingReads';
+import { activeBuildings, inService, playerBuildings } from './buildingReads';
 import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint, landAtPoint } from './routes';
 import { modeOf } from '../src/domain/season-mode';
@@ -86,7 +86,7 @@ export type Upkeep = {
   readonly listeningCoalPerHour: number;
   /** The troops that pay the raised rate, so the screen can mark them where the player looks. */
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
-  /** Combien de points il tient : le bandeau dit combien de points l'empire tient. */
+  /** How many outposts stand (a site under construction is not counted yet). */
   readonly outposts: number;
 };
 
@@ -134,10 +134,9 @@ export async function upkeepOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
 
-  /** **Un chantier nourrit déjà** : ce que le lever ouvre est le sol — la couleur, les
-   *  emplacements, la portée, le relevé —, jamais la marmite. La colonne qui fonde campe sur
-   *  place, et la faire payer le tarif majoré pendant son propre chantier punirait l'ordre
-   *  qu'on vient de lui donner. */
+  /** **A site under construction already feeds**: what raising it opens is the ground (colour,
+   *  slots, reach, survey), never the cooking pot. The column that founds it camps in place, and
+   *  charging it the raised rate during its own works would punish the order just given. */
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
     .map(anchorOf);
@@ -169,32 +168,24 @@ export async function upkeepOf(
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;
-  const buildings = await playerBuildings(ctx, playerId);
-  /** A disabled post is silent, so it burns nothing; a station under raid is the same. */
+  const standing = outposts.filter((outpost) => isStanding(outpost, now));
+  /** A post out of service is silent, so it burns nothing. */
   const listening =
-    buildings.filter(
-      (building) =>
-        building.key === 'listening' &&
-        (building.disabledUntil === undefined || building.disabledUntil < now),
+    activeBuildings(await playerBuildings(ctx, playerId), now).filter(
+      (building) => building.key === 'listening',
     ).length +
-    outposts.filter(
-      (outpost) =>
-        outpost.specialization === 'listening' &&
-        isStanding(outpost, now) &&
-        (outpost.disabledUntil === null || outpost.disabledUntil <= now),
+    standing.filter(
+      (outpost) => outpost.specialization === 'listening' && inService(outpost.disabledUntil, now),
     ).length;
   return {
     troops: troops.length,
     unsupplied: unsuppliedTroopIds.length,
     foodPerHour: armyUpkeep(plain, unsuppliedTroopIds.length),
     outpostFoodPerHour:
-      OUTPOST_FOOD_PER_HOUR_PER_LEVEL *
-      outposts
-        .filter((outpost) => isStanding(outpost, now))
-        .reduce((sum, outpost) => sum + outpost.level, 0),
+      OUTPOST_FOOD_PER_HOUR_PER_LEVEL * standing.reduce((sum, outpost) => sum + outpost.level, 0),
     listeningCoalPerHour: LISTENING_COAL_PER_HOUR * listening,
     unsuppliedTroopIds,
-    outposts: outposts.length,
+    outposts: standing.length,
   };
 }
 

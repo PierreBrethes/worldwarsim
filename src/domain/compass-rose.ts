@@ -52,6 +52,7 @@ import {
   currentStock,
   type Building,
   type OutpostView,
+  type Cost,
   type PlayerView,
   type TroopStation,
   type TroopView,
@@ -275,11 +276,6 @@ export type CompassPictogram =
   /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
   | 'shell';
 
-/**
- * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
- * mute: label, cost and consequence only appear on hover, in the tooltip. The array order is
- * the fan order, due north then clockwise.
- */
 /** One resource of a bill: its sentence, its picto's resource, and whether it is the one short. */
 export type BillLine = {
   readonly resource: ResourceKey;
@@ -287,6 +283,11 @@ export type BillLine = {
   readonly lacking: boolean;
 };
 
+/**
+ * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
+ * mute: label, cost and consequence only appear on hover, in the tooltip. The array order is
+ * the fan order, due north then clockwise.
+ */
 export type CompassAction =
   /**
    * The aimed march. It only exists while a column is armed, and the fan then holds **exactly**
@@ -339,7 +340,7 @@ export type CompassAction =
        * paie et prend du temps ; les deux chiffres décident du clic, et les faire attendre le
        * survol ferait ouvrir la rose pour lire un tarif. Même forme que la branche « monter ».
        */
-      readonly figure: string;
+      readonly figure: Cost;
       readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
     }
@@ -363,7 +364,7 @@ export type CompassAction =
       readonly buildingKey: BuildingKey;
       readonly regionId: string;
       /** Le coût à plat, dans la rose : « 54 », multi-matières « 108 · 72 ». */
-      readonly figure: string;
+      readonly figure: Cost;
       /** Une ligne par matière due, avec le stock en regard — celle qui manque se marque. */
       readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
@@ -430,7 +431,7 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly outpostId: string;
-      readonly figure: string;
+      readonly figure: Cost;
       readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
       readonly hold: {
@@ -718,7 +719,7 @@ function outpostRaiseBranch(
       cost: null,
       consequence: fr.compass.raiseConsequence(outpost.level + 1),
       outpostId: outpost.id,
-      figure: due.map((resource) => String(outpost.nextLevelCost[resource])).join(' · '),
+      figure: outpost.nextLevelCost,
       bill: due.map((resource) => ({
         resource,
         text: fr.compass.upgradeBill(
@@ -1723,7 +1724,7 @@ function foundHere(
       point: station.lonLat,
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
-      figure: due.map((resource) => String(cost[resource])).join(' · '),
+      figure: cost,
       bill: due.map((resource) => ({
         resource,
         text: fr.compass.upgradeBill(
@@ -1771,7 +1772,7 @@ function upgradeBranch(
       consequence: fr.upgrade.title(building.name, building.level + 1),
       buildingKey: building.key,
       regionId: building.regionId,
-      figure: due.map((resource) => String(building.nextLevelCost[resource])).join(' · '),
+      figure: building.nextLevelCost,
       bill: due.map((resource) => ({
         resource,
         text: fr.compass.upgradeBill(

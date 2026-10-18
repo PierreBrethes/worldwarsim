@@ -10,6 +10,7 @@
  * une requête réactive (`WWS/docs/technique/brouillard-et-fanout.md`).
  */
 
+import { listeningSilentOf } from './resources';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { surveyStops } from '../src/domain/control';
@@ -90,7 +91,7 @@ export async function standingObserversOf(
     if (building.capturedAt !== undefined) {
       observers.push({ point: stand, radiusKm: OWN_GROUND_KM });
     }
-    if (building.key === 'listening') {
+    if (building.key === 'listening' && !(await listeningSilentOf(ctx, playerId, now))) {
       observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }

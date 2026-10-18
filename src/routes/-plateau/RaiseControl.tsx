@@ -2,10 +2,11 @@ import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
+import { Price } from '@/shell/Price';
 import { handleError } from '@/data/errors';
 import { upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
-import { RESOURCES, type BuildingKey } from '@/domain/ids';
+import { type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Building, type PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
 
@@ -82,7 +83,7 @@ export function RaiseControl({
             wide ? 'text-[var(--paper-dim-2)]' : 'text-[var(--ink-quiet)]'
           }`}
         >
-          {billOf(building.nextLevelCost)}
+          <Price costs={building.nextLevelCost} onPaper={!wide} size={11} />
         </span>
       </button>
       {error !== null && (
@@ -113,9 +114,3 @@ function holdText(hold: UpgradeHold, building: Building, view: PlayerView, now: 
       return fr.works.lacking(hold.needed - hold.available, fr.resources[hold.resource]);
   }
 }
-
-/** La facture en abrégé, matière par matière : « 240 all. · 80 cha. ». */
-const billOf = (cost: Building['nextLevelCost']): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => fr.works.cost(cost[key] ?? 0, fr.resourceBand.abbreviations[key]))
-    .join(' · ');

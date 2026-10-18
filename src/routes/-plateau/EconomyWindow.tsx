@@ -954,7 +954,14 @@ function EstateRow({
         {fr.economy.level(building.level)}
       </span>
       <div className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-        {building.key === 'listening' ? (
+        {building.key === 'listening' && view.me.upkeep.listeningSilent ? (
+          <>
+            <span className="font-semibold text-[var(--critical)]">
+              {fr.economy.listeningSilent}
+            </span>{' '}
+            <HelpMark>{fr.economy.listeningSilentFix}</HelpMark>
+          </>
+        ) : building.key === 'listening' ? (
           <>
             {fr.economy.listeningUnfigured} <HelpMark>{fr.economy.listeningTemporary}</HelpMark>
           </>
@@ -1799,12 +1806,23 @@ function SiteLine({
         </div>
         <div className="mt-[3px] flex items-center gap-2">
           {cut && <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />}
-          <span className="truncate text-[10px] font-semibold tracking-[.1em] text-[var(--ink-soft)] uppercase">
-            {building.key === 'listening'
-              ? fr.economy.listeningUnfigured
-              : fr.buildingEffects[building.key]}
-          </span>
-          {building.key === 'listening' && <HelpMark>{fr.economy.listeningTemporary}</HelpMark>}
+          {building.key === 'listening' && view.me.upkeep.listeningSilent ? (
+            <>
+              <span className="truncate text-[10px] font-semibold tracking-[.1em] text-[var(--critical)] uppercase">
+                {fr.economy.listeningSilent}
+              </span>
+              <HelpMark>{fr.economy.listeningSilentFix}</HelpMark>
+            </>
+          ) : (
+            <>
+              <span className="truncate text-[10px] font-semibold tracking-[.1em] text-[var(--ink-soft)] uppercase">
+                {building.key === 'listening'
+                  ? fr.economy.listeningUnfigured
+                  : fr.buildingEffects[building.key]}
+              </span>
+              {building.key === 'listening' && <HelpMark>{fr.economy.listeningTemporary}</HelpMark>}
+            </>
+          )}
         </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} onQueued={onQueued} />

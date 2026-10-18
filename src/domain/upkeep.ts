@@ -1,14 +1,6 @@
 import { UPKEEP_STEPS, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../convex/constants';
 
-/**
- * **Ce que l'armée coûte en vivres par heure, par paliers** (ADR 0028 §2). Chaque troupe paie le
- * tarif de son rang : la onzième passe au palier suivant, comme une tranche d'impôt, sans que les
- * dix premières ne changent. Hors ancrage, une troupe paie le double (`isAnchored`).
- *
- * Les troupes ravitaillées prennent les premiers rangs et celles hors ancrage les derniers : le
- * total ne dépend alors d'aucun ordre de lecture, et envoyer la dernière recrue au loin est ce
- * qui coûte, pas une vieille garnison qu'on n'a pas bougée.
- */
+/** Food an hour for the first `troops` ranks of the army, each rank at its step's rate. */
 const cumulative = (troops: number): number => {
   let total = 0;
   let from = 0;
@@ -20,6 +12,15 @@ const cumulative = (troops: number): number => {
   return total;
 };
 
+/**
+ * **What the army eats an hour, by steps** (ADR 0028 §2). Each troop pays the rate of its rank:
+ * the eleventh moves to the next step, like a tax bracket, without the first ten changing.
+ * Outside every anchor (`isAnchored`) a troop pays double.
+ *
+ * The supplied troops take the first ranks and the unanchored ones the last, so the total
+ * depends on no reading order, and it is the last recruit sent far away that costs, not an old
+ * garrison nobody moved.
+ */
 export const armyUpkeep = (
   plain: number,
   unsupplied: number,
@@ -27,8 +28,8 @@ export const armyUpkeep = (
 ): number => cumulative(plain) + multiplier * (cumulative(plain + unsupplied) - cumulative(plain));
 
 /**
- * Le palier de la prochaine troupe, quand on en tient déjà `troops` : ce qu'elle paiera, et où
- * commence le palier d'après — la lecture qui rend le prix de l'armée lisible avant de former.
+ * The step of the next troop when `troops` are already held: what it will pay, and where the
+ * following step begins. It is what makes the price of an army readable before forming.
  */
 export function upkeepStep(troops: number): {
   readonly rate: number;

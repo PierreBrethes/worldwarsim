@@ -248,6 +248,42 @@ describe('what sees a movement go past', () => {
     expect(await sightingsOf(t, guest)).toEqual([]);
   });
 
+  /** **A post with no coal hears nothing** (ADR 0028 §1), and the view says so. */
+  it('files nothing for a station that has run out of coal, and serves it silent', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await station(t, guest, PRAHOVA);
+    const playerId = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()) {
+        await ctx.db.patch(row._id, {
+          stock: row.key === 'coal' ? 0 : row.stock,
+          updatedAt: Date.now(),
+        });
+      }
+    });
+
+    const here = pointOf(PRAHOVA);
+    const from = eastOf(northOf(here, 100), -150);
+    const to = eastOf(northOf(here, 100), 150);
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+    expect((await t.query(api.view.playerView, guest)).me.upkeep.listeningSilent).toBe(true);
+  });
+
+  it('serves a station with coal in the stock as hearing', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await station(t, guest, PRAHOVA);
+
+    expect((await t.query(api.view.playerView, guest)).me.upkeep.listeningSilent).toBe(false);
+  });
+
   /**
    * **Ce qu'un avant-poste ravitaille, il l'écoute** : son rayon de détection est son rayon
    * d'action — cent vingt kilomètres pour un point de niveau 1 depuis le 31/08, et non plus

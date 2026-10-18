@@ -59,7 +59,7 @@ import {
   type Reach,
 } from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
-import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -94,7 +94,6 @@ import {
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
-  type Cost,
   type PlayerView,
   type Stack,
   type TroopStation,
@@ -2483,11 +2482,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     key: option.key,
                     sprite: buildingSprite(option.key),
                     title: regionName(view, buildingSite.regionId),
-                    figures: fr.placing.figures(
-                      fr.buildings[option.key],
-                      priceOf(option.cost),
-                      asDuration(option.minutes),
-                    ),
+                    name: fr.buildings[option.key],
+                    cost: option.cost,
+                    duration: asDuration(option.minutes),
                   })
                 }
               />
@@ -3214,13 +3211,6 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
  *  le panneau qui portait ce nom en titre. */
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
-
-/** La facture d'une ligne du panneau, en une phrase — la carte de pose n'a pas la place des
- *  planches illustrées, et elle nomme les mêmes chiffres que la ligne qu'on vient de cliquer. */
-const priceOf = (cost: Cost): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => `${cost[key]} ${fr.resources[key]}`)
-    .join(' · ');
 
 /** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
  *  other one covers nothing, and a region the view does not carry has no point to draw around. */

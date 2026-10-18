@@ -439,7 +439,9 @@ type UpkeepView = {
   readonly outpostFoodPerHour: number;
   /** Coal an hour the listening posts burn. */
   readonly listeningCoalPerHour: number;
-  /** Combien de points l'empire tient. */
+  /** The listening posts have no coal left: they file nothing until it comes back. */
+  readonly listeningSilent: boolean;
+  /** How many outposts stand. */
   readonly outposts: number;
 };
 

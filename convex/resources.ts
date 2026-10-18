@@ -11,10 +11,11 @@ import {
   isLinked,
   produces,
   settleStocks,
+  shortfallOf,
   type ChainReport,
   type Conversion,
 } from '../src/domain/economy';
-import { playerBuildings, totalLevelOf } from './buildingReads';
+import { activeBuildings, playerBuildings, totalLevelOf } from './buildingReads';
 import {
   BASE_CAP,
   CHAINS,
@@ -196,6 +197,12 @@ export type Economy = {
    */
   readonly starving: boolean;
   /**
+   * **The listening posts have no coal left to burn** (ADR 0028 §1): empty **and** still burning,
+   * the same reading as `starving`. A silent post files no sighting and no survey until the coal
+   * comes back, and the piece itself says so.
+   */
+  readonly listeningSilent: boolean;
+  /**
    * **Ce que la production reliée a coupé** (ADR 0020 §6) : les bâtiments qui produisent — les
    * quatre extracteurs et les trois chaînes — dont la région ne porte plus la couleur de leur
    * propriétaire. Ni le stockage, ni la projection, ni le quartier général : ils ne font rien
@@ -233,10 +240,8 @@ export async function economyOf(
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
-  const activeBuildings = buildings.filter(
-    (building) => building.disabledUntil === undefined || building.disabledUntil < now,
-  );
-  const held = await heldFor(ctx, playerId, activeBuildings, now);
+  const active = activeBuildings(buildings, now);
+  const held = await heldFor(ctx, playerId, active, now);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -260,19 +265,18 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
-  const ratePerHour = extractionRates(activeBuildings, held, playerId);
-  /** **Ce qui mange, et ce qui brûle** (ADR 0028 §2) : l'armée par paliers, les avant-postes
-   *  debout selon leur niveau, et les écoutes au charbon. Tout passe par le taux, jamais par un
-   *  débit à part. */
+  const ratePerHour = extractionRates(active, held, playerId);
+  /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
+   *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
   ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
   ratePerHour.coal -= upkeep.listeningCoalPerHour;
-  const cap = storageCaps(activeBuildings);
+  const cap = storageCaps(active);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({
     stocks: stored,
     ratePerHour,
     cap,
-    conversions: chainsOf(activeBuildings, orderRows, held, playerId),
+    conversions: chainsOf(active, orderRows, held, playerId),
     hours: (now - updatedAt) / 3_600_000,
   });
 
@@ -297,7 +301,7 @@ export async function economyOf(
     stocks: settled.stocks,
     ratePerHour,
     cap,
-    conversions: chainsOf(activeBuildings, orders, held, playerId),
+    conversions: chainsOf(active, orders, held, playerId),
     hours: OUTLOOK_HOURS,
   });
 
@@ -325,10 +329,12 @@ export async function economyOf(
     /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
      *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
     starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
-    unlinked: activeBuildings.filter(
+    listeningSilent:
+      upkeep.listeningCoalPerHour > 0 && settled.stocks.coal <= 0 && ratePerHour.coal < 0,
+    unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(activeBuildings, held, playerId),
+    extraction: extractionSites(active, held, playerId),
   };
 }
 
@@ -449,6 +455,28 @@ async function writeStocks(
   if (economy.starving && owner !== undefined) {
     await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId: owner });
   }
+
+  /**
+   * **The ears follow the coal.** Sightings are only re-read by mutations, so a post going silent
+   * (or hearing again) needs one: now when the state before or after the write is silent. The
+   * instant the coal runs dry is scheduled by the detection itself (`detectionBoard`).
+   */
+  if (owner !== undefined && economy.upkeep.listeningCoalPerHour > 0) {
+    const coal = stocks.coal;
+    const rate = economy.ratePerHour.coal;
+    if (economy.listeningSilent || (coal <= 0 && rate < 0)) {
+      await ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId: owner });
+    }
+  }
+}
+
+/** Whether this player's listening posts are silent for want of coal right now. */
+export async function listeningSilentOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<boolean> {
+  return (await economyOf(ctx, playerId, now)).listeningSilent;
 }
 
 /** Bring a player up to `now` and write it down, spending nothing. What every mutation that
@@ -506,15 +534,15 @@ export async function debit(
   const economy = await economyOf(ctx, playerId, now);
   const remaining = { ...economy.stocks };
 
+  const short = shortfallOf(costs, (key) => economy.stocks[key]);
+  if (short !== null) {
+    fail('INSUFFICIENT_RESOURCE', {
+      resource: short.resource,
+      needed: costs[short.resource],
+      available: Math.floor(economy.stocks[short.resource]),
+    });
+  }
   for (const [key, cost] of Object.entries(costs) as ReadonlyArray<[ResourceKey, number]>) {
-    // A negation, so that a stock which is not a number covers nothing instead of everything.
-    if (!(economy.stocks[key] >= cost)) {
-      fail('INSUFFICIENT_RESOURCE', {
-        resource: key,
-        needed: cost,
-        available: Math.floor(economy.stocks[key]),
-      });
-    }
     remaining[key] -= cost;
   }
 

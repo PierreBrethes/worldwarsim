@@ -286,12 +286,18 @@ export function buildMinutes(key: BuildCostKey, level: number): number {
  * from the launch (ADR 0015). **The steel, the oil and the ammunition are missing on purpose**:
  * they are the three figures of the starting line, each named on its own above, and everything
  * else is shared. Never a figure per nation — the asymmetry comes from the map.
+ *
+ * **The kit covers the first projection in every resource of its bill** (ADR 0028 §2,
+ * `invariants.test.ts`): by land and by sea, plus one tank. The coal is what the sea route eats
+ * (the climb of the headquarters, the port, the cargo), hence 140.
+ *
+ * @a-mesurer the coal was 20 when only steel priced a projection; 140 is the sea route's bill
  */
 export const STARTING_STOCK: Readonly<
   Record<Exclude<ResourceKey, 'steel' | 'oil' | 'ammunition'>, number>
 > = {
   food: 120,
-  coal: 20,
+  coal: 140,
 };
 
 /** The whole endowment, the three figures of the starting line included — what `endow` hands

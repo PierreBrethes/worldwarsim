@@ -27,7 +27,7 @@ import { Price } from '@/shell/Price';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
-import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
+import { ClockGlyph, EyeGlyph, HeartGlyph, CoinGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
@@ -453,8 +453,8 @@ type StatHover = {
  *  replier. Trois lignes pour la plus longue des trois, sans déborder de la fiche. */
 const STAT_POPIN_WIDTH = 232;
 
-const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
-  cost: IngotGlyph,
+const STAT_DRAWING: Readonly<Record<SheetStat, typeof CoinGlyph>> = {
+  cost: CoinGlyph,
   training: ClockGlyph,
   strength: HeartGlyph,
   range: EyeGlyph,

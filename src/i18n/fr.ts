@@ -3101,7 +3101,6 @@ export const fr = {
     raise: (level: number, duration: string) => `▲ niv ${level} · ${duration}`,
     raiseTitle: (name: string, level: number) =>
       `mettre ${lowerFirst(name)} en file pour le niveau ${level}`,
-    cost: (amount: number, abbreviation: string) => `${num(amount)} ${abbreviation}.`,
     underway: (time: string) => `en chantier · ${time}`,
     queued: (rank: number) => `en file · ${rank}ᵉ`,
     lacking: (amount: number, resource: string) => `il manque ${num(amount)} ${resource}`,
@@ -3283,6 +3282,10 @@ export const fr = {
         : `palier : ${rate} vivres / h par troupe — ${nextRate} à partir de la ${nextAt}ᵉ`,
     upkeepOutposts: (count: number) => `${count} avant-poste${plural(count, '', 's')} debout`,
     upkeepListening: 'écoutes',
+    /** A listening post with no coal left, said on the piece with what mends it. */
+    listeningSilent: 'muette — plus de charbon',
+    listeningSilentFix:
+      'Une mine sur du charbon, ou du charbon livré, la fera entendre de nouveau.',
     upkeepCoalDrain: (perHour: number) => `− ${tenths(perHour)} charbon / h`,
     upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
     upkeepBalance: (net: number) =>
@@ -3918,7 +3921,7 @@ export const fr = {
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
     queueCancelled: 'chantier en file annulé',
-    queueRefund: (amounts: string) => `remboursé : ${amounts}`,
+    queueRefund: 'remboursé :',
     queueRunning: 'le chantier a commencé — il ne se rembourse pas',
     /** Une garnison ne meurt pas d'une démolition (ADR 0019) : elle se retrouve dehors. */
     garrison: (count: number) =>
@@ -3968,11 +3971,6 @@ export const fr = {
    */
   placing: {
     hint: 'choisissez le point de côte — Échap pour renoncer',
-    /** Ce qu'on tient, son prix et son attente — les chiffres du panneau de construction, que
-     *  le joueur vient de lire sur une ligne et ne doit pas rechercher une fois la ligne
-     *  fermée. Le nom de la région tient la ligne au-dessus : c'est le *où*, pas le *quoi*. */
-    figures: (building: string, cost: string, duration: string) =>
-      `${building} · ${cost} · ${duration}`,
   },
 
   construction: {
