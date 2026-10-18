@@ -16,7 +16,8 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 1. ~~**Proposition « Mondiale : économie, logistique, escouades »**~~ : faite et grillée le 18/10
    ([proposition](design/propositions/mondiale-economie-logistique-escouades.md),
    [ADR 0028](adr/0028-l-economie-de-la-mondiale.md)). Ses lots forment le point 4.
-2. **Retirer les plafonds** : `TROOP_CAP_*` et les emplacements par site (`SITE_SLOTS_FULL`).
+2. ~~**Retirer les plafonds**~~ : faite le 18/10. Plafond de troupes et casernements remplacés par
+   la borne invisible `MONDIALE_TROOP_BOUND` (150, `@a-mesurer`) ; emplacements par site retirés.
 3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
    vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
    24 h, durée réglée au salon, fin de l'entrée tardive.
