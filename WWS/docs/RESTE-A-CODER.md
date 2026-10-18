@@ -40,9 +40,12 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       avant-poste debout mange des vivres selon son niveau, une écoute brûle du charbon. Prix en
       deux pictos partout (`Price`, rose, `CostLine`), palier lisible dans la fenêtre Économie et
       sur la ligne de chaque troupe. L'écoute sans charbon se tait (ni relevé ni sondage) et le dit sur la pièce ; la dotation de départ couvre la première projection dans toutes ses ressources (charbon 140).
-   3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
-      refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
-      figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.
+   3. ~~**Coups et plein**~~ : fait le 18/10. Crans portés par la troupe (`SUPPLY_BY_ROLE`),
+      repris à l'ancre sur le plateau personnel au départ, au combat et à l'arrivée (y compris
+      dans le rayon d'un avant-poste, en attendant son dépôt, 4.7) ; plein payé au départ,
+      `NOT_ENOUGH_FUEL` dit avant le clic ; à sec ni frappe ni riposte (`NO_ROUNDS`, dépêche et
+      rejeu « à sec ») ; cartouche et jerrican sous la pile, à l'affiche, dans la garnison,
+      l'abaque et la formation. Le débit national et `DRY_AMMUNITION_FACTOR` sont retirés.
    4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
       trois versions ; il sert de référence aux features 5 à 8.
    5. **Placement libre et gisements ponctuels** (ADR 0029) : un point par bâtiment, espacement,
