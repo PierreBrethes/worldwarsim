@@ -1188,12 +1188,13 @@ export const OBJECTIVE_HARD_FAIRNESS = 0.75;
 export const OBJECTIVE_HARD_MAX = 4;
 
 /**
- * **Ce que la garnison locale a dans ses caissons, par troupe.** Le magasin est lu par camp avant
- * chaque passe (`convex/combat.ts`) et payé après : sans dotation, la garnison tirerait à sec dès
- * la première salve, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
+ * **Ce que la garnison locale a dans ses caissons, par troupe.** Elle est ancrée partout
+ * (`upkeepOf` ne lui compte aucune troupe hors ancrage), donc avant chaque passe elle reprend ses
+ * coups sur cette dotation, dix par cran (ADR 0028 §3) : sans elle, la garnison serait à sec
+ * après trois passes, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
  *
- * Elle ne se réapprovisionne jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange
- * pas* —, donc le chiffre est une réserve pour la saison et non un débit par heure.
+ * Rien ne la remplit jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* —,
+ * donc le chiffre est une réserve pour la saison et non un débit par heure.
  *
  * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
  */

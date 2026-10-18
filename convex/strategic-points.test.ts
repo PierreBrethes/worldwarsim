@@ -537,7 +537,7 @@ describe('the rules the points break', () => {
       ).find((one) => one.key === 'ammunition')!;
       await ctx.db.patch(row._id, { stock: 400 });
     });
-    // Full magazines: the counter takes nothing, and the rule is not spent.
+    // Full stocks: the counter takes nothing, and the rule is not spent.
     await expect(trade()).rejects.toThrow('STORAGE_FULL');
     await t.run(async (ctx) => {
       const row = (

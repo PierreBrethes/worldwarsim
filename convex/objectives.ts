@@ -345,10 +345,9 @@ export async function irregularSeat(
 }
 
 /**
- * **Des munitions, et rien d'autre.** Le combat lit le magasin de chaque camp avant la passe
- * (`convex/combat.ts`) et refuse une ligne de stock manquante : sans dotation, la première
- * attaque sur un objectif tomberait sur `MISSING_RESOURCE`. Le reste est à zéro, et c'est la
- * règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
+ * **Des munitions, et rien d'autre.** La garnison est ancrée partout, et avant chaque passe elle
+ * recharge ses coups sur cette dotation (`convex/supplies.ts`, ADR 0028 §3) : sans elle, elle
+ * finirait à sec. Le reste est à zéro, et c'est la règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
  * aucune chaîne, aucun entretien (`upkeepOf` l'ignore).
  */
 export async function endowIrregular(
