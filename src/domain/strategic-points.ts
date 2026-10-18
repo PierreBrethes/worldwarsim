@@ -1,3 +1,4 @@
+import { PRESS_EDITION_HOURS } from '../../convex/constants';
 import type { LonLat } from './geo';
 
 /**
@@ -62,7 +63,7 @@ export function clockVerdictOf<Id extends string>(
 
 /** Istanbul se recharge chaque jour de saison, Tanger à chaque édition (P4, `PRESS_EDITION_HOURS`). */
 export const ISTANBUL_PERIOD_HOURS = 24;
-export const TANGIER_PERIOD_HOURS = 3;
+export const TANGIER_PERIOD_HOURS = PRESS_EDITION_HOURS;
 
 /**
  * **Le comptoir de Tanger** : trois d'une ressource contre une d'une autre, par lot fixe.

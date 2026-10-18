@@ -261,6 +261,32 @@ describe('winning the race', () => {
     expect((await t.query(api.view.playerView, seat)).season.race).toBeNull();
   });
 
+  /** **Qui dépose les armes sort de la course** : ses points redeviennent neutres, et un point
+   *  que ses troupes prendraient encore ne compte pour personne. */
+  it('drops a leader who surrenders, and counts no point for a defeated seat', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const guest = await joinSeat(t, code, 'Léa');
+    const third = await joinSeat(t, code, 'Marc');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+      [third, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    expect((await seasonOf(t)).raceLeaderId).toBe((await playerOf(t, seat))._id);
+
+    await t.mutation(api.players.surrender, seat);
+    expect((await seasonOf(t)).raceLeaderId).toBeUndefined();
+    expect((await pointsOf(t)).every((point) => point.holderId === null)).toBe(true);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    expect((await seasonOf(t)).raceLeaderId).toBeUndefined();
+  });
+
   it('restarts the countdown when the leader falls below four, and not before', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);
@@ -424,13 +450,12 @@ describe('the rules the points break', () => {
   /** Tanger : vous seul commercez avec le comptoir neutre, trois contre un, une fois par édition. */
   it('lets the holder of Tangier trade three for one at the counter, once an edition', async () => {
     const t = boot();
-    const { seat } = await launched(t);
+    const { seat, guest } = await launched(t);
     const me = await playerOf(t, seat);
+    const lea = await playerOf(t, guest);
     await t.run(async (ctx) => {
-      for (const row of await ctx.db
-        .query('resources')
-        .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
-        .collect()) {
+      for (const row of await ctx.db.query('resources').collect()) {
+        if (row.playerId !== me._id && row.playerId !== lea._id) continue;
         await ctx.db.patch(row._id, { stock: row.key === 'food' ? 400 : 0, updatedAt: Date.now() });
       }
     });
@@ -460,6 +485,11 @@ describe('the rules the points break', () => {
     });
     expect(await trade()).toEqual({ gave: 300, got: 100 });
     await expect(trade()).rejects.toThrow('POWER_SPENT');
+    // A new holder does not inherit the counter spent.
+    await holdPoint(t, guest, 'tangier');
+    await expect(
+      t.mutation(api.strategicPoints.trade, { ...guest, give: 'food', get: 'ammunition' }),
+    ).resolves.toEqual({ gave: 300, got: 100 });
     const stocks = (await t.query(api.view.playerView, seat)).me.resources;
     expect(stocks.food.stock).toBeLessThanOrEqual(100);
     expect(stocks.ammunition.stock).toBeGreaterThanOrEqual(100);

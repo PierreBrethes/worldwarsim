@@ -2463,7 +2463,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <StrategicPointBadge
                 key={selectedPoint.id}
                 point={selectedPointView}
-                mine={selectedPointView.holder?.nation === view.me.nation}
+                mine={selectedPointView.mine}
                 seat={seat}
                 nations={view.opponents.map((opponent) => opponent.nation)}
                 at={selectedPoint}

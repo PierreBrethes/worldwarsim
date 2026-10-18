@@ -6,6 +6,7 @@ import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
 import { isAtWar, playerOf, requirePlayable, seatsOf } from './seats';
+import { handOver, seasonPoints } from './strategicPoints';
 import { refreshSession } from './sessions';
 
 /**
@@ -172,6 +173,11 @@ export async function leaveTheWar(
     player._id,
     exit.kind === 'playerEliminated' ? { defeated: true, eliminatedAt: now } : { defeated: true },
   );
+  /** **Qui sort de la guerre sort de la course** (M1) : ses points stratégiques redeviennent
+   *  neutres, et le compte à rebours qu'il menait tombe avec eux. */
+  for (const point of await seasonPoints(ctx, season._id)) {
+    if (point.holderId === player._id) await handOver(ctx, point, null, now);
+  }
 
   const present = await seatsOf(ctx, season._id);
   const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);

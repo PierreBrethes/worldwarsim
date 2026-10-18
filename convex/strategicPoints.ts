@@ -58,7 +58,7 @@ export const seasonPoints = (
  * **Ce que tout le monde lit d'un point** (P2) : son teneur et depuis quand, et s'il est contesté
  * — jamais par qui. La table est publique : la lire ne perce aucun brouillard.
  */
-export async function pointsView(ctx: QueryCtx, seasonId: Id<'seasons'>) {
+export async function pointsView(ctx: QueryCtx, seasonId: Id<'seasons'>, viewerId: Id<'players'>) {
   const contested = new Set(
     (
       await ctx.db
@@ -87,6 +87,8 @@ export async function pointsView(ctx: QueryCtx, seasonId: Id<'seasons'>) {
       point: [point.point.lon, point.point.lat] as const,
       holder: holder === null ? null : { nation: holder.nation ?? holder.nickname },
       heldSince: point.heldSince,
+      /** Le même « à moi » que le serveur lit au refus (`FRIENDLY_TARGET`) : par l'identité. */
+      mine: point.holderId === viewerId,
       contested: contested.has(point._id),
     };
   });
@@ -121,9 +123,12 @@ export async function handOver(
  * meneur à la fois, donc un seul compte à rebours.
  */
 async function tallyRace(ctx: MutationCtx, seasonId: Id<'seasons'>, now: number): Promise<void> {
+  /** Un siège défait ne court pas : ce que ses troupes tiendraient encore ne compte pour
+   *  personne. */
   const counts = new Map<Id<'players'>, number>();
   for (const point of await seasonPoints(ctx, seasonId)) {
-    if (point.holderId !== null) counts.set(point.holderId, (counts.get(point.holderId) ?? 0) + 1);
+    if (point.holderId === null || (await ctx.db.get(point.holderId))?.defeated === true) continue;
+    counts.set(point.holderId, (counts.get(point.holderId) ?? 0) + 1);
   }
   const leader = raceLeaderOf(counts);
   const season = await ctx.db.get(seasonId);
@@ -165,7 +170,8 @@ async function spendPower(
   const point = (await seasonPoints(ctx, season._id)).find((one) => one.key === key);
   if (point === undefined || point.holderId !== player._id) fail('POINT_NOT_HELD', { key });
   const now = Date.now();
-  if (!powerReady(point.usedAt, season.launchedAt ?? now, periodHours, now)) {
+  const usedAt = point.usedBy === player._id ? point.usedAt : undefined;
+  if (!powerReady(usedAt, season.launchedAt ?? now, periodHours, now)) {
     fail('POWER_SPENT', { key });
   }
   return point;
@@ -174,7 +180,8 @@ async function spendPower(
 /**
  * **Istanbul** (P11) : une fois par jour, le teneur lit le dernier télégramme privé entre deux
  * autres joueurs, nommés par leur nation. Le télégramme porte ensuite le tampon « lu à Istanbul »
- * chez eux, et chacun des deux l'apprend. Rien de lu, rien de dépensé.
+ * chez eux, et chacun des deux l'apprend. Une paire muette coûte la lecture aussi : sonder sans
+ * compter dirait qui ne se parle pas.
  */
 export const listen = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), between: v.array(v.string()) },
@@ -210,10 +217,10 @@ export const listen = mutation({
     const last = [await lastFrom(a, b), await lastFrom(b, a)]
       .filter((message) => message !== null)
       .sort((left, right) => right.at - left.at)[0];
+    const now = Date.now();
+    await ctx.db.patch(point._id, { usedAt: now, usedBy: player._id });
     if (last === undefined) return null;
 
-    const now = Date.now();
-    await ctx.db.patch(point._id, { usedAt: now });
     await ctx.db.patch(last._id, { readAtIstanbul: true });
     const sender = last.playerId === a._id ? a : b;
     const recipient = sender === a ? b : a;
@@ -265,7 +272,7 @@ export const trade = mutation({
       { ...emptyStocks(), [get]: TANGIER_LOT.get },
       now,
     );
-    await ctx.db.patch(point._id, { usedAt: now });
+    await ctx.db.patch(point._id, { usedAt: now, usedBy: player._id });
     return { gave: TANGIER_LOT.give, got: delivered[get] };
   },
 });

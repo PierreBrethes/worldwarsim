@@ -995,7 +995,7 @@ function aim(
     };
     const fan = fanOf(target.name, view, column, [aimed]);
     const held = view.strategicPoints.find((point) => point.id === target.id);
-    if (held?.holder?.nation === view.me.nation) return fan;
+    if (held?.mine === true) return fan;
     const capture = captureBranch(
       { kind: 'point' },
       { kind: 'point', id: target.id },

@@ -810,9 +810,10 @@ export default defineSchema({
     point: LON_LAT,
     holderId: v.union(v.id('players'), v.null()),
     heldSince: v.union(v.number(), v.null()),
-    /** **L'heure où son pouvoir a servi** (Istanbul, Tanger) : il revient à la période suivante
-     *  (`powerReady`). Il reste au point quand il change de main — le pouvoir est au lieu. */
+    /** **L'heure où son pouvoir a servi, et à qui** (Istanbul, Tanger) : il revient à la période
+     *  suivante (`powerReady`) ; un nouveau teneur ne l'hérite pas usé. */
     usedAt: v.optional(v.number()),
+    usedBy: v.optional(v.id('players')),
   }).index('bySeason', ['seasonId']),
 
   objectives: defineTable({

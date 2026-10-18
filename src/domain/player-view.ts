@@ -192,6 +192,8 @@ export type StrategicPointView = {
   readonly point: LonLat;
   readonly holder: { readonly nation: string } | null;
   readonly heldSince: number | null;
+  /** Il est à moi : la rose n'offre pas de le prendre, la fiche offre sa règle. */
+  readonly mine: boolean;
   readonly contested: boolean;
 };
 

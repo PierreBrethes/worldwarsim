@@ -979,7 +979,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .map((capture) => captureView(capture, 'defender')),
     ],
     /** **Les Sept** (P2) : publics, teneur compris ; qui conteste ne sort pas. */
-    strategicPoints: await pointsView(ctx, season._id),
+    strategicPoints: await pointsView(ctx, season._id, player._id),
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,

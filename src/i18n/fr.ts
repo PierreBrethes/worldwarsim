@@ -508,7 +508,7 @@ export const fr = {
       overheard: (from: string, to: string) =>
         `Un télégramme de ${from} à ${to} a été lu à Istanbul.`,
       act: 'lire le dernier — une fois par jour',
-      nothing: 'Aucun télégramme privé entre eux : rien n’a été lu, la règle reste à vous.',
+      nothing: 'Aucun télégramme privé entre eux : la lecture du jour a servi pour rien.',
       stamp: 'lu à Istanbul',
     },
     tangier: {

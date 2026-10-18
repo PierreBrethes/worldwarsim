@@ -165,8 +165,12 @@ export async function homeGroundsOf(
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
+  /** **Un éliminé n'a plus de sol** (M16) : son QG tombé, sa nation ne tient plus rien que ses
+   *  irréguliers ne tiennent à sa place. Qui a seulement capitulé garde le sien. */
   return seats.flatMap((seat) => {
     const country = homeCountryOf(seat.nation);
-    return country === null ? [] : [{ owner: seat._id as string, country }];
+    return country === null || (seat.eliminatedAt ?? null) !== null
+      ? []
+      : [{ owner: seat._id as string, country }];
   });
 }

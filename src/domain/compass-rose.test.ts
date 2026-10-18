@@ -581,6 +581,7 @@ describe('in aim', () => {
       point: [-9.14, 38.72] as const,
       holder: null,
       heldSince: null,
+      mine: false,
       contested: false,
     };
     const target = {
@@ -598,7 +599,7 @@ describe('in aim', () => {
         consequence: expect.stringContaining('06:00:00'),
       }),
     );
-    const held = { ...point, holder: { nation: 'france' } };
+    const held = { ...point, holder: { nation: 'france' }, mine: true };
     const mine = compassOf(target, { ...view, strategicPoints: [held] }, column);
     expect(mine?.actions.some((action) => action.key === 'capture')).toBe(false);
   });

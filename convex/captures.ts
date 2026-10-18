@@ -17,12 +17,13 @@ import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
 import { regionFacts, pointOfBuilding } from './regions';
+import { landAtPoint } from './routes';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { irregularSeat } from './objectives';
-import { handOver, seasonPoints } from './strategicPoints';
+import { handOver } from './strategicPoints';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
@@ -644,22 +645,29 @@ async function toIrregulars(
     await cancelRaisesOf(ctx, loser._id, outpost, now);
     await ctx.db.patch(outpost._id, { playerId: irregularId });
   }
+  /** Une colonne à terre s'arrête où elle est ; une colonne en mer sombre avec ses coques —
+   *  un siège irrégulier ne navigue pas, et personne ne capture le large. */
   for (const movement of await movementsOf(ctx, loser._id)) {
     const [lon, lat] = positionAt(marchingForce(movement), now);
+    const ashore = landAtPoint([lon, lat]);
     for (const troopId of movement.troopIds) {
-      await ctx.db.patch(troopId, { stationedAt: { lon, lat } });
+      if (ashore) await ctx.db.patch(troopId, { stationedAt: { lon, lat } });
+      else await ctx.db.delete(troopId);
     }
     await forgetMovement(ctx, movement._id, now);
+  }
+  /** Ses chantiers tombent avec lui : un bâtiment ne se pose pas au nom d'un éliminé. */
+  for (const work of await ctx.db
+    .query('constructions')
+    .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+    .collect()) {
+    await ctx.db.delete(work._id);
   }
   for (const troop of await ctx.db
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
     .collect()) {
     await ctx.db.patch(troop._id, { playerId: irregularId });
-  }
-  /** Ses points stratégiques redeviennent neutres : un irrégulier ne court pas la course. */
-  for (const point of await seasonPoints(ctx, fall.seasonId)) {
-    if (point.holderId === loser._id) await handOver(ctx, point, null, now);
   }
   await dropCapturesOf(ctx, loser._id, now);
   await handOverSieges(ctx, fall, irregularId, now);
@@ -688,6 +696,14 @@ async function handOverSieges(
       continue;
     }
     await ctx.db.patch(siege._id, { defenderId: heirId });
+    /** **Le siège irrégulier ne dort pas** (M15) : la capture qu'il hérite ne se fige plus aux
+     *  heures de l'éliminé, et son échéance se reprend d'ici. */
+    if (heir?.irregular === true && siege.rest !== null && siege.stoppedAt === undefined) {
+      const progress = progressAt(clockOf(siege), now);
+      const due = completesAt({ ...clockOf(siege), progress, at: now, rest: null });
+      await ctx.db.patch(siege._id, { rest: null, progress, progressAt: now, completesAt: due });
+      await schedule(ctx, siege._id, due);
+    }
     if (siege.stoppedAt !== undefined || heir?.irregular === true) continue;
     await ctx.db.insert('notices', {
       playerId: heirId,

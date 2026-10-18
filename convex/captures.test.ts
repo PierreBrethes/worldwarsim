@@ -852,6 +852,56 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** Rien de lui ne lui survit : son chantier tombe, son sol perd sa couleur, et le siège
+   *  qu'un tiers menait contre lui ne dort plus à ses heures. */
+  it('leaves him no site under way, no ground, and no sleep to the sieges that outlive him', async () => {
+    const t = boot();
+    const { seat, guest, third } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const loser = await playerOf(t, guest);
+    const barracks = await building(t, guest, PSKOV);
+    await t.run((ctx) =>
+      ctx.db.insert('constructions', {
+        playerId: loser._id,
+        building: 'farm',
+        regionId: 'RUS-2371',
+        level: 1,
+        rank: 0,
+        finishesAt: MIDDAY + 99 * HOUR,
+      }),
+    );
+    // Marc besieges the barracks while Léa sleeps every night.
+    await restWindow(t, guest, { startMinutes: 22 * 60, endMinutes: 5 * 60 });
+    await captureArrival(
+      t,
+      third,
+      { kind: 'building', buildingId: barracks },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [await troop(t, third, 'infantry', null)],
+    );
+    await take(t, seat, hq);
+    const fall = (await capturesOf(t)).find(
+      (capture) => capture.target.kind === 'building' && capture.target.buildingId === hq._id,
+    )!;
+    vi.setSystemTime(fall.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: fall._id,
+      expectedAt: fall.completesAt,
+    });
+
+    expect(await t.run((ctx) => ctx.db.query('constructions').collect())).toEqual([]);
+    const left = await capturesOf(t);
+    expect(left.every((capture) => capture.rest === null)).toBe(true);
+    const ground = await t.run(
+      async (ctx) =>
+        (await heldOver(ctx, loser.seasonId, [regionFacts('RUS-2371')!], Date.now())).get(
+          'RUS-2371',
+        ) ?? null,
+    );
+    expect(ground).toBeNull();
+  });
+
   it('lets the eliminated read and write the telegraph, and refuses him every order', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);

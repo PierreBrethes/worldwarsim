@@ -17,6 +17,7 @@ export const closeRace = internalMutation({
     const season = await ctx.db.get(seasonId);
     if (season === null || season.status !== 'launched') return;
     if (season.raceSince !== since || season.raceLeaderId === undefined) return;
+    if ((await ctx.db.get(season.raceLeaderId))?.defeated === true) return;
     await concludeSeason(ctx, seasonId, season.raceLeaderId, Date.now(), { reason: 'points' });
   },
 });
