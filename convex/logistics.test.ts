@@ -160,6 +160,30 @@ describe('the outpost depot', () => {
     expect(await stockOf(t, seat, 'ammunition')).toBe(board);
   });
 
+  it('rearms from the nearest standing outpost, never from a site still building', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const standing = await plant(t, seat, PLOIESTI);
+    await t.run(async (ctx) =>
+      ctx.db.patch(standing, { depot: { ammunition: 400, oil: 0, coal: 0 } }),
+    );
+    const building = await plant(t, seat, [PLOIESTI[0] + 0.25, PLOIESTI[1]]);
+    await t.run(async (ctx) => ctx.db.patch(building, { standsAt: Date.now() + 3_600_000 }));
+    const at = { lon: PLOIESTI[0] + 0.3, lat: PLOIESTI[1] };
+    const rifles = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(rifles, { stationedAt: at, rounds: 0 }));
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: at },
+      troopIds: [rifles],
+      point: { lon: at.lon + 0.2, lat: at.lat },
+    });
+
+    expect((await get(t, rifles))!.rounds).toBe(3);
+    expect((await depotOf(t, standing))?.ammunition).toBe(370);
+  });
+
   it('leaves a troop by an empty depot as it is, whatever the board holds', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

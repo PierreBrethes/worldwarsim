@@ -67,17 +67,25 @@ export function isAnchored(
  */
 /**
  * **Où une troupe ancrée se sert** (ADR 0028 §3) : sur le sol national, au plateau personnel ;
- * dans le rayon d'un avant-poste, à son dépôt — le plus proche de ceux qui portent jusque-là.
- * `null` : elle n'est pas ancrée. La lecture est celle d'`isAnchored`, sol puis rayons.
+ * dans le rayon d'un avant-poste, au dépôt du plus proche des points **debout** qui la couvrent.
+ * `fed` dit si elle mange au tarif simple — un chantier nourrit déjà — et `store` où elle se
+ * recharge : un chantier n'a pas encore de dépôt.
  */
-function storeAt(
+function anchorAt(
   point: LonLat,
   homeCountry: string | null,
-  anchors: ReadonlyArray<OutpostReach & { readonly id: Id<'outposts'> }>,
-): AnchorStore | null {
-  if (!landAtPoint(point)) return null;
-  if (homeCountry !== null && hostAtPoint(point) === homeCountry) return 'board';
-  return reachingOutpost(point, anchors)?.nearest.id ?? null;
+  anchors: ReadonlyArray<
+    OutpostReach & { readonly id: Id<'outposts'>; readonly standing: boolean }
+  >,
+): { readonly fed: boolean; readonly store: AnchorStore | null } {
+  if (!landAtPoint(point)) return { fed: false, store: null };
+  if (homeCountry !== null && hostAtPoint(point) === homeCountry)
+    return { fed: true, store: 'board' };
+  const depot = reachingOutpost(
+    point,
+    anchors.filter((anchor) => anchor.standing),
+  )?.nearest.id;
+  return { fed: depot !== undefined || withinReach(point, anchors), store: depot ?? null };
 }
 
 /** Le plateau personnel, ou le dépôt de cet avant-poste. */
@@ -159,7 +167,11 @@ export async function upkeepOf(
    *  charging it the raised rate during its own works would punish the order just given. */
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
-    .map((outpost) => ({ ...anchorOf(outpost), id: outpost._id }));
+    .map((outpost) => ({
+      ...anchorOf(outpost),
+      id: outpost._id,
+      standing: isStanding(outpost, now),
+    }));
 
   const troops = await ctx.db
     .query('troops')
@@ -184,9 +196,10 @@ export async function upkeepOf(
     }
     /** A troop the game cannot place is at home: `null` is national soil hanging from nothing
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
-    const store = point === null ? 'board' : storeAt(point, home, supplying);
-    if (store === null) unsuppliedTroopIds.push(troop._id);
-    else storeOf[troop._id] = store;
+    const { fed, store } =
+      point === null ? { fed: true, store: 'board' as const } : anchorAt(point, home, supplying);
+    if (!fed) unsuppliedTroopIds.push(troop._id);
+    if (store !== null) storeOf[troop._id] = store;
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;
