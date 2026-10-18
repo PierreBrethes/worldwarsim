@@ -433,10 +433,13 @@ type UpkeepView = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, at the raised rate. */
   readonly unsupplied: number;
+  /** Food an hour the army takes, by steps (ADR 0028 §2), the raised rate already applied. */
   readonly foodPerHour: number;
-  /** Combien de points l'empire tient. **Il n'en coûte plus rien** : l'entretien d'avant-poste a
-   *  été retiré le 15/09 (révision de l'ADR 0020 §10), le frein est le prix à la fondation puis
-   *  à chaque élévation. Le compte reste servi parce qu'il se lit, pas parce qu'il se paie. */
+  /** Food an hour the standing outposts take, by level. */
+  readonly outpostFoodPerHour: number;
+  /** Coal an hour the listening posts burn. */
+  readonly listeningCoalPerHour: number;
+  /** Combien de points l'empire tient. */
   readonly outposts: number;
 };
 

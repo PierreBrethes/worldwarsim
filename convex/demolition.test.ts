@@ -171,7 +171,7 @@ describe('raser un bâtiment', () => {
       role: 'infantry',
       tier: 1,
     });
-    const waiting = recruitmentCost('infantry', 1, 1).steel;
+    const waiting = recruitmentCost('infantry', 1, 1).costs.steel!;
 
     const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: barracks });

@@ -280,6 +280,13 @@ export type CompassPictogram =
  * mute: label, cost and consequence only appear on hover, in the tooltip. The array order is
  * the fan order, due north then clockwise.
  */
+/** One resource of a bill: its sentence, its picto's resource, and whether it is the one short. */
+export type BillLine = {
+  readonly resource: ResourceKey;
+  readonly text: string;
+  readonly lacking: boolean;
+};
+
 export type CompassAction =
   /**
    * The aimed march. It only exists while a column is armed, and the fan then holds **exactly**
@@ -333,7 +340,7 @@ export type CompassAction =
        * survol ferait ouvrir la rose pour lire un tarif. Même forme que la branche « monter ».
        */
       readonly figure: string;
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
     }
   /**
@@ -358,7 +365,7 @@ export type CompassAction =
       /** Le coût à plat, dans la rose : « 54 », multi-matières « 108 · 72 ». */
       readonly figure: string;
       /** Une ligne par matière due, avec le stock en regard — celle qui manque se marque. */
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
       /** Grisée quand elle est là : la raison du serveur, et l'échéance quand elle se date. */
       readonly hold: {
@@ -424,7 +431,7 @@ export type CompassAction =
       readonly consequence: string;
       readonly outpostId: string;
       readonly figure: string;
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
       readonly hold: {
         readonly reason: string;
@@ -713,6 +720,7 @@ function outpostRaiseBranch(
       outpostId: outpost.id,
       figure: due.map((resource) => String(outpost.nextLevelCost[resource])).join(' · '),
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           outpost.nextLevelCost[resource] ?? 0,
@@ -1717,6 +1725,7 @@ function foundHere(
       troopIds: held.map((troop) => troop.id),
       figure: due.map((resource) => String(cost[resource])).join(' · '),
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           cost[resource] ?? 0,
@@ -1764,6 +1773,7 @@ function upgradeBranch(
       regionId: building.regionId,
       figure: due.map((resource) => String(building.nextLevelCost[resource])).join(' · '),
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           building.nextLevelCost[resource] ?? 0,

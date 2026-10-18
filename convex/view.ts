@@ -623,8 +623,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         troops: economy.upkeep.troops,
         unsupplied: economy.upkeep.unsupplied,
         foodPerHour: economy.upkeep.foodPerHour,
-        /** The other half of the drain since ADR 0020 §10: the empire, priced by level. It
-         *  is served split from the army's because the two are repaired by opposite moves. */
+        /** The empire eats too (ADR 0028 §2), by level; served split from the army's because
+         *  the two are repaired by opposite moves. */
+        outpostFoodPerHour: economy.upkeep.outpostFoodPerHour,
+        listeningCoalPerHour: economy.upkeep.listeningCoalPerHour,
         outposts: economy.upkeep.outposts,
       },
       starving: economy.starving,

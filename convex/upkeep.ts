@@ -1,12 +1,14 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
-import { withinReach, type OutpostReach } from '../src/domain/outposts';
+import { isStanding, withinReach, type OutpostReach } from '../src/domain/outposts';
+import { armyUpkeep } from '../src/domain/upkeep';
 import {
-  FOOD_UPKEEP_PER_TROOP_PER_HOUR,
+  LISTENING_COAL_PER_HOUR,
+  OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   outpostReachKm,
-  UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
+import { playerBuildings } from './buildingReads';
 import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint, landAtPoint } from './routes';
 import { modeOf } from '../src/domain/season-mode';
@@ -76,17 +78,15 @@ export type Upkeep = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, hence at the raised rate. */
   readonly unsupplied: number;
-  /** Food an hour the army takes, the multiplier already applied. */
+  /** Food an hour the army takes, the steps and the multiplier already applied. */
   readonly foodPerHour: number;
+  /** Food an hour the standing outposts take, by level (ADR 0028 §2). */
+  readonly outpostFoodPerHour: number;
+  /** Coal an hour the listening posts burn: stations, and outposts that listen. */
+  readonly listeningCoalPerHour: number;
   /** The troops that pay the raised rate, so the screen can mark them where the player looks. */
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
-  /**
-   * **Combien de points il tient, et rien d'autre** : un avant-poste debout ne consomme plus
-   * (révision du 15/09 de l'ADR 0020 §10). L'entretien par niveau et par heure a été retiré —
-   * un frein invisible qui vide le stock de vivres sans que le joueur sache pourquoi n'est pas
-   * un frein, c'est une fuite ; le frein est le prix, à la fondation puis à chaque élévation.
-   * Le compte reste servi : le bandeau dit combien de points l'empire tient.
-   */
+  /** Combien de points il tient : le bandeau dit combien de points l'empire tient. */
   readonly outposts: number;
 };
 
@@ -117,7 +117,15 @@ export async function upkeepOf(
    *  personne. Sans cela chaque Blitz serait une famine dès le premier fantassin. */
   const blitz = player !== null && modeOf((await ctx.db.get(player.seasonId))?.mode) === 'blitz';
   if (player?.irregular === true || blitz) {
-    return { troops: 0, unsupplied: 0, foodPerHour: 0, unsuppliedTroopIds: [], outposts: 0 };
+    return {
+      troops: 0,
+      unsupplied: 0,
+      foodPerHour: 0,
+      outpostFoodPerHour: 0,
+      listeningCoalPerHour: 0,
+      unsuppliedTroopIds: [],
+      outposts: 0,
+    };
   }
   const home = homeCountryOf(player?.nation ?? null);
 
@@ -161,12 +169,30 @@ export async function upkeepOf(
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;
+  const buildings = await playerBuildings(ctx, playerId);
+  /** A disabled post is silent, so it burns nothing; a station under raid is the same. */
+  const listening =
+    buildings.filter(
+      (building) =>
+        building.key === 'listening' &&
+        (building.disabledUntil === undefined || building.disabledUntil < now),
+    ).length +
+    outposts.filter(
+      (outpost) =>
+        outpost.specialization === 'listening' &&
+        isStanding(outpost, now) &&
+        (outpost.disabledUntil === null || outpost.disabledUntil <= now),
+    ).length;
   return {
     troops: troops.length,
     unsupplied: unsuppliedTroopIds.length,
-    foodPerHour:
-      FOOD_UPKEEP_PER_TROOP_PER_HOUR *
-      (plain + unsuppliedTroopIds.length * UPKEEP_UNSUPPLIED_MULTIPLIER),
+    foodPerHour: armyUpkeep(plain, unsuppliedTroopIds.length),
+    outpostFoodPerHour:
+      OUTPOST_FOOD_PER_HOUR_PER_LEVEL *
+      outposts
+        .filter((outpost) => isStanding(outpost, now))
+        .reduce((sum, outpost) => sum + outpost.level, 0),
+    listeningCoalPerHour: LISTENING_COAL_PER_HOUR * listening,
     unsuppliedTroopIds,
     outposts: outposts.length,
   };

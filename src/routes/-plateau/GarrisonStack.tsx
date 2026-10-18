@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  CARRY_CAPACITY_BY_ROLE,
-  FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-  UPKEEP_UNSUPPLIED_MULTIPLIER,
-} from '../../../convex/constants';
+import { CARRY_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { carryCapacityOf } from '@/domain/loot';
+import { upkeepStep } from '@/domain/upkeep';
 import {
   cargoOf,
   carrierIn,
@@ -60,6 +57,8 @@ export function GarrisonStack({
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
 }) {
   const narrow = useNarrowScreen();
+  /** The step the army stands on: what the last troop pays, so what shedding one saves. */
+  const stepRate = upkeepStep(Math.max(0, view.me.troops.length - 1)).rate;
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
   /** La coche reste ici ; la carte n'en reçoit que l'écho, pour mettre en avant ce qui est
    *  coché — jamais un second état qu'elle pourrait modifier. */
@@ -135,6 +134,7 @@ export function GarrisonStack({
           <TroopCards
             nation={view.me.nation}
             blitz={view.mode === 'blitz'}
+            upkeepRate={stepRate}
             rows={rows}
             picked={picked}
             composes={composes}
@@ -183,7 +183,9 @@ export function GarrisonStack({
                       ? fr.troops.strength(troop.strength, troop.nominalStrength)
                       : fr.garrison.aboard(roleLabel(carrier.role, 1))}
                   </span>
-                  {carrier === null && <Upkeep troop={troop} blitz={view.mode === 'blitz'} />}
+                  {carrier === null && (
+                    <Upkeep troop={troop} blitz={view.mode === 'blitz'} rate={stepRate} />
+                  )}
                 </span>
                 {carrier !== null && onDisembark !== undefined && (
                   <button
@@ -307,7 +309,7 @@ export function GarrisonStack({
  * l'entretien est ce qu'elle coûte à l'heure, au taux plein ou au taux relevé — une coque posée en
  * mer paie le second, et c'est ici qu'on l'apprend, pas sur un écran de comptabilité.
  */
-function Upkeep({ troop, blitz }: { troop: TroopView; blitz: boolean }) {
+function Upkeep({ troop, blitz, rate }: { troop: TroopView; blitz: boolean; rate: number }) {
   /** **La Blitz ne nourrit personne** : la ligne dit le soin, quand il court, et rien sinon. */
   if (blitz) {
     return troop.mending ? (
@@ -322,11 +324,8 @@ function Upkeep({ troop, blitz }: { troop: TroopView; blitz: boolean }) {
       style={{ color: troop.supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
     >
       {troop.supplied
-        ? fr.troops.upkeepRate(FOOD_UPKEEP_PER_TROOP_PER_HOUR)
-        : fr.troops.upkeepRaised(
-            FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER,
-            UPKEEP_UNSUPPLIED_MULTIPLIER,
-          )}
+        ? fr.troops.upkeepRate(rate)
+        : fr.troops.upkeepRaised(rate * UPKEEP_UNSUPPLIED_MULTIPLIER, UPKEEP_UNSUPPLIED_MULTIPLIER)}
     </span>
   );
 }
@@ -397,6 +396,7 @@ function RoleShortcuts({
 function TroopCards({
   nation,
   blitz,
+  upkeepRate,
   rows,
   picked,
   composes,
@@ -404,6 +404,7 @@ function TroopCards({
 }: {
   nation: string;
   blitz: boolean;
+  upkeepRate: number;
   rows: ReadonlyArray<StackRow<TroopView>>;
   picked: ReadonlySet<string>;
   composes: boolean;
@@ -433,7 +434,7 @@ function TroopCards({
                 {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
               </span>
               {carrier === null ? (
-                <Upkeep troop={troop} blitz={blitz} />
+                <Upkeep troop={troop} blitz={blitz} rate={upkeepRate} />
               ) : (
                 <span className="text-[11.5px] font-semibold text-[var(--ink-soft)]">
                   {fr.garrison.aboard(roleLabel(carrier.role, 1))}

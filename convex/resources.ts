@@ -261,11 +261,11 @@ export async function economyOf(
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
   const ratePerHour = extractionRates(activeBuildings, held, playerId);
-  /** **L'armée seule mange** : un avant-poste debout ne consomme plus rien (révision du 15/09
-   *  de l'ADR 0020 §10). Le frein d'expansion est passé de l'entretien au prix — fondation puis
-   *  élévations —, parce qu'un débit continu que rien n'explique à l'écran se lit comme une
-   *  fuite et non comme une règle. */
-  ratePerHour.food -= upkeep.foodPerHour;
+  /** **Ce qui mange, et ce qui brûle** (ADR 0028 §2) : l'armée par paliers, les avant-postes
+   *  debout selon leur niveau, et les écoutes au charbon. Tout passe par le taux, jamais par un
+   *  débit à part. */
+  ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
+  ratePerHour.coal -= upkeep.listeningCoalPerHour;
   const cap = storageCaps(activeBuildings);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({

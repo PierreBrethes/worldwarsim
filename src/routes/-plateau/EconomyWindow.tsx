@@ -23,6 +23,7 @@ import {
   type ResourceKey,
 } from '@/domain/ids';
 import { PRODUCER_OF, YIELD_OF } from '@/domain/economy';
+import { upkeepStep } from '@/domain/upkeep';
 import { unlinkedProducers } from '@/domain/next-actions';
 import { placementOf, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
@@ -1130,28 +1131,57 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
  * it would fight the one countdown that has to win.
  */
 function UpkeepFoot({ view }: { view: PlayerView }) {
-  const { troops, unsupplied, foodPerHour } = view.me.upkeep;
-  if (troops === 0) return null;
+  const { troops, unsupplied, foodPerHour, outpostFoodPerHour, listeningCoalPerHour } =
+    view.me.upkeep;
+  if (troops === 0 && outpostFoodPerHour === 0 && listeningCoalPerHour === 0) return null;
   const balance = view.me.resources.food.ratePerHour;
+  /** The step the next troop will pay, and where the one after it begins (ADR 0028 §2). */
+  const step = upkeepStep(troops);
 
   return (
     <div className="mt-auto flex shrink-0 flex-col gap-[3px] border-t-2 border-[var(--ink)] bg-(--ink)/5 px-4 py-[9px]">
-      {/* **Une seule ligne** : l'empire ne mange plus. L'entretien d'avant-poste est retiré
-          depuis le 15/09 (révision de l'ADR 0020 §10) — ce qui reste est ce que l'armée prend,
-          et le remède est de la nourrir ou de la faire rentrer. */}
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[12.5px] text-[var(--ink)]">{fr.economy.upkeepTroops(troops)}</span>
-        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
-          {fr.economy.upkeepDrain(foodPerHour)}
-        </span>
-      </div>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] text-[var(--ink-soft)]">
-          {unsupplied === 0
-            ? fr.economy.upkeepAllSupplied
-            : fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
-        </span>
-      </div>
+      {troops > 0 && (
+        <>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12.5px] text-[var(--ink)]">
+              {fr.economy.upkeepTroops(troops)}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
+              {fr.economy.upkeepDrain(foodPerHour)}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[11px] text-[var(--ink-soft)]">
+              {unsupplied === 0
+                ? fr.economy.upkeepAllSupplied
+                : fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[11px] text-[var(--ink-soft)]">
+              {fr.economy.upkeepStep(step.rate, step.nextAt, step.nextRate)}
+            </span>
+          </div>
+        </>
+      )}
+      {outpostFoodPerHour > 0 && (
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[12.5px] text-[var(--ink)]">
+            {fr.economy.upkeepOutposts(view.me.upkeep.outposts)}
+          </span>
+          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
+            {fr.economy.upkeepDrain(outpostFoodPerHour)}
+          </span>
+        </div>
+      )}
+      {listeningCoalPerHour > 0 && (
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[12.5px] text-[var(--ink)]">{fr.economy.upkeepListening}</span>
+          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
+            {fr.economy.upkeepCoalDrain(listeningCoalPerHour)}
+          </span>
+        </div>
+      )}
       <div className="mt-[3px] flex items-baseline justify-end border-t border-(color:--ink)/28 pt-[5px]">
         <span
           className="font-(family-name:--font-mono) text-[14px]"

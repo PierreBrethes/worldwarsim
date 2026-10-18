@@ -780,7 +780,18 @@ describe('scrapping a season', () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
 
-      // An outpost, planted where a column of its own stands.
+      // An outpost, planted where a column of its own stands. It is paid in food now.
+      await t.run(async (ctx) => {
+        const player = await seatIn(ctx, creator);
+        const rows = await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+        for (const row of rows) {
+          if (row.key === 'food')
+            await ctx.db.patch(row._id, { stock: 1_000, updatedAt: Date.now() });
+        }
+      });
       const desert = pointOf(RIYADH);
       await t.mutation(api.movements.foundOutpostHere, {
         regionId: null,

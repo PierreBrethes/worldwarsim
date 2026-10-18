@@ -22,6 +22,8 @@ import {
 import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, tierLabel } from '@/domain/troops';
 import type { UnitTier } from '@/domain/troops';
 import type { UnitRole } from '@/domain/ids';
+import type { Cost } from '@/domain/player-view';
+import { Price } from '@/shell/Price';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
@@ -362,7 +364,7 @@ function Mark({
 }: {
   mark: UnitTier;
   marked: boolean;
-  cost: { steel: number; minutes: number; strength: number };
+  cost: { costs: Cost; minutes: number; strength: number };
   role: UnitRole;
   roster: number;
   locked: boolean;
@@ -390,9 +392,9 @@ function Mark({
         </span>
       ) : (
         <span className="flex items-center gap-[7px]">
-          <StatGlyph stat="steel" onHover={setHovered} />
-          <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
-            {cost.steel}
+          <StatGlyph stat="cost" onHover={setHovered} />
+          <span className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold text-[var(--ink)]">
+            <Price costs={cost.costs} size={16} />
           </span>
         </span>
       )}
@@ -452,7 +454,7 @@ type StatHover = {
 const STAT_POPIN_WIDTH = 232;
 
 const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
-  steel: IngotGlyph,
+  cost: IngotGlyph,
   training: ClockGlyph,
   strength: HeartGlyph,
   range: EyeGlyph,

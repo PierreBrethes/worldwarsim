@@ -3,14 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { TIERS_BY_ROLE } from '../src/domain/troops';
-import type { UnitRole } from '../src/domain/ids';
+import type { ResourceKey, UnitRole } from '../src/domain/ids';
 import {
+  COST_BY_ROLE,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
   MONDIALE_TROOP_BOUND,
   NOMINAL_STRENGTH,
   STARTING_KIT,
   ROLE_SITE_LEVEL,
+  TIER_2_FACTOR,
   TIER_2_HQ_LEVEL,
   recruitmentCost,
   roleHqLevel,
@@ -121,6 +123,25 @@ async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
   });
 }
 
+/** Sets one stock to a figure, whatever it was. */
+async function setStock(
+  t: ReturnType<typeof boot>,
+  seat: Seat,
+  key: ResourceKey,
+  stock: number,
+): Promise<void> {
+  const playerId = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    for (const row of rows) {
+      if (row.key === key) await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    }
+  });
+}
+
 /** The ammunition stock, read the way the board reads it — the workshop no longer serves it. */
 async function ammunitionOf(t: ReturnType<typeof boot>, seat: Seat): Promise<number> {
   const view = await t.query(api.view.playerView, seat);
@@ -217,7 +238,7 @@ describe('a queue per projection building', () => {
 
     const after = await t.query(api.troops.workshop, seat);
     expect(after.troopsQueued).toBe(1);
-    expect(after.steel.stock).toBe(before.steel.stock + cost.steel);
+    expect(after.steel.stock).toBe(before.steel.stock + cost.costs.steel!);
   });
 });
 
@@ -476,6 +497,67 @@ describe('tiers', () => {
  * used to be billed here *as well* as at the pass, which priced the same rounds twice; the
  * recruitment now says the whole of its price, and the whole of its price is what it takes.
  */
+describe('a price mixes the family (ADR 0028 §2)', () => {
+  it('costs steel plus the resource of the family, for every role', () => {
+    const family = { infantry: 'food', armor: 'oil', cargo: 'coal', fighter: 'oil' } as const;
+    for (const [role, resource] of Object.entries(family) as ReadonlyArray<
+      [UnitRole, 'food' | 'oil' | 'coal']
+    >) {
+      const { costs } = recruitmentCost(role, 1, 1);
+      expect(Object.keys(costs).sort(), role).toEqual([resource, 'steel'].sort());
+    }
+    for (const role of Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>) {
+      expect(Object.keys(recruitmentCost(role, 1, 1).costs), role).toHaveLength(2);
+    }
+  });
+
+  it('scales both figures with the mark', () => {
+    const one = recruitmentCost('infantry', 1, 1).costs;
+    const two = recruitmentCost('infantry', 2, 1).costs;
+    expect(two.steel).toBe(Math.round(one.steel! * TIER_2_FACTOR));
+    expect(two.food).toBe(Math.round(one.food! * TIER_2_FACTOR));
+  });
+
+  it('takes the food with the steel, and hands both back when a waiting batch is withdrawn', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const food = (await t.query(api.view.playerView, seat)).me.resources.food.stock;
+    const price = recruitmentCost('infantry', 1, 1).costs;
+
+    // Two batches: the second one waits, so it can be withdrawn.
+    for (let rank = 0; rank < 2; rank += 1) {
+      await t.mutation(api.troops.recruit, {
+        ...seat,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
+    }
+    const spent = (await t.query(api.view.playerView, seat)).me.resources.food.stock;
+    expect(spent).toBeCloseTo(food - 2 * price.food!, 0);
+
+    const queue = (await t.query(api.troops.workshop, seat)).facilities.find(
+      (facility) => facility.id === barracks,
+    )!.queue;
+    await t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[1]!.id });
+    const back = (await t.query(api.view.playerView, seat)).me.resources.food.stock;
+    expect(back).toBeCloseTo(food - price.food!, 0);
+  });
+
+  it('refuses a troop whose family resource is short, and names it', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    await setStock(t, seat, 'food', 0);
+
+    await expect(
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 1 }),
+    ).rejects.toThrow('INSUFFICIENT_RESOURCE');
+    expect((await t.query(api.troops.workshop, seat)).troopsQueued).toBe(0);
+  });
+});
+
 describe('what a recruitment costs', () => {
   it('debits the steel of the announced price and not one round', async () => {
     const t = boot();
@@ -492,9 +574,9 @@ describe('what a recruitment costs', () => {
     });
 
     // The price on the card, the price the mutation answers, the steel that actually left.
-    expect(cost.steel).toBe(shown.steel);
+    expect(cost.costs).toEqual(shown.costs);
     const after = await t.query(api.troops.workshop, seat);
-    expect(after.steel.stock).toBe(before.steel.stock - shown.steel);
+    expect(after.steel.stock).toBe(before.steel.stock - shown.costs.steel!);
     expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
 
@@ -522,7 +604,7 @@ describe('what a recruitment costs', () => {
     await t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[1]!.id });
 
     const after = await t.query(api.troops.workshop, seat);
-    const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.steel;
+    const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.costs.steel!;
     expect(after.steel.stock).toBe(before.steel.stock - one);
     expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
@@ -542,7 +624,7 @@ describe('a fresh nation', () => {
     const workshop = await t.query(api.troops.workshop, seat);
 
     expect(workshop.steel.stock).toBe(KIT.steel);
-    expect(workshop.grid.every((entry) => entry.unit.steel > 0)).toBe(true);
+    expect(workshop.grid.every((entry) => (entry.unit.costs.steel ?? 0) > 0)).toBe(true);
     await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,

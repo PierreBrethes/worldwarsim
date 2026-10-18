@@ -2940,9 +2940,9 @@ export const fr = {
      * entamée tire bien au prorata de ce qui lui reste.
      */
     stats: {
-      steel: {
-        name: 'coût — acier',
-        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot.',
+      cost: {
+        name: 'coût',
+        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot : de l’acier, plus la ressource de sa famille — vivres pour les hommes, pétrole pour les machines de terre et les avions, charbon pour les navires.',
       },
       training: {
         name: 'formation',
@@ -2956,7 +2956,7 @@ export const fr = {
         name: 'portée de détection',
         note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
       },
-    } satisfies Record<'steel' | 'training' | 'strength' | 'range', { name: string; note: string }>,
+    } satisfies Record<'cost' | 'training' | 'strength' | 'range', { name: string; note: string }>,
     /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
      *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
      *  carte lève. */
@@ -3011,10 +3011,9 @@ export const fr = {
       formNote: 'un toucher, une troupe',
       lockedHeader: 'Plus haut',
       lockedNote: 'le site doit monter',
-      bill: (steel: number, duration: string) => `${steel} aci. · ${duration}`,
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
       queueFull: 'File pleine.',
-      steelShort: (missing: number) => `Il manque ${missing} acier.`,
+      short: (missing: number, resource: string) => `Il manque ${missing} ${resource}.`,
       running: 'en chaîne',
       remaining: 'restant',
       deliveredAround: (time: string) => `livrée vers ${time}`,
@@ -3276,6 +3275,15 @@ export const fr = {
     upkeepDrain: (perHour: number) => `− ${tenths(perHour)} vivres / h`,
     upkeepUnsupplied: (count: number, factor: number) =>
       `dont ${count} hors ravitaillement — entretien ×${factor}`,
+    /** Le palier de la prochaine troupe, et où commence le suivant : de quoi décider de former
+     *  la onzième ou la vingt-sixième en connaissance de cause. */
+    upkeepStep: (rate: number, nextAt: number | null, nextRate: number | null) =>
+      nextAt === null || nextRate === null
+        ? `palier : ${rate} vivres / h par troupe — le dernier`
+        : `palier : ${rate} vivres / h par troupe — ${nextRate} à partir de la ${nextAt}ᵉ`,
+    upkeepOutposts: (count: number) => `${count} avant-poste${plural(count, '', 's')} debout`,
+    upkeepListening: 'écoutes',
+    upkeepCoalDrain: (perHour: number) => `− ${tenths(perHour)} charbon / h`,
     upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
     upkeepBalance: (net: number) =>
       `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} vivres / h`,

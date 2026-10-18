@@ -84,13 +84,20 @@ export const isCommanded = (key: BuildingKey): boolean =>
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
+/**
+ * **Steel plus the resource of the family** (ADR 0028 §2): coal for production (extractors,
+ * arsenal, warehouse, headquarters) and for the port and the listening post, food for the
+ * barracks, oil for the airfield. The outpost, priced below, is the one that costs food.
+ *
+ * @a-mesurer the second figure of the three extractors is new; set by eye against their steel
+ */
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
 > = {
   hq: { cost: { steel: 60, coal: 40 }, minutes: 45 },
-  farm: { cost: { steel: 20 }, minutes: 20 },
-  mine: { cost: { steel: 30 }, minutes: 30 },
-  oilWell: { cost: { steel: 45 }, minutes: 40 },
+  farm: { cost: { steel: 20, coal: 8 }, minutes: 20 },
+  mine: { cost: { steel: 30, coal: 10 }, minutes: 30 },
+  oilWell: { cost: { steel: 45, coal: 12 }, minutes: 40 },
   arsenal: { cost: { steel: 60, coal: 20 }, minutes: 55 },
   barracks: { cost: { steel: 40, food: 30 }, minutes: 40 },
   airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
@@ -237,7 +244,8 @@ export const LEVEL_COST_FACTOR = 1.8;
 /**
  * **Monter un avant-poste se tarife comme un bâtiment de projection du même niveau** (précision
  * du 15/09 de l'ADR 0020 §10). Le point de comparaison est le port : ce qu'on achète est de la
- * projection — un rayon, un emplacement, une portée de détection —, pas une filière.
+ * projection — un rayon, un emplacement, une portée de détection —, pas une filière. **Sa
+ * seconde ressource est des vivres** (ADR 0028 §2), les mêmes qu'il mange ensuite.
  *
  * **Et c'est aussi le prix de la fondation** (révision du 15/09 de l'ADR 0020 §10) :
  * `buildCost('outpost', 1)` est ce que `movements.foundOutpostHere` débite, et
@@ -250,7 +258,7 @@ export const LEVEL_COST_FACTOR = 1.8;
  * @a-mesurer calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09)
  */
 export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
-  cost: { steel: 65, coal: 20 },
+  cost: { steel: 65, food: 20 },
   minutes: 65,
 };
 
@@ -342,20 +350,43 @@ export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
 };
 
 /**
- * Cost and duration of **one tier-1 troop**. A batch is a troop, so nothing here multiplies by
- * a count any more (ADR 0014).
+ * **The resource a role's family adds to its steel** (ADR 0028 §2): food for men, oil for land
+ * machines and aircraft, coal for ships. Everything costs steel, plus this.
  */
-export const COST_BY_ROLE: Readonly<Record<UnitRole, { steel: number; minutes: number }>> = {
-  infantry: { steel: 18, minutes: 20 },
-  armor: { steel: 95, minutes: 70 },
-  landTransport: { steel: 40, minutes: 45 },
-  artillery: { steel: 80, minutes: 60 },
-  fighter: { steel: 110, minutes: 90 },
-  bomber: { steel: 160, minutes: 120 },
-  airTransport: { steel: 90, minutes: 75 },
-  escort: { steel: 175, minutes: 180 },
-  cargo: { steel: 120, minutes: 100 },
-  carrier: { steel: 430, minutes: 480 },
+export const FAMILY_RESOURCE_OF_ROLE: Readonly<Record<UnitRole, 'food' | 'oil' | 'coal'>> = {
+  infantry: 'food',
+  armor: 'oil',
+  landTransport: 'oil',
+  artillery: 'oil',
+  fighter: 'oil',
+  bomber: 'oil',
+  airTransport: 'oil',
+  escort: 'coal',
+  cargo: 'coal',
+  carrier: 'coal',
+};
+
+/**
+ * Cost and duration of **one tier-1 troop**: its steel, its family's resource
+ * (`FAMILY_RESOURCE_OF_ROLE`) and its minutes. A batch is a troop, so nothing here multiplies by
+ * a count any more (ADR 0014).
+ *
+ * @a-mesurer the family figure is about a third of the steel for machines and ships, and ten
+ * against eighteen for a rifleman; never played
+ */
+export const COST_BY_ROLE: Readonly<
+  Record<UnitRole, { steel: number; family: number; minutes: number }>
+> = {
+  infantry: { steel: 18, family: 10, minutes: 20 },
+  armor: { steel: 95, family: 30, minutes: 70 },
+  landTransport: { steel: 40, family: 12, minutes: 45 },
+  artillery: { steel: 80, family: 25, minutes: 60 },
+  fighter: { steel: 110, family: 35, minutes: 90 },
+  bomber: { steel: 160, family: 50, minutes: 120 },
+  airTransport: { steel: 90, family: 30, minutes: 75 },
+  escort: { steel: 175, family: 55, minutes: 180 },
+  cargo: { steel: 120, family: 40, minutes: 100 },
+  carrier: { steel: 430, family: 130, minutes: 480 },
 };
 
 /**
@@ -433,11 +464,18 @@ export function chainSpeed(hqLevel: number): number {
   return 1 + Math.max(0, hqLevel - 1) * 0.225;
 }
 
-export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number) {
+export function recruitmentCost(
+  role: UnitRole,
+  tier: UnitTier,
+  hqLevel: number,
+): { readonly costs: Costs; readonly minutes: number } {
   const base = COST_BY_ROLE[role];
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
   return {
-    steel: Math.round(base.steel * factor),
+    costs: {
+      steel: Math.round(base.steel * factor),
+      [FAMILY_RESOURCE_OF_ROLE[role]]: Math.round(base.family * factor),
+    },
     minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
   };
 }
@@ -732,19 +770,40 @@ export const PURSUIT_STEP_SECONDS = 15;
 export const LISTENING_STATION_RADIUS_KM = 120;
 
 /**
- * **What one troop eats an hour, whatever it is** (`consommation-continue.md` D1). One constant
- * and no table of nine: `nominalStrength` is not the same unit from one role to the next, so
- * feeding a carrier "in proportion to 24" would make it half the price of an infantry while it
- * carries three thousand men. A flat rate also keeps `chiffrage-combat.md` §5 for free — losing
- * men is never an economy — and it costs proportionally more to hold a cheap troop than an
- * expensive one, which is a third channel against the swarm.
+ * **What the army eats an hour, by steps** (ADR 0028 §2, replacing the flat rate of
+ * `consommation-continue.md` D1). Each troop pays the rate of its rank: one up to the tenth, two
+ * up to the twenty-fifth, three beyond. `nominalStrength` is not the same unit from one role to
+ * the next, so the rate still reads the head count and nothing else: a flat rate keeps
+ * `chiffrage-combat.md` §5 for free (losing men is never an economy), and the steps are what
+ * makes a large army pay for being large (`src/domain/upkeep.ts` reads them).
  *
- * One an hour against a farm's twelve: an army at the ceiling of twenty-four is two farms at
- * level one, which is the scale the number was picked to read at. Never measured.
+ * A farm at level one grows twelve an hour, which feeds twelve troops of the first step.
  *
- * @a-mesurer picked to read against a farm at level one, never measured
+ * @a-mesurer the three rates and the two thresholds are set by eye against a farm at level one
  */
-export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
+export const UPKEEP_STEPS: ReadonlyArray<{ readonly upTo: number; readonly rate: number }> = [
+  { upTo: 10, rate: 1 },
+  { upTo: 25, rate: 2 },
+  { upTo: Number.POSITIVE_INFINITY, rate: 3 },
+];
+
+/**
+ * **An outpost eats food on the personal board, by its level** (ADR 0028 §2): the brake on the
+ * carpet of outposts, which the price alone did not hold. A standing point only; a site under
+ * construction eats nothing yet.
+ *
+ * @a-mesurer set by eye: a level-one point against the twelve of a farm
+ */
+export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 1;
+
+/**
+ * **A listening post burns coal as long as it listens** (ADR 0028 §2, R17): a station, and an
+ * outpost given the listening specialization, each. Flat per post and not per level, since the
+ * radius is what a level buys.
+ *
+ * @a-mesurer set by eye: a post against the twelve an hour of a coal mine at level one
+ */
+export const LISTENING_COAL_PER_HOUR = 1;
 
 /**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own

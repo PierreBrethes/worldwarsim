@@ -5,6 +5,7 @@ import {
   emptyStocks,
   isLinked,
   produces,
+  shortfallOf,
   settleStocks,
   type Conversion,
   type Stocks,
@@ -382,5 +383,24 @@ describe('legacy storage placement', () => {
   });
   it('raises an old depot as a warehouse', () => {
     expect(placementRefusal('warehouse', region, { onRegion: 'depot', hqLevel: 2 }, 1)).toBeNull();
+  });
+});
+
+describe('shortfallOf', () => {
+  const stocks = { food: 50, steel: 100, coal: 5, oil: 0, ammunition: 0 };
+
+  it('names the first resource a price cannot be paid in, steel first', () => {
+    expect(shortfallOf({ steel: 120, food: 80 }, (key) => stocks[key])).toEqual({
+      resource: 'steel',
+      missing: 20,
+    });
+    expect(shortfallOf({ steel: 90, coal: 8 }, (key) => stocks[key])).toEqual({
+      resource: 'coal',
+      missing: 3,
+    });
+  });
+
+  it('says nothing when everything is covered', () => {
+    expect(shortfallOf({ steel: 100, food: 50 }, (key) => stocks[key])).toBeNull();
   });
 });

@@ -20,6 +20,7 @@ import {
   EXTRACTION_PER_HOUR,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
+  OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   STARTING_KIT,
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
@@ -1617,11 +1618,11 @@ describe('the ground a site reaches', () => {
   });
 
   /**
-   * **Le frein de l'expansion est le prix, plus l'entretien** (révision du 15/09 de l'ADR 0020
-   * §10). Un avant-poste debout, fût-il de niveau 3, ne touche aucun des huit taux : il est payé
-   * à la fondation puis à chaque élévation, et il ne coûte plus rien à tenir.
+   * **Le frein de l'expansion est le prix, puis l'entretien** (ADR 0028 §2, qui reprend ce que
+   * la révision du 15/09 de l'ADR 0020 avait retiré). Un avant-poste debout mange des vivres
+   * selon son niveau, et ne touche aucun autre taux.
    */
-  it('leaves every rate untouched by an outpost held, whatever its level', async () => {
+  it('eats food by its level and touches no other rate', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const before = await t.query(api.view.playerView, seat);
@@ -1630,8 +1631,13 @@ describe('the ground a site reaches', () => {
     await plantOutpost(t, seat, EL_TARF, 3);
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.upkeep.outposts).toBe(1);
+    /** The point eats food by its level (ADR 0028 §2), and touches no other rate. */
+    expect(after.me.upkeep.outpostFoodPerHour).toBe(3 * OUTPOST_FOOD_PER_HOUR_PER_LEVEL);
     for (const key of RESOURCES) {
-      expect(after.me.resources[key].ratePerHour).toBe(before.me.resources[key].ratePerHour);
+      const eaten = key === 'food' ? after.me.upkeep.outpostFoodPerHour : 0;
+      expect(after.me.resources[key].ratePerHour).toBe(
+        before.me.resources[key].ratePerHour - eaten,
+      );
     }
   });
 });

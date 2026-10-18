@@ -61,6 +61,8 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Gisement** | Un point de la carte, visible, qui porte une seule exploitation : terres, fer, charbon ou pétrole. Cuit par le générateur, jamais retouché à la main. Il n'appartient plus à une région. *(ADR 0029)* |
 | **Coups** | Les munitions qu'une troupe porte, en **crans** : un cran, une passe qu'elle peut tirer, en attaque ou en riposte. Sans coups, ni attaque ni riposte : elle encaisse. Repris quand elle est ancrée ; un cran coûte 10 munitions. *(ADR 0028, Mondiale)* |
 | **Plein** | La distance que les moteurs d'une troupe couvrent encore, en **crans** d'environ 500 km ; pour un avion, son allonge. Payé au départ, repris quand elle est ancrée ; un cran coûte 10 de pétrole, ou de charbon pour un navire. L'infanterie à pied n'en a pas. *(ADR 0028, Mondiale)* |
+| **Palier d'entretien** | Ce que l'armée mange par heure, par rang : 1 vivre par troupe jusqu'à la dixième, 2 jusqu'à la vingt-cinquième, 3 au-delà, **doublé hors ancrage** (`isAnchored`). La fiche dit le palier de la prochaine troupe et où commence le suivant. Un avant-poste debout mange aussi des vivres selon son niveau, une écoute brûle du charbon. *(ADR 0028 §2, Mondiale)* |
+| **Prix mêlé** | Tout coûte de l'acier plus la ressource de sa famille : vivres pour les hommes (et l'avant-poste), pétrole pour les machines de terre et les avions, charbon pour les navires et la production. Toujours montré en deux pictos de leur couleur. *(ADR 0028 §2, Mondiale)* |
 
 ## Actions
 

@@ -24,7 +24,11 @@ const client = {
   }),
   mutation: (_reference: unknown, args: unknown) => {
     sent(args);
-    return Promise.resolve({ cost: { steel: 18 }, rank: 0, recruitmentId: 'R-new' });
+    return Promise.resolve({
+      cost: { costs: { steel: 18, food: 10 }, minutes: 20 },
+      rank: 0,
+      recruitmentId: 'R-new',
+    });
   },
 } as unknown as ConvexReactClient;
 
@@ -45,7 +49,11 @@ afterEach(() => {
 });
 
 const SEAT = { token: 'jeton', seasonId: 'saison' } as unknown as Seat;
-const priced = (steel: number, minutes: number, strength: number) => ({ steel, minutes, strength });
+const priced = (steel: number, minutes: number, strength: number) => ({
+  costs: { steel, food: Math.round(steel / 2) },
+  minutes,
+  strength,
+});
 const GRID = [
   {
     role: 'infantry',

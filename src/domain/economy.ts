@@ -9,6 +9,22 @@ import {
 export type Stocks = Readonly<Record<ResourceKey, number>>;
 
 /**
+ * **The first resource a price cannot be paid in, and by how much** — `null` when every one is
+ * covered. The steel is read first, then the family's resource, the order a price is printed in:
+ * the screen says the same shortage the server's `debit` refuses on.
+ */
+export function shortfallOf(
+  costs: Readonly<Partial<Record<ResourceKey, number>>>,
+  stockOf: (resource: ResourceKey) => number,
+): { readonly resource: ResourceKey; readonly missing: number } | null {
+  for (const resource of ['steel', ...RESOURCES.filter((key) => key !== 'steel')] as const) {
+    const missing = (costs[resource] ?? 0) - stockOf(resource);
+    if (missing > 0) return { resource, missing };
+  }
+  return null;
+}
+
+/**
  * Which deposit an exploitation building needs under it. The mine is the only one with a
  * choice, and it does not choose: the region does — coal on coal, iron on iron.
  */

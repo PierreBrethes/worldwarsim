@@ -186,7 +186,7 @@ async function cancelWorkOn(
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      add({ steel: recruitmentCost(batch.role, batch.tier, hqLevel).steel });
+      add(recruitmentCost(batch.role, batch.tier, hqLevel).costs);
     }
     await ctx.db.delete(batch._id);
   }

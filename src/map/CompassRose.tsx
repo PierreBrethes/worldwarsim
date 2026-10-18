@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
+import type { BillLine, CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
+import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -325,6 +326,19 @@ export function CompassRose({
   );
 }
 
+/** One line of a bill, led by its resource's picto in its own ink: the pair is the same
+ *  everywhere a price is printed (ADR 0028 §2). */
+function BillText({ line }: { line: BillLine }) {
+  return (
+    <span className="inline-flex items-center gap-[5px]">
+      <span className="flex" style={{ color: resourceColor(line.resource) }}>
+        <ResourceIcon resource={line.resource} size={11} />
+      </span>
+      {line.text}
+    </span>
+  );
+}
+
 /**
  * **Le détail d'une élévation** — coût matière par matière avec le stock en regard, durée, puis
  * la conséquence. Trois lignes plutôt qu'un `cost` d'un seul tenant : le stock à côté du prix est
@@ -352,7 +366,7 @@ function Upgrade({
             line.lacking ? ' rose-bubble-cost--lacking' : ''
           }`}
         >
-          {line.text}
+          <BillText line={line} />
         </div>
       ))}
       <div className="rose-bubble-cost rose-bubble-cost--held">{action.duration}</div>
@@ -386,7 +400,7 @@ function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> })
       <div className="rose-bubble-label">{action.label}</div>
       {action.bill.map((line) => (
         <div key={line.text} className="rose-bubble-cost">
-          {line.text}
+          <BillText line={line} />
         </div>
       ))}
       <div className="rose-bubble-cost rose-bubble-cost--held">{action.duration}</div>

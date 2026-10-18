@@ -126,6 +126,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         troops: server.me.upkeep?.troops ?? 0,
         unsupplied: server.me.upkeep?.unsupplied ?? 0,
         foodPerHour: server.me.upkeep?.foodPerHour ?? 0,
+        outpostFoodPerHour: server.me.upkeep?.outpostFoodPerHour ?? 0,
+        listeningCoalPerHour: server.me.upkeep?.listeningCoalPerHour ?? 0,
         outposts: server.me.upkeep?.outposts ?? 0,
       },
       starving: server.me.starving ?? false,

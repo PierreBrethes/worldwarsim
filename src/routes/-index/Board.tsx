@@ -402,6 +402,7 @@ function frontRose(place: string | null): Compass {
         troopIds: [],
         figure: due.map((resource) => String(cost[resource])).join(' · '),
         bill: due.map((resource) => ({
+          resource,
           text: `${fr.resources[resource]} ${cost[resource]}`,
           lacking: false,
         })),

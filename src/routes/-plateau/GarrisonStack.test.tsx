@@ -38,7 +38,7 @@ describe('GarrisonStack', () => {
       troop('truck', 'landTransport', 12, 24),
       troop('cargo', 'cargo', 8, 8),
     ];
-    const view = { me: { nation: 'france' } } as unknown as PlayerView;
+    const view = { me: { nation: 'france', troops: [] } } as unknown as PlayerView;
 
     const markup = renderToStaticMarkup(
       <GarrisonStack
@@ -60,7 +60,9 @@ describe('GarrisonStack', () => {
 /** **Un passager suit son transport** (15/10) : il se lit sous lui, il ne se coche pas seul, et il
  *  descend d'un bouton. */
 describe('GarrisonStack, a transport and its passengers', () => {
-  const view = { me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView;
+  const view = {
+    me: { nation: 'france', stationedCargo: [], troops: [] },
+  } as unknown as PlayerView;
   const held = [
     troop('truck', 'landTransport', 24, 24),
     { ...troop('rifle', 'infantry', 50, 50), carriedBy: 'truck' },

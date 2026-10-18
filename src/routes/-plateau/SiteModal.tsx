@@ -5,8 +5,9 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import { aBuilding, aSecondBuilding, fr, roleLabel, theRole } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { Stamp } from '@/shell/Stamp';
+import { Price } from '@/shell/Price';
 import { handleError } from '@/data/errors';
-import { ResourceIcon, resourceColor, type ResourceKey } from '@/emblems/ResourceIcon';
+import type { ResourceKey } from '@/emblems/ResourceIcon';
 import { BuildingPlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
@@ -22,7 +23,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
-import { produces } from '@/domain/economy';
+import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
 import { HelpMark } from './HelpMark';
@@ -648,7 +649,8 @@ function NarrowSite({
   const ready = workshop !== undefined && facility !== null;
   const queue = facility?.queue ?? [];
   const nation = view.me.nation;
-  const steel = Math.floor(currentStock(view.me.resources.steel, view.loadedAt, now));
+  const stockOf = (resource: ResourceKey) =>
+    Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
   const siteLevel = facility?.level ?? building.level;
   const termsOf = (entry: GridEntry) =>
     roleTermsOf(entry, tiers[entry.role] ?? 1, workshop?.hqLevel ?? 0, siteLevel);
@@ -661,7 +663,9 @@ function NarrowSite({
     const { roleLocked, cost } = termsOf(entry);
     if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
     if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull;
-    if (steel < cost.steel) return fr.production.sheet.steelShort(cost.steel - steel);
+    const short = shortfallOf(cost.costs, stockOf);
+    if (short !== null)
+      return fr.production.sheet.short(short.missing, fr.resources[short.resource]);
     return null;
   };
   const minutesOf = (batch: Batch) => {
@@ -1072,7 +1076,8 @@ function RoleSheetCard({
                 {fr.production.enqueue}
               </span>
               <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper-dim-2)]">
-                {fr.production.sheet.bill(cost.steel, asDuration(cost.minutes))}
+                <Price costs={cost.costs} onPaper={false} size={11} />
+                {` · ${asDuration(cost.minutes)}`}
               </span>
             </button>
           ) : (
@@ -1102,7 +1107,8 @@ function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string })
             {roleLabel(role, 1)}
           </span>
           <span className="shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {fr.production.sheet.bill(unit.steel, asDuration(unit.minutes))}
+            <Price costs={unit.costs} size={11} />
+            {` · ${asDuration(unit.minutes)}`}
           </span>
         </div>
         <div className="mt-[2px] text-[12px] text-[var(--ink-soft)]">
@@ -1392,8 +1398,8 @@ function RoleCard({
           <div className="text-[9px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
             {fr.production.costLabel}
           </div>
-          <div className="mt-[3px] flex gap-[11px]">
-            <Expense resource="steel" value={cost.steel} />
+          <div className="mt-[3px] font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
+            <Price costs={cost.costs} size={12} />
           </div>
         </div>
         <div className="w-px self-stretch bg-(--ink)/16" />
@@ -1512,18 +1518,5 @@ function QueueRow({
         </button>
       )}
     </div>
-  );
-}
-
-function Expense({ resource, value }: { resource: ResourceKey; value: number }) {
-  return (
-    <span className="flex items-center gap-[4px]" title={fr.resources[resource]}>
-      <span className="flex" style={{ color: resourceColor(resource, true) }}>
-        <ResourceIcon resource={resource} size={12} />
-      </span>
-      <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
-        {value}
-      </span>
-    </span>
   );
 }

@@ -689,7 +689,7 @@ describe('plunder presence', () => {
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     expect(report?.taken.steel).toBeGreaterThan(0);
     await t.mutation(api.troops.cancel, { ...guest, recruitmentId: queued.recruitmentId });
-    expect((await stocksOf(t, guest)).steel).toBe(BASE_CAP + queued.cost.steel);
+    expect((await stocksOf(t, guest)).steel).toBe(BASE_CAP + queued.cost.costs.steel!);
   });
 
   it('lets only the first concurrent presence take and disable the target', async () => {
