@@ -785,7 +785,8 @@ function NarrowRegisters({ own }: { own: PressOwnLine }) {
 
 /**
  * **La course aux Sept** (P1-P12) : qui tient quoi, en direct — l'encadré que chaque édition
- * porte. Le teneur, jamais le contestant : un point contesté le dit, sans nom.
+ * porte. Le teneur, jamais le contestant : un point contesté le dit, sans nom. La saison conclue,
+ * le palmarès par lieu, que le serveur ne sert qu'alors.
  */
 function Race({
   points,
@@ -835,6 +836,30 @@ function Race({
             </li>
           ))}
         </ul>
+      )}
+      {points.some((point) => point.longest !== null) && (
+        <>
+          <h3 className="mt-[10px] text-[10px] font-bold tracking-[.16em] uppercase">
+            {fr.points.race.palmares}
+          </h3>
+          <ul className="mt-[4px] flex flex-col gap-[3px]">
+            {points.map((point) => (
+              <li key={point.id} className="flex items-baseline gap-2 text-[12px]">
+                <span className="font-bold">{fr.points.names[point.key]}</span>
+                {point.longest === null ? (
+                  <span className="text-[var(--ink-quiet)]">{fr.points.race.neverHeld}</span>
+                ) : (
+                  <>
+                    <span>{nationLabel(point.longest.nation)}</span>
+                    <span className="font-(family-name:--font-mono) text-[var(--critical)]">
+                      {countdownLabel(point.longest.heldMs)}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <p className="mt-[8px] text-[11px] text-[var(--ink-soft)]">
         {points

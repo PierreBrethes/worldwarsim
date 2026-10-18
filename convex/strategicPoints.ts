@@ -17,7 +17,7 @@ import {
 import { fail } from './errors';
 import { emptyStocks } from '../src/domain/economy';
 import { creditToStorage, debit, economyOf } from './resources';
-import { playerOf, requirePlayable, seatsOf } from './seats';
+import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
 
@@ -55,15 +55,16 @@ export const seasonPoints = (
     .collect();
 
 /**
- * **Ce que tout le monde lit d'un point** (P2) : son teneur et depuis quand, et s'il est contesté
- * — jamais par qui. La table est publique : la lire ne perce aucun brouillard.
+ * **Ce que tout le monde lit d'un point** (P2) : son teneur, depuis quand et ses heures d'avant,
+ * et s'il est contesté — jamais par qui. La saison conclue, qui l'a tenu le plus longtemps : le
+ * palmarès de l'édition finale. La table est publique : la lire ne perce aucun brouillard.
  */
-export async function pointsView(ctx: QueryCtx, seasonId: Id<'seasons'>, viewerId: Id<'players'>) {
+export async function pointsView(ctx: QueryCtx, season: Doc<'seasons'>, viewerId: Id<'players'>) {
   const contested = new Set(
     (
       await ctx.db
         .query('captures')
-        .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+        .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
         .collect()
     ).flatMap((capture) =>
       capture.target.kind === 'point' && capture.stoppedAt === undefined
@@ -71,33 +72,52 @@ export async function pointsView(ctx: QueryCtx, seasonId: Id<'seasons'>, viewerI
         : [],
     ),
   );
-  const points = await seasonPoints(ctx, seasonId);
-  const holders = new Map<string, Doc<'players'> | null>();
-  for (const point of points) {
-    if (point.holderId !== null && !holders.has(point.holderId)) {
-      holders.set(point.holderId, await ctx.db.get(point.holderId));
-    }
-  }
-  return points.map((point) => {
-    const holder = point.holderId === null ? null : (holders.get(point.holderId) ?? null);
+  const seats = new Map((await everySeatOf(ctx, season._id)).map((seat) => [seat._id, seat]));
+  const nationOf = (id: Id<'players'>) => {
+    const seat = seats.get(id);
+    return seat === undefined ? null : (seat.nation ?? seat.nickname);
+  };
+  const end = season.concludedAt ?? null;
+  return (await seasonPoints(ctx, season._id)).map((point) => {
+    const holder = point.holderId === null ? null : nationOf(point.holderId);
+    const longest = end === null ? undefined : longestOn(point, end);
+    const longestNation = longest === undefined ? null : nationOf(longest.id);
     return {
       id: point._id,
       key: point.key,
       regionId: point.regionId,
       point: [point.point.lon, point.point.lat] as const,
-      holder: holder === null ? null : { nation: holder.nation ?? holder.nickname },
+      holder:
+        point.holderId === null || holder === null
+          ? null
+          : { nation: holder, heldMs: point.heldMs?.[point.holderId] ?? 0 },
       heldSince: point.heldSince,
       /** Le même « à moi » que le serveur lit au refus (`FRIENDLY_TARGET`) : par l'identité. */
       mine: point.holderId === viewerId,
       contested: contested.has(point._id),
+      longest:
+        longest === undefined || longestNation === null
+          ? null
+          : { nation: longestNation, heldMs: longest.heldMs },
     };
   });
 }
 
+/** Qui a tenu un point le plus longtemps jusqu'à `end` — personne s'il n'a jamais été tenu. */
+const longestOn = (point: Doc<'strategicPoints'>, end: number) =>
+  [
+    ...new Set([
+      ...(Object.keys(point.heldMs ?? {}) as Array<Id<'players'>>),
+      ...(point.holderId === null ? [] : [point.holderId]),
+    ]),
+  ]
+    .map((id) => ({ id, heldMs: heldMsOn(point, id, end) }))
+    .sort((left, right) => right.heldMs - left.heldMs)[0];
+
 /**
  * **Un point change de teneur** (P1-P3) : les heures de l'ancien teneur se rangent dans son cumul
- * (M12), le nouveau le tient dès maintenant — ou personne, quand son teneur est éliminé — et la
- * course se recompte.
+ * sur ce point (P2, M12), le nouveau le tient dès maintenant — ou personne, quand son teneur est
+ * éliminé — et la course se recompte.
  */
 export async function handOver(
   ctx: MutationCtx,
@@ -105,15 +125,14 @@ export async function handOver(
   holderId: Id<'players'> | null,
   now: number,
 ): Promise<void> {
-  if (point.holderId !== null && point.heldSince !== null) {
-    const former = await ctx.db.get(point.holderId);
-    if (former !== null) {
-      await ctx.db.patch(former._id, {
-        pointMs: (former.pointMs ?? 0) + (now - point.heldSince),
-      });
-    }
-  }
-  await ctx.db.patch(point._id, { holderId, heldSince: holderId === null ? null : now });
+  const former = point.holderId;
+  await ctx.db.patch(point._id, {
+    holderId,
+    heldSince: holderId === null ? null : now,
+    ...(former === null
+      ? {}
+      : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
+  });
   await tallyRace(ctx, point.seasonId, now);
 }
 
@@ -144,20 +163,17 @@ async function tallyRace(ctx: MutationCtx, seasonId: Id<'seasons'>, now: number)
   });
 }
 
-/** Les heures de points qu'un joueur a tenues jusqu'à `now`, cumul et points tenus encore. */
+/** Les heures qu'un joueur a tenu un point jusqu'à `now` : perdues, et tenues encore. */
+const heldMsOn = (point: Doc<'strategicPoints'>, playerId: Id<'players'>, now: number): number =>
+  (point.heldMs?.[playerId] ?? 0) +
+  (point.holderId === playerId && point.heldSince !== null ? now - point.heldSince : 0);
+
+/** Les heures de points qu'un joueur a tenues jusqu'à `now`, tous points confondus (M12). */
 export const heldMsOf = (
   player: Doc<'players'>,
   points: ReadonlyArray<Doc<'strategicPoints'>>,
   now: number,
-): number =>
-  (player.pointMs ?? 0) +
-  points.reduce(
-    (sum, point) =>
-      point.holderId === player._id && point.heldSince !== null
-        ? sum + (now - point.heldSince)
-        : sum,
-    0,
-  );
+): number => points.reduce((sum, point) => sum + heldMsOn(point, player._id, now), 0);
 
 /** **Le pouvoir d'un point, à son teneur seul et s'il est rechargé** (P4) — refusé sinon. */
 async function spendPower(

@@ -496,8 +496,9 @@ export const fr = {
     kicker: 'point stratégique',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
     neutral: 'neutre — personne ne le tient',
-    heldBy: (nation: string, since: string) => `tenu par ${nation} depuis ${since}`,
-    yoursSince: (since: string) => `à vous depuis ${since}`,
+    heldBy: (nation: string, since: string, total: string) =>
+      `tenu par ${nation} depuis ${since} · ${total} en tout`,
+    yoursSince: (since: string, total: string) => `à vous depuis ${since} · ${total} en tout`,
     readAtLisbon: (nation: string) => `${nation} — lu à Lisbonne`,
     istanbul: {
       title: 'Lire un télégramme',
@@ -530,6 +531,8 @@ export const fr = {
       countdown: (nation: string, left: string) =>
         `${nation} tient quatre des Sept : victoire dans ${left} si rien ne bouge.`,
       contested: 'contesté',
+      palmares: 'Le palmarès — qui a tenu chaque lieu le plus longtemps',
+      neverHeld: 'jamais tenu',
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
     drawn: () => {
@@ -4299,7 +4302,7 @@ export function clockLabel(durationHours: number | null): string {
 export const rendezvousLabel = (at: number, now: number): string =>
   `${fr.table.dayWord(at, now)}, ${fr.table.hour(at)}`;
 
-/** « 2 h 14 », « 14 min », « 3 j 06 h » : ce qui reste avant une heure dite. */
+/** « 2 h 14 », « 14 min », « 3 j 06 h » : ce qui reste avant une heure dite, ou ce qu'on a tenu. */
 export function countdownLabel(milliseconds: number): string {
   const minutes = Math.max(0, Math.floor(milliseconds / 60_000));
   if (minutes < 60) return `${minutes} min`;

@@ -300,8 +300,25 @@ describe('winning the race', () => {
     const season = await seasonOf(t);
     await t.mutation(internal.race.closeRace, { seasonId: season._id, since: MIDDAY });
     expect((await seasonOf(t)).status).toBe('launched');
-    // The ten hours he held Narvik count for him at the clock.
-    expect((await playerOf(t, seat)).pointMs).toBe(10 * HOUR);
+  });
+
+  it('serves the hours its holder held a point before, to everyone', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['narvik']);
+    vi.setSystemTime(MIDDAY + 10 * HOUR);
+    await give(t, guest, ['narvik']);
+    vi.setSystemTime(MIDDAY + 12 * HOUR);
+    await give(t, seat, ['narvik']);
+
+    for (const who of [seat, guest]) {
+      const narvik = (await t.query(api.view.playerView, who)).strategicPoints.find(
+        (point) => point.key === 'narvik',
+      );
+      // Taken back at midnight: ten hours already his, and the clock runs again from now.
+      expect(narvik?.holder).toEqual({ nation: 'france', heldMs: 10 * HOUR });
+      expect(narvik?.heldSince).toBe(MIDDAY + 12 * HOUR);
+    }
   });
 
   it('goes at the clock to the most hours of points held', async () => {
@@ -320,6 +337,54 @@ describe('winning the race', () => {
     // Two points from 17:00 outweigh one from noon over a week.
     expect(over.winnerId).toBe((await playerOf(t, guest))._id);
     expect(over.verdict?.reason).toBe('clock');
+  });
+
+  it('serves, once the season is over, who held each place the longest', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['narvik', 'lisbon']);
+    vi.setSystemTime(MIDDAY + 10 * HOUR);
+    await give(t, guest, ['narvik']);
+    const during = (await t.query(api.view.playerView, seat)).strategicPoints;
+    expect(during.every((point) => point.longest === null)).toBe(true);
+
+    const season = await seasonOf(t);
+    const endsAt = season.launchedAt! + season.durationHours! * HOUR;
+    vi.setSystemTime(endsAt - 2 * HOUR);
+    await give(t, seat, ['narvik']);
+    vi.setSystemTime(endsAt);
+    await t.mutation(internal.race.closeAtClock, { seasonId: season._id, expectedAt: endsAt });
+    vi.setSystemTime(endsAt + 5 * HOUR);
+
+    const longest = new Map(
+      (await t.query(api.view.playerView, guest)).strategicPoints.map((point) => [
+        point.key,
+        point.longest,
+      ]),
+    );
+    // Counted to the end of the season, not to the hour one reads it.
+    expect(longest.get('lisbon')).toEqual({ nation: 'france', heldMs: endsAt - MIDDAY });
+    // Twelve hours in two stints lose to his one stint in between.
+    expect(longest.get('narvik')).toEqual({
+      nation: 'ussr',
+      heldMs: endsAt - 2 * HOUR - (MIDDAY + 10 * HOUR),
+    });
+    expect(longest.get('tangier')).toBeNull();
+  });
+
+  it('counts at the clock the hours of points held and lost', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['narvik', 'tangier', 'istanbul']);
+    const season = await seasonOf(t);
+    const endsAt = season.launchedAt! + season.durationHours! * HOUR;
+    vi.setSystemTime(season.launchedAt! + (endsAt - season.launchedAt!) * 0.6);
+    await give(t, guest, ['narvik', 'tangier', 'istanbul']);
+
+    vi.setSystemTime(endsAt);
+    await t.mutation(internal.race.closeAtClock, { seasonId: season._id, expectedAt: endsAt });
+    // Three points lost after 60 % of the season outweigh the same three for the last 40 %.
+    expect((await seasonOf(t)).winnerId).toBe((await playerOf(t, seat))._id);
   });
 
   it('is scheduled at the length set in the lobby', async () => {

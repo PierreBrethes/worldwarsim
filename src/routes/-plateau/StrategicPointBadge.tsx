@@ -1,11 +1,12 @@
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { fr, nationLabel } from '@/i18n/fr';
+import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { TANGIER_LOT } from '@/domain/strategic-points';
 import { errorMessage } from '@/data/errors';
 import type { Seat } from '@/data/session';
+import { useClock } from '@/shell/clock';
 import { notify } from '@/shell/notifications';
 import { asLocalTime } from '@/domain/duration';
 import type { StrategicPointView } from '@/domain/player-view';
@@ -16,8 +17,8 @@ const since = (at: number | null) => (at === null ? '—' : asLocalTime(at));
 
 /**
  * **La fiche d'un point stratégique** (P2) : son nom, la règle qu'il casse pour qui le tient, et
- * son état public — neutre, tenu par qui et depuis quand, ou contesté sans dire par qui. Comme
- * toute popin, elle lit ; la capture se donne au clic droit sur le même mât.
+ * son état public — neutre, tenu par qui, depuis quand et combien en tout, ou contesté sans dire
+ * par qui. Comme toute popin, elle lit ; la capture se donne au clic droit sur le même mât.
  */
 export function StrategicPointBadge({
   point,
@@ -35,14 +36,19 @@ export function StrategicPointBadge({
   at: { x: number; y: number };
   onClose: () => void;
 }) {
+  const now = useClock(60_000);
   const rule = fr.points.rules[point.key];
+  const total =
+    point.holder === null
+      ? ''
+      : countdownLabel(point.holder.heldMs + now - (point.heldSince ?? now));
   const state = point.contested
     ? fr.points.contested
     : point.holder === null
       ? fr.points.neutral
       : mine
-        ? fr.points.yoursSince(since(point.heldSince))
-        : fr.points.heldBy(nationLabel(point.holder.nation), since(point.heldSince));
+        ? fr.points.yoursSince(since(point.heldSince), total)
+        : fr.points.heldBy(nationLabel(point.holder.nation), since(point.heldSince), total);
   return (
     <MapCard kicker={fr.points.kicker} at={at} gap={{ x: 64, y: 14 }} width={248} onClose={onClose}>
       <div className="mt-[7px] flex items-center gap-[9px]">

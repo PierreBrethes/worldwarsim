@@ -190,11 +190,15 @@ export type StrategicPointView = {
   readonly key: StrategicPointKey;
   readonly regionId: string;
   readonly point: LonLat;
-  readonly holder: { readonly nation: string } | null;
+  /** `heldMs` : les heures qu'il l'a tenu avant `heldSince`, et perdu depuis. */
+  readonly holder: { readonly nation: string; readonly heldMs: number } | null;
   readonly heldSince: number | null;
   /** Il est à moi : la rose n'offre pas de le prendre, la fiche offre sa règle. */
   readonly mine: boolean;
   readonly contested: boolean;
+  /** **Qui l'a tenu le plus longtemps**, compté jusqu'à la conclusion : le palmarès de l'édition
+   *  finale. `null` tant que la saison se joue, ou s'il n'a jamais été tenu. */
+  readonly longest: { readonly nation: string; readonly heldMs: number } | null;
 };
 
 export type CampView = {

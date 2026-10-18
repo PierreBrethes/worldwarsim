@@ -267,9 +267,6 @@ export default defineSchema({
      * function.
      */
     enteredWarAt: v.optional(v.union(v.number(), v.null())),
-    /** **Les heures de points stratégiques qu'il a tenues et perdues**, en ms — l'horloge en
-     *  départage la saison (M12). Ce qu'il tient encore court depuis `heldSince` sur le point. */
-    pointMs: v.optional(v.number()),
     /**
      * **The hour he last closed the journal**, absent while he never has. Read, never written,
      * by anything that counts: the banner's unread tally and the window's own greying both come
@@ -810,6 +807,10 @@ export default defineSchema({
     point: LON_LAT,
     holderId: v.union(v.id('players'), v.null()),
     heldSince: v.union(v.number(), v.null()),
+    /** **Les heures que chaque teneur y a tenues et perdues**, en ms : la fiche les dit (P2),
+     *  l'horloge en départage la saison (M12). Ce que le teneur tient encore court depuis
+     *  `heldSince`. */
+    heldMs: v.optional(v.record(v.id('players'), v.number())),
     /** **L'heure où son pouvoir a servi, et à qui** (Istanbul, Tanger) : il revient à la période
      *  suivante (`powerReady`) ; un nouveau teneur ne l'hérite pas usé. */
     usedAt: v.optional(v.number()),
