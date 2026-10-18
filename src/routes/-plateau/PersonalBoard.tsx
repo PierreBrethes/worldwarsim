@@ -38,6 +38,7 @@ import { unlinkedProducers } from '@/domain/next-actions';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
 import { PROJECTION_BY_DOMAIN, recruitRefusalOf } from '@/domain/troops';
 import { upkeepStep } from '@/domain/upkeep';
+import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/ResourceIcon';
@@ -82,9 +83,12 @@ export function PersonalBoard({
   onClose,
   onHoldTile,
   onPlaceTile,
+  onTakeTokens,
 }: {
   view: PlayerView;
   seat: Seat;
+  /** **Charger** (ADR 0028 §4) : des jetons pris dans un bac, glissés sur un transport. */
+  onTakeTokens?: (resource: keyof SupplyLoad, event: ReactPointerEvent<HTMLElement>) => void;
   /** The building the board was opened on, from its mast: its tile is lit. */
   focused: string | null;
   onClose: () => void;
@@ -200,6 +204,11 @@ export function PersonalBoard({
                 shown={shown?.[resource] ?? null}
                 delta={deltas?.[resource] ?? null}
                 narrow={narrow}
+                onTake={
+                  observing || onTakeTokens === undefined || !isSupplyKey(resource)
+                    ? null
+                    : (event) => onTakeTokens(resource, event)
+                }
                 register={(node) => {
                   if (node === null) binRefs.current.delete(resource);
                   else binRefs.current.set(resource, node);
@@ -485,6 +494,7 @@ function Bin({
   delta,
   narrow,
   register,
+  onTake,
 }: {
   resource: ResourceKey;
   view: PlayerView;
@@ -493,6 +503,8 @@ function Bin({
   delta: number | null;
   narrow: boolean;
   register: (node: HTMLElement | null) => void;
+  /** Munitions, pétrole et charbon se prennent ici pour charger un transport. */
+  onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
 }) {
   const held = view.me.resources[resource];
   const stock = shown ?? currentStock(held, view.loadedAt, now);
@@ -506,7 +518,9 @@ function Bin({
   return (
     <div
       ref={register}
-      className="relative min-w-0 border border-(color:--ink)/40 bg-white/15 px-[6px] pt-[5px] pb-[7px]"
+      onPointerDown={onTake ?? undefined}
+      title={onTake === null ? undefined : fr.logistics.grab}
+      className={`relative min-w-0 border border-(color:--ink)/40 bg-white/15 px-[6px] pt-[5px] pb-[7px]${onTake === null ? '' : ' cursor-grab touch-none'}`}
     >
       <div className="flex min-w-0 items-center gap-[5px]">
         <ResourcePlate resource={resource} height={narrow ? 16 : 20} />

@@ -286,6 +286,8 @@ export type TroopView = {
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
+  /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
+  readonly load?: SupplyLoad;
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
   /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
@@ -639,6 +641,8 @@ export type DispatchKind =
    *  la marge dise lequel des deux on lit. */
   | 'campSighted'
   | 'firedDry'
+  /** **La logistique** (ADR 0028 §4) : une livraison posée, une tournée qui attend. */
+  | 'supply'
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
@@ -835,6 +839,13 @@ type NoticeBody =
       readonly at: number;
       readonly hostCountry: string;
       readonly troops?: number;
+    }
+  | {
+      readonly kind: 'supplyDelivered';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
+      readonly kept: SupplyLoad;
     }
   /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
   | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }

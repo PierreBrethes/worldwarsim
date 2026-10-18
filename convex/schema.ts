@@ -436,6 +436,9 @@ export default defineSchema({
      *  pleins — elle n'a rien dépensé depuis sa formation (`SUPPLY_BY_ROLE`). */
     rounds: v.optional(v.number()),
     fuel: v.optional(v.number()),
+    /** **La charge d'un transport** (ADR 0028 §4) : munitions, pétrole et charbon dans une seule
+     *  capacité (`LOAD_CAPACITY_BY_ROLE`), séparée de ses places. Absente, vide. */
+    load: v.optional(SUPPLY_LOAD),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -596,6 +599,10 @@ export default defineSchema({
     /** **Le transport où la colonne monte en arrivant** (15/10) : lâchée de loin sur un
      *  transport, elle y marche et embarque s'il y est encore et s'il a de la place. */
     boardsOn: v.optional(v.id('troops')),
+    /** **Une livraison** (ADR 0028 §4) : à l'arrivée sur cet avant-poste, les transports
+     *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
+     *  reste en garnison. */
+    delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

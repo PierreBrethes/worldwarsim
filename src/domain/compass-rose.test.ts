@@ -408,6 +408,51 @@ describe('in aim', () => {
     expect(outpost?.refusal).toBeNull();
   });
 
+  /** **Livrer** (ADR 0028 §4) : un transport chargé lâché sur son point y livre d'abord ; Tab
+   *  rend la garnison. Un dépôt plein le dit, et ne laisse pas entrer. */
+  describe('a loaded transport over its outpost', () => {
+    const trucking = { ...column, roles: ['landTransport' as const] };
+    const withTruck = (depot: number) =>
+      ({
+        ...view,
+        me: {
+          ...view.me,
+          troops: [
+            {
+              id: 'T1',
+              role: 'landTransport',
+              tier: 1,
+              load: { ammunition: 60, oil: 0, coal: 0 },
+              stationedAt: { kind: 'building', buildingId: 'HQ' },
+            },
+          ],
+          outposts: view.me.outposts.map((outpost) => ({
+            ...outpost,
+            depot: { ammunition: depot, oil: 0, coal: 0 },
+            depotCapacity: 400,
+          })),
+        },
+      }) as unknown as PlayerView;
+    const target = {
+      kind: 'outpost',
+      id: 'AP-01',
+      hostCountry: 'NOR',
+      name: 'relais',
+      coastal: false,
+    } as const;
+
+    it('offers to deliver before the garrison', () => {
+      const compass = compassOf(target, withTruck(0), trucking, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).toEqual(['deliver', 'aim']);
+    });
+
+    it('says a full depot instead', () => {
+      const compass = compassOf(target, withTruck(400), trucking, null, 0, ['T1']);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe('le dépôt est plein : 400 au total');
+    });
+  });
+
   /** **Un point adverse ne bouge pas** : la plate de visée d'aujourd'hui, assaut et raid, et pas
    *  de marche — on ne marche pas *sur* un point qu'on vient combattre. */
   it('keeps the assault and the raid on an outpost that is not mine, and adds capture', () => {

@@ -6,6 +6,7 @@ import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
+import { SUPPLY_KEYS, type SupplyLoad } from './logistics';
 import type {
   CombatReport,
   DispatchKind,
@@ -394,6 +395,17 @@ function written(notice: Notice): Written {
         kind: 'foundNothing',
         text: said.pursuitLost(countryLabel(notice.hostCountry)),
       };
+    case 'supplyDelivered':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.supplyDelivered(
+          countryLabel(notice.hostCountry),
+          supplyWords(notice.delivered),
+          supplyWords(notice.kept),
+        ),
+      };
     case 'firedDry':
       return {
         at: notice.at,
@@ -618,6 +630,12 @@ export const lootWords = (loot: ResourceAmounts): string => {
   );
   return entries.length === 0 ? 'rien' : entries.join(' · ');
 };
+
+/** Une charge de munitions, pétrole et charbon en toutes lettres ; vide, rien. */
+const supplyWords = (load: SupplyLoad): string =>
+  SUPPLY_KEYS.filter((key) => load[key] > 0)
+    .map((key) => `${load[key]} ${fr.resources[key]}`)
+    .join(', ');
 
 const fromCombat = (report: CombatReport): Written => ({
   at: report.at,

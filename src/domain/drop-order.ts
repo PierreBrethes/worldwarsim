@@ -12,6 +12,7 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'plunder',
   'capture',
   'collect',
+  'deliver',
   'board',
   'bombard',
   'found',
@@ -65,6 +66,7 @@ export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
   const { verbs } = fr.drop;
   const capital = action.label.charAt(0).toUpperCase() + action.label.slice(1);
   if (action.key === 'board') return { icon: '⤓', tone: 'order', verb: verbs.board };
+  if (action.key === 'deliver') return { icon: '⇥', tone: 'order', verb: verbs.deliver };
   if (action.key !== 'aim')
     return {
       icon: HOSTILE.has(action.key) ? '⚔' : '✓',

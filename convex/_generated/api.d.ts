@@ -26,6 +26,7 @@ import type * as holding from "../holding.js";
 import type * as industry from "../industry.js";
 import type * as journal from "../journal.js";
 import type * as listening from "../listening.js";
+import type * as logistics from "../logistics.js";
 import type * as lootCollections from "../lootCollections.js";
 import type * as lootCrates from "../lootCrates.js";
 import type * as lootRumors from "../lootRumors.js";
@@ -97,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   industry: typeof industry;
   journal: typeof journal;
   listening: typeof listening;
+  logistics: typeof logistics;
   lootCollections: typeof lootCollections;
   lootCrates: typeof lootCrates;
   lootRumors: typeof lootRumors;

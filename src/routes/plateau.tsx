@@ -1,5 +1,7 @@
 import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
 import { emptyLoad } from '@/domain/logistics';
+import { useTokenDrag } from '@/map/TokenDrag';
+import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import {
   Link,
   Navigate,
@@ -67,7 +69,7 @@ import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/d
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { surveyedAt } from '@/domain/survey-ink';
 import { carryCapacityOf } from '@/domain/loot';
-import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
+import { AIR_STOP_LEVEL, CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { objectiveSprite } from '@/emblems/objectives/manifest';
 import { lootWords } from '@/domain/journal';
@@ -865,6 +867,23 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const boardTransport = useMutation(api.movements.board);
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
+  const deliver = useMutation(api.logistics.deliver);
+  const loadTransport = useMutation(api.logistics.load);
+  /** **Charger** (ADR 0028 §4) : des jetons du plateau personnel ou d'un dépôt, glissés sur un
+   *  transport ; la main montre alors toutes les étiquettes de transport. */
+  const [carryingTokens, setCarryingTokens] = useState(false);
+  const tokens = useTokenDrag<TokenSource>({
+    read: (from, carrierId, resource, grabbed) =>
+      loadReadingOf(view, carrierId, from, resource, grabbed, Date.now()),
+    drop: (_from, carrierId, resource, amount) => {
+      setOrderError(null);
+      loadTransport({ ...seat, troopId: carrierId as Id<'troops'>, resource, amount }).then(
+        () => notify(fr.logistics.loaded(amount, fr.resources[resource]), 'info'),
+        (problem: unknown) => handleError(problem, setOrderError),
+      );
+    },
+    onHold: setCarryingTokens,
+  });
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -980,6 +999,29 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             carrierId: action.carrierId as Id<'troops'>,
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
+        /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. */
+        case 'deliver': {
+          if (column === null || inFlight.current) return;
+          inFlight.current = true;
+          setOrderError(null);
+          deliver({
+            ...seat,
+            origin: wireOrigin(column.station),
+            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+            outpostId: action.outpostId as Id<'outposts'>,
+          }).then(
+            (filed) => {
+              settle();
+              afterSent({ ...filed, destination: action.destination }, action.label);
+            },
+            (problem: unknown) => {
+              settle();
+              handleError(problem, setOrderError);
+              dropHand();
+            },
+          );
+          return;
+        }
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
          *  la pièce reste posée et la main se repose. */
         case 'bombard':
@@ -1052,6 +1094,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       respecialize,
       boardTransport,
       bombard,
+      deliver,
       dropHand,
       column,
       seat,
@@ -1462,6 +1505,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...(view.mode === 'blitz' || outpost.standsAt !== null
         ? {}
         : { depot: { load: outpost.depot, capacity: outpost.depotCapacity } }),
+      /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
+      cargo: cargoTagsOf(
+        troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
+        { afloat: false, atAirfield: false },
+      ),
     }));
 
     /**
@@ -2430,6 +2478,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 {fr.lobby.preparingMap}
               </div>
             )}
+            {tokens.chip}
             <WorldMap
               blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}
@@ -2491,6 +2540,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               availablePiles={availablePiles}
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
+              carriersShown={carryingTokens}
+              onTakeDepot={
+                view.me.defeated
+                  ? undefined
+                  : (outpostId, resource, event) => tokens.start({ outpostId }, resource, event)
+              }
               building={buildingSite !== null}
               placing={placingCard}
               onPlacePoint={placeAt}
@@ -2849,6 +2904,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       onClose={windowProps.onClose}
                       onHoldTile={holdTile}
                       onPlaceTile={placeTile}
+                      onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
                     />
                   );
                 case 'nation':
@@ -3133,13 +3189,19 @@ function armedColumn(
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
       /** An outpost and a plain point carry no region, so a column standing on one finds no gate
        *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
-      departureBuildings: new Set(
-        departure === undefined
+      departureBuildings: new Set([
+        ...(departure === undefined
           ? []
           : view.me.buildings
               .filter((building) => building.regionId === departure.regionId)
-              .map((building) => building.key),
-      ),
+              .map((building) => building.key)),
+        /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
+        ...(station.kind === 'outpost' &&
+        (view.me.outposts.find((outpost) => outpost.id === station.outpostId)?.level ?? 0) >=
+          AIR_STOP_LEVEL
+          ? [PROJECTION_BY_DOMAIN.air]
+          : []),
+      ]),
       /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
        *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
        *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté

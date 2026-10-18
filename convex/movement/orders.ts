@@ -27,7 +27,7 @@ import { seasonPoints } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
-import { MAX_HQ_LEVEL } from '../constants';
+import { AIR_STOP_LEVEL, MAX_HQ_LEVEL } from '../constants';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -50,7 +50,7 @@ import {
   standingPile,
   type TroopAddress,
 } from './forces';
-import { carrierIn, cargoOf, seatLoose } from '../../src/domain/troops';
+import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
 import {
   fuelRefusalOf,
   fuelStepsFor,
@@ -94,6 +94,9 @@ type Departure = {
    * pas — `false` pour les deux, et ce n'est pas un trou.
    */
   readonly coastal: boolean;
+  /** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de niveau 2 est un aérodrome pour
+   *  l'avion qui en repart. */
+  readonly airStop?: boolean;
 };
 
 export async function departureOf(
@@ -114,6 +117,7 @@ export async function departureOf(
       fromBuildingId: null,
       afloat: false,
       coastal: false,
+      airStop: outpost.level >= AIR_STOP_LEVEL,
     };
   }
   if (origin.kind === 'point') {
@@ -603,11 +607,12 @@ export async function columnOf(
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
-    departureBuildings: new Set(
-      buildings
+    departureBuildings: new Set([
+      ...buildings
         .filter((building) => building.regionId === departure.regionId)
         .map((building) => building.key),
-    ),
+      ...(departure.airStop === true ? [PROJECTION_BY_DOMAIN.air] : []),
+    ]),
     afloat: departure.afloat,
     coastal: departure.coastal,
     ...(theatre === null && outOfRounds(troops) ? { outOfRounds: true } : {}),
@@ -731,6 +736,8 @@ export async function march(
     capture,
     pursuit,
     boardsOn,
+    delivery,
+    keepsSlot = false,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -749,10 +756,14 @@ export async function march(
     pursuit?: { readonly troopId: Id<'troops'> };
     /** **Le transport où elle monte en arrivant** (15/10). */
     boardsOn?: Id<'troops'> | undefined;
+    /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
+    delivery?: NonNullable<Doc<'movements'>['delivery']>;
+    /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
+    keepsSlot?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
-  await claimSlot(ctx, playerId, troopIds);
+  if (!keepsSlot) await claimSlot(ctx, playerId, troopIds);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the
    *  address the troops hang from, so a garrison abroad is not ordered out of a barracks. */
@@ -871,6 +882,7 @@ export async function march(
     ...(capture === undefined ? {} : { capture }),
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...(boardsOn === undefined ? {} : { boardsOn }),
+    ...(delivery === undefined ? {} : { delivery }),
     ...movementCargoFields(cargo),
   });
   /** **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte

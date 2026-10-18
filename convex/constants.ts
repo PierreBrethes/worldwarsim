@@ -437,6 +437,41 @@ export const DEPOT_CAPACITY_PER_LEVEL = 400;
 export const depotCapacity = (level: number): number =>
   DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level));
 
+/**
+ * **Une seule charge par transport** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon
+ * partagés librement. Distincte du butin qu'il emporte (`CARRY_CAPACITY_BY_ROLE`) et des places
+ * de ses passagers (ADR 0025). Zéro : ce n'est pas un transport.
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const LOAD_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
+  infantry: 0,
+  armor: 0,
+  landTransport: 200,
+  artillery: 0,
+  fighter: 0,
+  bomber: 0,
+  airTransport: 120,
+  escort: 0,
+  cargo: 800,
+  carrier: 0,
+};
+
+/** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de ce niveau reçoit l'avion, qui s'y
+ *  charge, y livre et en repart comme d'un aérodrome. */
+export const AIR_STOP_LEVEL = 2;
+
+/** **Une tournée compte quatre arrêts au plus** (ADR 0028, précision du 18/10). */
+export const TOUR_MAX_STOPS = 4;
+
+/**
+ * **Une tournée qui attend** au chargement (le plateau personnel manque, ou tous ses dépôts sont
+ * pleins) regarde de nouveau à cet intervalle.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const TOUR_RETRY_MINUTES = 30;
+
 export const TIER_2_FACTOR = 1.6;
 
 /**

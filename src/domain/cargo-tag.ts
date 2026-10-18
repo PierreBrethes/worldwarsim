@@ -2,6 +2,7 @@
 // elle dit qui est à bord et ce qui reste de place, et c'est d'elle qu'on tire un passager
 // pour le faire descendre. Remplace le jeton « N à bord ».
 import type { UnitRole, UnitTier } from './ids';
+import { emptyLoad, loadCapacityOf, type SupplyLoad } from './logistics';
 import {
   boardingRefusalOf,
   disembarkRefusalOf,
@@ -10,7 +11,7 @@ import {
 } from './movement-orders';
 import { carrierIn, fareOf, seatsLeft, seatsOf, type Seated } from './troops';
 
-type Aboard = Seated & { readonly tier: UnitTier };
+type Aboard = Seated & { readonly tier: UnitTier; readonly load?: SupplyLoad };
 
 export type CargoTag = {
   readonly carrierId: string;
@@ -28,6 +29,9 @@ export type CargoTag = {
   /** Pourquoi personne ne peut descendre ici, `null` quand on le peut : la règle même de
    *  `movements.disembark` (`disembarkRefusalOf`). */
   readonly refusal: DisembarkRefusal | null;
+  /** **Sa charge** (ADR 0028 §4), dans sa seule capacité : munitions, pétrole, charbon. */
+  readonly load: SupplyLoad;
+  readonly loadCapacity: number;
 };
 
 /** A tag per transport of the pile, in the pile's order — an empty one too: the hand reads its free
@@ -55,6 +59,8 @@ export function cargoTagsOf<T extends Aboard>(
           carrier: riders.length === 0 ? null : carrier.role,
           ...where,
         }),
+        load: carrier.load ?? emptyLoad(),
+        loadCapacity: loadCapacityOf(carrier.role),
       },
     ];
   });

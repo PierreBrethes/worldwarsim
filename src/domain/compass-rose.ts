@@ -35,6 +35,7 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
+import { deliverRefusalOf, loadCapacityOf, loadTotal } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import {
   carrierIn,
@@ -513,6 +514,21 @@ export type CompassAction =
         | { readonly kind: 'track'; readonly movementId: string };
     }
   /**
+   * **Livrer** (ADR 0028 §4) : le transport chargé, lâché sur un de mes avant-postes, y décharge
+   * dans la limite du dépôt et rentre seul. Un mouvement, avec son slot ; la règle est
+   * `deliverRefusalOf`, celle que `logistics.deliver` relit.
+   */
+  | {
+      readonly key: 'deliver';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      /** Le nom du point, pour le cartouche « transmis ». */
+      readonly destination: string;
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -984,7 +1000,7 @@ function aim(
     };
     const fan = fanOf(target.name, view, column, [aimed]);
     const isMine = view.me.outposts.some((outpost) => outpost.id === target.id);
-    if (isMine) return fan;
+    if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
     const capture = captureBranch(
       { kind: 'outpost' },
       { kind: 'outpost', id: target.id },
@@ -1119,6 +1135,53 @@ function aim(
       surveyed: carriesSurveyedInstallation(target.regionId, view.surveyedInstallations),
     },
   ]);
+}
+
+/**
+ * **Un transport chargé lâché sur son avant-poste y livre** (ADR 0028 §4) : la branche passe
+ * devant l'entrée en garnison, que Tab rend. Refusée — dépôt plein, avion hors escale —, elle
+ * dit pourquoi et ne laisse pas entrer en douce : c'est livrer que la main portait. Il faut que
+ * la marche elle-même soit légale, sinon la rose garde son motif.
+ */
+function withDelivery(
+  fan: Compass,
+  outpostId: string,
+  view: PlayerView,
+  heldTroopIds: ReadonlyArray<string>,
+): Compass {
+  const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
+  const carriers = held.filter(
+    (troop) =>
+      loadCapacityOf(troop.role) > 0 &&
+      !held.some((other) => other.id === troop.carriedBy && other.id !== troop.id),
+  );
+  const outpost = view.me.outposts.find((candidate) => candidate.id === outpostId);
+  if (
+    outpost === undefined ||
+    !carriers.some((troop) => loadTotal(troop.load) > 0) ||
+    !fan.actions.some((action) => action.key === 'aim' && action.type === 'march')
+  )
+    return fan;
+  const refusal = deliverRefusalOf(carriers, {
+    level: outpost.level,
+    standing: outpost.standsAt === null,
+    depot: outpost.depot,
+    capacity: outpost.depotCapacity,
+  });
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    return { ...fan, actions: [], refusal: fr.errors[code](details) };
+  }
+  const deliver: CompassAction = {
+    key: 'deliver',
+    pictogram: 'crate',
+    label: fr.compass.deliver,
+    cost: slotCost(view),
+    consequence: fr.compass.deliverConsequence,
+    outpostId,
+    destination: fan.name,
+  };
+  return { ...fan, actions: [deliver, ...fan.actions], refusal: null };
 }
 
 /**

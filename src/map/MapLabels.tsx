@@ -5,6 +5,8 @@
 
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
+import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
+import { ResourcePlate } from '@/emblems/Plate';
 import { CargoTags, type CargoAim } from './CargoTags';
 import {
   Fragment,
@@ -14,6 +16,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -52,6 +55,13 @@ import { YIELD_OF } from '@/domain/economy';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
+
+/** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
+export type TakeDepot = (
+  outpostId: string,
+  resource: keyof SupplyLoad,
+  event: ReactPointerEvent<HTMLElement>,
+) => void;
 
 /**
  * The board's label layer. One DOM node per label, moved by `transform` from the engine's
@@ -109,7 +119,13 @@ export function MapLabels({
   onDisembark,
   cargoAim = null,
   availableLabels = NO_LABELS,
+  carriersShown = false,
+  onTakeDepot,
 }: {
+  /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
+  carriersShown?: boolean;
+  /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
+  onTakeDepot?: TakeDepot | undefined;
   labels: ReadonlyArray<MapLabel>;
   /** **The transport under the hand**: its tag opens on the seats the drop would take. */
   cargoAim?: CargoAim | null;
@@ -985,8 +1001,25 @@ export function MapLabels({
                       <SupplyPictos supplies={line.supplies} />
                     </div>
                   ) : line.role === 'charge' ? (
-                    <div key={rank} className="label-line label-line--figures">
+                    <div key={rank} className="label-line label-line--figures label-line--depot">
                       <ChargeBar load={line.load} capacity={line.capacity} />
+                      {onTakeDepot !== undefined &&
+                        label.station?.kind === 'outpost' &&
+                        SUPPLY_KEYS.filter((key) => line.load[key] > 0).map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            title={fr.logistics.grab}
+                            className="depot-token"
+                            onPointerDown={(event) => {
+                              if (label.station?.kind === 'outpost')
+                                onTakeDepot(label.station.outpostId, key, event);
+                            }}
+                          >
+                            <ResourcePlate resource={key} height={14} />
+                            {line.load[key]}
+                          </button>
+                        ))}
                     </div>
                   ) : line.role === 'capture' ? (
                     <CaptureGauge
@@ -1013,7 +1046,7 @@ export function MapLabels({
                   nation={nation}
                   onDisembark={onDisembark}
                   aim={cargoAim?.labelId === label.id ? cargoAim : null}
-                  available={availableLabels.has(label.id)}
+                  available={carriersShown || availableLabels.has(label.id)}
                 />
               )}
           </div>

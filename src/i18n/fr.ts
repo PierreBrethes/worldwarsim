@@ -706,6 +706,26 @@ export const fr = {
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     NOT_ENOUGH_FUEL: (d) =>
       `plein trop court : ${num(d.km)} km demandent ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+    NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
+    LOAD_NOT_A_SUPPLY: () =>
+      'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
+    TRANSPORT_UNDERWAY: () => 'ce transport est en route : il se charge à l’arrêt',
+    TRANSPORT_ON_TOUR: () => 'ce transport est en tournée : rappelez-le d’abord',
+    LOAD_NOT_HERE: (d) =>
+      d.role === 'cargo'
+        ? 'un cargo se charge au port, ou au dépôt d’un avant-poste'
+        : d.role === 'airTransport'
+          ? 'un avion se charge à l’aérodrome, ou au dépôt d’une escale'
+          : 'un camion se charge au QG ou à un entrepôt, ou au dépôt d’un avant-poste',
+    NO_AIR_STOP: (d) =>
+      `l’avion se pose à une escale : un avant-poste de niveau ${num(d.level)} au moins`,
+    LOAD_FULL: (d) =>
+      Number(d.room) <= 0
+        ? `le transport est plein : ${num(d.capacity)} sur ${num(d.capacity)}`
+        : `plus que ${num(d.room)} de place à bord, sur ${num(d.capacity)}`,
+    NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
+    DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
+    DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
     NO_ROUNDS: () =>
       'à sec : plus un coup dans la colonne — elle marche, elle n’attaque pas ; elle se recharge à l’ancre',
     UNKNOWN_TROOP: () => 'troupe inconnue',
@@ -2208,6 +2228,7 @@ export const fr = {
       sighting: 'relevé',
       campSighted: 'camp relevé',
       firedDry: 'tir à sec',
+      supply: 'ravitaillement',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       elimination: 'QG tombé',
@@ -2489,6 +2510,10 @@ export const fr = {
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
       pursuitLost: (country: string) =>
         `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
+      supplyDelivered: (country: string, delivered: string, kept: string) =>
+        delivered === ''
+          ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
+          : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
       firedDry: (country: string, troops: number) =>
         `${troops === 1 ? 'Une de nos troupes était à sec' : `${troops} de nos troupes étaient à sec`} — ${country} : sans coups, ni frappe ni riposte. Elles se rechargent à l’ancre.`,
       /**
@@ -2545,6 +2570,13 @@ export const fr = {
     chargeTitle: (said: string, total: number, capacity: number) =>
       `${said === '' ? 'Vide' : said} — ${total} sur ${capacity}, une seule charge partagée`,
     depot: 'Dépôt',
+    dropOnTransport: 'Lâchez les jetons sur un camion, un cargo ou un avion de transport',
+    fromDepot: 'À un avant-poste, le transport se charge à son dépôt : glissez depuis le dépôt',
+    atThisDepot: 'Ce dépôt charge les transports qui se tiennent à son point',
+    loadHint: (amount: number, resource: string, after: number, capacity: number) =>
+      `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
+    loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
+    grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
   },
   troops: {
     atHome: 'à domicile',
@@ -3765,6 +3797,7 @@ export const fr = {
       form: 'Former une escouade',
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
+      deliver: 'Livrer',
       sea: 'Marcher',
       inland: 'Faire route',
       air: 'Voler',
@@ -3786,6 +3819,10 @@ export const fr = {
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
     enemyColumn: 'colonne ennemie',
+    /** **Livrer** (ADR 0028 §4) : le transport décharge et rentre seul. */
+    deliver: 'livrer',
+    deliverConsequence:
+      'Décharge au dépôt ce qui y tient, garde le reste à bord, puis rentre seul.',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>

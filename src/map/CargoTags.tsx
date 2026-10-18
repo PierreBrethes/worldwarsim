@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import type { CargoTag } from '@/domain/cargo-tag';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { loadTotal } from '@/domain/logistics';
+import { ChargeBar } from '@/shell/ChargeBar';
 
 /** Past this many pixels a press on a passenger is a pull, not a click. */
 const PULL_PX = 6;
@@ -99,10 +101,12 @@ export function CargoTags({
         const open = aim?.carrierId === tag.carrierId;
         const empty = Math.max(0, tag.seats - tag.used);
         const want = open ? aim.need : 0;
-        const shown = tag.riders.length > 0 || available || open;
+        const loaded = loadTotal(tag.load) > 0;
+        const shown = tag.riders.length > 0 || loaded || available || open;
         return (
           <div
             key={tag.carrierId}
+            data-carrier-id={tag.carrierId}
             className={`cargo-tag${shown ? '' : ' cargo-tag--idle'}${open ? ' cargo-tag--open' : ''}`}
           >
             <div className="cargo-tag-body float paper-grain">
@@ -110,6 +114,11 @@ export function CargoTags({
                 <b>{roleLabel(tag.role, 1)}</b>
                 <span>{fr.cargo.seats(tag.used, tag.seats)}</span>
               </div>
+              {tag.loadCapacity > 0 && (
+                <div className="cargo-tag-charge">
+                  <ChargeBar load={tag.load} capacity={tag.loadCapacity} width={54} />
+                </div>
+              )}
               <div className="cargo-tag-slots">
                 {tag.riders.map((rider) => (
                   <button

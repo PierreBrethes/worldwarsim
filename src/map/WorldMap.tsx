@@ -61,6 +61,7 @@ import {
   type PieceFrom,
 } from './DropHint';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
+import type { TakeDepot } from './MapLabels';
 import {
   DETACH_MS,
   MapEngine,
@@ -240,6 +241,10 @@ type Props = {
   onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
+  carriersShown?: boolean;
+  /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
+  onTakeDepot?: TakeDepot | undefined;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -356,6 +361,8 @@ export function WorldMap({
   availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
+  carriersShown = false,
+  onTakeDepot,
   covered = false,
   reveal = null,
   replay = null,
@@ -1214,6 +1221,8 @@ export function WorldMap({
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}
+        carriersShown={carriersShown}
+        onTakeDepot={onTakeDepot}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
       />

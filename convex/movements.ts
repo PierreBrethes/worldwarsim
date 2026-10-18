@@ -69,6 +69,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
+import { arriveToDeliver } from './logistics';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -939,6 +940,13 @@ export const arrive = internalMutation({
      * la branche du pillage tient depuis le début, et la polyligne est la même à un pas près.
      */
     await surveyAlongRoute(ctx, movement, now);
+
+    /** **Une livraison décharge et rentre** (ADR 0028 §4) ; sur un point perdu ou tombé entre-temps,
+     *  elle arrive comme une marche. */
+    if (movement.delivery !== undefined && (await arriveToDeliver(ctx, movement, now))) {
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
 
     /** A march that came to garrison a building enters it if it still stands and is still the
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the

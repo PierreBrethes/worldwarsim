@@ -656,6 +656,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
+        ...(troop.load === undefined ? {} : { load: troop.load }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now

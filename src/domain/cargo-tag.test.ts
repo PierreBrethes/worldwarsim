@@ -30,6 +30,8 @@ describe('cargoTagsOf', () => {
           { id: 'i2', role: 'infantry', tier: 1, seats: 1 },
         ],
         refusal: null,
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 200,
       },
       // Empty, it still has a tag: the hand reads its free seats on it (POC, `avail`).
       {
@@ -39,8 +41,18 @@ describe('cargoTagsOf', () => {
         used: 0,
         riders: [],
         refusal: 'NOT_ABOARD',
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 200,
       },
     ]);
+  });
+
+  it('carries the charge of each transport beside its seats (ADR 0028 §4)', () => {
+    const [truck] = cargoTagsOf(
+      [{ ...troop('t1', 'landTransport'), load: { ammunition: 60, oil: 20, coal: 0 } }],
+      ashore,
+    );
+    expect(truck).toMatchObject({ load: { ammunition: 60, oil: 20 }, loadCapacity: 200 });
   });
 
   it('counts a heavy rider by the seats it takes: a tank fills three of a hull', () => {

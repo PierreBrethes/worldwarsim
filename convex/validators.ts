@@ -411,6 +411,16 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     point: LON_LAT,
   }),
+  /** **Une livraison** (ADR 0028 §4) : ce que le dépôt a pris, et ce qui reste à bord faute de
+   *  place. Le transport rentre seul. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('supplyDelivered'),
+    hostCountry: v.string(),
+    point: v.optional(LON_LAT),
+    delivered: SUPPLY_LOAD,
+    kept: SUPPLY_LOAD,
+  }),
   /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
    *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */
   v.object({

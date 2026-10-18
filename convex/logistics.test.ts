@@ -1,8 +1,8 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import type { UnitRole } from '../src/domain/ids';
+import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { nominalStrength } from './constants';
 import { pointOfRegion } from './regions';
@@ -20,6 +20,11 @@ type Bench = ReturnType<typeof boot>;
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 /** Près de Ploiești : personne n'y est chez soi. */
 const PRAHOVA = 'ROU-310';
+const MARNE = 'FRA-5323';
+/** La Ruhr : à moins de quatre crans de route de Paris. */
+const RUHR = 'DEU-1572';
+const ESSEN: LonLat = [pointOfRegion(RUHR).lon, pointOfRegion(RUHR).lat];
+const GERMANY = { hostCountry: 'DEU', regionId: RUHR };
 const PLOIESTI: LonLat = [pointOfRegion(PRAHOVA).lon, pointOfRegion(PRAHOVA).lat];
 
 async function launchedSeason(t: Bench) {
@@ -69,15 +74,20 @@ async function form(
   );
 }
 
-async function plant(t: Bench, seat: Seat, point: LonLat, level = 1) {
+async function plant(
+  t: Bench,
+  seat: Seat,
+  point: LonLat,
+  level = 1,
+  where = { hostCountry: 'ROU', regionId: PRAHOVA },
+) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       point: { lon: point[0], lat: point[1] },
-      hostCountry: 'ROU',
-      regionId: PRAHOVA,
+      ...where,
       level,
       specialization: 'relay',
       foundedAt: Date.now() - 1,
@@ -89,6 +99,30 @@ async function plant(t: Bench, seat: Seat, point: LonLat, level = 1) {
 
 async function stockOf(t: Bench, seat: Seat, key: string) {
   return (await t.query(api.view.playerView, seat)).me.resources[key as 'ammunition']!.stock;
+}
+
+/** Le QG que `placeHq` a posé, debout. */
+const hqOf = (t: Bench, seat: Seat) =>
+  t.run(async (ctx) => {
+    const player = await seatIn(ctx, seat);
+    return (await ctx.db
+      .query('buildings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect())!.find((building) => building.key === 'hq')!._id;
+  });
+
+async function raise(t: Bench, seat: Seat, key: BuildingKey, regionId: string) {
+  const playerId = await playerOf(t, seat);
+  return t.run(async (ctx) =>
+    ctx.db.insert('buildings', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    }),
+  );
 }
 
 const get = <T extends Id<'troops'> | Id<'outposts'>>(t: Bench, id: T) =>
@@ -155,5 +189,148 @@ describe('the outpost depot', () => {
       depotCapacity: 800,
     });
     expect(view.me.troops.find((troop) => troop.id === rifles)?.depotId).toBe(outpost);
+  });
+});
+
+describe('loading a transport', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('loads a truck at the headquarters from the personal board', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const truck = await form(t, seat, 'landTransport', await hqOf(t, seat));
+    const board = await stockOf(t, seat, 'ammunition');
+
+    await t.mutation(api.logistics.load, {
+      ...seat,
+      troopId: truck,
+      resource: 'ammunition',
+      amount: 50,
+    });
+
+    expect((await get(t, truck))!.load).toEqual({ ammunition: 50, oil: 0, coal: 0 });
+    expect(await stockOf(t, seat, 'ammunition')).toBe(board - 50);
+  });
+
+  it('refuses a truck at a barracks, food, and past its one capacity', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const away = await form(t, seat, 'landTransport', barracks);
+    const truck = await form(t, seat, 'landTransport', await hqOf(t, seat));
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 190, oil: 0, coal: 0 } }));
+    const loading = (troopId: Id<'troops'>, resource: 'ammunition' | 'food') =>
+      t.mutation(api.logistics.load, { ...seat, troopId, resource, amount: 20 });
+
+    await expect(loading(away, 'ammunition')).rejects.toThrow('LOAD_NOT_HERE');
+    await expect(loading(truck, 'food')).rejects.toThrow('LOAD_NOT_A_SUPPLY');
+    await expect(loading(truck, 'ammunition')).rejects.toThrow('LOAD_FULL');
+  });
+
+  it('loads at an outpost from its depot', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpost = await plant(t, seat, PLOIESTI);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { depot: { ammunition: 0, oil: 90, coal: 0 } }),
+    );
+    const truck = await form(t, seat, 'landTransport', outpost);
+
+    await t.mutation(api.logistics.load, { ...seat, troopId: truck, resource: 'oil', amount: 60 });
+
+    expect(await depotOf(t, outpost)).toEqual({ ammunition: 0, oil: 30, coal: 0 });
+  });
+});
+
+describe('delivering to an outpost', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function loadedTruck(t: Bench, seat: Seat, ammunition: number) {
+    const hq = await hqOf(t, seat);
+    const truck = await form(t, seat, 'landTransport', hq);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition, oil: 0, coal: 0 } }));
+    return { hq, truck };
+  }
+
+  it('unloads what the depot has room for, keeps the rest aboard and drives home alone', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { hq, truck } = await loadedTruck(t, seat, 150);
+    const rifles = await form(t, seat, 'infantry', hq);
+    await t.run(async (ctx) => ctx.db.patch(rifles, { carriedBy: truck }));
+    const outpost = await plant(t, seat, ESSEN, 1, GERMANY);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { depot: { ammunition: 300, oil: 0, coal: 0 } }),
+    );
+
+    await t.mutation(api.logistics.deliver, {
+      ...seat,
+      origin: { kind: 'building', buildingId: hq },
+      troopIds: [truck],
+      outpostId: outpost,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await depotOf(t, outpost)).toEqual({ ammunition: 400, oil: 0, coal: 0 });
+    const back = (await get(t, truck))!;
+    expect(back.load).toEqual({ ammunition: 50, oil: 0, coal: 0 });
+    expect(back.stationedAt).toBe(hq);
+    expect((await get(t, rifles))!.stationedAt).toBe(outpost);
+    const notices = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'supplyDelivered'))
+        .collect(),
+    );
+    expect(notices).toMatchObject([{ delivered: { ammunition: 100 }, kept: { ammunition: 50 } }]);
+  });
+
+  it('takes a slot on the way out and none on the way home', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { hq, truck } = await loadedTruck(t, seat, 50);
+    const outpost = await plant(t, seat, ESSEN, 1, GERMANY);
+
+    const { arrivesAt } = await t.mutation(api.logistics.deliver, {
+      ...seat,
+      origin: { kind: 'building', buildingId: hq },
+      troopIds: [truck],
+      outpostId: outpost,
+    });
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    vi.setSystemTime(arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, {
+      movementId: (await t.run(async (ctx) => ctx.db.query('movements').first()))!._id,
+    });
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+  });
+
+  it('refuses a full depot and an empty truck', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { hq, truck } = await loadedTruck(t, seat, 50);
+    const empty = await form(t, seat, 'landTransport', hq);
+    const outpost = await plant(t, seat, ESSEN, 1, GERMANY);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { depot: { ammunition: 400, oil: 0, coal: 0 } }),
+    );
+    const delivering = (troopId: Id<'troops'>) =>
+      t.mutation(api.logistics.deliver, {
+        ...seat,
+        origin: { kind: 'building', buildingId: hq },
+        troopIds: [troopId],
+        outpostId: outpost,
+      });
+
+    await expect(delivering(truck)).rejects.toThrow('DEPOT_FULL');
+    await expect(delivering(empty)).rejects.toThrow('NOTHING_TO_DELIVER');
   });
 });
