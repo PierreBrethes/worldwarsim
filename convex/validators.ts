@@ -31,12 +31,9 @@ export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
 export const BUILDING_KEY = v.union(
   v.literal('hq'),
   v.literal('farm'),
-  v.literal('mill'),
   v.literal('mine'),
   v.literal('oilWell'),
-  v.literal('foundry'),
   v.literal('arsenal'),
-  v.literal('quartermaster'),
   v.literal('barracks'),
   v.literal('airfield'),
   v.literal('port'),
@@ -48,7 +45,7 @@ export const BUILDING_KEY = v.union(
 
 /**
  * **Ce qu'une ligne de file peut tarifer** : un bâtiment, ou l'élévation d'un avant-poste
- * (précision du 15/09). `outpost` n'est pas un seizième bâtiment — aucune table de pose ne le
+ * (précision du 15/09). `outpost` n'est pas un bâtiment de plus — aucune table de pose ne le
  * connaît — et c'est `constructions.outpostId` qui dit *lequel* (`schema.ts`).
  */
 export const BUILD_COST_KEY = v.union(BUILDING_KEY, v.literal('outpost'));
@@ -60,13 +57,10 @@ export const SURVEYED_INSTALLATION = v.object({
 
 export const RESOURCE_KEY = v.union(
   v.literal('food'),
-  v.literal('textile'),
+  v.literal('steel'),
   v.literal('coal'),
   v.literal('oil'),
-  v.literal('ore'),
-  v.literal('alloy'),
   v.literal('ammunition'),
-  v.literal('bandages'),
 );
 
 /**
@@ -80,23 +74,19 @@ export const FOUNDATION_DEBT = v.object({
   key: BUILDING_KEY,
   deposit: v.union(
     v.literal('food'),
-    v.literal('textile'),
+    v.literal('iron'),
     v.literal('coal'),
     v.literal('oil'),
-    v.literal('ore'),
     v.null(),
   ),
 });
 
 export const RESOURCE_AMOUNTS = v.object({
   food: v.number(),
-  textile: v.number(),
+  steel: v.number(),
   coal: v.number(),
   oil: v.number(),
-  ore: v.number(),
-  alloy: v.number(),
   ammunition: v.number(),
-  bandages: v.number(),
 });
 
 /** Le sol sous une chose : la route le porte par tronçon, un camp relevé une fois pour toutes. */

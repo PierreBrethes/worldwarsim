@@ -4,7 +4,7 @@ import type { DepositKey } from '@/domain/ids';
 /**
  * **The deposit marks of the board** (table d'état-major) : what a region holds, engraved the
  * way a 1940 staff map signs it — a derrick, a headframe and its spoil heap, crossed mining
- * hammers, a sheaf, a bobbin. Pen strokes and hatching in `currentColor`, the same hand as the
+ * hammers, a sheaf. Pen strokes and hatching in `currentColor`, the same hand as the
  * terrain drawn on hover; `ResourceIcon` keeps the filled silhouettes for the counters, where
  * 12 px leave no room for a hatch.
  */
@@ -20,18 +20,6 @@ const ENGRAVING: Readonly<Record<DepositKey, ReactNode>> = {
         <path d="M5.2 4.6 7 4.9M8.3 3l1.6.3M11.1 2h1.8M14.1 3.3l1.6-.3M17 4.9l1.8-.3" />
       </g>
       <path d="M5 21.6h14" strokeWidth="1" />
-    </>
-  ),
-  // A bobbin: two flanges, the thread wound in hatching, a loose end running off.
-  textile: (
-    <>
-      <ellipse cx="12" cy="4.6" rx="6.4" ry="1.9" />
-      <ellipse cx="12" cy="19.4" rx="6.4" ry="1.9" />
-      <path d="M7.2 6.2v11.6M16.8 6.2v11.6" />
-      <g strokeWidth="1.1">
-        <path d="M7.2 8.4c3.2 1 6.4 1 9.6 0M7.2 10.8c3.2 1 6.4 1 9.6 0M7.2 13.2c3.2 1 6.4 1 9.6 0M7.2 15.6c3.2 1 6.4 1 9.6 0" />
-      </g>
-      <path d="M16.8 12.6c2.6.4 4.2 2 3.4 4.4-.5 1.6-.2 3 1.2 4" strokeWidth="1.1" />
     </>
   ),
   // The pithead: a headframe and its wheel over the shaft, the spoil heap hatched beside it.
@@ -59,7 +47,7 @@ const ENGRAVING: Readonly<Record<DepositKey, ReactNode>> = {
     </>
   ),
   // Schlägel und Eisen, the miners' crossed hammers: the mark every staff map gives a mine.
-  ore: (
+  iron: (
     <>
       <path d="M5.4 20.6 17 7.4M18.6 20.6 7 7.4" strokeWidth="1.8" />
       <path d="m13.8 4.6 6.2 5.6 1.8-2-6.2-5.6z" fill="currentColor" />
@@ -71,7 +59,7 @@ const ENGRAVING: Readonly<Record<DepositKey, ReactNode>> = {
 
 /** Drawn on 24 units like `ResourceIcon`, and called the same way, so a deposit label swaps one
  *  for the other without touching its box. */
-export function DepositMark({ resource, size = 18 }: { resource: DepositKey; size?: number }) {
+export function DepositMark({ deposit, size = 18 }: { deposit: DepositKey; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -84,7 +72,7 @@ export function DepositMark({ resource, size = 18 }: { resource: DepositKey; siz
       strokeLinejoin="round"
       aria-hidden
     >
-      {ENGRAVING[resource]}
+      {ENGRAVING[deposit]}
     </svg>
   );
 }

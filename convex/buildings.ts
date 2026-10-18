@@ -22,7 +22,7 @@ export type { BuildingKey };
  * (ADR 0015) fige une région au premier choix pour toute la saison : une mine posée là où l'on
  * voudrait une caserne est une erreur sans retour.
  *
- * **Rien n'est rendu de l'alliage payé** (décision 5a) : ce qui est bâti est dépensé, et un
+ * **Rien n'est rendu de l'acier payé** (décision 5a) : ce qui est bâti est dépensé, et un
  * remboursement ferait de la démolition un entrepôt de matière à l'abri du pillage. Ce qui
  * revient est ce que la **file** rembourse, et selon sa règle à elle — une entrée qui n'a pas
  * commencé, jamais une qui court : ni `constructions.cancel` ni `troops.cancel` ne rendent le
@@ -186,7 +186,7 @@ async function cancelWorkOn(
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      add({ alloy: recruitmentCost(batch.role, batch.tier, hqLevel).alloy });
+      add({ steel: recruitmentCost(batch.role, batch.tier, hqLevel).steel });
     }
     await ctx.db.delete(batch._id);
   }

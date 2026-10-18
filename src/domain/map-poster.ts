@@ -5,7 +5,7 @@ import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
 import { capturingAt, isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
-import { produces } from './economy';
+import { YIELD_OF, produces } from './economy';
 import { loadingUntilOf } from './loading';
 import { carryCapacityOf } from './loot';
 import type { MapLabel } from './labels';
@@ -342,7 +342,7 @@ const left = (dueAt: number, now: number): PosterLine => ({
 
 /**
  * An extractor reads its own site. A chain is served summed over its sites, and its rate is
- * linear in the level (« deux fonderies au niveau 1 convertissent ce qu'une au niveau 2 ») — so
+ * linear in the level (« deux arsenaux au niveau 1 convertissent ce qu'un au niveau 2 ») — so
  * a site's share is its level's.
  */
 function rateOf(
@@ -353,7 +353,9 @@ function rateOf(
     (candidate) => candidate.key === building.key && candidate.regionId === building.regionId,
   );
   if (site !== undefined)
-    return site.deposit === null ? null : { resource: site.deposit, perHour: site.perHour };
+    return site.deposit === null
+      ? null
+      : { resource: YIELD_OF[site.deposit], perHour: site.perHour };
   const chain = view.me.chains.find((candidate) => candidate.by === building.key);
   if (chain === undefined || chain.level === 0) return null;
   return { resource: chain.output, perHour: (chain.perHour * building.level) / chain.level };

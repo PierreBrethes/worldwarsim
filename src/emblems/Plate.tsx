@@ -87,10 +87,10 @@ export function ObjectivePlate({
 
 /**
  * The resource plates came out of the generator far more saturated than the building set — a
- * brass cartridge and an olive drum against a foundry already in greys. The ink pass is the
+ * brass cartridge and an olive drum against an arsenal already in greys. The ink pass is the
  * units' (`UnitSprite`, `README.md` §5), applied at display time and never baked: **the board
  * is desaturated on purpose, and the contrast budget belongs to the game layer.** Re-encoding
- * the eight would settle it in the asset, where a revised palette could not reach it.
+ * the five would settle it in the asset, where a revised palette could not reach it.
  */
 const INK_FILTER = 'saturate(.5) sepia(.22) brightness(.94)';
 
@@ -109,7 +109,7 @@ const INK_FILTER_DARK = 'saturate(.5) sepia(.22) brightness(1.18)';
  * every label at a different place and the two widest read as the heavy ones.
  *
  * A common box makes any list align, and `object-contain` takes the surplus out of the wide
- * subjects rather than out of the tall ones — coal comes down about a quarter, alloy about a
+ * subjects rather than out of the tall ones — coal comes down about a quarter, steel about a
  * tenth, the other six do not move. That is an optical correction and **not a hierarchy**: no
  * resource outranks another, which is the same ruling the building plates got when
  * `echelles.json` was dropped (`WWS/sprites/README.md` §7).

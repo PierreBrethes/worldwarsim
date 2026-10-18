@@ -9,7 +9,7 @@ import { BUILDING_KEY } from './validators';
 import { refuseInBlitz } from './blitz';
 
 /**
- * **The arsenal is commanded, the foundry is not** — the rule and its reason live in
+ * **The arsenal is commanded** — the rule and its reason live in
  * `COMMANDED_CHAINS`. What is left here is the two verbs: place a lot, drop it.
  *
  * There is no verb for "finish": a lot ends when `settleStocks` has made the last unit of it,

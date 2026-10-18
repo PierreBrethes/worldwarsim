@@ -8,7 +8,7 @@ const viewWith = (buildings: ReadonlyArray<{ key: string }>) =>
 
 const oil = (held: number, perHour = 0): Column => ({
   id: 'oil',
-  sources: [{ kind: 'deposit', deposit: 'oil', held }],
+  sources: [{ deposit: 'oil', held }],
   extraction: ['oilWell'],
   conversion: null,
   output: { resource: 'oil', perHour },

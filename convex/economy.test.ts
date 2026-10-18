@@ -13,7 +13,7 @@ import {
   type ResourceKey,
 } from '../src/domain/ids';
 import { ADM0_BY_NATION } from '../src/domain/nations';
-import { EXPLOITED_DEPOSITS, PRODUCER_OF, placementRefusal } from '../src/domain/economy';
+import { EXPLOITED_DEPOSITS, PRODUCER_OF, YIELD_OF, placementRefusal } from '../src/domain/economy';
 import {
   BASE_CAP,
   CHAINS,
@@ -49,7 +49,7 @@ const KIT = STARTING_KIT;
 /** French regions, straight out of `deposits.json` and `region-index.json`. */
 const MARNE = 'FRA-5323'; //  food
 const MOSELLE = 'FRA-5328'; // coal, inland
-const MEURTHE = 'FRA-5325'; // ore
+const MEURTHE = 'FRA-5325'; // iron
 const PAS_DE_CALAIS = 'FRA-5334'; // coal, coastal
 const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
@@ -137,8 +137,8 @@ async function raise(
 }
 
 /** Puts a stock where the test needs it. Reaching a ceiling by waiting is not an option: a
- *  single settlement window clamps the inputs at their own ceiling first, so a foundry left
- *  alone for a week converts less than the same foundry read every hour. */
+ *  single settlement window clamps the inputs at their own ceiling first, so an arsenal left
+ *  alone for a week converts less than the same arsenal read every hour. */
 async function fill(t: ReturnType<typeof boot>, seat: Seat, key: ResourceKey, stock: number) {
   await t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
@@ -185,58 +185,19 @@ describe('exploitation', () => {
     expect(view.me.resources.coal.stock).toBe(KIT.coal);
   });
 
-  it('gives the mine the resource of its region — coal here, ore there', async () => {
+  it('gives the mine the resource of its ground — coal on coal, steel on iron', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await raise(t, seat, 'mine', MOSELLE);
     await raise(t, seat, 'mine', MEURTHE);
+    await fill(t, seat, 'steel', 0);
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.coal.ratePerHour).toBe(EXTRACTION_PER_HOUR.coal);
-    expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore);
-  });
-});
-
-describe('transformation', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  /**
-   * No order, no queue: the foundry converts on its own and stops on the input that runs out
-   * first — here the ore of the starting kit, twenty units, two per alloy.
-   *
-   * The alloy is emptied first, and that is not a convenience: the kit opens above what a
-   * nation without a warehouse can store, so a foundry read at the launch reports
-   * `overflowing` and casts nothing. What is under test here is the input that runs out.
-   */
-  it('converts on its own and stops when an input runs out', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await fill(t, seat, 'alloy', 0);
-    vi.advanceTimersByTime(10 * 3_600_000);
-
-    const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.ore.stock).toBe(0);
-    expect(view.me.resources.alloy.stock).toBe(KIT.ore / 2);
-    expect(view.me.resources.coal.stock).toBe(KIT.coal - KIT.ore / 2);
-  });
-
-  it('keeps going as long as a mine feeds it', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    // One building per region (ADR 0015): the second mine digs its coal on the shore, since
-    // the foundry already holds Moselle.
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE);
-    await raise(t, seat, 'mine', PAS_DE_CALAIS);
-    await fill(t, seat, 'alloy', 0);
-    vi.advanceTimersByTime(10 * 3_600_000);
-
-    const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBeGreaterThan(KIT.ore / 2);
-    expect(view.me.resources.ore.stock).toBeGreaterThan(0);
+    // Iron is the ground, steel what comes up (ADR 0028 §1).
+    expect(view.me.resources.steel.ratePerHour).toBe(EXTRACTION_PER_HOUR.iron);
+    expect(view.me.resources.steel.stock).toBe(EXTRACTION_PER_HOUR.iron);
   });
 });
 
@@ -250,86 +211,79 @@ describe('what the industry window reads', () => {
     return chain;
   };
 
-  /** The whole reason for the window: "pourquoi mon alliage ne monte plus" has an answer, and
-   *  the answer is a resource name. */
-  it('names the coal a foundry runs out of', async () => {
+  /** « Pourquoi mes munitions ne montent plus » a une réponse, et c'est un nom de ressource. */
+  it('names the coal an arsenal runs out of', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE); // ore, and no coal mine anywhere
-    await fill(t, seat, 'alloy', 0);
-    vi.advanceTimersByTime(20 * 3_600_000);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.coal });
+    // The coal the lot was sized on, spent elsewhere since.
+    await fill(t, seat, 'coal', 2);
+    vi.advanceTimersByTime(5 * 3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.coal.stock).toBe(0);
-    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'starved', missing: 'coal' });
   });
 
   it('calls a full output overflowing, not starved', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE);
-    await raise(t, seat, 'mine', PAS_DE_CALAIS);
-    await fill(t, seat, 'alloy', BASE_CAP);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'ammunition', BASE_CAP);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 10 });
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBe(view.me.resources.alloy.cap);
-    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing', missing: null });
+    expect(view.me.resources.ammunition.stock).toBe(view.me.resources.ammunition.cap);
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'overflowing', missing: null });
   });
 
   /**
    * **Le débit servi est celui que la chaîne tient, pas celui des mines seules.** Le client
-   * extrapole un stock entre deux lectures avec ce nombre : servi l'accroissement nu, l'alliage
-   * restait gelé à « 0 / h » pendant que la fonderie coulait, et le minerai qu'elle mange
-   * montait à l'écran pendant qu'il se dépensait.
+   * extrapole un stock entre deux lectures avec ce nombre : servi l'accroissement nu, les
+   * munitions restaient gelées à « 0 / h » pendant que l'arsenal tournait.
    */
   it('serves the rate the chains hold, not the mines alone', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE); // ore, 9/h
-    await raise(t, seat, 'mine', PAS_DE_CALAIS); // coal, 10/h
-    await fill(t, seat, 'alloy', 0);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'coal', 100);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 60 });
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    const cast = CHAINS.foundry.perHourPerLevel;
-    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'running' });
-    // Ce que la fonderie coule, et ce qu'elle prélève sur les deux mines qui la nourrissent.
-    expect(view.me.resources.alloy.ratePerHour).toBe(cast);
-    expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore - 2 * cast);
-    expect(view.me.resources.coal.ratePerHour).toBe(EXTRACTION_PER_HOUR.coal - cast);
+    const cast = CHAINS.arsenal.perHourPerLevel;
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'running' });
+    // Ce que l'arsenal sort, et ce qu'il prélève : un charbon et un acier par munition.
+    expect(view.me.resources.ammunition.ratePerHour).toBe(cast);
+    expect(view.me.resources.coal.ratePerHour).toBe(-cast);
+    expect(view.me.resources.steel.ratePerHour).toBe(-cast);
   });
 
-  /** Une fonderie qui ne peut rien poser ne prélève rien non plus : le débit du minerai
-   *  redevient celui de la mine, faute de quoi le joueur lirait une saignée qui n'a pas lieu. */
-  it('takes nothing off the mines while the output has nowhere to go', async () => {
+  /** Un arsenal qui ne peut rien poser ne prélève rien non plus : le joueur lirait sinon une
+   *  saignée qui n'a pas lieu. */
+  it('takes nothing off the reserves while the output has nowhere to go', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE);
-    await fill(t, seat, 'alloy', BASE_CAP);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'ammunition', BASE_CAP);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 10 });
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing' });
-    expect(view.me.resources.alloy.ratePerHour).toBe(0);
-    expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore);
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'overflowing' });
+    expect(view.me.resources.ammunition.ratePerHour).toBe(0);
+    expect(view.me.resources.coal.ratePerHour).toBe(0);
   });
 
   /** An absent chain is information; an absent line is a hole. */
-  it('serves the three chains even when nothing is built, extinguished', async () => {
+  it('serves the chain even when nothing is built, extinguished', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.chains.map((chain) => chain.by)).toEqual([
-      'foundry',
-      'arsenal',
-      'quartermaster',
-    ]);
+    expect(view.me.chains.map((chain) => chain.by)).toEqual(['arsenal']);
     for (const chain of view.me.chains) {
       expect(chain).toMatchObject({ state: 'off', perHour: 0, level: 0 });
     }
@@ -356,7 +310,7 @@ describe('what the industry window reads', () => {
       { key: 'mine', regionId: ARDENNES, level: 1, deposit: null, perHour: 0, linked: true },
     ]);
     // And the mute mine adds nothing to the national rate it is listed beside.
-    expect(view.me.resources.ore.ratePerHour).toBe(0);
+    expect(view.me.resources.steel.ratePerHour).toBe(0);
     expect(view.me.resources.coal.ratePerHour).toBe(0);
   });
 
@@ -368,9 +322,9 @@ describe('what the industry window reads', () => {
   it('still names the missing input right after a spend has reset the window', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE);
-    await fill(t, seat, 'alloy', 100);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.coal });
+    await fill(t, seat, 'coal', 2);
     await promoteHq(t, seat, unlockLevel('barracks'));
     vi.advanceTimersByTime(20 * 3_600_000);
     // The barracks, not the farm: the farm belongs to the foundation, and a free placement
@@ -378,21 +332,21 @@ describe('what the industry window reads', () => {
     await t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE });
 
     const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'starved', missing: 'coal' });
   });
 });
 
 describe('storage', () => {
-  it('raises all eight resource ceilings', async () => {
+  it('raises all five resource ceilings', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const before = await t.query(api.view.playerView, seat);
-    expect(before.me.resources.alloy.cap).toBe(BASE_CAP);
+    expect(before.me.resources.steel.cap).toBe(BASE_CAP);
 
     await raise(t, seat, 'warehouse', MOSELLE);
 
     const after = await t.query(api.view.playerView, seat);
-    expect(after.me.resources.alloy.cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
+    expect(after.me.resources.steel.cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
     for (const key of RESOURCES) {
       expect(after.me.resources[key].cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
     }
@@ -415,8 +369,8 @@ describe('storage', () => {
 
     const twoSites = await spread.query(api.view.playerView, scattered);
     const oneSite = await stacked.query(api.view.playerView, tall);
-    expect(twoSites.me.resources.alloy.cap).toBe(oneSite.me.resources.alloy.cap);
-    expect(twoSites.me.resources.alloy.cap).toBe(BASE_CAP + 2 * STORAGE_CAP_PER_LEVEL);
+    expect(twoSites.me.resources.steel.cap).toBe(oneSite.me.resources.steel.cap);
+    expect(twoSites.me.resources.steel.cap).toBe(BASE_CAP + 2 * STORAGE_CAP_PER_LEVEL);
   });
 });
 
@@ -452,11 +406,11 @@ describe('what a ceiling bounds', () => {
      * A stock can sit above the ceiling of a nation without a warehouse — a kit that opens
      * higher, a warehouse razed, a delivery that lands. What matters is that the difference stays
      * the player's until he spends it. Posé ici plutôt que lu sur la dotation : celle-ci est
-     * descendue à `BASE_CAP` le 14/09 (`STARTING_ALLOY`), et une règle ne doit pas cesser d'être
+     * descendue à `BASE_CAP` le 14/09 (`STARTING_STEEL`), et une règle ne doit pas cesser d'être
      * couverte parce qu'un chiffre voisin a bougé.
      */
     const above = BASE_CAP + 120;
-    await fill(t, seat, 'alloy', above);
+    await fill(t, seat, 'steel', above);
 
     vi.advanceTimersByTime(10 * 3_600_000);
     await t.run(async (ctx) => {
@@ -465,8 +419,8 @@ describe('what a ceiling bounds', () => {
     });
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.cap).toBe(BASE_CAP);
-    expect(view.me.resources.alloy.stock).toBe(above);
+    expect(view.me.resources.steel.cap).toBe(BASE_CAP);
+    expect(view.me.resources.steel.stock).toBe(above);
   });
 
   it('takes the surplus the instant the capacity falls, and takes it once', async () => {
@@ -477,30 +431,30 @@ describe('what a ceiling bounds', () => {
     for (const key of RESOURCES) await fill(t, seat, key, held);
 
     const lost = await raze(t, seat, 'warehouse');
-    expect(lost.alloy).toBe(held - BASE_CAP);
+    expect(lost.steel).toBe(held - BASE_CAP);
     for (const key of RESOURCES) expect(lost[key]).toBe(STORAGE_CAP_PER_LEVEL);
 
     const after = await t.query(api.view.playerView, seat);
-    expect(after.me.resources.alloy.cap).toBe(BASE_CAP);
-    expect(after.me.resources.alloy.stock).toBe(BASE_CAP);
+    expect(after.me.resources.steel.cap).toBe(BASE_CAP);
+    expect(after.me.resources.steel.stock).toBe(BASE_CAP);
 
     // Once, and not by instalments: ten hours later the reading takes nothing more.
     vi.advanceTimersByTime(10 * 3_600_000);
     const later = await t.query(api.view.playerView, seat);
-    expect(later.me.resources.alloy.stock).toBe(BASE_CAP);
+    expect(later.me.resources.steel.stock).toBe(BASE_CAP);
   });
 
   it('takes nothing when the capacity that falls was not holding anything', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await raise(t, seat, 'warehouse', MOSELLE);
-    await fill(t, seat, 'alloy', BASE_CAP - 100);
+    await fill(t, seat, 'steel', BASE_CAP - 100);
 
     const lost = await raze(t, seat, 'warehouse');
     expect(RESOURCES.every((key) => lost[key] === 0)).toBe(true);
 
     const after = await t.query(api.view.playerView, seat);
-    expect(after.me.resources.alloy.stock).toBe(BASE_CAP - 100);
+    expect(after.me.resources.steel.stock).toBe(BASE_CAP - 100);
   });
 });
 
@@ -755,42 +709,39 @@ describe('placement', () => {
 /**
  * **The foundation is read off the ground, not off the format** (decision of 25/08). A season
  * owes a player one extractor per resource his own country holds — and a well only where there
- * is oil, which six nations out of eight have none of. What left with the list: the foundry,
- * the warehouse and the arsenal, which are decisions and not ground.
+ * is oil, which six nations out of eight have none of. What left with the list: the
+ * warehouse and the arsenal, which are decisions and not ground.
  */
 describe('the foundation a nation is owed', () => {
-  it('owes France its headquarters, its two mines, its farm and its mill, and no well', () => {
+  it('owes France its headquarters, its two mines and its farm, and no well', () => {
     expect(foundationOwed('france', [])).toEqual([
       { key: 'hq', deposit: null },
-      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'iron' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
   });
 
-  /** The one ground that holds all five: the United States is the only nation whose foundation
+  /** The one ground that holds all four: the United States is the only nation whose foundation
    *  carries a well, alongside the Soviet Union. */
   it('owes the United States the same, plus the well its oil carries', () => {
     expect(foundationOwed('usa', [])).toEqual([
       { key: 'hq', deposit: null },
-      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'iron' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
       { key: 'oilWell', deposit: 'oil' },
     ]);
   });
 
-  /** Kamaishi, added on 25/08: without it Japan held no ore at all and, with looting not coded,
+  /** Kamaishi, added on 25/08: without it Japan held no iron at all and, with looting not coded,
    *  had no road to any — an unplayable nation rather than a shaped one. */
-  it('owes Japan four extractors now that its ore exists, and still no well', () => {
+  it('owes Japan three extractors now that its iron exists, and still no well', () => {
     expect(foundationOwed('japan', []).map((due) => due.key)).toEqual([
       'hq',
       'mine',
       'mine',
       'farm',
-      'mill',
     ]);
   });
 
@@ -799,7 +750,7 @@ describe('the foundation a nation is owed', () => {
    * that no playable ground lacks a dry resource — a nation is never annexed (ADR 0004), so a
    * missing deposit at home is a missing deposit for the whole season.
    */
-  it('leaves no playable nation short of iron, coal, cloth or bread', () => {
+  it('leaves no playable nation short of iron, coal or bread', () => {
     for (const nation of NATIONS) {
       const held = homeDepositsOf(nation);
       for (const deposit of DEPOSITS) {
@@ -822,32 +773,30 @@ describe('the foundation a nation is owed', () => {
   /** A key held on several regions consumes one debt each time — two mines are two placements,
    *  and the third is paid for like anything else. */
   it('lets a standing key settle one debt at a time', () => {
-    expect(foundationOwed('france', [{ key: 'mine', deposit: 'ore' }])).toEqual([
+    expect(foundationOwed('france', [{ key: 'mine', deposit: 'iron' }])).toEqual([
       { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
     expect(
       foundationOwed('france', [
         { key: 'hq', deposit: null },
-        { key: 'mine', deposit: 'ore' },
+        { key: 'mine', deposit: 'iron' },
         { key: 'mine', deposit: 'coal' },
         { key: 'farm', deposit: 'food' },
-        { key: 'mill', deposit: 'textile' },
       ]),
     ).toEqual([]);
     expect(
       foundationOwed('france', [
         { key: 'barracks', deposit: null },
-        { key: 'foundry', deposit: null },
+        { key: 'warehouse', deposit: null },
       ]),
     ).toEqual(foundationOwed('france', []));
   });
 
   /**
    * **Une dette est un couple, pas une clé** : deux mines posées sur du charbon ne soldent que
-   * la dette du charbon. Comptée par clé, la mine de fer se payait ensuite 500 d'alliage, et le
+   * la dette du charbon. Comptée par clé, la mine de fer se payait ensuite 500 d'acier, et le
    * joueur restait sans la ressource qui fait tout le reste.
    */
   it('settles a debt on its deposit and on no other', () => {
@@ -858,19 +807,17 @@ describe('the foundation a nation is owed', () => {
       ]),
     ).toEqual([
       { key: 'hq', deposit: null },
-      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'iron' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
     expect(
       foundationOwed('france', [
         { key: 'mine', deposit: 'coal' },
-        { key: 'mine', deposit: 'ore' },
+        { key: 'mine', deposit: 'iron' },
       ]),
     ).toEqual([
       { key: 'hq', deposit: null },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
   });
 
@@ -882,12 +829,12 @@ describe('the foundation a nation is owed', () => {
     );
   });
 
-  /** The foundry, the warehouse and the arsenal are paid for now — they are what a player
+  /** The warehouse and the arsenal are paid for now — they are what a player
    *  decides to do with his ground, never what the ground carries. */
-  it('owes no foundry, warehouse or arsenal to anybody', () => {
+  it('owes no warehouse or arsenal to anybody', () => {
     for (const nation of NATIONS) {
       const owed = foundationOwed(nation, []).map((due) => due.key);
-      for (const key of ['foundry', 'warehouse', 'arsenal'] as const) {
+      for (const key of ['warehouse', 'arsenal'] as const) {
         expect(owed).not.toContain(key);
       }
     }
@@ -898,7 +845,7 @@ describe('the foundation a nation is owed', () => {
  * **The foundation of a format.** What the season owes the player is placed by him — the region
  * is the one decision of the opening — and what it takes back is the price and the wait on what
  * is not one. The measure this answers: on the fifteen buildings, twelve first moves used to be
- * fatal, because the smallest set that works cost 110 alloy against a kit of 100.
+ * fatal, because the smallest set that works cost 110 steel against a kit of 100.
  */
 describe('the foundation the season owes', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -934,19 +881,18 @@ describe('the foundation the season owes', () => {
         ) === null,
     )?.id ?? null;
 
-  /** What France is owed: iron, coal, bread and cloth — and no well, since the country has
+  /** What France is owed: iron, coal and bread — and no well, since the country has
    *  no oil. Every test of this file plays France, so this is the reading list. */
   const FRENCH_FOUNDATION = [
-    { key: 'mine', deposit: 'ore' },
+    { key: 'mine', deposit: 'iron' },
     { key: 'mine', deposit: 'coal' },
     { key: 'farm', deposit: 'food' },
-    { key: 'mill', deposit: 'textile' },
   ] as const;
 
   /** Places what the season **still** owes, one key at a time, and hands back what it cost. */
   async function placeFoundation(t: ReturnType<typeof boot>, seat: Seat) {
     const bills: Array<Record<string, number>> = [];
-    // The widest ground of the eight is owed five, and the loop is a guard, not a count.
+    // The widest ground of the eight is owed four, and the loop is a guard, not a count.
     for (let guard = 0; guard < 8; guard += 1) {
       const view = await t.query(api.view.playerView, seat);
       const due = view.me.foundation[0];
@@ -979,15 +925,15 @@ describe('the foundation the season owes', () => {
     for (const { key } of FRENCH_FOUNDATION) {
       expect(view.me.buildings.map((building) => building.key)).toContain(key);
     }
-    // Not one unit spent, the alloy of the kit included — and it survives the ceiling of a
+    // Not one unit spent, the steel of the kit included — and it survives the ceiling of a
     // nation that has not placed its warehouse yet.
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel);
   });
 
   /**
    * **Une dette de socle est un couple, et la pose lit le gisement de la région visée.** La
    * France doit deux mines, l'une au fer et l'autre au charbon : comptée par clé, deux mines
-   * posées sur du charbon soldaient les deux, et le fer se payait ensuite 500 d'alliage — le
+   * posées sur du charbon soldaient les deux, et le fer se payait ensuite 500 d'acier — le
    * joueur restait coincé sur la ressource qui fait tout le reste.
    */
   it('offers one mine per deposit and bills the second on the same ground', async () => {
@@ -1012,7 +958,7 @@ describe('the foundation the season owes', () => {
 
     // The debt of the iron is untouched by two placements on coal, and it is still offered.
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'ore' });
+    expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'iron' });
     const iron = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'mine',
@@ -1023,7 +969,7 @@ describe('the foundation the season owes', () => {
 
   /**
    * **The lock belongs to the construction, not to the placement.** Playtest of 19/08: a paid
-   * mill launched before the offered mines, and "one construction at a time" then froze three
+   * building launched before the offered mines, and "one construction at a time" then froze three
    * placements that cost nothing, wait for nothing and open no site of their own. The rule
    * still holds where it means something — the bill below.
    */
@@ -1037,7 +983,7 @@ describe('the foundation the season owes', () => {
       regionId: ARDENNES,
     });
     expect(paid.finishesAt).toBeGreaterThan(Date.now());
-    const spent = (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+    const spent = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
 
     const placed = await t.mutation(api.constructions.start, {
       ...seat,
@@ -1049,7 +995,7 @@ describe('the foundation the season owes', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.map((building) => building.key)).toContain('farm');
-    expect(view.me.resources.alloy.stock).toBe(spent);
+    expect(view.me.resources.steel.stock).toBe(spent);
     // The paid site is untouched: what moved is what the offered placement is allowed to skip.
     expect(view.me.construction?.key).toBe('barracks');
   });
@@ -1069,7 +1015,7 @@ describe('the foundation the season owes', () => {
       regionId: ARDENNES,
     });
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'foundry', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: ARDENNES }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -1179,7 +1125,7 @@ describe('the headquarters the player puts up', () => {
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', regionId: MARNE, level: HQ_LEVEL_AT_LAUNCH }),
     ]);
-    expect(view.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
+    expect(view.me.resources.steel.stock).toBe(opening.me.resources.steel.stock);
     expect(view.me.foundation.some((due) => due.key === 'hq')).toBe(false);
     const hq = view.me.buildings[0]!;
     expect(view.me.troops).toEqual([
@@ -1278,8 +1224,8 @@ describe('the construction queue', () => {
     { building: 'barracks' as const, regionId: MEURTHE },
   ];
 
-  const alloyOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
-    (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+  const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
 
   /**
    * **A finished building changes the rates, and the hours before it were not worked at them.**
@@ -1309,16 +1255,16 @@ describe('the construction queue', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
-    const opening = await alloyOf(t, seat);
+    const opening = await steelOf(t, seat);
 
     for (const site of SITES) await t.mutation(api.constructions.start, { ...seat, ...site });
 
     // Not one stone laid, and the three bills are already settled.
     const spent = SITES.reduce(
-      (total, site) => total + (buildCost(site.building, 1).alloy ?? 0),
+      (total, site) => total + (buildCost(site.building, 1).steel ?? 0),
       0,
     );
-    expect(await alloyOf(t, seat)).toBe(opening - spent);
+    expect(await steelOf(t, seat)).toBe(opening - spent);
 
     const queued = await t.query(api.view.playerView, seat);
     expect(queued.me.construction?.key).toBe('barracks');
@@ -1379,14 +1325,14 @@ describe('the construction queue', () => {
    * the time its turn comes the world may have taken the right back. Nothing starts on a right
    * that no longer exists — the entry is cancelled, refunded whole, and said in the journal.
    *
-   * Alloy is the reserve read here on purpose: a fresh nation stands no foundry, so nothing
-   * produces any, and every unit of it that moves is a bill or a refund.
+   * Steel is the reserve read here on purpose: a fresh nation stands no mine on iron, so
+   * nothing produces any, and every unit of it that moves is a bill or a refund.
    */
   it('cancels a head whose right has gone, refunds it whole and files a notice', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
-    const opening = await alloyOf(t, seat);
+    const opening = await steelOf(t, seat);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -1406,7 +1352,7 @@ describe('the construction queue', () => {
     expect(after.me.constructionQueue).toEqual([]);
     expect(after.me.construction).toBeNull();
     expect(after.me.buildings.filter((building) => building.regionId === JURA)).toHaveLength(1);
-    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('barracks', 1).alloy ?? 0));
+    expect(await steelOf(t, seat)).toBe(opening - (buildCost('barracks', 1).steel ?? 0));
 
     // The head that did rise files its own line: the journal owes a player the site he built
     // as much as the one the world took back.
@@ -1467,7 +1413,7 @@ describe('the construction queue', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
-    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'steel', 100_000);
     await fill(t, seat, 'ammunition', 100_000);
     await fill(t, seat, 'food', 100_000);
     await raise(t, seat, 'barracks', MARNE);
@@ -1652,7 +1598,7 @@ describe('the ground a site reaches', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const outpostId = await plantOutpost(t, seat, EL_TARF, 3);
-    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'steel', 100_000);
     await fill(t, seat, 'food', 100_000);
     await t.mutation(api.constructions.start, {
       ...seat,
@@ -1705,7 +1651,7 @@ describe('the arsenal is commanded', () => {
 
   /**
    * The defect the rule exists to correct, and nobody could see it: an arsenal at level 3 took
-   * 216 alloy a day from a player saving 430 for a carrier, with no way to stop it.
+   * 216 steel a day from a player saving 430 for a carrier, with no way to stop it.
    */
   it('takes nothing until it is told to, and says so rather than reading as broken', async () => {
     const t = boot();
@@ -1714,22 +1660,9 @@ describe('the arsenal is commanded', () => {
     vi.advanceTimersByTime(20 * 3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel);
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition);
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'idle', commanded: true, order: null });
-  });
-
-  /** The foundry keeps running on its own: its inputs are spent nowhere else. */
-  it('leaves the uncommanded chains alone', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
-    await fill(t, seat, 'alloy', 0);
-    vi.advanceTimersByTime(10 * 3_600_000);
-
-    const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'foundry')).toMatchObject({ commanded: false });
-    expect(view.me.resources.alloy.stock).toBeGreaterThan(0);
   });
 
   it('converts exactly the lot, once, and then falls silent again', async () => {
@@ -1742,7 +1675,9 @@ describe('the arsenal is commanded', () => {
     vi.advanceTimersByTime(20 * 3_600_000);
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition + 12);
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy - 12);
+    // One coal and one steel a round (ADR 0028 §1).
+    expect(view.me.resources.coal.stock).toBe(KIT.coal - 12);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel - 12);
     expect(chainOf(view, 'arsenal')).toMatchObject({
       state: 'idle',
       order: { ordered: 12, produced: 12 },
@@ -1758,6 +1693,8 @@ describe('the arsenal is commanded', () => {
     const seat = await launchedSeason(t);
     await raise(t, seat, 'arsenal', MOSELLE);
 
+    await fill(t, seat, 'coal', 100);
+
     const idle = chainOf(await t.query(api.view.playerView, seat), 'arsenal');
     expect(idle).toMatchObject({ perHour: 0, nominalPerHour: 3 });
 
@@ -1771,6 +1708,7 @@ describe('the arsenal is commanded', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'coal', 100);
     await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 90 });
     vi.advanceTimersByTime(2 * 3_600_000);
     await t.mutation(api.industry.cancelOrder, { ...seat, chain: 'arsenal' });
@@ -1779,7 +1717,8 @@ describe('the arsenal is commanded', () => {
     const view = await t.query(api.view.playerView, seat);
     // Six made in two hours, and not one more after the drop.
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition + 6);
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy - 6);
+    expect(view.me.resources.coal.stock).toBe(100 - 6);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel - 6);
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'idle', order: null });
   });
 
@@ -1789,20 +1728,21 @@ describe('the arsenal is commanded', () => {
     await raise(t, seat, 'arsenal', MOSELLE);
 
     await expect(
-      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.alloy + 1 }),
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.coal + 1 }),
     ).rejects.toThrow(/ORDER_ABOVE_RESERVE/);
 
+    // The scarcer of the two inputs sets the ceiling: the kit holds less coal than steel.
     const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'arsenal').maxOrder).toBe(KIT.alloy);
+    expect(chainOf(view, 'arsenal').maxOrder).toBe(KIT.coal);
   });
 
-  it('refuses to command a chain that runs on its own', async () => {
+  it('refuses to command a building that is no chain', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'farm', MARNE);
 
     await expect(
-      t.mutation(api.industry.order, { ...seat, chain: 'foundry', quantity: 10 }),
+      t.mutation(api.industry.order, { ...seat, chain: 'farm', quantity: 10 }),
     ).rejects.toThrow(/CHAIN_NOT_COMMANDED/);
   });
 
@@ -1823,7 +1763,7 @@ describe('the arsenal is commanded', () => {
     vi.advanceTimersByTime(5 * 3_600_000);
     const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'arsenal')).toMatchObject({ order: null });
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel);
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition);
   });
 });
@@ -1836,11 +1776,11 @@ describe('a stock that is not a number buys nothing', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('refuses a construction that a NaN alloy stock would have let through', async () => {
+  it('refuses a construction that a NaN steel stock would have let through', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, unlockLevel('barracks'));
-    await fill(t, seat, 'alloy', Number.NaN);
+    await fill(t, seat, 'steel', Number.NaN);
 
     await expect(
       t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE }),
@@ -1858,7 +1798,7 @@ describe('what produces what', () => {
     for (const [resource, building] of Object.entries(PRODUCER_OF) as ReadonlyArray<
       [ResourceKey, BuildingKey]
     >) {
-      const deposit = DEPOSITS.find((key) => key === resource);
+      const deposit = DEPOSITS.find((key) => YIELD_OF[key] === resource);
       if (deposit !== undefined) {
         expect(EXPLOITED_DEPOSITS[building]).toContain(deposit);
       } else {
@@ -1941,7 +1881,7 @@ describe('legacy depot compatibility', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.find((b) => b.id === before._id)).toMatchObject({
       key: 'warehouse',
-      nextLevelCost: { alloy: 72, coal: 27 },
+      nextLevelCost: { steel: 72, coal: 27 },
       nextLevelMinutes: 54,
     });
     const started = await t.mutation(api.constructions.start, {
@@ -1949,7 +1889,7 @@ describe('legacy depot compatibility', () => {
       building: 'warehouse',
       regionId: JURA,
     });
-    expect(started).toMatchObject({ level: 2, cost: { alloy: 72, coal: 27 } });
+    expect(started).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
     await t.finishInProgressScheduledFunctions();
     const after = await t.run((ctx) => ctx.db.get(before._id));
@@ -1978,7 +1918,7 @@ describe('legacy depot compatibility', () => {
     expect(building).toMatchObject({
       key: 'warehouse',
       level: 1,
-      nextLevelCost: { alloy: 72, coal: 27 },
+      nextLevelCost: { steel: 72, coal: 27 },
       nextLevelMinutes: 54,
     });
     expect(await t.run((ctx) => ctx.db.get(building.id as Id<'buildings'>))).toMatchObject({
@@ -2005,7 +1945,7 @@ describe('legacy depot compatibility', () => {
       building: 'warehouse',
       regionId: JURA,
     });
-    expect(raised).toMatchObject({ level: 2, cost: { alloy: 72, coal: 27 } });
+    expect(raised).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
     await t.finishInProgressScheduledFunctions();
     expect(await t.run((ctx) => ctx.db.get(building.id as Id<'buildings'>))).toMatchObject({
@@ -2041,13 +1981,13 @@ describe('legacy depot compatibility', () => {
     });
     const { id } = await legacy(t, seat);
     await raise(t, seat, 'farm', JURA);
-    await fill(t, seat, 'alloy', 2000);
+    await fill(t, seat, 'steel', 2000);
     await fill(t, seat, 'coal', 2000);
     vi.advanceTimersByTime(25 * 60_000);
     await t.finishInProgressScheduledFunctions();
     expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBe(2040);
+    expect(view.me.resources.steel.stock).toBe(2040);
     expect(view.me.resources.coal.stock).toBe(2015);
     expect(view.me.buildings.filter((b) => b.regionId === JURA).map((b) => b.key)).toEqual([
       'farm',
@@ -2057,14 +1997,14 @@ describe('legacy depot compatibility', () => {
   it('refunds the exact legacy bill above capacity and refuses cancelling a running entry', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 2000);
+    await fill(t, seat, 'steel', 2000);
     await fill(t, seat, 'coal', 2000);
     const { id } = await legacy(t, seat, 2);
     expect(await t.mutation(api.constructions.cancel, { ...seat, constructionId: id })).toEqual({
-      refunded: { alloy: 72, coal: 27 },
+      refunded: { steel: 72, coal: 27 },
     });
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.alloy.stock).toBe(2072);
+    expect(view.me.resources.steel.stock).toBe(2072);
     expect(view.me.resources.coal.stock).toBe(2027);
     const running = await legacy(t, seat, 1, Date.now() + 60_000);
     await expect(
@@ -2113,21 +2053,21 @@ describe('raising an outpost', () => {
   const levelOf = async (t: ReturnType<typeof boot>, outpostId: Id<'outposts'>) =>
     (await t.run(async (ctx) => ctx.db.get(outpostId)))!.level;
 
-  const alloyOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
-    (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+  const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
 
   /** Cas 1 et 2 : l'ordre entre dans la file, il est débité, et à son terme le point porte un
    *  niveau, un emplacement et le rayon de plus. */
   it('bills the raise at the enqueue and hands the level, the placement and the reach', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
-    const opening = await alloyOf(t, seat);
+    const opening = await steelOf(t, seat);
 
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
-    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('outpost', 2).alloy ?? 0));
+    expect(await steelOf(t, seat)).toBe(opening - (buildCost('outpost', 2).steel ?? 0));
 
     const queued = await t.query(api.view.playerView, seat);
     expect(queued.me.construction).toMatchObject({ key: 'outpost', outpostId });
@@ -2145,7 +2085,7 @@ describe('raising an outpost', () => {
   it('claims no ground: a construction on the point’s own region still goes through', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 
@@ -2159,7 +2099,7 @@ describe('raising an outpost', () => {
   it('refuses the raise at the last level', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat, OUTPOST_MAX_LEVEL);
 
@@ -2173,7 +2113,7 @@ describe('raising an outpost', () => {
   it('refuses a raise on a disabled point, and makes a queued one wait for it', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
     const disabledUntil = Date.now() + 4 * 3_600_000;
@@ -2208,12 +2148,12 @@ describe('raising an outpost', () => {
   it('refunds a cancelled raise whole and leaves the level alone', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
     // Un chantier de bâtiment prend la tête : derrière lui, l'élévation n'a pas commencé.
     await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
-    const opening = await alloyOf(t, seat);
+    const opening = await steelOf(t, seat);
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
 
     const queued = await t.query(api.view.playerView, seat);
@@ -2221,7 +2161,7 @@ describe('raising an outpost', () => {
     expect(entry).toMatchObject({ key: 'outpost', outpostId });
 
     await t.mutation(api.constructions.cancel, { ...seat, constructionId: entry.id });
-    expect(await alloyOf(t, seat)).toBe(opening);
+    expect(await steelOf(t, seat)).toBe(opening);
     expect(await levelOf(t, outpostId)).toBe(1);
   });
 
@@ -2230,7 +2170,7 @@ describe('raising an outpost', () => {
   it('refuses a second raise of the same point while the first is queued', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 
@@ -2245,7 +2185,7 @@ describe('raising an outpost', () => {
   it('files the dispatch with the region and the level, and nothing at the neighbour', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 

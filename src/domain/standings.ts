@@ -2,7 +2,7 @@
  * **Le barème du classement — ce qui se compte, et avec quelles unités**
  * (`propositions/classement-bareme.md` §1, validée 79a, révisée par la décision 80 du 06/09).
  *
- * **Aucune table nouvelle.** Les trois catégories chiffrées se mesurent toutes en *alliage payé*,
+ * **Aucune table nouvelle.** Les trois catégories chiffrées se mesurent toutes en *acier payé*,
  * lu dans les tables qui existent déjà (`BUILDING_SPEC` × `LEVEL_COST_FACTOR`, `COST_BY_ROLE`,
  * `TIER_2_FACTOR`) : une grille de points par bâtiment et par rôle dériverait de la première et
  * se désaccorderait d'elle au premier réglage. *Ce qui coûte compte* — le joueur lit le
@@ -14,7 +14,7 @@
  * chantier — l'industrie est `buildCost` appelée niveau par niveau, jamais une constante
  * recopiée ici.
  *
- * Le territoire, lui, n'est pas de l'alliage : c'est une **part**, régions tenues sur régions
+ * Le territoire, lui, n'est pas de l'acier : c'est une **part**, régions tenues sur régions
  * tenues par quelqu'un (ADR 0020 §2), donc les parts d'une saison somment à 100. Il reste à part
  * du score général pour cette raison — il est déjà public et exact à côté, et c'est le but, pas
  * un ingrédient.
@@ -42,12 +42,12 @@ export type ScoredTroop = {
 };
 
 /**
- * **Les deux prix, injectés.** `ofLevel` est l'alliage d'**un** niveau (`buildCost(key, l).alloy`)
+ * **Les deux prix, injectés.** `ofLevel` est l'acier d'**un** niveau (`buildCost(key, l).steel`)
  * et non le cumul : le barème additionne les niveaux 1..n lui-même, ce qui est la seule façon
  * qu'un quartier général 2 vaille ce qu'il a coûté à monter plutôt que ce qu'il coûterait à
  * poser.
  */
-export type AlloyPrices = {
+export type SteelPrices = {
   readonly ofLevel: (key: string, level: number) => number;
   readonly ofTroop: (role: string, tier: number) => number;
 };
@@ -67,7 +67,7 @@ export function scoresOf({
   engagements,
   heldCount,
   heldByAnyone,
-  alloy,
+  steel,
 }: {
   readonly buildings: ReadonlyArray<ScoredBuilding>;
   readonly troops: ReadonlyArray<ScoredTroop>;
@@ -78,22 +78,22 @@ export function scoresOf({
   /** Le total tenu par quelqu'un, dénominateur de la part. Zéro quand personne ne tient rien —
    *  au premier quart d'heure d'une saison, et la part vaut alors zéro plutôt que `NaN`. */
   readonly heldByAnyone: number;
-  readonly alloy: AlloyPrices;
+  readonly steel: SteelPrices;
 }): Scores {
   const industry = Math.round(
     buildings.reduce(
-      (sum, building) => (building.disabled ? sum : sum + levelsPaid(building, alloy)),
+      (sum, building) => (building.disabled ? sum : sum + levelsPaid(building, steel)),
       0,
     ),
   );
-  const military = Math.round(troops.reduce((sum, troop) => sum + weightOf(troop, alloy), 0));
+  const military = Math.round(troops.reduce((sum, troop) => sum + weightOf(troop, steel), 0));
   return {
     territory: heldByAnyone <= 0 ? 0 : (heldCount / heldByAnyone) * 100,
     industry,
     military,
     deeds: engagements,
     /** Sans coefficient, et sans les faits d'armes : un compteur d'activité additionné à de
-     *  l'alliage n'aurait pas d'unité. C'est le seul chiffre servi aux autres avec le
+     *  l'acier n'aurait pas d'unité. C'est le seul chiffre servi aux autres avec le
      *  territoire, et il ne se décompose jamais (garde-fou du 29/08). */
     general: industry + military,
   };
@@ -101,19 +101,19 @@ export function scoresOf({
 
 /** Ce qu'il a fallu payer pour l'amener là où il est : la somme des niveaux gravis, pas le prix
  *  du dernier. Un bâtiment n'est jamais rendu, donc rien ne rembourse cette somme. */
-const levelsPaid = (building: ScoredBuilding, alloy: AlloyPrices): number => {
+const levelsPaid = (building: ScoredBuilding, steel: SteelPrices): number => {
   let paid = 0;
   for (let level = 1; level <= building.level; level += 1)
-    paid += alloy.ofLevel(building.key, level);
+    paid += steel.ofLevel(building.key, level);
   return paid;
 };
 
 /** Le prix plein au prorata des points de vie. Une troupe à moitié entamée pèse la moitié : la
  *  puissance militaire est ce qui est **debout**, pas ce qui a été acheté. */
-const weightOf = (troop: ScoredTroop, alloy: AlloyPrices): number =>
+const weightOf = (troop: ScoredTroop, steel: SteelPrices): number =>
   troop.nominalStrength <= 0
     ? 0
-    : alloy.ofTroop(troop.role, troop.tier) * (troop.strength / troop.nominalStrength);
+    : steel.ofTroop(troop.role, troop.tier) * (troop.strength / troop.nominalStrength);
 
 /**
  * **Le rang se lit sur le territoire**, le premier en haut (79a) : c'est le but de la saison, et

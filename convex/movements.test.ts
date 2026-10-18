@@ -504,7 +504,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       troopIds: troopIds as Array<Id<'troops'>>,
     });
 
-  const stockOf = async (t: ReturnType<typeof boot>, seat: Seat, key: 'alloy' | 'coal') =>
+  const stockOf = async (t: ReturnType<typeof boot>, seat: Seat, key: 'steel' | 'coal') =>
     (await t.query(api.view.playerView, seat)).me.resources[key].stock;
 
   const noticesOfSeat = async (t: ReturnType<typeof boot>, seat: Seat) => {
@@ -550,11 +550,11 @@ describe('founding opens a construction site, and it has to be held', () => {
     const { seat } = await launchedSeason(t);
     await fundFoundation(t, seat);
     const point = regionFacts(PRAHOVA)!.point;
-    const before = { alloy: await stockOf(t, seat, 'alloy'), coal: await stockOf(t, seat, 'coal') };
+    const before = { steel: await stockOf(t, seat, 'steel'), coal: await stockOf(t, seat, 'coal') };
 
     await found(t, seat, point, [await post(t, seat, point)]);
 
-    expect(await stockOf(t, seat, 'alloy')).toBeCloseTo(before.alloy - (COST.alloy ?? 0), 5);
+    expect(await stockOf(t, seat, 'steel')).toBeCloseTo(before.steel - (COST.steel ?? 0), 5);
     expect(await stockOf(t, seat, 'coal')).toBeCloseTo(before.coal - (COST.coal ?? 0), 5);
 
     const [outpost] = await outpostsOf(t, seat);
@@ -638,7 +638,7 @@ describe('founding opens a construction site, and it has to be held', () => {
     const second = await post(t, seat, point);
     await found(t, seat, point, [first, second]);
     const [outpost] = await outpostsOf(t, seat);
-    const paid = await stockOf(t, seat, 'alloy');
+    const paid = await stockOf(t, seat, 'steel');
 
     /** Une moitié part : le chantier tient. */
     await attacking(t, {
@@ -657,7 +657,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       target: { kind: 'region', regionId: RUHR },
     });
     expect(await outpostsOf(t, seat)).toHaveLength(0);
-    expect(await stockOf(t, seat, 'alloy')).toBeCloseTo(paid, 5);
+    expect(await stockOf(t, seat, 'steel')).toBeCloseTo(paid, 5);
     expect((await noticesOfSeat(t, seat)).some((one) => one.kind === 'foundationLost')).toBe(true);
   });
 

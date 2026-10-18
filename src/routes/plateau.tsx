@@ -246,7 +246,7 @@ const PressWindow = lazy(() =>
 );
 
 /**
- * **Where a building is *used*, never where it is maintained.** One rule for the fifteen, so
+ * **Where a building is *used*, never where it is maintained.** One rule for all of them, so
  * that a click means the same thing everywhere: *see what this building does for me.* The
  * record is complete on purpose — a key added to the domain without a destination has to break
  * the compilation, never produce a dead click.
@@ -254,12 +254,9 @@ const PressWindow = lazy(() =>
 const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   hq: 'economy',
   farm: 'economy',
-  mill: 'economy',
   mine: 'economy',
   oilWell: 'economy',
-  foundry: 'economy',
   arsenal: 'economy',
-  quartermaster: 'economy',
   warehouse: 'economy',
   depot: 'economy',
   listening: 'economy',

@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { DEPOSITS, type RegionType } from '@/domain/ids';
 import { DepositMark } from '@/emblems/DepositMark';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { YIELD_OF } from '@/domain/economy';
 import { fr } from '@/i18n/fr';
 import '@/styles/index.css';
 import { INK_BY_NATION } from '@/domain/nations';
@@ -134,10 +135,10 @@ function Review() {
         <h2 style={{ margin: 0, font: '700 16px Georgia, serif' }}>
           Gisements — gravure (et l’ancienne silhouette)
         </h2>
-        {DEPOSITS.map((resource) => (
+        {DEPOSITS.map((deposit) => (
           <article
-            key={resource}
-            data-deposit={resource}
+            key={deposit}
+            data-deposit={deposit}
             style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr', gap: 8 }}
           >
             <strong
@@ -148,19 +149,19 @@ function Review() {
                 alignSelf: 'center',
               }}
             >
-              {fr.resources[resource]}
+              {fr.deposits[deposit]}
             </strong>
-            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(resource, true)}>
-              <DepositMark resource={resource} size={96} />
-              <DepositMark resource={resource} size={30} />
+            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>
+              <DepositMark deposit={deposit} size={96} />
+              <DepositMark deposit={deposit} size={30} />
               <span className="label-deposit">
-                <DepositMark resource={resource} />
+                <DepositMark deposit={deposit} />
               </span>
             </Sheet>
-            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(resource, true)}>
-              <ResourceIcon resource={resource} size={96} />
+            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>
+              <ResourceIcon resource={YIELD_OF[deposit]} size={96} />
               <span className="label-deposit">
-                <ResourceIcon resource={resource} size={15} />
+                <ResourceIcon resource={YIELD_OF[deposit]} size={15} />
               </span>
             </Sheet>
           </article>

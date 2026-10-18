@@ -25,7 +25,7 @@ const me = {
   stationedCargo: [],
   buildings: [
     { id: 'b-mine', key: 'mine', regionId: 'r-coal', level: 2, nextLevelMinutes: 60 },
-    { id: 'b-foundry', key: 'foundry', regionId: 'r-plain', level: 1, nextLevelMinutes: 60 },
+    { id: 'b-arsenal', key: 'arsenal', regionId: 'r-plain', level: 1, nextLevelMinutes: 60 },
     { id: 'b-barracks', key: 'barracks', regionId: 'r-plain', level: 1, nextLevelMinutes: 60 },
   ],
   extraction: [
@@ -33,8 +33,8 @@ const me = {
   ],
   chains: [
     {
-      by: 'foundry',
-      output: 'alloy',
+      by: 'arsenal',
+      output: 'ammunition',
       perHour: 3,
       level: 1,
       order: { ordered: 40, produced: 10 },
@@ -85,7 +85,7 @@ const capture = (side: 'capturer' | 'defender', id: string): PlayerView['capture
   id: `c-${side}`,
   side,
   target: { kind: 'building', id },
-  site: { kind: 'building', building: 'foundry', regionId: 'r-plain' },
+  site: { kind: 'building', building: 'arsenal', regionId: 'r-plain' },
   regionName: 'Marne',
   point: [0, 0],
   clock: { progress: 0.5, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
@@ -96,9 +96,9 @@ const capture = (side: 'capturer' | 'defender', id: string): PlayerView['capture
 describe('a capture on the poster', () => {
   it('tells the defender how far it went and when the site is lost', () => {
     const poster = posterFor(
-      view({ captures: [capture('defender', 'b-foundry')] }),
-      [building('b-foundry', 'foundry', 'r-plain')],
-      'm-b-foundry',
+      view({ captures: [capture('defender', 'b-arsenal')] }),
+      [building('b-arsenal', 'arsenal', 'r-plain')],
+      'm-b-arsenal',
     );
     expect(poster?.lines).toContainEqual({
       kind: 'chip',
@@ -156,7 +156,7 @@ describe('posterOf', () => {
       expect.objectContaining({ role: 'infantry', troops: 1, health: 50, notches: 5 }),
     ]);
 
-    const empty = { ...pile, station: { kind: 'building', buildingId: 'b-foundry' } } as MapMarker;
+    const empty = { ...pile, station: { kind: 'building', buildingId: 'b-arsenal' } } as MapMarker;
     expect(posterFor(view(), [empty], 'pile')).toBeNull();
   });
 
@@ -277,20 +277,20 @@ describe('posterOf', () => {
       { kind: 'chip', label: 'réseau', chip: 'relié', tone: 'ok' },
     ]);
 
-    // La seule fonderie de la chaîne tient son débit et son lot, et sa région est coupée.
-    const foundry = posterFor(
+    // Le seul arsenal de la chaîne tient son débit et son lot, et sa région est coupée.
+    const arsenal = posterFor(
       view(),
-      [building('b-foundry', 'foundry', 'r-plain', null, 1)],
-      'm-b-foundry',
+      [building('b-arsenal', 'arsenal', 'r-plain', null, 1)],
+      'm-b-arsenal',
     );
-    expect(foundry?.lines).toContainEqual({ kind: 'row', label: 'alliage', value: '+3 / h' });
-    expect(foundry?.lines).toContainEqual({
+    expect(arsenal?.lines).toContainEqual({ kind: 'row', label: 'munitions', value: '+3 / h' });
+    expect(arsenal?.lines).toContainEqual({
       kind: 'chip',
       label: 'réseau',
       chip: 'hors réseau',
       tone: 'cut',
     });
-    expect(foundry?.bar).toBe(0.25);
+    expect(arsenal?.bar).toBe(0.25);
   });
 
   it('says nothing of a network a barracks does not belong to, and counts its raise down', () => {
@@ -454,7 +454,7 @@ describe('posterOf', () => {
       name: 'convoi immobilisé',
       tier: 'forces irrégulières légères',
       plate: null,
-      depot: '120 alliage',
+      depot: '120 acier',
       emptied: false,
     };
     expect(posterFor(view(), [objective], 'obj')).toEqual({
@@ -463,7 +463,7 @@ describe('posterOf', () => {
       washed: false,
       lines: [
         { kind: 'text', text: 'forces irrégulières légères' },
-        { kind: 'row', label: 'dépôt restant', value: '120 alliage' },
+        { kind: 'row', label: 'dépôt restant', value: '120 acier' },
       ],
       bar: null,
       loading: null,

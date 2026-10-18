@@ -174,7 +174,7 @@ describe('launching', () => {
     await t.mutation(api.seasons.launch, creator);
     const view = await t.query(api.view.playerView, creator);
     expect(view.me.nation).toBe('france');
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.steel.stock).toBe(KIT.steel);
     /**
      * **Rien n'est planté** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2) : le
      * quartier général est la première dette du socle, et le joueur la pose où il veut sur son
@@ -186,10 +186,9 @@ describe('launching', () => {
     expect(view.me.hqLevel).toBe(0);
     expect(view.me.foundation).toEqual([
       { key: 'hq', deposit: null },
-      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'iron' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
     // Un slot survit au bâtiment : une nation a toujours un mouvement à faire (ADR 0006).
     expect(view.me.slots).toEqual({ total: 1, used: 0 });
@@ -254,7 +253,7 @@ describe('launching', () => {
   /**
    * **Le kit de munitions** (décision du 25/08). Since question 18 the rounds are billed at the
    * pass and nowhere else, so what this endowment buys is *engagements*, not companies. The
-   * figure belongs to the starting line, never to a nation, like the alloy and the oil beside it.
+   * figure belongs to the starting line, never to a nation, like the steel and the oil beside it.
    */
   it('hands out the ammunition of the starting line, not a nation’s own figure', async () => {
     const t = boot();
@@ -319,8 +318,8 @@ describe('constructions', () => {
 
     const before = await t.query(api.view.playerView, creator);
     expect(before.me.construction?.name).toBe('warehouse');
-    expect(before.me.resources.alloy.stock).toBe(
-      opening.me.resources.alloy.stock - (buildCost('warehouse', 1).alloy ?? 0),
+    expect(before.me.resources.steel.stock).toBe(
+      opening.me.resources.steel.stock - (buildCost('warehouse', 1).steel ?? 0),
     );
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -351,12 +350,11 @@ describe('constructions', () => {
     expect(after.me.buildings).toContainEqual(
       expect.objectContaining({ key: 'mine', regionId: MOSELLE, level: 1 }),
     );
-    expect(after.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
+    expect(after.me.resources.steel.stock).toBe(opening.me.resources.steel.stock);
     // La mine du charbon est soldée par une mine sur du charbon ; celle du fer reste due.
     expect(after.me.foundation).toEqual([
-      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'iron' },
       { key: 'farm', deposit: 'food' },
-      { key: 'mill', deposit: 'textile' },
     ]);
   });
 
@@ -810,13 +808,10 @@ describe('scrapping a season', () => {
         const engagement = (await ctx.db.query('engagements').first())!;
         const empty = {
           food: 0,
-          textile: 0,
           coal: 0,
           oil: 0,
-          ore: 0,
-          alloy: 0,
+          steel: 0,
           ammunition: 0,
-          bandages: 0,
         };
         const reportId = await ctx.db.insert('plunderReports', {
           seasonId: player.seasonId,

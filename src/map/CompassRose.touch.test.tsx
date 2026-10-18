@@ -23,8 +23,8 @@ const upgrade = {
   consequence: 'le rayon suivant',
   buildingKey: 'mine',
   regionId: 'FRA-5333',
-  figure: '40 alliage',
-  bill: [{ text: '40 alliage · 120 en stock', lacking: false }],
+  figure: '40 acier',
+  bill: [{ text: '40 acier · 120 en stock', lacking: false }],
   duration: '00:30:00',
   hold: null,
 } as unknown as CompassAction;
@@ -94,7 +94,7 @@ describe('la rose sous le doigt', () => {
     const medallion = screen.getByRole('button', { name: 'élever au niveau 2' });
     touch(medallion);
     expect(onAction).not.toHaveBeenCalled();
-    expect(document.querySelector('.rose-bubble')?.textContent).toContain('40 alliage');
+    expect(document.querySelector('.rose-bubble')?.textContent).toContain('40 acier');
     touch(medallion);
     expect(onAction).toHaveBeenCalledExactlyOnceWith(upgrade);
   });

@@ -9,17 +9,24 @@ import {
 export type Stocks = Readonly<Record<ResourceKey, number>>;
 
 /**
- * Which deposit an exploitation building needs under it, and what it then pulls out. The mine
- * is the only one with a choice, and it does not choose: the region does. A mine on coal
- * gives coal, a mine on ore gives ore — one building key, two economies (ADR 0015).
+ * Which deposit an exploitation building needs under it. The mine is the only one with a
+ * choice, and it does not choose: the region does — coal on coal, iron on iron.
  */
 export const EXPLOITED_DEPOSITS: Readonly<Partial<Record<BuildingKey, ReadonlyArray<DepositKey>>>> =
   {
     farm: ['food'],
-    mill: ['textile'],
-    mine: ['coal', 'ore'],
+    mine: ['coal', 'iron'],
     oilWell: ['oil'],
   };
+
+/** What a deposit gives once worked. **Iron gives steel straight away** (ADR 0028 §1): no
+ *  resource is only an ingredient, so nothing stands between the ore and what it builds. */
+export const YIELD_OF: Readonly<Record<DepositKey, ResourceKey>> = {
+  food: 'food',
+  iron: 'steel',
+  coal: 'coal',
+  oil: 'oil',
+};
 
 export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean =>
   deposit !== null && (EXPLOITED_DEPOSITS[key]?.includes(deposit) ?? false);
@@ -114,7 +121,7 @@ export type Conversion = {
    *
    * **Zero is not "no ceiling": it is a chain awaiting an order**, and that is the whole point
    * of the field. A chain that eats a matter spent elsewhere may not help itself to it — an
-   * arsenal at level 3 takes 216 alloy a day from a player saving for a carrier, and nothing
+   * arsenal at level 3 takes 216 steel a day from a player saving for a carrier, and nothing
    * on screen says so.
    */
   readonly quota?: number | null;
@@ -129,8 +136,8 @@ export type Conversion = {
 };
 
 /**
- * Why a conversion made less than its nominal rate. A stock cannot say it — "my alloy stopped
- * rising" has two different answers, "your foundry has no coal" and "your alloy is at the
+ * Why a conversion made less than its nominal rate. A stock cannot say it — "my ammunition stopped
+ * rising" has two different answers, "your arsenal has no coal" and "your ammunition is at the
  * ceiling", and they call for opposite moves.
  *
  * The four states come out of the arbitration itself and out of nothing else, which is the
@@ -161,23 +168,20 @@ export type ChainReport = {
  */
 export const PRODUCER_OF: Readonly<Record<ResourceKey, BuildingKey>> = {
   food: 'farm',
-  textile: 'mill',
+  steel: 'mine',
   coal: 'mine',
   oil: 'oilWell',
-  ore: 'mine',
-  alloy: 'foundry',
   ammunition: 'arsenal',
-  bandages: 'quartermaster',
 };
 
 /**
- * **Ce qui produit, et ce qui ne fait qu'occuper le sol.** Les quatre extracteurs et les trois
- * chaînes — ce sont exactement les bâtiments que la production reliée peut couper (ADR 0020 §6).
+ * **Ce qui produit, et ce qui ne fait qu'occuper le sol.** Les trois extracteurs et l'arsenal —
+ * ce sont exactement les bâtiments que la production reliée peut couper (ADR 0020 §6).
  * Le stockage, la projection, le quartier général et les cantonnements n'y sont pas : ils ne font
  * rien entrer dans le monde, donc rien ne se coupe chez eux.
  *
  * Dérivé de `PRODUCER_OF` plutôt qu'écrit une seconde fois : la table dit déjà *quel bâtiment
- * amène quelle ressource*, et une liste parallèle serait le premier endroit où une huitième
+ * amène quelle ressource*, et une liste parallèle serait le premier endroit où une sixième
  * ressource se ferait oublier.
  */
 const PRODUCERS: ReadonlySet<string> = new Set(Object.values(PRODUCER_OF));
@@ -224,118 +228,36 @@ export type Settled = {
 
 /**
  * The whole economy of a player, moved forward by `hours`. Accrual and transformation live in
- * the same pass on purpose: a foundry consumes ore that was itself accruing, and settling them
- * in two places would let a read order decide how much alloy exists.
- *
- * The conversions are applied **in the order given**, so a chain resolves inside one window —
- * the alloy a foundry makes at 9 h is available to the arsenal in the same reading. Strict
- * simultaneity would idle the arsenal for one read every time a foundry is built, which is a
- * worse lie about a continuous process than the ordering is.
+ * the same pass on purpose: the arsenal eats coal and steel that were themselves accruing, and
+ * settling them in two places would let a read order decide how many rounds exist.
  *
  * It returns the report of every conversion beside the stocks because the two are the same
  * arbitration: `room` and `affordable` already decide how much is made, so saying *why* costs
  * nothing here and would cost a divergence anywhere else.
  *
  * **A window is an integration, not a step.** Reading three days as one accrual clipped to the
- * ceiling, then one conversion off the clipped figure, made a mine at level 2 look as though it
- * had brought up four hundred ore instead of twelve hundred: half of a three-day absence lost
- * in silence, and only for the player without a warehouse. Hence the two ledgers below — what
- * *flowed*, and what is *stored* — and the fixed point that gives a saturating output back the
- * room a downstream chain frees. The whole thing stays analytic: **no loop here counts hours.**
+ * ceiling, then one conversion off the clipped figure, would lose in silence what flowed through
+ * the stores over the absence. Hence the two ledgers below — what *flowed*, and what is *stored*.
+ * The whole thing stays analytic: **no loop here counts hours.**
+ *
+ * **No chain may eat another chain's output** (ADR 0028 §1: one transformation, fed by the
+ * ground). A chain's room is its output's free space alone; a second chain drawing on the first
+ * would need the downstream allowance this pass no longer computes, and would under-produce
+ * without a word.
  */
-export function settleStocks(settlement: {
+export function settleStocks({
+  stocks,
+  ratePerHour,
+  cap,
+  conversions,
+  hours,
+}: {
   stocks: Stocks;
   ratePerHour: Stocks;
   cap: Stocks;
   conversions: ReadonlyArray<Conversion>;
   hours: number;
 }): Settled {
-  /**
-   * The space left in a bac is not what a chain may pour into it: whatever a downstream chain
-   * takes back out over the same window is room too — an arsenal emptying the alloy as it is
-   * cast keeps the foundry running well past the four hundredth ingot.
-   *
-   * That draw is settled by iteration, not by a formula, because it depends on the production
-   * it authorises. The first pass lifts the ceilings to get an upper bound, and each pass
-   * afterwards can only lower it, so it converges — **in a number of passes bounded by the
-   * number of chains, never by the hours elapsed.** Three chains, four passes at worst; a
-   * week's absence costs exactly what a minute's does.
-   */
-  let allowance: ReadonlyArray<number> = settlement.conversions.map(() => Number.POSITIVE_INFINITY);
-  let settled = integrate(settlement, allowance);
-  for (let pass = 0; pass <= settlement.conversions.length; pass += 1) {
-    const drawn = drawnDownstream(settlement.conversions, settled.chains);
-    if (drawn.every((value, rank) => value === allowance[rank])) break;
-    allowance = drawn;
-    settled = integrate(settlement, allowance);
-  }
-  return settled;
-}
-
-/**
- * **The other half of the ceiling** (ADR 0017). A ceiling bounds what comes in and never what
- * is held — that is `settleStocks` above. So a stock standing above its ceiling has to come
- * down somewhere, and the decision is that it comes down **when the capacity does**: what no
- * longer fits is lost once, at that instant, and never again by a later reading.
- *
- * It is an event, not a rule, and that is why it is a function of its own rather than a clause
- * inside the settlement: a settlement runs on every read, and this must run on exactly one.
- *
- * **Nothing calls it yet, on purpose.** No building is destroyed, dismantled or lowered today;
- * the real caller comes with pillage, where an emptied warehouse must cost its owner something
- * (fiche 02). It is written and tested before that, because the sense of the ceiling itself was
- * once decided in passing in the middle of another subject, and that cost a silent confiscation.
- *
- * `lost` carries every resource, zeros included, so that a caller reading it never has to ask
- * whether a missing key means nothing lost or nothing known — the player's journal is what will
- * name the ones that are not zero.
- */
-export function clipToCapacity(
-  stocks: Stocks,
-  cap: Stocks,
-): { stocks: Record<ResourceKey, number>; lost: Record<ResourceKey, number> } {
-  const kept = emptyStocks();
-  const lost = emptyStocks();
-  for (const key of RESOURCES) {
-    kept[key] = Math.min(stocks[key], cap[key]);
-    lost[key] = Math.max(0, stocks[key] - cap[key]);
-  }
-  return { stocks: kept, lost };
-}
-
-/**
- * What the chains **after** each one take out of its output, over the window. Only later ones:
- * `CHAINS` is ordered upstream first, so what a chain feeds is always behind it.
- */
-function drawnDownstream(
-  conversions: ReadonlyArray<Conversion>,
-  probe: ReadonlyArray<ChainReport>,
-): ReadonlyArray<number> {
-  return conversions.map((conversion, rank) =>
-    conversions.slice(rank + 1).reduce((drawn, later, offset) => {
-      const perUnit = later.inputs.find(([key]) => key === conversion.output)?.[1] ?? 0;
-      return drawn + perUnit * (probe[rank + 1 + offset]?.made ?? 0);
-    }, 0),
-  );
-}
-
-function integrate(
-  {
-    stocks,
-    ratePerHour,
-    cap,
-    conversions,
-    hours,
-  }: {
-    stocks: Stocks;
-    ratePerHour: Stocks;
-    cap: Stocks;
-    conversions: ReadonlyArray<Conversion>;
-    hours: number;
-  },
-  /** Extra output allowed past the bac's own space, because a later chain will take it. */
-  allowance: ReadonlyArray<number>,
-): Settled {
   const elapsed = Math.max(0, hours);
 
   /**
@@ -353,7 +275,7 @@ function integrate(
   const settled = emptyStocks();
   /**
    * **A ceiling bounds what comes in, never what is already held.** The starting kit of a
-   * format hands out more alloy than a nation without a warehouse can store (ADR 0015 wants
+   * format hands out more steel than a nation without a warehouse can store (ADR 0015 wants
    * the store necessary, hence a target); clipping the opening stock would confiscate the
    * difference between the launch and the moment the player places that warehouse — silently,
    * which is exactly the defect the foundation exists to kill.
@@ -388,16 +310,15 @@ function integrate(
     store(key);
   }
 
-  const chains = conversions.map((conversion, rank) => {
+  const chains = conversions.map((conversion) => {
     // The lot caps what is asked of the line, never the line's own speed: the rate comes from
     // the building's level, and a throttle would only let a player slow his own works down.
     const quota = conversion.quota ?? Number.POSITIVE_INFINITY;
     const nominal = Math.min(conversion.perHour * elapsed, quota);
     // The output's ceiling still bounds it, and reads the *stored* level: what a full bac
-    // refuses is one more unit in it, so a foundry with nowhere to put its alloy stops rather
-    // than burning ore into a spill.
-    const room =
-      Math.max(0, cap[conversion.output] - settled[conversion.output]) + (allowance[rank] ?? 0);
+    // refuses is one more unit in it, so an arsenal with nowhere to put its rounds stops rather
+    // than burning coal into a spill.
+    const room = Math.max(0, cap[conversion.output] - settled[conversion.output]);
 
     let affordable = nominal;
     let scarcest: ResourceKey | null = null;
@@ -437,8 +358,39 @@ function integrate(
 }
 
 /**
+ * **The other half of the ceiling** (ADR 0017). A ceiling bounds what comes in and never what
+ * is held — that is `settleStocks` above. So a stock standing above its ceiling has to come
+ * down somewhere, and the decision is that it comes down **when the capacity does**: what no
+ * longer fits is lost once, at that instant, and never again by a later reading.
+ *
+ * It is an event, not a rule, and that is why it is a function of its own rather than a clause
+ * inside the settlement: a settlement runs on every read, and this must run on exactly one.
+ *
+ * **Nothing calls it yet, on purpose.** No building is destroyed, dismantled or lowered today;
+ * the real caller comes with pillage, where an emptied warehouse must cost its owner something
+ * (fiche 02). It is written and tested before that, because the sense of the ceiling itself was
+ * once decided in passing in the middle of another subject, and that cost a silent confiscation.
+ *
+ * `lost` carries every resource, zeros included, so that a caller reading it never has to ask
+ * whether a missing key means nothing lost or nothing known — the player's journal is what will
+ * name the ones that are not zero.
+ */
+export function clipToCapacity(
+  stocks: Stocks,
+  cap: Stocks,
+): { stocks: Record<ResourceKey, number>; lost: Record<ResourceKey, number> } {
+  const kept = emptyStocks();
+  const lost = emptyStocks();
+  for (const key of RESOURCES) {
+    kept[key] = Math.min(stocks[key], cap[key]);
+    lost[key] = Math.max(0, stocks[key] - cap[key]);
+  }
+  return { stocks: kept, lost };
+}
+
+/**
  * The ceiling wins the tie: at equal bite, an output with nowhere to go is what the player can
- * act on first, and calling it "à sec" would send him mining ore he already cannot store.
+ * act on first, and calling it "à sec" would send him digging coal he already cannot store.
  *
  * **`idle` is tested before the nominal is met**, and it has to be: a lot of zero asks for
  * nothing, so nothing is refused, and the line would report as running. A chain awaiting an

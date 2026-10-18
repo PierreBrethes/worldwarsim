@@ -23,7 +23,7 @@ import {
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
   ROLE_SITE_LEVEL,
-  STARTING_ALLOY,
+  STARTING_STEEL,
   TIER_2_HQ_LEVEL,
   buildCost,
   roleHqLevel,
@@ -34,7 +34,7 @@ import {
  * **Ce que la ligne de départ doit encore payer** (question 51, « le jour où l'on touche
  * `constants` »). Une facture de première projection est un produit de six nombres qui vivent
  * dans quatre paragraphes différents : personne ne la recalcule en changeant l'un d'eux, et la
- * partie de test au Japon a mesuré ce que ça coûte — 577 alliage pour la mer contre 500 de
+ * partie de test au Japon a mesuré ce que ça coûte — 577 acier pour la mer contre 500 de
  * dotation, un mur que rien n'annonçait.
  *
  * Ce fichier **lit les constantes et n'en recopie aucune** : il tombe le jour où la facture
@@ -43,31 +43,31 @@ import {
 
 /** Ce que coûte la montée du quartier général du lancement jusqu'au niveau visé. */
 const hqClimb = (target: number): number => {
-  let alloy = 0;
+  let steel = 0;
   for (let level = HQ_LEVEL_AT_LAUNCH + 1; level <= target; level += 1) {
-    alloy += buildCost('hq', level).alloy ?? 0;
+    steel += buildCost('hq', level).steel ?? 0;
   }
-  return alloy;
+  return steel;
 };
 
-const firstOf = (key: BuildingKey): number => buildCost(key, 1).alloy ?? 0;
+const firstOf = (key: BuildingKey): number => buildCost(key, 1).steel ?? 0;
 
 describe('la première projection tient dans la dotation', () => {
-  it('par voie de mer : fonderie, quartier général, port, caserne et un cargo', () => {
+  // La mine sur du fer, offerte au socle, rend l'acier : rien d'autre à bâtir avant la caserne.
+  it('par voie de mer : quartier général, port, caserne et un cargo', () => {
     const bill =
-      firstOf('foundry') +
       hqClimb(unlockLevel('port')) +
       firstOf('barracks') +
       firstOf('port') +
-      COST_BY_ROLE.cargo.alloy;
+      COST_BY_ROLE.cargo.steel;
 
-    expect(bill).toBeLessThanOrEqual(STARTING_ALLOY);
+    expect(bill).toBeLessThanOrEqual(STARTING_STEEL);
   });
 
-  it('par voie de terre : fonderie, quartier général et caserne', () => {
-    const bill = firstOf('foundry') + hqClimb(unlockLevel('barracks')) + firstOf('barracks');
+  it('par voie de terre : quartier général et caserne', () => {
+    const bill = hqClimb(unlockLevel('barracks')) + firstOf('barracks');
 
-    expect(bill).toBeLessThanOrEqual(STARTING_ALLOY);
+    expect(bill).toBeLessThanOrEqual(STARTING_STEEL);
   });
 });
 

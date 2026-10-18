@@ -37,7 +37,7 @@ import type { Seat } from './seats.fixture';
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // nourriture, sol français
-const MEURTHE = 'FRA-5325'; // minerai, sol français
+const MEURTHE = 'FRA-5325'; // fer, sol français
 const PRAHOVA = 'ROU-310'; // pétrole roumain, le sol de personne
 /** Le point de la Prahova lui-même : un avant-poste planté dessus tient sa propre région. */
 const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
@@ -225,7 +225,7 @@ describe('a building only produces when its region carries its colour', () => {
 
     const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === MEURTHE);
     expect(site?.linked).toBe(true);
-    expect(site?.perHour).toBe(EXTRACTION_PER_HOUR.ore);
+    expect(site?.perHour).toBe(EXTRACTION_PER_HOUR.iron);
   });
 
   /** Cas 2, premier temps : sous un avant-poste vivant, le puits rend. */
@@ -366,13 +366,13 @@ describe('a building only produces when its region carries its colour', () => {
     expect(await noticesOf(t, guest, 'productionCut')).toEqual([]);
   });
 
-  /** Cas 4 : une fonderie coupée ne convertit pas, et refuse le lot. */
+  /** Cas 4 : un arsenal coupé ne convertit pas, et refuse le lot. */
   it('refuses a lot on a cut chain', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
     await raise(t, seat, 'arsenal', PRAHOVA);
-    await fill(t, seat, 'alloy', 500);
+    await fill(t, seat, 'steel', 500);
 
     const running = (await view(t, seat)).me.chains.find((chain) => chain.by === 'arsenal');
     expect(running?.state).not.toBe('unlinked');
@@ -520,13 +520,15 @@ describe('a building only produces when its region carries its colour', () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await raise(t, seat, 'mine', MEURTHE);
-    await fill(t, seat, 'ore', 0);
+    await fill(t, seat, 'steel', 0);
     const player = await seatOf(t, seat);
 
     vi.setSystemTime(MIDDAY + 2 * HOUR);
-    const once = await t.run(async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.ore);
+    const once = await t.run(
+      async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.steel,
+    );
     const twice = await t.run(
-      async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.ore,
+      async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.steel,
     );
     expect(twice).toBeCloseTo(once, 6);
   });
@@ -572,7 +574,7 @@ describe('raising an outpost is a colour event', () => {
     const { seat } = await launchedSeason(t);
     const outpostId = await plant(t, seat, BRASOV_POINT, BRASOV);
     await raise(t, seat, 'farm', CALARASI);
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
 
     /** Premier temps : à 157 km de la première cellule du Calarasi, la ferme est hors du rayon de
@@ -631,7 +633,7 @@ describe('raising an outpost is a colour event', () => {
 
     expect(await surveyed()).not.toContain(CALARASI);
 
-    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
     await t.finishAllScheduledFunctions(vi.runAllTimers);

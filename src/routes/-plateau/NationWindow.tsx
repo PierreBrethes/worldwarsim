@@ -161,7 +161,7 @@ function StandingRow({
  * fiche de nation est chez soi, et c'est chez soi que le détail se lit.
  *
  * **Ce sont les chiffres du dernier relevé, pas ceux de l'instant** — la date le dit, et le delta
- * la double : sans elle, un joueur qui vient de poser une fonderie lirait un chiffre inchangé
+ * la double : sans elle, un joueur qui vient de poser une mine lirait un chiffre inchangé
  * comme un bug. Rien ici n'est recalculé, exactement comme à la page de presse.
  *
  * Absente tant qu'aucune édition n'a paru : vide, la section n'existe pas (même règle que

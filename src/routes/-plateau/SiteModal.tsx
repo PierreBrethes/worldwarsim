@@ -319,11 +319,7 @@ function Site({
                   <>
                     <div className="border-b border-(color:--ink)/35 bg-(--ink)/5 px-4 py-[5px]">
                       <span className="eyebrow">
-                        {fr.production.queueOf(
-                          facility.regionName,
-                          facility.queue.length,
-                          workshop.maxQueue,
-                        )}
+                        {fr.production.queueOf(facility.regionName, facility.queue.length)}
                       </span>
                     </div>
                     {facility.queue.map((batch) => (
@@ -652,7 +648,7 @@ function NarrowSite({
   const ready = workshop !== undefined && facility !== null;
   const queue = facility?.queue ?? [];
   const nation = view.me.nation;
-  const alloy = Math.floor(currentStock(view.me.resources.alloy, view.loadedAt, now));
+  const steel = Math.floor(currentStock(view.me.resources.steel, view.loadedAt, now));
   const siteLevel = facility?.level ?? building.level;
   const termsOf = (entry: GridEntry) =>
     roleTermsOf(entry, tiers[entry.role] ?? 1, workshop?.hqLevel ?? 0, siteLevel);
@@ -664,8 +660,8 @@ function NarrowSite({
     if (!ready) return null;
     const { roleLocked, cost } = termsOf(entry);
     if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
-    if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull(workshop.maxQueue);
-    if (alloy < cost.alloy) return fr.production.sheet.alloyShort(cost.alloy - alloy);
+    if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull;
+    if (steel < cost.steel) return fr.production.sheet.steelShort(cost.steel - steel);
     return null;
   };
   const minutesOf = (batch: Batch) => {
@@ -1076,7 +1072,7 @@ function RoleSheetCard({
                 {fr.production.enqueue}
               </span>
               <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper-dim-2)]">
-                {fr.production.sheet.bill(cost.alloy, asDuration(cost.minutes))}
+                {fr.production.sheet.bill(cost.steel, asDuration(cost.minutes))}
               </span>
             </button>
           ) : (
@@ -1090,7 +1086,7 @@ function RoleSheetCard({
   );
 }
 
-/** Un rôle que le site n'ouvre pas encore : sa vignette, son prix pour qu'on prépare l'alliage, et
+/** Un rôle que le site n'ouvre pas encore : sa vignette, son prix pour qu'on prépare l'acier, et
  *  sa condition en toutes lettres — la même que l'abaque (contrats 03 et 06). */
 function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string }) {
   const { role, unit } = entry;
@@ -1106,7 +1102,7 @@ function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string })
             {roleLabel(role, 1)}
           </span>
           <span className="shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {fr.production.sheet.bill(unit.alloy, asDuration(unit.minutes))}
+            {fr.production.sheet.bill(unit.steel, asDuration(unit.minutes))}
           </span>
         </div>
         <div className="mt-[2px] text-[12px] text-[var(--ink-soft)]">
@@ -1397,7 +1393,7 @@ function RoleCard({
             {fr.production.costLabel}
           </div>
           <div className="mt-[3px] flex gap-[11px]">
-            <Expense resource="alloy" value={cost.alloy} />
+            <Expense resource="steel" value={cost.steel} />
           </div>
         </div>
         <div className="w-px self-stretch bg-(--ink)/16" />

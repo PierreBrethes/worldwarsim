@@ -628,7 +628,7 @@ describe('plunder presence', () => {
     const infantry = await troop(t, seat, 'infantry', barracks);
     const transport = await troop(t, seat, 'landTransport', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
-    await setStocks(t, guest, { food: 702, alloy: 500 });
+    await setStocks(t, guest, { food: 702, steel: 500 });
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
 
     const takenAt = await completePresence(t, movementId);
@@ -637,10 +637,10 @@ describe('plunder presence', () => {
     expect(target?.disabledUntil).toBe(takenAt + PLUNDER_DISABLED_HOURS * HOUR);
     const stocks = await stocksOf(t, guest);
     expect(stocks.food).toBe(BASE_CAP);
-    expect(stocks.alloy).toBe(BASE_CAP);
+    expect(stocks.steel).toBe(BASE_CAP);
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
-    expect(report?.taken).toMatchObject({ food: 120, alloy: 40 });
-    expect(report?.storageLost).toMatchObject({ food: 180, alloy: 60 });
+    expect(report?.taken).toMatchObject({ food: 120, steel: 40 });
+    expect(report?.storageLost).toMatchObject({ food: 180, steel: 60 });
     expect(RESOURCES.reduce((sum, key) => sum + report!.taken[key], 0)).toBe(160);
     const [back] = await returnsOf(t, seat);
     expect(back?.loot).toEqual(report?.taken);
@@ -670,7 +670,7 @@ describe('plunder presence', () => {
     const infantry = await troop(t, seat, 'infantry', barracks);
     const victimBarracks = await building(t, guest, 'barracks', undefined, PRAHOVA);
     const warehouseId = await building(t, guest, 'warehouse');
-    await setStocks(t, guest, { food: 700, alloy: 500 });
+    await setStocks(t, guest, { food: 700, steel: 500 });
     await t.mutation(api.troops.recruit, {
       ...guest,
       buildingId: victimBarracks,
@@ -687,9 +687,9 @@ describe('plunder presence', () => {
 
     await completePresence(t, movementId);
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
-    expect(report?.taken.alloy).toBeGreaterThan(0);
+    expect(report?.taken.steel).toBeGreaterThan(0);
     await t.mutation(api.troops.cancel, { ...guest, recruitmentId: queued.recruitmentId });
-    expect((await stocksOf(t, guest)).alloy).toBe(BASE_CAP + queued.cost.alloy);
+    expect((await stocksOf(t, guest)).steel).toBe(BASE_CAP + queued.cost.steel);
   });
 
   it('lets only the first concurrent presence take and disable the target', async () => {

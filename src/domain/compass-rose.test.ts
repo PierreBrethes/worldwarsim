@@ -24,7 +24,7 @@ const view = {
         garrison: 4,
         disabledMinutesLeft: null,
         isMine: true,
-        nextLevelCost: { alloy: 90 },
+        nextLevelCost: { steel: 90 },
         nextLevelMinutes: 90,
         atMaxLevel: false,
       },
@@ -59,9 +59,9 @@ const view = {
     ),
   },
   buildCatalog: Object.fromEntries(
-    BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
+    BUILDINGS.map((key) => [key, { cost: { steel: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
   ) as Record<BuildingKey, BuildSpec>,
-  outpostFoundation: { cost: { alloy: 65, coal: 20 }, minutes: 65 },
+  outpostFoundation: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   arcs: [],
   camps: [],
   /** Un relevé d'installation en Aragon : c'est lui qui ouvre « attaquer » sur ce sol-là. */
@@ -1049,7 +1049,7 @@ describe('raising a level from the map', () => {
     name: 'Mine',
     regionId: 'FRA-9999',
     level: 1,
-    nextLevelCost: { alloy: 54 } as Cost,
+    nextLevelCost: { steel: 54 } as Cost,
     nextLevelMinutes: 54,
     cappedByHq: false,
   };
@@ -1079,7 +1079,7 @@ describe('raising a level from the map', () => {
       buildingKey: 'mine',
       regionId: 'FRA-9999',
       figure: '54',
-      bill: [{ text: 'alliage 54 / 1000', lacking: false }],
+      bill: [{ text: 'acier 54 / 1000', lacking: false }],
       duration: '00:54:00',
       consequence: 'passer Mine au niveau 2',
       hold: null,
@@ -1148,7 +1148,7 @@ describe('raising a level from the map', () => {
    */
   it('greys the branch for a missing matter, with the reason and the date', () => {
     const short = standing(
-      { nextLevelCost: { alloy: 108, coal: 72 } },
+      { nextLevelCost: { steel: 108, coal: 72 } },
       {
         resources: {
           ...(view.me.resources as Record<string, unknown>),
@@ -1161,10 +1161,10 @@ describe('raising a level from the map', () => {
     /** L'ordre est celui de `RESOURCES`, comme la ligne d'élévation des fenêtres facture déjà
      *  (`CostLine`) : le même prix lu à deux endroits ne doit pas s'écrire dans deux ordres. */
     expect(compass?.actions[0]).toMatchObject({
-      figure: '72 · 108',
+      figure: '108 · 72',
       bill: [
+        { text: 'acier 108 / 1000', lacking: false },
         { text: 'charbon 72 / 20', lacking: true },
-        { text: 'alliage 108 / 1000', lacking: false },
       ],
       hold: {
         reason: 'il faut 72 de charbon (20 disponibles)',
@@ -1177,16 +1177,16 @@ describe('raising a level from the map', () => {
    *  bâtir — la même que la ligne d'élévation des fenêtres. */
   it('names the building to raise when nothing produces the matter at all', () => {
     const never = standing(
-      { nextLevelCost: { alloy: 108 } },
+      { nextLevelCost: { steel: 108 } },
       {
         resources: {
           ...(view.me.resources as Record<string, unknown>),
-          alloy: { stock: 0, ratePerHour: 0, cap: 1000 },
+          steel: { stock: 0, ratePerHour: 0, cap: 1000 },
         },
       },
     );
     expect(compassOf(mast, never)?.actions[0]).toMatchObject({
-      hold: { availability: 'jamais : aucune fonderie' },
+      hold: { availability: 'jamais : aucune mine' },
     });
   });
 

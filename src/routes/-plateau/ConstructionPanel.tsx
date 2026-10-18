@@ -241,7 +241,7 @@ export function ConstructionPanel({
 /**
  * What the season still owes. It stands above the blocking reason on purpose: a player who has
  * five free placements in hand is not held back by anything, and reading "matières
- * insuffisantes" first would send him counting his alloy for buildings he is not paying for.
+ * insuffisantes" first would send him counting his steel for buildings he is not paying for.
  */
 function FoundationNotice({ owed }: { owed: PlayerView['me']['foundation'] }) {
   if (owed.length === 0) return null;

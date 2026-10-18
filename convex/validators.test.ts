@@ -21,6 +21,6 @@ describe('ids and validators', () => {
    *  document — but a table that loses an entry loses a nation, so they are counted here. */
   it('keeps the nations and the deposits whole', () => {
     expect(NATIONS).toHaveLength(8);
-    expect(DEPOSITS).toHaveLength(5);
+    expect(DEPOSITS).toHaveLength(4);
   });
 });

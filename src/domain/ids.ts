@@ -53,48 +53,34 @@ export type UnitTier = 1 | 2;
 export type MovementType = 'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'return';
 
 /**
- * The eight resources of the economy v2 (ADR 0015). The five first are extracted from a
- * deposit, the three last are transformed from them — one step of chain, never two.
+ * The five resources of the Mondiale (ADR 0028 §1), each with a direct use and a shortage that
+ * breaks a rule. Four come out of the ground — iron gives steel straight away — and the arsenal
+ * makes the fifth: no resource is only an ingredient.
  */
-export const RESOURCES = [
-  'food',
-  'textile',
-  'coal',
-  'oil',
-  'ore',
-  'alloy',
-  'ammunition',
-  'bandages',
-] as const;
+export const RESOURCES = ['food', 'steel', 'coal', 'oil', 'ammunition'] as const;
 
 export type ResourceKey = (typeof RESOURCES)[number];
 
 /**
- * The five map resources of the economy v2 (ADR 0015): what a region can hold, one at most.
- * Baked offline into `public/deposits.json` by `scripts/generate-deposits.mjs` — no game rule
- * derives a deposit at runtime.
+ * The four deposits (ADR 0028): what a region can hold, one at most. Baked offline into
+ * `public/deposits.json` by `scripts/generate-deposits.mjs` — no game rule derives a deposit at
+ * runtime. A deposit is not a resource: iron is mined, steel is what comes up (`YIELD_OF`).
  */
-export const DEPOSITS = ['food', 'textile', 'coal', 'oil', 'ore'] as const;
+export const DEPOSITS = ['food', 'iron', 'coal', 'oil'] as const;
 
 export type DepositKey = (typeof DEPOSITS)[number];
 
 /**
- * The buildings of the economy v2 (ADR 0015), in family order: command, exploitation,
- * transformation, projection, intelligence, ceiling, storage. Every one of them sits on a
- * region, and none exists before it is built.
- *
- * There are fifteen. The ADR, the design sheet and the prompt all say "fourteen" and then
- * list these fifteen — the count is the typo, the table is the decision.
+ * The buildings, in family order: command, exploitation, transformation, projection,
+ * intelligence, storage, and the Blitz city. Every one of them sits on a region, and none exists
+ * before it is built.
  */
 export const BUILDINGS = [
   'hq',
   'farm',
-  'mill',
   'mine',
   'oilWell',
-  'foundry',
   'arsenal',
-  'quartermaster',
   'barracks',
   'airfield',
   'port',
@@ -116,12 +102,12 @@ export const BUILDABLE_BUILDINGS = BUILDINGS.filter(
 );
 
 /**
- * **Ce qui se tarife au barème des chantiers** — les quinze bâtiments, et l'élévation d'un
+ * **Ce qui se tarife au barème des chantiers** — les bâtiments, et l'élévation d'un
  * avant-poste depuis le 15/09 (précision de l'ADR 0020 §10).
  *
  * `outpost` est une **clé de coût**, jamais une clé de bâtiment : rien ne se pose sur une région
  * sous ce nom, il n'a ni gisement, ni côte, ni emplacement, et le tordre en `BuildingKey` aurait
- * fait entrer un seizième bâtiment dans chaque table exhaustive du jeu. Il ne vit que là où l'on
+ * fait entrer un bâtiment de plus dans chaque table exhaustive du jeu. Il ne vit que là où l'on
  * demande un prix et une durée (`buildCost`, `buildMinutes`) et dans la file qui les paie.
  */
 export type BuildCostKey = BuildingKey | 'outpost';

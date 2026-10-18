@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COST_BY_ROLE, TIER_2_FACTOR, buildCost } from '../../convex/constants';
-import { rankedByTerritory, scoresOf, type AlloyPrices } from './standings';
+import { rankedByTerritory, scoresOf, type SteelPrices } from './standings';
 import type { BuildingKey, UnitRole } from './ids';
 
 /**
@@ -8,9 +8,9 @@ import type { BuildingKey, UnitRole } from './ids';
  * validait le chiffrage sur une copie. Le test lit `buildCost` et `COST_BY_ROLE` comme la
  * production, et il tomberait si le barème se mettait à recopier une table à lui.
  */
-const ALLOY: AlloyPrices = {
-  ofLevel: (key, level) => buildCost(key as BuildingKey, level).alloy ?? 0,
-  ofTroop: (role, tier) => COST_BY_ROLE[role as UnitRole].alloy * (tier === 2 ? TIER_2_FACTOR : 1),
+const STEEL: SteelPrices = {
+  ofLevel: (key, level) => buildCost(key as BuildingKey, level).steel ?? 0,
+  ofTroop: (role, tier) => COST_BY_ROLE[role as UnitRole].steel * (tier === 2 ? TIER_2_FACTOR : 1),
 };
 
 const scores = (input: Partial<Parameters<typeof scoresOf>[0]>) =>
@@ -20,7 +20,7 @@ const scores = (input: Partial<Parameters<typeof scoresOf>[0]>) =>
     engagements: 0,
     heldCount: 0,
     heldByAnyone: 0,
-    alloy: ALLOY,
+    steel: STEEL,
     ...input,
   });
 
@@ -29,26 +29,25 @@ describe('industry', () => {
     const hq = { key: 'hq', level: 2, disabled: false };
     const mine = { key: 'mine', level: 1, disabled: false };
     expect(scores({ buildings: [hq, mine] }).industry).toBe(
-      (buildCost('hq', 1).alloy ?? 0) +
-        (buildCost('hq', 2).alloy ?? 0) +
-        (buildCost('mine', 1).alloy ?? 0),
+      (buildCost('hq', 1).steel ?? 0) +
+        (buildCost('hq', 2).steel ?? 0) +
+        (buildCost('mine', 1).steel ?? 0),
     );
   });
 
-  /** L'annexe du contrat de vue 07 chiffre la France de la maquette à 393 : le barème doit
-   *  tomber dessus, sans quoi la planche validée montre un nombre que le jeu ne produit pas. */
-  it('matches the mock-up’s own French nation, to the alloy', () => {
+  /** L'annexe du contrat de vue 07 chiffre la France de la maquette à 393, fonderie (50) et
+   *  filature (20) comprises : le barème doit tomber sur ce qu'il en reste depuis l'ADR 0028,
+   *  sans quoi la planche validée montre un nombre que le jeu ne produit pas. */
+  it('matches the mock-up’s own French nation, to the steel', () => {
     const standing: ReadonlyArray<[BuildingKey, number]> = [
       ['hq', 2],
       ['mine', 1],
       ['farm', 1],
-      ['foundry', 1],
       ['barracks', 1],
       ['port', 1],
-      ['mill', 1],
     ];
     const buildings = standing.map(([key, level]) => ({ key, level, disabled: false }));
-    expect(scores({ buildings }).industry).toBe(393);
+    expect(scores({ buildings }).industry).toBe(393 - 50 - 20);
   });
 
   /** Un avant-poste désactivé par un raid éteint ce qui pend à lui — tant qu'il l'est, et pas
@@ -58,12 +57,12 @@ describe('industry', () => {
       { key: 'mine', level: 1, disabled: true },
       { key: 'farm', level: 1, disabled: false },
     ];
-    expect(scores({ buildings }).industry).toBe(buildCost('farm', 1).alloy);
+    expect(scores({ buildings }).industry).toBe(buildCost('farm', 1).steel);
   });
 });
 
 describe('military', () => {
-  it('prices a troop at its full alloy times its share of hit points', () => {
+  it('prices a troop at its full steel times its share of hit points', () => {
     const halved = { role: 'infantry', tier: 1, strength: 25, nominalStrength: 50 };
     expect(scores({ troops: [halved] }).military).toBe(Math.round(18 * 0.5));
   });
@@ -74,7 +73,7 @@ describe('military', () => {
   });
 
   /** La somme s'arrondit **après** addition (spécification §1) : arrondir chaque troupe ferait
-   *  dériver une armée de vingt pions de plusieurs points d'alliage. */
+   *  dériver une armée de vingt pions de plusieurs points d'acier. */
   it('rounds after the sum, never troop by troop', () => {
     const troops = [
       { role: 'infantry', tier: 1, strength: 50, nominalStrength: 50 },
@@ -105,7 +104,7 @@ describe('territory', () => {
 
 describe('the general score', () => {
   /** Sans coefficient, et sans les faits d'armes : un compteur d'activité additionné à de
-   *  l'alliage n'aurait pas d'unité (spécification §1). */
+   *  l'acier n'aurait pas d'unité (spécification §1). */
   it('is industry plus military, and nothing else', () => {
     const board = scores({
       buildings: [{ key: 'farm', level: 1, disabled: false }],

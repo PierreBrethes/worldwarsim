@@ -95,7 +95,7 @@ export const workshop = query({
       maxQueue: MAX_QUEUED_BATCHES,
       troopsInService: troops.length,
       troopsQueued: waiting.length,
-      alloy: snapshotOf(economy, 'alloy'),
+      steel: snapshotOf(economy, 'steel'),
       facilities,
       roster: roster(troops),
       grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>)
@@ -165,11 +165,11 @@ export const recruit = mutation({
     if (standing + queued >= MONDIALE_TROOP_BOUND) fail('TROOP_BOUND_REACHED');
 
     const queue = await queueOf(ctx, buildingId);
-    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL', { maximum: MAX_QUEUED_BATCHES });
+    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL');
 
     const now = Date.now();
     const cost = recruitmentCost(role, tier, hqLevel);
-    await debit(ctx, player._id, { alloy: cost.alloy }, now);
+    await debit(ctx, player._id, { steel: cost.steel }, now);
 
     const last = queue[queue.length - 1];
     const rank = last ? last.rank + 1 : 0;
@@ -223,7 +223,7 @@ async function recruitInBlitz(
     finishesAt: null,
   });
   await startHead(ctx, building._id, now);
-  return { cost: { alloy: 0, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
+  return { cost: { steel: 0, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
 }
 
 /**
@@ -241,7 +241,7 @@ export const cancel = mutation({
 
     const hqLevel = await hqLevelOf(ctx, player._id);
     const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
-    await credit(ctx, player._id, { alloy: cost.alloy }, Date.now());
+    await credit(ctx, player._id, { steel: cost.steel }, Date.now());
     await ctx.db.delete(recruitmentId);
     return { refunded: cost };
   },

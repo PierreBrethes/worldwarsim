@@ -157,15 +157,15 @@ describe('démanteler un avant-poste', () => {
     );
     expect(coloured?.regions.map((region) => region.id)).toContain(PRAHOVA);
 
-    const before = (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+    const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
     const done = await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
     expect(done.buildings).toBe(1);
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.outposts).toHaveLength(0);
     expect(view.me.buildings.some((building) => building.id === mine)).toBe(false);
-    /** **Aucun remboursement** (5a) : ni la fondation, ni les élévations, ni l'alliage du mât. */
-    expect(view.me.resources.alloy.stock).toBeCloseTo(before, 5);
+    /** **Aucun remboursement** (5a) : ni la fondation, ni les élévations, ni l'acier du mât. */
+    expect(view.me.resources.steel.stock).toBeCloseTo(before, 5);
 
     /** La garnison passe au sol, au point — elle ne meurt pas (règle 3, ADR 0019). */
     const posted = view.me.troops.find((candidate) => candidate.id === troop);
@@ -225,13 +225,13 @@ describe('démanteler un avant-poste', () => {
     });
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: point });
 
-    const before = (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+    const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
     const done = await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
-    expect(done.refunded.alloy).toBe(buildCost('outpost', 2).alloy);
+    expect(done.refunded.steel).toBe(buildCost('outpost', 2).steel);
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.constructionQueue.some((work) => work.outpostId === point)).toBe(false);
-    expect(view.me.resources.alloy.stock).toBeCloseTo(before + (done.refunded.alloy ?? 0), 5);
+    expect(view.me.resources.steel.stock).toBeCloseTo(before + (done.refunded.steel ?? 0), 5);
   });
 
   /** Un chantier de fondation se démantèle comme le reste : ce qu'on retire est une promesse. */
