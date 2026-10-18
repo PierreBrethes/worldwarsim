@@ -12,7 +12,10 @@
  * `--geste` se répète et se joue dans l'ordre, après l'attente et avant la capture, pour voir un
  * état qu'il faut provoquer (le fantôme d'une pose) : `texte=Mine — charbon` clique le premier
  * élément qui porte ce texte, `clic=x,y` clique en un point, `molette=x,y,dy` tourne la molette,
- * `survol=x,y` y mène la souris, `pause=ms` attend.
+ * `survol=x,y` y mène la souris, `pause=ms` attend. `presser=x,y` enfonce le bouton en un point et
+ * `lacher` le relâche : entre les deux, des `survol` font un glisser (une tuile du plateau personnel
+ * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
+ * une touche.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -100,6 +103,11 @@ try {
       await page.mouse.wheel(0, dy);
     } else if (kind === 'survol') await page.mouse.move(x, y, { steps: 8 });
     else if (kind === 'clic') await page.mouse.click(x, y);
+    else if (kind === 'presser') {
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+    } else if (kind === 'lacher') await page.mouse.up();
+    else if (kind === 'touche') await page.keyboard.press(value);
     else if (kind === 'pause') await page.waitForTimeout(x);
     else throw new Error(`--geste inconnu : ${gesture}`);
     await page.waitForTimeout(400);

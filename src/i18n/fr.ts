@@ -1988,7 +1988,7 @@ export const fr = {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
-    economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
+    economy: { title: 'Plateau personnel — stocks, tuiles et pièces', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
@@ -2555,7 +2555,7 @@ export const fr = {
     strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
     /**
      * **Ce que la troupe mange, lu sur la troupe** (ADR 0019 §4). Le bandeau sert un débit net
-     * et la fenêtre Économie le décompose par nation ; ici c'est la ligne d'une seule troupe —
+     * et le plateau personnel le décompose par nation ; ici c'est la ligne d'une seule troupe —
      * le seul endroit où le surcoût du hors-ravitaillement se lit à côté de qui le paie.
      */
     upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} vivres / h`,
@@ -2732,7 +2732,7 @@ export const fr = {
     raiseCarries: (reachKm: number) => `rayon ${num(reachKm)} km`,
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
-    raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
+    raiseQueued: 'Élévation déjà en file — elle se lit au plateau personnel.',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
@@ -3157,6 +3157,56 @@ export const fr = {
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
     /** Une seule entrée par région, en cours ou en file — le refus que le serveur oppose. */
     alreadyQueued: 'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
+  },
+
+  /**
+   * **Le plateau personnel** (ADR 0028 §7) : un panneau à soi, sous la table au bureau, en tiroir
+   * au téléphone. Toujours nommé en entier — « le plateau » seul désigne la table.
+   */
+  personalBoard: {
+    header: 'Plateau personnel',
+    open: 'déplier le plateau personnel',
+    fold: 'replier le plateau personnel',
+    /** Un bac : son nombre exact sur son plafond, et son débit réel. */
+    ofCap: (cap: number) => `/ ${num(cap)}`,
+    rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
+    full: 'bac plein',
+    harvest: (hours: number) =>
+      hours < 1
+        ? 'Récolte depuis votre dernière visite'
+        : `Récolte · ${num(hours)} h depuis votre dernière visite`,
+    harvestNone: 'Rien n’est entré ni sorti depuis votre dernière visite.',
+    harvestFirst: 'Ce qui entre se lira ici à votre prochaine visite.',
+    delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
+    tilesHeader: 'tuiles',
+    tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',
+    tileCount: (count: number) => `×${count}`,
+    piecesHeader: 'réserve de pièces',
+    piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
+    piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',
+    /** Ce que dit la main au-dessus d'une cible. */
+    raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
+    form: (role: string, building: string) =>
+      `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
+    dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
+    dropBack: 'Relâchée ici, elle rentre',
+    formed: (role: string) => `${role} en file de formation`,
+    raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
+    worksHeader: 'chantiers',
+    upkeepHeader: 'entretien',
+    shortagesHeader: 'pénuries',
+    /** Le pied replié en une ligne : le chantier, le solde de vivres, les pénuries. */
+    details: 'chantiers, entretien, pénuries',
+    noWorks: 'aucun chantier',
+    works: (name: string, time: string, queued: number) =>
+      `${name} · ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    shortages: (count: number) =>
+      count === 0 ? 'aucune pénurie' : `${count} pénurie${plural(count, '', 's')}`,
+    noShortage: 'Aucune pénurie.',
+    /** Une pénurie, et ce qui la répare : on ne perd jamais le joueur (ADR 0028 §1). */
+    starvedChain: (building: string, resource: string) =>
+      `${building} à sec de ${lowerFirst(resource)}`,
+    starvedChainFix: (a: string) => `bâtissez ou élevez ${a}`,
   },
 
   economy: {
@@ -3989,7 +4039,7 @@ export const fr = {
    * parce que c'est un état sans bouton, et qu'un état sans bouton doit dire sa sortie.
    */
   placing: {
-    hint: 'cliquez pour poser — Échap pour renoncer',
+    hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
   },
 

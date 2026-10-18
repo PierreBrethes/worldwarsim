@@ -827,6 +827,7 @@ export function MapLabels({
               hover(true);
             }}
             data-label-id={label.id}
+            data-building-id={label.building?.id}
             onClick={(event) => {
               // A drag that carried a pile ends here too: it was not a click.
               if (engine?.consumeCarry() === true) return;

@@ -643,3 +643,18 @@ body {
 :root[data-motion='full'] :is(.press, .os .btn):active:not(:disabled, [aria-disabled='true']) {
   scale: 0.96;
 }
+
+/* **Une pastille de la récolte** (plateau personnel, ADR 0028 §7) : un disque à la couleur de sa
+   ressource, qui ne vit que le temps de son vol (`PersonalBoard.tsx`). */
+.harvest-pastille {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pastille) 70%, var(--paper));
+  box-shadow:
+    inset 0 0 0 1.5px var(--pastille-rim),
+    0 1px 0 color-mix(in srgb, var(--ink) 50%, transparent);
+}

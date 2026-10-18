@@ -241,8 +241,8 @@ const JournalWindow = lazy(() =>
 const SiteModal = lazy(() =>
   import('./-plateau/SiteModal').then((module) => ({ default: module.SiteModal })),
 );
-const EconomyWindow = lazy(() =>
-  import('./-plateau/EconomyWindow').then((module) => ({ default: module.EconomyWindow })),
+const PersonalBoard = lazy(() =>
+  import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
 );
 const NationWindow = lazy(() =>
   import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
@@ -1240,6 +1240,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [placing, startConstruction, seat, view, reaches, hold],
   );
+
+  /** **La tuile prise sur le plateau personnel** arme le même fantôme qu'une clé choisie : la
+   *  pose ne connaît qu'une main. */
+  const holdTile = useCallback(
+    (key: BuildingKey | null) =>
+      hold(key === null ? null : { key, debt: null, title: fr.buildings[key] }),
+    [hold],
+  );
+
+  /** La tuile lâchée sur la carte se pose où le fantôme se tient, s'il y est accepté. */
+  const placeTile = useCallback((): boolean => {
+    if (placing === null || placingAim === null || placingAim.region === null) return false;
+    if (aimVerdict(view, placing.key, placingAim, reaches).refusal !== null) return false;
+    placeAt(placingAim);
+    return true;
+  }, [placing, placingAim, view, reaches, placeAt]);
 
   /**
    * **The keys the season still owes, and whether any point takes them.** The condition is
@@ -2479,7 +2495,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
-              covered={narrow && windows.length > 0}
+              covered={narrow && windows.some((name) => name !== 'economy')}
               reveal={reveal}
               replay={replay}
               onReplayStep={replayStep}
@@ -2821,12 +2837,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   );
                 case 'economy':
                   return (
-                    <EconomyWindow
+                    <PersonalBoard
                       key={name}
                       view={view}
                       seat={seat}
                       focused={focused ?? null}
-                      {...windowProps}
+                      onClose={windowProps.onClose}
+                      onHoldTile={holdTile}
+                      onPlaceTile={placeTile}
                     />
                   );
                 case 'nation':
