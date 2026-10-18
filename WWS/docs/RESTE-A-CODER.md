@@ -48,9 +48,13 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       l'abaque et la formation. Le débit national et `DRY_AMMUNITION_FACTOR` sont retirés.
    4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
       trois versions ; il sert de référence aux features 5 à 8.
-   5. **Placement libre et gisements ponctuels** (ADR 0029) : un point par bâtiment, espacement,
-      gisements cuits en points, `placementRefusal` refaite. *Se voit* : tuile fantôme à l'endroit
-      visé, gisements sur la carte, refus d'espacement.
+   5. ~~**Placement libre et gisements ponctuels**~~ : fait le 18/10. `buildings.point` obligatoire,
+      `start` prend le point visé et sa région ; `placementRefusal` lit le point (portée, gisement
+      libre, côte, espacement `BUILDING_SPACING_KM`) et `REGION_TAKEN` est retiré ;
+      `deposits.json` devient une liste de points (un par région tirée, au point de l'index) et
+      la production lit le gisement sous le point. On choisit la clé, puis un fantôme vise un lieu,
+      s'aimante sur un gisement libre ou un quai et dit le refus du serveur avant le clic ; les
+      gisements se tiennent à leur point, les sites relevés aussi. Le schéma change : wipe.
    6. **Le plateau personnel** : nombres et barres par ressource, récolte animée, tuiles, réserve
       de pièces ; remplace la fenêtre Économie. *Se voit* : barres, pastilles qui volent, tuile qui
       se pose.
