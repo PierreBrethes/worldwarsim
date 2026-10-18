@@ -1,5 +1,5 @@
 import type { MapMarker } from '@/domain/labels';
-import { depositAt, depositOfRegion } from '@/domain/world';
+import { depositAt } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
@@ -44,7 +44,7 @@ export function maquettesOf(
       case 'building':
         return standing(
           marker.lonLat === null ? { regionId: marker.regionId } : { lonLat: marker.lonLat },
-          buildingMaquette(marker.key, depositUnder(marker.lonLat, marker.regionId)),
+          buildingMaquette(marker.key, depositUnder(marker.lonLat)),
           false,
           marker.works === null
             ? undefined
@@ -66,7 +66,7 @@ export function maquettesOf(
       case 'installation':
         return standing(
           { lonLat: marker.lonLat },
-          buildingMaquette(marker.key, depositUnder(marker.lonLat, marker.regionId)),
+          buildingMaquette(marker.key, depositUnder(marker.lonLat)),
           marker.washed,
         );
       case 'objective': {
@@ -80,6 +80,6 @@ export function maquettesOf(
   });
 }
 
-/** Ce que le point tient (ADR 0029), sa région à défaut de point. */
-const depositUnder = (lonLat: LonLat | null, regionId: string) =>
-  lonLat === null ? depositOfRegion(regionId) : (depositAt(lonLat)?.deposit ?? null);
+/** Ce que le point tient (ADR 0029). */
+const depositUnder = (lonLat: LonLat | null) =>
+  lonLat === null ? null : (depositAt(lonLat)?.deposit ?? null);

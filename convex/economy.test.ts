@@ -1,3 +1,4 @@
+import { DEPOSIT_POINTS } from '../src/domain/world';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
@@ -1006,7 +1007,6 @@ describe('the foundation the season owes', () => {
       me: {
         regions: ReadonlyArray<{
           id: string;
-          deposit: DepositKey | null;
           coastal: boolean;
           buildings: ReadonlyArray<unknown>;
         }>;
@@ -1018,15 +1018,18 @@ describe('the foundation the season owes', () => {
      *  région libre acquitte. */
     deposit?: DepositKey | null,
   ): string | null =>
-    view.me.regions.find(
-      (region) =>
+    view.me.regions.find((region) => {
+      /** The deposit point that lies in the region, if any: the free spot is its own point. */
+      const under = DEPOSIT_POINTS.find((point) => point.regionId === region.id)?.deposit ?? null;
+      return (
         region.buildings.length === 0 &&
         keyRefusal(key, HQ_LEVEL_AT_LAUNCH, unlockLevel(key)) === null &&
-        (deposit === undefined || deposit === null || region.deposit === deposit) &&
+        (deposit === undefined || deposit === null || under === deposit) &&
         (EXPLOITED_DEPOSITS[key] === undefined
           ? key !== 'port'
-          : region.deposit !== null && EXPLOITED_DEPOSITS[key]!.includes(region.deposit)),
-    )?.id ?? null;
+          : under !== null && EXPLOITED_DEPOSITS[key]!.includes(under))
+      );
+    })?.id ?? null;
 
   /** What France is owed: iron, coal and bread — and no well, since the country has
    *  no oil. Every test of this file plays France, so this is the reading list. */

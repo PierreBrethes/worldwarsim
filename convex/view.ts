@@ -543,7 +543,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,
         name: facts.name,
-        deposit: facts.deposit,
         coastal: facts.coastal,
         /** **The point every rule measures from**, and now the one the map draws from too: a
          *  listening station's reach is a circle around it, and drawing that circle around

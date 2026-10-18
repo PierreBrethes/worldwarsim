@@ -16,7 +16,7 @@ import { settleFunds } from './blitz';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
-import { regionFacts, pointOfBuilding } from './regions';
+import { pointOfBuilding } from './regions';
 import { landAtPoint } from './routes';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { lootFromSurplus } from '../src/domain/loot';
@@ -514,9 +514,7 @@ export const complete = internalMutation({
 
     await ctx.db.delete(captureId);
     await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
-    const point = isBuilding(site)
-      ? (pointOfBuilding(site) ?? regionFacts(site.regionId)?.point ?? pointOf(capture.point))
-      : pointOf(site.point);
+    const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
     await surveyFromPoint(ctx, capture.playerId, point, now);
     if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });

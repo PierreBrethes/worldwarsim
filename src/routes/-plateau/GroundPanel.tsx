@@ -3,7 +3,7 @@ import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
-import { depositOfRegion, loadCoastalRegions, type HoveredRegion } from '@/domain/world';
+import { loadCoastalRegions, type HoveredRegion } from '@/domain/world';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Panel } from './Panel';
 
@@ -80,7 +80,6 @@ export function GroundPanel({
   const hovered = hoveredRegion?.country === country ? hoveredRegion : null;
 
   const outpost = view.me.outposts.find((candidate) => candidate.hostCountry === country);
-  const deposit = hovered === null ? null : depositOfRegion(hovered.id);
   // The map designates a country by its `adm0_a3`, opponents by their nation id: the mapping
   // is the seam — comparing the two raw strings never matches (that was a real bug).
   const nation = NATION_BY_ADM0.get(country);
@@ -143,14 +142,7 @@ export function GroundPanel({
   const ground = (
     <>
       {view.mode !== 'blitz' && (
-        <>
-          <p className={QUIET}>
-            {deposit === null
-              ? fr.board.regionNoDeposit
-              : fr.board.regionDeposit(fr.deposits[deposit])}
-          </p>
-          {coastal.has(hovered.id) && <p className={QUIET}>{fr.board.regionCoastal}</p>}
-        </>
+        <>{coastal.has(hovered.id) && <p className={QUIET}>{fr.board.regionCoastal}</p>}</>
       )}
       {suspendedUntil !== null && (
         <Line

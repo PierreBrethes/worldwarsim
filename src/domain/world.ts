@@ -89,12 +89,6 @@ const DEPOSIT_MATCH_KM = 1;
 export const depositAt = (lonLat: LonLat): DepositPoint | null =>
   DEPOSIT_POINTS.find((point) => distanceKm(point.lonLat, lonLat) <= DEPOSIT_MATCH_KM) ?? null;
 
-/** Le gisement qui se trouve dans cette région, s'il y en a un — une lecture d'affichage
- *  (« la Moselle tient du charbon »), jamais ce qu'un bâtiment exploite : celui-là se lit à son
- *  point (`depositAt`). */
-export const depositOfRegion = (regionId: string): DepositKey | null =>
-  DEPOSIT_POINTS.find((point) => point.regionId === regionId)?.deposit ?? null;
-
 /**
  * **La côte est publique elle aussi, mais elle ne se bundle pas** : elle vit dans
  * `region-index.json`, 312 ko pour quatre faits dont un seul intéresse un écran. Elle se lit au

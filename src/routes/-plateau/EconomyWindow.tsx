@@ -369,7 +369,8 @@ export type Source = { readonly deposit: DepositKey; readonly held: number };
 function supplyColumns(view: PlayerView): ReadonlyArray<Column> {
   const sourceOf = (deposit: DepositKey): Source => ({
     deposit,
-    held: view.me.regions.filter((region) => region.deposit === deposit).length,
+    /** Les gisements qu'on exploite, comptés à leurs points (ADR 0029) — jamais des régions. */
+    held: view.me.extraction.filter((site) => site.deposit === deposit).length,
   });
 
   const raw = DEPOSITS.map(

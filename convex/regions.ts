@@ -3,7 +3,7 @@ import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
 import { foundationFor, settlesDebt, type FoundationDebt } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
-import { DEPOSIT_POINTS, depositAt, depositOfRegion } from '../src/domain/world';
+import { DEPOSIT_POINTS, depositAt } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
 import { fail } from './errors';
 
@@ -41,7 +41,6 @@ export type RegionFacts = {
   readonly country: string;
   readonly coastal: boolean;
   readonly point: LonLat;
-  readonly deposit: DepositKey | null;
 };
 
 /**
@@ -59,7 +58,6 @@ export function regionFacts(regionId: string): RegionFacts | null {
     country,
     coastal: COASTAL.has(regionId),
     point,
-    deposit: depositOfRegion(regionId),
   };
 }
 

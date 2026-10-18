@@ -1864,15 +1864,8 @@ export const fr = {
       'Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une partie existante.',
     backHome: 'retour à l’accueil',
     loading: 'Préparation du plateau…',
-    /**
-     * What the ground holds, and nothing else. The terrain type used to read here: it came
-     * from a hash of the region's name, so the tooltip was printing an invention where the
-     * one true fact about the region was available and unused.
-     */
-    regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
     regionTerrain: (terrain: string) => `terrain : ${terrain}`,
-    regionNoDeposit: 'aucun gisement',
     regionCoastal: 'côtière',
   },
 
@@ -4003,8 +3996,6 @@ export const fr = {
   construction: {
     kicker: 'chantier',
     offerHeader: 'à poser',
-    noDeposit: 'aucun gisement',
-    coastal: 'côtière',
     depositReason: (deposits: ReadonlyArray<string>) =>
       `sur un gisement libre de ${deposits.join(' ou ')}`,
     coastalReason: 'sur la côte',

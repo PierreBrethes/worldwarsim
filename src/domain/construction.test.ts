@@ -393,7 +393,6 @@ describe('the point aimed at', () => {
     const region = (id: string): PlayerView['me']['regions'][number] => ({
       id,
       name: id,
-      deposit: null,
       coastal: false,
       point: [0, 0],
       linked: true,

@@ -541,7 +541,6 @@ export type BuildSpec = {
 export type RegionView = {
   readonly id: string;
   readonly name: string;
-  readonly deposit: DepositKey | null;
   readonly coastal: boolean;
   /** Where the region stands, as every rule of the game measures it (`regionFacts`) — never the
    *  centroid the map draws its polygon around, which is a different point. */

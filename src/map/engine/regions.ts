@@ -523,26 +523,6 @@ export class RegionLayer {
     return this.frame.toWorld(x, y, COUNTRY_THICKNESS + ANCHOR_LIFT);
   }
 
-  /**
-   * **A region's outline, for whoever has to sift points against it.** The box narrows the
-   * search, the test settles it — the two travel together because a caller that had only the
-   * second would walk the whole world to find its own coast (`MapEngine.setPlacing`).
-   *
-   * It is the layer that answers and not `regions.json` read a second time: the polygons are
-   * already here, prepared and projected, and a second reading would be a second truth.
-   */
-  outlineOf(regionId: string): {
-    readonly box: readonly [number, number, number, number];
-    readonly covers: (x: number, y: number) => boolean;
-  } | null {
-    const prepared = this.prepared.find(({ region }) => region.id === regionId);
-    if (prepared === undefined) return null;
-    return {
-      box: prepared.box,
-      covers: (x, y) => contains(prepared, x, y),
-    };
-  }
-
   /** The point is in projected coordinates (those of `world.json`), not world coordinates. */
   regionAt(projectedX: number, projectedY: number): DisplayedRegion | null {
     return this.pick(projectedX, projectedY)?.region ?? null;

@@ -2,6 +2,8 @@ import { useMemo, type ReactNode } from 'react';
 import { fr, nationLabel, roleLabel, stackLabel } from '@/i18n/fr';
 import { asDayAndTime, asDuration, asLocalTime } from '@/domain/duration';
 import { DEPOSITS } from '@/domain/ids';
+import { ADM0_BY_NATION, isNation } from '@/domain/nations';
+import { DEPOSIT_POINTS } from '@/domain/world';
 import type {
   FounderAbsence,
   PlayerView,
@@ -64,7 +66,7 @@ export function NationWindow({
             <p className="text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
           </Entry>
 
-          {view.mode !== 'blitz' && <NationalGap regions={view.me.regions} />}
+          {view.mode !== 'blitz' && <NationalGap view={view} />}
 
           <FounderLine absence={view.me.founderAbsence} />
 
@@ -246,14 +248,18 @@ function Entry({ header, children }: { header: string; children: ReactNode }) {
  * counterpart: the ADR 0015 gap is what forces a nation out of its own ground, and the power
  * is what it goes out with. Two nations have none, and one has two: the sentence counts.
  *
- * **Derived, never tabulated.** The deposits held are the ones under the ground the player
- * may build on; the gap is the rest of `DEPOSITS`. A hard-coded table would go on saying
+ * **Derived, never tabulated.** The deposits held are the points on the national soil and the
+ * ones the player's exploitations work abroad (ADR 0029); the gap is the rest of `DEPOSITS`. A hard-coded table would go on saying
  * "pétrole" the day `generate-deposits.mjs` hands France an oil field — and it would go on
  * saying it after an outpost has won one abroad, which is the same lie in the other
  * direction.
  */
-function NationalGap({ regions }: { regions: PlayerView['me']['regions'] }) {
-  const held = new Set(regions.map((region) => region.deposit));
+function NationalGap({ view }: { view: PlayerView }) {
+  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  const held = new Set([
+    ...DEPOSIT_POINTS.filter((point) => point.country === home).map((point) => point.deposit),
+    ...view.me.extraction.flatMap((site) => (site.deposit === null ? [] : [site.deposit])),
+  ]);
   const missing = DEPOSITS.filter((deposit) => !held.has(deposit));
 
   return (

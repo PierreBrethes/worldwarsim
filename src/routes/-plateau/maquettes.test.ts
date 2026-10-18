@@ -1,3 +1,4 @@
+import { DEPOSIT_POINTS } from '@/domain/world';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from '@/domain/labels';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
@@ -25,12 +26,13 @@ const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}):
 });
 
 describe('maquettesOf', () => {
-  it('stands a building on its region, a port on its quay, and a mine by its ground', () => {
+  it('stands a building at its point, and a mine by the deposit under it', () => {
+    const coal = DEPOSIT_POINTS.find((deposit) => deposit.regionId === 'FRA-5328')!.lonLat;
     const port = building({ id: 'p', key: 'port', lonLat: [2, 51], regionId: 'FRA-5262' });
-    expect(maquettesOf([building(), port], () => undefined)).toEqual([
+    expect(maquettesOf([building({ lonLat: coal }), port], () => undefined)).toEqual([
       {
         id: 'building-FRA-5328-mine',
-        at: { regionId: 'FRA-5328' },
+        at: { lonLat: coal },
         url: buildingMaquette('mine', 'coal'),
         washed: false,
       },
