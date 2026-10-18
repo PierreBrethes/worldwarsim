@@ -3972,6 +3972,9 @@ export const fr = {
     /** Le cas du chantier : ce qu'on retire alors est une promesse et non une bâtisse, et le
      *  joueur doit savoir qu'il n'attend plus rien. */
     underConstruction: 'le chantier de fondation est abandonné',
+    /** Le dépôt (ADR 0028 §4) : il rentre au plateau personnel, dans la limite de l'entrepôt. */
+    depot: (returned: number, lost: number) =>
+      `le dépôt rend ${returned} au plateau personnel${lost > 0 ? `, ${lost} perdus faute de place` : ''}`,
     noRefund: 'aucun remboursement — ni la fondation, ni les élévations',
     submit: 'démanteler — irréversible',
   },

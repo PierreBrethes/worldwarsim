@@ -207,3 +207,21 @@ export function grabbedAfter(heldMs: number): number {
   const steps = Math.max(0, Math.floor(heldMs / GRAB_STEP_MS));
   return steps <= 4 ? GRAB_STEP * (1 + steps) : 50 * (steps - 3);
 }
+
+/**
+ * **Un dépôt démantelé revient au plateau personnel** dans la limite de l'entrepôt (`room`, la
+ * place libre de chaque bac) ; le surplus est perdu. La carte de démantèlement le dit avant le
+ * geste, le serveur le crédite.
+ */
+export function depotRefundOf(
+  depot: SupplyLoad,
+  room: SupplyLoad,
+): { readonly returned: SupplyLoad; readonly lost: SupplyLoad } {
+  const returned: { -readonly [K in keyof SupplyLoad]: number } = emptyLoad();
+  const lost: { -readonly [K in keyof SupplyLoad]: number } = emptyLoad();
+  for (const key of SUPPLY_KEYS) {
+    returned[key] = Math.min(depot[key], Math.max(0, Math.floor(room[key])));
+    lost[key] = depot[key] - returned[key];
+  }
+  return { returned, lost };
+}

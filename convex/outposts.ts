@@ -15,7 +15,8 @@ import { allRegions } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
-import { credit } from './resources';
+import { credit, creditToStorage, economyOf } from './resources';
+import { depotRefundOf, emptyLoad } from '../src/domain/logistics';
 import { playerOf, requirePlayable } from './seats';
 import { surveyFoundation } from './surveys';
 
@@ -187,6 +188,14 @@ export const dismantle = mutation({
     for (const building of anchored) await razeBuilding(ctx, player._id, building, now);
     await groundGarrison(ctx, outpost);
     const refunded = await cancelRaisesOf(ctx, player._id, outpost, now);
+    /** **Le dépôt revient au plateau personnel**, dans la limite de l'entrepôt (ADR 0028 §4). */
+    const economy = await economyOf(ctx, player._id, now);
+    const { returned } = depotRefundOf(outpost.depot ?? emptyLoad(), {
+      ammunition: economy.cap.ammunition - economy.stocks.ammunition,
+      oil: economy.cap.oil - economy.stocks.oil,
+      coal: economy.cap.coal - economy.stocks.coal,
+    });
+    await creditToStorage(ctx, player._id, { food: 0, steel: 0, ...returned }, now);
     await ctx.db.delete(outpost._id);
     await reportChange(ctx, season._id, before, now);
 

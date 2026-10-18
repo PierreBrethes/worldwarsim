@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  depotRefundOf,
   grabbedAfter,
   deliverRefusalOf,
   deliveryOf,
@@ -128,6 +129,15 @@ describe('the tour', () => {
     ];
     expect(visitPlan(load(60), stops)).toEqual({ visit: ['b'], skipped: ['a'] });
     expect(visitPlan(load(), stops)).toEqual({ visit: [], skipped: ['a', 'b'] });
+  });
+});
+
+describe('dismantling a depot', () => {
+  it('gives back to the board what its bins have room for, and loses the rest', () => {
+    expect(depotRefundOf(load(100, 50, 30), load(60, 400, 0))).toEqual({
+      returned: load(60, 50, 0),
+      lost: load(40, 0, 30),
+    });
   });
 });
 

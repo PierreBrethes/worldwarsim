@@ -389,3 +389,27 @@ describe('delivering to an outpost', () => {
     await expect(delivering(empty)).rejects.toThrow('NOTHING_TO_DELIVER');
   });
 });
+
+describe('dismantling an outpost', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('gives its depot back to the board within the warehouse, and loses the rest', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpost = await plant(t, seat, PLOIESTI);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { depot: { ammunition: 0, oil: 0, coal: 300 } }),
+    );
+    const before = await stockOf(t, seat, 'coal');
+    const view = await t.query(api.view.playerView, seat);
+    const room = view.me.resources.coal.cap - before;
+
+    await t.mutation(api.outposts.dismantle, { ...seat, outpostId: outpost });
+
+    expect(await stockOf(t, seat, 'coal')).toBe(before + Math.min(300, room));
+  });
+});
