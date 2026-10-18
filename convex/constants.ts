@@ -813,11 +813,13 @@ export const PLUNDER_DISABLED_HOURS = 12;
  * joués
  */
 export const CAPTURE_MINUTES = {
-  mondiale: { building: 360, outpost: 360 },
+  /** Un point stratégique se prend comme un bâtiment : six heures (P1), à mesurer comme le reste. */
+  mondiale: { building: 360, outpost: 360, point: 360 },
   /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit
    *  avoir le temps de revenir. */
   blitz: { building: 2.4, outpost: 2.4, hq: 4.8 },
 } as const satisfies Record<SeasonMode, Record<'building' | 'outpost', number>> & {
+  mondiale: { point: number };
   blitz: { hq: number };
 };
 

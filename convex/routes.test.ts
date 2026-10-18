@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from '../src/domain/geo';
 import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
-import { goalCellsForRegions } from './regionGeometry';
+import { goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
+import {
+  STRATEGIC_POINTS,
+  STRATEGIC_POINT_KEYS,
+  type StrategicPointKey,
+} from '../src/domain/strategic-points';
 import { coastAtPoint, hostAtPoint, routeBetween, routeToRegions } from './routes';
 import { routeMinutes } from './constants';
 
@@ -220,5 +225,25 @@ describe('the pace of a Mondiale march', () => {
   it('takes Paris to Moscow in about half a day on foot', () => {
     expect(hours(MOSCOW)).toBeGreaterThan(7);
     expect(hours(MOSCOW)).toBeLessThan(13);
+  });
+});
+
+/** **Chaque point stratégique tombe dans la région de son pays** : la capture colore cette
+ *  région-là, et un point mal posé colorerait la mer ou le voisin. */
+describe('the strategic points of the test season', () => {
+  const COUNTRY: Readonly<Record<StrategicPointKey, string>> = {
+    tangier: 'MAR',
+    istanbul: 'TUR',
+    rangoon: 'MMR',
+    hongKong: 'HKG',
+    halifax: 'CAN',
+    narvik: 'NOR',
+    lisbon: 'PRT',
+  };
+
+  it.each(STRATEGIC_POINT_KEYS)('sets %s on land, in a region of its own country', (key) => {
+    const regionId = regionAtRoutePoint(STRATEGIC_POINTS[key]);
+    expect(regionId).not.toBeNull();
+    expect(regionFacts(regionId!)!.country).toBe(COUNTRY[key]);
   });
 });

@@ -2,6 +2,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { StrategicPointKey } from './strategic-points';
 import type {
   BuildCostKey,
   BuildingKey,
@@ -175,6 +176,20 @@ export type ObjectiveView = {
   readonly status: 'standing' | 'taken';
   /** Ce qu'il **reste** à prendre — public, comme l'objectif : c'est ce qui décide du détour. */
   readonly depot: ResourceAmounts;
+};
+
+/**
+ * **Un point stratégique, tel que tout le monde le lit** (P2) : neutre (`holder: null`), tenu, ou
+ * contesté — jamais par qui. `holder.nation` est le drapeau du teneur, ou son pseudonyme.
+ */
+export type StrategicPointView = {
+  readonly id: string;
+  readonly key: StrategicPointKey;
+  readonly regionId: string;
+  readonly point: LonLat;
+  readonly holder: { readonly nation: string } | null;
+  readonly heldSince: number | null;
+  readonly contested: boolean;
 };
 
 export type CampView = {
@@ -577,6 +592,7 @@ export type DispatchSeverity = 'critical' | 'notable' | 'routine';
 export type DispatchKind =
   | 'seasonConcluded'
   | 'reduction'
+  | 'pointTaken'
   /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
   | 'assault'
   | 'attacked'
@@ -827,6 +843,14 @@ type NoticeBody =
       readonly irregulars?: true;
     }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
+  /** Un point stratégique change de teneur (P2) : public, chez toute la table. */
+  | {
+      readonly kind: 'pointTaken';
+      readonly at: number;
+      readonly key: StrategicPointKey;
+      readonly nation: string;
+    }
+  | { readonly kind: 'pointsDrawn'; readonly at: number }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
    *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
   | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number }
@@ -914,7 +938,7 @@ type NoticeBody =
 export type CaptureView = {
   readonly id: string;
   readonly side: 'capturer' | 'defender';
-  readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+  readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
   readonly site: CaptureSite;
   readonly regionName: string | null;
   readonly point: LonLat;
@@ -927,7 +951,8 @@ export type CaptureView = {
 /** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */
 type CaptureSite =
   | { readonly kind: 'building'; readonly building: BuildingKey; readonly regionId: string }
-  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number };
+  | { readonly kind: 'outpost'; readonly hostCountry: string; readonly level: number }
+  | { readonly kind: 'point'; readonly key: StrategicPointKey };
 
 /** The server serves `place` on every notice; fixtures may leave it out. */
 export type Notice = NoticeBody & { readonly place?: MapPlace | null };
@@ -1201,6 +1226,8 @@ export type PlayerView = {
    * tient se relève comme toute force posée (ADR 0024 §1), dans `camps`.
    */
   readonly objectives: ReadonlyArray<ObjectiveView>;
+  /** Vide en Blitz, et sur une Mondiale d'avant les points. */
+  readonly strategicPoints: ReadonlyArray<StrategicPointView>;
   /** Blitz ou Mondiale : la durée d'une capture, et la plage de repos, en dépendent. */
   readonly mode: SeasonMode;
   /** Le théâtre d'une Blitz, `null` en Mondiale. */

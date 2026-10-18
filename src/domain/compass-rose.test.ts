@@ -571,6 +571,38 @@ describe('in aim', () => {
     ]);
   });
 
+  /** **Un point stratégique se vise sans relevé** (P2) : la rose offre sa capture, six heures à
+   *  pleine force ; à son teneur, rien à prendre. */
+  it('offers the capture of a strategic point, and not to its holder', () => {
+    const point = {
+      id: 'point-lisbon',
+      key: 'lisbon' as const,
+      regionId: 'PRT-746',
+      point: [-9.14, 38.72] as const,
+      holder: null,
+      heldSince: null,
+      contested: false,
+    };
+    const target = {
+      kind: 'strategic' as const,
+      id: point.id,
+      point: point.point,
+      country: 'PRT',
+      name: 'Lisbonne',
+    };
+    const neutral = compassOf(target, { ...view, strategicPoints: [point] }, column);
+    expect(neutral?.actions).toContainEqual(
+      expect.objectContaining({
+        key: 'capture',
+        target: { kind: 'point', id: 'point-lisbon' },
+        consequence: expect.stringContaining('06:00:00'),
+      }),
+    );
+    const held = { ...point, holder: { nation: 'france' } };
+    const mine = compassOf(target, { ...view, strategicPoints: [held] }, column);
+    expect(mine?.actions.some((action) => action.key === 'capture')).toBe(false);
+  });
+
   it('announces the duration at the strength the column really has', () => {
     const worn = compassOf(
       {

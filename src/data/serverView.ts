@@ -175,6 +175,7 @@ export function adaptServerView(
     /** Un déploiement d'une version en retard n'en pose aucun : la carte n'a pas de marqueur à
      *  dessiner, et rien d'autre ne les lit. */
     objectives: server.objectives ?? [],
+    strategicPoints: server.strategicPoints ?? [],
     /** Une version de retard ne connaît ni le mode ni la capture : Mondiale, et rien en cours. */
     mode: modeOf(server.mode),
     theatre: server.theatre ?? null,

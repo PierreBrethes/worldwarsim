@@ -267,6 +267,21 @@ describe('the journal', () => {
     expect(transferred!.severity).toBe('routine');
   });
 
+  /** **La course se lit par toute la table** (P2) : qui prend quel point, là où il est. */
+  it('says who takes which strategic point, where it stands', () => {
+    const [taken] = journalDispatches([], null, [
+      {
+        kind: 'pointTaken',
+        at: NOON,
+        key: 'narvik',
+        nation: 'germany',
+        place: { lon: 17.43, lat: 68.44 },
+      },
+    ]);
+    expect(taken!.text).toBe(`${fr.nations.germany} prend Narvik.`);
+    expect(taken!.place).toEqual({ lon: 17.43, lat: 68.44 });
+  });
+
   /** En Mondiale, la chute d'un QG ne dissout rien : le reste passe aux irréguliers (M16), et
    *  toute la table l'apprend, puisque chacun peut le prendre. */
   it('says where a Mondiale elimination leaves the rest, to the parties and to the table', () => {

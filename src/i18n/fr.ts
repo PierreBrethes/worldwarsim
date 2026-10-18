@@ -18,6 +18,7 @@ import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
 import type { RacePoint } from '../domain/landing';
+import type { StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -465,6 +466,56 @@ export const fr = {
    * Les noms sont indexés par clé d'archétype parce que la palette est une **donnée** : ajouter
    * une entrée à `OBJECTIVE_ARCHETYPES` est une ligne ici, jamais une branche.
    */
+  /**
+   * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
+   * Rangoun et Hong Kong comptent pour la victoire, leur règle attend sa feature (décision du
+   * 18/10) : la fiche le dit plutôt que de promettre une règle qui ne joue pas.
+   */
+  points: {
+    names: {
+      tangier: 'Tanger',
+      istanbul: 'Istanbul',
+      rangoon: 'Rangoun',
+      hongKong: 'Hong Kong',
+      halifax: 'Halifax',
+      narvik: 'Narvik',
+      lisbon: 'Lisbonne',
+    } satisfies Record<StrategicPointKey, string>,
+    rules: {
+      tangier:
+        'Vous seul commercez avec le comptoir neutre : trois d’une ressource contre une d’une autre, une fois par édition.',
+      istanbul:
+        'Une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs — tamponné « lu à Istanbul » chez eux.',
+      rangoon: null,
+      hongKong: null,
+      halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
+      narvik: 'Vos exploitations produisent même hors réseau.',
+      lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
+    } satisfies Record<StrategicPointKey, string | null>,
+    ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
+    kicker: 'point stratégique',
+    site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
+    neutral: 'neutre — personne ne le tient',
+    heldBy: (nation: string, since: string) => `tenu par ${nation} depuis ${since}`,
+    yoursSince: (since: string) => `à vous depuis ${since}`,
+    contested: 'contesté — une capture est en cours',
+    how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
+    needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
+    race: {
+      title: 'La course aux Sept',
+      chapo:
+        'Sept lieux réels de 1940. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
+      waiting: 'Les Sept attendent leurs teneurs.',
+      count: (held: number) => `${num(held)} sur 7`,
+      contested: 'contesté',
+    },
+    taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
+    drawn: () => {
+      const names = Object.values(fr.points.names);
+      return `LES SEPT SONT DÉSIGNÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
+    },
+  },
+
   objectives: {
     names: {
       abandonedStores: 'réserves abandonnées',
@@ -565,6 +616,7 @@ export const fr = {
     SETTING_NOT_IN_MODE: () => 'ce réglage n’existe pas dans ce mode',
     INVALID_CAPTURE_HOURS: () => 'la capture d’un QG dure 12 ou 24 heures',
     INVALID_DURATION: () => 'une Mondiale dure 3, 5, 7, 10 ou 14 jours',
+    UNKNOWN_STRATEGIC_POINT: () => 'ce point stratégique n’existe pas dans cette saison',
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
@@ -2143,6 +2195,7 @@ export const fr = {
     dispatches: {
       seasonConcluded: 'saison close',
       reduction: 'réduction',
+      pointTaken: 'point stratégique',
       assault: 'assaut mené',
       attacked: 'attaque subie',
       construction: 'chantier',

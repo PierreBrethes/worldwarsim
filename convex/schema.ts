@@ -16,6 +16,7 @@ import {
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
+  STRATEGIC_POINT_KEY,
   NOTICE,
   PUSH_PREFERENCES,
   PUSH_TYPE,
@@ -784,6 +785,22 @@ export default defineSchema({
    * Aucun index par joueur : un objectif n'appartient à personne. La saison le balaye whole, et
    * `destroy` l'emporte par le même index.
    */
+  /**
+   * **Les points stratégiques d'une Mondiale** (P1-P12, ADR 0027 §4), posés neutres au lancement
+   * (`strategicPoints.layOut`). Publics par nature : chacun sait où ils sont et qui les tient ;
+   * seul celui qui en conteste un reste caché jusqu'à la prise (P2).
+   *
+   * `heldSince` est l'heure de la prise du teneur, `null` sur un point neutre.
+   */
+  strategicPoints: defineTable({
+    seasonId: v.id('seasons'),
+    key: STRATEGIC_POINT_KEY,
+    regionId: v.string(),
+    point: LON_LAT,
+    holderId: v.union(v.id('players'), v.null()),
+    heldSince: v.union(v.number(), v.null()),
+  }).index('bySeason', ['seasonId']),
+
   objectives: defineTable({
     seasonId: v.id('seasons'),
     key: v.string(),

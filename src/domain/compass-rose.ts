@@ -165,6 +165,17 @@ export type CompassTarget =
     }
   | {
       /**
+       * **Un point stratégique** (P1-P12) : public comme un objectif, il se vise sans relevé. La
+       * rose y offre la marche et la capture ; à son teneur, la marche seule.
+       */
+      readonly kind: 'strategic';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly country: string | null;
+      readonly name: string;
+    }
+  | {
+      /**
        * The exact private crate sighting selected under the pointer. **Son âge n'est pas ici** :
        * la rose ne marche pas vers une caisse, elle marche vers un relevé — la date se lit sur
        * le marqueur et sur son cartouche, et aucune branche n'en dépend.
@@ -382,7 +393,7 @@ export type CompassAction =
       readonly label: string;
       readonly cost: string | null;
       readonly consequence: string;
-      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+      readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
       readonly aim: MovementAim;
     }
   /**
@@ -790,7 +801,7 @@ function plunderFan(
  */
 function captureBranch(
   site: CaptureTarget,
-  target: { readonly kind: 'building' | 'outpost'; readonly id: string },
+  target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string },
   aimed: MovementAim,
   view: PlayerView,
   column: Column,
@@ -972,6 +983,30 @@ function aim(
       false,
     );
     if (capture.action === null) return fan;
+    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
+  }
+  if (target.kind === 'strategic') {
+    const aimed: MovementAim = {
+      kind: 'strategic',
+      pointId: target.id,
+      lon: target.point[0],
+      lat: target.point[1],
+      hostCountry: target.country ?? '',
+    };
+    const fan = fanOf(target.name, view, column, [aimed]);
+    const held = view.strategicPoints.find((point) => point.id === target.id);
+    if (held?.holder?.nation === view.me.nation) return fan;
+    const capture = captureBranch(
+      { kind: 'point' },
+      { kind: 'point', id: target.id },
+      aimed,
+      view,
+      column,
+      false,
+    );
+    if (capture.action === null) {
+      return fan.actions.length > 0 ? fan : { ...fan, refusal: capture.refusal ?? fan.refusal };
+    }
     return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
   }
   /**
@@ -1408,6 +1443,13 @@ function build(
         name: target.name,
         actions: [],
         refusal: fr.objectives.needsAColumn,
+      };
+    case 'strategic':
+      return {
+        kicker: fr.points.kicker,
+        name: target.name,
+        actions: [],
+        refusal: fr.points.needsAColumn,
       };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,

@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
+import { pointsView } from './strategicPoints';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
@@ -971,6 +972,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .filter((capture) => capture.stoppedAt === undefined)
         .map((capture) => captureView(capture, 'defender')),
     ],
+    /** **Les Sept** (P2) : publics, teneur compris ; qui conteste ne sort pas. */
+    strategicPoints: await pointsView(ctx, season._id),
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,
@@ -1184,7 +1187,9 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
   target:
     capture.target.kind === 'building'
       ? { kind: 'building' as const, id: capture.target.buildingId as string }
-      : { kind: 'outpost' as const, id: capture.target.outpostId as string },
+      : capture.target.kind === 'outpost'
+        ? { kind: 'outpost' as const, id: capture.target.outpostId as string }
+        : { kind: 'point' as const, id: capture.target.pointId as string },
   site: capture.site,
   regionName:
     capture.site.kind === 'building' ? (regionFacts(capture.site.regionId)?.name ?? null) : null,

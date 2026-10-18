@@ -77,6 +77,17 @@ export type MovementAim =
       readonly lat: number;
       readonly hostCountry: string;
     }
+  /**
+   * **Un point stratégique** (P1-P12) : public comme un objectif — tout le monde sait où il est et
+   * qui le tient —, il se vise sans relevé. On ne fait qu'y marcher ou le capturer.
+   */
+  | {
+      readonly kind: 'strategic';
+      readonly pointId: string;
+      readonly lon: number;
+      readonly lat: number;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'outpost';
       readonly outpostId: string;
@@ -477,6 +488,7 @@ const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
     case 'camp':
     case 'outpost':
     case 'objective':
+    case 'strategic':
       return null;
     case 'track':
       return 'NOTHING_TO_ATTACK';

@@ -39,6 +39,7 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   installation: null,
   camp: null,
   objective: null,
+  strategic: null,
   ink: null,
   pictogram: null,
   plate: null,

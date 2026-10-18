@@ -16,6 +16,7 @@ import { accountOf, everySeatOf, isAtWar, playerOf, seatOf, seatsOf } from './se
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
+import { layOut, seasonPoints } from './strategicPoints';
 import { SEASON_MODE, VERDICT } from './validators';
 import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
 import {
@@ -567,6 +568,8 @@ export const launch = mutation({
       entry.nation = nation;
       await ctx.db.patch(entry._id, { nation });
     }
+    /** **Les Sept, posés neutres** (P11) : la course commence avec la saison. */
+    if (modeOf(season.mode) === 'mondiale') await layOut(ctx, season._id, now);
     for (const entry of present) {
       await endow(ctx, entry, season, now);
       await notifyPlayer(ctx, entry._id, {
@@ -776,6 +779,8 @@ export const destroy = mutation({
       .collect()) {
       await ctx.db.delete(objective._id);
     }
+    /** Les Sept non plus : un point tenu reste à la saison, pas à son teneur. */
+    for (const point of await seasonPoints(ctx, season._id)) await ctx.db.delete(point._id);
     for (const queued of await ctx.db
       .query('pushQueue')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))

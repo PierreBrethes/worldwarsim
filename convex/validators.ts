@@ -222,14 +222,28 @@ const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.strin
  * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
  * le voit pas, il voit un bloc s'il le relève.
  */
+/** Les sept du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
+ *  clé du domaine absente d'ici refuse son écriture au typage (`strategicPoints.layOut`). */
+export const STRATEGIC_POINT_KEY = v.union(
+  v.literal('tangier'),
+  v.literal('istanbul'),
+  v.literal('rangoon'),
+  v.literal('hongKong'),
+  v.literal('halifax'),
+  v.literal('narvik'),
+  v.literal('lisbon'),
+);
+
 export const CAPTURE_SITE = v.union(
   v.object({ kind: v.literal('building'), building: BUILDING_KEY, regionId: v.string() }),
   v.object({ kind: v.literal('outpost'), hostCountry: v.string(), level: v.number() }),
+  v.object({ kind: v.literal('point'), key: STRATEGIC_POINT_KEY }),
 );
 
 export const CAPTURE_TARGET = v.union(
   v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
   v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+  v.object({ kind: v.literal('point'), pointId: v.id('strategicPoints') }),
 );
 
 const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
@@ -533,6 +547,16 @@ export const NOTICE = v.union(
     /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
     irregulars: v.optional(v.literal(true)),
   }),
+  /** **Un point stratégique change de teneur** (P2) : public, déposé chez toute la table. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pointTaken'),
+    key: STRATEGIC_POINT_KEY,
+    nation: v.string(),
+    point: v.optional(LON_LAT),
+  }),
+  /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
+  v.object({ ...NOTICE_HEAD, kind: v.literal('pointsDrawn') }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous
    * collectif que l'audit du 25/08 réclamait, à coût nul : tout le monde la reçoit à la même

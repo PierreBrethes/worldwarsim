@@ -3,7 +3,13 @@ import { Link } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
 import { outcomeOf, type EndingFacts } from '@/domain/ending';
-import type { PressEdition, PressLine, PressOwnLine, SeasonVerdict } from '@/domain/player-view';
+import type {
+  PressEdition,
+  PressLine,
+  PressOwnLine,
+  SeasonVerdict,
+  StrategicPointView,
+} from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
@@ -32,6 +38,7 @@ export function PressWindow({
   verdict,
   ending,
   blitz,
+  points,
   onClose,
   ...windowProps
 }: WindowProps & {
@@ -39,6 +46,8 @@ export function PressWindow({
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
   blitz: boolean;
+  /** Les Sept, tels que tout le monde les lit : la course se suit en direct, pas à l'édition. */
+  points: ReadonlyArray<StrategicPointView>;
 }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<SortKey>('territory');
@@ -63,6 +72,7 @@ export function PressWindow({
           press={press}
           verdict={verdict}
           ending={ending}
+          points={points}
           sort={sort}
           onSort={setSort}
           onClose={onClose}
@@ -111,6 +121,7 @@ export function PressWindow({
           ending={ending}
           onClose={onClose}
         />
+        <Race points={points} />
         {press === null ? (
           <p className="mx-auto max-w-[62ch] px-6 py-[56px] text-center font-(family-name:--font-display) text-[20px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.press.none}
@@ -493,6 +504,7 @@ function NarrowPress({
   press,
   verdict,
   ending,
+  points,
   sort,
   onSort,
   onClose,
@@ -500,6 +512,7 @@ function NarrowPress({
   press: PressEdition | null;
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
+  points: ReadonlyArray<StrategicPointView>;
   sort: SortKey;
   onSort: (key: SortKey) => void;
   onClose: () => void;
@@ -546,6 +559,7 @@ function NarrowPress({
       </div>
 
       <Ending verdict={press?.final === true ? verdict : null} ending={ending} onClose={onClose} />
+      <Race points={points} />
       {press === null ? (
         <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
           {fr.press.none}
@@ -759,6 +773,53 @@ function NarrowRegisters({ own }: { own: PressOwnLine }) {
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+/**
+ * **La course aux Sept** (P1-P12) : qui tient quoi, en direct — l'encadré que chaque édition
+ * porte. Le teneur, jamais le contestant : un point contesté le dit, sans nom.
+ */
+function Race({ points }: { points: ReadonlyArray<StrategicPointView> }) {
+  if (points.length === 0) return null;
+  const byNation = new Map<string, Array<StrategicPointView>>();
+  for (const point of points) {
+    if (point.holder === null) continue;
+    byNation.set(point.holder.nation, [...(byNation.get(point.holder.nation) ?? []), point]);
+  }
+  const standings = [...byNation].sort((left, right) => right[1].length - left[1].length);
+  return (
+    <section className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px]">
+      <h2 className="font-(family-name:--font-display) text-[17px] font-bold text-[var(--ink)]">
+        {fr.points.race.title}
+      </h2>
+      <p className="mt-[2px] text-[11px] text-[var(--ink-soft)] italic">{fr.points.race.chapo}</p>
+      {standings.length === 0 ? (
+        <p className="mt-[8px] text-[12px] text-[var(--ink-quiet)]">{fr.points.race.waiting}</p>
+      ) : (
+        <ul className="mt-[8px] flex flex-col gap-[4px]">
+          {standings.map(([nation, held]) => (
+            <li key={nation} className="flex items-baseline gap-2 text-[12.5px]">
+              <span className="font-bold">{nationLabel(nation)}</span>
+              <span className="font-(family-name:--font-mono) text-[var(--critical)]">
+                {fr.points.race.count(held.length)}
+              </span>
+              <span className="text-[var(--ink-soft)]">
+                {held.map((point) => fr.points.names[point.key]).join(', ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-[8px] text-[11px] text-[var(--ink-soft)]">
+        {points
+          .map(
+            (point) =>
+              `${fr.points.names[point.key]}${point.contested ? ` (${fr.points.race.contested})` : ''}`,
+          )
+          .join(' · ')}
+      </p>
     </section>
   );
 }

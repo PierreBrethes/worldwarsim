@@ -61,6 +61,7 @@ import type * as seasons from "../seasons.js";
 import type * as seats from "../seats.js";
 import type * as sessions from "../sessions.js";
 import type * as sites from "../sites.js";
+import type * as strategicPoints from "../strategicPoints.js";
 import type * as surveys from "../surveys.js";
 import type * as troops from "../troops.js";
 import type * as upkeep from "../upkeep.js";
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   seats: typeof seats;
   sessions: typeof sessions;
   sites: typeof sites;
+  strategicPoints: typeof strategicPoints;
   surveys: typeof surveys;
   troops: typeof troops;
   upkeep: typeof upkeep;

@@ -23,7 +23,7 @@ import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { irregularSeat } from './objectives';
 import { reportChange, settleBeforeChange } from './production';
-import { seasonStillPlays } from './seats';
+import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
@@ -54,7 +54,23 @@ import {
  */
 
 type Capture = Doc<'captures'>;
-type Target = Doc<'buildings'> | Doc<'outposts'>;
+type Target = Doc<'buildings'> | Doc<'outposts'> | Doc<'strategicPoints'>;
+
+const isPoint = (site: Target): site is Doc<'strategicPoints'> => 'holderId' in site;
+const isBuilding = (site: Target): site is Doc<'buildings'> => 'key' in site && !isPoint(site);
+/** Qui défend le site : son propriétaire, ou le teneur d'un point — `null` sur un point neutre,
+ *  que garde le siège irrégulier. */
+const ownerOf = (site: Target): Id<'players'> | null =>
+  isPoint(site) ? site.holderId : site.playerId;
+/** Le site est-il encore à qui la capture vise ? Un point neutre l'est toujours. */
+const stillHeldBy = (site: Target, defenderId: Id<'players'>): boolean =>
+  (ownerOf(site) ?? defenderId) === defenderId;
+const targetIdOf = (target: Capture['target']): string =>
+  target.kind === 'building'
+    ? target.buildingId
+    : target.kind === 'outpost'
+      ? target.outpostId
+      : target.pointId;
 
 const seasonModeOf = async (ctx: QueryCtx, seasonId: Id<'seasons'>) =>
   modeOf((await ctx.db.get(seasonId))?.mode);
@@ -74,18 +90,22 @@ async function targetOf(
   capturerId: Id<'players'>,
   seasonId: Id<'seasons'>,
 ): Promise<Target | null> {
-  const site =
+  const site: Target | null =
     target.kind === 'building'
       ? await ctx.db.get(target.buildingId)
-      : await ctx.db.get(target.outpostId);
-  if (site === null || site.seasonId !== seasonId || site.playerId === capturerId) return null;
+      : target.kind === 'outpost'
+        ? await ctx.db.get(target.outpostId)
+        : await ctx.db.get(target.pointId);
+  if (site === null || site.seasonId !== seasonId || ownerOf(site) === capturerId) return null;
   return site;
 }
 
 export const siteOf = (site: Target): Capture['site'] =>
-  'key' in site
-    ? { kind: 'building', building: site.key, regionId: site.regionId }
-    : { kind: 'outpost', hostCountry: site.hostCountry, level: site.level };
+  isPoint(site)
+    ? { kind: 'point', key: site.key }
+    : isBuilding(site)
+      ? { kind: 'building', building: site.key, regionId: site.regionId }
+      : { kind: 'outpost', hostCountry: site.hostCountry, level: site.level };
 
 /**
  * **L'infanterie posée de la saison, rangée par tenant et par point** — lue une fois par
@@ -138,10 +158,13 @@ async function notifyBoth(
     | { kind: 'captureSucceeded' }
     | { kind: 'captureCancelled'; reason: 'left' | 'gone' },
 ): Promise<void> {
-  for (const [playerId, side] of [
+  /** Le siège irrégulier ne lit rien : un point neutre ne prévient personne. */
+  const defended = (await ctx.db.get(capture.defenderId))?.irregular !== true;
+  const sides: ReadonlyArray<readonly [Id<'players'>, 'capturer' | 'defender']> = [
     [capture.playerId, 'capturer'],
-    [capture.defenderId, 'defender'],
-  ] as const) {
+    ...(defended ? [[capture.defenderId, 'defender'] as const] : []),
+  ];
+  for (const [playerId, side] of sides) {
     await ctx.db.insert('notices', {
       playerId,
       at,
@@ -238,7 +261,7 @@ export async function arriveForCapture(
     const refused = {
       seasonId: movement.seasonId,
       playerId: movement.playerId,
-      defenderId: site.playerId,
+      defenderId: ownerOf(site) ?? (await irregularSeat(ctx, movement.seasonId)),
       site: siteOf(site),
       point: movement.to,
     };
@@ -260,13 +283,7 @@ async function startCapture(
     .query('captures')
     .withIndex('byPlayer', (q) => q.eq('playerId', movement.playerId))
     .collect();
-  const sameSite = mine.filter(
-    (capture) =>
-      (capture.target.kind === 'building'
-        ? capture.target.buildingId
-        : capture.target.outpostId) ===
-      (target.kind === 'building' ? target.buildingId : target.outpostId),
-  );
+  const sameSite = mine.filter((capture) => targetIdOf(capture.target) === targetIdOf(target));
   /** Un renfort qui rejoint une capture en cours la relève, il n'en ouvre pas une seconde. */
   const running = sameSite.find(
     (capture) =>
@@ -280,7 +297,9 @@ async function startCapture(
   }
   for (const stopped of sameSite) await ctx.db.delete(stopped._id);
 
-  const defender = await ctx.db.get(site.playerId);
+  /** Un point neutre se prend sur le siège irrégulier, qui ne dort pas. */
+  const defenderId = ownerOf(site) ?? (await irregularSeat(ctx, movement.seasonId));
+  const defender = await ctx.db.get(defenderId);
   const mode = await seasonModeOf(ctx, movement.seasonId);
   const clock: CaptureClock = {
     progress: 0,
@@ -288,15 +307,22 @@ async function startCapture(
     rate: rateOf(troops),
     durationMs: captureDurationMs(
       mode,
-      'key' in site ? { kind: 'building', key: site.key } : { kind: 'outpost' },
+      isPoint(site)
+        ? { kind: 'point' }
+        : isBuilding(site)
+          ? { kind: 'building', key: site.key }
+          : { kind: 'outpost' },
       (await ctx.db.get(movement.seasonId))?.hqCaptureHours,
     ),
-    rest: mode === 'mondiale' && defender !== null ? defender.restWindow : null,
+    rest:
+      mode === 'mondiale' && defender !== null && defender.irregular !== true
+        ? defender.restWindow
+        : null,
   };
   const capture = {
     seasonId: movement.seasonId,
     playerId: movement.playerId,
-    defenderId: site.playerId,
+    defenderId,
     target,
     site: siteOf(site),
     point: movement.to,
@@ -328,7 +354,7 @@ async function reassessOne(
   if (capture.completesAt <= now) return;
   const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
   const troops = capturersOf(byPoint, capture);
-  if (site === null || site.playerId !== capture.defenderId) {
+  if (site === null || !stillHeldBy(site, capture.defenderId)) {
     await stop(ctx, capture, now, 'gone');
     return;
   }
@@ -413,11 +439,11 @@ export const complete = internalMutation({
     const now = expectedAt;
     const byPoint = await infantryByPoint(ctx, capture.seasonId);
     const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
-    if (site === null || site.playerId !== capture.defenderId) {
+    if (site === null || !stillHeldBy(site, capture.defenderId)) {
       await stop(ctx, capture, now, 'gone');
       return;
     }
-    const loser = (await ctx.db.get(site.playerId))!;
+    const loser = (await ctx.db.get(capture.defenderId))!;
     const mode = await seasonModeOf(ctx, capture.seasonId);
 
     const before = await settleBeforeChange(ctx, capture.seasonId, now);
@@ -431,7 +457,7 @@ export const complete = internalMutation({
      *  (`leaveTheWar`, plus bas). En Blitz il emporte tout : ses bâtiments passent au capteur,
      *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
      *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
-    const falls = 'key' in site && site.homeOf === loser._id;
+    const falls = isBuilding(site) && site.homeOf === loser._id;
     if (falls && mode === 'mondiale') {
       await releaseBuilding(ctx, loser, site, now);
       await ctx.db.patch(site._id, {
@@ -442,7 +468,9 @@ export const complete = internalMutation({
       taken.push(site);
       await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
       await toIrregulars(ctx, capture, loser, now);
-    } else if ('key' in site) {
+    } else if (isPoint(site)) {
+      await takePoint(ctx, site, capture.playerId, now);
+    } else if (isBuilding(site)) {
       for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
         await releaseBuilding(ctx, loser, building, now);
         await ctx.db.patch(building._id, {
@@ -484,12 +512,11 @@ export const complete = internalMutation({
 
     await ctx.db.delete(captureId);
     await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
-    const point =
-      'key' in site
-        ? (pointOfBuilding(site) ?? regionFacts(site.regionId)?.point ?? pointOf(capture.point))
-        : pointOf(site.point);
+    const point = isBuilding(site)
+      ? (pointOfBuilding(site) ?? regionFacts(site.regionId)?.point ?? pointOf(capture.point))
+      : pointOf(site.point);
     await surveyFromPoint(ctx, capture.playerId, point, now);
-    await surveyFromPoint(ctx, loser._id, point, now);
+    if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
     await reassessDetection(ctx, capture.seasonId, now);
     /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
@@ -510,6 +537,30 @@ export const complete = internalMutation({
     }
   },
 });
+
+/**
+ * **Un point stratégique change de teneur** (P1-P3) : sa règle passe avec lui, et toute la table
+ * l'apprend — un point tenu est public. Le teneur le garde sans garnison.
+ */
+async function takePoint(
+  ctx: MutationCtx,
+  point: Doc<'strategicPoints'>,
+  takerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  await ctx.db.patch(point._id, { holderId: takerId, heldSince: now });
+  const taker = await ctx.db.get(takerId);
+  for (const seat of await seatsOf(ctx, point.seasonId)) {
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'pointTaken',
+      key: point.key,
+      nation: taker?.nation ?? taker?.nickname ?? '',
+      point: point.point,
+    });
+  }
+}
 
 /**
  * **En Blitz, qui a déposé les armes ne prend plus rien** : sa capture d'un QG éliminerait un

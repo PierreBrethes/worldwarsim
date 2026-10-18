@@ -27,7 +27,7 @@ import {
   detectionRangeOf,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
-import { fr } from '@/i18n/fr';
+import { fr, nationLabel } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
@@ -162,6 +162,7 @@ import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
 import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
+import { StrategicPointBadge } from './-plateau/StrategicPointBadge';
 import type { LootRumor } from './-plateau/JournalWindow';
 
 type BuildingSite = { regionId: string; x: number; y: number };
@@ -493,6 +494,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
   const [selectedObjective, setSelectedObjective] = useState<OpenObjective | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<OpenObjective | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
    * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
@@ -565,6 +567,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     (objectiveId: string, clientX: number, clientY: number) => {
       if (!aimingOnPhone)
         setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
+    },
+    [boardPoint, aimingOnPhone],
+  );
+  const openStrategic = useCallback(
+    (pointId: string, clientX: number, clientY: number) => {
+      if (!aimingOnPhone) setSelectedPoint({ id: pointId, ...boardPoint(clientX, clientY) });
     },
     [boardPoint, aimingOnPhone],
   );
@@ -1454,6 +1462,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }),
     );
 
+    /** **Les Sept, sur la carte de tous** (P2) : à l'encre de leur teneur, aucune s'ils sont
+     *  neutres ; contestés, ils le disent sans dire par qui. */
+    const points: ReadonlyArray<MapMarker> = view.strategicPoints.map((point) => ({
+      kind: 'strategic' as const,
+      id: `strategic-${point.id}`,
+      pointId: point.id,
+      lonLat: point.point,
+      name: fr.points.names[point.key],
+      ink: point.holder === null ? null : nationInk(point.holder.nation),
+      state: point.contested
+        ? fr.points.contested
+        : point.holder === null
+          ? fr.points.neutral
+          : nationLabel(point.holder.nation),
+    }));
+
     /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
     const neutralIds = new Set(view.neutralSites.map((site) => site.id));
     const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
@@ -1484,7 +1508,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     }));
 
     if (!toggles.buildings)
-      return [...deposits, ...loot, ...camps, ...objectives, ...outposts, ...stacks];
+      return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
     const worksOn = (regionId: string, key: string) =>
@@ -1562,6 +1586,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...loot,
       ...camps,
       ...objectives,
+      ...points,
       ...surveyed,
       ...neutral,
       ...outposts,
@@ -1578,6 +1603,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.lootSightings,
     view.camps,
     view.objectives,
+    view.strategicPoints,
     view.surveyedInstallations,
     view.neutralSites,
     knownRegionById,
@@ -1906,6 +1932,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     selectedObjective === null
       ? null
       : (view.objectives.find((objective) => objective.id === selectedObjective.id) ?? null);
+  const selectedPointView =
+    selectedPoint === null
+      ? null
+      : (view.strategicPoints.find((point) => point.id === selectedPoint.id) ?? null);
   const selectedLootSighting =
     selectedLoot === null
       ? null
@@ -2370,6 +2400,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenLoot={openLoot}
               onOpenCamp={openCamp}
               onOpenObjective={openObjective}
+              onOpenStrategic={openStrategic}
               selectedLabel={highlight?.labelId ?? null}
               selectedPlate={highlightPlate}
               selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
@@ -2425,6 +2456,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 objective={selectedObjectiveView}
                 at={selectedObjective}
                 onClose={() => setSelectedObjective(null)}
+              />
+            )}
+            {selectedPoint !== null && selectedPointView !== null && (
+              <StrategicPointBadge
+                key={selectedPoint.id}
+                point={selectedPointView}
+                mine={selectedPointView.holder?.nation === view.me.nation}
+                at={selectedPoint}
+                onClose={() => setSelectedPoint(null)}
               />
             )}
             {buildingSite && (
@@ -2764,6 +2804,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       verdict={view.season.verdict}
                       ending={ending.facts}
                       blitz={blitz}
+                      points={view.strategicPoints}
                       {...windowProps}
                     />
                   );

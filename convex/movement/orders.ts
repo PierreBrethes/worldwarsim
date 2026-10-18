@@ -259,6 +259,11 @@ export async function captureAimOf(
     }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
   }
+  if (target.kind === 'point') {
+    const aimed = await aimOf(ctx, player._id, { kind: 'strategic', pointId: target.pointId });
+    if ((await ctx.db.get(target.pointId))?.holderId === player._id) fail('FRIENDLY_TARGET');
+    return aimed;
+  }
   const aimed = await aimOf(ctx, player._id, { kind: 'outpost', outpostId: target.outpostId });
   if ((await ctx.db.get(target.outpostId))?.playerId === player._id) fail('FRIENDLY_TARGET');
   return aimed;
@@ -339,6 +344,7 @@ export type AimTarget =
   | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
   | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> }
+  | { readonly kind: 'strategic'; readonly pointId: Id<'strategicPoints'> }
   | { readonly kind: 'track'; readonly movementId: Id<'movements'> };
 
 const seasonIdOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<Id<'seasons'> | null> =>
@@ -451,6 +457,28 @@ export async function aimOf(
         hostCountry: country,
       },
       target: { kind: 'point', point: objective.point },
+      point,
+      name: regionNameAt(point) ?? country,
+      host: country,
+    };
+  }
+  /** **Un point stratégique se résout en sa position** : public, comme un objectif (P2). */
+  if (target.kind === 'strategic') {
+    const strategic = await ctx.db.get(target.pointId);
+    if (strategic === null || strategic.seasonId !== (await seasonIdOf(ctx, playerId))) {
+      fail('UNKNOWN_STRATEGIC_POINT');
+    }
+    const point = pointOf(strategic.point);
+    const country = hostAtPoint(point);
+    return {
+      aim: {
+        kind: 'strategic',
+        pointId: strategic._id,
+        lon: point[0],
+        lat: point[1],
+        hostCountry: country,
+      },
+      target: { kind: 'point', point: strategic.point },
       point,
       name: regionNameAt(point) ?? country,
       host: country,

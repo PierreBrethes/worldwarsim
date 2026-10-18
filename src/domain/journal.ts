@@ -330,7 +330,9 @@ function written(notice: Notice): Written {
       const site =
         notice.site.kind === 'building'
           ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
-          : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
+          : notice.site.kind === 'point'
+            ? fr.points.site(notice.site.key)
+            : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {
         const until = asClockTime(notice.completesAt);
@@ -485,6 +487,17 @@ function written(notice: Notice): Written {
         kind: 'command',
         text: said.commandTransferred(nationName(notice.nation)),
       };
+    /** **La course aux Sept change de main** (P2) : la table entière le lit, et la victoire s'y
+     *  joue — notable, jamais une alarme, qui est la capture qui s'ouvre contre soi. */
+    case 'pointTaken':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.taken(nationName(notice.nation), notice.key),
+      };
+    case 'pointsDrawn':
+      return { at: notice.at, severity: 'notable', kind: 'pointTaken', text: fr.points.drawn() };
     /**
      * **Le rendez-vous collectif, et il est routinier** : l'édition paraît à l'heure dite, elle
      * n'annonce rien qui exige un geste. Son rang seul y figure — la table se lit à la page de

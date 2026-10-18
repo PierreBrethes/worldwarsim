@@ -102,7 +102,9 @@ async function captureArrival(
       target:
         target.kind === 'building'
           ? { kind: 'building', buildingId: target.buildingId }
-          : { kind: 'outpost', outpostId: target.outpostId },
+          : target.kind === 'outpost'
+            ? { kind: 'outpost', outpostId: target.outpostId }
+            : { kind: 'point', point: to },
       from: { lon: to.lon - 1, lat: to.lat },
       to,
       hostCountry,

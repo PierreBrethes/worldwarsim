@@ -11,7 +11,10 @@ import { DEFAULT_HQ_CAPTURE_HOURS } from './operation-order';
  * horloge des deux côtés.
  */
 export type CaptureTarget =
-  { readonly kind: 'building'; readonly key: BuildingKey } | { readonly kind: 'outpost' };
+  | { readonly kind: 'building'; readonly key: BuildingKey }
+  | { readonly kind: 'outpost' }
+  /** Un point stratégique — Mondiale seule. */
+  | { readonly kind: 'point' };
 
 export type CaptureRefusal =
   'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'CAPTURE_NEEDS_INFANTRY' | 'CAPTURE_ON_FOOT';
@@ -38,6 +41,7 @@ export function captureDurationMs(
   target: CaptureTarget,
   hqCaptureHours: number = DEFAULT_HQ_CAPTURE_HOURS,
 ): number {
+  if (target.kind === 'point') return CAPTURE_MINUTES.mondiale.point * 60_000;
   if (!isHq(target)) return CAPTURE_MINUTES[mode][target.kind] * 60_000;
   return mode === 'blitz' ? CAPTURE_MINUTES.blitz.hq * 60_000 : hqCaptureHours * 3_600_000;
 }
@@ -51,7 +55,7 @@ export const captureDurationAt = (
 ): number => captureDurationMs(mode, target, hqCaptureHours) / rate;
 
 export const isHqSite = (site: {
-  readonly kind: 'building' | 'outpost';
+  readonly kind: 'building' | 'outpost' | 'point';
   readonly building?: BuildingKey;
 }): boolean => site.kind === 'building' && site.building === 'hq';
 

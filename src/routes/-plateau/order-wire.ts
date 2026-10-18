@@ -27,7 +27,7 @@ type PreviewMission =
   | { readonly kind: 'plunder'; readonly buildingId: string }
   | {
       readonly kind: 'capture';
-      readonly target: { readonly kind: 'building' | 'outpost'; readonly id: string };
+      readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
     }
   | { readonly kind: 'collect'; readonly sightingId: string };
 
@@ -78,12 +78,14 @@ export const wireTarget = (aim: MovementAim) =>
               : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 export const wireCaptureTarget = (target: {
-  readonly kind: 'building' | 'outpost';
+  readonly kind: 'building' | 'outpost' | 'point';
   readonly id: string;
 }) =>
   target.kind === 'building'
     ? ({ kind: 'building', buildingId: target.id as Id<'buildings'> } as const)
-    : ({ kind: 'outpost', outpostId: target.id as Id<'outposts'> } as const);
+    : target.kind === 'outpost'
+      ? ({ kind: 'outpost', outpostId: target.id as Id<'outposts'> } as const)
+      : ({ kind: 'point', pointId: target.id as Id<'strategicPoints'> } as const);
 
 /**
  * Where a column stands, in the shape the mutations take — the branded ids go back on at the one

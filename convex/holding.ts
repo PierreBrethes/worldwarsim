@@ -7,6 +7,7 @@ import { pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, type RegionFacts } from './regions';
 import { isBlitz } from './blitz';
+import { seasonPoints } from './strategicPoints';
 
 /**
  * **La vérité de la couleur, en un seul endroit.** Qui tient quoi se calcule depuis les
@@ -39,17 +40,25 @@ export async function heldOver(
   });
 }
 
-/** Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`). */
+/**
+ * Les bâtiments capturés de la saison, lus sur leur seul intervalle d'index (`capturedAt`), et
+ * les points stratégiques tenus : **un point colore sa région pour son teneur** (P1), sans y
+ * ouvrir de chantier ni y ravitailler personne — ni l'un ni l'autre ne lit la couleur.
+ */
 export async function occupationsOf(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
 ): Promise<ReadonlyArray<Occupation>> {
-  return (
+  const captured = (
     await ctx.db
       .query('buildings')
       .withIndex('bySeasonCaptured', (q) => q.eq('seasonId', seasonId).gt('capturedAt', 0))
       .collect()
   ).map((building) => ({ regionId: building.regionId, owner: building.playerId as string }));
+  const held = (await seasonPoints(ctx, seasonId)).flatMap((point) =>
+    point.holderId === null ? [] : [{ regionId: point.regionId, owner: point.holderId as string }],
+  );
+  return [...captured, ...held];
 }
 
 /**
