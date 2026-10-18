@@ -125,6 +125,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
   ailleurs, le dépôt de l'avant-poste. Une seule lecture sert l'entretien et le ravitaillement.
 - **Le plein se paie au départ.** Le mouvement débite sa route du plein de chaque moteur. Une route
   plus longue que le plus petit plein de l'escouade est refusée, et le refus le dit (ADR 0015).
+  Le retour automatique d'une colonne qui a combattu reste gratuit (précision du 18/10, à la
+  revue de la 4.3) : il n'est l'ordre de personne, et le payer coincerait loin de chez soi une
+  troupe qui n'a pas choisi d'y rester.
 - **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon : 400 par niveau du
   point, **au total**, partagés librement (Q27, Q28). Réarmer une escouade de dix troupes coûte
   environ 200. Les vivres et l'acier restent au plateau personnel.

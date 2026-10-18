@@ -822,8 +822,7 @@ export async function march(
   /**
    * **Le plein se paie au départ** (ADR 0028 §3) : chaque moteur qui roule, vogue ou vole débite
    * sa route, et une route plus longue que le plus petit plein est refusée. Un passager ne
-   * consomme pas : son transport le porte. Le retour d'une colonne qui a combattu ne se paie
-   * pas : il n'est l'ordre de personne.
+   * consomme pas : son transport le porte.
    */
   const fuel = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
   if (fuel.short !== null) fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km });

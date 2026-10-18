@@ -705,6 +705,8 @@ export async function walkHome(
     await surveyFromPoint(ctx, playerId, from, now, roles);
   }
 
+  // Pas de plein débité ici (ADR 0028 §3) : ce retour n'est l'ordre de personne, et le payer
+  // coincerait au loin une troupe qui n'a pas choisi d'y rester.
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
   const staying = new Map<string, { address: TroopAddress; group: Array<Doc<'troops'>> }>();
   const filed: Array<Id<'movements'>> = [];
