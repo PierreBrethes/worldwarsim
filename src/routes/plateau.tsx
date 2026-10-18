@@ -3350,7 +3350,16 @@ function garrisonPiles(
     const troops = troopsAt(me, id, marching);
     return troops.length === 0
       ? []
-      : [{ id, at: { beside: buildingLabelId(building) }, pieces: pilePieces(troops) }];
+      : [
+          {
+            id,
+            at:
+              building.key === PROJECTION_BY_DOMAIN.sea
+                ? { beside: buildingLabelId(building), quay: building.point }
+                : { beside: buildingLabelId(building) },
+            pieces: pilePieces(troops),
+          },
+        ];
   });
 }
 

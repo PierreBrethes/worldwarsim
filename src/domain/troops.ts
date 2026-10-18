@@ -133,7 +133,8 @@ export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<Buil
   /** Le port et l'aérodrome s'y ajoutent (ADR 0025 §5) : une coque chargée de chars rentre à
    *  quai, un avion débarque ses passagers sur son terrain. */
   armor: ['barracks', 'hq', 'port', 'airfield'],
-  landTransport: ['barracks', 'hq', 'port', 'airfield'],
+  /** L'entrepôt aussi : un camion s'y charge (ADR 0028 §4). */
+  landTransport: ['barracks', 'hq', 'port', 'airfield', 'warehouse'],
   artillery: ['barracks', 'hq', 'port', 'airfield'],
   fighter: ['airfield'],
   bomber: ['airfield'],

@@ -49,7 +49,11 @@ export type StandingPile = {
    * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is
    * lifted by its figurines like any pile; the maquette itself opens its site.
    */
-  readonly at: { readonly lonLat: LonLat } | { readonly beside: string };
+  readonly at:
+    | { readonly lonLat: LonLat }
+    /** `quay` : la garnison d'un port, dont les coques **accostent le long du quai**, côté mer,
+     *  en rangs le long de la côte (ADR 0028) — et non tournées comme la maquette. */
+    | { readonly beside: string; readonly quay?: LonLat };
   readonly pieces: PilePieces;
 };
 
@@ -649,11 +653,7 @@ export class StandingLayer {
         next.set(pile.id, kept);
         continue;
       }
-      const built = pileObject(
-        this.nation,
-        pile.pieces,
-        'lonLat' in pile.at ? this.seaward(pile.at.lonLat) : null,
-      );
+      const built = pileObject(this.nation, pile.pieces, this.shoreOf(pile.at));
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
@@ -844,7 +844,7 @@ export class StandingLayer {
     const copy = pileObject(
       this.nation,
       heldPieces(entry.pieces, held.troopIds),
-      'lonLat' in entry.at ? this.seaward(entry.at.lonLat) : null,
+      this.shoreOf(entry.at),
     );
     if (copy === null) return;
     for (const disc of copy.object.getObjectsByProperty('name', CONTACT)) disc.visible = false;
@@ -1009,6 +1009,12 @@ export class StandingLayer {
     if (entry) wash(entry.object, false);
   }
 
+  /** Toward the water from a pile on a shore, or from the quay of a port's garrison. */
+  private shoreOf(at: StandingPile['at']): readonly [number, number] | null {
+    const point = 'lonLat' in at ? at.lonLat : at.quay;
+    return point === undefined ? null : this.seaward(point);
+  }
+
   /** Every dressed pile set back on its point; a garrison is set at its maquette's foot by `orient`. */
   rebuild(): void {
     for (const { at, object } of this.dressed.values())
@@ -1030,7 +1036,7 @@ export class StandingLayer {
           foot.at.y,
           foot.at.z + foot.step[1] * near,
         );
-        object.rotation.y = foot.facing;
+        object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
