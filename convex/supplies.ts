@@ -1,16 +1,20 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { topUp, type SupplyStocks } from '../src/domain/supplies';
+import { topUp, type Supplies, type SupplyStocks } from '../src/domain/supplies';
+import { emptyLoad } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
-import { upkeepOf } from './upkeep';
+import { upkeepOf, type AnchorStore } from './upkeep';
+
+/** Ce que la recharge prend à chaque ancre : le plateau personnel, ou le dépôt d'un avant-poste. */
+type Bill = ReadonlyMap<AnchorStore, SupplyStocks>;
 
 /**
  * **Ancrée, une troupe se recharge ; ailleurs, elle vit sur ce qu'elle porte** (ADR 0028 §3).
  * La lecture de l'ancre est celle de l'entretien (`upkeepOf`), et une troupe sur la route n'est
- * ancrée nulle part. Elle se sert sur le plateau personnel, sur le sol national comme dans le
- * rayon d'un avant-poste : le dépôt d'avant-poste n'existe pas encore (feature 4.7).
+ * ancrée nulle part. Sur le sol national elle se sert au plateau personnel ; dans le rayon d'un
+ * avant-poste, à son dépôt (`storeOf`). Chaque ancre se partage dans l'ordre des identifiants.
  *
  * La Blitz ne compte rien : elle tire et roule sans compter.
  */
@@ -19,42 +23,83 @@ export async function toppedUp(
   playerId: Id<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
   at: number,
-): Promise<{ readonly troops: Array<Doc<'troops'>>; readonly cost: SupplyStocks }> {
-  const none = { troops: [...troops], cost: { ammunition: 0, oil: 0, coal: 0 } };
+): Promise<{ readonly troops: Array<Doc<'troops'>>; readonly bill: Bill }> {
+  const none = { troops: [...troops], bill: new Map() };
   const player = await ctx.db.get(playerId);
   if (player === null || troops.length === 0 || (await isBlitz(ctx, player.seasonId))) return none;
-  const unsupplied = new Set<string>((await upkeepOf(ctx, playerId, at)).unsuppliedTroopIds);
+  const { storeOf } = await upkeepOf(ctx, playerId, at);
   const marching = new Set<string>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  const anchored = (troop: Doc<'troops'>) => !unsupplied.has(troop._id) && !marching.has(troop._id);
-  if (!troops.some(anchored)) return none;
-  const { stocks } = await economyOf(ctx, playerId, at);
-  const { supplies, cost } = topUp(
-    troops.map((troop) => ({ ...troop, id: troop._id, anchored: anchored(troop) })),
-    stocks,
-  );
+  const byStore = new Map<AnchorStore, Array<Doc<'troops'>>>();
+  for (const troop of troops) {
+    const store = storeOf.get(troop._id);
+    if (store === undefined || marching.has(troop._id)) continue;
+    byStore.set(store, [...(byStore.get(store) ?? []), troop]);
+  }
+  if (byStore.size === 0) return none;
+  const refills = new Map<string, Supplies>();
+  const bill = new Map<AnchorStore, SupplyStocks>();
+  for (const [store, group] of byStore) {
+    const { supplies, cost } = topUp(
+      group.map((troop) => ({ ...troop, id: troop._id, anchored: true })),
+      await stocksOf(ctx, playerId, store, at),
+    );
+    for (const [id, refill] of supplies) refills.set(id, refill);
+    bill.set(store, cost);
+  }
   return {
     troops: troops.map((troop) => {
-      const refill = supplies.get(troop._id);
+      const refill = refills.get(troop._id);
       return refill === undefined ? troop : { ...troop, ...refill };
     }),
-    cost,
+    bill,
   };
 }
 
-/** La recharge écrite : le plateau personnel paie, la troupe garde ses crans. */
+async function stocksOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  store: AnchorStore,
+  at: number,
+): Promise<SupplyStocks> {
+  if (store === 'board') return (await economyOf(ctx, playerId, at)).stocks;
+  return (await ctx.db.get(store))?.depot ?? emptyLoad();
+}
+
+/** La recharge écrite : chaque ancre paie, la troupe garde ses crans. */
 export async function resupply(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
   at: number,
 ): Promise<Array<Doc<'troops'>>> {
-  const { troops: next, cost } = await toppedUp(ctx, playerId, troops, at);
-  if (cost.ammunition + cost.oil + cost.coal === 0) return next;
-  await debit(ctx, playerId, cost, at);
+  const { troops: next, bill } = await toppedUp(ctx, playerId, troops, at);
+  for (const [store, cost] of bill) {
+    if (cost.ammunition + cost.oil + cost.coal === 0) continue;
+    if (store === 'board') await debit(ctx, playerId, cost, at);
+    else await takeFromDepot(ctx, store, cost);
+  }
   for (const [index, troop] of next.entries())
     if (troop.rounds !== troops[index]!.rounds || troop.fuel !== troops[index]!.fuel)
       await ctx.db.patch(troop._id, { rounds: troop.rounds, fuel: troop.fuel });
   return next;
+}
+
+/** Le dépôt rend ce qu'on y prend ; il ne descend jamais sous zéro. */
+export async function takeFromDepot(
+  ctx: MutationCtx,
+  outpostId: Id<'outposts'>,
+  taken: SupplyStocks,
+): Promise<void> {
+  const outpost = await ctx.db.get(outpostId);
+  if (outpost === null) return;
+  const depot = outpost.depot ?? emptyLoad();
+  await ctx.db.patch(outpostId, {
+    depot: {
+      ammunition: Math.max(0, depot.ammunition - taken.ammunition),
+      oil: Math.max(0, depot.oil - taken.oil),
+      coal: Math.max(0, depot.coal - taken.coal),
+    },
+  });
 }

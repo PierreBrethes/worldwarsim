@@ -22,6 +22,7 @@ import {
   PUSH_TYPE,
   PLUNDER_MISSION,
   RESOURCE_AMOUNTS,
+  SUPPLY_LOAD,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_STATUS,
@@ -772,6 +773,9 @@ export default defineSchema({
     standsAt: v.optional(v.number()),
     disabledUntil: v.union(v.number(), v.null()),
     immuneUntil: v.union(v.number(), v.null()),
+    /** **Le dépôt d'avant-poste** (ADR 0028 §4) : munitions, pétrole et charbon, une seule charge
+     *  maximale partagée (`depotCapacity`). Il se capture avec le point. Absent, vide. */
+    depot: v.optional(SUPPLY_LOAD),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),

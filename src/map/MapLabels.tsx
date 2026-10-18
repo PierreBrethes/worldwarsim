@@ -4,6 +4,7 @@
 'use no memo';
 
 import { SupplyPictos } from '@/shell/SupplyPictos';
+import { ChargeBar } from '@/shell/ChargeBar';
 import { CargoTags, type CargoAim } from './CargoTags';
 import {
   Fragment,
@@ -982,6 +983,10 @@ export function MapLabels({
                   ) : line.role === 'supplies' ? (
                     <div key={rank} className="label-line label-line--figures">
                       <SupplyPictos supplies={line.supplies} />
+                    </div>
+                  ) : line.role === 'charge' ? (
+                    <div key={rank} className="label-line label-line--figures">
+                      <ChargeBar load={line.load} capacity={line.capacity} />
                     </div>
                   ) : line.role === 'capture' ? (
                     <CaptureGauge

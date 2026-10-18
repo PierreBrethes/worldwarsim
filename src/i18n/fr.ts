@@ -2536,9 +2536,15 @@ export const fr = {
     fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
       `Plein : ${held} sur ${full} crans de ${coal ? 'charbon' : 'pétrole'}, ≈ ${km} km de route — payé au départ`,
     reload:
-      'Ancrée, elle se recharge sur le plateau personnel (10 par cran) ; ailleurs, elle vit sur ce qu’elle porte.',
+      'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
     route: (steps: number) => `plein : la route coûte ${steps} cran${plural(steps, '', 's')}`,
+  },
+  /** **La logistique** (ADR 0028 §4) : dépôts, charge des transports, livraisons, tournées. */
+  logistics: {
+    chargeTitle: (said: string, total: number, capacity: number) =>
+      `${said === '' ? 'Vide' : said} — ${total} sur ${capacity}, une seule charge partagée`,
+    depot: 'Dépôt',
   },
   troops: {
     atHome: 'à domicile',

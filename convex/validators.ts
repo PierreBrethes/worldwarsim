@@ -91,6 +91,14 @@ export const RESOURCE_AMOUNTS = v.object({
   ammunition: v.number(),
 });
 
+/** **Ce que portent un dépôt d'avant-poste et un transport** (ADR 0028 §4) : munitions, pétrole
+ *  et charbon, jamais vivres ni acier. */
+export const SUPPLY_LOAD = v.object({
+  ammunition: v.number(),
+  oil: v.number(),
+  coal: v.number(),
+});
+
 /** Le sol sous une chose : la route le porte par tronçon, un camp relevé une fois pour toutes. */
 export const MEDIUM = v.union(v.literal('land'), v.literal('sea'), v.literal('air'));
 

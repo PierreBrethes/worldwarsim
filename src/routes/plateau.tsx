@@ -1,4 +1,5 @@
 import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
+import { emptyLoad } from '@/domain/logistics';
 import {
   Link,
   Navigate,
@@ -1458,6 +1459,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             }
           : null,
       ink: view.me.ink,
+      ...(view.mode === 'blitz' || outpost.standsAt !== null
+        ? {}
+        : { depot: { load: outpost.depot, capacity: outpost.depotCapacity } }),
     }));
 
     /**
@@ -3152,19 +3156,30 @@ function armedColumn(
 }
 
 /** **La même lecture que `columnOf` après la recharge du départ** (ADR 0028 §3) : une troupe
- *  ancrée reprend ses coups sur le plateau personnel avant que l'ordre ne les lise. */
+ *  ancrée reprend ses coups à son ancre — le plateau personnel, ou le dépôt de l'avant-poste —
+ *  avant que l'ordre ne les lise. */
 function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
   if (view.mode === 'blitz') return {};
   const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
   const stock = (key: keyof SupplyStocks) => view.me.resources[key]?.stock ?? 0;
-  const { supplies } = topUp(
-    troops.map((troop) => ({
-      ...troop.supplies,
-      id: troop.id,
-      role: troop.role,
-      anchored: troop.supplied && !marching.has(troop.id),
-    })),
-    { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') },
+  const board = { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') };
+  const stores = new Set(troops.map((troop) => troop.depotId));
+  const supplies = new Map(
+    [...stores].flatMap((store) => [
+      ...topUp(
+        troops
+          .filter((troop) => troop.depotId === store)
+          .map((troop) => ({
+            ...troop.supplies,
+            id: troop.id,
+            role: troop.role,
+            anchored: troop.supplied && !marching.has(troop.id),
+          })),
+        store === undefined
+          ? board
+          : (view.me.outposts.find((outpost) => outpost.id === store)?.depot ?? emptyLoad()),
+      ).supplies,
+    ]),
   );
   const after = troops.map((troop) => ({
     role: troop.role,

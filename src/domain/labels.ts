@@ -1,3 +1,4 @@
+import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -129,6 +130,10 @@ export type MapMarker =
       readonly garrison: number;
       readonly reach: Reach | null;
       readonly ink: string;
+      /** **Son dépôt** (ADR 0028 §4), la barre découpée par couleur sous le niveau. */
+      readonly depot?: { readonly load: SupplyLoad; readonly capacity: number };
+      /** Les étiquettes de ses transports en garnison : on y charge depuis son dépôt. */
+      readonly cargo?: ReadonlyArray<CargoTag>;
     }
   | {
       /**
@@ -307,6 +312,8 @@ export type LabelLine =
   | { readonly role: 'loading'; readonly until: number }
   /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
   | { readonly role: 'supplies'; readonly supplies: PileSupplies }
+  /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
+  | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
   | {
@@ -844,6 +851,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: 'outpost',
         station: marker.station,
         hostCountry: marker.hostCountry,
+        ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
         lines:
           marker.standsAt === null
             ? [
@@ -852,6 +860,9 @@ function markerLabel(marker: MapMarker): MapLabel {
                   role: 'figures',
                   text: fr.labels.levelAndGarrison(marker.level, marker.garrison),
                 },
+                ...(marker.depot === undefined
+                  ? []
+                  : [{ role: 'charge', ...marker.depot } as const]),
               ]
             : [
                 { role: 'nature', text: fr.labels.outpostUnderConstruction },

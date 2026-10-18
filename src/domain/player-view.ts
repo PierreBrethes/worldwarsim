@@ -1,3 +1,4 @@
+import type { SupplyLoad } from './logistics';
 import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
@@ -276,6 +277,9 @@ export type TroopView = {
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Le dépôt où elle se recharge** (ADR 0028 §3) : l'avant-poste dont elle se tient dans le
+   *  rayon, hors du sol national ; absent, le plateau personnel (ou nulle part si non ancrée). */
+  readonly depotId?: string;
   /** **Ses coups et son plein, en crans** (ADR 0028 §3) : absents en Blitz, où rien ne se
    *  compte. Repris à l'ancre ; ailleurs, elle vit sur ce qu'elle porte. */
   readonly supplies?: Supplies;
@@ -332,6 +336,10 @@ export type OutpostView = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly atMaxLevel: boolean;
+  /** **Son dépôt** (ADR 0028 §4) : munitions, pétrole et charbon, et la charge maximale qu'ils
+   *  se partagent (`depotCapacity`). Le point est à moi : le brouillard ne sert rien d'autre. */
+  readonly depot: SupplyLoad;
+  readonly depotCapacity: number;
 };
 
 /**

@@ -8,6 +8,7 @@ import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
+import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
@@ -46,6 +47,7 @@ import {
   buildCost,
   buildMinutes,
   OUTPOST_MAX_LEVEL,
+  depotCapacity,
   outpostReachKm,
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
@@ -261,6 +263,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
+  const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
+    const store = economy.upkeep.storeOf.get(troopId);
+    return store === undefined || store === 'board' ? null : store;
+  };
   const funds = blitz ? await fundsServed(ctx, player, season.concludedAt ?? null, now) : null;
   const headquarters = buildings.find((building) => building.key === 'hq');
   const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
@@ -646,6 +652,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        ...(depotOf(troop._id) === null ? {} : { depotId: depotOf(troop._id)! }),
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
@@ -709,6 +716,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes:
           outpost.level >= OUTPOST_MAX_LEVEL ? 0 : buildMinutes('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
+        depot: outpost.depot ?? emptyLoad(),
+        depotCapacity: depotCapacity(outpost.level),
       })),
     },
     /**

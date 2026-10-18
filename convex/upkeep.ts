@@ -1,7 +1,12 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
-import { isStanding, withinReach, type OutpostReach } from '../src/domain/outposts';
+import {
+  isStanding,
+  reachingOutpost,
+  withinReach,
+  type OutpostReach,
+} from '../src/domain/outposts';
 import { armyUpkeep } from '../src/domain/upkeep';
 import {
   LISTENING_COAL_PER_HOUR,
@@ -60,11 +65,23 @@ export function isAnchored(
  * Le ravitaillement en mer par un port ami à portée reste ouvert (`QUESTIONS.md` 🟡) : il se
  * décidera, il ne se déduira pas d'un disque terrestre.
  */
-const isFed = (
+/**
+ * **Où une troupe ancrée se sert** (ADR 0028 §3) : sur le sol national, au plateau personnel ;
+ * dans le rayon d'un avant-poste, à son dépôt — le plus proche de ceux qui portent jusque-là.
+ * `null` : elle n'est pas ancrée. La lecture est celle d'`isAnchored`, sol puis rayons.
+ */
+function storeAt(
   point: LonLat,
   homeCountry: string | null,
-  anchors: ReadonlyArray<OutpostReach>,
-): boolean => landAtPoint(point) && isAnchored(point, homeCountry, anchors);
+  anchors: ReadonlyArray<OutpostReach & { readonly id: Id<'outposts'> }>,
+): AnchorStore | null {
+  if (!landAtPoint(point)) return null;
+  if (homeCountry !== null && hostAtPoint(point) === homeCountry) return 'board';
+  return reachingOutpost(point, anchors)?.nearest.id ?? null;
+}
+
+/** Le plateau personnel, ou le dépôt de cet avant-poste. */
+export type AnchorStore = 'board' | Id<'outposts'>;
 
 /** L'ancre telle que la portée la lit : chaque point porte son rayon, qui suit son niveau
  *  (`outpostReachKm`, 31/08) — un rayon commun dirait que tous couvrent la même chose. */
@@ -88,6 +105,8 @@ export type Upkeep = {
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
   /** How many outposts stand (a site under construction is not counted yet). */
   readonly outposts: number;
+  /** **Où chaque troupe ancrée se recharge** (`storeAt`) ; une troupe absente ne l'est pas. */
+  readonly storeOf: ReadonlyMap<Id<'troops'>, AnchorStore>;
 };
 
 /**
@@ -125,6 +144,7 @@ export async function upkeepOf(
       listeningCoalPerHour: 0,
       unsuppliedTroopIds: [],
       outposts: 0,
+      storeOf: new Map(),
     };
   }
   const home = homeCountryOf(player?.nation ?? null);
@@ -139,7 +159,7 @@ export async function upkeepOf(
    *  charging it the raised rate during its own works would punish the order just given. */
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
-    .map(anchorOf);
+    .map((outpost) => ({ ...anchorOf(outpost), id: outpost._id }));
 
   const troops = await ctx.db
     .query('troops')
@@ -150,6 +170,7 @@ export async function upkeepOf(
    *  troupe — ce calcul passe à chaque vue, à chaque règlement et à chaque débit. */
   const stationed = new Map<string, LonLat | null>();
   const unsuppliedTroopIds: Array<Id<'troops'>> = [];
+  const storeOf = new Map<Id<'troops'>, AnchorStore>();
   for (const troop of troops) {
     const address = troop.stationedAt;
     let point: LonLat | null;
@@ -163,8 +184,9 @@ export async function upkeepOf(
     }
     /** A troop the game cannot place is at home: `null` is national soil hanging from nothing
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
-    if (point === null) continue;
-    if (!isFed(point, home, supplying)) unsuppliedTroopIds.push(troop._id);
+    const store = point === null ? 'board' : storeAt(point, home, supplying);
+    if (store === null) unsuppliedTroopIds.push(troop._id);
+    else storeOf.set(troop._id, store);
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;
@@ -186,6 +208,7 @@ export async function upkeepOf(
     listeningCoalPerHour: LISTENING_COAL_PER_HOUR * listening,
     unsuppliedTroopIds,
     outposts: standing.length,
+    storeOf,
   };
 }
 

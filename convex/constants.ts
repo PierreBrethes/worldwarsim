@@ -426,6 +426,17 @@ export const SUPPLY_STEP_COST = 10;
  */
 export const FUEL_STEP_KM = 500;
 
+/**
+ * **Le dépôt d'avant-poste** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon, au total et
+ * partagés librement, par niveau du point.
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const DEPOT_CAPACITY_PER_LEVEL = 400;
+
+export const depotCapacity = (level: number): number =>
+  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level));
+
 export const TIER_2_FACTOR = 1.6;
 
 /**
