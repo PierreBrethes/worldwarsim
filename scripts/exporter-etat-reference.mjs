@@ -140,14 +140,7 @@ export function renderReference(snapshot) {
 
   say('---', '', '## La saison — `season`');
   say(
-    fields(view.season, [
-      'number',
-      'durationHours',
-      'elapsedHours',
-      'players',
-      'playableRegion',
-      'travelMinutesPer1000km',
-    ]),
+    fields(view.season, ['number', 'durationHours', 'elapsedHours', 'players', 'playableRegion']),
   );
 
   say('### La domination — `season.reduction`');

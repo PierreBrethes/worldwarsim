@@ -378,8 +378,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
   //   `journal`        — the dispatches are built on the client from `reports` below.
-  // `travelMinutesPer1000km: 14` is different: it is a measured value (simulation report),
-  // hard-coded here until the seasons table carries its own pace.
   return {
     season: {
       number: 1,
@@ -387,7 +385,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       elapsedHours: season.launchedAt === null ? 0 : (now - season.launchedAt) / 3_600_000,
       players: others.length + 1,
       playableRegion: season.playableRegion ?? 'world',
-      travelMinutesPer1000km: 14,
       /** Test scaffolding — it goes whole the day the share of the map replaces it
        *  (ADR 0020). Le tableau, qui lit les troupes de tous, est servi à part (`victory.board`). */
       reduction: {

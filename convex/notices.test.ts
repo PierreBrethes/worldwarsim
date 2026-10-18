@@ -293,7 +293,8 @@ describe('what the jobs file for the journal', () => {
         restWindow: { startMinutes: 0, endMinutes: REST_WINDOW_MINUTES },
       }),
     );
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 1, 0, 0)));
+    // Some eight hours on foot: leaving at 18h00 UTC lands around 02h00.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 18, 0, 0)));
 
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await t.mutation(api.movements.marchTo, {

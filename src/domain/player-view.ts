@@ -1068,7 +1068,6 @@ export type PlayerView = {
     readonly elapsedHours: number;
     readonly players: number;
     readonly playableRegion: string;
-    readonly travelMinutesPer1000km: number;
     readonly reduction: ReductionBoard;
     /** **Pourquoi la Blitz s'est conclue** (B10, B11), `null` tant qu'elle se joue et en
      *  Mondiale : l'édition finale le dit en manchette. */

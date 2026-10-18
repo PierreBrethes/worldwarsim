@@ -836,11 +836,12 @@ export const LAST_KNOWN_HOURS = 24;
 
 /**
  * A battlefield remainder gets one fixed window from the pass that created it. Collecting part
- * of it never starts a fresh window.
+ * of it never starts a fresh window. A day, since marches went twelve times slower
+ * (`MONDIALE_PACE`): two hours left no column but the victor's own the time to reach it.
  *
  * @a-mesurer provisional lifetime; no season simulation models crate discovery or collection
  */
-export const LOOT_CRATE_HOURS = 2;
+export const LOOT_CRATE_HOURS = 24;
 
 /**
  * The public rumor waits after the physical remainder appears, then names only a search disk.
@@ -898,19 +899,30 @@ export const outpostReachKm = (level: number): number =>
 export const RELAY_SPEED_MULTIPLIER = 1.5;
 
 /**
- * **The one measured number of movement**, straight out of the simulation report: 14 minutes per
- * 1 000 km on land. Everything else about a duration is derived from it — a route already carries
- * its cost in sea-equivalent units (ADR 0012), so the minute price of one cost unit is that
- * measurement read back through the land multiplier. Two hand-written numbers would drift, and a
- * drift here moves every trip in the game.
+ * **The base pace of movement**: 14 minutes per 1 000 km on land. It came out of a simulation
+ * since retired, so it is no longer a measurement but the order of magnitude of the Blitz (Q3,
+ * 14/10); the Mondiale runs it `MONDIALE_PACE` times slower. Everything else about a duration is
+ * derived from it — a route already carries its cost in sea-equivalent units (ADR 0012), so the
+ * minute price of one cost unit is this pace read back through the land multiplier. Two
+ * hand-written numbers would drift, and a drift here moves every trip in the game.
  */
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
 
 export const MINUTES_PER_ROUTE_UNIT =
   (MINUTES_PER_1000_KM_ON_LAND * KM_PER_UNIT) / (1000 * COST_BY_MEDIUM.land);
 
+/**
+ * **La Mondiale va douze fois moins vite que la mesure** (M5, 14/10) : une opération y dure une
+ * demi à deux visites — Paris-Berlin ≈ 2 h 30. La mesure reste l'ordre de grandeur de la Blitz,
+ * qui la relit à l'échelle de son théâtre (`pacedMinutes`).
+ *
+ * @a-mesurer posé par la fiche pour la saison test, jamais joué
+ */
+export const MONDIALE_PACE = 12;
+
+/** Une route en minutes de Mondiale. */
 export const routeMinutes = (costUnits: number): number =>
-  Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
+  Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT * MONDIALE_PACE));
 
 export const MAX_PLAYERS = MODE_RULES.mondiale.maxPlayers;
 

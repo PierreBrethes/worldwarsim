@@ -720,7 +720,9 @@ describe('the rest window holds an arrival at the border', () => {
   afterEach(() => vi.useRealTimers());
 
   it('waits for the window of the player whose home it reaches', async () => {
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    // Marne to Pskov is some eight and a half hours on foot: leaving at 16h30 UTC lands in the
+    // guest's night.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -754,7 +756,7 @@ describe('the rest window holds an arrival at the border', () => {
   /** La vue relisait `arrivesAt` repoussé comme une date de marche : le pion repartait à 5 % du
    *  trajet avec sept heures devant lui. `heldAt` est ce qui distingue les deux lectures. */
   it('serves the hold as taken rather than recomputing it from the pushed arrival', async () => {
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1238,8 +1240,9 @@ describe('the preview says what the march will be', () => {
   });
 
   it('names the hour the column would be let in when the arrival bites a rest window', async () => {
-    // The guest's declared window opens at 23h00 — the same clock the border test leans on.
-    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    // Leaving at 16h30 UTC, the eight-hour march lands in the guest's night — the same clock
+    // the border test leans on.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);

@@ -3,6 +3,7 @@ import type { LonLat } from '../src/domain/geo';
 import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
 import { goalCellsForRegions } from './regionGeometry';
 import { coastAtPoint, hostAtPoint, routeBetween, routeToRegions } from './routes';
+import { routeMinutes } from './constants';
 
 /**
  * The empty string is the open sea and nothing else. It used to mean "no playable nation here"
@@ -197,5 +198,27 @@ describe('une route vers des régions', () => {
     );
 
     expect(shared?.map((goal) => goal.regionId)).toEqual(['GBR-2080', 'GBR-2079']);
+  });
+});
+
+/**
+ * **La Mondiale marche douze fois moins vite que la Blitz d'Europe** (M5, 14/10) : une opération
+ * dure une demi à deux visites. La fiche chiffre à vol d'oiseau — Paris-Berlin ≈ 2 h 30,
+ * Paris-Moscou ≈ 7 h ; la route à pied, qui contourne et paie la terre, en met la moitié de plus.
+ */
+describe('the pace of a Mondiale march', () => {
+  const PARIS: LonLat = [2.35, 48.86];
+  const BERLIN: LonLat = [13.4, 52.52];
+  const MOSCOW: LonLat = [37.62, 55.75];
+  const hours = (to: LonLat) => routeMinutes(routeBetween(PARIS, to, 'land')!.costUnits) / 60;
+
+  it('takes Paris to Berlin in a few hours on foot, not minutes', () => {
+    expect(hours(BERLIN)).toBeGreaterThan(2.5);
+    expect(hours(BERLIN)).toBeLessThan(4.5);
+  });
+
+  it('takes Paris to Moscow in about half a day on foot', () => {
+    expect(hours(MOSCOW)).toBeGreaterThan(7);
+    expect(hours(MOSCOW)).toBeLessThan(13);
   });
 });

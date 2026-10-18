@@ -21,7 +21,6 @@ const snapshot = {
       elapsedHours: 21.7,
       players: 3,
       playableRegion: 'world',
-      travelMinutesPer1000km: 14,
       reduction: {
         target: 1,
         concludedAt: null,
