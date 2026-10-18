@@ -530,6 +530,8 @@ export const NOTICE = v.union(
     kind: v.literal('playerEliminated'),
     nation: v.string(),
     by: v.optional(v.string()),
+    /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
+    irregulars: v.optional(v.literal(true)),
   }),
   /**
    * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous

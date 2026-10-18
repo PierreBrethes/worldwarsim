@@ -823,6 +823,8 @@ type NoticeBody =
       readonly at: number;
       readonly nation: string;
       readonly by?: string;
+      /** En Mondiale, ce qu'il tenait est passé au siège irrégulier (M16). */
+      readonly irregulars?: true;
     }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
@@ -1054,6 +1056,8 @@ export type PlayerView = {
      *  clôt à la main (révision du 27/08 de l'ADR 0017). */
     readonly durationHours: number | null;
     readonly elapsedHours: number;
+    /** Combien d'heures dure la capture d'un QG de Mondiale (réglage du salon, M15). */
+    readonly hqCaptureHours: number;
     readonly players: number;
     readonly playableRegion: string;
     readonly reduction: ReductionBoard;

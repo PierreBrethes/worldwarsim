@@ -658,7 +658,6 @@ export const fr = {
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
-    HQ_NOT_CAPTURABLE: () => 'un quartier général ne se capture qu’en Blitz',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
         ? 'les fonds ne suffisent pas'
@@ -2120,10 +2119,10 @@ export const fr = {
     reducedMark: 'réduit',
     standingMark: 'debout',
     /** **La fin d'une Blitz dit pourquoi** (B10, B11) : le journal et l'édition finale. */
-    blitzConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
+    verdictConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
       reason === 'draw'
         ? 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
-        : `LA BLITZ EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+        : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
         ? 'son infanterie a capturé le dernier quartier général adverse'
@@ -2274,10 +2273,12 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
-      playerEliminatedAside: (nation: string) =>
-        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.`,
-      playerEliminated: (nation: string, by: string) =>
-        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
+      playerEliminatedAside: (nation: string, irregulars = false) =>
+        `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé.${irregulars ? ' Ce qu’il tenait passe aux irréguliers : chacun peut le prendre ou le piller.' : ''}`,
+      playerEliminated: (nation: string, by: string, irregulars = false) =>
+        irregulars
+          ? `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}, avec ses réserves au-dessus du seuil scellé. Le reste passe aux irréguliers : chacun peut le prendre ou le piller.`
+          : `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
@@ -3799,8 +3800,10 @@ export const fr = {
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
-    captureConsequence: (duration: string) =>
-      `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
+    captureConsequence: (duration: string, hq = false) =>
+      hq
+        ? `L’infanterie tient le QG ${duration} à sa force d’aujourd’hui : s’il tombe, son joueur est éliminé.`
+        : `L’infanterie tient le site ${duration} à sa force d’aujourd’hui, puis il change de main.`,
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',

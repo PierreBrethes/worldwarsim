@@ -292,9 +292,11 @@ function DeskJournal({
                 </span>
               </button>
               {open &&
-                lines.map(({ dispatch, earlier }) => (
+                lines.map(({ dispatch, earlier }, rank) => (
                   <DeskLine
-                    key={keyOf(dispatch)}
+                    /** Deux camps relevés à la même heure disent la même phrase : le rang les
+                     *  tient apart. */
+                    key={`${keyOf(dispatch)}-${rank}`}
                     dispatch={dispatch}
                     earlier={earlier}
                     picked={keyOf(dispatch) === picked}

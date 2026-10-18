@@ -154,6 +154,8 @@ export const start = mutation({
         regionId,
         level: placed,
         ...anchored(await anchorAt(ctx, player, regionId)),
+        /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
+        ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
       if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
       return { finishesAt: now, cost: {}, level: placed, rank: null };

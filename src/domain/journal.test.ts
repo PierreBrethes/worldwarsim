@@ -266,6 +266,18 @@ describe('the journal', () => {
     expect(transferred!.text).toContain('direction de la partie');
     expect(transferred!.severity).toBe('routine');
   });
+
+  /** En Mondiale, la chute d'un QG ne dissout rien : le reste passe aux irréguliers (M16), et
+   *  toute la table l'apprend, puisque chacun peut le prendre. */
+  it('says where a Mondiale elimination leaves the rest, to the parties and to the table', () => {
+    const fall = { kind: 'playerEliminated', at: NOON, nation: 'ussr', irregulars: true } as const;
+    const [aside] = journalDispatches([], null, [fall]);
+    const [mine] = journalDispatches([], null, [{ ...fall, by: 'france' }]);
+
+    expect(aside!.text).toContain('irréguliers');
+    expect(mine!.text).toContain('irréguliers');
+    expect(mine!.text).not.toContain('dissoutes');
+  });
 });
 
 /**

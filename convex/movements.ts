@@ -786,6 +786,7 @@ export const previewCapture = query({
               nominalStrength: troop.nominalStrength,
             })),
           ),
+          season.hqCaptureHours,
         ) / 60_000,
     };
   },

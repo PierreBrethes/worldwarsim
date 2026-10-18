@@ -1,7 +1,7 @@
 import { asLocalTime } from './duration';
 import type { PlayerView, SeasonVerdict } from './player-view';
 
-/** Ce que la fin d'une Blitz doit savoir de moi : qui je suis, et l'heure où mon QG est tombé. */
+/** Ce que la fin d'une partie doit savoir de moi : qui je suis, et l'heure où mon QG est tombé. */
 export type EndingFacts = {
   readonly nation: string;
   readonly eliminatedAt: string | null;
@@ -10,15 +10,15 @@ export type EndingFacts = {
 export type Outcome = 'winner' | 'loser' | 'out' | 'draw';
 
 /**
- * **Comment une Blitz finit pour moi** : l'édition finale quand la saison est conclue, la même
- * page quand mon QG est tombé en cours de partie — jamais pour une capitulation, qui n'écrit pas
- * d'heure de chute. `key` nomme la fin, `null` tant que rien n'est fini.
+ * **Comment une partie finit pour moi**, dans les deux modes : l'édition finale quand la saison
+ * est conclue, la même page quand mon QG est tombé en cours de partie (B10, M17) — jamais pour
+ * une capitulation, qui n'écrit pas d'heure de chute. `key` nomme la fin, `null` tant que rien
+ * n'est fini.
  */
 export function endingOf(view: PlayerView): { key: 'final' | 'out' | null; facts: EndingFacts } {
   const { me } = view;
-  const blitz = view.mode === 'blitz';
-  const concluded = blitz && view.press?.final === true;
-  const out = blitz && me.eliminatedAt !== null;
+  const concluded = view.press?.final === true;
+  const out = me.eliminatedAt !== null;
   return {
     key: concluded ? 'final' : out ? 'out' : null,
     facts: {

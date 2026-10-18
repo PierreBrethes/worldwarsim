@@ -165,6 +165,7 @@ export async function leaveTheWar(
         readonly kind: 'playerEliminated';
         readonly by: string;
         readonly capturerId: Id<'players'>;
+        readonly irregulars: boolean;
       },
 ): Promise<void> {
   await ctx.db.patch(
@@ -205,6 +206,7 @@ export async function leaveTheWar(
         : {
             kind: exit.kind,
             ...(seat._id === player._id || seat._id === exit.capturerId ? { by: exit.by } : {}),
+            ...(exit.irregulars ? { irregulars: true as const } : {}),
           }),
     });
     if (successor !== null) {
@@ -229,14 +231,10 @@ export async function leaveTheWar(
   const belligerents = standing.filter((seat) => isAtWar(seat, season));
   const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
   if (survivor === undefined) return;
-  /** **En Blitz, l'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé ou
-   *  par la capitulation des autres. */
-  const verdict =
-    modeOf(season.mode) === 'blitz'
-      ? {
-          reason:
-            exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
-        }
-      : undefined;
+  /** **L'édition finale dit pourquoi** : le dernier debout l'est par un QG tombé — l'écrasement
+   *  d'une Mondiale (M2a) — ou par la capitulation des autres. */
+  const verdict = {
+    reason: exit.kind === 'playerEliminated' ? ('hqTaken' as const) : ('lastStanding' as const),
+  };
   await concludeSeason(ctx, season._id, survivor._id, now, verdict);
 }

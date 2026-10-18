@@ -6,6 +6,7 @@ import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
 
 const view = {
+  season: { hqCaptureHours: 12 },
   me: {
     nation: 'france',
     slots: { total: 4, used: 1 },
@@ -588,13 +589,18 @@ describe('in aim', () => {
     });
   });
 
-  it('says why a headquarters is not captured', () => {
+  /** La chute d'un QG élimine (M2a) : la rose le dit avant l'envoi, à la durée du salon. */
+  it('offers to capture a headquarters, saying its fall eliminates', () => {
     const hq = compassOf(
       { kind: 'installation', id: 'hq-enemy', key: 'hq', regionId: 'ROU-310', name: 'QG' },
       view,
       column,
     );
-    expect(hq).toMatchObject({ actions: [], refusal: fr.errors.HQ_NOT_CAPTURABLE() });
+    expect(hq!.actions[0]).toMatchObject({
+      key: 'capture',
+      consequence: expect.stringContaining('éliminé'),
+    });
+    expect(hq!.actions[0]!.consequence).toContain('12:00:00');
   });
 
   it('offers collection only on the selected private sighting and with free capacity', () => {

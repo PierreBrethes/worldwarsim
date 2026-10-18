@@ -1,6 +1,6 @@
 import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
-import { captureRefusalOf, type CaptureRefusal, type CaptureTarget } from './capture';
+import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
 import { firesIndirect } from './indirect-fire';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
@@ -261,13 +261,12 @@ export function plunderRefusalOf(
  * lecture pour la branche de la rose et pour `movements.capture`, rien de grisé.
  */
 export function captureOrderRefusalOf(
-  target: CaptureTarget,
   aim: MovementAim,
   column: Column,
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
   const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
-  return captureRefusalOf(target, column.roles, isMine, mode) ?? closedGate(aim, column);
+  return captureRefusalOf(column.roles, isMine, mode) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */

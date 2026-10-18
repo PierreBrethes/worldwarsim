@@ -684,12 +684,7 @@ export async function march(
   const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
   const refusal =
     capture !== undefined
-      ? captureOrderRefusalOf(
-          aim.aim.kind === 'building' ? aim.aim : { kind: 'outpost' },
-          aim.aim,
-          column,
-          false,
-        )
+      ? captureOrderRefusalOf(aim.aim, column, false)
       : plunder === undefined
         ? refusalOf(type, aim.aim, column)
         : plunderOrderRefusalOf(

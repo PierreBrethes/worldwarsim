@@ -15,7 +15,7 @@ import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
 import { playedTheatre } from './theatres';
-import { captureDurationAt } from './capture';
+import { captureDurationAt, type CaptureTarget } from './capture';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
@@ -789,14 +789,14 @@ function plunderFan(
  * l'aperçu du serveur lit aussi.
  */
 function captureBranch(
-  site: Parameters<typeof captureOrderRefusalOf>[0],
+  site: CaptureTarget,
   target: { readonly kind: 'building' | 'outpost'; readonly id: string },
   aimed: MovementAim,
   view: PlayerView,
   column: Column,
   isMine: boolean,
 ): { readonly action: CompassAction | null; readonly refusal: string | null } {
-  const refused = captureOrderRefusalOf(site, aimed, column, isMine);
+  const refused = captureOrderRefusalOf(aimed, column, isMine);
   if (refused !== null) {
     return { action: null, refusal: fr.errors[refused](refusalDetails(aimed, column)) };
   }
@@ -807,7 +807,11 @@ function captureBranch(
       label: fr.compass.capture,
       cost: slotCost(view),
       consequence: fr.compass.captureConsequence(
-        asDuration(captureDurationAt(view.mode, site, column.captureRate ?? 1) / 60_000),
+        asDuration(
+          captureDurationAt(view.mode, site, column.captureRate ?? 1, view.season.hqCaptureHours) /
+            60_000,
+        ),
+        site.kind === 'building' && site.key === 'hq',
       ),
       target,
       aim: aimed,

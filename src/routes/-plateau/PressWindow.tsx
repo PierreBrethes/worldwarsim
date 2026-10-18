@@ -209,7 +209,7 @@ function Ending({
       )}
       <p className="mt-[6px] font-(family-name:--font-display) text-[19px] leading-[1.3] font-bold text-[var(--ink)]">
         {verdict !== null
-          ? fr.victory.blitzConcluded(
+          ? fr.victory.verdictConcluded(
               verdict.reason,
               verdict.winnerNation === null ? null : nationLabel(verdict.winnerNation),
               verdict.perMinute,

@@ -686,7 +686,7 @@ describe('a disabled outpost', () => {
 });
 
 describe('ordering a capture', () => {
-  it('is refused to a column without infantry, and on a headquarters', async () => {
+  it('is refused to a column without infantry, and offered on a headquarters', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await building(t, seat, MARNE);
@@ -715,13 +715,196 @@ describe('ordering a capture', () => {
     });
     await surveyRegion(t, seat, hq.regionId);
     const infantry = await troop(t, seat, 'infantry', barracks);
+    await t.mutation(api.movements.capture, {
+      ...seat,
+      origin,
+      troopIds: [infantry],
+      target: { kind: 'building', buildingId: hq._id },
+    });
+  });
+});
+
+/**
+ * **Le QG d'une Mondiale se capture, et sa chute élimine** (M2a, M15, M16). Le capteur prend le
+ * QG, un niveau plus bas, et le stock du vaincu au-dessus du seuil scellé ; le reste — bâtiments,
+ * avant-postes, troupes — passe au siège irrégulier, capturable et pillable par tous.
+ */
+describe('a Mondiale headquarters', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function threeAtTable(t: Bench) {
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const guest = await joinSeat(t, code, 'Léa');
+    const third = await joinSeat(t, code, 'Marc');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+      [third, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    for (const who of [seat, guest, third]) await placeHq(t, who);
+    await restWindow(t, guest, NO_REST);
+    return { seat, guest, third };
+  }
+
+  /** Le QG du vaincu, et sa garnison de départ sortie dans un camp : elle doit passer au siège
+   *  irrégulier, pas disparaître. */
+  async function headquartersOf(t: Bench, seat: Seat) {
+    const owner = await playerOf(t, seat);
+    return t.run(async (ctx) => {
+      const hq = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', owner._id))
+          .collect()
+      ).find((held) => held.key === 'hq')!;
+      for (const troop of await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', owner._id))
+        .collect()) {
+        await ctx.db.patch(troop._id, { stationedAt: { lon: 40, lat: 56 } });
+      }
+      return hq;
+    });
+  }
+
+  const take = async (t: Bench, seat: Seat, hq: Doc<'buildings'>) =>
+    captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: hq._id },
+      pointOfRegion(hq.regionId),
+      'RUS',
+      [await troop(t, seat, 'infantry', null)],
+    );
+
+  it('takes the twelve hours the lobby set by default, or twenty-four', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await take(t, seat, await headquartersOf(t, guest));
+    expect((await capturesOf(t))[0]!.completesAt).toBe(MIDDAY + 12 * HOUR);
+
+    const other = boot();
+    const pair = await launchedSeason(other);
+    const season = (await playerOf(other, pair.seat)).seasonId;
+    await other.run((ctx) => ctx.db.patch(season, { hqCaptureHours: 24 }));
+    await take(other, pair.seat, await headquartersOf(other, pair.guest));
+    expect((await capturesOf(other))[0]!.completesAt).toBe(MIDDAY + 24 * HOUR);
+  });
+
+  it('eliminates its player: the HQ and the stock above the seal to the capturer, the rest to the irregulars', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const barracks = await building(t, guest, PSKOV);
+    const loser = await playerOf(t, guest);
+    const winner = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+        .collect()) {
+        await ctx.db.patch(row._id, { stock: 1000, updatedAt: MIDDAY });
+      }
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', winner._id))
+        .collect()) {
+        await ctx.db.patch(row._id, { stock: 0, updatedAt: MIDDAY });
+      }
+    });
+
+    await take(t, seat, hq);
+    await finish(t);
+
+    const after = await t.run(async (ctx) => ({
+      hq: (await ctx.db.get(hq._id))!,
+      barracks: (await ctx.db.get(barracks))!,
+      loser: (await ctx.db.get(loser._id))!,
+      irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true),
+      troops: await ctx.db.query('troops').collect(),
+      stocks: await ctx.db.query('resources').collect(),
+      season: (await ctx.db.get(loser.seasonId))!,
+    }));
+    expect(after.hq.playerId).toBe(winner._id);
+    expect(after.hq.level).toBe(Math.max(1, hq.level - 1));
+    expect(after.loser.defeated).toBe(true);
+    expect(after.loser.eliminatedAt).toBe(MIDDAY + 12 * HOUR);
+    expect(after.irregular).toBeDefined();
+    expect(after.barracks.playerId).toBe(after.irregular!._id);
+    expect(after.barracks.capturedAt).toBe(MIDDAY + 12 * HOUR);
+    expect(after.troops.filter((troop) => troop.playerId === loser._id)).toEqual([]);
+    expect(after.troops.some((troop) => troop.playerId === after.irregular!._id)).toBe(true);
+    const food = (playerId: Id<'players'>) =>
+      after.stocks.find((row) => row.playerId === playerId && row.key === 'food')!.stock;
+    expect(food(loser._id)).toBeLessThanOrEqual(400);
+    expect(food(winner._id)).toBeGreaterThan(0);
+    // A third belligerent stands: the season goes on.
+    expect(after.season.status).toBe('launched');
+  });
+
+  it('lets the eliminated read and write the telegraph, and refuses him every order', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    await take(t, seat, await headquartersOf(t, guest));
+    await finish(t);
+
+    await t.mutation(api.messages.post, { ...guest, text: 'je vous avais prévenus' });
+    expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).not.toBeNull();
     await expect(
-      t.mutation(api.movements.capture, {
-        ...seat,
-        origin,
-        troopIds: [infantry],
-        target: { kind: 'building', buildingId: hq._id },
-      }),
-    ).rejects.toThrow('HQ_NOT_CAPTURABLE');
+      t.mutation(api.constructions.start, { ...guest, building: 'barracks', regionId: MARNE }),
+    ).rejects.toThrow('PLAYER_DEFEATED');
+  });
+
+  it('crushes the season when the last headquarters falls', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await take(t, seat, await headquartersOf(t, guest));
+    await finish(t);
+
+    const season = await t.run(async (ctx) => ctx.db.get((await seatIn(ctx, seat)).seasonId));
+    expect(season!.status).toBe('concluded');
+    expect(season!.winnerId).toBe((await playerOf(t, seat))._id);
+    expect(season!.verdict?.reason).toBe('hqTaken');
+  });
+
+  it('does not eliminate a capturer who loses a headquarters he had taken', async () => {
+    const t = boot();
+    const { seat, guest, third } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    await take(t, seat, hq);
+    await finish(t);
+    await restWindow(t, seat, NO_REST);
+    // Its capturer's infantry gone home, the taken HQ stands empty.
+    const capturer = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const troop of await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', capturer._id))
+        .collect()) {
+        await ctx.db.patch(troop._id, { stationedAt: null });
+      }
+    });
+    await captureArrival(
+      t,
+      third,
+      { kind: 'building', buildingId: hq._id },
+      pointOfRegion(hq.regionId),
+      'RUS',
+      [await troop(t, third, 'infantry', null)],
+    );
+    await finish(t);
+
+    expect((await t.run((ctx) => ctx.db.get(hq._id)))!.playerId).toBe(
+      (await playerOf(t, third))._id,
+    );
+    expect((await playerOf(t, seat)).defeated).not.toBe(true);
   });
 });

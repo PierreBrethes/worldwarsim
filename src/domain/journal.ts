@@ -64,7 +64,7 @@ export function journalDispatches(
   const verdict = reduction?.verdict ?? null;
   const closing =
     verdict !== null
-      ? fr.victory.blitzConcluded(
+      ? fr.victory.verdictConcluded(
           verdict.reason,
           verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
           verdict.perMinute,
@@ -338,7 +338,7 @@ function written(notice: Notice): Written {
           at: notice.at,
           severity: defending ? 'critical' : 'notable',
           kind: defending ? 'captureThreat' : 'captureStarted',
-          /** Seul un QG de Blitz se capture, et sa chute élimine (B10) : la dépêche le dit. */
+          /** La chute d'un QG élimine (B10, M2a) : la dépêche le dit. */
           text: defending
             ? isHqSite(notice.site)
               ? said.hqThreat(site, until)
@@ -470,8 +470,12 @@ function written(notice: Notice): Written {
         kind: 'elimination',
         text:
           notice.by === undefined
-            ? said.playerEliminatedAside(nationName(notice.nation))
-            : said.playerEliminated(nationName(notice.nation), nationName(notice.by)),
+            ? said.playerEliminatedAside(nationName(notice.nation), notice.irregulars === true)
+            : said.playerEliminated(
+                nationName(notice.nation),
+                nationName(notice.by),
+                notice.irregulars === true,
+              ),
       };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':

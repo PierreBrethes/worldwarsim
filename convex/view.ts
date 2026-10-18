@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
+import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
@@ -382,6 +383,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     season: {
       number: 1,
       durationHours: season.durationHours,
+      /** Le réglage du salon que la rose lit pour dater la capture d'un QG (M15). */
+      hqCaptureHours: season.hqCaptureHours ?? DEFAULT_HQ_CAPTURE_HOURS,
       elapsedHours: season.launchedAt === null ? 0 : (now - season.launchedAt) / 3_600_000,
       players: others.length + 1,
       playableRegion: season.playableRegion ?? 'world',
