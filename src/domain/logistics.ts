@@ -41,6 +41,7 @@ export type Busy = 'underway' | 'touring' | null;
 export type LoadRefusal =
   | { readonly code: 'NOT_A_TRANSPORT' }
   | { readonly code: 'LOAD_NOT_A_SUPPLY' }
+  | { readonly code: 'LOAD_AMOUNT_INVALID' }
   | { readonly code: 'TRANSPORT_UNDERWAY' }
   | { readonly code: 'TRANSPORT_ON_TOUR' }
   | { readonly code: 'LOAD_NOT_HERE'; readonly role: UnitRole }
@@ -88,6 +89,7 @@ export function loadRefusalOf({
   const capacity = loadCapacityOf(role);
   if (capacity === 0) return { code: 'NOT_A_TRANSPORT' };
   if (!isSupplyKey(resource)) return { code: 'LOAD_NOT_A_SUPPLY' };
+  if (!Number.isFinite(amount) || amount < 1) return { code: 'LOAD_AMOUNT_INVALID' };
   if (busy === 'underway') return { code: 'TRANSPORT_UNDERWAY' };
   if (busy === 'touring') return { code: 'TRANSPORT_ON_TOUR' };
   if (place.kind === 'outpost') {

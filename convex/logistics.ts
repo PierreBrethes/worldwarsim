@@ -81,7 +81,7 @@ export const load = mutation({
     if (await isBlitz(ctx, seasonId)) fail('NOT_IN_BLITZ');
     const troop = await ctx.db.get(troopId);
     if (troop === null || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
-    const taken = Math.max(0, Math.floor(amount));
+    const taken = Math.floor(amount);
     const now = Date.now();
     const at = await placeOf(ctx, troop, now);
     const held = troop.load ?? emptyLoad();

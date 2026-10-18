@@ -139,6 +139,7 @@ export type ErrorCode =
   /** **La logistique** (ADR 0028 §4) : charger, livrer, la tournée. */
   | 'NOT_A_TRANSPORT'
   | 'LOAD_NOT_A_SUPPLY'
+  | 'LOAD_AMOUNT_INVALID'
   | 'TRANSPORT_UNDERWAY'
   | 'TRANSPORT_ON_TOUR'
   | 'LOAD_NOT_HERE'

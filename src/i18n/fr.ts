@@ -709,6 +709,7 @@ export const fr = {
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
+    LOAD_AMOUNT_INVALID: () => 'on charge au moins un jeton, en nombre entier',
     TRANSPORT_UNDERWAY: () => 'ce transport est en route : il se charge à l’arrêt',
     TRANSPORT_ON_TOUR: () => 'ce transport est en tournée : rappelez-le d’abord',
     LOAD_NOT_HERE: (d) =>

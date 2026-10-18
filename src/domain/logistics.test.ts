@@ -56,6 +56,12 @@ describe('loading a transport', () => {
     ).toBe('NOT_A_TRANSPORT');
   });
 
+  it('refuses a grab of nothing, or of no number', () => {
+    const base = truckAt({ kind: 'building', key: 'hq' });
+    for (const amount of [0, Number.NaN, -10, Infinity])
+      expect(loadRefusalOf({ ...base, amount })).toEqual({ code: 'LOAD_AMOUNT_INVALID' });
+  });
+
   it('refuses past the one shared capacity, and says the room left', () => {
     const full = { ...truckAt({ kind: 'building', key: 'hq' }), held: load(100, 80) };
     expect(loadRefusalOf(full)).toEqual({ code: 'LOAD_FULL', room: 20, capacity: 200 });
