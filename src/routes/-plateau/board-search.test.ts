@@ -7,21 +7,21 @@ import { withWindow, withoutWindow, toggleWindow, windowOpen } from './board-sea
  */
 describe('the board’s search state', () => {
   it('stacks a window last, and never twice', () => {
-    const opened = withWindow(withWindow({}, 'economy'), 'nation');
-    expect(opened.windows).toEqual(['economy', 'nation']);
-    expect(withWindow(opened, 'economy').windows).toEqual(['nation', 'economy']);
+    const opened = withWindow(withWindow({}, 'personalBoard'), 'nation');
+    expect(opened.windows).toEqual(['personalBoard', 'nation']);
+    expect(withWindow(opened, 'personalBoard').windows).toEqual(['nation', 'personalBoard']);
   });
 
   it('drops the building focus with the surface that carried it', () => {
-    const focused = { ...withWindow({}, 'economy'), building: 'k17abc' };
-    expect(withoutWindow(focused, 'economy').building).toBeUndefined();
-    expect(windowOpen(withoutWindow(focused, 'economy'), 'economy')).toBe(false);
+    const focused = { ...withWindow({}, 'personalBoard'), building: 'k17abc' };
+    expect(withoutWindow(focused, 'personalBoard').building).toBeUndefined();
+    expect(windowOpen(withoutWindow(focused, 'personalBoard'), 'personalBoard')).toBe(false);
   });
 
   /** Closing the journal has nothing to say about a mine's line opened in Industry. */
   it('keeps the focus when an unrelated window closes', () => {
     const focused = {
-      ...withWindow(withWindow({}, 'economy'), 'journal'),
+      ...withWindow(withWindow({}, 'personalBoard'), 'journal'),
       building: 'k17abc',
     };
     expect(withoutWindow(focused, 'journal').building).toBe('k17abc');

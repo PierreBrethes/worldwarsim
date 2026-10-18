@@ -267,14 +267,14 @@ const PressWindow = lazy(() =>
  * the compilation, never produce a dead click.
  */
 const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
-  hq: 'economy',
-  farm: 'economy',
-  mine: 'economy',
-  oilWell: 'economy',
-  arsenal: 'economy',
-  warehouse: 'economy',
-  depot: 'economy',
-  listening: 'economy',
+  hq: 'personalBoard',
+  farm: 'personalBoard',
+  mine: 'personalBoard',
+  oilWell: 'personalBoard',
+  arsenal: 'personalBoard',
+  warehouse: 'personalBoard',
+  depot: 'personalBoard',
+  listening: 'personalBoard',
   barracks: 'site',
   airfield: 'site',
   port: 'site',
@@ -2495,7 +2495,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
-              covered={narrow && windows.some((name) => name !== 'economy')}
+              covered={narrow && windows.some((name) => name !== 'personalBoard')}
               reveal={reveal}
               replay={replay}
               onReplayStep={replayStep}
@@ -2835,7 +2835,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       {...windowProps}
                     />
                   );
-                case 'economy':
+                case 'personalBoard':
                   return (
                     <PersonalBoard
                       key={name}

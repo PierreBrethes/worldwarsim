@@ -2604,7 +2604,7 @@ export const fr = {
     header: 'à faire maintenant',
     count: (count: number) => `${count} en attente`,
     toMap: 'carte',
-    toEconomy: 'économie',
+    toPersonalBoard: 'économie',
     toSite: 'au site',
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,

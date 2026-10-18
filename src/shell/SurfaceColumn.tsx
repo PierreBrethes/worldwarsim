@@ -84,7 +84,7 @@ export function SurfaceColumn({
           sur la réglette, en fonds, et l'édition finale s'ouvre à l'horloge. */}
       {!blitz &&
         square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
-      {!blitz && square('economy', fr.rail.economy, <IndustryGlyph size={18} />)}
+      {!blitz && square('personalBoard', fr.rail.economy, <IndustryGlyph size={18} />)}
       {square('gunnery', fr.rail.gunnery, <AbacusMark size={17} />)}
       {square(
         'journal',

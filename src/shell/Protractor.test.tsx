@@ -106,7 +106,7 @@ describe('the protractor', () => {
     act(() => hub().click());
 
     await act(async () => screen.getByRole('link', { name: /chantiers/ }).click());
-    expect(router.state.location.search).toEqual({ windows: ['economy'] });
+    expect(router.state.location.search).toEqual({ windows: ['personalBoard'] });
     expect(hub()).toBeTruthy();
   });
 

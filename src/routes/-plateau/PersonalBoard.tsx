@@ -33,7 +33,7 @@ import {
 } from '@/domain/ids';
 import { unlinkedProducers } from '@/domain/next-actions';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
-import { recruitRefusalOf } from '@/domain/troops';
+import { PROJECTION_BY_DOMAIN, recruitRefusalOf } from '@/domain/troops';
 import { upkeepStep } from '@/domain/upkeep';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
@@ -608,7 +608,7 @@ function Pieces({
   const roles = (workshop?.grid ?? []).filter(
     (entry) => entry.unlockedAtHqLevel <= view.me.hqLevel,
   );
-  const sites = view.me.buildings.some((building) => building.key in DOMAIN_OF_SITE);
+  const sites = view.me.buildings.some((building) => PROJECTION_KEYS.includes(building.key));
   return (
     <Rack title={fr.personalBoard.piecesHeader} note={fr.personalBoard.piecesNote}>
       {!sites && (
@@ -638,7 +638,7 @@ function Pieces({
   );
 }
 
-const DOMAIN_OF_SITE = { barracks: true, port: true, airfield: true } as const;
+const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
 
 /** What travels under the hand: the tile or the piece, and what the place under it says. */
 function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hint }) {
@@ -909,7 +909,7 @@ function readingOf(
           : { text: upgradeHoldText(hold), refused: true },
     };
   }
-  if (target.kind !== 'building' || !(target.building.key in DOMAIN_OF_SITE)) {
+  if (target.kind !== 'building' || !PROJECTION_KEYS.includes(target.building.key)) {
     return { kind: 'map', hint: { text: fr.personalBoard.dropOnSite, refused: true } };
   }
   const site = target.building;

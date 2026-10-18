@@ -219,7 +219,7 @@ export function NextActions({
 const CARD_ZOOM = 0.75;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
-  economy: fr.nextActions.toEconomy,
+  personalBoard: fr.nextActions.toPersonalBoard,
 };
 
 /** Plusieurs occurrences : le mot dit laquelle le clic va ouvrir, « carte 1 / 6 ». */

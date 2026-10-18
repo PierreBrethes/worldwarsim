@@ -11,7 +11,7 @@ const WINDOWS = [
    *  nulle part ailleurs (59a). Elle est ici parce qu'elle est une fenêtre comme les autres —
    *  même pile, même Échap, même URL partageable — et le bâtiment qu'elle sert est `building`. */
   'site',
-  'economy',
+  'personalBoard',
   'nation',
   'settings',
   /** L'abaque de tir a pris l'entrée de rail que l'onglet « prod. » a libérée (59a, contrat 06) :
@@ -57,7 +57,7 @@ export type BoardSearch = {
 /** The two surfaces a focus can live in. Closing one of them lets it go — there is a single
  *  `building` in the URL, so a focus that outlived its window would resurface unasked. The
  *  nation sheet left the list with its census: it names no building any more. */
-const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['economy', 'site'];
+const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['personalBoard', 'site'];
 
 export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
   const others = (search.windows ?? []).filter((open) => open !== name);

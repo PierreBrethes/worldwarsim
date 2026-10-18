@@ -37,7 +37,7 @@ export type NextActionKind =
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
-export type NextActionSurface = 'economy';
+export type NextActionSurface = 'personalBoard';
 
 /**
  * Où la ligne mène. `unfold` est la fondation et elle seule : elle ne mène nulle part parce que
@@ -203,7 +203,7 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'idleSite',
           kind: 'idleSite',
           label: fr.nextActions.idleSite,
-          targets: [{ kind: 'surface', surface: 'economy' }],
+          targets: [{ kind: 'surface', surface: 'personalBoard' }],
         },
       ];
 

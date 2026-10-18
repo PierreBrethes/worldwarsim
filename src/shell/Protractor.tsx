@@ -101,7 +101,7 @@ export function Protractor({
       ),
     },
     windowRound(
-      'economy',
+      'personalBoard',
       fr.foot.works,
       fr.protractor.works,
       <IndustryGlyph size={18} />,
@@ -135,7 +135,7 @@ export function Protractor({
   /** La Blitz n'a ni réserve ni chantier ni presse : son économie se lit sur la réglette, en fonds. */
   const rounds = all.filter(
     (round) =>
-      view.mode !== 'blitz' || (round.key !== 'economy' && (round.key !== 'press' || !playing)),
+      view.mode !== 'blitz' || (round.key !== 'personalBoard' && (round.key !== 'press' || !playing)),
   );
 
   function windowRound(
