@@ -99,7 +99,6 @@ export const BUILDINGS = [
   'airfield',
   'port',
   'listening',
-  'billets',
   'warehouse',
   'depot',
   'city',

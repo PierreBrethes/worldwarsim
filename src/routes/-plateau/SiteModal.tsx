@@ -234,9 +234,6 @@ function Site({
         <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
       ) : (
         <>
-          {/* Le plafond est **global** et il est répété dans chaque modale : c'est le seul nombre
-              qui borne tout choix de formation, et l'omettre ici forcerait à rouvrir une autre
-              surface pour savoir s'il reste de la place. */}
           <div className="flex shrink-0 flex-wrap items-center gap-x-[18px] gap-y-2 border-b border-(color:--ink)/35 px-4 py-[9px]">
             <span className="flex items-baseline gap-[9px]">
               <span className="font-(family-name:--font-mono) text-[19px] text-[var(--ink)]">
@@ -248,13 +245,6 @@ function Site({
               </span>
               <span className="eyebrow">{fr.production.inQueue}</span>
             </span>
-            <CapPips
-              inService={workshop.troopsInService}
-              queued={workshop.troopsQueued}
-              cap={workshop.troopCap}
-            />
-            <span className="flex-1" />
-            <HelpMark>{fr.production.troopCapNote}</HelpMark>
           </div>
 
           {/* **Deux colonnes larges, une seule feuille étroite.** Sous `@4xl` — un écran de
@@ -662,7 +652,6 @@ function NarrowSite({
   const ready = workshop !== undefined && facility !== null;
   const queue = facility?.queue ?? [];
   const nation = view.me.nation;
-  const free = ready ? workshop.troopCap - workshop.troopsInService - workshop.troopsQueued : 0;
   const alloy = Math.floor(currentStock(view.me.resources.alloy, view.loadedAt, now));
   const siteLevel = facility?.level ?? building.level;
   const termsOf = (entry: GridEntry) =>
@@ -675,7 +664,6 @@ function NarrowSite({
     if (!ready) return null;
     const { roleLocked, cost } = termsOf(entry);
     if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
-    if (free <= 0) return fr.production.sheet.capReached(workshop.troopCap);
     if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull(workshop.maxQueue);
     if (alloy < cost.alloy) return fr.production.sheet.alloyShort(cost.alloy - alloy);
     return null;
@@ -760,27 +748,10 @@ function NarrowSite({
             </button>
           ))}
         </div>
-        {/* Le plafond est commun aux trois sites et répété ici : c'est le seul nombre qui borne le
-            choix, et chaque troupe enfilée y remplit une case. */}
         {ready && (
-          <div className="flex min-h-[42px] items-center gap-3 border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
-            <SheetPips
-              inService={workshop.troopsInService}
-              queued={workshop.troopsQueued}
-              cap={workshop.troopCap}
-            />
-            <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
-              <span className="truncate text-[12.5px] leading-[1.1]">
-                {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
-              </span>
-              <span
-                className="truncate text-[11px] leading-[1.1]"
-                style={{ color: free > 0 ? 'var(--ink-soft)' : 'var(--critical)' }}
-              >
-                {free > 0
-                  ? fr.production.sheet.capFree(free, workshop.troopCap)
-                  : fr.production.sheet.capFull(workshop.troopCap)}
-              </span>
+          <div className="flex min-h-[42px] items-center border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
+            <span className="truncate text-[12.5px] leading-[1.1]">
+              {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
             </span>
           </div>
         )}
@@ -842,9 +813,6 @@ function NarrowSite({
               ))}
             </>
           )}
-          <div className="mx-4 mt-4 mb-6">
-            <HelpMark>{fr.production.troopCapNote}</HelpMark>
-          </div>
         </>
       ) : tab === 'queue' ? (
         <>
@@ -943,28 +911,6 @@ function SheetHeading({ title, note }: { title: string; note: string }) {
       <span className="text-[10px] font-bold tracking-[.18em] uppercase">{title}</span>
       <span className="text-right text-[12px] text-[var(--ink-quiet)]">{note}</span>
     </div>
-  );
-}
-
-/** Le plafond dessiné, à la taille du pouce : pleines ce qui tient, à demi ce qui est en file. */
-function SheetPips({ inService, queued, cap }: { inService: number; queued: number; cap: number }) {
-  return (
-    <span className="flex shrink-0 gap-[2px]">
-      {Array.from({ length: cap }, (_, index) => (
-        <span
-          key={index}
-          className="h-[16px] w-[8px] border border-[var(--ink)]"
-          style={{
-            background:
-              index < inService
-                ? 'var(--ink)'
-                : index < inService + queued
-                  ? 'color-mix(in srgb, var(--ink) 35%, transparent)'
-                  : 'transparent',
-          }}
-        />
-      ))}
-    </span>
   );
 }
 
@@ -1341,34 +1287,6 @@ function RecruitedNotice({
         </button>
       )}
     </div>
-  );
-}
-
-/**
- * **The ceiling, drawn.** The same three numbers as the figures beside it — standing, queued,
- * free — but as one strip of cells, so "combien me reste-t-il" is answered by counting empties
- * rather than by subtracting. The queued cells are half-inked on purpose: a troop in the chain
- * already holds its place, which is the whole point the note next to it spells out.
- */
-function CapPips({ inService, queued, cap }: { inService: number; queued: number; cap: number }) {
-  return (
-    <span className="flex items-center gap-[3px]">
-      {Array.from({ length: cap }, (_, index) => (
-        <span
-          key={index}
-          className="h-[20px] w-[10px] border border-[var(--ink)]"
-          style={{
-            background:
-              index < inService
-                ? 'var(--ink)'
-                : index < inService + queued
-                  ? 'color-mix(in srgb, var(--ink) 35%, transparent)'
-                  : 'transparent',
-          }}
-        />
-      ))}
-      <span className="eyebrow ml-[8px]">{fr.production.capOf(cap)}</span>
-    </span>
   );
 }
 

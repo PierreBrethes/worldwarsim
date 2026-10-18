@@ -9,7 +9,6 @@ import {
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
-  TROOP_CAP_TARGET,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
   nominalStrength,
 } from './constants';
@@ -161,17 +160,18 @@ describe('an army eats a flat rate, whatever it is made of', () => {
 
   /** The whole of D1: `nominalStrength` is not the same unit from one role to the next, so the
    *  rate reads none of it. Twenty-four of anything eat twenty-four forfaits. */
-  it('charges the ceiling of an army as many forfaits as it has troops, roles apart', async () => {
+  it('charges an army as many forfaits as it has troops, roles apart', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const roles: ReadonlyArray<UnitRole> = ['infantry', 'armor', 'carrier', 'bomber', 'cargo'];
-    for (let rank = 0; rank < TROOP_CAP_TARGET; rank += 1) {
+    const army = 24;
+    for (let rank = 0; rank < army; rank += 1) {
       await form(t, seat, roles[rank % roles.length]!, null);
     }
 
     const upkeep = await upkeepOf(t, seat);
-    expect(upkeep.troops).toBe(TROOP_CAP_TARGET);
-    expect(upkeep.foodPerHour).toBe(TROOP_CAP_TARGET * FOOD_UPKEEP_PER_TROOP_PER_HOUR);
+    expect(upkeep.troops).toBe(army);
+    expect(upkeep.foodPerHour).toBe(army * FOOD_UPKEEP_PER_TROOP_PER_HOUR);
   });
 
   /** The intention of `chiffrage-combat.md` §5, kept for free: losing men is never an economy. */
@@ -368,7 +368,7 @@ describe('a dry reserve stops the queue and kills nothing', () => {
   afterEach(() => vi.useRealTimers());
 
   /** Five mouths and no farm: the starting kit of food is gone well inside the window, and the
-   *  army stays under the ceiling of the billets so a batch can still be ordered. */
+   *  army stays under the bound so a batch can still be ordered. */
   const starve = async (t: ReturnType<typeof boot>, seat: Seat) => {
     for (let rank = 0; rank < 5; rank += 1) await form(t, seat, 'infantry', null);
     vi.advanceTimersByTime(30 * 3_600_000);

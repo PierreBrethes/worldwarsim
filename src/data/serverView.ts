@@ -129,7 +129,6 @@ export function adaptServerView(
       })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
-      troopCap: server.me.troopCap,
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({

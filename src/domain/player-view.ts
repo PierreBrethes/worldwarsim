@@ -1169,8 +1169,6 @@ export type PlayerView = {
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
-    /** How many troops may stand at once, carried by the billets. `troops` holds the count. */
-    readonly troopCap: number;
     readonly troops: ReadonlyArray<TroopView>;
     /** Shared stationed loads are grouped once by their connected carrier set. */
     readonly stationedCargo: ReadonlyArray<{

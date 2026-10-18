@@ -193,7 +193,7 @@ describe('what merely holds a line back', () => {
     };
     const options = buildableOn(site({ stocks: { ...BROKE, alloy: 5 } }), cheap);
     expect(options.find((option) => option.key === 'barracks')?.hold).toBeNull();
-    expect(options.find((option) => option.key === 'billets')?.hold).toBe('materials');
+    expect(options.find((option) => option.key === 'airfield')?.hold).toBe('materials');
   });
 
   it('leaves a payable line clickable', () => {
@@ -450,7 +450,7 @@ describe('placement over the whole estate', () => {
 
   it('separates a ceiling from a ground that is simply taken', () => {
     const carriable = [region('a'), region('b')];
-    expect(placementOf(estate({ regions: carriable, cap: 0 }), 'billets').condition).toEqual({
+    expect(placementOf(estate({ regions: carriable, cap: 0 }), 'barracks').condition).toEqual({
       kind: 'siteFull',
     });
     expect(
@@ -459,7 +459,7 @@ describe('placement over the whole estate', () => {
           regions: [region('a', { buildings: [{ key: 'farm', level: 1 }] })],
           buildings: [{ key: 'farm', regionId: 'a' }],
         }),
-        'billets',
+        'barracks',
       ).condition,
     ).toEqual({ kind: 'regionsTaken' });
   });
@@ -480,7 +480,7 @@ describe('placement over the whole estate', () => {
         minutesLeft: 10,
       },
     });
-    expect(placementOf(view, 'billets').regionIds).toEqual(['b']);
+    expect(placementOf(view, 'barracks').regionIds).toEqual(['b']);
   });
 
   /** And so is one a **queued** entry aims at: it is paid for, and the server refuses a second
@@ -498,10 +498,10 @@ describe('placement over the whole estate', () => {
       },
     ];
     const view = estate({ regions: [region('a'), region('b')], queue: queued });
-    expect(placementOf(view, 'billets').regionIds).toEqual(['b']);
+    expect(placementOf(view, 'barracks').regionIds).toEqual(['b']);
 
     const full = estate({ regions: [region('a'), region('b')], queue: queued, cap: 1 });
-    expect(placementOf(full, 'billets').condition).toEqual({ kind: 'siteFull' });
+    expect(placementOf(full, 'barracks').condition).toEqual({ kind: 'siteFull' });
   });
 
   it('marks a key the foundation still owes as free', () => {

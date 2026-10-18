@@ -106,7 +106,7 @@ describe('capituler', () => {
     await expect(
       t.mutation(api.constructions.start, {
         ...guest!,
-        building: 'billets',
+        building: 'barracks',
         regionId: MARNE,
       }),
     ).rejects.toThrow('PLAYER_DEFEATED');

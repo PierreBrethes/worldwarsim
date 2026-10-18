@@ -278,7 +278,6 @@ export const fr = {
     airfield: 'Aérodrome',
     port: 'Port',
     listening: 'Station d’écoute',
-    billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
     city: 'Ville',
@@ -303,7 +302,6 @@ export const fr = {
     airfield: 'm',
     port: 'm',
     listening: 'f',
-    billets: 'm',
     warehouse: 'm',
     depot: 'm',
     city: 'f',
@@ -322,7 +320,6 @@ export const fr = {
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
-    billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des huit ressources — se pille',
     depot: 'relève le plafond des huit ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
@@ -637,8 +634,6 @@ export const fr = {
     HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
-    TROOP_CAP_REACHED: (d) =>
-      `plafond atteint : ${num(d.cap)} troupes, file comprise — bâtissez ou montez des baraquements`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
@@ -680,7 +675,7 @@ export const fr = {
       d.needed === undefined
         ? 'les fonds ne suffisent pas'
         : `il faut ${num(d.needed)} fonds — on en tient ${num(d.held)}`,
-    TROOP_BOUND_REACHED: () => 'l’armée ne peut pas grandir davantage',
+    TROOP_BOUND_REACHED: () => 'l’état-major ne peut en suivre davantage',
     NOT_IN_BLITZ: () => 'en Blitz on ne bâtit rien : on capture',
     BLITZ_MAP_UNFAIR: () =>
       'aucune carte équitable sur ce théâtre pour ce nombre de joueurs — la partie revient au salon',
@@ -1822,7 +1817,7 @@ export const fr = {
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
     regionTerrain: (terrain: string) => `terrain : ${terrain}`,
-    regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
+    regionNoDeposit: 'aucun gisement — caserne, aérodrome',
     regionCoastal: 'côtière — port possible',
   },
 
@@ -2957,15 +2952,12 @@ export const fr = {
     queueHeader: 'files de production',
     /**
      * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : un seul gabarit pour la
-     * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le plafond collé
+     * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le décompte collé
      * sous eux. Ce qui n'est pas encore ouvert descend sous « plus haut » avec sa condition.
      */
     sheet: {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
-      capFree: (free: number, cap: number) =>
-        `${free} place${plural(free, '', 's')} libre${plural(free, '', 's')} sur ${cap}`,
-      capFull: (cap: number) => `plafond atteint — ${cap} sur ${cap}`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
       opens: (level: number, roles: string) => `Le niveau ${level} ouvre ${roles}`,
       waits: (role: string, level: number) => `${role} attend le niveau ${level}`,
@@ -2976,8 +2968,6 @@ export const fr = {
       lockedNote: 'le site doit monter',
       bill: (alloy: number, duration: string) => `${alloy} all. · ${duration}`,
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
-      capReached: (cap: number) =>
-        `Plafond atteint — ${cap} troupes sur ${cap}. Montez les baraquements.`,
       queueFull: (max: number) => `File pleine — ${max} lots sur ${max}.`,
       alloyShort: (missing: number) => `Il manque ${missing} alliage.`,
       running: 'en chaîne',
@@ -3016,19 +3006,11 @@ export const fr = {
     atWaking: 'au réveil',
     wakingNote:
       'Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle. Une troupe déjà commencée ne s’annule plus ; les suivantes sont remboursées intégralement.',
-    /**
-     * The ceiling as three readings of one number, not one sentence: the figures are set apart
-     * so the strip of pips beside them can be read as the same count drawn — filled for what
-     * stands, half for what is queued, empty for what is left.
-     */
     inService: 'en service',
     inQueue: 'en file',
-    capOf: (cap: number) => `plafond ${cap} troupes`,
     /** The two halves of a card's ledger. Kept as eyebrows, never as sentences. */
     costLabel: 'coût',
     trainingLabel: 'formation',
-    troopCapNote:
-      'Les hommes ne sont pas une ressource : une troupe coûte des matières, et l’armée est bornée en nombre de troupes par les baraquements. La file compte dans le plafond.',
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',

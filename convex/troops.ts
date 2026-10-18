@@ -6,7 +6,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/domain/troops';
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
+import { levelOf, playerBuildings } from './buildingReads';
 import { blitzOnly, blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
 import { fundsOf, isBlitz, occupiedBuildingIds, spendFunds } from './blitz';
@@ -20,7 +20,7 @@ import {
   recruitmentCost,
   roleHqLevel,
   roleSiteLevel,
-  troopCap,
+  MONDIALE_TROOP_BOUND,
 } from './constants';
 import { fail } from './errors';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -93,9 +93,6 @@ export const workshop = query({
       tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
       requiredHqLevel: TIER_2_HQ_LEVEL,
       maxQueue: MAX_QUEUED_BATCHES,
-      // Standing troops and queued batches share one ceiling, otherwise the queue is where a
-      // nation stores the army it is not allowed to have.
-      troopCap: troopCap(totalLevelOf(buildings, 'billets')),
       troopsInService: troops.length,
       troopsQueued: waiting.length,
       alloy: snapshotOf(economy, 'alloy'),
@@ -160,14 +157,12 @@ export const recruit = mutation({
       fail('SITE_LEVEL_LOCKED', { building: building.key, requiredLevel: siteLevel });
 
     /**
-     * The queue counts against the ceiling. Leaving it out would make the queue a way of
-     * holding an army the billets do not allow, and the ceiling would only ever be reached
-     * for a reading.
+     * The queue counts against the bound, or it would be where a nation stores the army the
+     * server cannot follow. Nothing serves the number: only this refusal says it.
      */
-    const cap = troopCap(totalLevelOf(buildings, 'billets'));
     const standing = (await troopsOf(ctx, player._id)).length;
     const queued = (await recruitmentsOf(ctx, player._id)).length;
-    if (standing + queued >= cap) fail('TROOP_CAP_REACHED', { cap, standing, queued });
+    if (standing + queued >= MONDIALE_TROOP_BOUND) fail('TROOP_BOUND_REACHED');
 
     const queue = await queueOf(ctx, buildingId);
     if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL', { maximum: MAX_QUEUED_BATCHES });

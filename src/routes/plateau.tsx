@@ -265,9 +265,6 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   barracks: 'site',
   airfield: 'site',
   port: 'site',
-  /** Les baraquements ne forment rien : ils portent le plafond, et leur ligne vit au recensement
-   *  de la projection avec les trois autres (fenêtre Économie). */
-  billets: 'economy',
   /** La ville de la Blitz se lit dans sa modale : ce qu'elle verse, et qui s'y tient. */
   city: 'site',
 };

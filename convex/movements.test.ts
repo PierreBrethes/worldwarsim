@@ -886,7 +886,7 @@ describe('an outpost opens a radius to build in', () => {
 
     await t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: ALBERTA });
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ALBERTA }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ALBERTA }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -909,7 +909,7 @@ describe('an outpost opens a radius to build in', () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'billets', regionId: RUHR })
+      .mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: RUHR })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
@@ -955,10 +955,10 @@ describe('an outpost opens a radius to build in', () => {
   it('keeps home free of any reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await setHqLevel(t, seat, unlockLevel('billets'));
+    await setHqLevel(t, seat, unlockLevel('barracks'));
     const started = await t.mutation(api.constructions.start, {
       ...seat,
-      building: 'billets',
+      building: 'barracks',
       regionId: MARNE,
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());

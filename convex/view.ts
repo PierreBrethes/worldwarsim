@@ -47,7 +47,6 @@ import {
   LAST_KNOWN_HOURS,
   isCommanded,
   unlockLevel,
-  troopCap,
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
@@ -632,12 +631,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outposts: economy.upkeep.outposts,
       },
       starving: economy.starving,
-      /**
-       * How many troops may stand at once, carried by the billets (ADR 0014). Served beside
-       * the troops themselves so the board can say "18 / 24" without a second count of its
-       * own — the list below is complete, so its length is the count.
-       */
-      troopCap: troopCap(totalLevelOf(buildings, 'billets')),
       /**
        * **Les bâtiments de projection qui forment quelque chose**, et rien de la file
        * elle-même : c'est la seule question qu'une carte « à faire maintenant » pose, et la

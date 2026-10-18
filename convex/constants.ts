@@ -107,7 +107,6 @@ export const BUILDING_SPEC: Readonly<
   airfield: { cost: { alloy: 70, oil: 20 }, minutes: 70 },
   port: { cost: { alloy: 65, coal: 20 }, minutes: 65 },
   listening: { cost: { alloy: 35, coal: 15 }, minutes: 40 },
-  billets: { cost: { alloy: 25, food: 40 }, minutes: 30 },
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
@@ -139,7 +138,6 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   warehouse: 1,
   depot: 1,
   barracks: 2,
-  billets: 2,
   arsenal: 2,
   listening: 2,
   airfield: 2,
@@ -462,42 +460,19 @@ export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
 
 export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
 
-/** Nearly inert since a batch became a single troop — the troop ceiling below bites first. Kept
+/** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob. */
 export const MAX_QUEUED_BATCHES = 12;
 
 /**
- * **One ceiling, and it counts troops — never men**: adding the nominal strengths would add tanks
- * to destroyers. The step is derived, so the simulator can sweep `TROOP_CAP_TARGET` alone.
+ * **The invisible bound of the Mondiale** (ADR 0027, 0028 §6): the economy is the brake, this
+ * only keeps the server from carrying an unbounded army. It counts troops — never men — standing
+ * and queued, and nothing shows it ahead of time; the refusal alone says it. Blitz keeps its own
+ * (`BLITZ.troopBound`).
  *
- * **Assumed: this is an anti-swarm rule, not a balance between domains.** It only bites on the
- * cheap roles — 24 infantries cost 432 alloy, 24 carriers 10 320 — so the ceiling speaks for the
- * infantry and the cost for the navy; without it one barracks turns out some 500 infantries over
- * a seven-day season. Making it bite everywhere would take a per-role price in slots, refused on
- * purpose. Do not "fix" this. No per-domain ceiling either: one stock, like the movement slots
- * (ADR 0006).
+ * @a-mesurer ADR 0028 §6 chiffre ~150 troupes par joueur ; à mesurer sur une saison avant de le tenir
  */
-export const TROOP_CAP_BASE = 8;
-export const TROOP_CAP_TARGET = 24;
-export const BILLETS_LEVELS_TO_CAP = 8;
-
-export const TROOP_CAP_PER_BILLETS_LEVEL =
-  (TROOP_CAP_TARGET - TROOP_CAP_BASE) / BILLETS_LEVELS_TO_CAP;
-
-/**
- * The **sum of the levels of every billets** — a ceiling adds up over sites, where the
- * headquarters cap and the tier gates read the best instance alone.
- *
- * **The second billets is a compulsory toll, and that is the decision**: `cappedByHq` stops a
- * billets at 4 under a headquarters at 5, so one caps a nation at 16 troops and reaching 24 costs
- * at least two building slots. Each extra site saves matter (2×4: 594 alloy, 4×2: 280), so the
- * trade hides no optimum.
- */
-export const troopCap = (billetsTotalLevel: number): number =>
-  Math.min(
-    TROOP_CAP_TARGET,
-    Math.floor(TROOP_CAP_BASE + TROOP_CAP_PER_BILLETS_LEVEL * billetsTotalLevel),
-  );
+export const MONDIALE_TROOP_BOUND = 150;
 
 export function chainSpeed(hqLevel: number): number {
   return 1 + Math.max(0, hqLevel - 1) * 0.225;

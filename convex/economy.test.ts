@@ -373,11 +373,11 @@ describe('what the industry window reads', () => {
     await raise(t, seat, 'foundry', MOSELLE);
     await raise(t, seat, 'mine', MEURTHE);
     await fill(t, seat, 'alloy', 100);
-    await promoteHq(t, seat, unlockLevel('billets'));
+    await promoteHq(t, seat, unlockLevel('barracks'));
     vi.advanceTimersByTime(20 * 3_600_000);
     // The billets, not the farm: the farm belongs to the foundation, and a free placement
     // spends nothing — so it would reset no window.
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: MARNE });
+    await t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE });
 
     const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
@@ -1111,8 +1111,12 @@ describe('the foundation the season owes', () => {
   it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('billets'));
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await promoteHq(t, seat, unlockLevel('barracks'));
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     const placed = await t.mutation(api.constructions.start, {
@@ -1125,7 +1129,7 @@ describe('the foundation the season owes', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.map((building) => building.key)).toContain('farm');
     // The queue is exactly what it was: the offered placement passed beside it.
-    expect(view.me.construction?.key).toBe('billets');
+    expect(view.me.construction?.key).toBe('barracks');
     expect(view.me.constructionQueue.map((entry) => entry.key)).toEqual(['warehouse']);
   });
 
@@ -1346,7 +1350,7 @@ describe('the construction queue', () => {
   /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses.
    *  Two of them open one level above the launch, so every test here promotes first. */
   const SITES = [
-    { building: 'billets' as const, regionId: ARDENNES },
+    { building: 'barracks' as const, regionId: ARDENNES },
     { building: 'warehouse' as const, regionId: JURA },
     { building: 'barracks' as const, regionId: MEURTHE },
   ];
@@ -1394,7 +1398,7 @@ describe('the construction queue', () => {
     expect(await alloyOf(t, seat)).toBe(opening - spent);
 
     const queued = await t.query(api.view.playerView, seat);
-    expect(queued.me.construction?.key).toBe('billets');
+    expect(queued.me.construction?.key).toBe('barracks');
     expect(queued.me.constructionQueue.map((entry) => entry.key)).toEqual([
       'warehouse',
       'barracks',
@@ -1406,11 +1410,11 @@ describe('the construction queue', () => {
     );
     expect(dated).toHaveLength(1);
 
-    vi.advanceTimersByTime(buildMinutes('billets', 1) * 60_000);
+    vi.advanceTimersByTime(buildMinutes('barracks', 1) * 60_000);
     await t.finishInProgressScheduledFunctions();
 
     const midway = await t.query(api.view.playerView, seat);
-    expect(midway.me.buildings.map((building) => building.key)).toContain('billets');
+    expect(midway.me.buildings.map((building) => building.key)).toContain('barracks');
     expect(midway.me.construction?.key).toBe('warehouse');
     expect(midway.me.constructionQueue.map((entry) => entry.key)).toEqual(['barracks']);
 
@@ -1431,7 +1435,11 @@ describe('the construction queue', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     // Against the head, and against a follower alike.
@@ -1459,14 +1467,14 @@ describe('the construction queue', () => {
     for (const region of free.slice(0, slots)) {
       await t.mutation(api.constructions.start, {
         ...seat,
-        building: 'billets',
+        building: 'barracks',
         regionId: region.id,
       });
     }
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
-        building: 'billets',
+        building: 'barracks',
         regionId: free[slots]!.id,
       }),
     ).rejects.toThrow('SITE_SLOTS_FULL');
@@ -1485,7 +1493,11 @@ describe('the construction queue', () => {
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
     const opening = await alloyOf(t, seat);
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     // The placements go under the queue: the buildings below are put up without paying, and
@@ -1500,12 +1512,12 @@ describe('the construction queue', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const after = await t.query(api.view.playerView, seat);
-    expect(after.me.buildings.map((building) => building.key)).toContain('billets');
+    expect(after.me.buildings.map((building) => building.key)).toContain('barracks');
     // The follower never rose, and its matter came back whole — only the head's bill stands.
     expect(after.me.constructionQueue).toEqual([]);
     expect(after.me.construction).toBeNull();
     expect(after.me.buildings.some((building) => building.regionId === JURA)).toBe(false);
-    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('billets', 1).alloy ?? 0));
+    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('barracks', 1).alloy ?? 0));
 
     // The head that did rise files its own line: the journal owes a player the site he built
     // as much as the one the world took back.
@@ -1513,7 +1525,7 @@ describe('the construction queue', () => {
       after.notices.map((notice) => [notice.kind, 'building' in notice ? notice.building : null]),
     ).toEqual(
       expect.arrayContaining([
-        ['constructionFinished', 'billets'],
+        ['constructionFinished', 'barracks'],
         ['constructionCancelled', 'warehouse'],
       ]),
     );
@@ -1525,7 +1537,11 @@ describe('the construction queue', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     const before = await t.query(api.view.playerView, seat);
@@ -1544,7 +1560,7 @@ describe('the construction queue', () => {
 
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.constructionQueue).toEqual([]);
-    expect(after.me.construction?.key).toBe('billets');
+    expect(after.me.construction?.key).toBe('barracks');
     for (const [resource, amount] of Object.entries(refunded) as ReadonlyArray<
       [ResourceKey, number]
     >) {
@@ -1595,7 +1611,11 @@ describe('the construction queue', () => {
       role: 'infantry',
       tier: 1,
     });
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
 
     const troops = await measure(
       () =>
@@ -1641,7 +1661,7 @@ describe('one building per region, and a global ceiling', () => {
     ).rejects.toThrow('REGION_TAKEN');
     // Including the capital: the headquarters holds its region like any other building.
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: PARIS }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: PARIS }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -1662,7 +1682,7 @@ describe('one building per region, and a global ceiling', () => {
   it('refuses a paid placement on a full national ground, and says what would lift it', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    const hqLevel = unlockLevel('billets');
+    const hqLevel = unlockLevel('barracks');
     await promoteHq(t, seat, hqLevel);
     const slots = homeSlots(hqLevel);
     expect(slots).toBe(4);
@@ -1676,7 +1696,7 @@ describe('one building per region, and a global ceiling', () => {
     for (const region of free) await raise(t, seat, 'warehouse', region.id);
 
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'billets', regionId: JURA })
+      .mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: JURA })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
     const next = hqLevel + 1;
@@ -1694,7 +1714,7 @@ describe('one building per region, and a global ceiling', () => {
 
     // The same order goes through once the headquarters carries a wider ground.
     await promoteHq(t, seat, MAX_HQ_LEVEL);
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: JURA });
+    await t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: JURA });
   });
 
   /**
@@ -2111,11 +2131,11 @@ describe('a stock that is not a number buys nothing', () => {
   it('refuses a construction that a NaN alloy stock would have let through', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('billets'));
+    await promoteHq(t, seat, unlockLevel('barracks'));
     await fill(t, seat, 'alloy', Number.NaN);
 
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: MARNE }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE }),
     ).rejects.toThrow(/INSUFFICIENT_RESOURCE/);
   });
 });

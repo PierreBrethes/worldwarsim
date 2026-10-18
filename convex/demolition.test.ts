@@ -271,7 +271,11 @@ describe('raser un bâtiment', () => {
     const station = await raise(t, seat, 'listening', MEURTHE, 1);
     // Une première entrée occupe la tête — elle court, donc la seconde attend, et c'est celle-là
     // qui se rembourse.
-    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',

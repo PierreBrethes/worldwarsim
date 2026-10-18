@@ -888,7 +888,7 @@ export class LandingTable {
     const town = this.at(berne, 0.2, -0.3);
     const them = this.at(berne, -0.75, 0.55);
     const mine = this.at(berne, -2.35, 0.95);
-    this.maquette('billets', 0.8, town, 0.35);
+    this.maquette('city', 0.8, town, 0.35);
     const toThem = Math.atan2(them.x - mine.x, them.z - mine.z);
     const place = (figurine: Figurine | null, at: Vector3, yaw: number) => {
       if (figurine === null) return;

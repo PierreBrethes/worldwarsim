@@ -786,7 +786,7 @@ describe('a concluded season', () => {
       });
       await ctx.db.insert('constructions', {
         playerId,
-        building: 'billets',
+        building: 'barracks',
         regionId: MOSELLE,
         level: 1,
         rank: 0,
@@ -922,7 +922,7 @@ describe('a season without a clock', () => {
     await expect(
       t.mutation(api.constructions.start, {
         ...creator,
-        building: 'billets',
+        building: 'barracks',
         regionId: MOSELLE,
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
@@ -1199,7 +1199,7 @@ describe('scrapping a season', () => {
         });
         await ctx.db.insert('constructions', {
           playerId,
-          building: 'billets',
+          building: 'barracks',
           regionId: MOSELLE,
           level: 1,
           rank: 0,

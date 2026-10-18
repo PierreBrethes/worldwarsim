@@ -128,15 +128,7 @@ describe('a building only produces when its region carries its colour', () => {
     ] as const) {
       expect(produces(key)).toBe(true);
     }
-    for (const key of [
-      'hq',
-      'warehouse',
-      'depot',
-      'barracks',
-      'port',
-      'airfield',
-      'billets',
-    ] as const) {
+    for (const key of ['hq', 'warehouse', 'depot', 'barracks', 'port', 'airfield'] as const) {
       expect(produces(key)).toBe(false);
     }
   });

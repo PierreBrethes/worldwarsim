@@ -211,7 +211,7 @@ const TRANSFORMATION_KEYS: ReadonlyArray<BuildingKey> = ['foundry', 'arsenal', '
 const CHAIN_KEYS: ReadonlyArray<BuildingKey> = [...EXTRACTION_KEYS, ...TRANSFORMATION_KEYS];
 
 /** What arms: the section of the projection. */
-const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = ['barracks', 'billets', 'airfield', 'port'];
+const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = ['barracks', 'airfield', 'port'];
 
 /** The rest of the census — command, storage, and the listening post until Espionage exists. */
 const WORK_KEYS: ReadonlyArray<BuildingKey> = ['warehouse', 'listening'];

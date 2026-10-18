@@ -5,19 +5,16 @@ import type { Id } from './_generated/dataModel';
 import { TIERS_BY_ROLE } from '../src/domain/troops';
 import type { UnitRole } from '../src/domain/ids';
 import {
-  BILLETS_LEVELS_TO_CAP,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
+  MONDIALE_TROOP_BOUND,
   NOMINAL_STRENGTH,
   STARTING_KIT,
   ROLE_SITE_LEVEL,
   TIER_2_HQ_LEVEL,
-  TROOP_CAP_BASE,
-  TROOP_CAP_TARGET,
   recruitmentCost,
   roleHqLevel,
   roleSiteLevel,
-  troopCap,
 } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -31,8 +28,6 @@ const KIT = STARTING_KIT;
 /** French regions, straight out of `region-index.json`. */
 const MARNE = 'FRA-5323';
 const MOSELLE = 'FRA-5328';
-const ARDENNES = 'FRA-5268';
-const MEUSE = 'FRA-5326';
 const PAS_DE_CALAIS = 'FRA-5334'; // coastal, for the port
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
@@ -78,7 +73,7 @@ async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
 async function raise(
   t: ReturnType<typeof boot>,
   seat: Seat,
-  key: 'barracks' | 'airfield' | 'port' | 'billets',
+  key: 'barracks' | 'airfield' | 'port',
   regionId: string,
   level = 1,
 ): Promise<Id<'buildings'>> {
@@ -122,27 +117,6 @@ async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
       if (row.key === 'alloy') {
         await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
       }
-    }
-  });
-}
-
-/**
- * **De quoi tenir aussi longtemps que le test fait avancer l'horloge.** Vider la file d'une
- * caserne fait maintenant courir la saison jusqu'au bout de son horloge — l'édition de la presse
- * se replanifie toutes les trois heures (`convex/press.ts`) et `finishAllScheduledFunctions` la
- * déroule entière. Une nation sans ferme y meurt de faim, et une file arrêtée par la famine
- * (`consommation-continue.md` D3) est une règle correcte qui n'a rien à voir avec ce qui est
- * mesuré ici : le plafond d'effectifs.
- */
-async function feed(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
-  const playerId = await playerOf(t, seat);
-  await t.run(async (ctx) => {
-    const rows = await ctx.db
-      .query('resources')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect();
-    for (const row of rows) {
-      if (row.key === 'food') await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
     }
   });
 }
@@ -307,115 +281,45 @@ describe('a finished batch is a troop', () => {
   });
 });
 
-describe('the troop ceiling', () => {
-  it('derives its step from the target alone', () => {
-    expect(troopCap(0)).toBe(TROOP_CAP_BASE);
-    expect(troopCap(BILLETS_LEVELS_TO_CAP)).toBe(TROOP_CAP_TARGET);
-    // Past saturation it stops rather than climbing with every extra level.
-    expect(troopCap(BILLETS_LEVELS_TO_CAP * 3)).toBe(TROOP_CAP_TARGET);
-  });
-
-  it('adds the levels of every billets: two at one are worth one at two', async () => {
+describe('the invisible troop bound', () => {
+  it('serves no ceiling to the screen', async () => {
     const t = boot();
-    const spread = await launchedSeason(t);
-    await raise(t, spread, 'billets', ARDENNES, 1);
-    await raise(t, spread, 'billets', MEUSE, 1);
-
-    const u = boot();
-    const tall = await launchedSeason(u);
-    await raise(u, tall, 'billets', ARDENNES, 2);
-
-    const twoSites = await t.query(api.troops.workshop, spread);
-    const oneSite = await u.query(api.troops.workshop, tall);
-    expect(twoSites.troopCap).toBe(oneSite.troopCap);
-    expect(twoSites.troopCap).toBe(troopCap(2));
+    const seat = await launchedSeason(t);
+    expect(await t.query(api.troops.workshop, seat)).not.toHaveProperty('troopCap');
+    expect((await t.query(api.view.playerView, seat)).me).not.toHaveProperty('troopCap');
   });
 
-  /**
-   * `cappedByHq` forbids any building from reaching the headquarters' level, so a lone billets
-   * stops at four under a headquarters at five. Reaching the target costs a second site — the
-   * decision of ADR 0014, not a side effect.
-   */
-  it('leaves a single billets at the maximum short of the target', () => {
-    expect(troopCap(4)).toBe(16);
-    expect(troopCap(4)).toBeLessThan(TROOP_CAP_TARGET);
-  });
-
-  it('counts the queue against the ceiling and refuses the batch past it', async () => {
+  it('counts the queue against the bound and refuses the batch past it, in clear', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 40_000);
     const barracks = await raise(t, seat, 'barracks', MARNE);
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(playerId))!.seasonId;
+      for (let index = 0; index < MONDIALE_TROOP_BOUND - 1; index += 1) {
+        await ctx.db.insert('troops', {
+          seasonId,
+          playerId,
+          role: 'infantry',
+          tier: 1,
+          nominalStrength: 1,
+          currentStrength: 1,
+          stationedAt: { lon: 2.3, lat: 48.9 },
+        });
+      }
+    });
 
-    for (let index = 0; index < TROOP_CAP_BASE; index += 1) {
-      await t.mutation(api.troops.recruit, {
-        ...seat,
-        buildingId: barracks,
-        role: 'infantry',
-        tier: 1,
-      });
-    }
-
-    const workshop = await t.query(api.troops.workshop, seat);
-    expect(workshop.troopsQueued).toBe(TROOP_CAP_BASE);
-    expect(workshop.troopCap).toBe(TROOP_CAP_BASE);
-
+    // One short of the bound: the last place is taken by a queued batch, which counts.
+    await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
     await expect(
       t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 1 }),
-    ).rejects.toThrow('TROOP_CAP_REACHED');
-  });
-
-  it('rises with the billets, and razing them erases no troop', async () => {
-    vi.useFakeTimers();
-    try {
-      const t = boot();
-      const seat = await launchedSeason(t);
-      await credit(t, seat, 40_000);
-      await feed(t, seat, 40_000);
-      const barracks = await raise(t, seat, 'barracks', MARNE);
-      const billets = await raise(t, seat, 'billets', ARDENNES, 2);
-      await raise(t, seat, 'billets', MEUSE, 2);
-
-      const raised = await t.query(api.troops.workshop, seat);
-      expect(raised.troopCap).toBe(troopCap(4));
-
-      for (let index = 0; index < 10; index += 1) {
-        await t.mutation(api.troops.recruit, {
-          ...seat,
-          buildingId: barracks,
-          role: 'infantry',
-          tier: 1,
-        });
-      }
-      await t.finishAllScheduledFunctions(vi.runAllTimers);
-
-      await raze(t, billets);
-
-      // Ten troops stand under a ceiling that fell back to twelve: nothing is disbanded, the
-      // nation simply cannot recruit while it sits above.
-      const view = await t.query(api.view.playerView, seat);
-      expect(view.me.troops).toHaveLength(10);
-      expect(view.me.troopCap).toBe(troopCap(2));
-
-      for (let index = 0; index < 2; index += 1) {
-        await t.mutation(api.troops.recruit, {
-          ...seat,
-          buildingId: barracks,
-          role: 'infantry',
-          tier: 1,
-        });
-      }
-      await expect(
-        t.mutation(api.troops.recruit, {
-          ...seat,
-          buildingId: barracks,
-          role: 'infantry',
-          tier: 1,
-        }),
-      ).rejects.toThrow('TROOP_CAP_REACHED');
-    } finally {
-      vi.useRealTimers();
-    }
+    ).rejects.toThrow('TROOP_BOUND_REACHED');
   });
 });
 
