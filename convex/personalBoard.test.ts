@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat } from './seats.fixture';
@@ -27,9 +27,18 @@ describe('le plateau personnel ouvert', () => {
     await t.mutation(api.seasons.launch, seat);
     expect((await t.query(api.view.playerView, seat)).boardRead).toBeNull();
 
+    await t.mutation(internal.dev.pastVisit, {
+      seasonId: seat.seasonId,
+      hours: 9,
+      gains: { food: 5, oil: -30 },
+    });
+    const past = (await t.query(api.view.playerView, seat)).boardRead;
+    expect(past?.at).toBe(MIDDAY.getTime() - 9 * 3_600_000);
+
     await t.mutation(api.personalBoard.markRead, seat);
     const view = await t.query(api.view.playerView, seat);
     expect(view.boardRead?.at).toBe(MIDDAY.getTime());
+    expect(past?.stocks.oil).toBe(view.me.resources.oil.stock + 30);
     expect(view.boardRead?.stocks).toEqual(
       Object.fromEntries(
         Object.entries(view.me.resources).map(([key, resource]) => [key, resource.stock]),

@@ -55,9 +55,14 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       la production lit le gisement sous le point. On choisit la clé, puis un fantôme vise un lieu,
       s'aimante sur un gisement libre ou un quai et dit le refus du serveur avant le clic ; les
       gisements se tiennent à leur point, les sites relevés aussi. Le schéma change : wipe.
-   6. **Le plateau personnel** : nombres et barres par ressource, récolte animée, tuiles, réserve
-      de pièces ; remplace la fenêtre Économie. *Se voit* : barres, pastilles qui volent, tuile qui
-      se pose.
+   6. ~~**Le plateau personnel**~~ : fait le 19/10. « ÉCON. » l'ouvre (`PersonalBoard.tsx`) : cinq
+      bacs en nombre et en barre jusqu'au plafond, la récolte depuis la dernière ouverture
+      (`readMarks.boardReadAt`, `harvestOf`) en pastilles qui volent selon le réglage ; une tuile
+      glissée sur la carte arme le fantôme de la pose et se pose, ou élève sa pareille ; une pièce
+      lâchée sur une caserne, un port ou un aérodrome y est formée (`recruitRefusalOf`), son refus
+      dit en rouge et elle rentre. Chantiers, entretien par paliers et pénuries avec leur remède
+      au pied, le lot de l'arsenal dessous ; la fenêtre Économie est retirée. Démo :
+      `npm run demo:mondiale -- --recolte`. Le schéma change : `readMarks` gagne deux champs.
    7. **Livrer et tournées** : dépôt d'avant-poste, charge unique, charger au QG, à l'entrepôt, au
       port ou à l'aérodrome, aller-retour, tournée en boucle depuis le point de chargement qui saute
       un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.

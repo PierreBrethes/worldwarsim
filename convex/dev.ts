@@ -3,6 +3,7 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 import { heldOf } from './control';
+import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
 import { seatedOf } from './movement/forces';
@@ -102,6 +103,40 @@ export const fillStocks = internalMutation({
         .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
         .collect();
       for (const row of rows) await ctx.db.patch(row._id, { stock, updatedAt: now });
+    }
+  },
+});
+
+/**
+ * **Une visite passée du plateau personnel**, pour la démo de la récolte : datée de `hours` plus
+ * tôt, avec des stocks qui font paraître à l'ouverture suivante ce que `gains` dit — positif
+ * entré, négatif sorti.
+ *
+ * `npx convex run dev:pastVisit '{"seasonId":"…","hours":9,"gains":{"food":100}}'`
+ */
+export const pastVisit = internalMutation({
+  args: {
+    seasonId: v.id('seasons'),
+    hours: v.number(),
+    gains: v.record(v.string(), v.number()),
+  },
+  handler: async (ctx, { seasonId, hours, gains }) => {
+    const now = Date.now();
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    for (const player of players) {
+      const { stocks } = await settle(ctx, player._id, now);
+      await stampReadMark(ctx, player._id, {
+        boardReadAt: now - hours * 3_600_000,
+        boardReadStocks: Object.fromEntries(
+          Object.entries(stocks).map(([key, stock]) => [
+            key,
+            Math.max(0, Math.floor(stock) - (gains[key] ?? 0)),
+          ]),
+        ),
+      });
     }
   },
 });
