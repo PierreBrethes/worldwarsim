@@ -14,8 +14,8 @@ describe('the top-up at the anchor', () => {
   it('fills what is missing, ten a step, rounds in ammunition and fuel in its own resource', () => {
     const { supplies, cost } = topUp(
       [
-        { id: 'tank', role: 'armor', rounds: 0, fuel: 1 },
-        { id: 'ship', role: 'escort', rounds: 3, fuel: 2 },
+        { id: 'tank', role: 'armor', rounds: 0, fuel: 1, anchored: true },
+        { id: 'ship', role: 'escort', rounds: 3, fuel: 2, anchored: true },
       ],
       STOCKS,
     );
@@ -24,17 +24,26 @@ describe('the top-up at the anchor', () => {
     expect(cost).toEqual({ ammunition: 20, oil: 20, coal: 40 });
   });
 
-  it('hands out whole steps only, in order, while the stock lasts', () => {
+  it('hands out whole steps only, by identifier whatever the order given, while the stock lasts', () => {
     const { supplies, cost } = topUp(
       [
-        { id: 'a', role: 'infantry', rounds: 0 },
-        { id: 'b', role: 'infantry', rounds: 0 },
+        { id: 'b', role: 'infantry', rounds: 0, anchored: true },
+        { id: 'a', role: 'infantry', rounds: 0, anchored: true },
       ],
       { ammunition: 45, oil: 0, coal: 0 },
     );
     expect(supplies.get('a')).toEqual({ rounds: 3, fuel: 0 });
     expect(supplies.get('b')).toEqual({ rounds: 1, fuel: 0 });
     expect(cost.ammunition).toBe(40);
+  });
+
+  it('leaves a troop away from its anchor on what it carries', () => {
+    const { supplies, cost } = topUp(
+      [{ id: 'far', role: 'infantry', rounds: 0, anchored: false }],
+      STOCKS,
+    );
+    expect(supplies.has('far')).toBe(false);
+    expect(cost.ammunition).toBe(0);
   });
 });
 

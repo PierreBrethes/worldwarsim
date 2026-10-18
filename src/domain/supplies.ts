@@ -41,16 +41,18 @@ export type SupplyStocks = {
 };
 
 /**
- * **La recharge à l'ancre** : chaque troupe reprend ce qui lui manque, cran par cran entier, sur
- * le stock, dans l'ordre donné et tant qu'il dure. Rien ne se refuse : un stock court laisse
- * la dernière à moitié vide, et c'est ce que la pièce dira.
+ * **La recharge à l'ancre** : chaque troupe ancrée — sur son ancre et à l'arrêt, ce que
+ * l'appelant lit — reprend ce qui lui manque, cran par cran entier, sur le stock et tant qu'il
+ * dure. Rien ne se refuse : un stock court laisse la dernière à moitié vide, et c'est ce que la
+ * pièce dira. **L'ordre est celui des identifiants**, jamais celui de l'appelant : l'écran et le
+ * serveur partagent un stock court de la même façon. Une troupe non ancrée garde ses crans.
  */
 export function topUp(
-  troops: ReadonlyArray<Carrying & { readonly id: string }>,
+  troops: ReadonlyArray<Carrying & { readonly id: string; readonly anchored: boolean }>,
   stocks: SupplyStocks,
 ): { readonly supplies: ReadonlyMap<string, Supplies>; readonly cost: SupplyStocks } {
   const left = { ...stocks };
-  const cost = { ammunition: 0, oil: 0, coal: 0 };
+  const cost: { -readonly [K in keyof SupplyStocks]: number } = { ammunition: 0, oil: 0, coal: 0 };
   const take = (resource: keyof SupplyStocks, missing: number): number => {
     const steps = Math.min(missing, Math.floor(Math.max(0, left[resource]) / SUPPLY_STEP_COST));
     left[resource] -= steps * SUPPLY_STEP_COST;
@@ -58,7 +60,10 @@ export function topUp(
     return steps;
   };
   const supplies = new Map<string, Supplies>();
-  for (const troop of troops) {
+  const anchored = troops
+    .filter((troop) => troop.anchored)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const troop of anchored) {
     const held = suppliesOf(troop);
     const full = fullSupplies(troop.role);
     supplies.set(troop.id, {

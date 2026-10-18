@@ -1,4 +1,4 @@
-import { outOfRounds, pileSupplies, topUp } from '@/domain/supplies';
+import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
 import {
   Link,
   Navigate,
@@ -3097,9 +3097,15 @@ function armedColumn(
  *  ancrée reprend ses coups sur le plateau personnel avant que l'ordre ne les lise. */
 function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
   if (view.mode === 'blitz') return {};
-  const stock = (key: 'ammunition' | 'oil' | 'coal') => view.me.resources[key]?.stock ?? 0;
+  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
+  const stock = (key: keyof SupplyStocks) => view.me.resources[key]?.stock ?? 0;
   const { supplies } = topUp(
-    troops.filter((troop) => troop.supplied).map((troop) => ({ ...troop.supplies, ...troop })),
+    troops.map((troop) => ({
+      ...troop.supplies,
+      id: troop.id,
+      role: troop.role,
+      anchored: troop.supplied && !marching.has(troop.id),
+    })),
     { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') },
   );
   const after = troops.map((troop) => ({

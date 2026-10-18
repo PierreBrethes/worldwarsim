@@ -1,6 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { topUp } from '../src/domain/supplies';
+import { topUp, type SupplyStocks } from '../src/domain/supplies';
 import { isBlitz } from './blitz';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
@@ -19,10 +19,7 @@ export async function toppedUp(
   playerId: Id<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
   at: number,
-): Promise<{
-  readonly troops: Array<Doc<'troops'>>;
-  readonly cost: { ammunition: number; oil: number; coal: number };
-}> {
+): Promise<{ readonly troops: Array<Doc<'troops'>>; readonly cost: SupplyStocks }> {
   const none = { troops: [...troops], cost: { ammunition: 0, oil: 0, coal: 0 } };
   const player = await ctx.db.get(playerId);
   if (player === null || troops.length === 0 || (await isBlitz(ctx, player.seasonId))) return none;
@@ -30,11 +27,11 @@ export async function toppedUp(
   const marching = new Set<string>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  const anchored = troops.filter((troop) => !unsupplied.has(troop._id) && !marching.has(troop._id));
-  if (anchored.length === 0) return none;
+  const anchored = (troop: Doc<'troops'>) => !unsupplied.has(troop._id) && !marching.has(troop._id);
+  if (!troops.some(anchored)) return none;
   const { stocks } = await economyOf(ctx, playerId, at);
   const { supplies, cost } = topUp(
-    anchored.map((troop) => ({ ...troop, id: troop._id })),
+    troops.map((troop) => ({ ...troop, id: troop._id, anchored: anchored(troop) })),
     stocks,
   );
   return {
