@@ -1,6 +1,6 @@
 import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
-import { compassOf, traceCompass, type CompassTarget } from './compass-rose';
+import { compassOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
@@ -450,32 +450,6 @@ describe('in aim', () => {
       const compass = compassOf(target, withTruck(400), trucking, null, 0, ['T1']);
       expect(compass?.actions).toEqual([]);
       expect(compass?.refusal).toBe('le dépôt est plein : 400 au total');
-    });
-
-    /** **La tournée part d'un point de chargement** : au QG, elle s'ajoute à « livrer ». */
-    const atHq = (depot: number) => {
-      const base = withTruck(depot);
-      return {
-        ...base,
-        me: { ...base.me, buildings: [{ id: 'HQ', key: 'hq', regionId: 'FRA-5333', level: 1 }] },
-      } as unknown as PlayerView;
-    };
-
-    it('offers to trace a tour from a loading point, even past a full depot', () => {
-      expect(
-        compassOf(target, atHq(0), trucking, null, 0, ['T1'])?.actions.map((action) => action.key),
-      ).toEqual(['deliver', 'tour', 'aim']);
-      expect(
-        compassOf(target, atHq(400), trucking, null, 0, ['T1'])?.actions.map(
-          (action) => action.key,
-        ),
-      ).toEqual(['tour']);
-    });
-
-    it('adds stops while tracing, never the same twice', () => {
-      const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
-      expect(traced.actions).toEqual([]);
-      expect(traced.refusal).toBe('ce dépôt est déjà un arrêt de la tournée');
     });
   });
 

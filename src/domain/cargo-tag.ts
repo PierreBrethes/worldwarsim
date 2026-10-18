@@ -11,21 +11,7 @@ import {
 } from './movement-orders';
 import { carrierIn, fareOf, seatsLeft, seatsOf, type Seated } from './troops';
 
-type Aboard = Seated & {
-  readonly tier: UnitTier;
-  readonly load?: SupplyLoad;
-  readonly tour?: {
-    readonly stops: ReadonlyArray<string>;
-    readonly waiting: boolean;
-    readonly recalled: boolean;
-  };
-};
-
-/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente, rappelée. */
-export type TagTour = {
-  readonly state: 'tracing' | 'running' | 'waiting' | 'recalled';
-  readonly stops: number;
-};
+type Aboard = Seated & { readonly tier: UnitTier; readonly load?: SupplyLoad };
 
 export type CargoTag = {
   readonly carrierId: string;
@@ -46,19 +32,13 @@ export type CargoTag = {
   /** **Sa charge** (ADR 0028 §4), dans sa seule capacité : munitions, pétrole, charbon. */
   readonly load: SupplyLoad;
   readonly loadCapacity: number;
-  readonly tour: TagTour | null;
 };
 
 /** A tag per transport of the pile, in the pile's order — an empty one too: the hand reads its free
  *  seats on it (POC, `avail`). When it shows is the map's business. */
 export function cargoTagsOf<T extends Aboard>(
   pile: ReadonlyArray<T>,
-  where: {
-    readonly afloat: boolean;
-    readonly atAirfield: boolean;
-    /** La tournée que la main trace, s'il y en a une : son transport le dit sur son étiquette. */
-    readonly trace?: { readonly carrierId: string; readonly stops: ReadonlyArray<string> } | null;
-  },
+  where: { readonly afloat: boolean; readonly atAirfield: boolean },
 ): ReadonlyArray<CargoTag> {
   return pile.flatMap((carrier) => {
     if (seatsOf(carrier.role) === 0) return [];
@@ -81,19 +61,6 @@ export function cargoTagsOf<T extends Aboard>(
         }),
         load: carrier.load ?? emptyLoad(),
         loadCapacity: loadCapacityOf(carrier.role),
-        tour:
-          where.trace?.carrierId === carrier.id
-            ? { state: 'tracing' as const, stops: where.trace.stops.length }
-            : carrier.tour === undefined
-              ? null
-              : {
-                  state: carrier.tour.recalled
-                    ? ('recalled' as const)
-                    : carrier.tour.waiting
-                      ? ('waiting' as const)
-                      : ('running' as const),
-                  stops: carrier.tour.stops.length,
-                },
       },
     ];
   });

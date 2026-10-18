@@ -288,14 +288,6 @@ export type TroopView = {
   readonly carriedBy?: string;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
-  /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, et si elle
-   *  attend au chargement ou finit, rappelée. */
-  readonly tour?: {
-    readonly baseId: string;
-    readonly stops: ReadonlyArray<string>;
-    readonly waiting: boolean;
-    readonly recalled: boolean;
-  };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
   /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
@@ -847,19 +839,6 @@ type NoticeBody =
       readonly at: number;
       readonly hostCountry: string;
       readonly troops?: number;
-    }
-  | {
-      readonly kind: 'tourWaiting';
-      readonly at: number;
-      readonly role: UnitRole;
-      readonly why: 'stock' | 'full' | 'road';
-      readonly resource?: ResourceKey;
-    }
-  | {
-      readonly kind: 'tourEnded';
-      readonly at: number;
-      readonly role: UnitRole;
-      readonly why: 'recalled' | 'cut';
     }
   | {
       readonly kind: 'supplyDelivered';

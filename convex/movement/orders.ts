@@ -643,30 +643,22 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
 }
 
 /**
- * **Les slots tenus** : chaque mouvement, sauf un retour — et, au teneur de **Halifax**, sauf un
- * mouvement maritime (P11) —, plus chaque **tournée à l'arrêt** au chargement : elle garde son
- * slot tant qu'elle tourne (ADR 0028). Le même compte pour la porte (`claimSlot`) et pour la
+ * **Les mouvements qui tiennent un slot** : tous, sauf un retour — et, au teneur de **Halifax**,
+ * sauf un mouvement maritime (P11). Le même compte pour la porte (`claimSlot`) et pour la
  * bannière de la vue : une règle, une fonction.
  */
-export async function slotsTaken(
+export async function slotHolders(
   ctx: QueryCtx,
   player: Doc<'players'>,
   movements: ReadonlyArray<Doc<'movements'>>,
-): Promise<number> {
+): Promise<ReadonlyArray<Doc<'movements'>>> {
   const flying = movements.filter((movement) => movement.type !== 'return');
-  const marching = new Set(movements.flatMap((movement) => movement.troopIds));
-  const resting = (
-    await ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect()
-  ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id)).length;
-  if (!(await holdsHalifax(ctx, player))) return flying.length + resting;
-  let kept = 0;
+  if (!(await holdsHalifax(ctx, player))) return flying;
+  const kept: Array<Doc<'movements'>> = [];
   for (const movement of flying) {
-    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept += 1;
+    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept.push(movement);
   }
-  return kept + resting;
+  return kept;
 }
 
 const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
@@ -695,7 +687,8 @@ export async function claimSlot(
   if ((await holdsHalifax(ctx, player)) && isMaritime(await crewOf(ctx, troopIds))) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
-  if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
+  const flying = await slotHolders(ctx, player, await movementsOf(ctx, playerId));
+  if (flying.length >= maximum) {
     fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
   }
 }

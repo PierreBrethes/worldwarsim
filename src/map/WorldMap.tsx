@@ -62,9 +62,6 @@ import {
 } from './DropHint';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
-import type { TourLoop } from './engine/tour-ink';
-
-const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {
   DETACH_MS,
   MapEngine,
@@ -248,10 +245,6 @@ type Props = {
   carriersShown?: boolean;
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
   onTakeDepot?: TakeDepot | undefined;
-  /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
-  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
-  /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
-  tourLoops?: ReadonlyArray<TourLoop>;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -370,8 +363,6 @@ export function WorldMap({
   onDisembark,
   carriersShown = false,
   onTakeDepot,
-  onTour,
-  tourLoops = NO_LOOPS,
   covered = false,
   reveal = null,
   replay = null,
@@ -1114,10 +1105,6 @@ export function WorldMap({
   }, [readyEngine, aimRoute]);
 
   useEffect(() => {
-    readyEngine?.showTours(tourLoops);
-  }, [readyEngine, tourLoops]);
-
-  useEffect(() => {
     readyEngine?.setAvailable(availablePiles);
   }, [readyEngine, availablePiles]);
 
@@ -1236,7 +1223,6 @@ export function WorldMap({
         onDisembark={onDisembark}
         carriersShown={carriersShown}
         onTakeDepot={onTakeDepot}
-        onTour={onTour}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
       />

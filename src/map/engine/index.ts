@@ -65,7 +65,6 @@ import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
-import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import { AimRibbon } from './aim';
@@ -323,7 +322,6 @@ export class MapEngine {
   private readonly reach: ReachRing;
   /** The road the piece in hand would take (POC « Manipuler les pions »). */
   private readonly aimRibbon = new AimRibbon();
-  private readonly tourInk: TourInk;
   private aimRoute: Vector3[] | null = null;
   private verdict: DropVerdict = 'none';
   /** What the carried piece is over, and the ring the drop gives it (POC, `ringStyle`). */
@@ -502,7 +500,6 @@ export class MapEngine {
     private readonly world: World,
   ) {
     this.frame = new WorldFrame(world);
-    this.tourInk = new TourInk(this.frame);
 
     this.scene.background = new Color(PALETTE.desk);
     this.scene.fog = new Fog(PALETTE.desk, FOG_NEAR, FOG_FAR);
@@ -633,7 +630,6 @@ export class MapEngine {
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.aimRibbon.group);
-    this.scene.add(this.tourInk.group);
     this.standing.elsewhere = (id) => this.camps.positionOf(id);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
@@ -845,12 +841,6 @@ export class MapEngine {
   setAimRoute(points: ReadonlyArray<LonLat> | null): void {
     this.invalidate();
     this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
-  }
-
-  /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
-  showTours(loops: ReadonlyArray<TourLoop>): void {
-    this.invalidate();
-    this.tourInk.show(loops);
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */
@@ -1361,7 +1351,6 @@ export class MapEngine {
 
     this.reach.dispose();
     this.aimRibbon.dispose();
-    this.tourInk.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
@@ -2390,7 +2379,6 @@ export class MapEngine {
           : [reading.from, reading.to],
       tone === 'none' ? 'order' : tone,
     );
-    this.tourInk.animate(this.unitsPerPixel(distance), this.screenHeight);
     this.aimRibbon.animate(
       this.unitsPerPixel(distance),
       this.screenHeight,

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  tourRefusalOf,
   grabbedAfter,
   deliverRefusalOf,
   deliveryOf,
@@ -129,35 +128,5 @@ describe('the tour', () => {
 describe('a grab of tokens', () => {
   it('takes ten, then ten by ten while held, then fifty by fifty', () => {
     expect([0, 199, 200, 800, 1000, 1200].map(grabbedAfter)).toEqual([10, 10, 20, 50, 100, 150]);
-  });
-});
-
-describe('tracing a tour', () => {
-  const base = {
-    role: 'landTransport' as const,
-    place: { kind: 'building', key: 'warehouse' } as const,
-    busy: null,
-    load: load(60),
-    stops: ['a', 'b'],
-  };
-
-  it('leaves from a loading point, four stops at most, each once', () => {
-    expect(tourRefusalOf(base)).toBeNull();
-    expect(tourRefusalOf({ ...base, place: { kind: 'elsewhere' } })).toEqual({
-      code: 'TOUR_NOT_AT_LOADING_POINT',
-      role: 'landTransport',
-    });
-    expect(tourRefusalOf({ ...base, stops: ['a', 'b', 'c', 'd', 'e'] })?.code).toBe(
-      'TOUR_TOO_LONG',
-    );
-    expect(tourRefusalOf({ ...base, stops: ['a', 'a'] })?.code).toBe('TOUR_STOP_TWICE');
-    expect(
-      tourRefusalOf({ ...base, place: { kind: 'outpost', level: 1 }, baseOutpostId: 'a' })?.code,
-    ).toBe('TOUR_STOP_TWICE');
-  });
-
-  it('needs a standing order to reload, and an idle transport', () => {
-    expect(tourRefusalOf({ ...base, load: load() })?.code).toBe('NOTHING_TO_DELIVER');
-    expect(tourRefusalOf({ ...base, busy: 'touring' })?.code).toBe('TRANSPORT_ON_TOUR');
   });
 });
