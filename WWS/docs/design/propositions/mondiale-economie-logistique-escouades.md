@@ -39,6 +39,9 @@ Blitz garde ses fonds et tire sans compter ses coups (ADR 0027 §2, correctifs s
   recherche. Le charbon et l'acier y entrent, mais chacun a d'abord un usage direct.
 - **Quatre gisements** au lieu de cinq : terres, fer, charbon, pétrole. Les garde-fous de la
   distribution (ADR 0015, révision du 15/08) se rejouent sur quatre.
+- **Un gisement est un point de la carte** (Q31, [ADR 0029](../../adr/0029-placement-libre-et-gisements-ponctuels.md)) :
+  visible, il porte une seule exploitation. Leur nombre et leur place sont cuits par le
+  générateur.
 - **Ne jamais perdre le joueur** (Pierre, 18/10) : chaque ressource a un picto et une couleur, les
   mêmes partout. Une pénurie se dit là où elle mord, sur la pièce ou la tuile touchée, avec la
   règle cassée et le bâtiment qui la répare (`PRODUCER_OF`).
@@ -104,8 +107,8 @@ lisent chez son propriétaire seulement, **par deux pictos faciles à retenir** 
 jerrican), aux quatre mêmes endroits : sous la figurine, dans la fiche au survol, dans l'abaque,
 et dans la réserve de pièces au moment de former (Pierre, 18/10).
 
-**Ils se comptent en crans, et un jeton recharge un cran** (Q20). Un cran de plein vaut ≈ 500 km,
-soit ≈ 1 h 20 de route en Mondiale.
+**Ils se comptent en crans** (Q20) ; un cran coûte 10 de sa ressource (Q28). Un cran de plein vaut
+≈ 500 km, soit ≈ 1 h 20 de route en Mondiale.
 
 | Troupe | Coups | Plein |
 |---|---|---|
@@ -122,13 +125,15 @@ soit ≈ 1 h 20 de route en Mondiale.
   ailleurs, le dépôt de l'avant-poste. Une seule lecture sert l'entretien et le ravitaillement.
 - **Le plein se paie au départ.** Le mouvement débite sa route du plein de chaque moteur. Une route
   plus longue que le plus petit plein de l'escouade est refusée, et le refus le dit (ADR 0015).
-- **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon, en jetons : 20 par
-  ressource et par niveau du point. Réarmer une escouade de dix troupes coûte une vingtaine de
-  jetons. Les vivres et l'acier restent au plateau personnel.
-- **Ravitailler, c'est embarquer des jetons.** Un camion se charge à **un de ses bâtiments** du sol
-  national, un cargo **au port**, un avion **à l'aérodrome** (Q19) : on voit où se fait la
-  logistique. Hors du sol national, un transport se charge au dépôt de l'avant-poste où il se
-  tient. Charge : camion 10, cargo 40, avion 6. Un transport ne prend ni vivres ni acier. Puis on
+- **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon : 400 par niveau du
+  point, **au total**, partagés librement (Q27, Q28). Réarmer une escouade de dix troupes coûte
+  environ 200. Les vivres et l'acier restent au plateau personnel.
+- **Ravitailler, c'est charger un transport.** Un camion se charge **au QG ou à un entrepôt**, un
+  cargo **au port**, un avion **à l'aérodrome** (Q29) : on voit où se fait la logistique, et
+  l'entrepôt devient un nœud, donc une cible. Hors du sol national, un transport se charge au
+  dépôt de l'avant-poste où il se tient. **Une seule charge maximale**, partagée librement entre
+  munitions, pétrole et charbon : camion 200, cargo 800, avion 120. Un transport ne prend ni
+  vivres ni acier. Puis on
   lâche le transport sur un de ses avant-postes, et la pastille dit « livrer ». C'est un mouvement,
   avec son slot. Il décharge à l'arrivée, garde à bord ce qui ne tient pas, et rentre seul, comme
   un pillage. Le camion livre par la route, le cargo à un avant-poste côtier.
@@ -137,14 +142,15 @@ soit ≈ 1 h 20 de route en Mondiale.
   de l'aller-retour. Sur un de ses avant-postes, le paquet remplit le dépôt. Sur une de ses
   escouades en campagne, il recharge directement ses coups et son plein : c'est le seul moyen de
   ravitailler une troupe isolée.
-- **Un transport porte des troupes et des jetons à la fois**, dans deux capacités séparées : les
+- **Un transport porte des troupes et des ressources à la fois**, dans deux capacités séparées : les
   places (ADR 0025) et la charge. Un cargo emmène quatre blindés et leur ravitaillement.
 - **Charger doit être fluide** : le geste est celui de l'embarquement, et il se met au point sur
   un prototype avant d'être codé.
 - **La tournée de ravitaillement** (Pierre, 18/10, Q22 à Q26) : un transport enregistre une boucle
-  de quatre arrêts au plus, depuis son point de chargement jusqu'à un ou plusieurs dépôts. On le
-  lâche sur le premier dépôt avec la variante « tournée » (Tab), puis sur les suivants ; la boucle
-  se trace à l'encre, chez soi seulement ; relâcher sur le départ la ferme et la lance. Ce qu'on a
+  de quatre arrêts au plus, **qui part de son point de chargement et y revient** (Q29) : on ne
+  l'enregistre que depuis ce point, jamais depuis un champ. On le lâche sur le premier dépôt avec
+  la variante « tournée » (Tab), puis sur les suivants ; la boucle se trace à l'encre, chez soi
+  seulement ; relâcher sur le point de chargement la ferme et la lance. Ce qu'on a
   chargé au premier tour devient la **consigne**, rechargée à chaque tour. À chaque tour, il dépose
   à chaque dépôt ce qui lui manque, **saute un dépôt plein**, revient, et recommence jusqu'à ce
   qu'on le rappelle ou qu'on l'intercepte. Si le plateau personnel manque, il attend au chargement
@@ -194,25 +200,26 @@ l'armée coûte par paliers, la projection se consomme.
 Un panneau à soi, sous la table au bureau, en tiroir au téléphone. On dit toujours « plateau
 personnel » : « le plateau » seul désigne la table.
 
-- **Cinq bacs de jetons**, un par ressource. Un jeton vaut une unité, et les chiffres sont de
-  petits entiers lus par jour. **Les jetons ont trois valeurs, 1, 5 et 25** (Q21) : la monnaie se
-  fait seule, cinq petits fusionnent en un moyen, et un bac montre ses piles avec le nombre exact.
-  L'entrepôt donne la taille des bacs (20, puis +20 par niveau) ; un bac plein ne reçoit plus
-  rien. Le même rendu vaut pour les dépôts et la charge d'un transport. Les chiffres concernés : stocks, production des tuiles, prix (tuiles, pièces, recherches),
-  entretien, charge d'un transport, taille d'un dépôt. Ordre de grandeur : une ferme de niveau 1
-  donne 12 vivres par jour, une troupe en mange 1, un fantassin coûte 2 acier et 2 vivres, un
-  porte-avions une quarantaine d'acier. Quelques jetons par visite, c'est une récolte qu'on suit
-  des yeux ; des centaines seraient du bruit.
+- **Cinq bacs, en nombres et en barres** (Q27) : chaque ressource montre son nombre exact et une
+  barre qui se remplit jusqu'au plafond de l'entrepôt (400, puis +600 par niveau, `BASE_CAP` et
+  `STORAGE_CAP_PER_LEVEL`) ; un bac plein ne reçoit plus rien. Un transport et un dépôt ont une
+  barre unique, découpée par couleur de ressource, comme la charge de la fiche au survol du
+  prototype « table d'état-major ». **Les chiffres sont ceux du code** (Q28) : une ferme de niveau 1
+  donne 12 vivres par heure, et une troupe en mange 1. Les **jetons** ne servent plus qu'en
+  animation : quelques pastilles qui volent pour montrer un flux (récolte, paiement, chargement),
+  jamais pour compter. *(Remplace Q7 et Q21 : petits entiers et jetons de valeur.)*
 - **La récolte** : à l'ouverture, ce qui est entré depuis la dernière visite tombe dans les bacs,
   et ce qui en est sorti (entretien, usine) s'en va. Elle suit le réglage d'animation
   (`src/domain/map-motion.ts`).
-- **Les tuiles**, une par bâtiment débloqué. Lâchée sur une région, une tuile la bâtit ; lâchée sur
-  sa pareille déjà posée, elle l'élève. La pastille dit le prix ou le refus, par la fonction du
-  serveur (`placementRefusal`). Les jetons payés volent jusqu'à la tuile.
+- **Les tuiles**, une par bâtiment débloqué. Lâchée à un **emplacement libre**, une tuile y bâtit,
+  à la position exacte visée, sur le sol national ou dans le rayon d'un avant-poste, à un
+  espacement minimum des autres bâtiments ; une exploitation se pose sur un gisement libre (Q30,
+  Q31, ADR 0029). Lâchée sur sa pareille déjà posée, elle l'élève. La pastille dit le prix ou le
+  refus, par la fonction du serveur. Les jetons payés volent jusqu'à la tuile.
 - **La réserve de pièces**, une silhouette par rôle débloqué. Lâchée sur une caserne, un port ou un
   aérodrome, elle y commande une troupe.
 - **Les cartes de recherche**, qu'on pose sur le QG.
-- **Les jetons glissés sur un transport le chargent** (§4).
+- **Glisser d'un bac sur un transport le charge** (§4) : 10 à la fois, l'appui maintenu accélère.
 
 ## 8. Les cinq cas de casse
 
@@ -265,7 +272,7 @@ personnel » : « le plateau » seul désigne la table.
 
 ## La suite en lots
 
-Reprise en tête de `RESTE-A-CODER.md`, point 4 de la file au 17/10, en neuf features : livrer et
+Reprise en tête de `RESTE-A-CODER.md`, point 4 de la file au 17/10, en dix features (placement libre compris) : livrer et
 larguer y sont séparés, et chacune dit ce qui se voit.
 
 1. **Cinq ressources** : retirer tissus, bandages et minerai ; le fer donne l'acier ; retirer la
@@ -301,3 +308,10 @@ Après le prototype (même jour, Q19 à Q26) : charger à un bâtiment, au port 
 coups et plein en crans, un jeton par cran ; dépôts de 20 par ressource et par niveau ; jetons de
 valeur 1, 5, 25 ; la tournée de ravitaillement, qui garde son slot, à la place des workers ; le
 génie écarté.
+
+Après la deuxième version du prototype (Q27 à Q31) : des nombres et des barres à la place des
+jetons, qui ne restent qu'en animation ; l'échelle du code, un cran à 10, une charge unique par
+transport et par dépôt ; un camion qui se charge au QG ou à l'entrepôt, une tournée en boucle
+depuis le point de chargement ; le placement libre des bâtiments et les gisements ponctuels
+(ADR 0029). Pierre veut aussi un avion qui atterrit sur la piste et un navire qui accoste le long
+du quai.

@@ -2,6 +2,9 @@
 
 **Statut :** acceptée
 
+> **Révisée le 18/10/2026 par l'[ADR 0029](0029-placement-libre-et-gisements-ponctuels.md)** : un
+> bâtiment se pose à une position exacte, et sa région se déduit de ce point.
+
 ## Contexte
 
 Jusqu'ici, un mouvement pouvait naître n'importe où sur le territoire d'une nation, dans

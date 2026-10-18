@@ -22,6 +22,10 @@ comme verrou.
 > la règle du manque unique devient **exceptionnable sur déclaration**. Le reste de l'ADR est
 > inchangé.
 
+> **Révisée le 18/10/2026 par l'[ADR 0029](0029-placement-libre-et-gisements-ponctuels.md)** : une
+> bâtisse par région et le gisement par région disparaissent ; un bâtiment se pose à une position
+> exacte, un gisement est un point qui porte une seule exploitation.
+
 ## Contexte
 
 La fiche 02 (ravitaillement / acier / effectifs) a été écrite quand les régions ne

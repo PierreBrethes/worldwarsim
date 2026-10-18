@@ -12,20 +12,25 @@ ressource R1 et l'usine R5 de
 fiche 03. **Mondiale seule** : la Blitz garde ses fonds et tire sans compter. Rien n'est codé au
 18/10, et tous les chiffres sont `@a-mesurer`.
 
-> **Précisée le 18/10/2026, après le prototype du plateau personnel** (Q19 à Q26 de la
-> [proposition](../design/propositions/mondiale-economie-logistique-escouades.md)) :
-> - **où charger** (§4) : un camion à un de ses bâtiments du sol national, un cargo au port, un
->   avion à l'aérodrome ; ailleurs, au dépôt où il se tient. Un transport ne prend ni vivres ni
->   acier ;
-> - **des crans** (§3) : coups et plein se comptent en crans, un jeton recharge un cran ; un cran de
->   plein vaut ≈ 500 km. Un dépôt porte 20 jetons par ressource et par niveau ; un camion en charge
->   10, un cargo 40, un avion 6 ;
-> - **des jetons de valeur** (§7) : 1, 5 et 25, la monnaie se fait seule ; les bacs font 20, plus
->   20 par niveau d'entrepôt ;
-> - **la tournée de ravitaillement** (§4) : un transport enregistre une boucle de quatre arrêts au
->   plus, recharge à chaque tour la consigne de son premier chargement, saute un dépôt plein,
->   attend si le plateau personnel manque, et garde son slot tant qu'elle tourne. Elle remplace
->   l'idée d'une troupe de génie, écartée (`QUESTIONS.md`).
+> **Précisée le 18/10/2026, après deux versions du prototype du plateau personnel** (Q19 à Q31 de
+> la [proposition](../design/propositions/mondiale-economie-logistique-escouades.md)). Ces points
+> l'emportent sur le corps du texte :
+> - **des nombres et des barres** (§7) : le plateau personnel montre chaque stock en nombre exact
+>   et en barre jusqu'au plafond de l'entrepôt ; un transport et un dépôt ont une seule charge
+>   maximale, partagée librement, en barre découpée par couleur. Les jetons ne sont plus qu'une
+>   animation de flux. Les chiffres sont ceux du code (ferme 12 par heure, entrepôt 400), et non
+>   de « petits entiers lus par jour » ;
+> - **des crans** (§3) : coups et plein se comptent en crans ; un cran coûte 10 de sa ressource, et
+>   un cran de plein vaut ≈ 500 km. Un camion porte 200, un cargo 800, un avion 120 ; un dépôt
+>   400 par niveau, au total ;
+> - **où charger** (§4) : un camion au QG ou à un entrepôt, un cargo au port, un avion à
+>   l'aérodrome ; ailleurs, au dépôt où il se tient. Un transport ne prend ni vivres ni acier ;
+> - **la tournée de ravitaillement** (§4) : un transport enregistre une boucle qui part de son
+>   point de chargement et y revient, quatre arrêts au plus ; il recharge à chaque tour la
+>   consigne de son premier chargement, saute un dépôt plein, attend si le plateau personnel
+>   manque, et garde son slot tant qu'elle tourne. Elle remplace l'idée d'une troupe de génie,
+>   écartée (`QUESTIONS.md`) ;
+> - **le placement libre et les gisements ponctuels** : [ADR 0029](0029-placement-libre-et-gisements-ponctuels.md).
 
 ## Contexte
 
@@ -133,7 +138,7 @@ Côté points stratégiques :
 
 ## Conséquences
 
-- **Neuf features, back et front ensemble**, qui forment le point 4 de la file
+- **Dix features, back et front ensemble** (dont le placement libre de l'ADR 0029), qui forment le point 4 de la file
   (`RESTE-A-CODER.md`). La quatrième est un prototype du plateau personnel et des gestes charger,
   livrer, larguer : il règle la fluidité avant le code.
 - **Le wipe d'avant la saison test** porte le passage à cinq ressources et le retrait des clés

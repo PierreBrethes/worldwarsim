@@ -20,34 +20,40 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 3. **Le socle Mondiale du 14/10** ([gameplay deux modes](design/propositions/gameplay-deux-modes-2026-10-14.md)) :
    vitesses ×12, capture des bâtiments et du QG, points stratégiques et victoire 4 sur 7 tenus
    24 h, durée réglée au salon, fin de l'entrée tardive.
-4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md)), en neuf features
-   vues du joueur. Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario
-   de démo, et le code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
+4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md),
+   [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en dix features vues du joueur.
+   Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario de démo, et le
+   code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
    1. **Cinq ressources** : retirer tissus, bandages, minerai, filature, intendance, fonderie ; le
-      fer donne l'acier ; régénérer les gisements ; relire le socle (avec le wipe).
-      *Se voit* : pictos et couleurs des cinq, gisement de fer, l'alliage renommé acier.
+      fer donne l'acier ; relire le socle (avec le wipe). *Se voit* : pictos et couleurs des cinq,
+      l'alliage renommé acier.
    2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
       d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
-   3. **Coups et plein** : portés par la troupe, repris à l'ancre, départ refusé sans plein, à sec
-      ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la figurine, dans la fiche au
-      survol, l'abaque et la formation ; refus dits.
-   4. **Prototype du plateau personnel** (`WWS/prototypes/`) : charger, livrer, larguer, la
-      récolte. Il règle la fluidité avant les features 5 à 7.
-   5. **Le plateau personnel** : bacs, récolte, tuiles, réserve de pièces ; remplace la fenêtre
-      Économie. *Se voit* : bacs et jetons, récolte animée, tuile qui se pose, jetons qui volent.
-   6. **Livrer et tournées** : dépôt d'avant-poste, charger à un bâtiment, au port ou à
-      l'aérodrome, aller-retour, tournée en boucle qui saute un dépôt plein et garde son slot,
-      interception, caisse ; ce que le niveau d'un point rend. *Se voit* : jetons sur le point,
-      charge à bord, déchargement, boucle tracée à l'encre, transport qui attend.
-   7. **Larguer** : sur un point ou une escouade isolée. *Se voit* : passage de l'avion, paquet
-      sous parachute, retour.
-   8. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
+   3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
+      refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
+      figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.
+   4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
+      trois versions ; il sert de référence aux features 5 à 8.
+   5. **Placement libre et gisements ponctuels** (ADR 0029) : un point par bâtiment, espacement,
+      gisements cuits en points, `placementRefusal` refaite. *Se voit* : tuile fantôme à l'endroit
+      visé, gisements sur la carte, refus d'espacement.
+   6. **Le plateau personnel** : nombres et barres par ressource, récolte animée, tuiles, réserve
+      de pièces ; remplace la fenêtre Économie. *Se voit* : barres, pastilles qui volent, tuile qui
+      se pose.
+   7. **Livrer et tournées** : dépôt d'avant-poste, charge unique, charger au QG, à l'entrepôt, au
+      port ou à l'aérodrome, aller-retour, tournée en boucle depuis le point de chargement qui saute
+      un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.
+      *Se voit* : barre de charge par couleur, boucle tracée à l'encre, transport qui attend,
+      navire qui accoste le long du quai.
+   8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
+      et y atterrit, paquet sous parachute.
+   9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
       verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
       recherche, pose sur le QG, carte qui avance.
-   9. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
-      serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
+   10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
+       serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
 
-   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 6.
+   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
 6. **Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7).
 7. **La saison test entre amis** — aucune migration qui force un wipe pendant qu'elle tourne.
