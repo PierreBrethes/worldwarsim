@@ -3432,7 +3432,6 @@ export const fr = {
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
     ofCap: (cap: number) => `/ ${num(cap)}`,
     rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
-    full: 'bac plein',
     harvest: (hours: number) =>
       hours < 1
         ? 'Récolte depuis que vous avez quitté le plateau personnel'

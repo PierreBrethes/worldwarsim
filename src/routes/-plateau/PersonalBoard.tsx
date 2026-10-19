@@ -26,7 +26,7 @@ import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
 import { useClock } from '@/shell/clock';
-import { bindSpots, centreOf, flyPastille, spent as flySpent } from '@/shell/flights';
+import { bindSpots, centreOf, flightLayer, flyPastille, spent as flySpent } from '@/shell/flights';
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
@@ -554,9 +554,7 @@ function useHarvest(
   useEffect(() => {
     if (harvest === null || motion === 'off') return;
     setShown(before(latest.current, harvest));
-    const layer = document.createElement('div');
-    layer.className = 'pointer-events-none fixed inset-0 z-[var(--z-notice)]';
-    document.body.append(layer);
+    const layer = flightLayer();
     let live = true;
     const flights = harvest.deltas.flatMap(({ resource, amount }, rank) =>
       pastilleShares(amount).map((share, index) =>

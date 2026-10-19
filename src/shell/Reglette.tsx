@@ -633,7 +633,7 @@ function AlertTag({ label }: { label: string }) {
 }
 
 /** Le nom, le plafond, le débit, la source et le diagnostic : tout ce que la case tait. */
-export function ReserveCard({
+function ReserveCard({
   resource,
   view,
   now,

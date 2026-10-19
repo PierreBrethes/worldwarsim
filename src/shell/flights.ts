@@ -33,7 +33,7 @@ export function bindSpots(part: Partial<Spots>): () => void {
 
 export const binPoint = (resource: ResourceKey): Point | null => bound.bin?.(resource) ?? null;
 export const mapPoint = (at: LonLat): Point | null => bound.onMap?.(at) ?? null;
-export const pressStamp = (burst: InkBurst): void => bound.stamp?.(burst);
+const pressStamp = (burst: InkBurst): void => bound.stamp?.(burst);
 
 export const centreOf = (node: Element): Point => {
   const box = node.getBoundingClientRect();
@@ -96,7 +96,7 @@ export type Flow = {
   readonly to: Point;
 };
 
-const flightLayer = (): HTMLElement => {
+export const flightLayer = (): HTMLElement => {
   const layer = document.createElement('div');
   layer.className = 'pointer-events-none fixed inset-0 z-[var(--z-notice)]';
   document.body.append(layer);
@@ -126,7 +126,7 @@ export function flyFlows(
 }
 
 /** **Payer** : de leur bac (ou du bandeau) vers l'endroit de la carte où la dépense s'est faite. */
-export function payFlows(
+function payFlows(
   cost: Readonly<Partial<Record<ResourceKey, number>>>,
   at: LonLat,
 ): ReadonlyArray<Flow> {
