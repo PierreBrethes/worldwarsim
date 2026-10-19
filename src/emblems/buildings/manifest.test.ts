@@ -24,9 +24,11 @@ describe('building sprite manifest', () => {
 
 describe('building maquette manifest', () => {
   it('stands a maquette for every building, a depot as the warehouse it reads as', () => {
-    // Le Centre de recherche attend son GLB (#123) : sa planche tient sa place.
+    // Le Centre de recherche attend son GLB (#123) : sa planche tient sa place. Quand le GLB
+    // arrive, cette ligne casse, et c'est le signal de le ranger avec les autres.
     for (const key of BUILDINGS.filter((one) => one !== 'researchCenter'))
       expect(buildingMaquette(key, null), key).not.toBeNull();
+    expect(buildingMaquette('researchCenter', null)).toBeNull();
     expect(buildingMaquette('depot', null)).toBe(buildingMaquette('warehouse', null));
   });
 
