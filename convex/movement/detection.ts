@@ -83,6 +83,7 @@ export async function reassessDetection(
       ? movements.filter((movement) => movement.arrivesAt > now)
       : [];
   const board = await detectionBoard(ctx, seasonId, active, now);
+  const ledgers = await observerLedgers(ctx, board);
 
   for (const target of movements) {
     const mobile = board.mobileById.get(target._id);
@@ -90,13 +91,19 @@ export async function reassessDetection(
       mobile === undefined || target.troopIds.some((id) => board.veiled.has(id))
         ? []
         : sightingsFor(mobile, board, now);
-    await syncSightings(ctx, target, await desired, now);
+    await syncSightings(
+      ctx,
+      target,
+      await desired,
+      now,
+      ledgers.sightingsByMovement.get(target._id) ?? [],
+    );
   }
 
-  await forgetStaleSightings(ctx, board, now);
+  const camps = await forgetStaleSightings(ctx, ledgers, now);
 
   if (season.status === 'launched' && season.concludedAt === null) {
-    await syncCampSightings(ctx, seasonId, board, now);
+    await syncCampSightings(ctx, seasonId, board, now, camps);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
     /** **La capture se relit aux mêmes événements que le brouillard** : un départ, une arrivée,
@@ -359,7 +366,8 @@ async function detectionBoard(
     });
   }
 
-  return { mobileById, watchers, players, posted, veiled };
+  const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
+  return { mobileById, watchers, players, posted, veiled, mutualWindows };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
@@ -377,26 +385,55 @@ type CurrentDetector = { readonly point: LonLat; readonly radiusKm: number };
  */
 async function forgetStaleSightings(
   ctx: MutationCtx,
-  board: DetectionBoard,
+  ledgers: ObserverLedgers,
   now: number,
-): Promise<void> {
+): Promise<ReadonlyArray<Doc<'campSightings'>>> {
   const cutoff = now - LAST_KNOWN_HOURS * 3_600_000;
+  for (const sighting of ledgers.frozen) {
+    if (sighting.frozen!.closedAt <= cutoff) await deleteSighting(ctx, sighting);
+  }
+  const kept: Array<Doc<'campSightings'>> = [];
+  for (const camp of ledgers.camps) {
+    if (camp.until !== null && camp.until <= cutoff) await ctx.db.delete(camp._id);
+    else kept.push(camp);
+  }
+  return kept;
+}
+
+/**
+ * **Chaque registre d'observateur se lit une fois par réévaluation** (#145) : par joueur, sur son
+ * propre index, puis rangé par mouvement. Une lecture par mouvement relisait les mêmes lignes une
+ * seconde fois, et le ménage les relisait une troisième.
+ */
+async function observerLedgers(ctx: MutationCtx, board: DetectionBoard) {
+  const sightingsByMovement = new Map<Id<'movements'>, Array<Doc<'sightings'>>>();
+  const frozen: Array<Doc<'sightings'>> = [];
+  const camps: Array<Doc<'campSightings'>> = [];
   for (const player of board.players) {
     for (const sighting of await ctx.db
       .query('sightings')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect()) {
-      const frozen = sighting.frozen;
-      if (frozen !== undefined && frozen.closedAt <= cutoff) await deleteSighting(ctx, sighting);
+      if (sighting.frozen !== undefined) frozen.push(sighting);
+      const held = sightingsByMovement.get(sighting.movementId) ?? [];
+      held.push(sighting);
+      sightingsByMovement.set(sighting.movementId, held);
     }
-    for (const camp of await ctx.db
-      .query('campSightings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect()) {
-      if (camp.until !== null && camp.until <= cutoff) await ctx.db.delete(camp._id);
-    }
+    camps.push(
+      ...(await ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()),
+    );
   }
+  /** Dans l'ordre de l'index `byMovement`, que la synchronisation suivait. */
+  for (const rows of sightingsByMovement.values()) {
+    rows.sort((a, b) => a._creationTime - b._creationTime);
+  }
+  return { sightingsByMovement, frozen, camps };
 }
+
+type ObserverLedgers = Awaited<ReturnType<typeof observerLedgers>>;
 
 /** Ce qui a pris le camp, et le peu que l'observateur en tire sur son propre plateau. */
 type CampDetector = CurrentDetector & {
@@ -420,6 +457,7 @@ async function syncCampSightings(
   seasonId: Id<'seasons'>,
   board: DetectionBoard,
   now: number,
+  camps: ReadonlyArray<Doc<'campSightings'>>,
 ): Promise<void> {
   const detectors = new Map<Id<'players'>, CampDetector[]>();
   const watch = (playerId: Id<'players'>, detector: CampDetector) => {
@@ -485,12 +523,7 @@ async function syncCampSightings(
   };
 
   for (const player of board.players) {
-    const rows = (
-      await ctx.db
-        .query('campSightings')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect()
-    ).filter((row) => row.seasonId === seasonId);
+    const rows = camps.filter((row) => row.playerId === player._id && row.seasonId === seasonId);
     const byStation = new Map(rows.map((row) => [row.stationKey, row]));
 
     for (const [stationKey, camp] of board.posted) {
@@ -776,12 +809,7 @@ async function sightingsFor(
 
   for (const observer of board.mobileById.values()) {
     if (observer.movement.playerId === target.movement.playerId || observer.rangeKm <= 0) continue;
-    const window = mobileSighting({
-      observer: observer.force,
-      target: target.force,
-      radiusKm: observer.rangeKm,
-      after: now,
-    });
+    const window = mutualWindow(board, observer, target, now);
     if (window === null) continue;
     const point = positionAt(observer.force, window.from);
     caught.push({
@@ -796,6 +824,28 @@ async function sightingsFor(
 
   caught.push(...crossedSoil(target, board.players, now));
   return caught;
+}
+
+/**
+ * **Deux colonnes au même rayon se voient pendant la même fenêtre** : la distance, le milieu et
+ * l'intervalle commun ne dépendent pas de qui regarde. La fenêtre se calcule une fois par paire et
+ * sert les deux sens (#145) ; à rayons différents, chacun garde la sienne.
+ */
+function mutualWindow(board: DetectionBoard, observer: Mobile, target: Mobile, now: number) {
+  const mutual = observer.rangeKm === target.rangeKm;
+  const key =
+    observer.movement._id < target.movement._id
+      ? `${observer.movement._id}|${target.movement._id}`
+      : `${target.movement._id}|${observer.movement._id}`;
+  if (mutual && board.mutualWindows.has(key)) return board.mutualWindows.get(key)!;
+  const window = mobileSighting({
+    observer: observer.force,
+    target: target.force,
+    radiusKm: observer.rangeKm,
+    after: now,
+  });
+  if (mutual) board.mutualWindows.set(key, window);
+  return window;
 }
 
 function crossedSoil(
@@ -837,6 +887,7 @@ async function syncSightings(
   movement: Doc<'movements'>,
   candidates: ReadonlyArray<Caught>,
   now: number,
+  rows: ReadonlyArray<Doc<'sightings'>>,
 ): Promise<void> {
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
@@ -852,10 +903,6 @@ async function syncSightings(
     }
   }
 
-  const rows = await ctx.db
-    .query('sightings')
-    .withIndex('byMovement', (q) => q.eq('movementId', movement._id))
-    .collect();
   const byPlayer = new Map<Id<'players'>, Array<Doc<'sightings'>>>();
   for (const row of rows) {
     const kept = byPlayer.get(row.playerId) ?? [];
