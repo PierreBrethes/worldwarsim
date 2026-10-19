@@ -8,6 +8,26 @@ Relecture code du 08/09 : [bilan daté, vérifications et recommandations](techn
 Le bilan relève notamment les cas à préciser dans les briefs de victoire et d'objectifs neutres
 avant de les exécuter. La file historique ci-dessous est complétée par la direction V1 du 08/09.
 
+## Retours de Pierre sur la pré-prod — 19/10
+
+À reprendre feature par feature, chacune avec son grilling si un choix reste ouvert.
+
+1. **Ce que je consomme** : un clic sur une ressource du bandeau ouvre une fenêtre qui reste ouverte.
+   Elle a des dépliants, un pour les bâtiments et un pour les troupes : le total de la catégorie
+   sur la ligne, le détail dans le dépliant.
+2. **Le plateau personnel, en main de cartes** : au bureau, posé en bas de l'écran comme une main
+   de jeu de cartes (Hearthstone), et repliable. Sans les ressources (le bandeau les porte). Deux
+   onglets, tuiles de bâtiments et troupes, avec un défilement horizontal.
+3. **La recherche dans sa propre fenêtre** : un arbre de talents dessiné comme un arbre
+   généalogique, hors du plateau personnel.
+4. **Les mouvements du bandeau** : ce sont les slots de mouvement (1 + niveau du QG,
+   `movementSlots`), gardés exprès (ADR 0006, ADR 0028 §5 ; Halifax s'appuie dessus). Les plafonds
+   retirés sont ceux des troupes et des emplacements. À trancher : les garder ou non.
+5. **Le placement semble se recentrer au milieu de la région** au lieu de rester au point visé
+   (ADR 0029) : à vérifier dans le rendu.
+6. **La génération des gisements par pays** est à revoir : aujourd'hui, un gisement par région
+   tirée, posé au point de l'index de la région.
+
 ## La file au 17/10 — vers la saison test Mondiale v2
 
 Le cap est l'[ADR 0027](adr/0027-la-mondiale-au-centre.md). Tout ce qui suit cette section date
