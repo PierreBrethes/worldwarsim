@@ -1678,7 +1678,7 @@ function useHand({
           regionId: building.regionId,
           point: { lon: building.point[0], lat: building.point[1] },
         }).then(() => {
-          flySpent(building.nextLevelCost, building.point, motion, 'raised');
+          flySpent(building.nextLevelCost, building.point, motion);
           spent(fr.personalBoard.raised(building.name, building.level + 1));
         }, refused);
       } else if (what.kind === 'card') {

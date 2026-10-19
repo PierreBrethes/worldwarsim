@@ -172,13 +172,12 @@ export function stampWord(
   });
 }
 
-/** **Une dépense confirmée** par le serveur : ses pastilles du bac à la carte, et son tampon. */
+/** **Une dépense confirmée** par le serveur : ses pastilles du bac à la carte. Le tampon BÂTI ou
+ *  ÉLEVÉ viendra à l'achèvement du chantier, pas ici : c'est ici qu'on paie. */
 export function spent(
   cost: Readonly<Partial<Record<ResourceKey, number>>>,
   at: LonLat,
   motion: MapMotion,
-  word?: 'built' | 'raised',
 ): void {
   void flyFlows(payFlows(cost, at), motion);
-  if (word !== undefined) stampWord('built', word, at);
 }

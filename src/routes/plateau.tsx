@@ -1195,7 +1195,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               const raised = view.me.buildings.find(
                 (one) => one.key === action.buildingKey && one.regionId === action.regionId,
               );
-              flySpent(raised?.nextLevelCost ?? {}, action.point, motion, 'raised');
+              flySpent(raised?.nextLevelCost ?? {}, action.point, motion);
             },
             (problem: unknown) => handleError(problem, setOrderError),
           );
@@ -1572,7 +1572,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
       }).then(
         () => {
-          flySpent(free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat, motion, 'built');
+          flySpent(free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat, motion);
           if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
         },
         (problem: unknown) =>

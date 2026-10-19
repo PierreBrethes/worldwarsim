@@ -18,27 +18,18 @@ describe('spent', () => {
     });
   };
 
-  it('flies the cost and stamps it when motion is full', () => {
+  it('flies the cost when motion is full, and never presses a stamp: it comes at completion', () => {
     bind();
     HTMLElement.prototype.animate ??= () => ({ finished: new Promise(() => {}) }) as Animation;
-    spent({ steel: 30 }, [2, 48], 'full', 'built');
+    spent({ steel: 30 }, [2, 48], 'full');
     expect(document.querySelector('.harvest-pastille')).not.toBeNull();
-    expect(press).toHaveBeenCalledOnce();
+    expect(press).not.toHaveBeenCalled();
   });
 
-  it.each(['reduced', 'off'] as const)(
-    'flies nothing when motion is %s: the stamp alone',
-    (motion) => {
-      bind();
-      spent({ steel: 30 }, [2, 48], motion, 'raised');
-      expect(document.querySelector('.harvest-pastille')).toBeNull();
-      expect(press).toHaveBeenCalledOnce();
-    },
-  );
-
-  it('presses no stamp for a piece formed', () => {
+  it.each(['reduced', 'off'] as const)('flies nothing when motion is %s', (motion) => {
     bind();
-    spent({ steel: 30 }, [2, 48], 'off');
+    spent({ steel: 30 }, [2, 48], motion);
+    expect(document.querySelector('.harvest-pastille')).toBeNull();
     expect(press).not.toHaveBeenCalled();
   });
 });
