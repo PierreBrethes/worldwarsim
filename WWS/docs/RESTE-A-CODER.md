@@ -26,7 +26,17 @@ avant de les exécuter. La file historique ci-dessous est complétée par la dir
 5. **Le placement semble se recentrer au milieu de la région** au lieu de rester au point visé
    (ADR 0029) : à vérifier dans le rendu.
 6. **La génération des gisements par pays** est à revoir : aujourd'hui, un gisement par région
-   tirée, posé au point de l'index de la région.
+   tirée, posé au pôle de la région (185 points, de 1 à 14 par pays). Comme une exploitation
+   s'aimante à son gisement, elle tombe toujours au milieu de sa région : c'est la cause la plus
+   probable du point 5, puisque le code dessine bien un bâtiment à son point exact.
+7. **Ce que les POC ont et que le jeu n'a pas** (lecture du code au 19/10, à confirmer en jeu) :
+   - pions : lasso et Maj+clic (sélection multiple), ⌘Z, G et U au clavier, barre au-dessus d'une
+     sélection, feuille qui défile au bord de l'écran ;
+   - plateau personnel : pastilles qui volent pour payer, charger, livrer et recharger (seule la
+     récolte vole) ; tampons BÂTI, ÉLEVÉ, LIVRÉ, PLEIN ; recharge visible d'une troupe ancrée ;
+     avion aligné sur la piste au décollage et à l'atterrissage ; navire qui s'écarte du quai ;
+   - différent : une tuile bâtit tout de suite dans le POC, elle passe par un chantier dans le jeu
+     (à confirmer) ; la fiche de transport liste ses jetons en icônes, pas en barre.
 
 ## La file au 17/10 — vers la saison test Mondiale v2
 
