@@ -207,7 +207,10 @@ export class ArcLayer {
         trace: TRACE_OPACITY,
         progress: stale ? 0.45 : 1,
       },
-      { aloft: this.aloft },
+      {
+        aloft: this.aloft,
+        ...(arc.state === 'mine' && arc.drop !== undefined ? { drop: arc.drop } : {}),
+      },
     );
     thread.setResolution(this.width, this.height);
     thread.setScale(this.unitsPerPixel);

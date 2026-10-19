@@ -261,6 +261,26 @@ describe('the air arc', () => {
     expect(heightAt(0.55)).toBeCloseTo(heightAt(0.5), 3);
   });
 
+  /** **Un largage ne se pose pas sur sa cible** (ADR 0028 §4) : l'aller décolle et finit en vol,
+   *  le retour part de là-haut et se pose à la piste. */
+  it('a drop flight takes off and stays up over its target, then comes down to land', () => {
+    const route = directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
+    const surface = buildThread(route, frame, colors, thickness, opacities).legs[0]!.strands[0]!
+      .vertices[0]!.y;
+    const heights = (drop?: 'out' | 'back') => {
+      const vertices = buildThread(route, frame, colors, thickness, opacities, {
+        ...(drop === undefined ? {} : { drop }),
+      }).legs[0]!.strands[0]!.vertices;
+      return [vertices[0]!.y - surface, vertices.at(-1)!.y - surface] as const;
+    };
+    expect(heights()).toEqual([0, 0]);
+    const [outStart, outEnd] = heights('out');
+    const [backStart, backEnd] = heights('back');
+    expect([outStart, backEnd]).toEqual([0, 0]);
+    expect(outEnd).toBeGreaterThan(0);
+    expect(backStart).toBeCloseTo(outEnd, 6);
+  });
+
   it('in a Blitz, leaves and stops at the height where a plane hovers', () => {
     const route = directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
     const grounded = buildThread(route, frame, colors, thickness, opacities);

@@ -65,6 +65,7 @@ import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
+import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
@@ -320,6 +321,7 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   private readonly camps: CampLayer;
   private readonly ink: InkLayer;
+  private readonly parachutes: ParachuteLayer;
   private readonly reach: ReachRing;
   /** The road the piece in hand would take (POC « Manipuler les pions »). */
   private readonly aimRibbon = new AimRibbon();
@@ -631,6 +633,8 @@ export class MapEngine {
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
+    this.parachutes = new ParachuteLayer(this.frame);
+    this.scene.add(this.parachutes.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.aimRibbon.group);
     this.scene.add(this.tourInk.group);
@@ -692,6 +696,7 @@ export class MapEngine {
       );
       this.ink.traceReach(shot, performance.now());
     }
+    if (burst.kind === 'dropped') this.parachutes.drop(burst.at, performance.now());
     this.ink.burst(burst, performance.now());
   }
 
@@ -1370,6 +1375,7 @@ export class MapEngine {
     this.replay?.scene.dispose();
     this.arcs.dispose();
     this.ink.dispose();
+    this.parachutes.dispose();
     this.regions.dispose();
     this.sea?.dispose();
     this.veil.dispose();
@@ -1906,6 +1912,7 @@ export class MapEngine {
     this.camps.motion = motion;
     this.veil.motion = motion;
     this.ink.motion = motion;
+    this.parachutes.motion = motion;
     this.maquettes.motion = motion;
     this.regions.terrain.motion = motion;
   }
@@ -2341,6 +2348,7 @@ export class MapEngine {
     if (
       this.arcs.isFlowing ||
       this.ink.active ||
+      this.parachutes.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isCarrying ||
@@ -2375,6 +2383,7 @@ export class MapEngine {
     const yaw = cameraYaw(this.camera.position, this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
+    this.parachutes.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
