@@ -581,6 +581,8 @@ export const complete = internalMutation({
     await surveyFromPoint(ctx, capture.playerId, point, now);
     if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
+    /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
+    await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
     await reassessDetection(ctx, capture.seasonId, now);
     /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
     if (falls && loser.defeated !== true) {
