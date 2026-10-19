@@ -328,6 +328,10 @@ function flagOf(nation: string | null, count?: number): MeshStandardMaterial {
     if (printed !== null) {
       flag.color.set('#ffffff');
       flag.map = printed;
+      // The count glows a little through the cloth: it must read by night too.
+      flag.emissive.set('#ffffff');
+      flag.emissiveMap = printed;
+      flag.emissiveIntensity = 0.45;
     }
     flags.set(key, flag);
   }
@@ -343,7 +347,7 @@ function countCloth(ink: string, count: number): CanvasTexture | null {
   ctx.fillStyle = ink;
   ctx.fillRect(0, 0, 160, 100);
   ctx.fillStyle = PALETTE.paper;
-  ctx.font = '700 72px "Bodoni Moda", Georgia, serif';
+  ctx.font = '700 84px "Bodoni Moda", Georgia, serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(count), 80, 54);

@@ -7,6 +7,7 @@ import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
 import { seatedOf } from './movement/forces';
+import { reassessDetection } from './movement/detection';
 import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
 import { UNIT_ROLE } from './validators';
@@ -519,5 +520,51 @@ export const researchScene = internalMutation({
       playerId,
       finishesAt: now + remainingMs,
     });
+  },
+});
+
+/**
+ * **La scène de l'artillerie** (4.10) : la carte acquise, une pièce seule au nord de Paris, une
+ * escouade adverse de seize troupes à Amiens, dans sa portée et sur le sol français, et une
+ * escouade française de quatorze troupes à Reims : la salve bornée et le fanion qui compte.
+ */
+export const artilleryScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    const enemy = await ctx.db.get(enemyId);
+    if (player === null || enemy === null) throw new Error('no such player');
+    await ctx.db.patch(playerId, {
+      researched: [...new Set([...(player.researched ?? []), 'artillery' as const])],
+    });
+    const post = async (
+      owner: Doc<'players'>,
+      at: { lon: number; lat: number },
+      roles: ReadonlyArray<readonly [Doc<'troops'>['role'], number]>,
+    ) => {
+      for (const [role, count] of roles)
+        for (let k = 0; k < count; k++)
+          await ctx.db.insert('troops', {
+            seasonId: owner.seasonId,
+            playerId: owner._id,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+          });
+    };
+    await post(player, { lon: 2.35, lat: 49.2 }, [['artillery', 1]]);
+    await post(player, { lon: 4.03, lat: 49.26 }, [
+      ['infantry', 8],
+      ['armor', 4],
+      ['landTransport', 2],
+    ]);
+    await post(enemy, { lon: 2.3, lat: 49.9 }, [
+      ['infantry', 10],
+      ['armor', 4],
+      ['landTransport', 2],
+    ]);
+    await reassessDetection(ctx, player.seasonId, Date.now());
   },
 });

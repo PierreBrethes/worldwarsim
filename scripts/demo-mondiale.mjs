@@ -12,7 +12,9 @@
  * qui attend. `--largage` pose pour la France un aérodrome et un avion chargé, un avant-poste de
  * niveau 1 près de Bruxelles et une escouade à sec en Rhénanie : de quoi larguer (ADR 0028 §4).
  * `--recherche` donne à la France l'infanterie MK2 et l'aviation, et le blindé en cours sur son QG
- * (ADR 0028 §5).
+ * (ADR 0028 §5). `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
+ * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
+ * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6).
  *
  *     npm run demo:mondiale
  *
@@ -35,6 +37,7 @@ const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
 const airdrops = process.argv.includes('--largage');
 const research = process.argv.includes('--recherche');
+const artillery = process.argv.includes('--artillerie');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -140,6 +143,22 @@ if (!bare) {
   /** Deux cartes acquises, une troisième en cours sur le QG (ADR 0028 §5). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a })]);
+  /** Une salve sur seize troupes, une fois la pièce en batterie (ADR 0028 §6). */
+  if (artillery && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:artilleryScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    await pause(32_000);
+    const { me, camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const gun = me.troops.find((troop) => troop.role === 'artillery');
+    const camp = camps.find((one) => !one.lastKnown && Math.abs(one.point[1] - 49.9) < 0.1);
+    if (gun === undefined || camp === undefined)
+      throw new Error('scène de l’artillerie incomplète');
+    await client.mutation(api.movements.bombard, {
+      token: tokenA,
+      seasonId,
+      troopId: gun.id,
+      target: { kind: 'camp', campId: camp.id },
+    });
+  }
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
