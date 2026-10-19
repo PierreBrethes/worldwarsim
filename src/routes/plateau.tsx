@@ -2315,6 +2315,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', onKey);
   }, [chosen.length, picking, hand.kind, clearSelection, formSquad, disbandSquad]);
 
+  /** Échap lâche aussi le pays lu, sauf quand une fenêtre est devant : c'est elle qu'il ferme. */
+  const surfaceOpen = windows.some((name) => name !== 'personalBoard');
+  useEffect(() => {
+    if (country == null || surfaceOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && hand.kind === 'empty' && !isTyping()) select(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [country, surfaceOpen, hand.kind, select]);
+
   /** Un clic net sur le plateau, main vide, défait la sélection — sauf au doigt qui choisit. */
   /** **Le site de projection sélectionné** (#163) : celui que la bande fait former, tant
    *  qu'elle est dépliée et que sa fiche n'est pas devant. */

@@ -140,6 +140,9 @@ export function HandSheet({
       /* Au doigt, la feuille reste à son tiers et ouvre sur ce qui se joue — poser, fonder — :
          épousant les cartes de la pile, elle prenait la moitié de l'écran et la carte où l'on pose. */
       hug={false}
+      /* La pile cochée, ses boutons et le pied collant ne tiennent pas dans le tiers : à la moitié,
+         tout se lit sans défiler. */
+      initial="half"
       onClose={onDrop}
     >
       {narrow && (
