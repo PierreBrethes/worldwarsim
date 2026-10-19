@@ -21,7 +21,7 @@ import { fail } from '../errors';
 import { hostAtPoint, landAtPoint } from '../routes';
 import { forgetMovement, walkHome } from './arrival';
 import { reassessDetection } from './detection';
-import { asPoint, movementsOf, seatedOf, stanceOf } from './forces';
+import { asPoint, movementsOf, seatedOf, stanceOf, standingPile } from './forces';
 import { carrierIn } from '../../src/domain/troops';
 import { quarryOf } from './pursuit';
 import { blitzTheatreOf } from './theatre';
@@ -42,10 +42,7 @@ async function pileOf(ctx: MutationCtx, victim: Doc<'troops'>): Promise<Array<Do
   const ids = carrying?.troopIds ?? [];
   const together =
     carrying === undefined
-      ? await ctx.db
-          .query('troops')
-          .withIndex('byStation', (q) => q.eq('stationedAt', victim.stationedAt))
-          .collect()
+      ? await standingPile(ctx, victim.playerId, victim.stationedAt)
       : (await Promise.all(ids.map((id) => ctx.db.get(id)))).flatMap((one) =>
           one === null ? [] : [one],
         );

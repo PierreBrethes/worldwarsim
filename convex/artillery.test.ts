@@ -290,6 +290,34 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     expect(JSON.stringify(target)).not.toContain(String(PARIS.lon));
   });
 
+  it('leaves the troops that marched off the point out of the salvo', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    const squad = [];
+    for (let k = 0; k < 6; k++) squad.push(await troop(t, guest, ROUEN));
+    const { movementId } = await t.mutation(api.movements.marchTo, {
+      ...guest,
+      origin: { kind: 'point', point: ROUEN },
+      troopIds: squad.slice(0, 2),
+      point: LILLE,
+    });
+    const campId = await surveyCamp(t, seat, ROUEN);
+    emplaced();
+
+    await t.mutation(api.movements.bombard, {
+      ...seat,
+      troopId: gun,
+      target: { kind: 'camp', campId },
+    });
+
+    const strengths = await Promise.all(
+      squad.map(async (id) => (await row(t, id))!.currentStrength),
+    );
+    expect(strengths).toEqual([50, 50, 20, 20, 20, 20]);
+    expect((await t.run((ctx) => ctx.db.get(movementId)))!.troopIds).toEqual(squad.slice(0, 2));
+  });
+
   it('refuses a target in its dead zone in a Mondiale', async () => {
     const t = boot();
     const { seat, guest } = await season(t, 'mondiale');
