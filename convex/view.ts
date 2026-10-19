@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { pointsView, seasonPoints } from './strategicPoints';
-import { slotHolders } from './movement/orders';
+import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
@@ -499,8 +499,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // make, even with its capital flattened.
       slots: {
         total: movementSlots(hqLevel),
-        // A return holds nothing, nor a fleet of the holder of Halifax (`slotHolders`).
-        used: (await slotHolders(ctx, player, movements)).length,
+        // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
+        // (`slotsTaken`).
+        used: await slotsTaken(ctx, player, movements),
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
@@ -657,6 +658,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         ...(troop.load === undefined ? {} : { load: troop.load }),
+        ...(troop.tour === undefined
+          ? {}
+          : {
+              tour: {
+                baseId: troop.tour.base,
+                stops: troop.tour.stops,
+                waiting: troop.tour.waitingSince !== undefined,
+                recalled: troop.tour.recalled === true,
+              },
+            }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now

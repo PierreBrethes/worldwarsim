@@ -1060,6 +1060,18 @@
   background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
+.cargo-tag-tour {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  max-width: 176px;
+  font: 600 10px/1.2 var(--font-mono);
+}
+.cargo-tag-tour--waiting {
+  color: var(--notable-paper);
+}
+
 .cargo-tag-charge {
   margin: 0 0 4px;
 }

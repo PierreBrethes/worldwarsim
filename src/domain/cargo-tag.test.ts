@@ -32,6 +32,7 @@ describe('cargoTagsOf', () => {
         refusal: null,
         load: { ammunition: 0, oil: 0, coal: 0 },
         loadCapacity: 200,
+        tour: null,
       },
       // Empty, it still has a tag: the hand reads its free seats on it (POC, `avail`).
       {
@@ -43,6 +44,7 @@ describe('cargoTagsOf', () => {
         refusal: 'NOT_ABOARD',
         load: { ammunition: 0, oil: 0, coal: 0 },
         loadCapacity: 200,
+        tour: null,
       },
     ]);
   });

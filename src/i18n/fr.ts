@@ -727,6 +727,17 @@ export const fr = {
     NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
     DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
     DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
+    TOUR_NOT_AT_LOADING_POINT: (d) =>
+      `une tournée part d’un point de chargement : amenez ${
+        d.role === 'cargo'
+          ? 'le cargo au port'
+          : d.role === 'airTransport'
+            ? 'l’avion à l’aérodrome'
+            : 'le camion au QG ou à un entrepôt'
+      }, ou au dépôt d’un avant-poste`,
+    TOUR_TOO_LONG: (d) => `une tournée compte ${num(d.maximum)} arrêts au plus`,
+    TOUR_STOP_TWICE: () => 'ce dépôt est déjà un arrêt de la tournée',
+    NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
     NO_ROUNDS: () =>
       'à sec : plus un coup dans la colonne — elle marche, elle n’attaque pas ; elle se recharge à l’ancre',
     UNKNOWN_TROOP: () => 'troupe inconnue',
@@ -2511,6 +2522,16 @@ export const fr = {
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
       pursuitLost: (country: string) =>
         `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
+      tourWaiting: (role: string, why: 'stock' | 'full' | 'road', resource: string) =>
+        why === 'stock'
+          ? `Tournée en attente — ${role} : il manque ${resource} au chargement pour sa consigne. Elle repart quand il y en a.`
+          : why === 'full'
+            ? `Tournée en attente — ${role} : tous ses dépôts sont pleins. Elle repart quand l’un d’eux se vide.`
+            : `Tournée en attente — ${role} : sa route est refusée, le plein manque au chargement.`,
+      tourEnded: (role: string, why: 'recalled' | 'cut') =>
+        why === 'recalled'
+          ? `Tournée arrêtée — ${role} : rappelé, il reste au chargement.`
+          : `Tournée coupée — ${role} : chargement ou dépôts perdus, ou route refusée ; il rentre seul.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
@@ -2578,6 +2599,16 @@ export const fr = {
       `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
+    tourLine: (state: 'tracing' | 'running' | 'waiting' | 'recalled', stops: number) =>
+      state === 'tracing'
+        ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
+        : state === 'recalled'
+          ? 'tournée rappelée · finit au chargement'
+          : `tournée · ${stops} arrêt${plural(stops, '', 's')}${state === 'waiting' ? ' · attend' : ''}`,
+    launch: 'lancer',
+    clear: 'effacer',
+    recall: 'rappeler',
+    tourStarted: 'Tournée lancée',
   },
   troops: {
     atHome: 'à domicile',
@@ -3799,6 +3830,7 @@ export const fr = {
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
       deliver: 'Livrer',
+      tour: 'Tracer une tournée',
       sea: 'Marcher',
       inland: 'Faire route',
       air: 'Voler',
@@ -3824,6 +3856,13 @@ export const fr = {
     deliver: 'livrer',
     deliverConsequence:
       'Décharge au dépôt ce qui y tient, garde le reste à bord, puis rentre seul.',
+    tour: 'tracer une tournée',
+    tourStop: (count: number) => `arrêt ${count} de la tournée`,
+    tourConsequence:
+      'Une boucle depuis le chargement, quatre dépôts au plus : il recharge sa consigne à chaque tour, saute un dépôt plein, et garde son slot.',
+    tracing: (count: number) => `tournée à tracer · ${count} arrêt${plural(count, '', 's')}`,
+    traceElsewhere:
+      'Une tournée se trace de dépôt en dépôt : lâchez le transport sur un de vos avant-postes, ou lancez-la depuis son étiquette',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>

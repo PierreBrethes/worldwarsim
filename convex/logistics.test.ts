@@ -8,7 +8,15 @@ import { nominalStrength } from './constants';
 import { pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, unclocked, type Seat } from './seats.fixture';
+import {
+  attacking,
+  foundSeat,
+  joinSeat,
+  placeHq,
+  seatIn,
+  unclocked,
+  type Seat,
+} from './seats.fixture';
 
 /**
  * **La logistique passe par les pièces** (ADR 0028 §4) : le dépôt d'avant-poste, charger,
@@ -411,5 +419,171 @@ describe('dismantling an outpost', () => {
     await t.mutation(api.outposts.dismantle, { ...seat, outpostId: outpost });
 
     expect(await stockOf(t, seat, 'coal')).toBe(before + Math.min(300, room));
+  });
+});
+
+describe('the supply tour', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HANOVER: LonLat = [9.73, 52.37];
+
+  async function setStock(t: Bench, seat: Seat, key: string, stock: number) {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((one) => one.key === key)!;
+      await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    });
+  }
+
+  /** Le seul mouvement en vol, mené à son arrivée. */
+  async function arriveNext(t: Bench) {
+    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
+    vi.setSystemTime(movement.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: movement._id });
+    return movement;
+  }
+  const flying = (t: Bench) => t.run(async (ctx) => ctx.db.query('movements').collect());
+
+  async function touring(t: Bench, seat: Seat) {
+    const hq = await hqOf(t, seat);
+    const truck = await form(t, seat, 'landTransport', hq);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    const full = await plant(t, seat, ESSEN, 1, GERMANY);
+    await t.run(async (ctx) => ctx.db.patch(full, { depot: { ammunition: 400, oil: 0, coal: 0 } }));
+    const hungry = await plant(t, seat, HANOVER, 1, GERMANY);
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [full, hungry] });
+    return { hq, truck, full, hungry };
+  }
+
+  it('skips a full depot, delivers the next, comes back and reloads its standing order', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const { hq, truck, hungry } = await touring(t, seat);
+
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: hungry } }]);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+
+    await arriveNext(t);
+    expect(await depotOf(t, hungry)).toEqual({ ammunition: 60, oil: 0, coal: 0 });
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'base' }]);
+
+    await arriveNext(t);
+    expect((await get(t, truck))!.stationedAt).toBe(hq);
+    expect((await get(t, truck))!.load).toEqual({ ammunition: 60, oil: 0, coal: 0 });
+    expect(await stockOf(t, seat, 'ammunition')).toBeLessThanOrEqual(440);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: hungry } }]);
+  });
+
+  it('waits at its loading point while the board lacks, keeping its slot, and says so once', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { truck } = await touring(t, seat);
+    await arriveNext(t);
+    await setStock(t, seat, 'ammunition', 0);
+    await arriveNext(t);
+
+    expect(await flying(t)).toEqual([]);
+    expect((await get(t, truck))!.tour?.waitingSince).toBeDefined();
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    const waiting = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'tourWaiting'))
+        .collect(),
+    );
+    expect(waiting).toMatchObject([{ why: 'stock', resource: 'ammunition' }]);
+
+    await t.mutation(api.tours.recall, { ...seat, troopId: truck });
+    expect((await get(t, truck))!.tour).toBeUndefined();
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+  });
+
+  it('finishes the leg it is on when recalled, and stops at its loading point', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const { hq, truck } = await touring(t, seat);
+    await t.mutation(api.tours.recall, { ...seat, troopId: truck });
+
+    await arriveNext(t);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'base' }]);
+    await arriveNext(t);
+    expect(await flying(t)).toEqual([]);
+    expect((await get(t, truck))!).toMatchObject({ stationedAt: hq });
+    expect((await get(t, truck))!.tour).toBeUndefined();
+  });
+
+  it('refuses a tour away from a loading point, or past four stops', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const truck = await form(t, seat, 'landTransport', barracks);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    const stop = await plant(t, seat, ESSEN, 1, GERMANY);
+
+    await expect(
+      t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [stop] }),
+    ).rejects.toThrow('TOUR_NOT_AT_LOADING_POINT');
+  });
+});
+
+describe('intercepting a supply', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('leaves the charge of a destroyed transport in a crate, and tells its owner', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const truck = await form(t, guest, 'landTransport', theirs);
+    await t.run(async (ctx) =>
+      ctx.db.patch(truck, { currentStrength: 1, load: { ammunition: 80, oil: 40, coal: 0 } }),
+    );
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const rifles = [
+      await form(t, seat, 'infantry', barracks),
+      await form(t, seat, 'infantry', barracks),
+    ];
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: rifles,
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
+    vi.setSystemTime(movement.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: movement._id });
+
+    expect(await get(t, truck)).toBeNull();
+    const crates = await t.run(async (ctx) => ctx.db.query('lootRecoveries').collect());
+    expect(crates).toMatchObject([
+      {
+        dispossessedPlayerId: await playerOf(t, guest),
+        recoveringPlayerId: await playerOf(t, seat),
+      },
+    ]);
+    const lost = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'lootLost'))
+        .collect(),
+    );
+    expect(lost).toMatchObject([{ loot: { ammunition: 80, oil: 40 } }]);
+    const [crate] = await t.run(async (ctx) => ctx.db.query('lootCrates').collect());
+    expect(crate?.loot).toMatchObject({ ammunition: 80, oil: 40, food: 0 });
   });
 });

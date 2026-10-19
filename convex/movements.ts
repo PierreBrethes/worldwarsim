@@ -70,6 +70,7 @@ import {
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
 import { arriveToDeliver } from './logistics';
+import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -940,6 +941,14 @@ export const arrive = internalMutation({
      * la branche du pillage tient depuis le début, et la polyligne est la même à un pas près.
      */
     await surveyAlongRoute(ctx, movement, now);
+
+    /** **Un pas de tournée** (ADR 0028) : il décharge et file au suivant, ou recharge et repart. */
+    if (movement.tourLeg !== undefined) {
+      if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
+      else await arriveAtBase(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
 
     /** **Une livraison décharge et rentre** (ADR 0028 §4) ; sur un point perdu ou tombé entre-temps,
      *  elle arrive comme une marche. */

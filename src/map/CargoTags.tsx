@@ -33,7 +33,11 @@ export function CargoTags({
   onDisembark,
   aim = null,
   available = false,
+  onTour,
 }: {
+  /** **La tournée depuis l'étiquette** (ADR 0028) : la lancer ou l'effacer une fois tracée, la
+   *  rappeler quand elle tourne. */
+  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
   tags: ReadonlyArray<CargoTag>;
   nation: string | null;
   onDisembark: (troopIds: ReadonlyArray<string>) => void;
@@ -102,7 +106,7 @@ export function CargoTags({
         const empty = Math.max(0, tag.seats - tag.used);
         const want = open ? aim.need : 0;
         const loaded = loadTotal(tag.load) > 0;
-        const shown = tag.riders.length > 0 || loaded || available || open;
+        const shown = tag.riders.length > 0 || loaded || tag.tour !== null || available || open;
         return (
           <div
             key={tag.carrierId}
@@ -117,6 +121,51 @@ export function CargoTags({
               {tag.loadCapacity > 0 && (
                 <div className="cargo-tag-charge">
                   <ChargeBar load={tag.load} capacity={tag.loadCapacity} width={54} />
+                </div>
+              )}
+              {tag.tour !== null && (
+                <div className="cargo-tag-tour">
+                  <span
+                    className={tag.tour.state === 'waiting' ? 'cargo-tag-tour--waiting' : undefined}
+                  >
+                    {fr.logistics.tourLine(tag.tour.state, tag.tour.stops)}
+                  </span>
+                  {onTour !== undefined &&
+                    (tag.tour.state === 'tracing' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="cargo-tag-out"
+                          onClick={(event) => {
+                            keep(event);
+                            onTour(tag.carrierId, 'launch');
+                          }}
+                        >
+                          {fr.logistics.launch}
+                        </button>
+                        <button
+                          type="button"
+                          className="cargo-tag-out"
+                          onClick={(event) => {
+                            keep(event);
+                            onTour(tag.carrierId, 'clear');
+                          }}
+                        >
+                          {fr.logistics.clear}
+                        </button>
+                      </>
+                    ) : tag.tour.state === 'recalled' ? null : (
+                      <button
+                        type="button"
+                        className="cargo-tag-out"
+                        onClick={(event) => {
+                          keep(event);
+                          onTour(tag.carrierId, 'recall');
+                        }}
+                      >
+                        {fr.logistics.recall}
+                      </button>
+                    ))}
                 </div>
               )}
               <div className="cargo-tag-slots">

@@ -1,4 +1,4 @@
-import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE } from '../../convex/constants';
+import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE, TOUR_MAX_STOPS } from '../../convex/constants';
 import type { BuildingKey, ResourceKey, UnitRole } from './ids';
 import type { SupplyStocks } from './supplies';
 import { carrierIn, type Seated } from './troops';
@@ -73,6 +73,22 @@ const airStopRefusal = (role: UnitRole, level: number) =>
     ? ({ code: 'NO_AIR_STOP', level: AIR_STOP_LEVEL } as const)
     : null;
 
+const idleRefusal = (busy: Busy) =>
+  busy === 'underway'
+    ? ({ code: 'TRANSPORT_UNDERWAY' } as const)
+    : busy === 'touring'
+      ? ({ code: 'TRANSPORT_ON_TOUR' } as const)
+      : null;
+
+/** **Est-ce un point de chargement pour ce transport ?** Le même lieu sert à charger et à
+ *  partir en tournée. */
+const loadsHere = (role: UnitRole, place: LoadingPlace) => {
+  if (place.kind === 'outpost') return airStopRefusal(role, place.level);
+  if (place.kind === 'elsewhere' || !(LOADS_AT[role] ?? []).includes(place.key))
+    return { code: 'LOAD_NOT_HERE', role } as const;
+  return null;
+};
+
 /**
  * **Charger** (ADR 0028 §4) : on glisse des jetons sur un transport, là où il se charge, dans
  * la limite de sa charge. `store` est ce que tient le plateau personnel, ou le dépôt, pour cette
@@ -99,14 +115,10 @@ export function loadRefusalOf({
   if (capacity === 0) return { code: 'NOT_A_TRANSPORT' };
   if (!isSupplyKey(resource)) return { code: 'LOAD_NOT_A_SUPPLY' };
   if (!Number.isFinite(amount) || amount < 1) return { code: 'LOAD_AMOUNT_INVALID' };
-  if (busy === 'underway') return { code: 'TRANSPORT_UNDERWAY' };
-  if (busy === 'touring') return { code: 'TRANSPORT_ON_TOUR' };
-  if (place.kind === 'outpost') {
-    const air = airStopRefusal(role, place.level);
-    if (air !== null) return air;
-  } else if (place.kind === 'elsewhere' || !(LOADS_AT[role] ?? []).includes(place.key)) {
-    return { code: 'LOAD_NOT_HERE', role };
-  }
+  const idle = idleRefusal(busy);
+  if (idle !== null) return idle;
+  const here = loadsHere(role, place);
+  if (here !== null) return here;
   const room = capacity - loadTotal(held);
   if (amount > room) return { code: 'LOAD_FULL', room, capacity };
   if (amount > store)
@@ -224,4 +236,51 @@ export function depotRefundOf(
     lost[key] = depot[key] - returned[key];
   }
   return { returned, lost };
+}
+
+export type TourRefusal =
+  | { readonly code: 'NOT_A_TRANSPORT' }
+  | { readonly code: 'TRANSPORT_UNDERWAY' }
+  | { readonly code: 'TRANSPORT_ON_TOUR' }
+  | { readonly code: 'TOUR_NOT_AT_LOADING_POINT'; readonly role: UnitRole }
+  | { readonly code: 'NO_AIR_STOP'; readonly level: number }
+  | { readonly code: 'TOUR_TOO_LONG'; readonly maximum: number }
+  | { readonly code: 'TOUR_STOP_TWICE' }
+  | { readonly code: 'NOTHING_TO_DELIVER' };
+
+/**
+ * **Une tournée** (ADR 0028, précision du 18/10) : elle part de son point de chargement et y
+ * revient, quatre dépôts au plus, chacun une fois, et ce qu'elle porte devient sa consigne.
+ * Chaque arrêt se lit en plus par `deliverRefusalOf(…, true)`.
+ */
+export function tourRefusalOf({
+  role,
+  place,
+  busy,
+  load,
+  stops,
+  baseOutpostId = null,
+}: {
+  readonly role: UnitRole;
+  readonly place: LoadingPlace;
+  readonly busy: Busy;
+  readonly load: SupplyLoad | undefined;
+  readonly stops: ReadonlyArray<string>;
+  readonly baseOutpostId?: string | null;
+}): TourRefusal | null {
+  if (loadCapacityOf(role) === 0) return { code: 'NOT_A_TRANSPORT' };
+  const idle = idleRefusal(busy);
+  if (idle !== null) return idle;
+  const here = loadsHere(role, place);
+  if (here?.code === 'LOAD_NOT_HERE') return { code: 'TOUR_NOT_AT_LOADING_POINT', role };
+  if (here !== null) return here;
+  if (stops.length === 0 || stops.length > TOUR_MAX_STOPS)
+    return { code: 'TOUR_TOO_LONG', maximum: TOUR_MAX_STOPS };
+  if (
+    new Set(stops).size !== stops.length ||
+    (baseOutpostId !== null && stops.includes(baseOutpostId))
+  )
+    return { code: 'TOUR_STOP_TWICE' };
+  if (loadTotal(load) === 0) return { code: 'NOTHING_TO_DELIVER' };
+  return null;
 }
