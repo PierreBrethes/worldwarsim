@@ -1989,9 +1989,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
-      ...(building === searcher
-        ? researchOnCenter(view.me)
-        : {}),
+      ...(building === searcher ? researchOnCenter(view.me) : {}),
       ink: view.me.ink,
     }));
 
