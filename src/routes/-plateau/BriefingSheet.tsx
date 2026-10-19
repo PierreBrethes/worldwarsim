@@ -7,9 +7,9 @@ import { useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 
 /**
  * **Un mode d'emploi, pas un tutoriel.** Une feuille posée sur le plateau à la première entrée
- * d'un joueur, refermée par un tampon et jamais rouverte d'office. Elle ne fléche rien, ne
- * surligne rien et n'attend aucune étape : la doctrine « sans tutoriel » tient, et un joueur qui
- * ferme au premier regard n'a rien perdu — tout ce qu'elle dit se relit depuis les Réglages.
+ * d'une Blitz, refermée par un tampon et jamais rouverte d'office ; en Mondiale, les premiers pas
+ * tiennent l'entrée (ADR 0027 §2) et elle ne se lit plus que depuis les Réglages. Elle ne fléche
+ * rien et n'attend aucune étape : un joueur qui ferme au premier regard n'a rien perdu.
  *
  * Elle ne lit **aucune** donnée de partie. Ce qu'elle décrit est vrai avant le premier clic
  * comme au dernier jour de la saison ; l'y brancher inventerait un état. Les trois rayons sont

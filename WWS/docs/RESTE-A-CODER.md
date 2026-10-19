@@ -109,7 +109,13 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
    graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et
    l'exclusion du sol national du 14/10 ne sont pas lues). Rangoun (« aucun envoi vers lui »)
    attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la une.
-5. **Le tutoriel de manipulation** (ADR 0027 §2).
+5. ~~**Le tutoriel de manipulation** (ADR 0027 §2)~~ : fait le 19/10. Les **premiers pas** de la
+   Mondiale, dans la vraie partie : cinq gestes (QG, mouvement, formation, recherche, livraison)
+   lus dans la vue (`stepsDoneIn`, `src/domain/first-steps.ts`) et retenus par la place
+   (`readMarks.firstSteps`), en tête de « à faire » ; une bulle sur « Écon. », l'étagère du
+   plateau personnel ou la pièce à lever ; repliés ou passés, l'aide (« ? », dossier du
+   téléphone) les reprend. La feuille d'entrée ne s'ouvre plus d'elle-même qu'en Blitz. Démo :
+   `npm run demo:mondiale -- --tutoriel`. Le schéma change : `readMarks.firstSteps`.
 6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
    `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans
    `src/domain/season-report.ts`). Séries dans le temps : boule de neige (éditions) et avant-postes

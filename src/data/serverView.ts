@@ -180,6 +180,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       server.journalReadAt ?? null,
     ),
     boardRead: server.boardRead ?? null,
+    firstSteps: server.firstSteps ?? { done: [], shown: 'open' },
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,

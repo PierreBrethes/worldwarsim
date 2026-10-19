@@ -2775,6 +2775,38 @@ export const fr = {
    * vocabulaire est celui d'une dépêche : ce qui manque, où, et rien d'autre — la ligne mène au
    * geste, elle ne l'explique pas.
    */
+  /** **Les premiers pas** (ADR 0027 §2) : l'ordre de route d'une première Mondiale. */
+  firstSteps: {
+    header: 'premiers pas',
+    progress: (done: number, total: number) => `${done} / ${total}`,
+    fold: 'replier',
+    unfold: 'déplier',
+    skip: 'passer',
+    doneLabel: 'fait :',
+    resume: 'Reprendre les premiers pas',
+    resumeNote: 'Cinq gestes, dans la vraie partie : la liste revient en tête de « à faire ».',
+    steps: {
+      hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
+      move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
+      form: 'Former une pièce : la lâcher sur une caserne',
+      research: 'Poser une carte de recherche sur le QG',
+      deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
+    },
+    /** Ce que dit la bulle, là où le geste se fait. */
+    cue: {
+      economy: 'Ouvrez Écon.',
+      /** Au téléphone, « Écon. » est un rond du coin : on touche d'abord le coin. */
+      corner: '(touchez le coin)',
+      hq: 'La tuile du QG, lâchée sur votre sol',
+      tiles: 'D’abord une caserne : sa tuile sur la carte',
+      pieces: 'Une pièce, lâchée sur la caserne',
+      research: 'Une carte, lâchée sur le QG',
+      move: 'Levez-la, posez-la plus loin',
+      truck: 'Un camion, lâché sur la caserne',
+      load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
+    },
+  },
+
   nextActions: {
     header: 'à faire maintenant',
     count: (count: number) => `${count} en attente`,

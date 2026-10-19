@@ -33,6 +33,7 @@ import { useClock } from '@/shell/clock';
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
+import { CueBubble } from '@/shell/CueBubble';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, upgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
@@ -110,9 +111,12 @@ export function PersonalBoard({
   onHoldTile,
   onPlaceTile,
   onTakeTokens,
+  cue = null,
 }: {
   view: PlayerView;
   seat: Seat;
+  /** **La bulle des premiers pas** (ADR 0027 §2) : l'étagère où se prend le geste du pas allumé. */
+  cue?: { readonly rack: 'tiles' | 'pieces' | 'research'; readonly text: string } | null;
   /** **Charger** (ADR 0028 §4) : des jetons pris dans un bac, glissés sur un transport. */
   onTakeTokens?: (resource: keyof SupplyLoad, event: ReactPointerEvent<HTMLElement>) => void;
   /** The building the board was opened on, from its mast: its tile is lit. */
@@ -244,7 +248,11 @@ export function PersonalBoard({
           </div>
 
           <div className="flex flex-col gap-3 px-3 pt-3 pb-3 md:flex-row md:px-4">
-            <Rack title={fr.personalBoard.tilesHeader} note={fr.personalBoard.tilesNote}>
+            <Rack
+              title={fr.personalBoard.tilesHeader}
+              note={fr.personalBoard.tilesNote}
+              cue={cue?.rack === 'tiles' ? cue.text : null}
+            >
               {BUILDABLE_BUILDINGS.map((key) => (
                 <Tile
                   key={key}
@@ -259,6 +267,7 @@ export function PersonalBoard({
               view={view}
               workshop={workshop}
               held={held}
+              cue={cue?.rack === 'pieces' ? cue.text : null}
               onTake={
                 observing
                   ? null
@@ -270,6 +279,7 @@ export function PersonalBoard({
             view={view}
             now={now}
             held={held}
+            cue={cue?.rack === 'research' ? cue.text : null}
             onTake={observing ? null : (card) => (event) => take({ kind: 'card', card }, event)}
           />
 
@@ -634,14 +644,38 @@ function pieceRefusalOf(
   return lockedBy === null ? null : researchRequired(lockedBy);
 }
 
-function Rack({ title, note, children }: { title: string; note: string; children: ReactNode }) {
+function Rack({
+  title,
+  note,
+  cue = null,
+  children,
+}: {
+  title: string;
+  note: string;
+  /** La bulle des premiers pas, quand le geste du pas allumé se prend ici. */
+  cue?: string | null;
+  children: ReactNode;
+}) {
   return (
     <div className="min-w-0 md:flex-1">
-      <div className="flex items-center gap-2 pb-[5px]">
-        <span className="eyebrow">{title}</span>
-        <HelpMark>{note}</HelpMark>
-      </div>
+      <RackHead title={title} note={note} cue={cue} />
       <div className="flex gap-[7px] overflow-x-auto pb-[4px]">{children}</div>
+    </div>
+  );
+}
+
+/** Le titre d'une étagère, et la bulle des premiers pas qui s'y pose : l'étagère vient à l'écran,
+ *  le plateau défile au téléphone. */
+function RackHead({ title, note, cue }: { title: string; note: string; cue: string | null }) {
+  const head = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (cue !== null) head.current?.scrollIntoView({ block: 'nearest' });
+  }, [cue]);
+  return (
+    <div ref={head} className="flex flex-wrap items-center gap-2 pb-[9px]">
+      <span className="eyebrow">{title}</span>
+      <HelpMark>{note}</HelpMark>
+      {cue !== null && <CueBubble text={cue} place="relative ml-1" />}
     </div>
   );
 }
@@ -719,11 +753,13 @@ function Pieces({
   view,
   workshop,
   held,
+  cue,
   onTake,
 }: {
   view: PlayerView;
   workshop: Workshop | undefined;
   held: Held | null;
+  cue: string | null;
   onTake: ((role: UnitRole, tier: UnitTier) => Take) | null;
 }) {
   /** **Chaque pièce, ouverte ou derrière sa carte** : rien n'est caché, la carte se dit au survol
@@ -736,7 +772,7 @@ function Pieces({
   ]);
   const sites = view.me.buildings.some((building) => PROJECTION_KEYS.includes(building.key));
   return (
-    <Rack title={fr.personalBoard.piecesHeader} note={fr.personalBoard.piecesNote}>
+    <Rack title={fr.personalBoard.piecesHeader} note={fr.personalBoard.piecesNote} cue={cue}>
       {!sites && (
         <p className="w-[210px] shrink-0 self-center text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
           {fr.personalBoard.piecesNone}
@@ -806,19 +842,18 @@ function Research({
   view,
   now,
   held,
+  cue,
   onTake,
 }: {
   view: PlayerView;
   now: number;
   held: Held | null;
+  cue: string | null;
   onTake: ((card: ResearchCard) => Take) | null;
 }) {
   return (
     <div className="px-3 pb-3 md:px-4">
-      <div className="flex items-center gap-2 pb-[5px]">
-        <span className="eyebrow">{fr.research.header}</span>
-        <HelpMark>{fr.research.note}</HelpMark>
-      </div>
+      <RackHead title={fr.research.header} note={fr.research.note} cue={cue} />
       <div className="flex gap-[7px] overflow-x-auto pb-[4px]">
         {RESEARCH_CARDS.map((card) => (
           <ResearchCardTile

@@ -12,6 +12,8 @@ export function Shell({
   telegraphUnread,
   todo,
   onShowBriefing,
+  economyCue = null,
+  onResumeSteps = null,
   children,
 }: {
   view: PlayerView;
@@ -21,6 +23,11 @@ export function Shell({
   todo: ReactNode;
   /** L'aide-mémoire, que le dossier de la nation rouvre sous le seuil. */
   onShowBriefing: () => void;
+  /** **La bulle des premiers pas**, quand le geste du pas allumé se prend au plateau personnel
+   *  encore fermé : l'entrée « Écon. » porte un anneau, et le coin du téléphone une bulle. */
+  economyCue?: string | null;
+  /** Reprendre les premiers pas repliés ou passés, depuis le dossier du téléphone. */
+  onResumeSteps?: (() => void) | null;
   children: ReactNode;
 }) {
   /** **La table plein écran** (décision de Pierre, 13/10) : la carte prend tout l'écran, et la
@@ -47,8 +54,18 @@ export function Shell({
           <div className="board-frame flex h-full flex-col overflow-clip">
             <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
               {children}
-              <NarrowBand view={view} onShowBriefing={onShowBriefing} ref={top} />
-              <Protractor view={view} telegraphUnread={telegraphUnread} todo={todo} />
+              <NarrowBand
+                view={view}
+                onShowBriefing={onShowBriefing}
+                onResumeSteps={onResumeSteps}
+                ref={top}
+              />
+              <Protractor
+                view={view}
+                telegraphUnread={telegraphUnread}
+                todo={todo}
+                economyCue={economyCue}
+              />
             </main>
           </div>
         </BoardInsetsContext.Provider>
@@ -62,7 +79,13 @@ export function Shell({
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           {children}
           <Reglette view={view} ref={top} />
-          <SurfaceColumn view={view} telegraphUnread={telegraphUnread} todo={todo} ref={side} />
+          <SurfaceColumn
+            view={view}
+            telegraphUnread={telegraphUnread}
+            todo={todo}
+            economyCued={economyCue !== null}
+            ref={side}
+          />
         </main>
       </div>
     </BoardInsetsContext.Provider>

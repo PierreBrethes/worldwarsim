@@ -20,6 +20,7 @@ import type {
 } from './ids';
 import type { ChainState } from './economy';
 import type { BoardRead } from './harvest';
+import type { FirstSteps } from './first-steps';
 import type { ComputedRoute } from './routing';
 import type { ResourceAmounts } from './loot';
 
@@ -1368,6 +1369,8 @@ export type PlayerView = {
   readonly journal: ReadonlyArray<JournalDispatch>;
   /** The last opening of the personal board, `null` before the first: what its harvest reads. */
   readonly boardRead: BoardRead | null;
+  /** **Mes premiers pas** (ADR 0027 §2), gardés par ma place. */
+  readonly firstSteps: FirstSteps;
   readonly opponents: ReadonlyArray<Opponent>;
   readonly coverage: { readonly visible: number; readonly total: number };
   readonly loadedAt: number;

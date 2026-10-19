@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { RESEARCH_CARDS } from '../src/domain/ids';
+import { FIRST_STEPS } from '../src/domain/first-steps';
 
 /**
  * The argument validators shared by the schema and the functions. They were duplicated —
@@ -28,6 +29,15 @@ export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
 /** Les cartes de recherche de `RESEARCH_CARDS` (`src/domain/ids.ts`). */
 export const RESEARCH_CARD = v.union(...RESEARCH_CARDS.map((card) => v.literal(card)));
+
+/** Les premiers pas de `FIRST_STEPS` (`src/domain/first-steps.ts`). */
+export const FIRST_STEP = v.union(...FIRST_STEPS.map((step) => v.literal(step)));
+
+export const FIRST_STEPS_SHOWN = v.union(
+  v.literal('open'),
+  v.literal('folded'),
+  v.literal('skipped'),
+);
 
 /** A point on the globe, in degrees; named fields keep longitude and latitude ordered. */
 export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });

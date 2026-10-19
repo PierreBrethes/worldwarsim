@@ -9,6 +9,7 @@ import { ChargeBar } from '@/shell/ChargeBar';
 import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
 import { ResourcePlate } from '@/emblems/Plate';
 import { CargoTags, type CargoAim } from './CargoTags';
+import { CueBubble } from '@/shell/CueBubble';
 import {
   Fragment,
   useCallback,
@@ -123,7 +124,11 @@ export function MapLabels({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  cue = null,
 }: {
+  /** **La bulle des premiers pas** sur la pièce à lever (ADR 0027 §2), sous son point : le
+   *  cartouche tient le dessus. */
+  cue?: { readonly labelId: string; readonly text: string } | null;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
@@ -818,6 +823,12 @@ export function MapLabels({
           }}
           style={{ display: 'none' }}
         >
+          {cue?.labelId === label.id && (
+            <CueBubble
+              text={cue.text}
+              place="first-step-cue--up absolute top-[18px] left-0 -translate-x-1/2"
+            />
+          )}
           <span
             aria-hidden
             className="label-tether"

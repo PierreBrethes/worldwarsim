@@ -1089,6 +1089,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** The last opening of the personal board and the stocks it showed: the harvest of the
      *  next one is read against them. */
     boardRead: marks.boardRead,
+    firstSteps: marks.firstSteps,
     journal: [],
     loadedAt: now,
     opponents: others.map((other) => ({

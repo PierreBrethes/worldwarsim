@@ -550,6 +550,50 @@ body {
   animation: none;
 }
 
+/* **La bulle des premiers pas** : elle bat doucement au-dessus de ce qu'elle désigne, et l'entrée
+   « Écon. » porte un anneau d'ocre. Réduites ou coupées, l'une et l'autre se tiennent. */
+.first-step-cue {
+  animation: first-step-bob 1.4s ease-in-out infinite alternate;
+}
+.first-step-cue::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  translate: -50% 0;
+  border: 6px solid transparent;
+  border-top-color: var(--ink);
+}
+.first-step-cue--up::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--ink);
+}
+.first-step-cue--corner::after {
+  left: auto;
+  right: 22px;
+  translate: none;
+}
+@keyframes first-step-bob {
+  to {
+    transform: translateY(-3px);
+  }
+}
+.first-step-ring {
+  outline: 2px solid var(--arc-mine);
+  outline-offset: 3px;
+  animation: first-step-ring 1.4s ease-in-out infinite alternate;
+}
+@keyframes first-step-ring {
+  to {
+    outline-offset: 6px;
+  }
+}
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.first-step-cue, .first-step-ring) {
+  animation: none;
+}
+
 /* **Ce qui s'ouvre se pose** : fenêtre, feuille et panneau arrivent en fondu, de quelques pixels
    plus bas, au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter.
    Réduites, le fondu reste sur place ; coupées, rien ne bouge. Pas de sortie : elle obligerait

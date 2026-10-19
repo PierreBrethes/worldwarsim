@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
+import { CueBubble } from './CueBubble';
 import { asShortDuration } from '@/domain/duration';
 import { currentMinutes, type PlayerView } from '@/domain/player-view';
 import { nextActionsOf } from '@/domain/next-actions';
@@ -33,10 +34,13 @@ export function Protractor({
   view,
   telegraphUnread,
   todo,
+  economyCue = null,
 }: {
   view: PlayerView;
   telegraphUnread: number;
   todo: ReactNode;
+  /** La bulle des premiers pas : au coin fermé, elle dit où toucher ; ouvert, « Écon. » s'anneaule. */
+  economyCue?: string | null;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   const now = useClock();
@@ -108,6 +112,7 @@ export function Protractor({
       work !== null && (
         <Corner>{asShortDuration(currentMinutes(work.minutesLeft, view.loadedAt, now))}</Corner>
       ),
+      economyCue !== null,
     ),
     windowRound(
       'journal',
@@ -145,6 +150,7 @@ export function Protractor({
     label: string,
     icon: ReactNode,
     corner?: ReactNode,
+    cued = false,
   ) {
     return {
       key: name,
@@ -156,7 +162,7 @@ export function Protractor({
           aria-label={title}
           aria-current={windowOpen(search, name) ? 'true' : undefined}
           onClick={() => close(false)}
-          className={`${ROUND} paper-grain text-[var(--ink)]`}
+          className={`${ROUND} paper-grain text-[var(--ink)]${cued ? ' first-step-ring' : ''}`}
           style={style}
         >
           {icon}
@@ -216,6 +222,12 @@ export function Protractor({
         </span>
       </button>
 
+      {economyCue !== null && !open && (
+        <CueBubble
+          text={`${economyCue} ${fr.firstSteps.cue.corner}`}
+          place="first-step-cue--corner absolute right-[14px] bottom-[96px] max-w-[200px]"
+        />
+      )}
       {todoOpen && (
         <BottomSheet
           title={fr.nextActions.header}

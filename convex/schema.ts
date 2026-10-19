@@ -8,6 +8,8 @@ import {
   CAPTURE_TARGET,
   COMBAT_SIDE,
   DETECTOR,
+  FIRST_STEP,
+  FIRST_STEPS_SHOWN,
   FOUNDATION_DEBT,
   LON_LAT,
   LOOT_DELIVERY,
@@ -1098,6 +1100,9 @@ export default defineSchema({
      *  récolte de la visite suivante est l'écart entre ces stocks et ceux de l'heure. */
     boardReadAt: v.optional(v.number()),
     boardReadStocks: v.optional(v.record(v.string(), v.number())),
+    /** **Les premiers pas** (ADR 0027 §2) : les gestes vus faits, et la liste dépliée, repliée
+     *  ou passée. Absent : rien de fait, la liste ouverte. */
+    firstSteps: v.optional(v.object({ done: v.array(FIRST_STEP), shown: FIRST_STEPS_SHOWN })),
   }).index('byPlayer', ['playerId']),
 
   /**

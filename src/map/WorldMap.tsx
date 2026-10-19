@@ -252,6 +252,8 @@ type Props = {
   onTakeDepot?: TakeDepot | undefined;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** La bulle des premiers pas, sur la pièce à lever. */
+  cue?: { readonly labelId: string; readonly text: string } | null;
   /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
   tourLoops?: ReadonlyArray<TourLoop>;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
@@ -373,6 +375,7 @@ export function WorldMap({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  cue = null,
   tourLoops = NO_LOOPS,
   covered = false,
   reveal = null,
@@ -1239,6 +1242,7 @@ export function WorldMap({
         carriersShown={carriersShown}
         onTakeDepot={onTakeDepot}
         onTour={onTour}
+        cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
       />

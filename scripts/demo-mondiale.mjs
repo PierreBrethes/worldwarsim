@@ -17,7 +17,8 @@
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
  * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
  * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
- * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1).
+ * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
+ * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  *
  *     npm run demo:mondiale
  *
@@ -34,7 +35,8 @@ import { api } from '../convex/_generated/api.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
-const bare = process.argv.includes('--nu');
+/** `--tutoriel` : une place neuve, au début des premiers pas (ADR 0027 §2) — rien de posé. */
+const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');

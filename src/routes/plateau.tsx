@@ -170,6 +170,7 @@ import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
+import { FirstStepsList, cueText, useFirstSteps } from './-plateau/FirstSteps';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -2211,7 +2212,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /**
-   * The command sheet, served on a player's very first board and by the settings line after
+   * The command sheet, served on a player's very first Blitz board and by the settings line after
    * that. The flag is read once at mount: marking it seen inside the season must not make the
    * sheet vanish under a re-render, only stop the *next* arrival from serving it.
    */
@@ -2219,7 +2220,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  et le tic-tac sonne quand on regarde ailleurs (`telegraph.ts`). */
   const telegraph = useTelegraph(seat);
 
-  const [briefing, setBriefing] = useState(() => !briefingSeen());
+  /** **En Mondiale, les premiers pas tiennent l'entrée** (ADR 0027 §2) : la feuille ne s'ouvre
+   *  plus d'elle-même, elle se relit depuis les Réglages. La Blitz garde la sienne. */
+  const [briefing, setBriefing] = useState(() => blitz && !briefingSeen());
+  const firstSteps = useFirstSteps(view, seat);
+  const boardOpen = windows.includes('personalBoard');
+  const stepCue = firstSteps?.cue ?? null;
+  const stepText =
+    firstSteps?.lit == null || stepCue === null ? null : cueText(firstSteps.lit, stepCue);
+  /** Repliés ou passés, les premiers pas se reprennent depuis l'aide ; finis, il n'y a rien à reprendre. */
+  const resumeSteps =
+    firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'open'
+      ? null
+      : () => firstSteps.show('open');
+  const cuedLabel = stepCue?.kind === 'piece' ? markerOfStation(view, stepCue.station) : null;
+  const mapCue =
+    cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText };
 
   /**
    * The morning edition: with **unread** critical news, the journal is already on the desk on
@@ -2562,6 +2578,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
+      shut={boardOpen}
+      firstSteps={
+        firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'skipped' ? null : (
+          <FirstStepsList
+            steps={firstSteps}
+            onLead={() => {
+              if (stepCue?.kind === 'piece') locateStation(stepCue.station);
+              else openWindow('personalBoard');
+            }}
+          />
+        )
+      }
     />
   );
 
@@ -2571,6 +2599,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       telegraphUnread={telegraph.unread}
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
+      economyCue={stepCue?.kind === 'rack' && !boardOpen ? fr.firstSteps.cue.economy : null}
+      onResumeSteps={resumeSteps}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <ReplayLaunch.Provider value={launchReplay}>
@@ -2648,6 +2678,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               carriersShown={carryingTokens}
               onTour={view.me.defeated ? undefined : onTour}
               tourLoops={tourLoops}
+              cue={mapCue}
               onTakeDepot={
                 view.me.defeated
                   ? undefined
@@ -2894,7 +2925,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               )}
               {!narrow && (
                 <div className="pointer-events-none flex flex-col items-end gap-(--table-gap) [&>*]:pointer-events-auto">
-                  {corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
+                  {corner === 'controls' && (
+                    <ControlsCard
+                      onClose={() => setCorner(null)}
+                      onResumeSteps={
+                        resumeSteps === null
+                          ? null
+                          : () => {
+                              setCorner(null);
+                              resumeSteps();
+                            }
+                      }
+                    />
+                  )}
                   {corner === 'layers' && (
                     <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
                       <LayersGrid />
@@ -3012,6 +3055,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       onHoldTile={holdTile}
                       onPlaceTile={placeTile}
                       onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
+                      cue={
+                        stepCue?.kind === 'rack' && stepText !== null
+                          ? { rack: stepCue.rack, text: stepText }
+                          : null
+                      }
                     />
                   );
                 case 'nation':

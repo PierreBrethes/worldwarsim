@@ -1,5 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { FirstSteps } from '../src/domain/first-steps';
 
 type Marks = {
   readonly journalReadAt: number | null;
@@ -10,6 +11,7 @@ type Marks = {
     readonly at: number;
     readonly stocks: Readonly<Record<string, number>>;
   } | null;
+  readonly firstSteps: FirstSteps;
 };
 
 /**
@@ -35,6 +37,7 @@ export async function readMarksOf(ctx: QueryCtx, player: Doc<'players'>): Promis
       row?.boardReadAt === undefined || row.boardReadStocks === undefined
         ? null
         : { at: row.boardReadAt, stocks: row.boardReadStocks },
+    firstSteps: row?.firstSteps ?? { done: [], shown: 'open' },
   };
 }
 
@@ -46,7 +49,8 @@ export async function stampReadMark(
     | { telegraphReadAt: number }
     | { telegraphPushedAt: number }
     | { telegraphDirectReadAt: Record<string, number> }
-    | { boardReadAt: number; boardReadStocks: Record<string, number> },
+    | { boardReadAt: number; boardReadStocks: Record<string, number> }
+    | { firstSteps: NonNullable<Doc<'readMarks'>['firstSteps']> },
 ): Promise<void> {
   const row = await ctx.db
     .query('readMarks')
