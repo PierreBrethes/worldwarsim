@@ -157,6 +157,12 @@ type Fighter = {
   remaining: number;
 };
 
+const fighterOf = (combatant: Combatant, side: CombatSide): Fighter => ({
+  combatant,
+  side,
+  remaining: combatant.strength,
+});
+
 export function resolveEngagement({
   attackers,
   defenders,
@@ -168,14 +174,8 @@ export function resolveEngagement({
   rules: CombatRules;
   mode?: PassMode;
 }): Engagement {
-  const line = (combatant: Combatant, side: CombatSide): Fighter => ({
-    combatant,
-    side,
-    remaining: combatant.strength,
-  });
-
-  const striking = [...attackers].sort(byStrikeOrder).map((one) => line(one, 'attacker'));
-  const holding = [...defenders].sort(byStrikeOrder).map((one) => line(one, 'defender'));
+  const striking = [...attackers].sort(byStrikeOrder).map((one) => fighterOf(one, 'attacker'));
+  const holding = [...defenders].sort(byStrikeOrder).map((one) => fighterOf(one, 'defender'));
 
   /** Under the initiative a troop fires with what it has left; in a shock, with what it brought. */
   const firing = (fighter: Fighter) =>
@@ -259,6 +259,24 @@ export function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide 
  * sans banc une fois les pertes appliquées est **noyé**, et c'est `drownedOf` qui le dit, sur
  * l'état d'après la passe. La question ouverte de la 0014 est close ; le tir ne l'a pas apprise.
  */
+function pick(
+  shooter: Fighter,
+  targets: ReadonlyArray<Fighter>,
+  rules: CombatRules,
+): Fighter | null {
+  let kept: Fighter | null = null;
+  let best = 0;
+  for (const candidate of targets) {
+    if (candidate.remaining <= 0) continue;
+    const share = damageOf(rules, shooter.combatant, candidate.combatant);
+    if (share === undefined || share <= best) continue;
+    kept = candidate;
+    best = share;
+  }
+  return kept;
+}
+
+/** The `count` targets `pick` takes one after the other, none twice. */
 function picks(
   shooter: Fighter,
   targets: ReadonlyArray<Fighter>,
@@ -289,32 +307,10 @@ export function salvoOf<Troop extends Combatant>(
   squad: ReadonlyArray<Troop>,
   rules: CombatRules,
 ): Troop[] {
-  const line = (combatant: Combatant, side: CombatSide): Fighter => ({
-    combatant,
-    side,
-    remaining: combatant.strength,
-  });
-  const fighters = [...squad].sort(byStrikeOrder).map((one) => line(one, 'defender'));
-  return picks(line(gun, 'attacker'), fighters, rules, rules.salvoTargets).map(
+  const fighters = [...squad].sort(byStrikeOrder).map((one) => fighterOf(one, 'defender'));
+  return picks(fighterOf(gun, 'attacker'), fighters, rules, rules.salvoTargets).map(
     (fighter) => fighter.combatant as Troop,
   );
-}
-
-function pick(
-  shooter: Fighter,
-  targets: ReadonlyArray<Fighter>,
-  rules: CombatRules,
-): Fighter | null {
-  let kept: Fighter | null = null;
-  let best = 0;
-  for (const candidate of targets) {
-    if (candidate.remaining <= 0) continue;
-    const share = damageOf(rules, shooter.combatant, candidate.combatant);
-    if (share === undefined || share <= best) continue;
-    kept = candidate;
-    best = share;
-  }
-  return kept;
 }
 
 /**

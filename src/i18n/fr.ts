@@ -2207,23 +2207,21 @@ export const fr = {
       shock?: boolean;
       faced?: Faced | undefined;
     }) => {
-      /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
-      /** **La salve bornée** (ADR 0028 §6) : sur une escouade, elle dit combien de troupes elle
-       *  touche ; la cible ne sait pas d'où elle vient. */
+      /** **Un bombardement** (B20) : une frappe à distance, sans riposte possible. La salve bornée
+       *  (ADR 0028 §6) dit combien de troupes elle touche ; la cible ne sait pas d'où elle vient. */
       if (cause === 'bombardment') {
-        const struck = attacking ? theirs : mine;
-        const { lost, troops } = struck;
+        const { lost, troops, destroyed } = attacking ? theirs : mine;
+        const salvo = troops > 1;
+        const target = attacking ? 'cible' : 'unité';
         const fell =
-          struck.destroyed === 0
+          destroyed === 0
             ? ''
-            : troops > 1
-              ? ` · ${struck.destroyed} détruite${struck.destroyed > 1 ? 's' : ''}`
-              : attacking
-                ? ' · cible détruite'
-                : ' · unité détruite';
+            : salvo
+              ? ` · ${destroyed} détruite${destroyed > 1 ? 's' : ''}`
+              : ` · ${target} détruite`;
         if (attacking)
-          return `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}${troops > 1 ? `notre salve touche ${troops} troupes et en abat` : 'notre tir en abat'} ${lost}, sans riposte possible${fell}`;
-        return `bombardés ${where} — ${troops > 1 ? `une salve venue d’on ne sait où touche ${troops} de nos troupes et en abat` : 'leur tir en abat'} ${lost}, aucune riposte possible${fell}`;
+          return `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}${salvo ? `notre salve touche ${troops} troupes et en abat` : 'notre tir en abat'} ${lost}, sans riposte possible${fell}`;
+        return `bombardés ${where} — ${salvo ? `une salve venue d’on ne sait où touche ${troops} de nos troupes et en abat` : 'leur tir en abat'} ${lost}, aucune riposte possible${fell}`;
       }
       const opening =
         cause === 'interception'

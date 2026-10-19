@@ -67,7 +67,6 @@ export function GunneryWindow({
   ...windowProps
 }: WindowProps & { seat: Seat; theatre: Theatre | null }) {
   const workshop = useQuery(api.troops.workshop, seat);
-  const columns = COMBAT_PROFILES;
   const rows = gunneryRows(DAMAGE_TABLE);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
@@ -106,7 +105,7 @@ export function GunneryWindow({
                 >
                   {fr.gunnery.piece}
                 </th>
-                {columns.map((defender) => (
+                {COMBAT_PROFILES.map((defender) => (
                   <th
                     key={defender}
                     scope="col"
@@ -148,7 +147,7 @@ export function GunneryWindow({
                            disparaître ou de s'aligner en onze tirets — les deux se liraient comme
                            une panne au lieu d'une règle. */
                         <td
-                          colSpan={columns.length}
+                          colSpan={COMBAT_PROFILES.length}
                           className="border-l border-(color:--ink)/14 px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
                         >
                           {fr.gunnery.firesNothing}
@@ -161,7 +160,7 @@ export function GunneryWindow({
                     {unfolded && (
                       <tr>
                         <td
-                          colSpan={columns.length + 2}
+                          colSpan={COMBAT_PROFILES.length + 2}
                           className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
                           <div className="hud-fold">
