@@ -18,6 +18,7 @@ import {
   canonicalBuildingKey,
   isOutpostWork,
   BUILDINGS,
+  RESEARCH_CARDS,
   RESOURCES,
   type BuildCostKey,
   type BuildingKey,
@@ -558,7 +559,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
       /** Ma recherche, et à moi seul (ADR 0028 §5) : l'adversaire relève des pièces, rien d'autre. */
       research: {
-        researched: player.researched ?? [],
+        researched: (player.researched ?? []).filter((card) => RESEARCH_CARDS.includes(card)),
         running: player.research ?? null,
         queue: player.researchQueue ?? [],
       },

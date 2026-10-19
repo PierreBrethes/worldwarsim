@@ -30,6 +30,18 @@ export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 /** Les cartes de recherche de `RESEARCH_CARDS` (`src/domain/ids.ts`). */
 export const RESEARCH_CARD = v.union(...RESEARCH_CARDS.map((card) => v.literal(card)));
 
+/**
+ * **Ce que la base a pu garder** : les deux cartes de file retirées le 19/10 (#165, ADR 0031 §3)
+ * restent lisibles sur les lignes d'avant, sinon la poussée en production serait refusée. Typé
+ * comme `RESEARCH_CARD` : aucune règle ne les nomme, `view.ts` ne les sert pas. À retirer avec un
+ * backfill qui les ôte de `researched`.
+ */
+export const STORED_RESEARCH_CARD = v.union(
+  RESEARCH_CARD,
+  v.literal('doubleWorks'),
+  v.literal('doubleTraining'),
+) as unknown as typeof RESEARCH_CARD;
+
 /** Les premiers pas de `FIRST_STEPS` (`src/domain/first-steps.ts`). */
 export const FIRST_STEP = v.union(...FIRST_STEPS.map((step) => v.literal(step)));
 
@@ -339,7 +351,7 @@ export const NOTICE = v.union(
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('researchDone'),
-    card: RESEARCH_CARD,
+    card: STORED_RESEARCH_CARD,
   }),
   v.object({
     ...NOTICE_HEAD,

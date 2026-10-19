@@ -68,7 +68,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
       /** Une version de retard ne sert aucune recherche : rien d'acquis, rien en cours. */
-      research: server.me.research ?? { researched: [], running: null, queue: [] },
+      research: server.me.research
+        ? { ...server.me.research, queue: server.me.research.queue ?? [] }
+        : { researched: [], running: null, queue: [] },
       foundation: server.me.foundation ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
        *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
