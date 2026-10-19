@@ -52,6 +52,8 @@ import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { resumeResearch } from './research';
+import { startLanes } from './troops';
+import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -342,6 +344,8 @@ export const finish = internalMutation({
         : buildingAt(buildings, canonicalBuildingKey(construction.building), point);
     if (standing) {
       await ctx.db.patch(standing._id, { level: construction.level });
+      /** **Un niveau rend** (ADR 0028 §5) : le banc neuf prend tout de suite le lot qui attendait. */
+      if (PROJECTION_KEYS.has(standing.key)) await startLanes(ctx, standing._id, Date.now());
     } else if (point !== undefined) {
       /**
        * **La course se tranche ici** (ADR 0029) : la commande n'a lu que ce que le joueur savait
@@ -383,6 +387,9 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
+    /** **Un QG de nouveau debout relance la carte qui l'attendait** (ADR 0028 §5). */
+    if (standing === undefined && canonicalBuildingKey(construction.building) === 'hq')
+      await resumeResearch(ctx, construction.playerId, Date.now());
     /** **Une station qui vient d'ouvrir relève le sol qu'elle écoute** (ADR 0020 §5) : c'est une
      *  portée de plus, et une portée neuve n'a rien relevé tant qu'un événement ne le lui a pas
      *  demandé — il n'y a pas d'horloge pour le faire à sa place. */
@@ -464,7 +471,7 @@ async function finishRaise(
  * that came down, a tier that closed. Nothing then starts on a right that no longer exists:
  * the entry is cancelled, refunded whole, and the player is told in the journal.
  *
- * Idempotent on a queue already running, like `troops.startHead`, so every caller may call it
+ * Idempotent on a queue already running, like `troops.startLanes`, so every caller may call it
  * unconditionally. It re-reads the state itself rather than trusting whoever woke it.
  */
 async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {
@@ -660,6 +667,8 @@ async function refusalFor(
   if (cappedByHq(building, level - 1, hqLevel)) return { code: 'CAPPED_BY_HQ' };
   return null;
 }
+
+const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
 /** The player's buildings and pledges as the spacing reads them: a key and a point. */
 const aroundOf = (

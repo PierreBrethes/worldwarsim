@@ -1,7 +1,7 @@
 import { pointOfRegion } from './regions';
 import { convexTest } from 'convex-test';
 import { describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { TIERS_BY_ROLE } from '../src/domain/troops';
 import type { ResearchCard, ResourceKey, UnitRole } from '../src/domain/ids';
@@ -207,6 +207,40 @@ describe('a queue per projection building', () => {
     expect(queue.map((batch) => batch.started)).toEqual([true, true, false]);
     const minutes = recruitmentCost('infantry', 1).minutes;
     expect(queue[2]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
+  });
+
+  it('dates a waiting batch the moment its site is raised', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    await setHqLevel(t, seat, 2);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    for (let batch = 0; batch < 2; batch += 1)
+      await t.mutation(api.troops.recruit, {
+        ...seat,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
+
+    const playerId = await playerOf(t, seat);
+    const constructionId = await t.run(async (ctx) => {
+      const site = (await ctx.db.get(barracks))!;
+      return ctx.db.insert('constructions', {
+        playerId,
+        building: 'barracks',
+        regionId: site.regionId,
+        point: site.point,
+        level: 2,
+        rank: 0,
+        finishesAt: Date.now(),
+      });
+    });
+    await t.mutation(internal.constructions.finish, { constructionId });
+
+    const workshop = await t.query(api.troops.workshop, seat);
+    const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
+    expect(queue.map((batch) => batch.started)).toEqual([true, true]);
   });
 
   it('gives two barracks two independent queues', async () => {

@@ -165,11 +165,11 @@ export const recruit = mutation({
       finishesAt: null,
     });
     /**
-     * Unconditional, because `startHead` is idempotent on a queue already running: what it also
+     * Unconditional, because `startLanes` is idempotent on a queue already running: what it also
      * picks up is a head a famine left undated (D3). A player who orders again after feeding his
      * nation should not have to wait for a second event to restart the line.
      */
-    await startHead(ctx, buildingId, now);
+    await startLanes(ctx, buildingId, now);
     return { cost, rank, recruitmentId };
   },
 });
@@ -205,7 +205,7 @@ async function recruitInBlitz(
     rank: 0,
     finishesAt: null,
   });
-  await startHead(ctx, building._id, now);
+  await startLanes(ctx, building._id, now);
   return { cost: { costs: {} as Costs, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
 }
 
@@ -276,7 +276,7 @@ export const deliver = internalMutation({
     });
     await ctx.db.delete(recruitmentId);
     await reassessDetection(ctx, season._id);
-    await startHead(ctx, batch.buildingId, Date.now());
+    await startLanes(ctx, batch.buildingId, Date.now());
   },
 });
 
@@ -286,7 +286,7 @@ export const deliver = internalMutation({
  * a lot refunded, an army that shrank. It re-reads the economy rather than trusting the caller,
  * so a wake-up that finds the player still hungry does nothing and says nothing.
  *
- * One pass over the buildings that hold an undated head — `startHead` is idempotent, so a queue
+ * One pass over the buildings that hold an undated head — `startLanes` is idempotent, so a queue
  * already running is left exactly as it is.
  */
 export const resumeQueues = internalMutation({
@@ -297,7 +297,7 @@ export const resumeQueues = internalMutation({
     if ((await economyOf(ctx, playerId, now)).starving) return;
     const waiting = await recruitmentsOf(ctx, playerId);
     for (const buildingId of new Set(waiting.map((batch) => batch.buildingId))) {
-      await startHead(ctx, buildingId, now);
+      await startLanes(ctx, buildingId, now);
     }
   },
 });
@@ -319,7 +319,7 @@ export async function troopsOf(
  * One queue per building, so a delivery only ever wakes its own line — two barracks never
  * wait on each other.
  */
-async function startHead(
+export async function startLanes(
   ctx: MutationCtx,
   buildingId: Id<'buildings'>,
   now: number,
@@ -328,6 +328,12 @@ async function startHead(
   const head = queue[0];
   if (!head) return;
 
+  const player = await ctx.db.get(head.playerId);
+  const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
+  const building = await ctx.db.get(buildingId);
+  const lanes = building === null ? 1 : lanesOf(building, blitz);
+  const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
+  if (idle.length === 0) return;
   /**
    * **A hungry nation forms nothing** (`consommation-continue.md` D3). The queue *stops*, it is
    * never cancelled: the batch keeps its rank and its matter, it simply is not dated, and
@@ -338,12 +344,6 @@ async function startHead(
    * A batch **already** dated runs to its end: its time was bought before the reserve ran out,
    * and taking it back would be an attrition on the queue by another name.
    */
-  const player = await ctx.db.get(head.playerId);
-  const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
-  const building = await ctx.db.get(buildingId);
-  const lanes = building === null ? 1 : lanesOf(building, blitz);
-  const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
-  if (idle.length === 0) return;
   if ((await economyOf(ctx, head.playerId, now)).starving) return;
 
   for (const batch of idle) {
