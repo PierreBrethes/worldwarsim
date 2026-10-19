@@ -109,3 +109,13 @@ export class WorldFrame {
     };
   }
 }
+
+/**
+ * **La distance qui tient un cercle de ce rayon dans l'image**, par le plus étroit des deux
+ * demi-angles : au téléphone, debout, c'est la largeur qui borne, et cadrer sur la hauteur seule
+ * y laissait déborder.
+ */
+export function framingDistanceOf(radius: number, fovDegrees: number, aspect: number): number {
+  const vertical = Math.tan((fovDegrees * Math.PI) / 360);
+  return radius / Math.min(vertical, vertical * aspect);
+}

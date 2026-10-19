@@ -2264,16 +2264,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       theatre: blitzTheatre,
       hqLevel: view.me.hqLevel,
       openingPoint: view.me.openingPoint,
+      pieces: view.me.buildings.map((building) => building.point),
     });
     if (places === null) return;
     framedOnOpening.current = true;
     setFocus({
       ids: [],
       places,
-      ...(blitzTheatre === null ? {} : { distance: 0 }),
+      distance: blitzTheatre === null ? NATION_VIEW_DISTANCE : 0,
       nonce: Date.now(),
     });
-  }, [blitzTheatre, view.me.hqLevel, view.me.openingPoint]);
+  }, [blitzTheatre, view.me.hqLevel, view.me.openingPoint, view.me.buildings]);
 
   const editionServed = useRef(false);
   useEffect(() => {
@@ -3130,6 +3131,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
+
+/** **À l'ouverture d'une Mondiale, la carte se cadre sur la nation** : assez près pour qu'elle
+ *  tienne l'écran, sans fond de table. @a-mesurer */
+const NATION_VIEW_DISTANCE = 60;
 
 /** Au téléphone, le bandeau du rejeu et son compte rendu couvrent le bas de la carte : la scène
  *  se cadre dans ce qui reste au-dessus. */

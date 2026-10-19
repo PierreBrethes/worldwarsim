@@ -81,7 +81,7 @@ import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
-import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
@@ -1089,8 +1089,8 @@ export class MapEngine {
       .divideScalar(points.length);
     const radius = Math.max(...points.map((point) => point.distanceTo(arrival)));
     const currentDistance = this.camera.position.distanceTo(this.controls.target);
-    const framing = radius / Math.tan((this.camera.fov * Math.PI) / 360);
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    const framing = framingDistanceOf(radius, this.camera.fov, this.camera.aspect);
     const arrivalDistance = Math.min(
       this.controls.maxDistance,
       Math.max(
