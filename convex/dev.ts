@@ -112,7 +112,7 @@ export const fillStocks = internalMutation({
 });
 
 /**
- * **Un QG élevé d'un coup**, pour la démo des chantiers parallèles (#136) : le niveau fait les voies.
+ * **Un QG élevé d'un coup**, pour la démo des chantiers : le niveau les accélère (ADR 0031).
  *
  * `npx convex run dev:promoteHq '{"playerId":"…","level":3}'`
  */

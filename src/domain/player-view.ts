@@ -651,7 +651,7 @@ export type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
-  /** Daté : il monte sur une autre voie du QG (#136), `null` : il attend sa voie. */
+  /** Daté : il monte sur la seconde file (Chantier double, ADR 0031), `null` : il attend sa file. */
   readonly minutesLeft?: number | null;
 };
 

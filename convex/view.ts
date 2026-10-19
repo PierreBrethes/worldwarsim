@@ -180,7 +180,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const sites = await sitesOf(ctx, player);
   const queue = await queueOf(ctx, player._id);
   /** The first dated entry is the one the banner counts down; the others that rise beside it
-   *  (one lane per headquarters level, #136) travel in `constructionQueue` with their own date. */
+   *  (a second lane with Chantier double, ADR 0031) travel in `constructionQueue` with their own date. */
   const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
 
   /**
@@ -642,7 +642,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       constructionQueue: queue
         .filter((entry) => entry !== construction)
         .map((entry) => ({
-          /** Daté : ce chantier monte lui aussi, sur une autre voie du QG (#136). Absent : il attend. */
+          /** Daté : ce chantier monte lui aussi, sur la seconde file (ADR 0031). Absent : il attend. */
           minutesLeft:
             entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
           id: entry._id,

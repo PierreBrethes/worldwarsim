@@ -189,7 +189,7 @@ export const pledgedWork = (
   readonly regionId: string;
   readonly outpostId: string | null;
   readonly point: LonLat | null;
-  /** Daté : il monte déjà (une voie du QG) ; absent ou `null` : il attend. */
+  /** Daté : il monte déjà (sur une file de chantier) ; absent ou `null` : il attend. */
   readonly minutesLeft?: number | null;
 }> =>
   view.me.construction === null
@@ -688,7 +688,7 @@ export function workSitesOf(
   loadedAt: number,
 ): WorkSite[] {
   const sites: WorkSite[] = [];
-  /** Un chantier qui monte, sur n'importe laquelle des voies du QG (#136). */
+  /** Un chantier qui monte, sur n'importe laquelle des files de chantier (ADR 0031). */
   const rising = (work: RisingWork, rank: number) => {
     if (work.outpostId !== null || work.key === 'outpost') return;
     const key = work.key;
