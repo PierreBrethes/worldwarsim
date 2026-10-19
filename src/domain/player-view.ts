@@ -786,7 +786,7 @@ type NoticeBody =
   | {
       readonly kind: 'columnArrived';
       readonly at: number;
-      readonly movementType: 'march' | 'recall' | 'return';
+      readonly movementType: 'march' | 'return';
       readonly hostCountry: string;
       readonly troops: number;
     }

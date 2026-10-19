@@ -47,7 +47,6 @@ import {
   forgetMovement,
   garrisonOf,
   outpostGarrisonOf,
-  recallAt,
   standAt,
 } from './movement/arrival';
 import {
@@ -651,7 +650,7 @@ export const preview = query({
   },
   handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip }) => {
     const { player } = await playerOf(ctx, token, seasonId);
-    if (type === 'decoy' || namesATroopTwice(troopIds)) return null;
+    if (namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
@@ -1060,11 +1059,7 @@ export const arrive = internalMutation({
           troops: entered,
         });
       }
-    } else if (movement.type === 'recall') await recallAt(ctx, movement);
-    /** **Un leurre encore en vol le 29/08/2026 finit ici, et n'y fait rien** : il ne porte
-     *  personne, donc `attachHome` ne rattache rien et `forgetMovement` l'efface. Une branche
-     *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
-    else {
+    } else {
       const home = await attachHome(ctx, movement);
       if (movement.type === 'return' && !(await completeLootDelivery(ctx, movement, now))) {
         await stationMovementLoot(ctx, movement, home);
@@ -1074,11 +1069,7 @@ export const arrive = internalMutation({
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
      *  their own notice. Without this a player came back to "rien à signaler" after eight quiet
      *  hours. */
-    if (
-      (movement.type === 'march' && !garrisoned) ||
-      movement.type === 'recall' ||
-      movement.type === 'return'
-    ) {
+    if ((movement.type === 'march' && !garrisoned) || movement.type === 'return') {
       await ctx.db.insert('notices', {
         playerId: movement.playerId,
         at: now,

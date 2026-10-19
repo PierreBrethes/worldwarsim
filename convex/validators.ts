@@ -350,7 +350,7 @@ export const NOTICE = v.union(
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('columnArrived'),
-    movementType: v.union(v.literal('march'), v.literal('recall'), v.literal('return')),
+    movementType: v.union(v.literal('march'), v.literal('return')),
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
@@ -495,28 +495,6 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     /** Combien n'ont pas tiré ; absent sur les lignes d'avant les coups (18/10). */
     troops: v.optional(v.number()),
-  }),
-  /**
-   * **Legacy — plus jamais écrites.** Les trois dépêches du leurre, retiré du jeu le 29/08/2026.
-   * Rien ne les insère plus et `convex/view.ts` ne les sert plus ; elles restent ici parce que
-   * les lignes déjà déposées dans le journal d'une saison en cours les portent, et qu'un
-   * littéral retiré d'une union fait refuser la poussée du schéma (leçon du 27/08). Elles
-   * partent au prochain wipe, avec la saison qui les a écrites (ADR 0001).
-   */
-  v.object({
-    ...NOTICE_HEAD,
-    kind: v.literal('decoyExposed'),
-    hostCountry: v.string(),
-  }),
-  v.object({
-    ...NOTICE_HEAD,
-    kind: v.literal('decoyBlown'),
-    hostCountry: v.string(),
-  }),
-  v.object({
-    ...NOTICE_HEAD,
-    kind: v.literal('decoyArrived'),
-    hostCountry: v.string(),
   }),
   /**
    * **Un avant-poste qui a grandi** (précision du 15/09 de l'ADR 0020 §10). Chez le seul
@@ -809,27 +787,17 @@ export const NOTICE = v.union(
 );
 
 /**
- * The five kinds of movement of the design, plus the one the resolution creates on its own, plus
- * `recall`, which nobody orders any more (ADR 0019 §1) and which stays here on purpose: a column
- * recalled before the change is still walking, and dropping the literal would make its document
- * unreadable to the very mutation that has to land it. `agent` alone still waits for the fog
- * surfaces; the union is the vocabulary, and narrowing it to what is coded would make every
- * later kind a schema migration.
- *
- * **`decoy` est legacy — plus jamais écrit.** Le leurre a été retiré du jeu le 29/08/2026 et il
- * a quitté le vocabulaire du domaine (`src/domain/ids.ts`) ; le littéral reste ici seul, parce
- * qu'un leurre encore en vol porte ce mot en base et qu'une union rétrécie fait refuser la
- * poussée du schéma (leçon du 27/08). `convex/view.ts` ne sert plus ces lignes, leur arrivée les
- * efface sans rien faire, et le mot partira au prochain wipe.
+/**
+ * The five kinds of movement of the design, plus the one the resolution creates on its own.
+ * `agent` alone still waits for the fog surfaces; the union is the vocabulary, and narrowing it
+ * to what is coded would make every later kind a schema migration.
  */
 export const MOVEMENT_TYPE = v.union(
   v.literal('march'),
   v.literal('attack'),
   v.literal('raid'),
   v.literal('outpost'),
-  v.literal('recall'),
   v.literal('agent'),
-  v.literal('decoy'),
   v.literal('return'),
 );
 

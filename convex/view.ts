@@ -219,11 +219,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * est toujours, à distance nulle, ce qui absorbe la précision du 04/09.
    *
    * **Un point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait
-   * ce que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il
-   * reste celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
+   * ce que la vue refuserait d'offrir. L'ancre d'un bâtiment ne bouge pas pour autant : elle
+   * reste celle du point (`convex/sites.ts`), partagée entre toutes ses régions.
    */
   for (const outpost of outposts) {
-    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'offre aucun emplacement, donc
+    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'ancre rien, donc
      *  il n'ouvre aucun sol — le serveur refuserait ce que la vue offrirait. */
     if (!isStanding(outpost, now)) continue;
     for (const regionId of regionsWithinReach(
@@ -885,7 +885,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * qui n'existe plus (`convex/validators.ts`).
      */
     movements: await Promise.all(
-      movements.filter(notDecoyMovement).map(async (movement) => {
+      movements.map(async (movement) => {
         const barracks =
           movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
@@ -1099,9 +1099,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .withIndex('byPlayerAt', (q) => q.eq('playerId', player._id).lte('at', now))
         .order('desc')
         .take(NOTICES_SERVED)
-    )
-      .filter(notDecoyNotice)
-      .map(placed),
+    ).map(placed),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
     journalReadAt: marks.journalReadAt,
@@ -1217,29 +1215,13 @@ async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<
 }
 
 /**
- * **Ce que le retrait du leurre laisse en base, et que rien ne doit servir** (29/08/2026). Les
- * littéraux `decoy` restent dans le schéma le temps d'un wipe — un mouvement en vol, des dépêches
- * déjà déposées — mais le client ne connaît plus le mot : ni `MovementType`, ni l'union `Notice`
- * ne le portent. Le filtre est la couture entre les deux, et il vaut mieux qu'une migration : la
- * saison est jetable (ADR 0001), le mot part avec elle.
- */
-const notDecoyMovement = <T extends { readonly type: string }>(
-  movement: T,
-): movement is T & { readonly type: Exclude<T['type'], 'decoy'> } => movement.type !== 'decoy';
-
-const notDecoyNotice = <T extends { readonly kind: string }>(
-  notice: T,
-): notice is Exclude<T, { readonly kind: `decoy${string}` }> => !notice.kind.startsWith('decoy');
-
-/**
  * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
  * region table, so an id would reach the headline raw. Everything else travels untouched — the
  * shape is the union the schema stores, member for member, so a kind added there breaks the
  * compilation in `src/data/serverView.ts` (the served notices are handed to the journal without a
  * cast) rather than reaching the journal as a row nobody words.
  */
-type PlayableNotice = Exclude<Doc<'notices'>, { readonly kind: `decoy${string}` }>;
-function named(notice: PlayableNotice) {
+function named(notice: Doc<'notices'>) {
   const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
   switch (notice.kind) {
     case 'buildingDemolished':
@@ -1310,7 +1292,7 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
  *  point of the region it names. One computation for every kind — a kind added to the schema with
  *  either field is located without a line here. */
-function placed(notice: PlayableNotice) {
+function placed(notice: Doc<'notices'>) {
   const regionId =
     'regionId' in notice
       ? notice.regionId

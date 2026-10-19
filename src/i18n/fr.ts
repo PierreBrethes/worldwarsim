@@ -293,7 +293,6 @@ export const fr = {
     attack: 'attaque',
     raid: 'raid d’avant-poste',
     outpost: 'fondation d’avant-poste',
-    recall: 'rappel de garnison',
     agent: 'agent',
     return: 'retour',
   } satisfies Record<MovementType, string>,
@@ -2596,16 +2595,10 @@ export const fr = {
         `${building} en ${region} a livré une compagnie — ${role}.`,
       deliveredHome: (role: string) =>
         `Une compagnie — ${role} — a rejoint le pays : son site n’était plus debout.`,
-      columnArrived: (
-        movementType: 'march' | 'recall' | 'return',
-        troops: number,
-        country: string,
-      ) => {
+      columnArrived: (movementType: 'march' | 'return', troops: number, country: string) => {
         const column = `${troops} troupe${plural(troops, '', 's')}`;
         if (movementType === 'return')
           return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
-        if (movementType === 'recall')
-          return `Une garnison de ${column} est rentrée au pays — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
       /** L'adresse en toutes lettres (décision 64b) : « a pris position — France » ne dirait

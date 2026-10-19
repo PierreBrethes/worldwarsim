@@ -676,7 +676,6 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
   attack: 'rifles',
   raid: 'pennant',
   outpost: 'cabin',
-  recall: 'anchor',
   agent: 'helmet',
   return: 'anchor',
 };

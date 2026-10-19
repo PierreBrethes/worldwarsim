@@ -162,10 +162,6 @@ describe('what a column may ask for', () => {
     expect(legalMovementTypes(region, posted)).toEqual(['attack']);
     expect(legalMovementTypes(outpost, posted)).toEqual(['attack', 'raid']);
   });
-
-  it('never offers the recall — it left with the origin that justified it', () => {
-    expect(legalMovementTypes(region, column(['infantry']))).not.toContain('recall');
-  });
 });
 
 describe('refusals', () => {
@@ -201,13 +197,11 @@ describe('refusals', () => {
   });
 
   /** Nobody orders a return: the resolution creates it, so the rule has to say so out loud.
-   *  The foundation joins them — it is not a march at all any more. Le leurre les a rejoints
-   *  le 29/08/2026, en quittant `MovementType` tout entier. */
-  it('refuses the return, the agent, the recall and the foundation', () => {
+   *  The foundation joins them — it is not a march at all any more. */
+  it('refuses the return, the agent and the foundation', () => {
     expect(refusalOf('outpost', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('return', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('agent', region, column(['infantry']))).toBe('NOT_ORDERABLE');
-    expect(refusalOf('recall', region, column(['infantry']))).toBe('NOT_ORDERABLE');
   });
 });
 

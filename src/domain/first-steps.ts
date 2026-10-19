@@ -52,7 +52,7 @@ export function stepsDoneIn(view: PlayerView): ReadonlyArray<FirstStep> {
   const seen: Readonly<Record<FirstStep, boolean>> = {
     hq: me.hqLevel > 0,
     move:
-      mine.some((arc) => arc.type !== 'return' && arc.type !== 'recall') ||
+      mine.some((arc) => arc.type !== 'return') ||
       me.troops.some(
         ({ stationedAt: at }) =>
           at.kind === 'point' ||
