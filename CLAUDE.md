@@ -68,6 +68,10 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
   (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :
   un seul endroit traduit un bouton en rôle, `roleOf` (`src/map/engine/index.ts`, test par grep).
+  Le serveur ne croit aucune donnée géographique du client (région, point, cible) : il la recoupe
+  sur sa grille.
+- **Échéance.** Un état long (chantier, tournée, recherche, livraison, largage) relit sa règle à son
+  échéance : la carte a pu changer depuis l'ordre.
 - **Deux modes.** `modeOf` dit le mode ; en Blitz, toute distance est une part du théâtre, lue par
   `contactKm`, `detectionRangeOf` et `fireReachOf` seuls (`null` = Mondiale).
 - **Valeurs.** Une constante marquée `@a-mesurer` est un placeholder, pas une décision.
