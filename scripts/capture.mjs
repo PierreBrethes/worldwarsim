@@ -15,7 +15,8 @@
  * `survol=x,y` y mène la souris, `pause=ms` attend. `presser=x,y` enfonce le bouton en un point et
  * `lacher` le relâche : entre les deux, des `survol` font un glisser (une tuile du plateau personnel
  * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
- * une touche.
+ * une touche ; `tenir=Shift` l'enfonce et `relever=Shift` la relâche (Maj + glisser : le lasso).
+ * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -108,6 +109,9 @@ try {
       await page.mouse.down();
     } else if (kind === 'lacher') await page.mouse.up();
     else if (kind === 'touche') await page.keyboard.press(value);
+    else if (kind === 'tenir') await page.keyboard.down(value);
+    else if (kind === 'relever') await page.keyboard.up(value);
+    else if (kind === 'photo') await page.screenshot({ path: value });
     else if (kind === 'pause') await page.waitForTimeout(x);
     else throw new Error(`--geste inconnu : ${gesture}`);
     await page.waitForTimeout(400);

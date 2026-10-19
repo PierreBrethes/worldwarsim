@@ -89,6 +89,7 @@ import {
   type CompassAction,
   type CompassTarget,
   type OrderAction,
+  isOrder,
 } from '@/domain/compass-rose';
 import {
   aimVerdict,
@@ -100,6 +101,15 @@ import {
 } from '@/domain/construction';
 import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
+import {
+  groupCompassOf,
+  holds,
+  matchingOrder,
+  squadLeadOf,
+  toggleIn,
+  type Selection,
+} from '@/domain/selection';
+import { SelectionBar } from './-plateau/SelectionBar';
 import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
@@ -239,6 +249,35 @@ type ArmedColumn = {
 type RestAim = OrderChoice & { readonly x: number; readonly y: number };
 
 const EMPTY_HAND: Hand = { kind: 'empty' };
+
+/** Ce qu'une pile de la sélection a lu sur une cible : de quoi envoyer son propre ordre. */
+type GroupRead = {
+  readonly station: MarchStation;
+  readonly troopIds: ReadonlyArray<string>;
+  readonly compass: Compass | null;
+};
+
+/** L'identifiant que porte une pile sur la carte : son étiquette posée, ou sa garnison. */
+const pileIdOf = (station: MarchStation): string =>
+  station.kind === 'point' ? stackLabelId(station) : stationKeyOf(station);
+
+/**
+ * **Ce que des troupes peuvent encore charger**, leur charge en cours déduite : le seul chiffre
+ * qui décide si « ramasser » existe. `carryCapacityOf` est la fonction que le serveur mesure avec
+ * (`convex/cargo.ts`) — une seconde table de ce qui tient à bord serait exactement la divergence
+ * que l'ADR 0015 interdit à la rose.
+ */
+function freeCapacityOf(view: PlayerView, troopIds: ReadonlyArray<string>): number {
+  const picked = new Set(troopIds);
+  const capacity = carryCapacityOf(
+    view.me.troops.filter((troop) => picked.has(troop.id)),
+    CARRY_CAPACITY_BY_ROLE,
+  );
+  const carried = view.me.stationedCargo
+    .filter((group) => group.troopIds.some((troopId) => picked.has(troopId)))
+    .reduce((total, group) => total + group.cargo.carried, 0);
+  return Math.max(0, capacity - carried);
+}
 
 /** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
@@ -445,6 +484,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  /** **Plusieurs piles prises ensemble** (#130) : Maj + clic, le lasso, ou au doigt l'appui long
+   *  sur le plateau puis les touchers (`picking`). Levée, une pile choisie emmène les autres. */
+  const [selection, setSelection] = useState<Selection>([]);
+  const [picking, setPicking] = useState(false);
+  /** Ce que G ou U n'ont pas pu faire, dit dans la barre jusqu'au prochain choix. */
+  const [barRefusal, setBarRefusal] = useState<string | null>(null);
+  /** Maj tenue au dernier appui : un clic sur une pile, figurine ou étiquette, la choisit. */
+  const shifted = useRef(false);
+  useEffect(() => {
+    const read = (event: PointerEvent) => {
+      shifted.current = event.shiftKey;
+    };
+    document.addEventListener('pointerdown', read, true);
+    return () => document.removeEventListener('pointerdown', read, true);
+  }, []);
   const [departures, setDepartures] = useState(0);
   /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
   const [lifts, setLifts] = useState(0);
@@ -464,10 +518,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       hand.kind === 'empty'
         ? null
         : {
-            pileId:
-              hand.station.kind === 'point'
-                ? stackLabelId(hand.station)
-                : stationKeyOf(hand.station),
+            pileId: pileIdOf(hand.station),
             troopIds: hand.troopIds,
             forbidden,
           },
@@ -646,6 +697,30 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  pion qui la dessine. La même exclusion que le widget, lue sur la même liste. */
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
 
+  /** Une pile partie, tombée, ou une Blitz — une pièce par unité, pas d'escouade — sort de la
+   *  sélection d'elle-même. */
+  const chosen = useMemo(
+    () =>
+      blitz || view.me.defeated
+        ? []
+        : selection.filter(
+            (station) => troopsAt(view.me, stationKeyOf(station), marching).length > 0,
+          ),
+    [blitz, view.me, selection, marching],
+  );
+  const selectedPiles = useMemo(() => chosen.map(pileIdOf), [chosen]);
+  /** La pièce en main emmène la sélection quand elle en est. */
+  const grouped = hand.kind === 'held' && chosen.length >= 2 && holds(chosen, hand.station);
+  const clearSelection = useCallback(() => {
+    setSelection([]);
+    setPicking(false);
+    setBarRefusal(null);
+  }, []);
+  const choose = useCallback((next: (was: Selection) => Selection) => {
+    setSelection(next);
+    setBarRefusal(null);
+  }, []);
+
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setHand(EMPTY_HAND);
@@ -791,6 +866,33 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setResting(null);
   }, []);
 
+  /**
+   * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
+   * sélection ou en sort, avec celle qu'on tenait. Sans Maj, un clic hors de la sélection la défait
+   * et lève comme toujours ; sur une pile choisie, il lève le groupe.
+   */
+  const selectClick = useCallback(
+    (click: PileClick): boolean => {
+      if (blitz || view.me.defeated || click.kind !== 'pile') return false;
+      if (shifted.current || picking) {
+        const held = hand.kind === 'held' ? hand.station : null;
+        choose((was) =>
+          toggleIn(
+            held === null || holds(was, held) || stationKeyOf(held) === stationKeyOf(click.station)
+              ? was
+              : [...was, held],
+            click.station,
+          ),
+        );
+        if (hand.kind === 'held') dropHand();
+        return true;
+      }
+      if (chosen.length > 0 && !holds(chosen, click.station)) clearSelection();
+      return false;
+    },
+    [blitz, view.me.defeated, picking, hand, chosen, choose, dropHand, clearSelection],
+  );
+
   /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
    *  plateau rend vrai quand la pile cliquée devient la destination. */
   const applyPileClick = useCallback(
@@ -828,51 +930,87 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
-      return applyPileClick({ kind: 'pile', station, troopIds }, clientX, clientY);
+      const click: PileClick = { kind: 'pile', station, troopIds };
+      if (selectClick(click)) return false;
+      return applyPileClick(click, clientX, clientY);
     },
-    [openGarrison, boardPoint, view.me, marching, applyPileClick],
+    [openGarrison, boardPoint, view.me, marching, applyPileClick, selectClick],
   );
 
   /**
    * The fan the right click opens. Armed, it holds **only** the marches the server will accept
    * for that target — same function, same rule (ADR 0015). Unarmed, it is the ordinary fan.
    */
-  /**
-   * **Ce que la pile armée peut encore charger**, sa charge en cours déduite : le seul chiffre
-   * qui décide si « ramasser » existe. `carryCapacityOf` est la fonction que le serveur mesure
-   * avec (`convex/cargo.ts`) — une seconde table de ce qui tient à bord serait exactement la
-   * divergence que l'ADR 0015 interdit à la rose.
-   */
-  const freeCapacity = useMemo(() => {
-    if (column === null) return 0;
-    const picked = new Set(column.troopIds);
-    const capacity = carryCapacityOf(
-      view.me.troops.filter((troop) => picked.has(troop.id)),
-      CARRY_CAPACITY_BY_ROLE,
-    );
-    const carried = view.me.stationedCargo
-      .filter((group) => group.troopIds.some((troopId) => picked.has(troopId)))
-      .reduce((total, group) => total + group.cargo.carried, 0);
-    return Math.max(0, capacity - carried);
-  }, [column, view.me.troops, view.me.stationedCargo]);
+  /** Ce que la pile armée peut encore charger (`freeCapacityOf`). */
+  const freeCapacity = useMemo(
+    () => (column === null ? 0 : freeCapacityOf(view, column.troopIds)),
+    [column, view],
+  );
 
   /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
    *  l'étiquette du transport la lance ou l'efface. */
   const [trace, setTrace] = useState<TourTrace | null>(null);
+  /** **La rose d'une pile de la sélection**, lue comme si elle était en main. */
+  const pileCompass = useCallback(
+    (target: CompassTarget, station: MarchStation, troopIds: ReadonlyArray<string>) =>
+      compassOf(
+        target,
+        view,
+        armedColumn(view, station, troopIds).rule,
+        station,
+        freeCapacityOf(view, troopIds),
+        troopIds,
+        Date.now(),
+      ),
+    [view],
+  );
+  /** Ce que chaque pile de la sélection a lu, par la cible de l'ordre du groupe : l'envoi y
+   *  reprend la branche de chacune. */
+  const groupReads = useRef(new Map<string, ReadonlyArray<GroupRead>>());
+  /** L'envoi du groupe, qui lit l'aperçu, l'envoi et la fin du geste déclarés plus bas. */
+  const groupSend = useRef<(reads: ReadonlyArray<GroupRead>, action: CompassAction) => void>(
+    () => {},
+  );
+  /** **La sélection lue sur une cible** : la pile en main d'abord, puis les autres entières. */
+  const readGroup = useCallback(
+    (target: CompassTarget, lead: Hand & { kind: 'held' }, others: Selection) => {
+      const reads: ReadonlyArray<GroupRead> = [
+        { station: lead.station, troopIds: lead.troopIds },
+        ...others.map((station) => ({
+          station,
+          troopIds: troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id),
+        })),
+      ].map((pile) => ({ ...pile, compass: pileCompass(target, pile.station, pile.troopIds) }));
+      const group = groupCompassOf(
+        reads.map((read) => read.compass),
+        view.mode === 'blitz' ? null : view.me.slots.total - view.me.slots.used,
+      );
+      for (const action of group?.actions ?? [])
+        if (isOrder(action)) groupReads.current.set(JSON.stringify(choiceOf(action).aim), reads);
+      return group;
+    },
+    [view, marching, pileCompass],
+  );
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      trace !== null && column?.troopIds.includes(trace.carrierId) === true
-        ? traceCompass(target, view, trace)
-        : compassOf(
+      grouped && hand.kind === 'held'
+        ? readGroup(
             target,
-            view,
-            column?.rule ?? null,
-            column?.station ?? null,
-            freeCapacity,
-            column?.troopIds ?? null,
-            Date.now(),
-          ),
-    [view, column, freeCapacity, trace],
+            hand,
+            chosen.filter((station) => stationKeyOf(station) !== stationKeyOf(hand.station)),
+          )
+        : trace !== null && column?.troopIds.includes(trace.carrierId) === true
+          ? traceCompass(target, view, trace)
+          : compassOf(
+              target,
+              view,
+              column?.rule ?? null,
+              column?.station ?? null,
+              freeCapacity,
+              column?.troopIds ?? null,
+              Date.now(),
+            ),
+    [view, column, freeCapacity, trace, grouped, hand, chosen, readGroup],
   );
 
   const motion = useMapMotion();
@@ -1160,6 +1298,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         case 'plunder':
         case 'capture':
         case 'collect': {
+          const reads = grouped
+            ? groupReads.current.get(JSON.stringify(choiceOf(action).aim))
+            : undefined;
+          if (reads !== undefined) {
+            groupSend.current(reads, action);
+            return;
+          }
           if (column === null || inFlight.current) return;
           inFlight.current = true;
           setOrderError(null);
@@ -1224,6 +1369,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       sendOrder,
       afterSent,
       settle,
+      grouped,
     ],
   );
 
@@ -1889,18 +2035,26 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment se lève par ses figurines comme une
    *  pile posée. */
-  const pileClickOf = useCallback(
-    (hit: PieceClick, single = false): PileClick | null => {
+  const pileOf = useCallback(
+    (pileId: string) => {
       const pile = markers.find(
         (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
-          marker.kind === 'stack' && marker.id === hit.pileId,
+          marker.kind === 'stack' && marker.id === pileId,
       );
       const building = view.me.buildings.find(
-        (candidate) => stationKeyOf({ kind: 'building', buildingId: candidate.id }) === hit.pileId,
+        (candidate) => stationKeyOf({ kind: 'building', buildingId: candidate.id }) === pileId,
       );
       const station: TroopStation | undefined =
         pile?.station ?? (building && { kind: 'building', buildingId: building.id });
-      if (station === undefined || station.kind === 'home') return null;
+      return station === undefined || station.kind === 'home' ? null : { station, pile };
+    },
+    [markers, view.me.buildings],
+  );
+  const pileClickOf = useCallback(
+    (hit: PieceClick, single = false): PileClick | null => {
+      const found = pileOf(hit.pileId);
+      if (found === null) return null;
+      const { station, pile } = found;
       const troopId = hit.troopIds[0];
       return single && troopId !== undefined
         ? { kind: 'troop', station, troopId }
@@ -1915,7 +2069,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
           };
     },
-    [markers, view.me, marching, blitz],
+    [pileOf, view.me, marching, blitz],
   );
 
   /** Une pièce dessinée, ou l'étiquette d'une de mes piles posées : la pile qu'elle désigne. */
@@ -1956,20 +2110,168 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const carryPiece = useCallback(
     (from: PieceFrom, single: boolean): boolean => {
       const next = takePiece(from, single);
+      // A troop taken alone, or a pile outside the selection, goes by itself.
+      if (next?.kind === 'held' && (single || !holds(chosen, next.station))) clearSelection();
       setDragged(next);
       return next !== null;
     },
-    [takePiece],
+    [takePiece, chosen, clearSelection],
   );
   /** Released where a long press took one troop, the click lifts that troop alone. */
   const pieceClick = useCallback(
     (hit: PieceClick): boolean => {
       if (hit.single === true) return takePiece({ kind: 'piece', hit }, true) !== null;
       const click = pileClickOf(hit);
-      return click !== null && applyPileClick(click, hit.clientX, hit.clientY);
+      if (click === null || selectClick(click)) return false;
+      return applyPileClick(click, hit.clientX, hit.clientY);
     },
-    [pileClickOf, applyPileClick, takePiece],
+    [pileClickOf, applyPileClick, takePiece, selectClick],
   );
+
+  /** **Le lasso** (#130) : il ajoute ce qu'il entoure à ce qui était choisi quand il a commencé. */
+  const lassoBase = useRef<Selection | null>(null);
+  const lasso = useCallback(
+    (pileIds: ReadonlyArray<string>, done: boolean) => {
+      if (blitz || view.me.defeated) return;
+      const base = (lassoBase.current ??= chosen);
+      if (done) lassoBase.current = null;
+      const next = pileIds
+        .flatMap((id) => pileOf(id)?.station ?? [])
+        .reduce<Selection>((was, station) => (holds(was, station) ? was : [...was, station]), base);
+      if (next.map(pileIdOf).join() !== selectedPiles.join()) choose(() => next);
+    },
+    [blitz, view.me.defeated, chosen, pileOf, selectedPiles, choose],
+  );
+
+  /** **La sélection part** (#130) : un ordre par pile, la branche que chacune avait lue sur la
+   *  cible ; le serveur relit chacun avec sa propre règle, et son slot. */
+  const sendGroup = useCallback(
+    (reads: ReadonlyArray<GroupRead>, action: CompassAction) => {
+      if (inFlight.current) return;
+      const orders = reads.flatMap(({ station, troopIds, compass }) => {
+        const own = matchingOrder(compass, action);
+        return own !== undefined && isOrder(own) ? [{ station, troopIds, own }] : [];
+      });
+      if (orders.length !== reads.length) return;
+      inFlight.current = true;
+      setOrderError(null);
+      void Promise.allSettled(
+        orders.map(({ station, troopIds, own }) => sendOrder(station, troopIds, choiceOf(own))),
+      ).then((results) => {
+        settle();
+        clearSelection();
+        const failed = results.find((result) => result.status === 'rejected');
+        if (failed !== undefined) handleError(failed.reason, setOrderError);
+        const sent = results.find((result) => result.status === 'fulfilled');
+        if (sent !== undefined) afterSent(sent.value, action.label);
+        else dropHand();
+      });
+    },
+    [sendOrder, settle, clearSelection, afterSent, dropHand],
+  );
+  groupSend.current = sendGroup;
+
+  /** **G : former une escouade** — les piles choisies rejoignent la plus grosse, par la branche
+   *  « rejoindre » de chacune ; une seule qui ne peut pas, et la barre le dit. */
+  const formSquad = useCallback(() => {
+    const sizeOf = (station: MarchStation) =>
+      troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
+    const lead = squadLeadOf(
+      chosen.map((station) => ({ station, troops: sizeOf(station).length })),
+    );
+    const [first, ...rest] = chosen.filter(
+      (station) => lead === null || stationKeyOf(station) !== stationKeyOf(lead),
+    );
+    if (chosen.length < 2 || lead === null || first === undefined) {
+      setBarRefusal(chosen.length < 2 ? fr.selection.atLeastTwo : fr.selection.noSquadHere);
+      return;
+    }
+    const target: CompassTarget = {
+      kind: 'force',
+      id: stackLabelId(lead),
+      country: lead.country === '' ? null : lead.country,
+      name: fr.compass.fallbackForce,
+      headcount: sizeOf(lead).length,
+      onLand: !lead.afloat,
+      station: lead,
+      regionId: null,
+    };
+    const group = readGroup(
+      target,
+      { kind: 'held', station: first, troopIds: sizeOf(first) },
+      rest,
+    );
+    const join = group?.actions.find((action) => action.key === 'aim' && action.join !== undefined);
+    const reads =
+      join?.key === 'aim' ? groupReads.current.get(JSON.stringify(join.aim)) : undefined;
+    if (join === undefined || reads === undefined) {
+      setBarRefusal(group?.refusal ?? fr.selection.noSquadHere);
+      return;
+    }
+    sendGroup(reads, join);
+  }, [chosen, view.me, marching, readGroup, sendGroup]);
+
+  const disbandMutation = useMutation(api.movements.disband);
+  /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
+  const disbandSquad = useCallback(() => {
+    const [only] = chosen;
+    if (chosen.length !== 1 || only?.kind !== 'point') {
+      setBarRefusal(fr.errors.NOT_A_SQUAD());
+      return;
+    }
+    setBarRefusal(null);
+    disbandMutation({ ...seat, point: { lon: only.lonLat[0], lat: only.lonLat[1] } }).then(
+      clearSelection,
+      (problem: unknown) => handleError(problem, setBarRefusal),
+    );
+  }, [chosen, disbandMutation, seat, clearSelection]);
+
+  /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
+  useEffect(() => {
+    if (chosen.length === 0 && !picking) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (isTyping() || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === 'Escape' && hand.kind === 'empty') clearSelection();
+      else if (event.key === 'g' || event.key === 'G') {
+        event.preventDefault();
+        formSquad();
+      } else if (event.key === 'u' || event.key === 'U') {
+        event.preventDefault();
+        disbandSquad();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [chosen.length, picking, hand.kind, clearSelection, formSquad, disbandSquad]);
+
+  /** Un clic net sur le plateau, main vide, défait la sélection — sauf au doigt qui choisit. */
+  const readGround = useCallback(
+    (name: string | null) => {
+      if (!picking && hand.kind === 'empty') clearSelection();
+      select(name);
+    },
+    [picking, hand.kind, clearSelection, select],
+  );
+  const startPicking = useCallback(() => {
+    dropHand();
+    setPicking(true);
+  }, [dropHand]);
+
+  const selectionBar =
+    dragged !== null || (chosen.length === 0 && !picking) ? null : (
+      <SelectionBar
+        piles={chosen.length}
+        roles={chosen.flatMap((station) =>
+          troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.role),
+        )}
+        picking={picking}
+        refusal={barRefusal}
+        onForm={formSquad}
+        onDisband={disbandSquad}
+        onClear={clearSelection}
+        onDone={() => setPicking(false)}
+      />
+    );
 
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
    *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
@@ -2691,7 +2993,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   </div>
                 ) : undefined
               }
-              onSelect={aimingOnPhone ? keepSelection : select}
+              onSelect={aimingOnPhone ? keepSelection : readGround}
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
               holding={holding}
@@ -2729,6 +3031,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onTour={view.me.defeated ? undefined : onTour}
               tourLoops={tourLoops}
               cue={mapCue}
+              selectedPiles={selectedPiles}
+              onLasso={blitz ? undefined : lasso}
+              onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
+              selectionBar={selectionBar}
               onTakeDepot={
                 view.me.defeated
                   ? undefined

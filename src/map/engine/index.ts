@@ -292,6 +292,8 @@ type Gesture = {
   /** A mouse held still on a squad: past `DETACH_MS` the drag takes the one troop pressed. */
   detach?: ReturnType<typeof setTimeout> | null;
   single?: boolean;
+  /** **The lasso** (#130): Maj + drag on the bare board, the stroke as the hand drew it. */
+  lasso?: Array<[number, number]>;
 };
 
 /**
@@ -338,6 +340,10 @@ export class MapEngine {
   private hoveredPile: string | null = null;
   /** My transports that could take the piece in hand, ringed while it is held. */
   private available: ReadonlyArray<string> = [];
+  /** The piles taken together (#130), ringed as the one in hand is. */
+  private selected: ReadonlyArray<string> = [];
+  /** The lasso's pencil stroke, over the board while it is drawn. */
+  private lassoPath: SVGPathElement | null = null;
   private aimedPile: string | null = null;
   private lastFrame = performance.now();
   private readonly searchArea: SearchAreaLayer;
@@ -496,6 +502,11 @@ export class MapEngine {
         clientY: number,
       ) => void)
     | undefined;
+  /** **The lasso** (#130): its stroke at every move, and `done` at release. Unset, Maj + drag
+   *  is the plain drag it always was. */
+  onLasso?: ((stroke: ReadonlyArray<readonly [number, number]>, done: boolean) => void) | undefined;
+  /** **A finger held still on the bare board** (#130): the selection starts, taps then add. */
+  onSelectHold?: (() => void) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -815,6 +826,13 @@ export class MapEngine {
     this.refreshRings();
   }
 
+  /** **The piles taken together** (#130): each wears the ring of a piece in hand. */
+  setSelected(pileIds: ReadonlyArray<string>): void {
+    this.invalidate();
+    this.selected = pileIds;
+    this.refreshRings();
+  }
+
   private tellCarryOver(
     over: CarryTarget | { readonly kind: 'ground' } | null,
     clientX: number,
@@ -832,10 +850,12 @@ export class MapEngine {
     if (held === null) {
       this.camps.mark(null, null);
       if (this.hoveredPile !== null) rings.set(this.hoveredPile, 'hover');
+      for (const id of this.selected) rings.set(id, 'selected');
       this.standing.setRings(rings);
       return;
     }
     for (const id of this.available) rings.set(id, 'avail');
+    for (const id of this.selected) rings.set(id, 'selected');
     rings.set(held.pileId, 'selected');
     const over = this.carryOver;
     const target =
@@ -1473,6 +1493,7 @@ export class MapEngine {
         const pick = this.pieceToTake();
         return pick === null || pick.carried ? null : { kind: 'canvas', pick };
       });
+      this.armSelection(this.gesture, event);
       this.refreshCursor();
     });
     canvas.addEventListener('wheel', () => {
@@ -1507,6 +1528,10 @@ export class MapEngine {
     gesture.traveledPx += Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
     gesture.x = event.clientX;
     gesture.y = event.clientY;
+    if (gesture.lasso !== undefined) {
+      this.drawLasso(gesture as Gesture & { lasso: Array<[number, number]> });
+      return;
+    }
     if (gesture.carrying) {
       // Chorded: a second button down during a drag comes as a move, never as a press.
       if ((event.buttons & 2) !== 0) this.onCarryCancel?.();
@@ -1558,6 +1583,57 @@ export class MapEngine {
       gesture.hold = null;
       if (this.gesture === gesture) this.beginCarry(gesture);
     }, LONG_PRESS_MS);
+  }
+
+  /**
+   * **Maj + drag on the bare board draws the lasso** (#130) — the drag that pans or turns it is
+   * the one without Maj — and **a finger held still there starts a selection**, which its taps
+   * then fill: on a piece, that same long press carries it, as it always did.
+   */
+  private armSelection(gesture: Gesture, event: PointerEvent): void {
+    if (gesture.carry !== null || this.held !== null || this.placing !== null) return;
+    if (event.pointerType === 'touch') {
+      const onSelectHold = this.onSelectHold;
+      if (onSelectHold === undefined) return;
+      gesture.hold = setTimeout(() => {
+        gesture.hold = null;
+        if (this.gesture !== gesture || gesture.pastThreshold) return;
+        gesture.pastThreshold = true;
+        navigator.vibrate?.(12);
+        onSelectHold();
+      }, LONG_PRESS_MS);
+      return;
+    }
+    if (this.onLasso === undefined || !event.shiftKey || gesture.button !== 'left') return;
+    if (this.spaceHeld) return;
+    gesture.lasso = [[event.clientX, event.clientY]];
+    this.holdOrbit();
+  }
+
+  /** The stroke follows the hand, never closed back to its start (POC du 16/10). */
+  private drawLasso(gesture: Gesture & { lasso: Array<[number, number]> }): void {
+    const [lastX, lastY] = gesture.lasso.at(-1)!;
+    if (Math.hypot(gesture.x - lastX, gesture.y - lastY) < 3) return;
+    gesture.lasso.push([gesture.x, gesture.y]);
+    if (this.lassoPath === null) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('map-lasso');
+      this.lassoPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      svg.append(this.lassoPath);
+      this.container.append(svg);
+    }
+    const box = this.container.getBoundingClientRect();
+    this.lassoPath.setAttribute(
+      'd',
+      `M${gesture.lasso.map(([x, y]) => `${x - box.left} ${y - box.top}`).join(' L')}`,
+    );
+    this.onLasso?.(gesture.lasso, false);
+  }
+
+  private endLasso(gesture: Gesture & { lasso: Array<[number, number]> }): void {
+    this.lassoPath?.ownerSVGElement?.remove();
+    this.lassoPath = null;
+    this.onLasso?.(gesture.lasso, true);
   }
 
   private beginCarry(gesture: Gesture): void {
@@ -1692,6 +1768,10 @@ export class MapEngine {
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null) return;
+    if (gesture.lasso !== undefined) {
+      this.endLasso(gesture as Gesture & { lasso: Array<[number, number]> });
+      if (gesture.lasso.length > 2) return;
+    }
     if (gesture.carrying) {
       this.carriedAt = performance.now();
       this.tellCarryOver(null, event.clientX, event.clientY);

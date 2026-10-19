@@ -431,3 +431,93 @@
 :root[data-motion='off'] .drop-chip-icon {
   animation: none;
 }
+
+/* **The lasso** (#130, POC « Manipuler les pions »): a pencil stroke over the board, only where
+   the hand went — never closed back to its start. */
+.map-lasso {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-marker);
+  pointer-events: none;
+  overflow: visible;
+}
+.map-lasso path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* **The bar over a selection** (#130, POC `#actions`): how many, what, and the verbs. Placed by
+   the labels' frame, above the piles taken; its anchor point is its bottom middle. */
+.selection-bar-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-marker);
+  will-change: transform;
+}
+.selection-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(92vw, 520px);
+  pointer-events: auto;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  font: 500 13px/1.2 var(--font-body);
+}
+.selection-bar-count {
+  margin: 0;
+  padding: 6px 10px 5px;
+  border-bottom: 1px dotted rgb(42 33 24 / 30%);
+}
+.selection-bar-roles {
+  display: block;
+  font: 500 11px/1.25 var(--font-mono);
+  color: var(--ink-soft);
+}
+.selection-bar-verbs {
+  display: flex;
+  flex-wrap: wrap;
+}
+.selection-bar-verbs button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.selection-bar-verbs button + button {
+  border-left: 1px solid rgb(42 33 24 / 25%);
+}
+.selection-bar-verbs button:hover {
+  background: rgb(42 33 24 / 6%);
+}
+.selection-bar-verbs button:focus-visible {
+  outline: 2px solid var(--arc-mine);
+  outline-offset: -2px;
+}
+.selection-bar-verbs kbd {
+  font: 500 10px/1 var(--font-mono);
+  opacity: 0.6;
+}
+.selection-bar-refusal {
+  margin: 0;
+  padding: 5px 10px 6px;
+  border-top: 1px solid var(--critical);
+  color: var(--critical);
+  font: 500 11px/1.3 var(--font-mono);
+}

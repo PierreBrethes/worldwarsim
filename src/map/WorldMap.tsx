@@ -62,6 +62,7 @@ import {
   type DropNote,
   type PieceFrom,
 } from './DropHint';
+import { insideStroke } from '@/domain/selection';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
@@ -255,6 +256,14 @@ type Props = {
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   /** La bulle des premiers pas, sur la pièce à lever. */
   cue?: { readonly labelId: string; readonly text: string } | null;
+  /** **Mes piles prises ensemble** (#130), chacune cerclée comme la pièce en main. */
+  selectedPiles?: ReadonlyArray<string>;
+  /** **Le lasso** (Maj + glisser sur le plateau) : les piles qu'il entoure, à chaque pas. */
+  onLasso?: ((pileIds: ReadonlyArray<string>, done: boolean) => void) | undefined;
+  /** **Un doigt tenu sur le plateau** : la sélection commence, les touchers ajoutent. */
+  onSelectHold?: (() => void) | undefined;
+  /** La barre au-dessus de la sélection : combien, quoi, les verbes. */
+  selectionBar?: ReactNode;
   /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
   tourLoops?: ReadonlyArray<TourLoop>;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
@@ -377,6 +386,10 @@ export function WorldMap({
   onTakeDepot,
   onTour,
   cue = null,
+  selectedPiles = NO_PILES,
+  onLasso,
+  onSelectHold,
+  selectionBar = null,
   tourLoops = NO_LOOPS,
   covered = false,
   reveal = null,
@@ -1128,6 +1141,50 @@ export function WorldMap({
   }, [readyEngine, availablePiles]);
 
   useEffect(() => {
+    readyEngine?.setSelected(selectedPiles);
+  }, [readyEngine, selectedPiles]);
+
+  /** **Ce que le lasso entoure** : le milieu de chaque pile à l'écran, ses figurines ou son point. */
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onSelectHold = onSelectHold;
+    readyEngine.onLasso =
+      onLasso &&
+      ((stroke, done) => {
+        const box = container.current?.getBoundingClientRect();
+        const caught = standing.flatMap((pile) => {
+          const rect = readyEngine.pieceRect(pile.id);
+          const at =
+            rect !== null
+              ? {
+                  x: (rect.left + rect.right) / 2 + (box?.left ?? 0),
+                  y: (rect.top + rect.bottom) / 2 + (box?.top ?? 0),
+                }
+              : 'lonLat' in pile.at
+                ? readyEngine.screenOf(pile.at.lonLat)
+                : null;
+          return at !== null && insideStroke(stroke, at.x, at.y) ? [pile.id] : [];
+        });
+        onLasso(caught, done);
+      });
+  }, [readyEngine, onLasso, onSelectHold, standing]);
+
+  /** The bar stands over the labels of the piles taken: a garrison's is its mast's. */
+  const bar = useMemo(
+    () =>
+      selectionBar === null
+        ? null
+        : {
+            labelIds: selectedPiles.map((id) => {
+              const at = standing.find((pile) => pile.id === id)?.at;
+              return at !== undefined && 'beside' in at ? at.beside : id;
+            }),
+            node: selectionBar,
+          },
+    [selectionBar, selectedPiles, standing],
+  );
+
+  useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
 
@@ -1255,6 +1312,7 @@ export function WorldMap({
         cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
+        selectionBar={bar}
       />
       <EdgeIndicators
         labels={labels}

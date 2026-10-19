@@ -124,7 +124,10 @@ export function MapLabels({
   onTakeDepot,
   onTour,
   cue = null,
+  selectionBar = null,
 }: {
+  /** **The bar over a selection** (#130): it stands above the labels of the piles taken. */
+  selectionBar?: { readonly labelIds: ReadonlyArray<string>; readonly node: ReactNode } | null;
   /** **La bulle des premiers pas** sur la pièce à lever (ADR 0027 §2), sous son point : le
    *  cartouche tient le dessus. */
   cue?: { readonly labelId: string; readonly text: string } | null;
@@ -232,6 +235,9 @@ export function MapLabels({
   const pointed = useRef<string | null>(null);
   const showPoster = useRef<(id: string | null) => void>(() => {});
   const posterAnchor = useRef<HTMLDivElement | null>(null);
+  const barAnchor = useRef<HTMLDivElement | null>(null);
+  const barLabels = useRef<ReadonlyArray<string>>([]);
+  barLabels.current = selectionBar?.labelIds ?? [];
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
   const posterPlace = useRef<PosterPlace | null>(null);
@@ -679,6 +685,26 @@ export function MapLabels({
           poster.classList.toggle(`map-poster-anchor--${each}`, each === side);
         poster.style.setProperty('--stem', `${stem}px`);
         poster.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+
+      // La barre d'une sélection se tient au-dessus de ses piles, au milieu (POC, `#actions`).
+      const bar = barAnchor.current;
+      if (bar !== null) {
+        const seen = barLabels.current
+          .map((id) => states.current.get(id))
+          .filter((state) => state?.visible === true);
+        // Nothing chosen yet (a finger that has just started): the bar waits at the top.
+        const waiting = barLabels.current.length === 0;
+        bar.style.display = seen.length === 0 && !waiting ? 'none' : '';
+        if (seen.length > 0 || waiting) {
+          const x = waiting
+            ? layerSize.current.width / 2
+            : seen.reduce((sum, state) => sum + state!.x, 0) / seen.length;
+          const y = waiting ? 0 : Math.min(...seen.map((state) => state!.y));
+          const half = bar.offsetWidth / 2 + 8;
+          const left = Math.min(Math.max(x, half), layerSize.current.width - half);
+          bar.style.transform = `translate3d(${left}px, ${Math.max(bar.offsetHeight + 8, y - 64)}px, 0)`;
+        }
       }
 
       // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
@@ -1151,6 +1177,11 @@ export function MapLabels({
           </div>
         );
       })}
+      {selectionBar !== null && (
+        <div ref={barAnchor} className="selection-bar-anchor" style={{ display: 'none' }}>
+          {selectionBar.node}
+        </div>
+      )}
       <PosterLayer
         register={showPoster}
         labels={labels}

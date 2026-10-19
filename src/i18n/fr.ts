@@ -4023,12 +4023,16 @@ export const fr = {
         effect: 'ouvrir la rose des vents',
       },
       { gesture: 'molette', effect: 'zoomer' },
+      { gesture: 'maj + glisser', effect: 'entourer plusieurs piles (Mondiale)' },
+      { gesture: 'maj + clic', effect: 'ajouter ou retirer une pile de la sélection' },
+      { gesture: 'g · u', effect: 'former une escouade · la dissoudre' },
     ],
     /** **Le doigt ne lit pas le mappage** (décision mobile-1c) : trois lignes, toujours les mêmes. */
     fingerGestures: [
       { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
       { gesture: 'toucher une pile', effect: 'la lever ; toucher la carte la pose' },
       { gesture: 'appui long sur une pile', effect: 'la porter du doigt ; la lâcher la pose' },
+      { gesture: 'appui long sur la carte', effect: 'choisir plusieurs piles, puis les toucher' },
       { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
       { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],
@@ -4063,7 +4067,7 @@ export const fr = {
     /** Au doigt, après l'appui long sur le plateau : les touchers ajoutent. */
     picking: 'touchez vos piles',
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
-    notASquad: 'une escouade, c’est plusieurs troupes au même point',
+    atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
     label: 'Sélection',
   },
   drop: {
