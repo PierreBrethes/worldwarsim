@@ -9,6 +9,7 @@ import {
   counterOf,
   countersOf,
   holdsHq,
+  laneCount,
   researchWeight,
   researchProgressOf,
   researchRefusalOf,
@@ -70,7 +71,7 @@ describe('the research tree', () => {
 
   it('is not finished within a season', () => {
     const hours = RESEARCH_CARDS.reduce((sum, card) => sum + RESEARCH_SPEC[card].hours, 0);
-    expect(hours).toBe(232);
+    expect(hours).toBe(292);
   });
 
   it('opens with mark-1 infantry, the truck and the cargo, everything else behind a card', () => {
@@ -167,6 +168,21 @@ describe('the Transmissions cards', () => {
       'transmissions2',
     ]);
     for (const card of ['transmissions1', 'transmissions2', 'transmissions3'] as const) {
+      expect(counterOf(card), card).toBeNull();
+    }
+  });
+});
+
+describe('the lane cards (ADR 0031)', () => {
+  it('open a second lane each, late and dear, behind Transmissions II and with no counter', () => {
+    expect(laneCount([], 'works')).toBe(1);
+    expect(laneCount(['transmissions1', 'transmissions2'], 'training')).toBe(1);
+    expect(laneCount(['doubleWorks'], 'works')).toBe(2);
+    expect(laneCount(['doubleWorks'], 'training')).toBe(1);
+    expect(laneCount(['doubleTraining'], 'training')).toBe(2);
+    for (const card of ['doubleWorks', 'doubleTraining'] as const) {
+      expect(RESEARCH_TREE[card].after).toEqual(['transmissions2']);
+      expect(RESEARCH_SPEC[card].hours).toBe(30);
       expect(counterOf(card), card).toBeNull();
     }
   });

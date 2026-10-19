@@ -1299,7 +1299,7 @@ export type PlayerView = {
     readonly construction: RunningWork | null;
     /** The rest of the queue in build order: running ones (`minutesLeft`) and waiting ones. */
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
-    /** How many works rise at once: the headquarters level, 1 without it (`buildLanes`). */
+    /** How many works rise at once: one, two with the Chantier double card (`laneCount`). */
     readonly buildLanes: number;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;

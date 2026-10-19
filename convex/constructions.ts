@@ -5,7 +5,7 @@ import {
   type BuildingKey,
   type ResearchCard,
 } from '../src/domain/ids';
-import { buildingLockOf } from '../src/domain/research';
+import { buildingLockOf, laneCount } from '../src/domain/research';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -18,12 +18,7 @@ import {
   placementRefusal,
   siteOfPoint,
 } from '../src/domain/economy';
-import {
-  buildLanes,
-  lanesPlan,
-  outpostRaiseHold,
-  type OutpostRaiseHold,
-} from '../src/domain/construction';
+import { lanesPlan, outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
   buildingAt,
@@ -58,8 +53,7 @@ import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { resumeResearch } from './research';
-import { startLanes } from './troops';
-import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
+import { spedMinutes } from '../src/domain/level-speed';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -353,8 +347,6 @@ export const finish = internalMutation({
         : buildingAt(buildings, canonicalBuildingKey(construction.building), point);
     if (standing) {
       await ctx.db.patch(standing._id, { level: construction.level });
-      /** **Un niveau rend** (ADR 0028 §5) : le banc neuf prend tout de suite le lot qui attendait. */
-      if (PROJECTION_KEYS.has(standing.key)) await startLanes(ctx, standing._id, Date.now());
     } else if (point !== undefined) {
       /**
        * **La course se tranche ici** (ADR 0029) : la commande n'a lu que ce que le joueur savait
@@ -489,21 +481,19 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
   const season = await ctx.db.get(player.seasonId);
   if (!season) return;
 
-  /** **Autant de chantiers que le QG a de niveaux** (#136), relus à chaque réveil : un QG élevé
-   *  date l'entrée qui attendait, un QG tombé renvoie en file les derniers chantiers qui
-   *  montaient (payés, rien perdu : ils repartent de zéro quand une voie se libère). */
-  const lanes = buildLanes(levelOf(await playerBuildings(ctx, playerId), 'hq'));
+  /** **Un chantier à la fois, deux avec Chantier double** (ADR 0031), relus à chaque réveil : la
+   *  carte acquise date l'entrée qui attendait. */
+  const lanes = laneCount(player.researched ?? [], 'works');
   /** Une élévation qui attend la fin d'une désactivation ne tient pas de voie : la suite passe. */
   const waitingOut = new Set<Id<'constructions'>>();
 
   for (;;) {
     const queue = (await queueOf(ctx, playerId)).filter((entry) => !waitingOut.has(entry._id));
-    const plan = lanesPlan(
+    const start = lanesPlan(
       queue.map((entry) => entry.finishesAt !== null),
       lanes,
     );
-    for (const index of plan.pause) await ctx.db.patch(queue[index]!._id, { finishesAt: null });
-    const head = plan.start.length === 0 ? undefined : queue[plan.start[0]!];
+    const head = start.length === 0 ? undefined : queue[start[0]!];
     if (!head) return;
 
     /**
@@ -560,7 +550,10 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 /** Le chantier part : sa date d'échéance est écrite, et son rendez-vous pris. C'est le seul
  *  endroit du jeu où un chantier est daté — une entrée en attente ne l'est nulle part. */
 async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number): Promise<void> {
-  const finishesAt = now + buildMinutes(head.building, head.level) * 60_000;
+  /** Daté au départ, au niveau du QG d'alors : élevé plus tard, il ne redate pas ce chantier, le
+   *  gain vaut pour la suite (ADR 0031). */
+  const hqLevel = levelOf(await playerBuildings(ctx, head.playerId), 'hq');
+  const finishesAt = now + spedMinutes(buildMinutes(head.building, head.level), hqLevel) * 60_000;
   await ctx.db.patch(head._id, { finishesAt });
   await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
     constructionId: head._id,
@@ -691,8 +684,6 @@ async function refusalFor(
   if (cappedByHq(building, level - 1, hqLevel)) return { code: 'CAPPED_BY_HQ' };
   return null;
 }
-
-const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
 /** The player's buildings and pledges as the spacing reads them: a key and a point. */
 const aroundOf = (

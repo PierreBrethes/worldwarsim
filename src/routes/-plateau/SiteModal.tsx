@@ -26,6 +26,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
+import { spedMinutes } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
@@ -172,10 +173,20 @@ function Site({
           setError(null);
           void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
         };
+  /** Les durées du barème, raccourcies au niveau du site (ADR 0031) : celles que le serveur date.
+   *  La Blitz forme en `BLITZ.recruitMinutes`, sans niveau. */
+  const sped = <Piece extends { minutes: number }>(piece: Piece): Piece =>
+    workshop?.blitz ? piece : { ...piece, minutes: spedMinutes(piece.minutes, building.level) };
   const roles =
     facility === null
       ? []
-      : (workshop?.grid ?? []).filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain);
+      : (workshop?.grid ?? [])
+          .filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain)
+          .map((entry) => ({
+            ...entry,
+            unit: sped(entry.unit),
+            unitTier2: entry.unitTier2 === null ? null : sped(entry.unitTier2),
+          }));
   const unlinked = region !== undefined && !region.linked && produces(building.key);
 
   if (narrow)

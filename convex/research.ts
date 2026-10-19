@@ -3,7 +3,7 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { holdsHq, researchMs, researchRefusalOf } from '../src/domain/research';
+import { RESEARCH_TREE, holdsHq, researchMs, researchRefusalOf } from '../src/domain/research';
 import { RESEARCH_SPEC } from './constants';
 import { refuseInBlitz } from './blitz';
 import { playerBuildings } from './buildingReads';
@@ -76,6 +76,13 @@ export const finish = internalMutation({
       kind: 'researchDone',
       card: running.card,
     });
+    /** **Une file ouverte prend tout de suite ce qui attendait** (ADR 0031). */
+    for (const unlock of RESEARCH_TREE[running.card].unlocks) {
+      if (unlock.kind !== 'lane') continue;
+      if (unlock.of === 'works')
+        await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId });
+      else await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId });
+    }
   },
 });
 

@@ -81,6 +81,8 @@ const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'Transmissions I',
   transmissions2: 'Transmissions II',
   transmissions3: 'Transmissions III',
+  doubleWorks: 'Chantier double',
+  doubleTraining: 'Formation double',
 };
 
 /** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
@@ -99,6 +101,8 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'un slot de mouvement de plus',
   transmissions2: 'un slot de mouvement de plus',
   transmissions3: 'un slot de mouvement de plus',
+  doubleWorks: 'une seconde file de chantier',
+  doubleTraining: 'une seconde file de formation dans chaque site',
 };
 
 /** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,

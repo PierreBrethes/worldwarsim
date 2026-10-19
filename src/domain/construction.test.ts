@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
-  buildLanes,
   lanesPlan,
   blockedOn,
   buildableOn,
@@ -658,17 +657,10 @@ describe('workSitesOf', () => {
 });
 
 describe('how many works rise at once', () => {
-  it('reads the headquarters level, and one without a headquarters', () => {
-    expect([0, 1, 2, 5].map(buildLanes)).toEqual([1, 1, 2, 5]);
-  });
-
   it('starts the first waiting entries up to the free lanes', () => {
-    expect(lanesPlan([false, false, false], 2)).toEqual({ pause: [], start: [0, 1] });
-    expect(lanesPlan([true, false, false], 2)).toEqual({ pause: [], start: [1] });
-    expect(lanesPlan([true, true, false], 2)).toEqual({ pause: [], start: [] });
-  });
-
-  it('sends the last running entries back to the queue when the lanes shrink', () => {
-    expect(lanesPlan([true, true, true], 1)).toEqual({ pause: [1, 2], start: [] });
+    expect(lanesPlan([false, false, false], 2)).toEqual([0, 1]);
+    expect(lanesPlan([true, false, false], 2)).toEqual([1]);
+    expect(lanesPlan([true, true, false], 2)).toEqual([]);
+    expect(lanesPlan([false, false], 1)).toEqual([0]);
   });
 });

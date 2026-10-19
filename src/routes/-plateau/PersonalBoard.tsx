@@ -14,6 +14,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { MAX_HQ_LEVEL, RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
+import { spedMinutes } from '@/domain/level-speed';
 import {
   cardName,
   countdownLabel,
@@ -1172,7 +1173,7 @@ function Works({
         </p>
       )}
       {rows.map(({ work, running }, index) => {
-        const total = buildMinutes(work.key, work.level);
+        const total = spedMinutes(buildMinutes(work.key, work.level), view.me.hqLevel);
         const left = running ? currentMinutes(work.minutesLeft!, view.loadedAt, now) : total;
         return (
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">

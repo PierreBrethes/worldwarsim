@@ -1,6 +1,7 @@
 import { DAMAGE_TABLE, RESEARCH_SPEC, type LineKey } from '../../convex/constants';
 import { profileOf } from './combat';
 import { shortfallOf } from './economy';
+import { levelSpeed } from './level-speed';
 import {
   RESEARCH_CARDS,
   type BuildingKey,
@@ -12,8 +13,9 @@ import {
 
 /**
  * **La recherche débloque, elle ne bonifie jamais** (ADR 0028 §5, décision 44a) : une carte ouvre
- * une unité, une tuile, une ligne d'usine ou un slot de mouvement (décision révisée le 19/10 :
- * une capacité entière, jamais un pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
+ * une unité, une tuile, une ligne d'usine, un slot de mouvement ou une seconde file de chantier
+ * ou de formation (décision révisée le 19/10, ADR 0031 : une capacité entière, jamais un
+ * pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
  * ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
  */
 export type Unlock =
@@ -22,7 +24,11 @@ export type Unlock =
   /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
   | { readonly kind: 'line'; readonly output: 'oil' }
   /** Un slot de mouvement de plus (`movementSlots`). */
-  | { readonly kind: 'slot' };
+  | { readonly kind: 'slot' }
+  /** Une file de plus : un chantier de plus en même temps, ou une troupe de plus par site. */
+  | { readonly kind: 'lane'; readonly of: Lane };
+
+export type Lane = 'works' | 'training';
 
 export type Branch = 'land' | 'sea' | 'air' | 'industry';
 
@@ -70,7 +76,25 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
   transmissions1: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: [] },
   transmissions2: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions1'] },
   transmissions3: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions2'] },
+  doubleWorks: {
+    branch: 'industry',
+    unlocks: [{ kind: 'lane', of: 'works' }],
+    after: ['transmissions2'],
+  },
+  doubleTraining: {
+    branch: 'industry',
+    unlocks: [{ kind: 'lane', of: 'training' }],
+    after: ['transmissions2'],
+  },
 };
+
+/** **Les files qui avancent en même temps** (ADR 0031) : une par défaut, une de plus par carte
+ *  acquise qui l'ouvre. Lu par l'écran et par le serveur. */
+export const laneCount = (researched: ReadonlyArray<ResearchCard>, of: Lane): number =>
+  1 +
+  researched.filter((card) =>
+    RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'lane' && unlock.of === of),
+  ).length;
 
 /** Les slots de mouvement qu'ouvrent ces cartes : un par carte Transmissions acquise. */
 export const slotCardsOf = (researched: ReadonlyArray<ResearchCard>): ReadonlyArray<ResearchCard> =>
@@ -177,7 +201,11 @@ export type RunningResearch = {
   readonly since: number | null;
 };
 
-export const researchMs = (card: ResearchCard): number => RESEARCH_SPEC[card].hours * 3_600_000;
+/** La durée d'une carte, accélérée au niveau du bâtiment qui cherche (ADR 0031). Le QG cherche au
+ *  niveau 1 : il accélère les chantiers, pas la recherche ; le Centre de recherche (#123) passera
+ *  le sien. */
+export const researchMs = (card: ResearchCard, searcherLevel = 1): number =>
+  RESEARCH_SPEC[card].hours * 3_600_000 * levelSpeed(searcherLevel);
 
 export function researchProgressOf(
   running: RunningResearch,

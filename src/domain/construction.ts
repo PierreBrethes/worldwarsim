@@ -732,29 +732,14 @@ export function workSitesOf(
 }
 
 /**
- * **Chantiers qui montent en même temps par niveau du quartier général** (#136) : le niveau N en
- * permet N.
- * @a-mesurer un chantier par niveau, à éprouver sur le rythme réel d'une Mondiale
+ * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), celles qui
+ * démarrent — les premières en attente, tant qu'une file est libre (ADR 0031 : une, deux avec
+ * Chantier double). Les files ne rétrécissent jamais : une carte acquise le reste.
  */
-export const LANES_PER_HQ_LEVEL = 1;
-
-/** Sans QG debout, une seule voie : c'est ce qui permet de le rebâtir. */
-export const buildLanes = (hqLevel: number): number => Math.max(1, hqLevel * LANES_PER_HQ_LEVEL);
-
-/**
- * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), lesquelles
- * repartent en attente parce que les voies ont rétréci (les dernières), et lesquelles démarrent
- * (les premières en attente, tant qu'une voie est libre). Une seule lecture pour le serveur.
- */
-export function lanesPlan(
-  running: ReadonlyArray<boolean>,
-  lanes: number,
-): { pause: number[]; start: number[] } {
-  const indices = running.map((_, index) => index);
-  const rising = indices.filter((index) => running[index]);
-  const waiting = indices.filter((index) => !running[index]);
-  return {
-    pause: rising.slice(lanes),
-    start: waiting.slice(0, Math.max(0, lanes - rising.length)),
-  };
+export function lanesPlan(running: ReadonlyArray<boolean>, lanes: number): number[] {
+  const rising = running.filter(Boolean).length;
+  return running
+    .map((_, index) => index)
+    .filter((index) => !running[index])
+    .slice(0, Math.max(0, lanes - rising));
 }

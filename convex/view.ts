@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
-import { buildLanes } from '../src/domain/construction';
+import { spedMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
@@ -83,7 +83,7 @@ import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
-import { buildingLockOf, lineLockOf } from '../src/domain/research';
+import { buildingLockOf, laneCount, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -172,6 +172,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const economy = await economyOf(ctx, player._id, now);
   const buildings = await playerBuildings(ctx, player._id);
   const hqLevel = levelOf(buildings, 'hq');
+  /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
+  const worksMinutes = (key: Parameters<typeof buildMinutes>[0], level: number) =>
+    spedMinutes(buildMinutes(key, level), hqLevel);
   /** Every site of his and what is left on it, read by the one function both doors of the
    *  placement rule read (`convex/sites.ts`). */
   const sites = await sitesOf(ctx, player);
@@ -367,7 +370,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       key,
       {
         cost: buildCost(key, 1),
-        minutes: buildMinutes(key, 1),
+        minutes: worksMinutes(key, 1),
         // The card travels with the price so the panel offers exactly what the server takes.
         // La Blitz garde son catalogue : rien n'y est tenu par une carte.
         lockedBy: blitz ? null : buildingLockOf(key, player.researched ?? []),
@@ -575,7 +578,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         point: pointOfBuilding(building),
         level: building.level,
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
-        nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
+        nextLevelMinutes: worksMinutes(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
       })),
@@ -654,8 +657,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
         })),
-      /** Combien de chantiers montent en même temps : le niveau du QG (`buildLanes`). */
-      buildLanes: buildLanes(hqLevel),
+      /** Combien de chantiers montent en même temps : un, deux avec Chantier double (ADR 0031). */
+      buildLanes: blitz ? 1 : laneCount(player.researched ?? [], 'works'),
       armyPresent,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
@@ -782,7 +785,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost:
           outpost.level >= OUTPOST_MAX_LEVEL ? {} : buildCost('outpost', outpost.level + 1),
         nextLevelMinutes:
-          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : buildMinutes('outpost', outpost.level + 1),
+          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutes('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
         depot: outpost.depot ?? emptyLoad(),
         depotCapacity: depotCapacity(outpost.level),

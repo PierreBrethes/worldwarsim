@@ -1423,8 +1423,8 @@ describe('the headquarters the player puts up', () => {
 });
 
 /**
- * **La file de chantier prépayée** (décision du 25/08). One construction per headquarters level
- * advances at once (#136; the tests below sit at level 1, so one head) — but what is behind it is a queue without a ceiling, and
+ * **La file de chantier prépayée** (décision du 25/08). One construction advances at once
+ * (ADR 0031: a second only with the Chantier double card) — but what is behind it is a queue without a ceiling, and
  * every entry of it has already settled its bill. The objection the single site answered was a
  * queue that *promised* a stacking the server refuses; a prepaid entry promises nothing.
  *
@@ -1465,7 +1465,8 @@ describe('the construction queue', () => {
       regionId: MARNE,
       point: pointIn(MARNE),
     });
-    const minutes = buildMinutes('farm', 2);
+    // A level-3 headquarters builds at 0.85² of the scale (ADR 0031).
+    const minutes = Math.round(buildMinutes('farm', 2) * 0.7225);
     vi.advanceTimersByTime(minutes * 60_000 + 1);
     await t.finishInProgressScheduledFunctions();
 
@@ -1529,57 +1530,49 @@ describe('the construction queue', () => {
           .length,
     );
 
-  /** **Le niveau du QG est le nombre de chantiers en même temps** (#136) : élevé, il date l'entrée
-   *  qui attendait, sans rien redébiter. */
-  it('dates the waiting entry when the headquarters is raised', async () => {
+  /** **Un niveau accélère** (ADR 0031) : un QG de niveau 2 bâtit un chantier à la fois, 15 %
+   *  plus vite que le barème. */
+  it('runs one works at a time, sped up by the level of the headquarters', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
     for (const site of SITES.slice(0, 2))
       await t.mutation(api.constructions.start, { ...seat, ...site });
-    const opening = await steelOf(t, seat);
+
     expect(await datedCount(t)).toBe(1);
-
-    await promoteHq(t, seat, 2);
-    await t.mutation(internal.constructions.resume, {
-      playerId: await t.run(async (ctx) => (await seatIn(ctx, seat))._id),
-    });
-
-    expect(await datedCount(t)).toBe(2);
-    expect(await steelOf(t, seat)).toBe(opening);
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.construction).not.toBeNull();
-    expect(view.me.constructionQueue.filter((entry) => entry.minutesLeft !== null)).toHaveLength(1);
+    expect(view.me.construction?.minutesLeft).toBeCloseTo(
+      Math.round(buildMinutes('barracks', 1) * 0.85),
+      0,
+    );
+    expect(view.buildCatalog.barracks.minutes).toBe(Math.round(buildMinutes('barracks', 1) * 0.85));
   });
 
-  /** La chute du QG rétrécit les voies : le chantier en trop repart en file, payé, et monte
-   *  quand une voie se libère — sans double débit ni chantier perdu. */
-  it('sends the extra works back to the queue when the headquarters falls, losing nothing', async () => {
+  /** **Chantier double** (ADR 0031) : la carte acquise date tout de suite l'entrée qui attendait,
+   *  sans rien redébiter. */
+  it('runs a second works at once once Chantier double is researched', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
     for (const site of SITES.slice(0, 2))
       await t.mutation(api.constructions.start, { ...seat, ...site });
-    expect(await datedCount(t)).toBe(2);
     const opening = await steelOf(t, seat);
-
-    await promoteHq(t, seat, 1);
-    await t.mutation(internal.constructions.resume, {
-      playerId: await t.run(async (ctx) => (await seatIn(ctx, seat))._id),
-    });
     expect(await datedCount(t)).toBe(1);
-    expect(await steelOf(t, seat)).toBe(opening);
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const done = await t.query(api.view.playerView, seat);
-    expect(done.me.construction).toBeNull();
-    expect(done.me.constructionQueue).toEqual([]);
-    for (const site of SITES.slice(0, 2)) {
-      expect(
-        done.me.buildings.filter(
-          (building) => building.key === site.building && building.regionId === site.regionId,
-        ),
-      ).toHaveLength(1);
-    }
+    const playerId = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
+    await t.run((ctx) =>
+      ctx.db.patch(playerId, {
+        researched: ['transmissions1', 'transmissions2'],
+        research: { card: 'doubleWorks', remainingMs: 0, since: Date.now() },
+      }),
+    );
+    await t.mutation(internal.research.finish, { playerId, finishesAt: Date.now() });
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+
+    expect(await datedCount(t)).toBe(2);
+    expect(await steelOf(t, seat)).toBe(opening);
+    expect((await t.query(api.view.playerView, seat)).me.buildLanes).toBe(2);
   });
 
   /** One entry per point, and the spacing reads the queue: two entries aiming at one place would
@@ -2268,7 +2261,8 @@ describe('legacy depot compatibility', () => {
     expect(view.me.buildings.find((b) => b.id === before._id)).toMatchObject({
       key: 'warehouse',
       nextLevelCost: { steel: 72, coal: 27 },
-      nextLevelMinutes: 54,
+      // 54 minutes on the scale, at 0.85² under the level-3 headquarters (ADR 0031).
+      nextLevelMinutes: 39,
     });
     const started = await t.mutation(api.constructions.start, {
       ...seat,

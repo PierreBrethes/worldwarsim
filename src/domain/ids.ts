@@ -50,6 +50,8 @@ export const RESEARCH_CARDS = [
   'transmissions1',
   'transmissions2',
   'transmissions3',
+  'doubleWorks',
+  'doubleTraining',
 ] as const;
 
 export type ResearchCard = (typeof RESEARCH_CARDS)[number];

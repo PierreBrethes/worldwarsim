@@ -994,8 +994,8 @@ export default defineSchema({
   /**
    * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`
    * above, and deliberately the same one: a second model of queue would be a second set of
-   * rules to remember. As many entries advance at once as the headquarters has levels
-   * (`buildLanes`, #136); the queue behind them is unbounded and **already paid for**.
+   * rules to remember. One entry advances at once, two with the Chantier double card
+   * (`laneCount`, ADR 0031); the queue behind them is unbounded and **already paid for**.
    *
    * Only the entries that advance carry a `finishesAt`. The followers have not started, they
    * are dated nowhere, and they are exactly the ones a cancellation refunds in full without
