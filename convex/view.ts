@@ -805,7 +805,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
      *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
     outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
-    /** Servi comme `tier2HqLevel` : l'écrêtage annoncé avant de raser un entrepôt et celui que
+    /** Servi plutôt que recopié : l'écrêtage annoncé avant de raser un entrepôt et celui que
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,

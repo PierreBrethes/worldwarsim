@@ -156,7 +156,6 @@ export function renderReference(snapshot) {
       'ink',
       'progress',
       'hqLevel',
-      'tier2HqLevel',
       'starving',
       'foundation',
       'recruiting',

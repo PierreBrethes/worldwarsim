@@ -1290,7 +1290,7 @@ export type PlayerView = {
   readonly outpostFoundation: { readonly cost: Cost; readonly minutes: number };
   /**
    * **Ce qu'un niveau d'entrepôt ajoute aux huit plafonds** (stockage unifié, 09/09). Servi
-   * plutôt que recopié pour la raison de `tier2HqLevel` juste au-dessus : la popin qui annonce
+   * plutôt que recopié : la popin qui annonce
    * l'écrêtage d'un entrepôt rasé et le serveur qui l'applique doivent soustraire le **même**
    * nombre, et une copie cliente est exactement la façon dont ils cessent d'être un seul.
    */

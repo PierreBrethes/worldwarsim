@@ -79,9 +79,16 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       reste à bord. Un largage se relève et s'intercepte comme un ravitaillement. Le fil monte
       de la piste, reste en l'air sur la cible et se pose au retour ; tampon « largué » et
       dépêche. Démo : `npm run demo:mondiale -- --largage`.
-   9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
-      verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
-      recherche, pose sur le QG, carte qui avance.
+   9. ~~**La recherche**~~ : faite le 19/10. Onze cartes en quatre branches (`RESEARCH_TREE`,
+      `RESEARCH_SPEC` à l'échelle ×10 de l'artefact) sur le plateau personnel ; une carte lâchée sur
+      le QG (`research.start`, `researchRefusalOf`) se paie, court en heures de jeu, attend un QG
+      tombé sans rien perdre, et débloque à la fin avec sa dépêche. Toute pièce et toute tuile hors
+      du départ attend sa carte (`RESEARCH_REQUIRED`), visible ; artillerie et pétrole synthétique
+      restent « à venir ». `UNLOCKED_AT`, `TIER_2_HQ_LEVEL`, `ROLE_SITE_LEVEL` et `chainSpeed`
+      retirés ; un site de projection de niveau N forme N troupes à la fois ; invariant du contre
+      testé. Barre sur l'affiche du QG, sur la carte et dans « en cours ». Démo :
+      `npm run demo:mondiale -- --recherche`. Le schéma change : `players.researched`,
+      `players.research`.
    10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
        serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
 

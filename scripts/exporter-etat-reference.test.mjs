@@ -32,7 +32,6 @@ const snapshot = {
       ink: '#a44a5e',
       progress: 0,
       hqLevel: 2,
-      tier2HqLevel: 3,
       starving: false,
       restWindow: { startMinutes: 720, endMinutes: 1140 },
       foundation: ['hq'],

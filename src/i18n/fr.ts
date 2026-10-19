@@ -713,8 +713,7 @@ export const fr = {
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
-     *  l'ordre plutôt qu'un palier — `BUILDING_LOCKED` nommait un niveau 1 que le joueur ne
-     *  pouvait atteindre que par cette pose-là. */
+     *  l'ordre plutôt qu'un palier. */
     HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
     NOT_YOURS: () => 'ce bâtiment n’est pas à vous',
