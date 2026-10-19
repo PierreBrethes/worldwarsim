@@ -165,6 +165,9 @@ export const start = mutation({
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
       if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
+      /** La garnison offerte est un détecteur, et une pose qui se tient à l'instant est une fin de
+       *  chantier : comme à `finish`, le brouillard se relit — pour ce joueur seul (#145). */
+      await reassessDetection(ctx, season._id, now, player._id);
       return { finishesAt: now, cost: {}, level: placed, rank: null };
     }
 

@@ -91,7 +91,7 @@ export const start = mutation({
       },
     });
     await atBase(ctx, troopId, now);
-    await reassessDetection(ctx, seasonId, now);
+    await reassessDetection(ctx, seasonId, now, player._id);
     return null;
   },
 });
@@ -112,7 +112,11 @@ export const recall = mutation({
       movement.troopIds.includes(troopId),
     );
     if (underway) await ctx.db.patch(troopId, { tour: { ...troop.tour, recalled: true } });
-    else await endTour(ctx, troop, Date.now(), 'recalled');
+    else {
+      await endTour(ctx, troop, Date.now(), 'recalled');
+      /** Sans tournée, le camion n'est plus voilé par Rangoun (#145). */
+      await reassessDetection(ctx, seasonId, Date.now(), player._id);
+    }
     return null;
   },
 });
@@ -126,7 +130,8 @@ export const retry = internalMutation({
     if (!(await seasonStillPlays(ctx, troop.playerId))) return;
     const now = Date.now();
     await atBase(ctx, troopId, now);
-    await reassessDetection(ctx, troop.seasonId, now);
+    /** Une tournée ne touche que son joueur : ses dépôts, ses stocks, son camion. */
+    await reassessDetection(ctx, troop.seasonId, now, troop.playerId);
   },
 });
 

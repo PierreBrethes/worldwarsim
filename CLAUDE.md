@@ -56,7 +56,9 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`).
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
-  (`WWS/docs/technique/brouillard-et-fanout.md`).
+  (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une
+  colonne appelle `reassessDetection` elle-même, avec `changed` si un seul joueur est touché :
+  aucune réévaluation suivante ne rattrape plus un oubli.
 - **Une règle, une fonction.** Ce que l'interface propose et ce que le serveur accepte sortent de
   la même fonction pure de `src/domain/` (`*RefusalOf`, `src/domain/movement-orders.ts`). Rien
   n'est grisé : un ordre est offert, ou son refus est dit (ADR 0015).

@@ -749,7 +749,6 @@ export async function march(
     delivery,
     airdrop,
     keepsSlot = false,
-    rereadFog = true,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -776,9 +775,6 @@ export async function march(
       { readonly outpostId: Id<'outposts'> } | { readonly point: { lon: number; lat: number } };
     /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
     keepsSlot?: boolean;
-    /** Le banc de charge (`dev:benchFlights`) pose cent départs d'affilée et relit le brouillard
-     *  lui-même, une fois par étage : relire à chaque départ ferait dépasser la seconde permise. */
-    rereadFog?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -928,7 +924,8 @@ export async function march(
    *  cours de fondation n'est qu'une promesse tenue par la colonne qui la garde. Rien n'est
    *  remboursé, et le point disparaît avant que le brouillard soit réévalué. */
   if (origin.kind === 'outpost') await collapseIfAbandoned(ctx, origin.outpostId, now);
-  if (rereadFog) await reassessDetection(ctx, filed.seasonId, now);
+  /** Rien d'autre n'a bougé : la pile quittée et la colonne neuve sont au joueur. */
+  await reassessDetection(ctx, filed.seasonId, now, playerId);
   /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
   await surveyFromPoint(ctx, playerId, departure.point, now, column.roles);

@@ -971,7 +971,8 @@ export const arrive = internalMutation({
         point: movement.to,
         resolvesAt: held,
       });
-      await reassessDetection(ctx, movement.seasonId, now);
+      /** Retenue, la colonne reste plus longtemps au bout de son fil : rien d'autre ne bouge. */
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
 
@@ -1007,7 +1008,7 @@ export const arrive = internalMutation({
     if (movement.tourLeg !== undefined) {
       if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
       else await arriveAtBase(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
 
@@ -1086,7 +1087,14 @@ export const arrive = internalMutation({
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
     await resupply(ctx, movement.playerId, landed, now);
-    await reassessDetection(ctx, movement.seasonId, now);
+    /** **Sans combat, l'arrivée ne change que son joueur** : la colonne n'est plus, ses troupes
+     *  se posent ; un assaut, lui, touche le défenseur, et tout se relit. */
+    await reassessDetection(
+      ctx,
+      movement.seasonId,
+      now,
+      movement.type === 'attack' || movement.type === 'raid' ? undefined : movement.playerId,
+    );
   },
 });
 

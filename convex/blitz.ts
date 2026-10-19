@@ -40,6 +40,7 @@ import { playerBuildings } from './buildingReads';
 import { BLITZ, nominalStrength } from './constants';
 import { fail } from './errors';
 import { endowIrregular, irregularSeat } from './objectives';
+import { reassessDetection } from './movement/detection';
 import { allRegions, pointOfBuilding, pointOfRegion, regionFacts } from './regions';
 import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
@@ -303,6 +304,9 @@ export const commit = internalMutation({
         now,
       );
     }
+    /** Les premières garnisons sont des détecteurs et des camps : le brouillard naît avec elles,
+     *  et non au premier départ (#145, la relecture d'un départ ne relit plus que son joueur). */
+    await reassessDetection(ctx, seasonId, now);
     await ctx.scheduler.runAfter(BLITZ.mend.stepMinutes * 60_000, internal.blitz.mend, {
       seasonId,
     });

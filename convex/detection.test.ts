@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
 import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
@@ -1126,5 +1126,108 @@ describe('what survives the movement it watched', () => {
     const [seen] = (await t.query(api.view.playerView, guest)).detected;
     expect(seen!.seenTo).toBe(frozen!.frozen!.closedAt);
     expect(seen!.arrivesAt).toBe(frozen!.frozen!.closedAt);
+  });
+});
+
+/**
+ * **Un événement d'un seul joueur ne relit que lui** (#145) : un départ ou une arrivée sans combat
+ * refait les relevés de son joueur et ceux tenus sur ses colonnes, rien d'autre. Sur une scène
+ * dense — quatre joueurs, leurs piles et leurs colonnes croisées dans un même carré —, une
+ * réévaluation complète au même instant ne change plus une ligne : la portée n'a rien oublié.
+ */
+describe('a one-player event reassesses what the whole pass would', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  let seed = 3;
+  const near = (spread: number) => {
+    const shift = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    return { lon: 8 + shift() * spread, lat: 50 + shift() * spread };
+  };
+
+  const ledger = async (t: ReturnType<typeof boot>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('sightings').collect())
+        .map((row) =>
+          JSON.stringify([
+            row.movementId,
+            row.playerId,
+            row.from,
+            row.to,
+            row.detector,
+            row.detectorId,
+            row.detectorHostCountry,
+            row.detectorRegion,
+            row.noticeFiled ?? null,
+            row.frozen?.closedAt ?? null,
+          ]),
+        )
+        .sort(),
+    );
+
+  const wholePass = (t: ReturnType<typeof boot>, seasonId: Id<'seasons'>) =>
+    t.run(async (ctx) => reassessDetection(ctx, seasonId, Date.now()));
+
+  it('leaves nothing for a full pass to change after departures and an arrival', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const seats = [seat];
+    for (const name of ['Léa', 'Marc', 'Inès']) seats.push(await joinSeat(t, code, name));
+    for (const [k, one] of seats.entries()) {
+      const nation = (['france', 'ussr', 'uk', 'italy'] as const)[k]!;
+      await t.mutation(api.players.reserveNation, { ...one, nation });
+      await t.mutation(api.players.declareReady, { ...one, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    const players = await Promise.all(seats.map((one) => playerOf(t, one)));
+    const scenes = [];
+    for (const playerId of players) {
+      scenes.push(
+        await t.mutation(internal.dev.benchScene, {
+          playerId,
+          squads: Array.from({ length: 5 }, () => near(0.8)),
+          reserve: { at: near(0.8), count: 4 },
+          outposts: [],
+        }),
+      );
+    }
+    await wholePass(t, seat.seasonId);
+
+    for (let squad = 0; squad < 4; squad += 1) {
+      for (const [k, playerId] of players.entries()) {
+        const { ids, at } = scenes[k]!.squads[squad]!;
+        const { filed } = await t.mutation(internal.dev.benchFlights, {
+          playerId,
+          flights: [{ ids, from: at, to: near(2.5) }],
+        });
+        expect(filed).toBe(1);
+      }
+    }
+    const departed = await ledger(t);
+    expect(new Set(departed.map((row) => JSON.parse(row)[1])).size).toBe(4);
+    expect(departed.length).toBeGreaterThan(30);
+    await wholePass(t, seat.seasonId);
+    expect(await ledger(t)).toEqual(departed);
+
+    /** Ce qui tombe dans ces dix minutes — arrivées, garnisons des objectifs — passe d'abord. */
+    vi.advanceTimersByTime(10 * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    const arriving = await t.run(async (ctx) => {
+      const movement = (await ctx.db
+        .query('movements')
+        .withIndex('bySeason', (q) => q.eq('seasonId', seat.seasonId))
+        .first())!;
+      await ctx.db.patch(movement._id, { arrivesAt: Date.now() });
+      return movement._id;
+    });
+    await wholePass(t, seat.seasonId);
+    await t.mutation(internal.movements.arrive, { movementId: arriving });
+    const arrived = await ledger(t);
+    expect(arrived).not.toEqual(departed);
+    await wholePass(t, seat.seasonId);
+    expect(await ledger(t)).toEqual(arrived);
   });
 });

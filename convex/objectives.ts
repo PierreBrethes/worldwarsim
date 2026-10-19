@@ -42,6 +42,7 @@ import {
 import { allRegions, capitalRegionOf, pointOfBuilding, regionFacts } from './regions';
 import { routeBetween, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
+import { reassessDetection } from './movement/detection';
 
 export const seasonObjectives = (
   ctx: QueryCtx,
@@ -205,6 +206,9 @@ export const commit = internalMutation({
         written.push(await raise(ctx, seasonId, irregularId, archetype, region));
       }
       await endowIrregular(ctx, irregularId, now);
+      /** Les garnisons sont des détecteurs et des camps que chacun relève (#145) : rien d'autre
+       *  n'a changé, le siège irrégulier suffit à la portée. */
+      await reassessDetection(ctx, seasonId, now, irregularId);
     }
 
     /**

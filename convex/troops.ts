@@ -274,7 +274,8 @@ export const deliver = internalMutation({
       site: station === null ? null : { building: station.key, regionId: station.regionId },
     });
     await ctx.db.delete(recruitmentId);
-    await reassessDetection(ctx, season._id);
+    /** Une troupe neuve est un détecteur de plus, à son joueur seul. */
+    await reassessDetection(ctx, season._id, Date.now(), batch.playerId);
     await startLanes(ctx, batch.buildingId, Date.now());
   },
 });

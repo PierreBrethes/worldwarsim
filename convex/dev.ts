@@ -783,8 +783,9 @@ export const benchScene = internalMutation({
           await troop('infantry', at),
         ],
       });
+    const reserveIds: Id<'troops'>[] = [];
     for (let k = 0; k < reserve.count; k++)
-      await troop(k % 4 === 0 ? 'armor' : 'infantry', reserve.at);
+      reserveIds.push(await troop(k % 4 === 0 ? 'armor' : 'infantry', reserve.at));
     const outpostIds: Id<'outposts'>[] = [];
     for (const [k, point] of outposts.entries())
       outpostIds.push(
@@ -817,11 +818,11 @@ export const benchScene = internalMutation({
             stationedAt: outpostIds[0],
             load: { ammunition: 90, oil: 50, coal: 20 },
           });
-    return { squads: placed, outpostIds, truckId };
+    return { squads: placed, reserveIds, outpostIds, truckId };
   },
 });
 
-/** Les mouvements d'un lot d'escouades : le vrai `march`, sans le slot (`keepsSlot`) ni la relecture du brouillard (`rereadFog`), un refus compté. */
+/** Les mouvements d'un lot d'escouades : le vrai `march`, sans le slot (`keepsSlot`), un refus compté. */
 export const benchFlights = internalMutation({
   args: {
     playerId: v.id('players'),
@@ -842,7 +843,6 @@ export const benchFlights = internalMutation({
           troopIds: flight.ids,
           aim: await aimOf(ctx, playerId, { kind: 'point', point: flight.to }),
           keepsSlot: true,
-          rereadFog: false,
         });
       } catch {
         failedAt.push(flights.indexOf(flight));
@@ -851,11 +851,11 @@ export const benchFlights = internalMutation({
   },
 });
 
-/** La réévaluation du brouillard seule, pour la chronométrer. */
+/** La réévaluation du brouillard seule, pour la chronométrer : entière, ou d'un joueur. */
 export const benchReassess = internalMutation({
-  args: { seasonId: v.id('seasons') },
-  handler: async (ctx, { seasonId }) => {
-    await reassessDetection(ctx, seasonId);
+  args: { seasonId: v.id('seasons'), playerId: v.optional(v.id('players')) },
+  handler: async (ctx, { seasonId, playerId }) => {
+    await reassessDetection(ctx, seasonId, Date.now(), playerId);
   },
 });
 
