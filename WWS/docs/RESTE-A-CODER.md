@@ -37,6 +37,19 @@ avant de les exécuter. La file historique ci-dessous est complétée par la dir
      avion aligné sur la piste au décollage et à l'atterrissage ; navire qui s'écarte du quai ;
    - différent : une tuile bâtit tout de suite dans le POC, elle passe par un chantier dans le jeu
      (à confirmer) ; la fiche de transport liste ses jetons en icônes, pas en barre.
+8. **Vu en pré-prod le 19/10** (partie de Taco, Allemagne, en lecture seule) :
+   - un clic sur une ressource du bandeau n'ouvre rien (le bouton n'a qu'un libellé) ;
+   - le plateau personnel est un panneau centré qui couvre la moitié de la carte, et en
+     1440×900 il déborde : la rangée de recherche est coupée et le pied (chantiers, entretien)
+     sort de l'écran. La bulle des premiers pas recouvre le titre « Tuiles » ;
+   - les cartes de recherche affichent des contres déroutants, tirés de la table des dégâts
+     (« Infanterie MK2 : contre Transport aérien », « Aviation : contre Blindé ») ;
+   - une ferme et une mine sont posées sur leur gisement, au cœur de leur région : c'est bien
+     l'aimant au pôle qui donne l'impression du point 5 ;
+   - au téléphone, la carte s'ouvre sur le monde entier, la nation minuscule, avec une bande
+     noire sous le bandeau ;
+   - conformes : les slots « 0 / 2 », la fiche d'une troupe (charge, coups et plein 3/3, règle de
+     recharge), les gisements en points, les premiers pas 2/5.
 
 ## La file au 17/10 — vers la saison test Mondiale v2
 
