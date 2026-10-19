@@ -644,12 +644,19 @@ export const GARRISON_DAMAGE_TAKEN = 0.7;
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
 
+/**
+ * **La salve bornée** (ADR 0028 §6) : ce qu'un tir indirect touche de l'escouade visée — un pion
+ * seul prend un coup, une grosse escouade quatre. La parade à l'escouade monstre.
+ *
+ * @a-mesurer rien n'a encore tiré dans une Mondiale
+ */
+export const SALVO_TARGETS = 4;
+
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
-  /** @a-mesurer quatre, la parade à l'escouade monstre (ADR 0028 §6) */
-  salvoTargets: 4,
+  salvoTargets: SALVO_TARGETS,
 };
 
 /**
@@ -760,17 +767,16 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
  *
  * @a-mesurer rien n'a encore joué une soirée
  */
-export const INDIRECT_FIRE = {
-  emplaceSeconds: 30,
-  /**
-   * **En Mondiale, la portée et la zone morte sont des kilomètres** (ADR 0028 §6, 4.10) : la
-   * zone morte passe le rayon d'arrivée (`ARRIVAL_RADIUS_KM`), pour qu'on ne tire jamais sur ce
-   * qu'on touche ; la portée tient une région voisine.
-   *
-   * @a-mesurer rien n'a encore tiré dans une Mondiale
-   */
-  mondiale: { rangeKm: 150, deadZoneKm: 30 },
-} as const;
+export const INDIRECT_FIRE = { emplaceSeconds: 30 } as const;
+
+/**
+ * **En Mondiale, la portée et la zone morte de l'artillerie sont des kilomètres** (ADR 0028 §6) :
+ * la zone morte passe le rayon d'arrivée (`ARRIVAL_RADIUS_KM`), pour qu'on ne tire jamais sur ce
+ * qu'on touche ; la portée tient une région voisine.
+ *
+ * @a-mesurer rien n'a encore tiré dans une Mondiale
+ */
+export const MONDIALE_FIRE_REACH = { rangeKm: 150, deadZoneKm: 30 } as const;
 
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.

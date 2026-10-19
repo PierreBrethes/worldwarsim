@@ -1,4 +1,4 @@
-import { BLITZ_SHARE, INDIRECT_FIRE } from '../../convex/constants';
+import { BLITZ_SHARE, INDIRECT_FIRE, MONDIALE_FIRE_REACH } from '../../convex/constants';
 import { withinTheatre } from './blitz';
 import { distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
@@ -15,7 +15,7 @@ export const firesIndirect = (role: UnitRole): boolean => role === 'artillery';
  *  règle, l'aperçu et les cercles le lisent. */
 export const fireReachOf = (theatre: Theatre | null) =>
   theatre === null
-    ? INDIRECT_FIRE.mondiale
+    ? MONDIALE_FIRE_REACH
     : {
         rangeKm: theatreKm(theatre, BLITZ_SHARE.fireRange),
         deadZoneKm: theatreKm(theatre, BLITZ_SHARE.deadZone),
