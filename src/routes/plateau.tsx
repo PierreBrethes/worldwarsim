@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from 'react';
 import { api } from '../../convex/_generated/api';
@@ -3045,6 +3046,86 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     />
   );
 
+  /** Une fenêtre de la pile, montée dans sa propre frontière de chargement (plus bas). */
+  const surface = (name: Exclude<BoardWindow, 'personalBoard'>, rank: number): ReactNode => {
+    const windowProps = {
+      rank,
+      inFront: rank === surfaces.length - 1,
+      onBringForward: () => bringForward(name),
+      onClose: () => {
+        /** La manchette d'une notification ne survit pas au journal qui la portait. */
+        if (name === 'journal') setJournalLead(null);
+        closeWindow(name);
+      },
+    };
+    switch (name) {
+      case 'journal':
+        return (
+          <JournalWindow
+            key={name}
+            view={view}
+            seat={seat}
+            leadReport={journalLead}
+            rumors={lootRumors}
+            selectedRumorId={selectedRumorId}
+            onSelectRumor={selectRumor}
+            garrisonAt={garrisonAtCombat}
+            onShowCombat={showCombat}
+            onLocate={locate}
+            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
+            {...windowProps}
+          />
+        );
+      case 'telegraph':
+        return <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />;
+      case 'site':
+        /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
+         *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
+        return focused === undefined ? null : (
+          <SiteModal
+            key={name}
+            view={view}
+            seat={seat}
+            buildingId={focused}
+            onOpenGunnery={() => openWindow('gunnery')}
+            onPrepare={prepareColumn}
+            {...windowProps}
+          />
+        );
+      case 'nation':
+        return <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />;
+      case 'gunnery':
+        return <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />;
+      case 'press':
+        return (
+          <PressWindow
+            key={name}
+            press={view.press}
+            verdict={view.season.verdict}
+            ending={ending.facts}
+            blitz={blitz}
+            points={view.strategicPoints}
+            race={view.season.race}
+            {...windowProps}
+          />
+        );
+      case 'research':
+        return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
+      case 'settings':
+        return (
+          <SettingsWindow
+            key={name}
+            seat={seat}
+            mayConclude={view.me.mayConclude}
+            defeated={view.me.defeated}
+            blitz={blitz}
+            onShowBriefing={showBriefing}
+            {...windowProps}
+          />
+        );
+    }
+  };
+
   return (
     <Shell
       view={view}
@@ -3489,102 +3570,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               />
             </Suspense>
           )}
-          <Suspense fallback={null}>
-            {surfaces.map((name, rank) => {
-              const windowProps = {
-                rank,
-                inFront: rank === surfaces.length - 1,
-                onBringForward: () => bringForward(name),
-                onClose: () => {
-                  /** La manchette d'une notification ne survit pas au journal qui la portait. */
-                  if (name === 'journal') setJournalLead(null);
-                  closeWindow(name);
-                },
-              };
-              switch (name) {
-                case 'journal':
-                  return (
-                    <JournalWindow
-                      key={name}
-                      view={view}
-                      seat={seat}
-                      leadReport={journalLead}
-                      rumors={lootRumors}
-                      selectedRumorId={selectedRumorId}
-                      onSelectRumor={selectRumor}
-                      garrisonAt={garrisonAtCombat}
-                      onShowCombat={showCombat}
-                      onLocate={locate}
-                      onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
-                      {...windowProps}
-                    />
-                  );
-                case 'telegraph':
-                  return (
-                    <TelegraphWindow
-                      key={name}
-                      telegraph={telegraph}
-                      seat={seat}
-                      {...windowProps}
-                    />
-                  );
-                case 'site':
-                  /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
-                   *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
-                  return focused === undefined ? null : (
-                    <SiteModal
-                      key={name}
-                      view={view}
-                      seat={seat}
-                      buildingId={focused}
-                      onOpenGunnery={() => openWindow('gunnery')}
-                      onPrepare={prepareColumn}
-                      {...windowProps}
-                    />
-                  );
-                case 'nation':
-                  return (
-                    <NationWindow
-                      key={name}
-                      view={view}
-                      onLocate={locateStation}
-                      {...windowProps}
-                    />
-                  );
-                case 'gunnery':
-                  return (
-                    <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />
-                  );
-                case 'press':
-                  return (
-                    <PressWindow
-                      key={name}
-                      press={view.press}
-                      verdict={view.season.verdict}
-                      ending={ending.facts}
-                      blitz={blitz}
-                      points={view.strategicPoints}
-                      race={view.season.race}
-                      {...windowProps}
-                    />
-                  );
-                case 'research':
-                  return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
-                case 'settings':
-                  return (
-                    <SettingsWindow
-                      key={name}
-                      seat={seat}
-                      mayConclude={view.me.mayConclude}
-                      defeated={view.me.defeated}
-                      blitz={blitz}
-                      onShowBriefing={showBriefing}
-                      {...windowProps}
-                    />
-                  );
-              }
-            })}
-          </Suspense>
+          {/* **Une frontière par fenêtre** (#161) : la fenêtre qu'on ouvre pour la première fois
+              se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
+          {surfaces.map((name, rank) => (
+            <Suspense key={name} fallback={null}>
+              {surface(name, rank)}
+            </Suspense>
+          ))}
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}
