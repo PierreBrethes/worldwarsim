@@ -9,7 +9,7 @@ import { rolesFormedBy } from './blitz';
 import type { BuildingKey } from './ids';
 import { distanceKm, type LonLat } from './geo';
 import { type PlayerView, type TroopStation, type TroopView } from './player-view';
-import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
+import { isProjectionKey, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
 import { shownStepOf } from './first-steps';
 
@@ -78,8 +78,6 @@ const lineOf = (
   const [first, ...rest] = targets;
   return first === undefined ? [] : [{ id: kind, kind, label, targets: [first, ...rest] }];
 };
-
-const PROJECTION_KEYS: ReadonlySet<string> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
 /**
  * **Les attentes du joueur, dans l'ordre où on les lève.** La fondation d'abord — elle est
@@ -215,7 +213,7 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
   /** En Blitz le QG forme aussi — l'infanterie (`rolesFormedBy`). */
   const forms = (key: BuildingKey) =>
-    view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : PROJECTION_KEYS.has(key);
+    view.mode === 'blitz' ? rolesFormedBy(key).length > 0 : isProjectionKey(key);
   /** **En Blitz on ne recrute que dans un bâtiment libre** (U6) : celui qu'une des miennes tient
    *  n'attend rien. */
   const marching = marchingTroopIds(view.arcs);

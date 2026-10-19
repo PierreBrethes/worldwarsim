@@ -137,6 +137,7 @@ import {
   carrierIn,
   PROJECTION_BY_DOMAIN,
   hasSiteSheet,
+  isProjectionKey,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
@@ -817,6 +818,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           liftHand({ kind: 'held', station, troopIds: unit });
           return;
         }
+      }
+      /** **En Mondiale, un site de projection se sélectionne** (#163, comme dans Warcraft III) :
+       *  l'anneau sur son mât, et la bande du plateau personnel montre ce qu'il forme. Sa fiche
+       *  s'ouvre depuis la bande. */
+      if (!blitz && isProjectionKey(standing.key)) {
+        setGarrison(null);
+        setHand(EMPTY_HAND);
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        void navigate({
+          search: (previous) => {
+            const windows = (previous.windows ?? []).filter((open) => open !== 'site');
+            return {
+              ...withWindow({ ...previous, windows }, 'personalBoard'),
+              building: buildingId,
+            };
+          },
+        });
+        return;
       }
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
@@ -2297,12 +2316,35 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   }, [chosen.length, picking, hand.kind, clearSelection, formSquad, disbandSquad]);
 
   /** Un clic net sur le plateau, main vide, défait la sélection — sauf au doigt qui choisit. */
+  /** **Le site de projection sélectionné** (#163) : celui que la bande fait former, tant
+   *  qu'elle est dépliée et que sa fiche n'est pas devant. */
+  const selectedSite =
+    blitz || !windows.includes('personalBoard') || windows.includes('site')
+      ? null
+      : (view.me.buildings.find(
+          (building) => building.id === focused && isProjectionKey(building.key),
+        ) ?? null);
+  /** Un clic dans le vide désélectionne le site : la bande revient aux tuiles. */
+  const deselectSite = useCallback(
+    () =>
+      void navigate({
+        search: ({ building: _dropped, ...rest }) => rest,
+      }),
+    [navigate],
+  );
   const readGround = useCallback(
     (name: string | null) => {
       if (!picking && hand.kind === 'empty') clearSelection();
-      select(name);
+      void navigate({
+        search: ({ country: _country, building, ...rest }) => ({
+          ...rest,
+          ...(building === undefined || building === selectedSite?.id ? {} : { building }),
+          ...(name ? { country: name } : {}),
+        }),
+        replace: true,
+      });
     },
-    [picking, hand.kind, clearSelection, select],
+    [picking, hand.kind, clearSelection, navigate, selectedSite?.id],
   );
   const startPicking = useCallback(() => {
     dropHand();
@@ -2632,7 +2674,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'open'
       ? null
       : () => firstSteps.show('open');
-  const cuedLabel = stepCue?.kind === 'piece' ? markerOfStation(view, stepCue.station) : null;
+  const cuedLabel = stepCue?.kind === 'map' ? markerOfStation(view, stepCue.station) : null;
   const mapCue =
     cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText };
 
@@ -2983,7 +3025,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           <FirstStepsList
             steps={firstSteps}
             onLead={() => {
-              if (stepCue?.kind === 'piece') locateStation(stepCue.station);
+              if (stepCue?.kind === 'map') locateStation(stepCue.station);
               else openWindow('personalBoard');
             }}
           />
@@ -3055,7 +3097,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenCamp={openCamp}
               onOpenObjective={openObjective}
               onOpenStrategic={openStrategic}
-              selectedLabel={highlight?.labelId ?? null}
+              selectedLabel={
+                highlight?.labelId ?? (selectedSite === null ? null : buildingLabelId(selectedSite))
+              }
               selectedPlate={highlightPlate}
               selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
               reach={handReach ?? movementReach}
@@ -3419,6 +3463,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   open ? openWindow('personalBoard') : closeWindow('personalBoard')
                 }
                 focused={boardOpen ? (focused ?? null) : null}
+                site={selectedSite}
+                onDeselectSite={deselectSite}
+                onOpenSiteSheet={() => openWindow('site')}
                 onHoldTile={holdTile}
                 placing={placing?.key ?? null}
                 onPlaceTile={placeTile}

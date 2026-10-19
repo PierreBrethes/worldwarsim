@@ -2879,7 +2879,7 @@ export const fr = {
     steps: {
       hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
       move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
-      form: 'Former une pièce : la lâcher sur une caserne',
+      form: 'Former une pièce : cliquer une caserne, puis sa carte dans la bande',
       research: 'Bâtir un Centre de recherche, puis y poser une carte',
       deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
       /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
@@ -2891,11 +2891,11 @@ export const fr = {
       unfold: 'Dépliez le plateau personnel',
       hq: 'Cliquez la tuile du QG, puis votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
-      pieces: 'Une pièce, lâchée sur la caserne',
+      pieces: 'Cliquez ce site : ses troupes viennent dans la bande',
       center: 'D’abord un Centre de recherche : sa tuile sur la carte',
       research: 'Ouvrez l’arbre : une carte sur le Centre',
       move: 'Levez-la, posez-la plus loin',
-      truck: 'Un camion, lâché sur la caserne',
+      truck: 'Cliquez la caserne, puis la carte du camion',
       load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
       outpost: 'Envoyez-la fonder un avant-poste',
     },
@@ -3428,8 +3428,6 @@ export const fr = {
    */
   personalBoard: {
     header: 'Plateau personnel',
-    /** Les deux onglets du plateau à tuiles, et ce que fait chacun au survol. */
-    tabs: { buildings: 'Bâtiments', troops: 'Troupes' },
     previous: 'précédentes',
     next: 'suivantes',
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
@@ -3449,18 +3447,18 @@ export const fr = {
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
-    piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
-    piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',
-    /** Où une pièce se forme. */
-    pieceSite: (building: string) => `sur ${lowerFirst(building)}`,
+    /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
+    siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
+    siteSheet: 'fiche du site',
+    siteLeave: 'bâtiments',
+    siteLeaveTitle: 'Revenir aux tuiles de bâtiments (Échap)',
+    siteQueue: 'en formation',
+    siteQueueEmpty: 'Rien en formation : cliquez une carte.',
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
     raiseSped: (building: string, level: number) =>
       `Élever ${lowerFirst(building)} — ${fr.common.levelSpeed(level)}`,
-    form: (role: string, building: string) =>
-      `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
-    dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
     dropBack: 'Relâchée ici, elle rentre',
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,

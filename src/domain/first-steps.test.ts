@@ -105,15 +105,16 @@ describe('cueOf', () => {
     const standing = troop({ id: 'T-2', stationedAt: { kind: 'point', lonLat: [1, 2] } as never });
     expect(
       cueOf('move', view({ troops: [marching, standing] }, [{ state: 'mine', troopIds: ['T-1'] }])),
-    ).toEqual({ kind: 'piece', station: standing.stationedAt, say: 'move' });
+    ).toEqual({ kind: 'map', station: standing.stationedAt, say: 'move' });
     expect(cueOf('move', view())).toBeNull();
   });
 
-  it('asks for a projection site before the piece rack', () => {
+  /** #163 : on forme en sélectionnant le site sur la carte, la bande montre alors ses cartes. */
+  it('asks for a projection site, then points at it on the map', () => {
     expect(cueOf('form', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'tiles' });
-    expect(cueOf('form', view({ buildings: [{ id: 'B-1', key: 'barracks' } as never] }))).toEqual({
-      kind: 'rack',
-      rack: 'pieces',
+    expect(cueOf('form', view({ buildings: [{ id: 'B-1', key: 'port' } as never] }))).toEqual({
+      kind: 'map',
+      station: { kind: 'building', buildingId: 'B-1' },
       say: 'pieces',
     });
   });
@@ -128,19 +129,25 @@ describe('cueOf', () => {
     ).toEqual({ kind: 'rack', rack: 'research', say: 'research' });
   });
 
-  it('founds an outpost first, then points at a transport or at the piece rack', () => {
+  it('founds an outpost first, then points at a transport or at the barracks that forms one', () => {
     expect(cueOf('deliver', view({ troops: [troop({})] }))).toEqual({
-      kind: 'piece',
+      kind: 'map',
       station: at,
       say: 'outpost',
     });
     expect(cueOf('deliver', view({ outposts: [brussels] }))).toEqual({
       kind: 'rack',
-      rack: 'pieces',
-      say: 'truck',
+      rack: 'tiles',
+      say: 'tiles',
     });
     expect(
+      cueOf(
+        'deliver',
+        view({ outposts: [brussels], buildings: [{ id: 'B-1', key: 'barracks' } as never] }),
+      ),
+    ).toEqual({ kind: 'map', station: { kind: 'building', buildingId: 'B-1' }, say: 'truck' });
+    expect(
       cueOf('deliver', view({ outposts: [brussels], troops: [troop({ role: 'landTransport' })] })),
-    ).toEqual({ kind: 'piece', station: at, say: 'load' });
+    ).toEqual({ kind: 'map', station: at, say: 'load' });
   });
 });
