@@ -343,7 +343,7 @@ export const fr = {
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
-    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
+    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche ; son niveau est le nombre de chantiers en même temps',
     farm: 'exploite des terres',
     mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
@@ -3439,14 +3439,17 @@ export const fr = {
     dropBack: 'Relâchée ici, elle rentre',
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
-    worksHeader: 'chantiers · un seul avance',
+    worksHeader: (lanes: number) =>
+      lanes > 1 ? `chantiers · ${lanes} avancent à la fois` : 'chantiers · un seul avance',
+    /** Ce que le niveau suivant du QG ajouterait, dit sous la file. */
+    nextLane: (level: number) => `le QG niveau ${level} en ajouterait un`,
     worksFold: 'chantiers',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
     work: (name: string, level: number) => `${name} niv. ${level}`,
     workAt: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
-    workTail: (time: string, queued: number) =>
-      ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    workTail: (time: string, running: number, queued: number) =>
+      ` · reste ${time}${running > 1 ? ` · ${running} en cours` : ''}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
     left: (time: string) => `reste ${time}`,
@@ -3485,7 +3488,7 @@ export const fr = {
 
   economy: {
     constructionNone:
-      'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
+      'Aucun chantier. La file est illimitée et se paie à la mise en file — le niveau du QG dit combien avancent à la fois.',
 
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
@@ -3636,8 +3639,8 @@ export const fr = {
     standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
     /** **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout et ce qu'il fait. */
     censusHeader: 'recensement',
-    hqLine: (level: number, maximum: number, slots: number) =>
-      `niveau ${level} sur ${maximum} · ${slots} slots de mouvement`,
+    hqLine: (level: number, maximum: number, slots: number, lanes: number) =>
+      `niveau ${level} sur ${maximum} · ${lanes} chantier${lanes > 1 ? 's' : ''} à la fois · ${slots} slots de mouvement`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     listeningUnfigured: 'rayon de révélation non chiffré',
     listeningTemporary:

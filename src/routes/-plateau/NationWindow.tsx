@@ -255,7 +255,12 @@ function Census({ view }: { view: PlayerView }) {
         <p className="text-[12.5px] leading-[1.4]">
           <span className="font-semibold">{fr.buildings.hq}</span>{' '}
           <span className="text-[var(--ink-soft)]">
-            {fr.nationSheet.hqLine(view.me.hqLevel, MAX_HQ_LEVEL, view.me.slots.total)}
+            {fr.nationSheet.hqLine(
+              view.me.hqLevel,
+              MAX_HQ_LEVEL,
+              view.me.slots.total,
+              view.me.buildLanes,
+            )}
           </span>
         </p>
       )}

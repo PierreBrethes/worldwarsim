@@ -59,10 +59,9 @@ export function DismantleCard({
       outpost.id,
   );
   const queued = pledgedWork(view).find((work) => work.outpostId === outpost.id);
-  const head = view.me.construction;
   /** Une entrée qui court a déjà consommé son tour : c'est la règle de la file, et le
    *  démantèlement ne l'assouplit pas (`constructions.cancel`). */
-  const running = head !== null && head.outpostId === outpost.id;
+  const running = queued?.minutesLeft != null;
   /** **Le dépôt revient au plateau personnel**, le surplus de l'entrepôt perdu — la règle même
    *  que le serveur crédite (`depotRefundOf`). */
   const room = (key: keyof SupplyLoad) =>

@@ -46,10 +46,9 @@ export function DemolitionCard({
   const queued = pledgedWork(view).find(
     (work) => work.outpostId === null && work.regionId === building.regionId,
   );
-  const head = view.me.construction;
   /** Une entrée qui court a déjà consommé son tour : c'est la règle de la file, et la
    *  démolition ne l'assouplit pas (`constructions.cancel`). */
-  const running = head !== null && head.outpostId === null && head.regionId === building.regionId;
+  const running = queued?.minutesLeft != null;
   const garrison = view.me.troops.filter(
     (troop) =>
       troop.stationedAt.kind === 'building' && troop.stationedAt.buildingId === building.id,

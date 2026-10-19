@@ -992,12 +992,12 @@ export default defineSchema({
   /**
    * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`
    * above, and deliberately the same one: a second model of queue would be a second set of
-   * rules to remember. "Un chantier à la fois" still holds *in execution* — only the head
-   * advances — but the queue behind it is unbounded and **already paid for**.
+   * rules to remember. As many entries advance at once as the headquarters has levels
+   * (`buildLanes`, #136); the queue behind them is unbounded and **already paid for**.
    *
-   * Only the head carries a `finishesAt`. The followers have not started, they are dated
-   * nowhere, and they are exactly the ones a cancellation refunds in full without re-dating
-   * anything.
+   * Only the entries that advance carry a `finishesAt`. The followers have not started, they
+   * are dated nowhere, and they are exactly the ones a cancellation refunds in full without
+   * re-dating anything. A headquarters that falls sends the last running entries back there.
    *
    * `level` is written at the enqueue and never recomputed: it is what the entry was billed
    * for, so it is what a refund hands back and what the `finish` raises the building to.

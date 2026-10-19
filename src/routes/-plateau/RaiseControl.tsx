@@ -4,7 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { Price } from '@/shell/Price';
 import { handleError } from '@/data/errors';
-import { upgradeHold, type UpgradeHold } from '@/domain/construction';
+import { pledgedWork, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import { type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Building, type PlayerView } from '@/domain/player-view';
@@ -103,15 +103,12 @@ export function RaiseControl({
 function holdText(hold: UpgradeHold, building: Building, view: PlayerView, now: number): string {
   switch (hold.kind) {
     case 'alreadyQueued': {
-      const running = view.me.construction;
-      if (running !== null && running.regionId === building.regionId)
-        return fr.works.underway(
-          asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)),
-        );
-      const rank = view.me.constructionQueue.findIndex(
-        (entry) => entry.regionId === building.regionId,
-      );
-      return fr.works.queued(rank + 2);
+      const works = pledgedWork(view);
+      const rank = works.findIndex((entry) => entry.regionId === building.regionId);
+      const entry = works[rank];
+      if (entry?.minutesLeft != null)
+        return fr.works.underway(asDuration(currentMinutes(entry.minutesLeft, view.loadedAt, now)));
+      return fr.works.queued(rank + 1);
     }
     case 'cappedByHq':
       return fr.economy.cappedByHq;

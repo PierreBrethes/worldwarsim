@@ -649,6 +649,8 @@ export type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
+  /** Daté : il monte sur une autre voie du QG (#136), `null` : il attend sa voie. */
+  readonly minutesLeft?: number | null;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -1278,15 +1280,13 @@ export type PlayerView = {
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
-    /** The head of the construction queue — the only entry that is dated, hence the only one
-     *  the banner counts down and the map plants a crane on. */
+    /** The first running site — the one the banner counts down. The others that rise beside it
+     *  are in `constructionQueue` with a `minutesLeft`. */
     readonly construction: RunningWork | null;
-    /**
-     * What is paid for and waiting its turn, behind the head and in build order. A queued entry
-     * structurally carries **no** due time: nothing behind the head is dated, so a countdown
-     * here could only be invented (`convex/constructions.ts`).
-     */
+    /** The rest of the queue in build order: running ones (`minutesLeft`) and waiting ones. */
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
+    /** How many works rise at once: the headquarters level, 1 without it (`buildLanes`). */
+    readonly buildLanes: number;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
     readonly troops: ReadonlyArray<TroopView>;

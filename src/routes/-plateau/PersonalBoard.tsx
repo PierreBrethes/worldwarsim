@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
+import { MAX_HQ_LEVEL, RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
 import {
   cardName,
   countdownLabel,
@@ -1128,7 +1128,8 @@ const pieceName = (role: UnitRole, tier: UnitTier): string => {
 function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   const running = view.me.construction;
   if (running === null) return <>{fr.personalBoard.noWorks}</>;
-  const queued = view.me.constructionQueue.length;
+  const alongside = view.me.constructionQueue.filter((entry) => entry.minutesLeft != null).length;
+  const queued = view.me.constructionQueue.length - alongside;
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
@@ -1136,6 +1137,7 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
       </b>
       {fr.personalBoard.workTail(
         countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
+        1 + alongside,
         queued,
       )}
     </>
@@ -1171,71 +1173,73 @@ function Works({
   const drop = useMutation(api.constructions.cancel);
   const [error, setError] = useState<string | null>(null);
   const [unfolded, setUnfolded] = useState(false);
-  const running = view.me.construction;
-  const total = running === null ? 0 : buildMinutes(running.key, running.level);
-  const left = running === null ? 0 : currentMinutes(running.minutesLeft, view.loadedAt, now);
+  const rows = [
+    ...(view.me.construction === null ? [] : [view.me.construction]),
+    ...view.me.constructionQueue,
+  ].map((work) => ({ work, running: work.minutesLeft != null }));
   const list = (
     <div className="grid gap-[5px]">
-      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
-      {running === null ? (
+      <span className="eyebrow">{fr.personalBoard.worksHeader(view.me.buildLanes)}</span>
+      {rows.length === 0 && (
         <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
           {fr.economy.constructionNone}
         </p>
-      ) : (
-        <div className="grid gap-[2px] text-[12px] leading-[1.2]">
-          <span>
-            <b className="font-semibold">
-              {fr.personalBoard.workRank(1, fr.personalBoard.work(running.name, running.level))}
-            </b>{' '}
-            <span className="text-[var(--ink-soft)]">{running.regionName}</span>
-          </span>
-          <span aria-hidden className="block h-[3px] bg-(--ink)/14">
-            <i
-              className="block h-full bg-[var(--arc-mine)]"
-              style={{ width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%` }}
-            />
-          </span>
-          <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-            {fr.personalBoard.left(countdownLabel(left * 60_000))}
-          </small>
-        </div>
       )}
-      {view.me.constructionQueue.map((entry, index) => (
-        <div key={entry.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
-          <span className="flex items-baseline gap-2">
-            <span className="min-w-0 flex-1">
-              <b className="font-semibold">
-                {fr.personalBoard.workRank(
-                  index + 2,
-                  fr.personalBoard.work(entry.name, entry.level),
-                )}
-              </b>{' '}
-              <span className="text-[var(--ink-soft)]">{entry.regionName}</span>
+      {rows.map(({ work, running }, index) => {
+        const total = buildMinutes(work.key, work.level);
+        const left = running ? currentMinutes(work.minutesLeft!, view.loadedAt, now) : total;
+        return (
+          <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
+            <span className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1">
+                <b className="font-semibold">
+                  {fr.personalBoard.workRank(
+                    index + 1,
+                    fr.personalBoard.work(work.name, work.level),
+                  )}
+                </b>{' '}
+                <span className="text-[var(--ink-soft)]">{work.regionName}</span>
+              </span>
+              {!running && !observing && (
+                <button
+                  type="button"
+                  title={fr.economy.queueCancelTitle}
+                  onClick={() => {
+                    setError(null);
+                    drop({ ...seat, constructionId: work.id as Id<'constructions'> }).then(
+                      onSpent,
+                      (problem: unknown) => handleError(problem, setError),
+                    );
+                  }}
+                  className="cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 hover:text-[var(--critical)]"
+                >
+                  {fr.economy.queueCancel}
+                </button>
+              )}
             </span>
-            {!observing && (
-              <button
-                type="button"
-                title={fr.economy.queueCancelTitle}
-                onClick={() => {
-                  setError(null);
-                  drop({ ...seat, constructionId: entry.id as Id<'constructions'> }).then(
-                    onSpent,
-                    (problem: unknown) => handleError(problem, setError),
-                  );
-                }}
-                className="cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 hover:text-[var(--critical)]"
-              >
-                {fr.economy.queueCancel}
-              </button>
+            {running && (
+              <span aria-hidden className="block h-[3px] bg-(--ink)/14">
+                <i
+                  className="block h-full bg-[var(--arc-mine)]"
+                  style={{
+                    width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%`,
+                  }}
+                />
+              </span>
             )}
-          </span>
-          <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-            {fr.personalBoard.queuedLine(
-              countdownLabel(buildMinutes(entry.key, entry.level) * 60_000),
-            )}
-          </small>
-        </div>
-      ))}
+            <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+              {running
+                ? fr.personalBoard.left(countdownLabel(left * 60_000))
+                : fr.personalBoard.queuedLine(countdownLabel(total * 60_000))}
+            </small>
+          </div>
+        );
+      })}
+      {view.me.hqLevel > 0 && view.me.hqLevel < MAX_HQ_LEVEL && (
+        <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
+          {fr.personalBoard.nextLane(view.me.hqLevel + 1)}
+        </small>
+      )}
       {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
       <span className="mt-[4px] flex items-baseline gap-2">
         <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>

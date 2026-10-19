@@ -1423,8 +1423,8 @@ describe('the headquarters the player puts up', () => {
 });
 
 /**
- * **La file de chantier prépayée** (décision du 25/08). "One construction at a time" still holds
- * *in execution* — one head advances — but what is behind it is a queue without a ceiling, and
+ * **La file de chantier prépayée** (décision du 25/08). One construction per headquarters level
+ * advances at once (#136; the tests below sit at level 1, so one head) — but what is behind it is a queue without a ceiling, and
  * every entry of it has already settled its bill. The objection the single site answered was a
  * queue that *promised* a stacking the server refuses; a prepaid entry promises nothing.
  *
@@ -1478,7 +1478,7 @@ describe('the construction queue', () => {
   it('bills every entry at the enqueue and runs them one at a time, in order', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, 2);
+    await promoteHq(t, seat, 1);
     const opening = await steelOf(t, seat);
 
     for (const site of SITES) await t.mutation(api.constructions.start, { ...seat, ...site });
@@ -1519,6 +1519,66 @@ describe('the construction queue', () => {
       expect(done.me.buildings).toContainEqual(
         expect.objectContaining({ key: site.building, regionId: site.regionId, level: 1 }),
       );
+    }
+  });
+
+  const datedCount = (t: ReturnType<typeof boot>) =>
+    t.run(
+      async (ctx) =>
+        (await ctx.db.query('constructions').collect()).filter((row) => row.finishesAt !== null)
+          .length,
+    );
+
+  /** **Le niveau du QG est le nombre de chantiers en même temps** (#136) : élevé, il date l'entrée
+   *  qui attendait, sans rien redébiter. */
+  it('dates the waiting entry when the headquarters is raised', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    for (const site of SITES.slice(0, 2))
+      await t.mutation(api.constructions.start, { ...seat, ...site });
+    const opening = await steelOf(t, seat);
+    expect(await datedCount(t)).toBe(1);
+
+    await promoteHq(t, seat, 2);
+    await t.mutation(internal.constructions.resume, {
+      playerId: await t.run(async (ctx) => (await seatIn(ctx, seat))._id),
+    });
+
+    expect(await datedCount(t)).toBe(2);
+    expect(await steelOf(t, seat)).toBe(opening);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.construction).not.toBeNull();
+    expect(view.me.constructionQueue.filter((entry) => entry.minutesLeft !== null)).toHaveLength(1);
+  });
+
+  /** La chute du QG rétrécit les voies : le chantier en trop repart en file, payé, et monte
+   *  quand une voie se libère — sans double débit ni chantier perdu. */
+  it('sends the extra works back to the queue when the headquarters falls, losing nothing', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    for (const site of SITES.slice(0, 2))
+      await t.mutation(api.constructions.start, { ...seat, ...site });
+    expect(await datedCount(t)).toBe(2);
+    const opening = await steelOf(t, seat);
+
+    await promoteHq(t, seat, 1);
+    await t.mutation(internal.constructions.resume, {
+      playerId: await t.run(async (ctx) => (await seatIn(ctx, seat))._id),
+    });
+    expect(await datedCount(t)).toBe(1);
+    expect(await steelOf(t, seat)).toBe(opening);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const done = await t.query(api.view.playerView, seat);
+    expect(done.me.construction).toBeNull();
+    expect(done.me.constructionQueue).toEqual([]);
+    for (const site of SITES.slice(0, 2)) {
+      expect(
+        done.me.buildings.filter(
+          (building) => building.key === site.building && building.regionId === site.regionId,
+        ),
+      ).toHaveLength(1);
     }
   });
 
@@ -1617,7 +1677,7 @@ describe('the construction queue', () => {
   it('refunds a follower in full and refuses to cancel the head', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, 2);
+    await promoteHq(t, seat, 1);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -1669,6 +1729,8 @@ describe('the construction queue', () => {
     await fill(t, seat, 'ammunition', 100_000);
     await fill(t, seat, 'food', 100_000);
     await raise(t, seat, 'barracks', MARNE);
+    // One lane: the follower measured below must wait behind the head.
+    await promoteHq(t, seat, 1);
     const barracks = await t.run(
       async (ctx) =>
         (await ctx.db.query('buildings').collect()).find((row) => row.key === 'barracks')!._id,

@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { RESOURCES, type BuildingKey } from '../src/domain/ids';
 import {
@@ -276,8 +276,7 @@ describe('raser un bâtiment', () => {
     await promoteHq(t, seat, 3);
     await fillAll(t, seat);
     const station = await raise(t, seat, 'listening', MEURTHE, 1);
-    // Une première entrée occupe la tête — elle court, donc la seconde attend, et c'est celle-là
-    // qui se rembourse.
+
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -291,6 +290,12 @@ describe('raser un bâtiment', () => {
       point: pointIn(MEURTHE),
     });
     const refund = buildCost('listening', 2).steel ?? 0;
+    // Le QG retombe à une voie : la seconde entrée repart en attente, et c'est celle-là qui se
+    // rembourse.
+    await promoteHq(t, seat, 1);
+    await t.mutation(internal.constructions.resume, {
+      playerId: await t.run(async (ctx) => (await seatIn(ctx, seat))._id),
+    });
 
     const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: station });

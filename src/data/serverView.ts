@@ -109,7 +109,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
+        minutesLeft: entry.minutesLeft ?? null,
       })),
+      buildLanes: server.me.buildLanes ?? 1,
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
       /** A deployment one version behind knows no upkeep: a troop without the field is one
