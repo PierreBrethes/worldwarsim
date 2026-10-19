@@ -26,6 +26,12 @@ export type TagTour = {
   readonly waiting: TourWait | null;
 };
 
+/** **La tournée que la main trace** : son transport et ses dépôts dans l'ordre. */
+export type TourTrace = { readonly carrierId: string; readonly stops: ReadonlyArray<string> };
+
+/** **Ce que l'étiquette fait de la tournée** : lancer celle qu'on trace, l'effacer, la rappeler. */
+export type TourAct = 'launch' | 'clear' | 'recall';
+
 export type CargoTag = {
   readonly carrierId: string;
   readonly role: UnitRole;
@@ -56,7 +62,7 @@ export function cargoTagsOf<T extends Aboard>(
     readonly afloat: boolean;
     readonly atAirfield: boolean;
     /** La tournée que la main trace, s'il y en a une : son transport le dit sur son étiquette. */
-    readonly trace?: { readonly carrierId: string; readonly stops: ReadonlyArray<string> } | null;
+    readonly trace?: TourTrace | null;
   },
 ): ReadonlyArray<CargoTag> {
   return pile.flatMap((carrier) => {

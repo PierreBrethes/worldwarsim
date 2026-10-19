@@ -1,4 +1,5 @@
 import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
+import type { TourTrace } from './cargo-tag';
 import {
   availabilityOf,
   buildOptionsAt,
@@ -1186,23 +1187,11 @@ function withDelivery(
     !fan.actions.some((action) => action.key === 'aim' && action.type === 'march')
   )
     return fan;
-  const depot = {
-    level: outpost.level,
-    standing: outpost.standsAt === null,
-    depot: outpost.depot,
-    capacity: outpost.depotCapacity,
-  };
+  const depot = depotOfView(outpost);
   const carrier = carriers.length === 1 ? carriers[0]! : null;
   const touring =
     carrier !== null &&
-    tourRefusalOf({
-      role: carrier.role,
-      place: loadingPlaceOf(view, carrier),
-      busy: carrier.tour === undefined ? null : 'touring',
-      load: carrier.load,
-      stops: [outpostId],
-      baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
-    }) === null &&
+    tourRefusalOfView(view, carrier, [outpostId]) === null &&
     deliverRefusalOf([carrier], depot, true) === null;
   const tour: ReadonlyArray<CompassAction> = touring
     ? [
@@ -1234,6 +1223,26 @@ function withDelivery(
   return { ...fan, actions: [deliver, ...tour, ...fan.actions], refusal: null };
 }
 
+/** **Le dépôt d'un de mes points**, tel que livrer et tourner le lisent — la lecture de
+ *  `logistics.depotOf`. */
+const depotOfView = (outpost: OutpostView) => ({
+  level: outpost.level,
+  standing: outpost.standsAt === null,
+  depot: outpost.depot,
+  capacity: outpost.depotCapacity,
+});
+
+/** **La tournée de ce transport par ces dépôts**, lue comme `tours.start` la lit. */
+const tourRefusalOfView = (view: PlayerView, carrier: TroopView, stops: ReadonlyArray<string>) =>
+  tourRefusalOf({
+    role: carrier.role,
+    place: loadingPlaceOf(view, carrier),
+    busy: carrier.tour === undefined ? null : 'touring',
+    load: carrier.load,
+    stops,
+    baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
+  });
+
 /** **Où se tient le transport, pour charger ou partir en tournée** : un de mes bâtiments, un de
  *  mes avant-postes debout, ou ailleurs — la lecture de `logistics.placeOf`. */
 export function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace {
@@ -1255,11 +1264,7 @@ export function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace
  * boucle, quatre au plus, chacun une fois ; ailleurs, la rose dit où le lâcher. L'étiquette du
  * transport la lance ou l'efface.
  */
-export function traceCompass(
-  target: CompassTarget,
-  view: PlayerView,
-  trace: { readonly carrierId: string; readonly stops: ReadonlyArray<string> },
-): Compass {
+export function traceCompass(target: CompassTarget, view: PlayerView, trace: TourTrace): Compass {
   const carrier = view.me.troops.find((troop) => troop.id === trace.carrierId);
   const outpost =
     target.kind === 'outpost'
@@ -1271,24 +1276,8 @@ export function traceCompass(
     return { kicker, name, actions: [], refusal: fr.compass.traceElsewhere };
   const stops = [...trace.stops, outpost.id];
   const refusal =
-    tourRefusalOf({
-      role: carrier.role,
-      place: loadingPlaceOf(view, carrier),
-      busy: null,
-      load: carrier.load,
-      stops,
-      baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
-    }) ??
-    deliverRefusalOf(
-      [carrier],
-      {
-        level: outpost.level,
-        standing: outpost.standsAt === null,
-        depot: outpost.depot,
-        capacity: outpost.depotCapacity,
-      },
-      true,
-    );
+    tourRefusalOfView(view, carrier, stops) ??
+    deliverRefusalOf([carrier], depotOfView(outpost), true);
   if (refusal !== null) {
     const { code, ...details } = refusal;
     return { kicker, name, actions: [], refusal: fr.errors[code](details) };

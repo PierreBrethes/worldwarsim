@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import type { TourAct } from '@/domain/cargo-tag';
 import type { CargoTag } from '@/domain/cargo-tag';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
@@ -37,7 +38,7 @@ export function CargoTags({
 }: {
   /** **La tournée depuis l'étiquette** (ADR 0028) : la lancer ou l'effacer une fois tracée, la
    *  rappeler quand elle tourne. */
-  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   tags: ReadonlyArray<CargoTag>;
   nation: string | null;
   onDisembark: (troopIds: ReadonlyArray<string>) => void;

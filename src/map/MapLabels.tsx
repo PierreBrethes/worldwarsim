@@ -3,6 +3,7 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { TourAct } from '@/domain/cargo-tag';
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
 import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
@@ -124,7 +125,7 @@ export function MapLabels({
   onTour,
 }: {
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
-  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
   carriersShown?: boolean;
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */

@@ -1,4 +1,5 @@
 import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
+import type { TourAct, TourTrace } from '@/domain/cargo-tag';
 import { emptyLoad, isAirStop } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
@@ -849,10 +850,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
    *  l'étiquette du transport la lance ou l'efface. */
-  const [trace, setTrace] = useState<{
-    readonly carrierId: string;
-    readonly stops: ReadonlyArray<string>;
-  } | null>(null);
+  const [trace, setTrace] = useState<TourTrace | null>(null);
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
       trace !== null && column?.troopIds.includes(trace.carrierId) === true
@@ -897,7 +895,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recallTour = useMutation(api.tours.recall);
   /** **La tournée depuis l'étiquette** : lancer celle qu'on a tracée, l'effacer, la rappeler. */
   const onTour = useCallback(
-    (carrierId: string, act: 'launch' | 'clear' | 'recall') => {
+    (carrierId: string, act: TourAct) => {
       setOrderError(null);
       const refused = (problem: unknown) => handleError(problem, setOrderError);
       if (act === 'recall') {
@@ -943,16 +941,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ),
       ...(trace === null || tracedFrom === undefined
         ? []
-        : loopOf(
-            tracedFrom.kind === 'building'
-              ? tracedFrom.buildingId
-              : tracedFrom.kind === 'outpost'
-                ? tracedFrom.outpostId
-                : '',
-            trace.stops,
-            [],
-            true,
-          )),
+        : tracedFrom.kind === 'building'
+          ? loopOf(tracedFrom.buildingId, trace.stops, [], true)
+          : tracedFrom.kind === 'outpost'
+            ? loopOf(tracedFrom.outpostId, trace.stops, [], true)
+            : []),
     ];
   }, [view.me.troops, view.me.buildings, view.me.outposts, trace]);
 

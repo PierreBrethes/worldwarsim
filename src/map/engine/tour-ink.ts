@@ -1,4 +1,4 @@
-import { Group, Vector3 } from 'three';
+import { Group, Mesh, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { WorldFrame } from './frame';
 import { PALETTE } from './palette';
@@ -33,6 +33,13 @@ const WIDTH = 0.04;
 const FLOOR_PX = 3;
 const LIFT = 0.01;
 const INK = { color: PALETTE.border, opacity: 0.8 };
+/** **Un liseré de papier** sous l'encre, comme les fils (`thread.ts`) : la nuit, une encre sombre
+ *  sur un sol sombre ne se lit plus. */
+const CASING_INK = { color: PALETTE.paper, opacity: 0.7 };
+const CASING_BLEED_PX = 1.6;
+/** Au-dessus du sol et des voiles, sous les fils des mouvements (`thread.ts`, 9 et plus). */
+const TOUR_RANK = 5;
+const TOUR_CASING_RANK = 4.5;
 
 /**
  * **Les tournées tracées à l'encre**, chez soi seulement : une ligne fermée par boucle, pleine
@@ -54,10 +61,17 @@ export class TourInk {
     remaining: INK,
     dashed: true,
   });
+  private readonly casing = new RibbonMaterial({
+    width: WIDTH,
+    floorPx: FLOOR_PX,
+    bleedPx: CASING_BLEED_PX,
+    covered: CASING_INK,
+    remaining: CASING_INK,
+  });
   private key = '';
 
   constructor(private readonly frame: WorldFrame) {
-    this.group.renderOrder = 5;
+    this.group.renderOrder = TOUR_RANK;
   }
 
   show(loops: ReadonlyArray<TourLoop>): void {
@@ -65,7 +79,7 @@ export class TourInk {
     if (key === this.key) return;
     this.key = key;
     for (const child of [...this.group.children]) {
-      (child as Ribbon).geometry.dispose();
+      if (child instanceof Ribbon) child.geometry.dispose();
       child.removeFromParent();
     }
     for (const stroke of loops.flatMap(strokesOf)) {
@@ -74,16 +88,19 @@ export class TourInk {
         return new Vector3(at.x, at.y + LIFT, at.z);
       });
       const ribbon = new Ribbon(lifted, stroke.dashed ? this.dashed : this.solid);
-      ribbon.renderOrder = 5;
+      ribbon.renderOrder = TOUR_RANK;
       ribbon.frustumCulled = false;
-      this.group.add(ribbon);
+      const backing = new Mesh(ribbon.geometry, this.casing);
+      backing.renderOrder = TOUR_CASING_RANK;
+      backing.frustumCulled = false;
+      this.group.add(backing, ribbon);
     }
   }
 
   animate(unitsPerPixel: number, screenHeight: number): void {
     if (this.group.children.length === 0) return;
     const drawn = ribbonWidth(WIDTH, FLOOR_PX, unitsPerPixel);
-    for (const material of [this.solid, this.dashed]) {
+    for (const material of [this.solid, this.dashed, this.casing]) {
       material.viewHeight = screenHeight;
       material.pitch = dashPitch(drawn);
     }
@@ -93,6 +110,7 @@ export class TourInk {
     this.show([]);
     this.solid.dispose();
     this.dashed.dispose();
+    this.casing.dispose();
     this.group.removeFromParent();
   }
 }

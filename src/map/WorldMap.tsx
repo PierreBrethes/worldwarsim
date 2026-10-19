@@ -3,6 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
   useEffect,
@@ -250,7 +251,7 @@ type Props = {
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
   onTakeDepot?: TakeDepot | undefined;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
-  onTour?: ((carrierId: string, act: 'launch' | 'clear' | 'recall') => void) | undefined;
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
   tourLoops?: ReadonlyArray<TourLoop>;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
