@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 85fe5cf -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6ef9909 -->
 
 # Les constantes à mesurer
 
@@ -73,8 +73,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
 | `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:251` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:88` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
-| `LEVEL_SPEEDUP` | `0.15` | `src/domain/level-speed.ts:9` | l'équilibrage chiffrera la part par niveau |
-| `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:12` | la durée ne descend jamais sous cette part de la base |
+| `LEVEL_SPEEDUP` | `0.15` | `src/domain/level-speed.ts:11` | l'équilibrage chiffrera la part par niveau |
+| `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:342` | deux, d'après la décision du 19/10, jamais joué |
 | `DISBAND_SPREAD_DEG` | `0.05` | `src/domain/movement-orders.ts:828` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
