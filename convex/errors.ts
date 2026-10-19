@@ -149,6 +149,7 @@ export type ErrorCode =
   | 'DEPOT_NOT_STANDING'
   | 'DEPOT_FULL'
   | 'TOUR_NOT_AT_LOADING_POINT'
+  | 'TOUR_NO_STOP'
   | 'TOUR_TOO_LONG'
   | 'TOUR_STOP_TWICE'
   | 'NOT_ON_TOUR'

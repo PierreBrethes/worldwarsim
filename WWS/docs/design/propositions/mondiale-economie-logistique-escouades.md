@@ -163,7 +163,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
 - **Le génie** (des sapeurs qui bâtiraient et ravitailleraient seuls) est écarté pour l'instant
   (`QUESTIONS.md`) : la tournée couvre le besoin sans nouvelle pièce.
 - **Un ravitaillement se relève et s'intercepte** comme tout mouvement (R8). Un transport détruit
-  laisse une caisse. L'atout américain devient « vos ravitaillements ne sont jamais relevés ».
+  laisse une caisse, à terre seulement : en mer, le large prend sa charge, et celle d'un camion
+  à bord d'un cargo coulé avec lui. L'atout américain devient « vos ravitaillements ne sont
+  jamais relevés ».
 - **Se défendre chez soi ne coûte aucune logistique** : le pays ravitaille. L'attaquant paie le
   chemin.
 

@@ -536,6 +536,100 @@ describe('the supply tour', () => {
     ).rejects.toThrow('TRANSPORT_ON_TOUR');
   });
 
+  it('skips a stop lost on the way, and goes on to the next', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const hq = await hqOf(t, seat);
+    const truck = await form(t, seat, 'landTransport', hq);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    const first = await plant(t, seat, ESSEN, 1, GERMANY);
+    const second = await plant(t, seat, HANOVER, 1, GERMANY);
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [first, second] });
+    const lostTo = await playerOf(t, guest);
+    await t.run(async (ctx) => ctx.db.patch(first, { playerId: lostTo }));
+
+    await arriveNext(t);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: second } }]);
+    expect((await get(t, truck))!.tour).toBeDefined();
+  });
+
+  /** **Le brouillard** : l'adversaire relève un mouvement, jamais ce qu'il porte ni sa boucle. */
+  it('reads to the enemy as a movement, without its charge or its loop', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    await touring(t, seat);
+    const [onTheRoad] = await flying(t);
+    const watcher = await playerOf(t, guest);
+    await t.run(async (ctx) =>
+      ctx.db.insert('sightings', {
+        playerId: watcher,
+        movementId: onTheRoad!._id,
+        from: Date.now(),
+        to: onTheRoad!.arrivesAt,
+        detector: 'territory',
+        detectorId: null,
+      }),
+    );
+
+    const { detected } = await t.query(api.view.playerView, guest);
+    expect(detected).toHaveLength(1);
+    const served = JSON.stringify(detected);
+    for (const secret of ['load', 'consigne', 'tour', 'delivery', 'stops', 'ammunition'])
+      expect(served).not.toContain(secret);
+  });
+
+  it('ends on a rout, its next look cancelled, and a late look finds nothing to do', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const worn = await form(t, seat, 'infantry', barracks);
+    // Thirty soldiers walking at fifty: the riposte takes it under the quarter it breaks at.
+    await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    await form(t, guest, 'infantry', theirs);
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [worn],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    const retryJobId = await t.run(async (ctx) =>
+      ctx.scheduler.runAfter(3_600_000, internal.tours.retry, { troopId: worn }),
+    );
+    await t.run(async (ctx) =>
+      ctx.db.patch(worn, {
+        tour: {
+          base: barracks,
+          stops: [],
+          consigne: { ammunition: 0, oil: 0, coal: 0 },
+          next: 0,
+          waiting: { since: Date.now(), why: 'full' },
+          retryJobId,
+        },
+      }),
+    );
+
+    await arriveNext(t);
+    expect((await get(t, worn))!.tour).toBeUndefined();
+    const ended = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'tourEnded'))
+        .collect(),
+    );
+    expect(ended).toMatchObject([{ why: 'cut' }]);
+    expect((await t.run(async (ctx) => ctx.db.system.get(retryJobId)))?.state.kind).toBe(
+      'canceled',
+    );
+
+    await t.mutation(internal.tours.retry, { troopId: worn });
+    expect((await get(t, worn))!.tour).toBeUndefined();
+    const notices = await t.run(async (ctx) => ctx.db.query('notices').collect());
+    expect(notices.filter((notice) => notice.kind.startsWith('tour'))).toHaveLength(1);
+  });
+
   it('finishes the leg it is on when recalled, and stops at its loading point', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

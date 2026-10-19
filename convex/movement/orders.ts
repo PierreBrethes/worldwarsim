@@ -654,14 +654,17 @@ export async function slotsTaken(
   ctx: QueryCtx,
   player: Doc<'players'>,
   movements: ReadonlyArray<Doc<'movements'>>,
+  /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
+  troops?: ReadonlyArray<Doc<'troops'>>,
 ): Promise<number> {
   const flying = movements.filter((movement) => movement.type !== 'return');
   const marching = new Set(movements.flatMap((movement) => movement.troopIds));
   const resting = (
-    await ctx.db
+    troops ??
+    (await ctx.db
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect()
+      .collect())
   ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id));
   const holders = [
     ...flying.map((movement) => movement.troopIds),

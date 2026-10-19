@@ -19,6 +19,7 @@ import { notifyPlayer } from './notifications';
 import { push, journalUrl, reportUrl } from '../src/domain/push';
 import { resupply } from './supplies';
 import { dropTransportCrate } from './crateStock';
+import { stopTour } from './tours';
 import { suppliesOf } from '../src/domain/supplies';
 import {
   combatCargoSnapshot,
@@ -284,10 +285,12 @@ export async function resolveContact(
    * caisse au point de la passe, et une tournée dont le transport se replie finit — il rentre
    * en déroute, pas au chargement.
    */
+  // A crate rests on land only: at sea the deep takes the load, a truck's sunk aboard its cargo too.
+  const ashore = landAtPoint([point.lon, point.lat]);
   for (const outcome of outcomes) {
     const troop = byId.get(outcome.id)!;
     const finderId = troop.playerId === attacker.playerId ? defender.playerId : attacker.playerId;
-    if (outcome.state === 'destroyed' && troop.load !== undefined)
+    if (ashore && outcome.state === 'destroyed' && troop.load !== undefined)
       await dropTransportCrate(ctx, {
         seasonId,
         engagementId,
@@ -297,16 +300,8 @@ export async function resolveContact(
         point,
         at,
       });
-    if (outcome.state === 'routed' && troop.tour !== undefined) {
-      await ctx.db.patch(troop._id, { tour: undefined });
-      await ctx.db.insert('notices', {
-        playerId: troop.playerId,
-        at,
-        kind: 'tourEnded',
-        role: troop.role,
-        why: 'cut',
-      });
-    }
+    if (outcome.state === 'routed' && troop.tour !== undefined)
+      await stopTour(ctx, troop, at, 'cut');
   }
 
   /**

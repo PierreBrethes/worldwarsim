@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { stopTour } from './tours';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation } from './_generated/server';
@@ -665,6 +666,8 @@ async function toIrregulars(
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
     .collect()) {
+    /** Sa tournée tombe avec lui : un siège irrégulier ne ravitaille personne. */
+    if (troop.tour !== undefined) await stopTour(ctx, troop, now, 'cut');
     await ctx.db.patch(troop._id, { playerId: irregularId });
   }
   await dropCapturesOf(ctx, loser._id, now);

@@ -409,7 +409,7 @@ function written(notice: Notice): Written {
     case 'tourEnded':
       return {
         at: notice.at,
-        severity: notice.why === 'cut' ? 'critical' : 'notable',
+        severity: notice.why === 'recalled' ? 'notable' : 'critical',
         kind: 'supply',
         text: said.tourEnded(fr.roles[notice.role].one, notice.why),
       };

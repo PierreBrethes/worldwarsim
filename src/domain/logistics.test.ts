@@ -167,6 +167,7 @@ describe('tracing a tour', () => {
     expect(tourRefusalOf({ ...base, stops: ['a', 'b', 'c', 'd', 'e'] })?.code).toBe(
       'TOUR_TOO_LONG',
     );
+    expect(tourRefusalOf({ ...base, stops: [] })?.code).toBe('TOUR_NO_STOP');
     expect(tourRefusalOf({ ...base, stops: ['a', 'a'] })?.code).toBe('TOUR_STOP_TWICE');
     expect(
       tourRefusalOf({ ...base, place: { kind: 'outpost', level: 1 }, baseOutpostId: 'a' })?.code,

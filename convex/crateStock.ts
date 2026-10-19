@@ -2,6 +2,7 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
+import type { SupplyLoad } from '../src/domain/logistics';
 import { trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
 import { LOOT_CRATE_HOURS } from './constants';
 import { reassessLootCrateDetection, reassessLootCrateSightings } from './movement/detection';
@@ -142,7 +143,7 @@ export async function dropTransportCrate(
     engagementId: Id<'engagements'>;
     ownerId: Id<'players'>;
     finderId: Id<'players'>;
-    load: { readonly ammunition: number; readonly oil: number; readonly coal: number };
+    load: SupplyLoad;
     point: { lon: number; lat: number };
     at: number;
   },

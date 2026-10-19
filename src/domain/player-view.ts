@@ -262,13 +262,6 @@ export type TroopStation =
  * `stationedAt` is its address, `home` meaning the troop whose building is gone. No enemy troop
  * ever travels in this list.
  */
-/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque de `resource`,
- *  tous ses dépôts sont pleins, ou sa route est refusée. */
-export type TourWait = {
-  readonly why: 'stock' | 'full' | 'road';
-  readonly resource?: ResourceKey;
-};
-
 export type TroopView = {
   readonly id: string;
   readonly role: UnitRole;
@@ -311,6 +304,17 @@ export type TroopView = {
   /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
   readonly mending: boolean;
 };
+
+/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque de `resource`,
+ *  tous ses dépôts sont pleins, ou sa route est refusée. */
+export type TourWait = {
+  readonly why: 'stock' | 'full' | 'road';
+  readonly resource?: ResourceKey;
+};
+
+/** **Pourquoi une tournée finit** : rappelée, coupée (chargement ou dépôts perdus, déroute,
+ *  chute), ou sa route refusée trop longtemps. */
+export type TourEnd = 'recalled' | 'cut' | 'road';
 
 export type OutpostView = {
   readonly id: string;
@@ -867,7 +871,7 @@ type NoticeBody =
       readonly kind: 'tourEnded';
       readonly at: number;
       readonly role: UnitRole;
-      readonly why: 'recalled' | 'cut';
+      readonly why: TourEnd;
     }
   | {
       readonly kind: 'supplyDelivered';

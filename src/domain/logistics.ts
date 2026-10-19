@@ -250,6 +250,7 @@ export type TourRefusal =
   | { readonly code: 'TRANSPORT_ON_TOUR' }
   | { readonly code: 'TOUR_NOT_AT_LOADING_POINT'; readonly role: UnitRole }
   | { readonly code: 'NO_AIR_STOP'; readonly level: number }
+  | { readonly code: 'TOUR_NO_STOP' }
   | { readonly code: 'TOUR_TOO_LONG'; readonly maximum: number }
   | { readonly code: 'TOUR_STOP_TWICE' }
   | { readonly code: 'NOTHING_TO_DELIVER' };
@@ -280,8 +281,8 @@ export function tourRefusalOf({
   const here = loadsHere(role, place);
   if (here?.code === 'LOAD_NOT_HERE') return { code: 'TOUR_NOT_AT_LOADING_POINT', role };
   if (here !== null) return here;
-  if (stops.length === 0 || stops.length > TOUR_MAX_STOPS)
-    return { code: 'TOUR_TOO_LONG', maximum: TOUR_MAX_STOPS };
+  if (stops.length === 0) return { code: 'TOUR_NO_STOP' };
+  if (stops.length > TOUR_MAX_STOPS) return { code: 'TOUR_TOO_LONG', maximum: TOUR_MAX_STOPS };
   if (
     new Set(stops).size !== stops.length ||
     (baseOutpostId !== null && stops.includes(baseOutpostId))

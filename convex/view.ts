@@ -501,7 +501,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         total: movementSlots(hqLevel),
         // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
         // (`slotsTaken`).
-        used: await slotsTaken(ctx, player, movements),
+        used: await slotsTaken(ctx, player, movements, troops),
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).

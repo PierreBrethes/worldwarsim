@@ -16,7 +16,7 @@ import { contactKm, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../cons
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
-import { forgetMovement, standAt } from './arrival';
+import { forgetMovement, standAt, walkHome } from './arrival';
 import { marchingForce, reassessDetection } from './detection';
 import { asPoint, movementsOf, pointOf, stanceOf, troopsCarriedBy } from './forces';
 import { pacedMinutes } from './pace';
@@ -271,7 +271,7 @@ async function strike(
   now: number,
 ): Promise<void> {
   const mode = passModeOf(movement.troopIds, quarry.movement?.pursuit?.troopId ?? null);
-  const { engagement } = await resolveContact(ctx, {
+  const { engagement, routed } = await resolveContact(ctx, {
     seasonId: movement.seasonId,
     attacker: { playerId: movement.playerId, troops: hunters },
     defender: { playerId: quarry.troop.playerId, troops: [quarry.troop] },
@@ -305,6 +305,14 @@ async function strike(
       await standAt(ctx, theirs, asPoint(quarry.point));
       await reload(quarry.troop);
       await forgetMovement(ctx, theirs._id, now);
+    } else if (routed.some((troop) => theirs.troopIds.includes(troop._id))) {
+      /** **Repliée, la proie ne poursuit pas sa route** : sa colonne rentre en déroute, et ce
+       *  qu'elle allait faire au bout — livrer, tourner — ne se fait pas. */
+      const beaten = (await troopsCarriedBy(ctx, theirs)).filter((troop) =>
+        standing.has(troop._id),
+      );
+      await forgetMovement(ctx, theirs._id, now);
+      await walkHome(ctx, { winners: [], beaten }, quarry.point, now);
     } else if (!theirs.troopIds.some((troopId) => standing.has(troopId))) {
       await forgetMovement(ctx, theirs._id, now);
     }

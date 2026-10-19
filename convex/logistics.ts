@@ -113,6 +113,14 @@ export const load = mutation({
   },
 });
 
+/** **Le dépôt d'un de mes points**, tel que les refus de livraison et de tournée le lisent. */
+export const depotOf = (outpost: Doc<'outposts'>, now: number) => ({
+  level: outpost.level,
+  standing: isStanding(outpost, now),
+  depot: outpost.depot ?? emptyLoad(),
+  capacity: depotCapacity(outpost.level),
+});
+
 /** Les transports d'une colonne, ceux qui ne sont pas à bord d'un autre. */
 const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
   const hulls = new Set(carriersAmong(troops.map(seatedOf)).map((troop) => troop.id));
@@ -137,12 +145,10 @@ export const deliver = mutation({
     if (await isBlitz(ctx, seasonId)) fail('NOT_IN_BLITZ');
     const outpost = await ctx.db.get(outpostId);
     if (outpost === null || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST', { outpostId });
-    const refusal = deliverRefusalOf(carriersOf(await troopsAmong(ctx, player._id, troopIds)), {
-      level: outpost.level,
-      standing: isStanding(outpost, Date.now()),
-      depot: outpost.depot ?? emptyLoad(),
-      capacity: depotCapacity(outpost.level),
-    });
+    const refusal = deliverRefusalOf(
+      carriersOf(await troopsAmong(ctx, player._id, troopIds)),
+      depotOf(outpost, Date.now()),
+    );
     if (refusal !== null) {
       const { code, ...details } = refusal;
       fail(code, details);

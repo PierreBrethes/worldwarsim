@@ -444,7 +444,7 @@ export default defineSchema({
      * **Sa tournée** (ADR 0028, précision du 18/10) : une boucle depuis son point de chargement
      * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
      * est l'arrêt que le tour en cours visite après celui-ci, `skipped` les dépôts pleins qu'il
-     * saute ; `waiting` dit qu'elle attend au chargement, depuis quand et pourquoi, `recalled`
+     * saute ; `waiting` dit qu'elle attend au chargement, depuis quand, pourquoi et combien de fois sa route a été refusée d'affilée, `recalled`
      * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne.
      */
     tour: v.optional(
@@ -454,7 +454,9 @@ export default defineSchema({
         consigne: SUPPLY_LOAD,
         next: v.number(),
         skipped: v.optional(v.array(v.id('outposts'))),
-        waiting: v.optional(v.object({ since: v.number(), ...TOUR_WAIT.fields })),
+        waiting: v.optional(
+          v.object({ since: v.number(), roads: v.optional(v.number()), ...TOUR_WAIT.fields }),
+        ),
         recalled: v.optional(v.boolean()),
         retryJobId: v.optional(v.id('_scheduled_functions')),
       }),

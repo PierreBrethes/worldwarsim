@@ -255,6 +255,10 @@ export const TOUR_WAIT = v.object({
   resource: v.optional(RESOURCE_KEY),
 });
 
+/** **Pourquoi une tournée finit** : rappelée, coupée (chargement ou dépôts perdus, déroute,
+ *  chute), ou sa route refusée trop longtemps (`road`). */
+export const TOUR_END = v.union(v.literal('recalled'), v.literal('cut'), v.literal('road'));
+
 export const NOTICE = v.union(
   /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
    *  chez le capteur. L'heure est celle de la perte si rien ne change. */
@@ -441,7 +445,7 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('tourEnded'),
     role: UNIT_ROLE,
-    why: v.union(v.literal('recalled'), v.literal('cut')),
+    why: TOUR_END,
   }),
   /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
    *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */

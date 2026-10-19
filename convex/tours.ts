@@ -1,4 +1,4 @@
-import { v, type Infer } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
@@ -14,10 +14,10 @@ import {
 } from '../src/domain/logistics';
 import { isStanding } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
-import { TOUR_RETRY_MINUTES, depotCapacity } from './constants';
+import { TOUR_ROAD_WAITS, TOUR_RETRY_MINUTES } from './constants';
 import { fail } from './errors';
-import type { TOUR_WAIT } from './validators';
-import { busyOf, placeOf, unloadAt } from './logistics';
+import type { TOUR_END, TOUR_WAIT } from './validators';
+import { busyOf, depotOf, placeOf, unloadAt } from './logistics';
 import { forgetMovement, standAt, walkHome } from './movement/arrival';
 import { movementsOf, pointOf } from './movement/forces';
 import { aimOf, claimSlot, march, troopsAmong, type MarchOrigin } from './movement/orders';
@@ -38,6 +38,7 @@ import type { LonLat } from '../src/domain/geo';
  */
 
 type Tour = NonNullable<Doc<'troops'>['tour']>;
+type TourEnd = Infer<typeof TOUR_END>;
 
 /**
  * **Lancer une tournée** : le transport chargé, à son point de chargement, et ses arrêts dans
@@ -129,13 +130,6 @@ export const retry = internalMutation({
   },
 });
 
-const depotOf = (outpost: Doc<'outposts'>, now: number) => ({
-  level: outpost.level,
-  standing: isStanding(outpost, now),
-  depot: outpost.depot ?? emptyLoad(),
-  capacity: depotCapacity(outpost.level),
-});
-
 /** Ses arrêts encore à elle et debout, dans l'ordre du tracé. */
 async function stopsOf(ctx: MutationCtx, troop: Doc<'troops'>, tour: Tour, now: number) {
   const stops: Array<Doc<'outposts'>> = [];
@@ -189,8 +183,9 @@ async function leg(
     });
     await ctx.db.patch(movementId, { tourLeg: to.kind });
     return true;
-  } catch {
-    return false;
+  } catch (refused) {
+    if (refused instanceof ConvexError) return false;
+    throw refused;
   }
 }
 
@@ -244,8 +239,9 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
 
 /**
  * **À un arrêt de la tournée** : décharger, puis le prochain dépôt qui prendrait quelque chose,
- * ou le retour au chargement. Un point perdu en route, une route refusée : la tournée finit et
- * le transport rentre seul.
+ * ou le retour au chargement. Un arrêt perdu ou tombé en route est sauté, comme au chargement ;
+ * la tournée finit, et le transport rentre seul, s'il ne lui reste aucun arrêt ou que la route
+ * est refusée.
  */
 export async function arriveOnTour(
   ctx: MutationCtx,
@@ -253,27 +249,27 @@ export async function arriveOnTour(
   now: number,
 ): Promise<void> {
   const unloaded = await unloadAt(ctx, movement, now);
-  const troops = unloaded?.carriers ?? [];
   if (unloaded === null) {
     await standAt(ctx, movement, movement.to);
     await forgetMovement(ctx, movement._id, now);
-    for (const troopId of movement.troopIds) {
-      const troop = await ctx.db.get(troopId);
-      if (troop?.tour !== undefined) await endTour(ctx, troop, now, 'cut');
-    }
-    return;
   }
-  for (const carrier of troops) {
+  const carriers =
+    unloaded?.carriers ?? (await troopsAmong(ctx, movement.playerId, movement.troopIds));
+  for (const carrier of carriers) {
     const tour = carrier.tour;
     if (tour === undefined) {
       await walkHome(ctx, { winners: [carrier], beaten: [] }, pointOf(movement.to), now);
       continue;
     }
     /** Il se tient au point, d'où il repart : un point côtier est une côte pour un cargo. */
-    const stationedAt = unloaded.outpost._id;
+    const stationedAt = unloaded === null ? carrier.stationedAt : unloaded.outpost._id;
     await ctx.db.patch(carrier._id, { stationedAt });
     const here = { ...carrier, stationedAt };
     const stops = await stopsOf(ctx, here, tour, now);
+    if (stops.length === 0) {
+      await endTour(ctx, here, now, 'cut');
+      continue;
+    }
     const ahead = stops.filter((stop) => tour.stops.indexOf(stop._id) >= tour.next);
     const plan = visitPlan(
       here.load ?? emptyLoad(),
@@ -327,14 +323,22 @@ async function wait(
   reason: Infer<typeof TOUR_WAIT>,
 ): Promise<void> {
   const tour = troop.tour!;
+  const was = tour.waiting;
+  /** **Une route refusée ne revient pas seule** : passé quelques regards, la tournée s'arrête ;
+   *  un plateau à sec ou des dépôts pleins, eux, se remplissent ou se vident d'eux-mêmes. */
+  const roads = reason.why === 'road' ? (was?.why === 'road' ? (was.roads ?? 1) : 0) + 1 : 0;
+  if (roads >= TOUR_ROAD_WAITS) return endTour(ctx, troop, now, 'road');
   const retryJobId = await ctx.scheduler.runAfter(
     TOUR_RETRY_MINUTES * 60_000,
     internal.tours.retry,
     { troopId: troop._id },
   );
-  const was = tour.waiting;
   await ctx.db.patch(troop._id, {
-    tour: { ...tour, waiting: { since: was?.since ?? now, ...reason }, retryJobId },
+    tour: {
+      ...tour,
+      waiting: { since: was?.since ?? now, ...reason, ...(roads > 0 ? { roads } : {}) },
+      retryJobId,
+    },
   });
   /** Une dépêche quand elle se met à attendre, ou pour une autre raison — pas à chaque regard. */
   if (was?.why === reason.why && was.resource === reason.resource) return;
@@ -348,14 +352,15 @@ async function wait(
 }
 
 /**
- * **La tournée finit** : rappelée, elle s'arrête où elle est ; coupée — chargement ou dépôts
- * perdus, route refusée —, le transport rentre seul et la dépêche le dit.
+ * **La tournée finit**, et la dépêche le dit : rappelée, coupée — chargement ou dépôts perdus,
+ * déroute, chute —, ou sa route refusée trop longtemps. La seule fonction qui finit une tournée :
+ * son prochain regard est annulé avec elle.
  */
-async function endTour(
+export async function stopTour(
   ctx: MutationCtx,
   troop: Doc<'troops'>,
   now: number,
-  why: 'recalled' | 'cut',
+  why: TourEnd,
 ): Promise<void> {
   const jobId = troop.tour?.retryJobId;
   if (jobId !== undefined) {
@@ -373,8 +378,19 @@ async function endTour(
     role: troop.role,
     why,
   });
+}
+
+/** **Finir, et rentrer** : rappelée, elle s'arrête où elle est ; sinon le transport rentre seul
+ *  à son chargement. */
+async function endTour(
+  ctx: MutationCtx,
+  troop: Doc<'troops'>,
+  now: number,
+  why: TourEnd,
+): Promise<void> {
+  await stopTour(ctx, troop, now, why);
   const base = troop.tour?.base;
-  if (why !== 'cut' || base === undefined || troop.stationedAt === base) return;
+  if (why === 'recalled' || base === undefined || troop.stationedAt === base) return;
   const from = await pointOfAddress(ctx, troop.stationedAt);
   if (from !== null)
     await walkHome(

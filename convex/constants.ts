@@ -472,6 +472,14 @@ export const TOUR_MAX_STOPS = 4;
  */
 export const TOUR_RETRY_MINUTES = 30;
 
+/**
+ * **Une route refusée** au chargement autant de fois d'affilée arrête la tournée : elle ne
+ * revient pas seule, à la différence d'un plateau à sec ou de dépôts pleins.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const TOUR_ROAD_WAITS = 3;
+
 export const TIER_2_FACTOR = 1.6;
 
 /**

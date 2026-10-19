@@ -12,7 +12,7 @@ import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../co
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, Faced } from '../domain/player-view';
+import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
@@ -736,6 +736,8 @@ export const fr = {
             ? 'l’avion à l’aérodrome'
             : 'le camion au QG ou à un entrepôt'
       }, ou au dépôt d’un avant-poste`,
+    TOUR_NO_STOP: () =>
+      'une tournée passe par un dépôt au moins : lâchez le transport sur un de vos avant-postes',
     TOUR_TOO_LONG: (d) => `une tournée compte ${num(d.maximum)} arrêts au plus`,
     TOUR_STOP_TWICE: () => 'ce dépôt est déjà un arrêt de la tournée',
     NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
@@ -2529,10 +2531,12 @@ export const fr = {
           : why === 'full'
             ? `Tournée en attente — ${role} : tous ses dépôts sont pleins. Elle repart quand l’un d’eux se vide.`
             : `Tournée en attente — ${role} : sa route est refusée, le plein manque au chargement.`,
-      tourEnded: (role: string, why: 'recalled' | 'cut') =>
+      tourEnded: (role: string, why: TourEnd) =>
         why === 'recalled'
           ? `Tournée arrêtée — ${role} : rappelé, il reste au chargement.`
-          : `Tournée coupée — ${role} : chargement ou dépôts perdus, ou route refusée ; il rentre seul.`,
+          : why === 'road'
+            ? `Route refusée, tournée arrêtée — ${role} : le plein manque au chargement ; il rentre seul.`
+            : `Tournée coupée — ${role} : chargement ou dépôts perdus, ou repli ; il rentre seul.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
