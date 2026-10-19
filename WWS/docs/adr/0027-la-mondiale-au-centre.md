@@ -13,6 +13,8 @@ ce qui suit n'est codé au 17/10.
 >   ils sont sept, donc tous posés à chaque saison, sans les contraintes de tirage du 14/10.
 >   Rangoun et Hong Kong comptent pour la victoire ; leur règle attend sa feature (« règle à
 >   venir ») ;
+> - *(19/10)* **Bakou, Dakar et Singapour entrent au vivier** (dix lieux) : sept sont tirés par la
+>   graine de la saison, sous contraintes de diversité, et la course reste à quatre sur sept ;
 > - **les pouvoirs quotidiens** se rechargent par jour de saison (Istanbul) et par édition
 >   (Tanger), comptés depuis le lancement, et non à l'édition de 9 h ;
 > - **le compte à rebours des 24 h** court tant que le meneur tient quatre points, et repart à zéro

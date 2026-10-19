@@ -98,9 +98,10 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
        se dit à la réserve de pièces avant le lâcher et à la formation après (inchangée). Démo :
        `npm run demo:mondiale -- --artillerie`.
 
-   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7 ; Rangoun (« aucun envoi
-   vers lui ») attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la
-   une, et le vivier s'élargit avec eux pour que le tirage du 14/10 tienne ses contraintes.
+   Bakou, Dakar et Singapour sont faits le 19/10 : le vivier compte dix lieux, sept tirés par la
+   graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et
+   l'exclusion du sol national du 14/10 ne sont pas lues). Rangoun (« aucun envoi vers lui »)
+   attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la une.
 5. **Le tutoriel de manipulation** (ADR 0027 §2).
 6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
    `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans
