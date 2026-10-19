@@ -188,10 +188,20 @@ export function buildThread(
   colors: ThreadColors,
   thickness: number,
   opacities: { readonly trace: number; readonly progress: number },
-  { aloft = false, airdrop }: { readonly aloft?: boolean; readonly airdrop?: 'out' | 'back' } = {},
+  {
+    aloft = false,
+    airdrop,
+    ends,
+  }: {
+    readonly aloft?: boolean;
+    readonly airdrop?: 'out' | 'back';
+    readonly ends?: EndsOf;
+  } = {},
 ): Thread {
   const object = new Group();
-  const legs = cutIntoLegs(route, frame, aloft, airdrop);
+  const legs = cutIntoLegs(route, frame, aloft, airdrop).map((leg) =>
+    ends === undefined ? leg : aligned(leg, ends),
+  );
   const lineMaterials: LineMaterial[] = [];
   const width = threadWidth(thickness);
 
@@ -376,6 +386,93 @@ export const projectOnGround = (point: Vector3, out: Vector3): void => {
 };
 
 const onGround = (point: Vector3): Vector3 => new Vector3(point.x, SURFACE_ALTITUDE, point.z);
+
+/* ------------------------ runway and quay alignment ----------------------- */
+
+/**
+ * **Which way a leg must leave or reach its end, or `null` for no constraint** (#129): a plane
+ * on the axis of its airfield's runway, a hull away from the quay and alongside it on arrival.
+ * `hint` is the way the leg goes there, so that an axis can be taken in the right sense. A unit
+ * vector on the board, travel direction.
+ */
+export type EndsOf = (
+  medium: Medium,
+  which: 'start' | 'end',
+  at: Vector3,
+  hint: readonly [number, number],
+) => readonly [number, number] | null;
+
+/** How far the lead-in runs along the axis, in board units, capped by a share of the leg.
+ *  `@a-mesurer` on the board. */
+export const LEAD_LENGTH = 0.5;
+const LEAD_SHARE = 0.4;
+const LEAD_STEPS = 10;
+
+/**
+ * Bends the start of a polyline so it leaves along `dir`: a cubic from the first vertex, tangent
+ * to `dir`, to the point `LEAD_LENGTH` along, tangent to the polyline there. Heights are lerped.
+ */
+export function leadIn(
+  vertices: ReadonlyArray<Vector3>,
+  direction: (hint: readonly [number, number]) => readonly [number, number] | null,
+): ReadonlyArray<Vector3> {
+  const first = vertices[0]!;
+  const total = vertices
+    .slice(0, -1)
+    .reduce((sum, v, i) => sum + v.distanceTo(vertices[i + 1]!), 0);
+  const reach = Math.min(LEAD_LENGTH, total * LEAD_SHARE);
+  if (reach <= 0) return vertices;
+  let covered = 0;
+  let j = 1;
+  while (j < vertices.length - 1 && covered + vertices[j - 1]!.distanceTo(vertices[j]!) < reach) {
+    covered += vertices[j - 1]!.distanceTo(vertices[j]!);
+    j++;
+  }
+  const a = vertices[j - 1]!;
+  const b = vertices[j]!;
+  const segment = a.distanceTo(b);
+  const target = a.clone().lerp(b, segment > 0 ? Math.min(1, (reach - covered) / segment) : 0);
+  const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  const along: readonly [number, number] = [(b.x - a.x) / run, (b.z - a.z) / run];
+  const chord = Math.hypot(target.x - first.x, target.z - first.z) || 1;
+  const dir = direction([(target.x - first.x) / chord, (target.z - first.z) / chord]);
+  if (dir === null) return vertices;
+  const handle = reach * 0.5;
+  const p1: readonly [number, number] = [first.x + dir[0] * handle, first.z + dir[1] * handle];
+  const p2: readonly [number, number] = [
+    target.x - along[0] * handle,
+    target.z - along[1] * handle,
+  ];
+  const curve = Array.from({ length: LEAD_STEPS }, (_, k) => {
+    const u = (k + 1) / LEAD_STEPS;
+    const w = 1 - u;
+    const mix = (c0: number, c1: number, c2: number, c3: number) =>
+      w * w * w * c0 + 3 * w * w * u * c1 + 3 * w * u * u * c2 + u * u * u * c3;
+    return new Vector3(
+      mix(first.x, p1[0], p2[0], target.x),
+      first.y + (target.y - first.y) * u,
+      mix(first.z, p1[1], p2[1], target.z),
+    );
+  });
+  return [first, ...curve, ...vertices.slice(j)];
+}
+
+/** A leg that leaves and reaches its ends the way `ends` says; a split leg is left as drawn. */
+function aligned(leg: ThreadLeg, ends: EndsOf): ThreadLeg {
+  if (leg.strands.length !== 1) return leg;
+  let vertices = leg.strands[0]!.vertices;
+  const start = vertices[0]!;
+  const finish = vertices[vertices.length - 1]!;
+  vertices = leadIn(vertices, (hint) => ends(leg.medium, 'start', start, hint));
+  // The end is the start of the reversed leg, then leaving becomes reaching: its direction is flipped back.
+  vertices = leadIn([...vertices].reverse(), (hint) => {
+    const dir = ends(leg.medium, 'end', finish, [-hint[0], -hint[1]]);
+    return dir === null ? null : [-dir[0], -dir[1]];
+  })
+    .slice()
+    .reverse();
+  return { medium: leg.medium, strands: [strandOf(vertices)], length: lengthOf(vertices) };
+}
 
 /* ----------------------------- thread cutting ---------------------------- */
 

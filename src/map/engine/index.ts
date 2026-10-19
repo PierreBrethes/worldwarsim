@@ -41,6 +41,7 @@ import {
   isCoastCell,
   isLandCell,
   KM_PER_UNIT,
+  type Medium,
   type RouteGrid,
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
@@ -606,7 +607,9 @@ export class MapEngine {
       );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
-    this.arcs = new ArcLayer(this.frame, this.ink);
+    this.arcs = new ArcLayer(this.frame, this.ink, (medium, which, at, hint) =>
+      this.endOf(medium, which, at, hint),
+    );
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
@@ -673,6 +676,9 @@ export class MapEngine {
     this.resize();
     this.loop();
   }
+
+  /** The airfields the threads were last laid against (`runwaysKey`). */
+  private runways = '';
 
   /**
    * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
@@ -754,7 +760,12 @@ export class MapEngine {
    *  (ADR 0026 §1). */
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
     // The view is re-served at every step of any column: a frame only when something changed.
-    if (this.maquettes.display(maquettes)) this.invalidate();
+    if (!this.maquettes.display(maquettes)) return;
+    this.invalidate();
+    const runways = this.maquettes.runwaysKey();
+    if (runways === this.runways) return;
+    this.runways = runways;
+    this.arcs.rebuild();
   }
 
   /**
@@ -2049,6 +2060,31 @@ export class MapEngine {
   landAt(lonLat: LonLat): boolean {
     this.routeGrid ??= buildGrid(this.world);
     return isLandCell(this.routeGrid, lonLat);
+  }
+
+  /**
+   * **How a thread leaves or reaches a runway or a quay** (#129): a plane takes the axis of its
+   * airfield in the sense it is going, a hull leaves seaward and arrives along the shore.
+   */
+  private endOf(
+    medium: Medium,
+    which: 'start' | 'end',
+    at: Vector3,
+    hint: readonly [number, number],
+  ): readonly [number, number] | null {
+    if (medium === 'air') {
+      const axis = this.maquettes.runwayAt(at.x, at.z);
+      if (axis === null) return null;
+      return axis[0] * hint[0] + axis[1] * hint[1] >= 0 ? axis : [-axis[0], -axis[1]];
+    }
+    if (medium !== 'sea') return null;
+    const seaward = this.seawardOf(
+      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+    );
+    if (seaward === null) return null;
+    if (which === 'start') return seaward;
+    const shore: readonly [number, number] = [-seaward[1], seaward[0]];
+    return shore[0] * hint[0] + shore[1] * hint[1] >= 0 ? shore : [-shore[0], -shore[1]];
   }
 
   /** **Toward the water from a point on a shore**, a unit vector on the board — `null` inland, or
