@@ -520,6 +520,12 @@ export function recruitmentCost(
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
  * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
+ *
+ * The counters it must keep (#126, `combat.test.ts`): mark-2 infantry over mark-1 armour, the
+ * fighter over the bomber, the escort and the fighter over the carrier. One cycle only, and on
+ * purpose: rifle beats anti-tank, anti-tank beats tank, tank beats rifle.
+ *
+ * @a-mesurer trois cases revues le 19/10 pour les contres (#126), jamais jouées
  */
 export const DAMAGE_TABLE: DamageTable = {
   infantry1: {
@@ -543,7 +549,8 @@ export const DAMAGE_TABLE: DamageTable = {
   },
   armor1: {
     infantry1: 0.7,
-    infantry2: 0.65,
+    /** #126, à mesurer : sous les 0,65 de l'antichar, pour que l'infanterie MK2 contre le blindé */
+    infantry2: 0.55,
     armor1: 0.5,
     armor2: 0.25,
     landTransport: 0.85,
@@ -612,7 +619,8 @@ export const DAMAGE_TABLE: DamageTable = {
     armor2: 0.02,
     landTransport: 0.12,
     artillery: 0.15,
-    fighter: 0.15,
+    /** #126, à mesurer : à égalité avec le chasseur, ce qui défait le cycle chasseur > bombardier > escorte */
+    fighter: 0.1,
     bomber: 0.15,
     airTransport: 0.18,
     escort: 0.5,
@@ -627,7 +635,8 @@ export const DAMAGE_TABLE: DamageTable = {
     armor2: 0.04,
     landTransport: 0.25,
     artillery: 0.2,
-    fighter: 0.4,
+    /** #126, à mesurer : sous les 0,12 du chasseur, pour que le chasseur contre le porte-avions */
+    fighter: 0.1,
     bomber: 0.35,
     airTransport: 0.45,
     escort: 0.3,

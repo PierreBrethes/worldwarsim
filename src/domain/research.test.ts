@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RESEARCH_SPEC } from '../../convex/constants';
+import { DAMAGE_TABLE, RESEARCH_SPEC } from '../../convex/constants';
+import { profileOf } from './combat';
 import { RESEARCH_CARDS } from './ids';
 import {
   RESEARCH_TREE,
@@ -20,14 +21,18 @@ const ready = { researched: [], running: null, hqHeld: true, stocks } as const;
 describe('the research tree', () => {
   /**
    * **Le contre passe avant l'arme** (ADR 0028 §5) : une carte qui en demande une autre ouvre une
-   * arme, et ce qui la contre — lu dans `DAMAGE_TABLE` — est au départ, ou coûte moins et dure
+   * arme — une unité qui tire, ce qu'un transport ne fait pas —, et ce qui la contre — lu dans `DAMAGE_TABLE` — est au départ, ou coûte moins et dure
    * moins qu'elle. Ni le contre ni l'arme ne sont écrits ici : la table et `RESEARCH_SPEC` font foi.
    */
   it('lets the counter of every weapon pass before it, read off the damage table', () => {
     const weapons = RESEARCH_CARDS.filter(
       (card) =>
         RESEARCH_TREE[card].after.length > 0 &&
-        RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'role'),
+        RESEARCH_TREE[card].unlocks.some(
+          (unlock) =>
+            unlock.kind === 'role' &&
+            Object.keys(DAMAGE_TABLE[profileOf(unlock.role, unlock.tier)]).length > 0,
+        ),
     );
     expect(weapons.length).toBeGreaterThan(0);
     for (const weapon of weapons) {
@@ -47,7 +52,11 @@ describe('the research tree', () => {
 
   it('reads the counters off the table: the escort answers the carrier, the fighter the bomber', () => {
     expect(counterOf('carrier')).toEqual({ card: 'escort' });
+    expect(countersOf('escort')).toEqual(['carrier']);
     expect(countersOf('aviation')).toEqual(expect.arrayContaining(['bomber']));
+    expect(countersOf('aviation')).not.toContain('armor');
+    expect(countersOf('infantryMk2')).toEqual(['armor']);
+    expect(counterOf('airlift')).toBeNull();
     expect(counterOf('artillery')).toEqual({ start: 'infantry' });
     expect(counterOf('listening')).toBeNull();
   });

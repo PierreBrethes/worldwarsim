@@ -207,21 +207,28 @@ export const researchWeight = (card: ResearchCard): number =>
 
 /**
  * **Le contre d'une carte, lu dans `DAMAGE_TABLE`** : X contre Y quand X fait à Y plus de dégâts
- * qu'il n'en reçoit. De tout ce qui contre ses unités, une unité de départ, sinon la carte la
- * moins chère puis la plus courte. `null` pour une carte qui n'ouvre aucune unité, ou que rien ne
- * contre.
+ * qu'il n'en reçoit. De tout ce qui contre ses unités, une unité de départ, sinon une carte de
+ * sa branche avant les autres, puis la moins chère, puis la plus courte. `null` pour une carte
+ * qui n'ouvre aucune arme — une unité dont la ligne de la table est vide ne tire pas, comme le
+ * transport aérien —, ou que rien ne contre.
  */
 export function counterOf(
   card: ResearchCard,
 ): { readonly start: UnitRole } | { readonly card: ResearchCard } | null {
-  const weapons = unitsOf(card);
+  const weapons = unitsOf(card).filter(
+    (unit) => Object.keys(DAMAGE_TABLE[profileOf(unit.role, unit.tier)]).length > 0,
+  );
   const counters = (units: ReadonlyArray<{ role: UnitRole; tier: UnitTier }>) =>
     units.some((unit) => weapons.some((weapon) => beats(unit, weapon)));
   const start = STARTING_UNITS.find((unit) => counters([unit]));
   if (start !== undefined) return { start: start.role };
+  const branch = RESEARCH_TREE[card].branch;
+  const elsewhere = (other: ResearchCard) => (RESEARCH_TREE[other].branch === branch ? 0 : 1);
   const best = RESEARCH_CARDS.filter((other) => other !== card && counters(unitsOf(other))).sort(
     (a, b) =>
-      researchWeight(a) - researchWeight(b) || RESEARCH_SPEC[a].hours - RESEARCH_SPEC[b].hours,
+      elsewhere(a) - elsewhere(b) ||
+      researchWeight(a) - researchWeight(b) ||
+      RESEARCH_SPEC[a].hours - RESEARCH_SPEC[b].hours,
   )[0];
   return best === undefined ? null : { card: best };
 }
