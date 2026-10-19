@@ -97,7 +97,8 @@ mer, air, industrie) et onze cartes, soit environ 180 h pour une saison de 168 h
 camion, le cargo, et les tuiles QG, exploitation, usine, entrepôt, caserne, port et avant-poste.
 **Le contre coûte moins et dure moins que l'arme qu'il contre**, invariant testé. Un niveau ne
 débloque plus rien, il rend : une exploitation de niveau N produit N fois la base, une caserne N
-forme et soigne N troupes à la fois, le QG N porte 1 + N slots. Un avant-poste élevé ouvre un plus
+forme et soigne N troupes à la fois, le QG N porte 1 + N slots *(révisé par l'ADR 0030 : le QG N
+fait N chantiers à la fois, les slots viennent des cartes Transmissions)*. Un avant-poste élevé ouvre un plus
 grand rayon et un plus grand dépôt, plus une escale aérienne au niveau 2.
 
 ### 6. Les escouades de Mondiale
