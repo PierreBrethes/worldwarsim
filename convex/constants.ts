@@ -392,8 +392,6 @@ export const RESEARCH_SPEC: Readonly<
   transmissions1: { hours: 10, cost: { steel: 60, coal: 60 } },
   transmissions2: { hours: 16, cost: { steel: 100, coal: 90 } },
   transmissions3: { hours: 24, cost: { steel: 160, coal: 130 } },
-  doubleWorks: { hours: 30, cost: { steel: 400, coal: 150 } },
-  doubleTraining: { hours: 30, cost: { steel: 400, coal: 150 } },
 };
 
 /**

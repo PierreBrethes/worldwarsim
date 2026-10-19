@@ -17,7 +17,7 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
       ],
       outposts: [],
       chains: [],
-      research: { researched: [], running: null },
+      research: { researched: [], running: null, queue: [] },
       ...over,
     },
   }) as unknown as PlayerView;

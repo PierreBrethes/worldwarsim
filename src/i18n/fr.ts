@@ -82,8 +82,6 @@ const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'Transmissions I',
   transmissions2: 'Transmissions II',
   transmissions3: 'Transmissions III',
-  doubleWorks: 'Chantier double',
-  doubleTraining: 'Formation double',
 };
 
 /** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
@@ -102,8 +100,6 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'un slot de mouvement de plus',
   transmissions2: 'un slot de mouvement de plus',
   transmissions3: 'un slot de mouvement de plus',
-  doubleWorks: 'une seconde file de chantier',
-  doubleTraining: 'une seconde file de formation dans chaque site',
 };
 
 /** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
@@ -746,7 +742,11 @@ export const fr = {
     RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
     RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
     RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
-    RESEARCH_BUSY: (d) => `${cardName(d.card)} est en cours — une carte à la fois`,
+    RESEARCH_QUEUED: (d) => `${cardName(d.card)} est déjà dans la file du Centre`,
+    RESEARCH_FULL: () => 'la file du Centre est pleine — trois cartes au plus',
+    RESEARCH_RUNNING: (d) => `${cardName(d.card)} est en cours — elle ne se retire pas`,
+    RESEARCH_NOT_QUEUED: (d) => `${cardName(d.card)} n’attend pas dans la file`,
+    RESEARCH_NEEDED: (d) => `${cardName(d.card)} attend celle-ci dans la file — retirez-la d’abord`,
     RESEARCH_NEEDS_CENTER: () => 'bâtissez d’abord un Centre de recherche — c’est lui qui cherche',
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
@@ -3464,8 +3464,7 @@ export const fr = {
     dropBack: 'Relâchée ici, elle rentre',
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
-    worksHeader: (lanes: number) =>
-      lanes > 1 ? `chantiers · ${lanes} files` : 'chantiers · une file',
+    worksHeader: 'chantiers · une file',
     /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
@@ -3493,21 +3492,28 @@ export const fr = {
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */
     title: 'Centre de recherche',
-    subtitle: (place: string, level: number) => `${place} · niveau ${level} · une carte à la fois`,
+    subtitle: (place: string, level: number) =>
+      `${place} · niveau ${level} · trois cartes d’avance`,
     noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',
     captured:
       'un Centre pris à un autre ne cherche pas pour vous — la carte attend un Centre à vous',
     names: RESEARCH_NAMES,
     unlocks: RESEARCH_UNLOCKS,
     branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
-    /** La colonne des cartes qui ouvrent un slot ou une file, à part de l'industrie. */
+    /** La colonne des cartes qui ouvrent un slot, à part de l'industrie. */
     transmissions: 'transmissions',
     benchesHeader: 'le poste du centre',
-    bench: 'poste 1',
+    bench: 'en cours',
+    waitingRank: (rank: number) => `file · carte ${rank}`,
+    inQueue: (rank: number) => `en file · carte ${rank}`,
+    expectedEnd: (time: string) => `fin prévue ${time}`,
+    remove: 'retirer',
+    removeTitle: (card: string) => `Retirer ${card} de la file — remboursée en entier`,
+    removed: (card: string) => `${card} retirée de la file, remboursée`,
+    enqueue: 'mettre en file',
     benchFree: 'libre — posez une carte de l’arbre',
     benchNone: 'bâtissez un Centre de recherche pour l’ouvrir',
-    /** Une seconde file de recherche n'existe pas encore : une carte l'ouvrira peut-être. */
-    benchMore: 'une seule carte à la fois',
+    benchMore: 'trois cartes au plus : celle qui court et deux qui attendent',
     levelHeader: 'ce que donne le niveau',
     hours: (hours: number) => `${num(hours)} h`,
     /** « 6 h 05 » : ce qui reste à une carte, à la minute. */
@@ -3528,11 +3534,11 @@ export const fr = {
     atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
     done: 'acquise',
     search: 'chercher',
-    searchTitle: (card: string, time: string) => `Chercher ${card} — ${time}, payée à la pose`,
+    searchTitle: (card: string, time: string) => `${card} — ${time}, payée à la pose`,
     started: (card: string) => `${card} posée sur le Centre de recherche`,
     legendDone: '— trait plein : après une carte acquise',
     legendAhead: '- - pointillé : après une carte à venir',
-    legendHow: 'Une carte se paie à la pose ; elle avance en heures de jeu.',
+    legendHow: 'Une carte se paie à la pose, même en file ; elle avance en heures de jeu.',
     /** La ligne du mât du Centre de recherche, et celle de « en cours ». */
     onCenter: (card: string) => `recherche ${card}`,
   },

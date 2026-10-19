@@ -8,7 +8,9 @@ import {
   lineLockOf,
   counterOf,
   countersOf,
-  laneCount,
+  researchScheduleOf,
+  researchUnqueueRefusalOf,
+  RESEARCH_QUEUE_MAX,
   researchWeight,
   researchMs,
   researchProgressOf,
@@ -19,7 +21,7 @@ import {
 } from './research';
 
 const stocks = { food: 500, steel: 500, coal: 500, oil: 500, ammunition: 0 };
-const ready = { researched: [], running: null, centerLevel: 1, stocks } as const;
+const ready = { researched: [], running: null, queued: [], centerLevel: 1, stocks } as const;
 
 describe('the research tree', () => {
   /**
@@ -77,7 +79,7 @@ describe('the research tree', () => {
 
   it('is not finished within a season', () => {
     const hours = RESEARCH_CARDS.reduce((sum, card) => sum + RESEARCH_SPEC[card].hours, 0);
-    expect(hours).toBe(292);
+    expect(hours).toBe(232);
   });
 
   it('opens with mark-1 infantry, the truck and the cargo, everything else behind a card', () => {
@@ -128,15 +130,18 @@ describe('putting a card on the research centre', () => {
     });
   });
 
-  it('refuses a card already researched, a second at a time, no headquarters, no price', () => {
+  it('refuses a card already researched, in the file, no centre, no price', () => {
     expect(researchRefusalOf('armor', { ...ready, researched: ['infantryMk2', 'armor'] })).toEqual({
       code: 'RESEARCH_DONE',
       card: 'armor',
     });
-    expect(researchRefusalOf('escort', { ...ready, running: 'infantryMk2' })).toEqual({
-      code: 'RESEARCH_BUSY',
-      card: 'infantryMk2',
+    expect(researchRefusalOf('escort', { ...ready, running: 'escort' })).toEqual({
+      code: 'RESEARCH_QUEUED',
+      card: 'escort',
     });
+    expect(
+      researchRefusalOf('escort', { ...ready, running: 'infantryMk2', queued: ['escort'] }),
+    ).toEqual({ code: 'RESEARCH_QUEUED', card: 'escort' });
     expect(researchRefusalOf('escort', { ...ready, centerLevel: null })).toEqual({
       code: 'RESEARCH_NEEDS_CENTER',
     });
@@ -146,6 +151,63 @@ describe('putting a card on the research centre', () => {
       needed: 60,
       available: 10,
     });
+  });
+
+  it('queues behind a running card up to the cap, then says the file is full', () => {
+    expect(researchRefusalOf('escort', { ...ready, running: 'infantryMk2' })).toBeNull();
+    expect(RESEARCH_QUEUE_MAX).toBe(3);
+    expect(
+      researchRefusalOf('aviation', {
+        ...ready,
+        running: 'infantryMk2',
+        queued: ['escort', 'artillery'],
+      }),
+    ).toEqual({ code: 'RESEARCH_FULL' });
+  });
+
+  it('lets a card ride behind its prerequisite when that one is in the file', () => {
+    expect(researchRefusalOf('armor', { ...ready, running: 'infantryMk2' })).toBeNull();
+    expect(
+      researchRefusalOf('armorMk2', { ...ready, running: 'infantryMk2', queued: ['armor'] }),
+    ).toBeNull();
+    expect(researchRefusalOf('armorMk2', { ...ready, running: 'infantryMk2' })).toEqual({
+      code: 'RESEARCH_AFTER',
+      card: 'armor',
+    });
+  });
+});
+
+describe('taking a waiting card out of the file', () => {
+  const file = { running: 'infantryMk2', queued: ['armor', 'escort'] } as const;
+  it('takes a waiting card, never the running one, never one another waits on', () => {
+    expect(researchUnqueueRefusalOf('escort', file)).toBeNull();
+    expect(researchUnqueueRefusalOf('infantryMk2', file)).toEqual({
+      code: 'RESEARCH_RUNNING',
+      card: 'infantryMk2',
+    });
+    expect(researchUnqueueRefusalOf('artillery', file)).toEqual({
+      code: 'RESEARCH_NOT_QUEUED',
+      card: 'artillery',
+    });
+    expect(
+      researchUnqueueRefusalOf('armor', { running: 'infantryMk2', queued: ['armor', 'armorMk2'] }),
+    ).toEqual({ code: 'RESEARCH_NEEDED', card: 'armorMk2' });
+  });
+});
+
+describe('when the waiting cards should end', () => {
+  const hour = 3_600_000;
+  it('chains them after the running one at the centre level of the day, null when paused', () => {
+    const running = {
+      card: 'infantryMk2',
+      totalMs: 8 * hour,
+      remainingMs: 6 * hour,
+      since: 1000,
+    } as const;
+    const [first, second] = researchScheduleOf(running, ['armor', 'escort'], 1, 1000);
+    expect(first).toBe(1000 + 6 * hour + researchMs('armor'));
+    expect(second).toBe(first! + researchMs('escort'));
+    expect(researchScheduleOf({ ...running, since: null }, ['armor'], 1, 1000)).toEqual([null]);
   });
 });
 
@@ -180,22 +242,6 @@ describe('the Transmissions cards', () => {
       'transmissions2',
     ]);
     for (const card of ['transmissions1', 'transmissions2', 'transmissions3'] as const) {
-      expect(counterOf(card), card).toBeNull();
-    }
-  });
-});
-
-describe('the lane cards (ADR 0031)', () => {
-  it('open a second lane each, late and dear, behind Transmissions II and with no counter', () => {
-    expect(laneCount([], 'works', false)).toBe(1);
-    expect(laneCount(['transmissions1', 'transmissions2'], 'training', false)).toBe(1);
-    expect(laneCount(['doubleWorks'], 'works', false)).toBe(2);
-    expect(laneCount(['doubleWorks'], 'training', false)).toBe(1);
-    expect(laneCount(['doubleTraining'], 'training', false)).toBe(2);
-    expect(laneCount(['doubleWorks'], 'works', true)).toBe(1);
-    for (const card of ['doubleWorks', 'doubleTraining'] as const) {
-      expect(RESEARCH_TREE[card].after).toEqual(['transmissions2']);
-      expect(RESEARCH_SPEC[card].hours).toBe(30);
       expect(counterOf(card), card).toBeNull();
     }
   });

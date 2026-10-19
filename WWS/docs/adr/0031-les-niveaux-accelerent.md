@@ -1,5 +1,7 @@
 # ADR 0031 — Les niveaux accélèrent, la recherche ouvre des files
 
+> §3 révisé le 19/10 (#165) : les cartes de file sont retirées ; le Centre a une file de 3 cartes.
+
 **Statut :** acceptée (19/10/2026, Q14 et Q17 du grilling des retours de la pré-prod) —
 **précise la règle 1** de `WWS/CLAUDE.md` (elle vaut pour les bonus : atouts, points stratégiques,
 recherche ; un niveau de bâtiment n'en est pas un) ; **révise l'[ADR 0028](0028-l-economie-de-la-mondiale.md)

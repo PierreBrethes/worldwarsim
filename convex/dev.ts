@@ -508,7 +508,7 @@ export const airdropScene = internalMutation({
 /**
  * **Une recherche en cours** (ADR 0028 §5, #123) : un Centre de recherche de niveau 2 au sud de la
  * capitale, l'infanterie MK2 et l'aviation acquises, le blindé posé il y a six heures sur le
- * Centre — le reste de sa durée, raccourcie au niveau 2, à courir.
+ * Centre — le reste de sa durée, raccourcie au niveau 2, à courir —, et deux cartes en file.
  */
 export const researchScene = internalMutation({
   /** `idle` : le Centre debout et rien de posé, pour poser une carte depuis l'arbre. */
@@ -539,6 +539,7 @@ export const researchScene = internalMutation({
     await ctx.db.patch(playerId, {
       researched: ['infantryMk2', 'aviation'],
       research: { card: 'armor', totalMs, remainingMs: totalMs, since: now - 6 * hour },
+      researchQueue: ['escort', 'carrier'],
     });
     await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
       playerId,
@@ -549,7 +550,7 @@ export const researchScene = internalMutation({
 
 /**
  * **Les niveaux qui accélèrent** (ADR 0031), pour la démo : une caserne de niveau 3 à la capitale
- * et la carte Chantier double acquise, la seconde file de chantier ouverte.
+ * et deux cartes Transmissions acquises.
  */
 export const levelsScene = internalMutation({
   args: { playerId: v.id('players') },
@@ -566,7 +567,7 @@ export const levelsScene = internalMutation({
       level: 3,
     });
     await ctx.db.patch(playerId, {
-      researched: ['transmissions1', 'transmissions2', 'doubleWorks'],
+      researched: ['transmissions1', 'transmissions2'],
     });
   },
 });

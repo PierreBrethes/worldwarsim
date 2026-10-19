@@ -4,16 +4,17 @@ import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import {
-  RESEARCH_TREE,
   researchMs,
   researchRefusalOf,
+  researchUnqueueRefusalOf,
   searcherLevel,
 } from '../src/domain/research';
+import type { ResearchCard } from '../src/domain/ids';
 import { RESEARCH_SPEC } from './constants';
 import { refuseInBlitz } from './blitz';
 import { playerBuildings } from './buildingReads';
 import { fail } from './errors';
-import { debit, economyOf } from './resources';
+import { credit, debit, economyOf } from './resources';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { RESEARCH_CARD } from './validators';
 
@@ -27,11 +28,32 @@ const centerLevelOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
     })),
   );
 
+/** La carte suivante prend le Centre : sa durée se fixe ici, au niveau du Centre de ce moment. */
+async function runCard(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  card: ResearchCard,
+  now: number,
+): Promise<number> {
+  const level = await centerLevelOf(ctx, playerId);
+  const remainingMs = researchMs(card, level ?? 1);
+  const standing = level !== null;
+  await ctx.db.patch(playerId, {
+    research: { card, totalMs: remainingMs, remainingMs, since: standing ? now : null },
+  });
+  if (standing)
+    await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
+      playerId,
+      finishesAt: now + remainingMs,
+    });
+  return now + remainingMs;
+}
+
 /**
- * **Poser une carte sur son Centre de recherche** (ADR 0028 §5, #123) : payée à la pose, elle
- * court en heures de jeu, raccourcies au niveau du Centre (ADR 0031), et débloque à la fin. Une
- * seule à la fois ; le refus est celui que la fenêtre de l'arbre dit avant le geste
- * (`researchRefusalOf`).
+ * **Poser une carte sur son Centre de recherche** (ADR 0028 §5, #123, #165) : payée à la pose, elle
+ * court en heures de jeu, raccourcies au niveau du Centre (ADR 0031), et débloque à la fin. Trois
+ * cartes au plus : la première court, les autres attendent leur tour. Le refus est celui que la
+ * fenêtre de l'arbre dit avant le geste (`researchRefusalOf`).
  */
 export const start = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), card: RESEARCH_CARD },
@@ -42,9 +64,11 @@ export const start = mutation({
     const now = Date.now();
     const { stocks } = await economyOf(ctx, player._id, now);
     const centerLevel = await centerLevelOf(ctx, player._id);
+    const queued = player.researchQueue ?? [];
     const refusal = researchRefusalOf(card, {
       researched: player.researched ?? [],
       running: player.research?.card ?? null,
+      queued,
       centerLevel,
       stocks,
     });
@@ -53,19 +77,37 @@ export const start = mutation({
       fail(code, details);
     }
     await debit(ctx, player._id, RESEARCH_SPEC[card].cost, now);
-    const remainingMs = researchMs(card, centerLevel ?? 1);
-    await ctx.db.patch(player._id, {
-      research: { card, totalMs: remainingMs, remainingMs, since: now },
-    });
-    await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
-      playerId: player._id,
-      finishesAt: now + remainingMs,
-    });
-    return { finishesAt: now + remainingMs };
+    if (player.research !== undefined) {
+      await ctx.db.patch(player._id, { researchQueue: [...queued, card] });
+      return { finishesAt: null };
+    }
+    return { finishesAt: await runCard(ctx, player._id, card, now) };
   },
 });
 
-/** La carte aboutit, si elle court encore vers cette heure-là : une pause l'a redatée. */
+/** **Retirer une carte qui attend** : remboursée en entier, la file se resserre. */
+export const dequeue = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), card: RESEARCH_CARD },
+  handler: async (ctx, { token, seasonId, card }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    refuseInBlitz(season);
+    const queued = player.researchQueue ?? [];
+    const refusal = researchUnqueueRefusalOf(card, {
+      running: player.research?.card ?? null,
+      queued,
+    });
+    if (refusal !== null) {
+      const { code, ...details } = refusal;
+      fail(code, details);
+    }
+    await credit(ctx, player._id, RESEARCH_SPEC[card].cost, Date.now());
+    await ctx.db.patch(player._id, { researchQueue: queued.filter((other) => other !== card) });
+  },
+});
+
+/** La carte aboutit, si elle court encore vers cette heure-là : une pause l'a redatée. La
+ *  première de la file prend alors le Centre. */
 export const finish = internalMutation({
   args: { playerId: v.id('players'), finishesAt: v.number() },
   handler: async (ctx, { playerId, finishesAt }) => {
@@ -79,9 +121,11 @@ export const finish = internalMutation({
       !(await seasonStillPlays(ctx, playerId))
     )
       return;
+    const [next, ...rest] = player.researchQueue ?? [];
     await ctx.db.patch(playerId, {
       researched: [...(player.researched ?? []), running.card],
       research: undefined,
+      researchQueue: rest,
     });
     await ctx.db.insert('notices', {
       playerId,
@@ -89,13 +133,7 @@ export const finish = internalMutation({
       kind: 'researchDone',
       card: running.card,
     });
-    /** **Une file ouverte prend tout de suite ce qui attendait** (ADR 0031). */
-    for (const unlock of RESEARCH_TREE[running.card].unlocks) {
-      if (unlock.kind !== 'lane') continue;
-      if (unlock.of === 'works')
-        await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId });
-      else await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId });
-    }
+    if (next !== undefined) await runCard(ctx, playerId, next, finishesAt);
   },
 });
 

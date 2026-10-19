@@ -68,7 +68,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
       /** Une version de retard ne sert aucune recherche : rien d'acquis, rien en cours. */
-      research: server.me.research ?? { researched: [], running: null },
+      research: server.me.research ?? { researched: [], running: null, queue: [] },
       foundation: server.me.foundation ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
        *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
@@ -115,7 +115,6 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         minutesLeft: entry.minutesLeft ?? null,
         ...(entry.minutes === undefined ? {} : { minutes: entry.minutes }),
       })),
-      buildLanes: server.me.buildLanes ?? 1,
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
       /** A deployment one version behind knows no upkeep: a troop without the field is one

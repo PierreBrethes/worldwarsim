@@ -11,7 +11,7 @@ const route = directRoute([0, 0], [1, 1], 'land', 10);
 
 const me = {
   ink: '#2f4f78',
-  research: { researched: [], running: null },
+  research: { researched: [], running: null, queue: [] },
   troops: [
     {
       id: 't1',

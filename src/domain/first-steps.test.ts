@@ -23,7 +23,7 @@ const view = (
       troops: [],
       outposts: [],
       recruiting: [],
-      research: { researched: [], running: null },
+      research: { researched: [], running: null, queue: [] },
       ...me,
     },
     ...rest,
@@ -44,7 +44,7 @@ describe('stepsDoneIn', () => {
         view(
           {
             recruiting: ['B-1'],
-            research: { researched: [], running: {} as never },
+            research: { researched: [], running: {} as never, queue: [] },
             troops: [troop({})],
           },
           [{ state: 'mine', type: 'march', troopIds: ['T-1'], delivery: true }],
@@ -58,7 +58,7 @@ describe('stepsDoneIn', () => {
       stepsDoneIn(
         view({
           troops: [troop({ stationedAt: { kind: 'outpost', outpostId: 'O-1' } })],
-          research: { researched: ['armor'] as never, running: null },
+          research: { researched: ['armor'] as never, running: null, queue: [] },
         }),
       ),
     ).toEqual(['move', 'research']);

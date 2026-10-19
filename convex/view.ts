@@ -83,7 +83,7 @@ import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
-import { buildingLockOf, laneCount, lineLockOf } from '../src/domain/research';
+import { buildingLockOf, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -179,8 +179,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  placement rule read (`convex/sites.ts`). */
   const sites = await sitesOf(ctx, player);
   const queue = await queueOf(ctx, player._id);
-  /** The first dated entry is the one the banner counts down; the others that rise beside it
-   *  (a second lane with Chantier double, ADR 0031) travel in `constructionQueue` with their own date. */
+  /** The first dated entry is the one the banner counts down; the others wait in
+   *  `constructionQueue`. */
   const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
 
   /**
@@ -560,6 +560,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       research: {
         researched: player.researched ?? [],
         running: player.research ?? null,
+        queue: player.researchQueue ?? [],
       },
       /**
        * What the season still owes, in placement order — free and immediate wherever the
@@ -644,7 +645,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       constructionQueue: queue
         .filter((entry) => entry !== construction)
         .map((entry) => ({
-          /** Daté : ce chantier monte lui aussi, sur la seconde file (ADR 0031). Absent : il attend. */
+          /** Absent : il attend sa file. */
           minutesLeft:
             entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
           minutes: entry.minutes,
@@ -660,8 +661,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
         })),
-      /** Combien de chantiers montent en même temps : un, deux avec Chantier double (ADR 0031). */
-      buildLanes: laneCount(player.researched ?? [], 'works', blitz),
       armyPresent,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
