@@ -11,6 +11,7 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
     loadedAt: LOADED,
     me: {
       construction: null,
+      constructionQueue: [],
       buildings: [
         { id: 'B-1', key: 'mine', name: 'Mine', regionId: 'FRA-1', point: [3, 50], level: 3 },
       ],
@@ -112,6 +113,27 @@ describe('what runs, nearest first', () => {
       key: 'mine',
       point: [3, 50],
     });
+  });
+
+  it('lists the works rising on the other lanes, and leaves the waiting ones out', () => {
+    const work = (id: string, minutesLeft?: number | null) => ({
+      id,
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      level: 1,
+      ...(minutesLeft === undefined ? {} : { minutesLeft }),
+    });
+    const lines = underwayOf(
+      board({
+        construction: { ...work('W-1'), minutesLeft: 89 },
+        constructionQueue: [work('W-2', 40), work('W-3', null)],
+      }),
+      [],
+    );
+    expect(lines.map((line) => line.id)).toEqual(['construction-W-2', 'construction-W-1']);
   });
 
   it('dates a foundation at the hour its outpost stands', () => {

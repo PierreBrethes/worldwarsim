@@ -3,6 +3,7 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
 import { asShortDuration } from '@/domain/duration';
 import { currentMinutes, type PlayerView } from '@/domain/player-view';
+import { datedWorksOf } from '@/domain/underway';
 import { todoCountOf } from '@/domain/next-actions';
 import { useMapMotion } from '@/data/mapMotion';
 import {
@@ -50,7 +51,11 @@ export function Protractor({
   const waiting = todoCountOf(view);
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = blitz ? null : (view.press?.mine?.rank ?? null);
-  const work = view.me.construction;
+  /** Le chantier qui finit le premier, parmi tous ceux qui montent. */
+  const soonest = datedWorksOf(view.me).reduce<number | null>(
+    (least, work) => (least === null ? work.minutesLeft : Math.min(least, work.minutesLeft)),
+    null,
+  );
 
   const close = (refocus: boolean) => {
     setOpen(false);
@@ -105,8 +110,8 @@ export function Protractor({
       fr.foot.works,
       fr.protractor.works,
       <IndustryGlyph size={18} />,
-      work !== null && (
-        <Corner>{asShortDuration(currentMinutes(work.minutesLeft, view.loadedAt, now))}</Corner>
+      soonest !== null && (
+        <Corner>{asShortDuration(currentMinutes(soonest, view.loadedAt, now))}</Corner>
       ),
     ),
     windowRound(
