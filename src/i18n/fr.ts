@@ -3477,7 +3477,7 @@ export const fr = {
     left: (time: string) => `reste ${time}`,
     queuedLine: (time: string) => `${time}, en file`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
-    raiseTo: (level: number) => `élever au niv. ${level}`,
+    raiseTo: (level: number) => `élever au niv.\u00a0${level}`,
     /** Le bouton de la recherche dans la bande repliée du téléphone. */
     researchShort: 'rech.',
     starvedChain: (building: string, resource: string) =>

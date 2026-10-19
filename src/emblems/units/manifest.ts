@@ -109,7 +109,8 @@ const FRANCE: NationSprites = {
   bomber: { kind: 'single', url: bomber },
   airTransport: { kind: 'single', url: airTransport },
   escort: { kind: 'single', url: escort },
-  cargo: null,
+  // Stand-in: the French cargo is not drawn yet, and the band showed an empty "CARGO" frame.
+  cargo: { kind: 'single', url: ukCargo },
   carrier: { kind: 'single', url: carrier },
 };
 
