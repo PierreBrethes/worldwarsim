@@ -786,6 +786,50 @@ export function disembarkRefusalOf({
   return carrier === 'airTransport' && !atAirfield ? 'AIRFIELD_TARGET_REQUIRED' : null;
 }
 
+export type DisbandRefusal = 'NOT_A_SQUAD' | 'NO_SQUADS_IN_BLITZ' | 'SQUAD_CARRIES_LOOT';
+
+/**
+ * **Dissoudre une escouade** (#130) : une escouade, ce sont plusieurs pièces au même point
+ * (ADR 0028 §6) — une garnison n'en est pas une, la Blitz n'en a pas. Un butin posé est porté
+ * par le groupe qui l'a pris : il le garde, l'escouade aussi.
+ */
+export function disbandRefusalOf({
+  onPoint,
+  pieces,
+  blitz,
+  loaded,
+}: {
+  readonly onPoint: boolean;
+  /** Ses pièces : un passager part avec son transport. */
+  readonly pieces: number;
+  readonly blitz: boolean;
+  readonly loaded: boolean;
+}): DisbandRefusal | null {
+  if (blitz) return 'NO_SQUADS_IN_BLITZ';
+  if (!onPoint || pieces < 2) return 'NOT_A_SQUAD';
+  return loaded ? 'SQUAD_CARRIES_LOOT' : null;
+}
+
+/** L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude. @a-mesurer */
+export const DISBAND_SPREAD_DEG = 0.05;
+
+/** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
+ *  autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. */
+export function disbandPointsOf(
+  [lon, lat]: readonly [number, number],
+  count: number,
+): Array<[number, number]> {
+  const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: count }, (_, index): [number, number] => {
+    if (index === 0) return [lon, lat];
+    const turn = (2 * Math.PI * (index - 1)) / (count - 1);
+    return [
+      lon + Math.cos(turn) * DISBAND_SPREAD_DEG * stretch,
+      lat + Math.sin(turn) * DISBAND_SPREAD_DEG,
+    ];
+  });
+}
+
 /** Ce que la phrase du refus nomme, et ce que le geste montre : les places demandées, et
  *  celles qui restent. */
 export const boardingRefusalDetails = (boarding: Boarding) => ({

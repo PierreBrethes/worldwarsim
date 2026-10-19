@@ -873,6 +873,11 @@ export const fr = {
     TRUCK_SEATS_INFANTRY: () => 'un camion ne porte que l’infanterie',
     NOT_ABOARD: () => 'cette troupe n’est à bord d’aucun transport',
     DISEMBARK_AT_SEA: () => 'on ne débarque pas au large — gagnez une côte ou un port',
+    NOT_A_SQUAD: () => 'une escouade, ce sont plusieurs pièces au même point du plateau',
+    NO_SQUADS_IN_BLITZ: () => 'pas d’escouade en Blitz : une pièce par unité',
+    SQUAD_CARRIES_LOOT: () => 'l’escouade porte un butin posé : elle le garde, et reste ensemble',
+    NO_ROOM_TO_DISBAND: () =>
+      'trop près de la côte pour se disperser — éloignez l’escouade du rivage',
     STILL_ABOARD: () => 'cette troupe est à bord : débarquez-la d’abord',
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
@@ -4039,6 +4044,27 @@ export const fr = {
     pull: (role: string) => `${role} — tirer ou cliquer pour débarquer`,
     all: 'tout débarquer',
     release: 'débarquer',
+  },
+  /** **Plusieurs piles prises ensemble** (#130) : la barre au-dessus d'elles, et ce que leur
+   *  lâcher dit. */
+  selection: {
+    piles: (count: number) => `${count} pile${plural(count, '', 's')}`,
+    troops: (count: number) => `${count} troupe${plural(count, '', 's')}`,
+    cost: (count: number, free: number) =>
+      `${count} slot${plural(count, '', 's')} · ${free} libre${plural(free, '', 's')}`,
+    slots: (count: number, free: number) =>
+      `${count} mouvements pour ${free} slot${plural(free, '', 's')} libre${plural(free, '', 's')}`,
+    partRefused: (unable: number, count: number, why: string | null) =>
+      `${unable} pile${plural(unable, '', 's')} sur ${count} ne ${unable > 1 ? 'peuvent' : 'peut'} pas y aller${why === null ? '' : ` : ${why}`}`,
+    form: 'Former une escouade',
+    disband: 'Dissoudre',
+    clear: 'Désélectionner',
+    done: 'Terminer',
+    /** Au doigt, après l'appui long sur le plateau : les touchers ajoutent. */
+    picking: 'touchez vos piles',
+    noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
+    notASquad: 'une escouade, c’est plusieurs troupes au même point',
+    label: 'Sélection',
   },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,

@@ -6,6 +6,8 @@ import type { QueryCtx } from './_generated/server';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
+  disbandPointsOf,
+  disbandRefusalOf,
   disembarkRefusalOf,
   foundingRefusal,
   landCostOf,
@@ -17,7 +19,7 @@ import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
-import { carrierIn } from '../src/domain/troops';
+import { cargoOf, carrierIn } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildingReads';
 import {
@@ -371,6 +373,46 @@ export const disembark = mutation({
       await ctx.db.patch(troopId, { carriedBy: undefined });
     }
     return { disembarked: troopIds.length };
+  },
+});
+
+/**
+ * **Dissoudre une escouade** (#130) : ses pièces se posent à part, en couronne autour du point,
+ * sur-le-champ — aucun mouvement, aucun slot, comme débarquer. La première reste au point ; un
+ * passager suit son transport. Une couronne qui toucherait l'autre milieu (une côte) est refusée :
+ * on ne pose pas un char dans la mer.
+ */
+export const disband = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), point: LON_LAT },
+  handler: async (ctx, { token, seasonId, point }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    const pile = await standingPile(ctx, player._id, point);
+    const seated = pile.map(seatedOf);
+    const pieces = seated.filter((troop) => carrierIn(troop, seated) === null);
+    const loaded = (
+      await ctx.db
+        .query('stationedLoot')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).some((row) => JSON.stringify(row.stationedAt) === JSON.stringify(point));
+    const refusal = disbandRefusalOf({
+      onPoint: true,
+      pieces: pieces.length,
+      blitz: modeOf(season.mode) === 'blitz',
+      loaded,
+    });
+    if (refusal !== null) fail(refusal);
+    const ashore = landAtPoint(pointOf(point));
+    const spots = disbandPointsOf(pointOf(point), pieces.length);
+    if (spots.some((spot) => landAtPoint(spot) !== ashore)) fail('NO_ROOM_TO_DISBAND');
+    for (const [index, piece] of pieces.entries()) {
+      if (index === 0) continue;
+      const at = asPoint(spots[index]!);
+      for (const troop of [piece, ...cargoOf(piece, seated)])
+        await ctx.db.patch(troop.id as Id<'troops'>, { stationedAt: at });
+    }
+    return { pieces: pieces.length };
   },
 });
 

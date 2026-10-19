@@ -138,6 +138,10 @@ export type ErrorCode =
   | 'TRUCK_SEATS_INFANTRY'
   | 'NOT_ABOARD'
   | 'DISEMBARK_AT_SEA'
+  | 'NOT_A_SQUAD'
+  | 'NO_SQUADS_IN_BLITZ'
+  | 'SQUAD_CARRIES_LOOT'
+  | 'NO_ROOM_TO_DISBAND'
   | 'STILL_ABOARD'
   | 'NO_CARGO_CAPACITY'
   /** **La logistique** (ADR 0028 §4) : charger, livrer, la tournée. */
