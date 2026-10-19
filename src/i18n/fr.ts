@@ -511,6 +511,9 @@ export const fr = {
       halifax: 'Halifax',
       narvik: 'Narvik',
       lisbon: 'Lisbonne',
+      baku: 'Bakou',
+      dakar: 'Dakar',
+      singapore: 'Singapour',
     } satisfies Record<StrategicPointKey, string>,
     rules: {
       tangier:
@@ -522,6 +525,10 @@ export const fr = {
       halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
+      baku: 'Vos troupes à l’arrêt font le plein sur le plateau personnel, où qu’elles soient : comme si elles étaient ancrées.',
+      dakar:
+        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste qu’on vous prend brûle avec son contenu.',
+      singapore: 'Vos camions et vos cargos roulent sans plein.',
     } satisfies Record<StrategicPointKey, string | null>,
     ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
     kicker: 'point stratégique',
@@ -566,10 +573,15 @@ export const fr = {
       neverHeld: 'jamais tenu',
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
-    drawn: () => {
-      const names = Object.values(fr.points.names);
-      return `LES SEPT SONT DÉSIGNÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
+    drawn: (keys: ReadonlyArray<StrategicPointKey>) => {
+      const names = keys.map((key) => fr.points.names[key]);
+      return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
+    /** **Dakar** : le dépôt qu'on prend au teneur brûle ; les deux camps l'apprennent. */
+    depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
+      side === 'capturer'
+        ? `Le dépôt d’avant-poste de ${country} a brûlé à la prise, Dakar le garde : ${lost} perdu.`
+        : `Votre dépôt d’avant-poste de ${country} a brûlé plutôt que de passer à l’ennemi (Dakar) : ${lost} perdu.`,
   },
 
   objectives: {
@@ -2447,10 +2459,16 @@ export const fr = {
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
       /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
-      expeditionFoundNothing: (building: string, region: string, reason: 'gone' | 'disabled') =>
+      expeditionFoundNothing: (
+        building: string,
+        region: string,
+        reason: 'gone' | 'disabled' | 'sealed',
+      ) =>
         reason === 'gone'
           ? `Expédition bredouille — ${region} : ${building} relevé n’est plus debout. La colonne rentre à vide.`
-          : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
+          : reason === 'sealed'
+            ? `Expédition bredouille — ${region} : ${building} est gardé par Dakar, ses réserves ne se pillent pas. La colonne rentre à vide.`
+            : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,
@@ -2658,6 +2676,10 @@ export const fr = {
     reload:
       'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
+    /** **Bakou** : le plein repris hors de toute ancre, sur le plateau personnel. */
+    viaBaku: 'plein repris à Bakou, sur le plateau personnel',
+    /** **Singapour** : les camions et les cargos de la colonne ne consomment rien. */
+    freedBySingapore: 'camions et cargos sans plein (Singapour)',
     route: (steps: number, roundTrip = false) =>
       `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
   },

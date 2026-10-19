@@ -227,6 +227,9 @@ describe('the strategic points of the test season', () => {
     halifax: 'CAN',
     narvik: 'NOR',
     lisbon: 'PRT',
+    baku: 'AZE',
+    dakar: 'SEN',
+    singapore: 'MYS',
   };
 
   it.each(STRATEGIC_POINT_KEYS)('sets %s on land, in a region of its own country', (key) => {

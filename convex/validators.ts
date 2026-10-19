@@ -226,7 +226,7 @@ const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.strin
  * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
  * le voit pas, il voit un bloc s'il le relève.
  */
-/** Les sept du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
+/** Les dix du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
  *  clé du domaine absente d'ici refuse son écriture au typage (`strategicPoints.layOut`). */
 export const STRATEGIC_POINT_KEY = v.union(
   v.literal('tangier'),
@@ -236,6 +236,9 @@ export const STRATEGIC_POINT_KEY = v.union(
   v.literal('halifax'),
   v.literal('narvik'),
   v.literal('lisbon'),
+  v.literal('baku'),
+  v.literal('dakar'),
+  v.literal('singapore'),
 );
 
 export const CAPTURE_SITE = v.union(
@@ -619,7 +622,19 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
   }),
   /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
-  v.object({ ...NOTICE_HEAD, kind: v.literal('pointsDrawn') }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pointsDrawn'),
+    keys: v.array(STRATEGIC_POINT_KEY),
+  }),
+  /** **Dakar brûle le dépôt** (P11) : un avant-poste pris à son teneur ne livre pas son dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('depotBurned'),
+    side: v.union(v.literal('capturer'), v.literal('holder')),
+    country: v.string(),
+    lost: SUPPLY_LOAD,
+  }),
   /** **Lu à Istanbul** (P11) : au teneur, le télégramme ; aux deux correspondants, le fait. */
   v.object({
     ...NOTICE_HEAD,
@@ -674,7 +689,7 @@ export const NOTICE = v.union(
     kind: v.literal('expeditionFoundNothing'),
     building: BUILDING_KEY,
     regionId: v.string(),
-    reason: v.union(v.literal('gone'), v.literal('disabled')),
+    reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('sealed')),
   }),
   /**
    * **Un objectif neutre, annoncé à tout le monde au lancement** (objectifs neutres, 17/09/2026).

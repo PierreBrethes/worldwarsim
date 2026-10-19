@@ -1,8 +1,15 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { topUp, type Supplies, type SupplyStocks } from '../src/domain/supplies';
+import {
+  fullSupplies,
+  suppliesOf,
+  topUp,
+  type Supplies,
+  type SupplyStocks,
+} from '../src/domain/supplies';
 import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
+import { holdsPoint } from './strategicPoints';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
 import { upkeepOf, type AnchorStore } from './upkeep';
@@ -23,18 +30,32 @@ export async function toppedUp(
   playerId: Id<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
   at: number,
-): Promise<{ readonly troops: Array<Doc<'troops'>>; readonly bill: Bill }> {
-  const none = { troops: [...troops], bill: new Map() };
+): Promise<{
+  readonly troops: Array<Doc<'troops'>>;
+  readonly bill: Bill;
+  /** Les troupes dont le plein a été repris à Bakou, hors de toute ancre. */
+  readonly viaBaku: ReadonlySet<string>;
+}> {
+  const none = { troops: [...troops], bill: new Map(), viaBaku: new Set<string>() };
   const player = await ctx.db.get(playerId);
   if (player === null || troops.length === 0 || (await isBlitz(ctx, player.seasonId))) return none;
   const { storeOf } = await upkeepOf(ctx, playerId, at);
   const marching = new Set<string>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
+  /** **Bakou** : le teneur fait le plein où qu'il soit — une troupe à l'arrêt, hors de toute
+   *  ancre, reprend son plein sur le plateau personnel. */
+  const baku = await holdsPoint(ctx, player, 'baku');
   const byStore = new Map<AnchorStore, Array<Doc<'troops'>>>();
+  const unanchored = new Set<string>();
   for (const troop of troops) {
-    const store = storeOf[troop._id];
-    if (store === undefined || marching.has(troop._id)) continue;
+    if (marching.has(troop._id)) continue;
+    let store = storeOf[troop._id];
+    if (store === undefined && baku && fullSupplies(troop.role).fuel > 0) {
+      store = 'board';
+      unanchored.add(troop._id);
+    }
+    if (store === undefined) continue;
     byStore.set(store, [...(byStore.get(store) ?? []), troop]);
   }
   if (byStore.size === 0) return none;
@@ -42,7 +63,12 @@ export async function toppedUp(
   const bill = new Map<AnchorStore, SupplyStocks>();
   for (const [store, group] of byStore) {
     const { supplies, cost } = topUp(
-      group.map((troop) => ({ ...troop, id: troop._id, anchored: true })),
+      group.map((troop) => ({
+        ...troop,
+        id: troop._id,
+        anchored: !unanchored.has(troop._id),
+        fuelOnly: unanchored.has(troop._id),
+      })),
       await stocksOf(ctx, playerId, store, at),
     );
     for (const [id, refill] of supplies) refills.set(id, refill);
@@ -54,6 +80,11 @@ export async function toppedUp(
       return refill === undefined ? troop : { ...troop, ...refill };
     }),
     bill,
+    viaBaku: new Set(
+      [...unanchored].filter(
+        (id) => refills.get(id)!.fuel > suppliesOf(troops.find((troop) => troop._id === id)!).fuel,
+      ),
+    ),
   };
 }
 

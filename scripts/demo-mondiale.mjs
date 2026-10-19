@@ -14,7 +14,9 @@
  * `--recherche` donne à la France l'infanterie MK2 et l'aviation, et le blindé en cours sur son QG
  * (ADR 0028 §5). `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
- * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6).
+ * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
+ * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
+ * Rhénanie et les dépêches d'un dépôt brûlé (P11).
  *
  *     npm run demo:mondiale
  *
@@ -38,6 +40,7 @@ const tours = process.argv.includes('--tournee');
 const airdrops = process.argv.includes('--largage');
 const research = process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
+const points = process.argv.includes('--points');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -159,6 +162,9 @@ if (!bare) {
       target: { kind: 'camp', campId: camp.id },
     });
   }
+  /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */
+  if (points && scene.a !== null && scene.b !== null)
+    cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });

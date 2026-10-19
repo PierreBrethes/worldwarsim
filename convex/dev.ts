@@ -14,6 +14,7 @@ import { UNIT_ROLE } from './validators';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
+import { layPoint } from './strategicPoints';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -566,5 +567,55 @@ export const artilleryScene = internalMutation({
       ['landTransport', 2],
     ]);
     await reassessDetection(ctx, player.seasonId, Date.now());
+  },
+});
+
+/**
+ * **Bakou, Dakar et Singapour tenus** (4.3) : le joueur tient les trois, une infanterie à sec, un
+ * blindé et un camion au plein vide en Rhénanie (le blindé reprend le sien à Bakou, le camion roule
+ * sans), et les deux dépêches du dépôt qui brûle à Dakar.
+ */
+export const pointsScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const key of ['baku', 'dakar', 'singapore'] as const) {
+      const point = await layPoint(ctx, player.seasonId, key);
+      if (point === null) throw new Error(`no region under ${key}`);
+      await ctx.db.patch(point._id, { holderId: player._id, heldSince: now - 3 * 3_600_000 });
+    }
+    for (const [role, fuel] of [
+      ['armor', 0],
+      ['landTransport', 0],
+    ] as const)
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role,
+        tier: 1,
+        nominalStrength: nominalStrength(role, 1),
+        currentStrength: nominalStrength(role, 1),
+        stationedAt: { lon: 7.1, lat: 50.4 },
+        fuel,
+      });
+    const lost = { ammunition: 40, oil: 20, coal: 0 };
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now,
+      kind: 'depotBurned',
+      side: 'holder',
+      country: 'BEL',
+      lost,
+    });
+    await ctx.db.insert('notices', {
+      playerId: enemyId,
+      at: now,
+      kind: 'depotBurned',
+      side: 'capturer',
+      country: 'BEL',
+      lost,
+    });
   },
 });

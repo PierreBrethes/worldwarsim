@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
@@ -69,6 +70,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
+import { holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
@@ -612,7 +614,7 @@ export const preview = query({
 
     const now = Date.now();
     /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
-    const { troops } = await toppedUp(
+    const { troops, viaBaku } = await toppedUp(
       ctx,
       player._id,
       await troopsAmong(ctx, player._id, troopIds),
@@ -642,7 +644,7 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: fuelFacts(troops, route, column, roundTrip === true),
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, viaBaku),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -696,23 +698,30 @@ const previewTroopsAt = async (
   )
     return null;
   /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
-  return (await toppedUp(ctx, playerId, troops, Date.now())).troops;
+  const { troops: topped, viaBaku } = await toppedUp(ctx, playerId, troops, Date.now());
+  return { troops: topped, viaBaku };
 };
 
 /** **Le plein que la route coûte** (ADR 0028 §3), et son refus avant le clic s'il manque. */
-const fuelFacts = (
+const fuelFacts = async (
+  ctx: QueryCtx,
+  player: Doc<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
-  roundTrip = false,
+  roundTrip: boolean,
+  viaBaku: ReadonlySet<string>,
 ) => {
-  const { steps, short, km } = fuelBill(
+  const { steps, short, km, freed } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
     roundTrip,
+    await holdsPoint(ctx, player, 'singapore'),
   );
-  return { steps, short, km, roundTrip };
+  /** **Bakou** et **Singapour** se disent à la carte : le plein repris sur le plateau personnel,
+   *  les camions et cargos qui roulent sans. */
+  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku.size > 0 };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -729,8 +738,9 @@ export const previewPlunder = query({
     const { player } = await playerOf(ctx, token, seasonId);
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
@@ -762,7 +772,7 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: fuelFacts(troops, route, column),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -788,8 +798,9 @@ export const previewCapture = query({
     const { player, season } = await playerOf(ctx, token, seasonId);
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await captureAimOf(ctx, player, target);
     const route = routeBetween(
@@ -809,7 +820,7 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: fuelFacts(troops, route, column),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -849,8 +860,9 @@ export const previewLootCollection = query({
     }
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await aimOf(ctx, player._id, { kind: 'point', point: sighting.point });
     if (refusalOf('march', aimed.aim, column) !== null) return null;
@@ -873,7 +885,7 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: fuelFacts(troops, route, column),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,

@@ -24,7 +24,7 @@ import { economyOf, settle } from './resources';
 import schema from './schema';
 import { surveyFoundation } from './surveys';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatDoc, seatIn } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, seatDoc } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -455,16 +455,12 @@ describe('a building only produces when its region carries its colour', () => {
     await disable(t, outpostId, MIDDAY);
     expect(unlinkedProducers(await view(t, seat)).map((building) => building.id)).toContain(well);
 
-    const player = await t.run((ctx) => seatIn(ctx, seat));
-    const narvik = await t.run(async (ctx) =>
-      (await ctx.db.query('strategicPoints').collect()).find((point) => point.key === 'narvik'),
-    );
-    await t.run((ctx) => ctx.db.patch(narvik!._id, { holderId: player._id, heldSince: MIDDAY }));
+    const narvik = await holdPoint(t, seat, 'narvik');
     const held = await view(t, seat);
     expect(unlinkedProducers(held)).toHaveLength(0);
     expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
 
-    await t.run((ctx) => ctx.db.patch(narvik!._id, { holderId: null, heldSince: null }));
+    await t.run((ctx) => ctx.db.patch(narvik, { holderId: null, heldSince: null }));
     expect(unlinkedProducers(await view(t, seat))).toHaveLength(1);
   });
 

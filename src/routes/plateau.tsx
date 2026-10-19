@@ -3290,9 +3290,19 @@ function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
         alarm: true,
       },
     ];
-  return fuel.steps > 0
-    ? [{ text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip), alarm: false }]
-    : [];
+  return [
+    ...(fuel.steps > 0
+      ? [
+          {
+            text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip),
+            alarm: false,
+          },
+        ]
+      : []),
+    /** Les deux points qui jouent sur le plein se disent là où l'on paie la route. */
+    ...(fuel.viaBaku ? [{ text: fr.supplies.viaBaku, alarm: false }] : []),
+    ...(fuel.freed ? [{ text: fr.supplies.freedBySingapore, alarm: false }] : []),
+  ];
 }
 
 function armedColumn(
@@ -3355,6 +3365,7 @@ function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troo
   const stock = (key: keyof SupplyStocks) => view.me.resources[key]?.stock ?? 0;
   const board = { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') };
   const stores = new Set(troops.map((troop) => troop.depotId));
+  const baku = view.strategicPoints.some((point) => point.key === 'baku' && point.mine);
   const supplies = new Map(
     [...stores].flatMap((store) => [
       ...topUp(
@@ -3365,6 +3376,8 @@ function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troo
             id: troop.id,
             role: troop.role,
             anchored: troop.supplied && !marching.has(troop.id),
+            /** **Bakou** : hors de toute ancre, le teneur reprend son plein sur le plateau. */
+            fuelOnly: baku && !troop.supplied && !marching.has(troop.id),
           })),
         store === undefined
           ? board

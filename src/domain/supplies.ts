@@ -46,9 +46,14 @@ export type SupplyStocks = {
  * dure. Rien ne se refuse : un stock court laisse la dernière à moitié vide, et c'est ce que la
  * pièce dira. **L'ordre est celui des identifiants**, jamais celui de l'appelant : l'écran et le
  * serveur partagent un stock court de la même façon. Une troupe non ancrée garde ses crans.
+ *
+ * **Bakou** (`fuelOnly`) : le teneur fait le plein où qu'il soit — une troupe à l'arrêt hors de
+ * toute ancre reprend ses crans de plein, comme si elle était ancrée, mais pas ses coups.
  */
 export function topUp(
-  troops: ReadonlyArray<Carrying & { readonly id: string; readonly anchored: boolean }>,
+  troops: ReadonlyArray<
+    Carrying & { readonly id: string; readonly anchored: boolean; readonly fuelOnly?: boolean }
+  >,
   stocks: SupplyStocks,
 ): { readonly supplies: ReadonlyMap<string, Supplies>; readonly cost: SupplyStocks } {
   const left = { ...stocks };
@@ -61,18 +66,27 @@ export function topUp(
   };
   const supplies = new Map<string, Supplies>();
   const anchored = troops
-    .filter((troop) => troop.anchored)
+    .filter((troop) => troop.anchored || troop.fuelOnly === true)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const troop of anchored) {
     const held = suppliesOf(troop);
     const full = fullSupplies(troop.role);
     supplies.set(troop.id, {
-      rounds: held.rounds + take('ammunition', full.rounds - held.rounds),
+      rounds: troop.anchored
+        ? held.rounds + take('ammunition', full.rounds - held.rounds)
+        : held.rounds,
       fuel: held.fuel + take(fuelResourceOf(troop.role), full.fuel - held.fuel),
     });
   }
   return { supplies, cost };
 }
+
+/**
+ * **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. Les autres moteurs
+ * paient leur route comme avant ; ceux-ci ne consomment rien, ne manquent de rien, et ne portent
+ * pas de jerrican à l'écran.
+ */
+export const FUEL_FREE_ROLES: ReadonlyArray<UnitRole> = ['landTransport', 'cargo'];
 
 export type FuelShortfall = {
   readonly needed: number;
@@ -118,15 +132,20 @@ export type PileSupplies = {
  * aucune troupe ne porte de crans.
  */
 export function pileSupplies(
-  troops: ReadonlyArray<{ readonly role: UnitRole; readonly supplies?: Supplies }>,
+  troops: ReadonlyArray<{
+    readonly role: UnitRole;
+    readonly supplies?: Supplies;
+    /** Le plein de cette troupe est gratuit (Singapour) : il ne compte pas dans la pièce. */
+    readonly fuelFree?: boolean;
+  }>,
 ): PileSupplies | null {
   const counted = troops.filter(
-    (troop): troop is { role: UnitRole; supplies: Supplies } => troop.supplies !== undefined,
+    (troop): troop is typeof troop & { supplies: Supplies } => troop.supplies !== undefined,
   );
   if (counted.length === 0) return null;
   const armed = counted.filter((troop) => fullSupplies(troop.role).rounds > 0);
   const engines = counted
-    .filter((troop) => fullSupplies(troop.role).fuel > 0)
+    .filter((troop) => fullSupplies(troop.role).fuel > 0 && troop.fuelFree !== true)
     .sort((a, b) => a.supplies.fuel - b.supplies.fuel);
   const low = engines[0];
   return {

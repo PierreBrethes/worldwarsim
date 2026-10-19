@@ -37,6 +37,15 @@ describe('the top-up at the anchor', () => {
     expect(cost.ammunition).toBe(40);
   });
 
+  it('refuels the fuel of a stopped troop away from any anchor for Baku, and its rounds never', () => {
+    const { supplies, cost } = topUp(
+      [{ id: 'far', role: 'armor', rounds: 0, fuel: 0, anchored: false, fuelOnly: true }],
+      STOCKS,
+    );
+    expect(supplies.get('far')).toEqual({ rounds: 0, fuel: 3 });
+    expect(cost).toEqual({ ammunition: 0, oil: 30, coal: 0 });
+  });
+
   it('leaves a troop away from its anchor on what it carries', () => {
     const { supplies, cost } = topUp(
       [{ id: 'far', role: 'infantry', rounds: 0, anchored: false }],
@@ -44,6 +53,14 @@ describe('the top-up at the anchor', () => {
     );
     expect(supplies.has('far')).toBe(false);
     expect(cost.ammunition).toBe(0);
+  });
+});
+
+describe('what the piece says of its fuel', () => {
+  it('shows no tank for the engines Singapore frees', () => {
+    const truck = { role: 'landTransport' as const, supplies: { rounds: 0, fuel: 0 } };
+    expect(pileSupplies([truck])?.fuel).not.toBeNull();
+    expect(pileSupplies([{ ...truck, fuelFree: true }])?.fuel).toBeNull();
   });
 });
 

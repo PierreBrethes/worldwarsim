@@ -8,6 +8,7 @@ import { isNation } from '../src/domain/nations';
 import { capitalRegionOf, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
+import { layPoint } from './strategicPoints';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -271,3 +272,24 @@ async function writeCampSighting(
 /** A short or absent clock, for the suites that measure what the end of a season does. */
 export const setClock = (t: Bench, seasonId: Id<'seasons'>, hours: number | null) =>
   t.run((ctx) => ctx.db.patch(seasonId, { durationHours: hours }));
+
+/** Un point stratégique de la saison, posé neutre s'il n'a pas été tiré (`layPoint`). */
+export const pointOf = async (
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  key: Doc<'strategicPoints'>['key'],
+) => (await layPoint(ctx, seasonId, key))!;
+
+/** Un point tenu par une place, posé s'il manquait. */
+export const holdPoint = (
+  t: Bench,
+  seat: Seat,
+  key: Doc<'strategicPoints'>['key'],
+  holder: Seat = seat,
+) =>
+  t.run(async (ctx) => {
+    const player = await seatIn(ctx, holder);
+    const point = await pointOf(ctx, seat.seasonId, key);
+    await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
+    return point._id;
+  });

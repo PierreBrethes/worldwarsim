@@ -522,7 +522,23 @@ function written(notice: Notice): Written {
         text: fr.points.taken(nationName(notice.nation), notice.key),
       };
     case 'pointsDrawn':
-      return { at: notice.at, severity: 'notable', kind: 'pointTaken', text: fr.points.drawn() };
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.drawn(notice.keys),
+      };
+    case 'depotBurned':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.depotBurned(
+          notice.side,
+          countryLabel(notice.country),
+          supplyWords(notice.lost) || 'rien',
+        ),
+      };
     case 'readAtIstanbul':
       return {
         at: notice.at,

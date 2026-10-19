@@ -11,7 +11,7 @@ import { walkHome } from './movement/arrival';
 import { foundationOwedBy, regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -419,6 +419,65 @@ describe('capturing an outpost', () => {
     });
     expect((await t.run((ctx) => ctx.db.get(anchored)))!.playerId).toBe(me._id);
     expect((await t.run((ctx) => ctx.db.get(infantry)))!.stationedAt).toBe(outpostId);
+  });
+});
+
+/** **Dakar** (P11) : un dépôt d'avant-poste pris au teneur brûle, et les deux camps l'apprennent. */
+describe('capturing an outpost with a depot', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function takeDepot(withDakar: boolean) {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, guest);
+    const point = pointOfRegion(PRAHOVA);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point,
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 2,
+        specialization: 'relay',
+        foundedAt: MIDDAY - 10 * HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot: { ammunition: 40, oil: 20, coal: 0 },
+      }),
+    );
+    if (withDakar) await holdPoint(t, seat, 'dakar', guest);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(t, seat, { kind: 'outpost', outpostId }, point, 'ROU', [infantry]);
+    await finish(t);
+    return { t, seat, guest, outpostId };
+  }
+
+  it('passes to the capturer with the outpost when nobody holds Dakar', async () => {
+    const { t, outpostId, guest } = await takeDepot(false);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.depot).toEqual({
+      ammunition: 40,
+      oil: 20,
+      coal: 0,
+    });
+    expect(await noticesOf(t, guest, 'depotBurned')).toEqual([]);
+  });
+
+  it('burns while the holder of Dakar loses it, and tells both sides', async () => {
+    const { t, seat, guest, outpostId } = await takeDepot(true);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.depot).toEqual({
+      ammunition: 0,
+      oil: 0,
+      coal: 0,
+    });
+    expect(await noticesOf(t, seat, 'depotBurned')).toMatchObject([
+      { side: 'capturer', lost: { ammunition: 40, oil: 20, coal: 0 } },
+    ]);
+    expect(await noticesOf(t, guest, 'depotBurned')).toMatchObject([{ side: 'holder' }]);
   });
 });
 

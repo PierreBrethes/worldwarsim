@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { pointsView, seasonPoints } from './strategicPoints';
+import { holdsPoint, pointsView, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -73,7 +73,7 @@ import {
   regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { suppliesOf } from '../src/domain/supplies';
+import { FUEL_FREE_ROLES, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
@@ -263,6 +263,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
+  /** **Singapour** : ses camions et ses cargos roulent sans plein (`fuelBill`). */
+  const singapore = !blitz && (await holdsPoint(ctx, player, 'singapore'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];
     return store === undefined || store === 'board' ? null : store;
@@ -655,6 +657,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(depotOf(troop._id) === null ? {} : { depotId: depotOf(troop._id)! }),
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
+        ...(singapore && FUEL_FREE_ROLES.includes(troop.role) ? { fuelFree: true as const } : {}),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
          *  isolée, que seul un largage ravitaille. */

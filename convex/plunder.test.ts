@@ -15,7 +15,7 @@ import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { attacking, foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -552,6 +552,25 @@ describe('plunder presence', () => {
     );
     const theirs = await t.query(api.view.playerView, guest);
     expect(theirs.notices.some((notice) => notice.kind === 'expeditionFoundNothing')).toBe(false);
+  });
+
+  /** **Dakar** (P11) : les réserves de son teneur ne se pillent pas. */
+  it('finds the warehouse of the holder of Dakar sealed, and walks home empty', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await holdPoint(t, seat, 'dakar', guest);
+
+    await plunderArrival(t, seat, warehouseId, [infantry], barracks);
+
+    expect(await t.run((ctx) => ctx.db.query('plunderReports').collect())).toEqual([]);
+    expect((await t.run((ctx) => ctx.db.get(warehouseId)))!.disabledUntil).toBeUndefined();
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.notices.filter((notice) => notice.kind === 'expeditionFoundNothing')).toMatchObject(
+      [{ building: 'warehouse', reason: 'sealed' }],
+    );
   });
 
   it('marches on a surveyed warehouse razed since, and reports it gone on arrival', async () => {

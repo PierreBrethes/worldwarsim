@@ -23,7 +23,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
-import { seasonPoints } from '../strategicPoints';
+import { holdsPoint } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
@@ -53,6 +53,7 @@ import {
 } from './forces';
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
 import {
+  FUEL_FREE_ROLES,
   fuelRefusalOf,
   fuelStepsFor,
   fullSupplies,
@@ -678,10 +679,7 @@ export async function slotsTaken(
   return kept;
 }
 
-const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
-  (await seasonPoints(ctx, player.seasonId)).some(
-    (point) => point.key === 'halifax' && point.holderId === player._id,
-  );
+const holdsHalifax = (ctx: QueryCtx, player: Doc<'players'>) => holdsPoint(ctx, player, 'halifax');
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
   const crew = [];
@@ -719,6 +717,8 @@ export function fuelBill(
   blitz: boolean,
   /** **Un largage paie l'aller-retour** (ADR 0028 §4) : la route compte deux fois. */
   roundTrip = false,
+  /** **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. */
+  fuelFree = false,
 ) {
   const column = troops.map(seatedOf);
   const seated = seatLoose(column);
@@ -729,12 +729,18 @@ export function fuelBill(
     : troops.filter(
         (troop) =>
           fullSupplies(troop.role).fuel > 0 &&
+          !(fuelFree && FUEL_FREE_ROLES.includes(troop.role)) &&
           carrierIn(seatedOf(troop), column) === null &&
           !seated.has(troop._id),
       );
   const km = Math.round(distanceUnits * (roundTrip ? 2 : 1) * KM_PER_UNIT);
   return {
     drivers,
+    /** Singapour a dispensé au moins un moteur de cette colonne : la carte le dit. */
+    freed:
+      fuelFree &&
+      !blitz &&
+      troops.some((troop) => FUEL_FREE_ROLES.includes(troop.role) && !seated.has(troop._id)),
     km,
     steps: drivers.length === 0 ? 0 : fuelStepsFor(km),
     short: fuelRefusalOf(drivers, km),
@@ -864,6 +870,7 @@ export async function march(
     route.distanceUnits,
     column.blitz !== undefined,
     airdrop !== undefined,
+    await holdsPoint(ctx, (await ctx.db.get(playerId))!, 'singapore'),
   );
   if (fuel.short !== null)
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });

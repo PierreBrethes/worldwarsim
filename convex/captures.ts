@@ -25,7 +25,8 @@ import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { irregularSeat } from './objectives';
-import { handOver } from './strategicPoints';
+import { handOver, holdsPoint } from './strategicPoints';
+import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
@@ -403,6 +404,35 @@ async function stop(
   await notifyBoth(ctx, capture, now, { kind: 'captureCancelled', reason });
 }
 
+/**
+ * **Dakar** (P11) : un dépôt d'avant-poste pris au teneur brûle au lieu de passer au capteur. Son
+ * contenu est perdu, et les deux camps l'apprennent — une dépêche chacun.
+ */
+async function burnDepotAtDakar(
+  ctx: MutationCtx,
+  site: Doc<'outposts'>,
+  loser: Doc<'players'>,
+  capturerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  if (!(await holdsPoint(ctx, loser, 'dakar'))) return;
+  const lost = site.depot ?? emptyLoad();
+  await ctx.db.patch(site._id, { depot: emptyLoad() });
+  for (const [playerId, side] of [
+    [capturerId, 'capturer'],
+    [loser._id, 'holder'],
+  ] as const) {
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now,
+      kind: 'depotBurned',
+      side,
+      country: site.hostCountry,
+      lost,
+    });
+  }
+}
+
 export async function reassessCaptures(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -505,6 +535,7 @@ export const complete = internalMutation({
       await groundGarrison(ctx, site);
       await cancelRaisesOf(ctx, loser._id, site, now);
       await ctx.db.patch(site._id, { playerId: capture.playerId });
+      await burnDepotAtDakar(ctx, site, loser, capture.playerId, now);
       /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
        *  raid le trouverait vide et le désactiverait sans combat. */
       for (const troop of capturersOf(byPoint, capture)) {

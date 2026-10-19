@@ -288,6 +288,9 @@ export type TroopView = {
   /** **Ses coups et son plein, en crans** (ADR 0028 §3) : absents en Blitz, où rien ne se
    *  compte. Repris à l'ancre ; ailleurs, elle vit sur ce qu'elle porte. */
   readonly supplies?: Supplies;
+  /** **Son plein est gratuit** (Singapour) : un camion ou un cargo de celui qui tient le point ;
+   *  la pièce ne montre alors pas de jerrican. */
+  readonly fuelFree?: true;
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
@@ -941,7 +944,19 @@ type NoticeBody =
       readonly key: StrategicPointKey;
       readonly nation: string;
     }
-  | { readonly kind: 'pointsDrawn'; readonly at: number }
+  | {
+      readonly kind: 'pointsDrawn';
+      readonly at: number;
+      readonly keys: ReadonlyArray<StrategicPointKey>;
+    }
+  /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
+  | {
+      readonly kind: 'depotBurned';
+      readonly at: number;
+      readonly side: 'capturer' | 'holder';
+      readonly country: string;
+      readonly lost: SupplyLoad;
+    }
   /** Istanbul (P11) : au teneur, le télégramme lu ; aux correspondants, le fait sans le texte. */
   | {
       readonly kind: 'readAtIstanbul';
@@ -981,7 +996,7 @@ type NoticeBody =
       readonly at: number;
       readonly building: BuildingKey;
       readonly regionName: string;
-      readonly reason: 'gone' | 'disabled';
+      readonly reason: 'gone' | 'disabled' | 'sealed';
     }
   | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
   | {
