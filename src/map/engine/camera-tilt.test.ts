@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgeSafeTiltAt, steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -60,5 +60,29 @@ describe('the tilt that keeps the far edge of the board out of the picture', () 
 
   it('stays upright when even the plumb sees past the edge', () => {
     expect(edgeSafeTiltAt(300, fov, 100)).toBe(0);
+  });
+});
+
+describe('the pull of the target back toward the middle of the board', () => {
+  const fov = 40;
+  const half = (fov * Math.PI) / 360;
+
+  it('does not move a target whose edge the allowed tilt already hides', () => {
+    const edge = 90;
+    const tilt = edgeSafeTiltAt(60, fov, edge);
+    expect(targetPullOf(60, fov, tilt, edge, 80)).toBeCloseTo(0, 6);
+  });
+
+  it('pulls only what the upright still sees past the edge', () => {
+    expect(targetPullOf(100, fov, 0, 20, 80)).toBeCloseTo(100 * Math.tan(half) - 20, 6);
+  });
+
+  it('measures at the tilt the board allows, not a steeper one that is about to yield', () => {
+    expect(targetPullOf(60, fov, 0, 20, 80)).toBeLessThan(targetPullOf(60, fov, 0.57, 20, 80));
+  });
+
+  it('never carries the target past the middle', () => {
+    expect(targetPullOf(300, fov, 0, 10, 25)).toBe(25);
+    expect(targetPullOf(300, fov, 0, 10, -5)).toBe(0);
   });
 });

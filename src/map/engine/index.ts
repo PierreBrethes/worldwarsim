@@ -62,7 +62,7 @@ import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { edgeSafeTiltAt, steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
@@ -2512,15 +2512,24 @@ export class MapEngine {
     const target = this.controls.target;
     const eye = this.camera.position.clone().sub(target);
     const distance = eye.length();
-    const half = (this.camera.fov * Math.PI) / 360;
-    const reach = Math.cos(this.controls.getPolarAngle() + half);
-    const need = reach <= 0.05 ? Infinity : (distance * Math.sin(half)) / reach;
-    const edge = this.edgeAhead(target, eye) * EDGE_MARGIN;
     const flat = Math.hypot(eye.x, eye.z);
-    if (edge >= need || flat < 1e-6) return;
+    if (flat < 1e-6) return;
     const ahead = new Vector3(-eye.x / flat, 0, -eye.z / flat);
-    const toMiddle = Math.max(0, target.dot(ahead));
-    const slide = ahead.multiplyScalar(-Math.min(need - edge, toMiddle));
+    // The tilt yields first: the pull is measured at the tilt the board will allow, not the
+    // player's current one, which the next controls update is about to lower (#160).
+    const polar = Math.min(
+      this.controls.getPolarAngle(),
+      this.tiltCeilingAt(target, eye, distance),
+    );
+    const pull = targetPullOf(
+      distance,
+      this.camera.fov,
+      polar,
+      this.edgeAhead(target, eye) * EDGE_MARGIN,
+      target.dot(ahead),
+    );
+    if (pull === 0) return;
+    const slide = ahead.multiplyScalar(-pull);
     target.add(slide);
     this.camera.position.add(slide);
   }
