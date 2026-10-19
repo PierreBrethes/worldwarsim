@@ -4,7 +4,7 @@ import { RESEARCH_CARDS } from './ids';
 import {
   RESEARCH_TREE,
   buildingLockOf,
-  comingSoon,
+  lineLockOf,
   counterOf,
   countersOf,
   holdsHq,
@@ -92,10 +92,10 @@ describe('the research tree', () => {
       expect(buildingLockOf(key, [])).toBeNull();
   });
 
-  it('says what is still to come: a line the factory does not have', () => {
-    expect(comingSoon('syntheticOil')).toBe(true);
-    expect(comingSoon('artillery')).toBe(false);
-    expect(comingSoon('armor')).toBe(false);
+  it('holds the oil line behind its card, and nothing else', () => {
+    expect(lineLockOf('oil', [])).toBe('syntheticOil');
+    expect(lineLockOf('oil', ['syntheticOil'])).toBeNull();
+    expect(lineLockOf('ammunition', [])).toBeNull();
   });
 });
 
@@ -111,14 +111,10 @@ describe('putting a card on the headquarters', () => {
     });
   });
 
-  it('refuses a card already researched, one to come, a second at a time, no headquarters, no price', () => {
+  it('refuses a card already researched, a second at a time, no headquarters, no price', () => {
     expect(researchRefusalOf('armor', { ...ready, researched: ['infantryMk2', 'armor'] })).toEqual({
       code: 'RESEARCH_DONE',
       card: 'armor',
-    });
-    expect(researchRefusalOf('syntheticOil', ready)).toEqual({
-      code: 'RESEARCH_COMING',
-      card: 'syntheticOil',
     });
     expect(researchRefusalOf('escort', { ...ready, running: 'infantryMk2' })).toEqual({
       code: 'RESEARCH_BUSY',

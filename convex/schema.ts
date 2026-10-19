@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   BUILDING_KEY,
+  LINE_KEY,
   BUILD_COST_KEY,
   CAPTURE_SITE,
   CAPTURE_TARGET,
@@ -535,6 +536,8 @@ export default defineSchema({
   orders: defineTable({
     playerId: v.id('players'),
     chain: BUILDING_KEY,
+    /** The line of the chain the lot runs on (`FACTORY_LINES`). */
+    line: LINE_KEY,
     ordered: v.number(),
     produced: v.number(),
     placedAt: v.number(),

@@ -97,6 +97,13 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
        Au-delà de douze troupes, une figurine par rôle et le compte sur le fanion. La borne serveur
        se dit à la réserve de pièces avant le lâcher et à la formation après (inchangée). Démo :
        `npm run demo:mondiale -- --artillerie`.
+   11. ~~**La ligne d'usine du pétrole synthétique**~~ : faite le 19/10. L'arsenal a deux lignes
+       (`FACTORY_LINES` : munitions, pétrole à 3 charbon pour 1, `@a-mesurer`) ; le lot porte la
+       sienne (`orders.line`), se réaffecte gratuitement (annuler puis relancer) et la carte la
+       verrouille (`lineLockOf`, `RESEARCH_REQUIRED` dit avant le geste). Ligne active, débit et
+       choix sur la fenêtre du lot ; à sec de charbon, la ligne le dit. `comingSoon` et
+       `RESEARCH_COMING` retirés. Démo : `npm run demo:mondiale -- --petrole`. Le schéma change :
+       `orders.line`. Pas encore vu à l'écran (captures non faites).
 
    Bakou, Dakar et Singapour sont faits le 19/10 : le vivier compte dix lieux, sept tirés par la
    graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et

@@ -955,6 +955,7 @@ describe('scrapping a season', () => {
         await ctx.db.insert('orders', {
           playerId,
           chain: 'arsenal',
+          line: 'ammunition',
           ordered: 200,
           produced: 0,
           placedAt: Date.now(),

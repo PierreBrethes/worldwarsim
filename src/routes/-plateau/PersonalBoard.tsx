@@ -51,7 +51,6 @@ import {
 } from '@/domain/ids';
 import {
   RESEARCH_TREE,
-  comingSoon,
   counterOf,
   countersOf,
   holdsHq,
@@ -866,11 +865,11 @@ function ResearchCardTile({
       title={label}
       aria-label={label}
       data-research-card={card}
-      className={`grid w-[150px] shrink-0 touch-none content-start gap-[2px] border bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
-        comingSoon(card) ? 'border-dashed border-(color:--ink)/60' : 'border-[var(--ink)]'
-      } ${onTake === null || done || running !== null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'} ${
-        lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''
-      }`}
+      className={`grid w-[150px] shrink-0 touch-none content-start gap-[2px] border border-[var(--ink)] bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        onTake === null || done || running !== null
+          ? ''
+          : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'
+      } ${lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''}`}
     >
       <span className="flex items-baseline justify-between gap-1 text-[9.5px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
         <span>{fr.research.branches[spec.branch]}</span>
@@ -900,8 +899,6 @@ function ResearchCardTile({
       <span className="mt-[2px] font-(family-name:--font-mono) text-[10px]">
         {done ? (
           <Stamp label={fr.research.done} size="small" />
-        ) : comingSoon(card) ? (
-          <Stamp label={fr.research.coming} size="small" />
         ) : progress !== null ? (
           <ResearchGauge share={progress.share} finishesAt={progress.finishesAt} now={now} />
         ) : (

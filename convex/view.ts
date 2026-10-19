@@ -53,6 +53,9 @@ import {
   LAST_KNOWN_HOURS,
   isCommanded,
   type Costs,
+  FACTORY_LINES,
+  LINE_KEYS,
+  type LineKey,
 } from './constants';
 import { engagementsOf } from './combat';
 import { queueOf } from './constructions';
@@ -79,7 +82,7 @@ import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
-import { buildingLockOf } from '../src/domain/research';
+import { buildingLockOf, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -486,6 +489,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        */
       chains: economy.chains.map(({ conversion, state, missing, made }) => {
         const lot = economy.orders.find((order) => order.chain === conversion.by) ?? null;
+        // The linked level the settlement ran on, read back from its own rate.
+        const linkedLevel =
+          conversion.perHour / FACTORY_LINES[conversion.output as LineKey].perHourPerLevel;
         return {
           by: conversion.by,
           output: conversion.output,
@@ -503,7 +509,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           missing,
           commanded: isCommanded(conversion.by),
           order: lot === null ? null : { ordered: lot.ordered, produced: Math.floor(lot.produced) },
-          maxOrder: maxOrderOf(economy, conversion.by),
+          /** **Every line the chain could run**, with what it asks and the card that still
+           *  holds it: the choice of line is read off this, refusal included. */
+          lines: LINE_KEYS.map((line) => ({
+            output: line,
+            inputs: FACTORY_LINES[line].inputs.map(([resource, quantity]) => ({
+              resource,
+              quantity,
+            })),
+            nominalPerHour: FACTORY_LINES[line].perHourPerLevel * linkedLevel,
+            lockedBy: blitz ? null : lineLockOf(line, player.researched ?? []),
+            maxOrder: maxOrderOf(economy, line),
+          })),
         };
       }),
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,

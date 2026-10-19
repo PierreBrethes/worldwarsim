@@ -1,4 +1,4 @@
-import { DAMAGE_TABLE, RESEARCH_SPEC } from '../../convex/constants';
+import { DAMAGE_TABLE, RESEARCH_SPEC, type LineKey } from '../../convex/constants';
 import { profileOf } from './combat';
 import { shortfallOf } from './economy';
 import {
@@ -18,8 +18,8 @@ import {
 export type Unlock =
   | { readonly kind: 'role'; readonly role: UnitRole; readonly tier: UnitTier }
   | { readonly kind: 'building'; readonly key: BuildingKey }
-  /** Le pétrole synthétique : l'usine ne connaît encore que les munitions. */
-  | { readonly kind: 'line' };
+  /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
+  | { readonly kind: 'line'; readonly output: 'oil' };
 
 export type Branch = 'land' | 'sea' | 'air' | 'industry';
 
@@ -58,20 +58,13 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
     after: ['aviation'],
   },
   airlift: { branch: 'air', unlocks: [role('airTransport')], after: ['aviation'] },
-  syntheticOil: { branch: 'industry', unlocks: [{ kind: 'line' }], after: [] },
+  syntheticOil: { branch: 'industry', unlocks: [{ kind: 'line', output: 'oil' }], after: [] },
   listening: {
     branch: 'industry',
     unlocks: [{ kind: 'building', key: 'listening' }],
     after: [],
   },
 };
-
-/**
- * **Une carte dont ce qu'elle ouvre n'existe pas encore en Mondiale** reste dans l'arbre, et sa
- * pose se refuse « à venir » : la ligne d'usine du pétrole synthétique.
- */
-export const comingSoon = (card: ResearchCard): boolean =>
-  RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'line');
 
 const lockOf = (
   matches: (unlock: Unlock) => boolean,
@@ -99,6 +92,13 @@ export const pieceAt = <Piece>(
   tier: UnitTier,
 ): Piece => (tier === 2 && entry.unitTier2 !== null ? entry.unitTier2 : entry.unit);
 
+/** La carte qui manque pour mettre cette ligne sur l'usine, `null` quand rien ne la retient. */
+export const lineLockOf = (
+  line: LineKey,
+  researched: ReadonlyArray<ResearchCard>,
+): ResearchCard | null =>
+  lockOf((unlock) => unlock.kind === 'line' && unlock.output === line, researched);
+
 /** La carte qui manque pour poser cette tuile, `null` quand rien ne la retient. */
 export const buildingLockOf = (
   key: BuildingKey,
@@ -108,7 +108,7 @@ export const buildingLockOf = (
 
 export type ResearchRefusal =
   | {
-      readonly code: 'RESEARCH_DONE' | 'RESEARCH_COMING' | 'RESEARCH_AFTER' | 'RESEARCH_BUSY';
+      readonly code: 'RESEARCH_DONE' | 'RESEARCH_AFTER' | 'RESEARCH_BUSY';
       readonly card: ResearchCard;
     }
   | { readonly code: 'RESEARCH_NEEDS_HQ' }
@@ -138,7 +138,6 @@ export function researchRefusalOf(
   situation: ResearchSituation,
 ): ResearchRefusal | null {
   if (situation.researched.includes(card)) return { code: 'RESEARCH_DONE', card };
-  if (comingSoon(card)) return { code: 'RESEARCH_COMING', card };
   const missing = RESEARCH_TREE[card].after.find((first) => !situation.researched.includes(first));
   if (missing !== undefined) return { code: 'RESEARCH_AFTER', card: missing };
   if (situation.running !== null) return { code: 'RESEARCH_BUSY', card: situation.running };

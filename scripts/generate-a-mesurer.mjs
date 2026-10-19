@@ -135,7 +135,7 @@ export function renderRegister(rows) {
     `${rows.length} valeurs marquées dans \`convex/\` et \`src/domain/\`.`,
     '',
     "**Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,",
-    "`EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : l'en-tête de `convex/constants.ts` les",
+    "`EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les",
     'déclare placeholders en bloc, depuis le retrait du simulateur d’ouverture (17/10/2026). Les tables de transport sans instrument y restent, une ligne',
     'exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.',
     '',

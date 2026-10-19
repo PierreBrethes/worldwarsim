@@ -525,6 +525,39 @@ export const researchScene = internalMutation({
 });
 
 /**
+ * **La ligne du pétrole synthétique** (4.11), pour la démo : la carte acquise, un arsenal de
+ * niveau 2 et un lot de soixante pétroles lancé il y a quatre heures sur la ligne du pétrole.
+ */
+export const oilLineScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    await ctx.db.patch(playerId, {
+      researched: [...new Set([...(player.researched ?? []), 'syntheticOil' as const])],
+    });
+    const regionId = capitalRegionOf(player.nation);
+    const { lon, lat } = pointOfRegion(regionId);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'arsenal',
+      regionId,
+      point: { lon: lon + 0.4, lat: lat + 0.3 },
+      level: 2,
+    });
+    await ctx.db.insert('orders', {
+      playerId,
+      chain: 'arsenal',
+      line: 'oil',
+      ordered: 60,
+      produced: 0,
+      placedAt: Date.now() - 4 * 3_600_000,
+    });
+  },
+});
+
+/**
  * **La scène de l'artillerie** (4.10) : la carte acquise, une pièce seule au nord de Paris, une
  * escouade adverse de seize troupes à Amiens, dans sa portée et sur le sol français, et une
  * escouade française de quatorze troupes à Reims : la salve bornée et le fanion qui compte.

@@ -52,6 +52,8 @@ export const BUILDING_KEY = v.union(
  * (précision du 15/09). `outpost` n'est pas un bâtiment de plus — aucune table de pose ne le
  * connaît — et c'est `constructions.outpostId` qui dit *lequel* (`schema.ts`).
  */
+export const LINE_KEY = v.union(v.literal('ammunition'), v.literal('oil'));
+
 export const BUILD_COST_KEY = v.union(BUILDING_KEY, v.literal('outpost'));
 
 export const SURVEYED_INSTALLATION = v.object({

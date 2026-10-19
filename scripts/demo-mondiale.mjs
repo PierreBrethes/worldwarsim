@@ -16,7 +16,8 @@
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
  * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
- * Rhénanie et les dépêches d'un dépôt brûlé (P11).
+ * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
+ * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1).
  *
  *     npm run demo:mondiale
  *
@@ -41,6 +42,7 @@ const airdrops = process.argv.includes('--largage');
 const research = process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
+const oilLine = process.argv.includes('--petrole');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -162,6 +164,9 @@ if (!bare) {
       target: { kind: 'camp', campId: camp.id },
     });
   }
+  /** Un arsenal et un lot de pétrole synthétique en cours (ADR 0028 §1). */
+  if (oilLine && scene.a !== null)
+    cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
   /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */
   if (points && scene.a !== null && scene.b !== null)
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);

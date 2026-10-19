@@ -548,8 +548,16 @@ export type ChainView = {
   /** The standing lot — `null` when none was ever placed. `produced === ordered` is a lot
    *  delivered, kept so the surface can say so rather than falling silent. */
   readonly order: { readonly ordered: number; readonly produced: number } | null;
-  /** The largest lot the input reserve allows right now, in units of output. */
-  readonly maxOrder: number;
+  /** Every line the chain can run, by what it makes. `lockedBy` is the card still missing: the
+   *  surface says it before the gesture, the server refuses with the same one. `maxOrder` is the
+   *  largest lot the input reserve allows right now, in units of output. */
+  readonly lines: ReadonlyArray<{
+    readonly output: ResourceKey;
+    readonly inputs: ReadonlyArray<{ readonly resource: ResourceKey; readonly quantity: number }>;
+    readonly nominalPerHour: number;
+    readonly lockedBy: ResearchCard | null;
+    readonly maxOrder: number;
+  }>;
 };
 
 /** One exploitation and its yield. `deposit` is what the region holds — a building over a

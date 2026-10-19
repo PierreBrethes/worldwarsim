@@ -47,14 +47,18 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
 };
 
 /**
- * The one chain left (ADR 0028 §1): the arsenal casts a round from a coal and a steel, both of
- * which have a direct use of their own. One of each a round, three an hour and a level: set by
- * eye.
+ * The one chain left (ADR 0028 §1): the arsenal, with two lines to assign. Ammunition casts a
+ * round from a coal and a steel, both of which have a direct use of their own; synthetic oil
+ * (after its card, `lineLockOf`) turns three coal into one barrel. Reassigning is free: a lot
+ * is dropped and placed again, and drop returns nothing because nothing was taken.
+ *
+ * @a-mesurer one of each a round, three an hour and a level, and three coal for one oil: set by
+ * eye (the card says "3 charbon pour 1 pétrole").
  */
-export const CHAINS: Readonly<
-  Record<'arsenal', Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }>
+export const FACTORY_LINES: Readonly<
+  Record<'ammunition' | 'oil', Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }>
 > = {
-  arsenal: {
+  ammunition: {
     output: 'ammunition',
     inputs: [
       ['coal', 1],
@@ -62,9 +66,16 @@ export const CHAINS: Readonly<
     ],
     perHourPerLevel: 3,
   },
+  oil: { output: 'oil', inputs: [['coal', 3]], perHourPerLevel: 3 },
 };
 
-export type ChainKey = keyof typeof CHAINS;
+/** A line is named by what it makes. */
+export type LineKey = keyof typeof FACTORY_LINES;
+export const LINE_KEYS = Object.keys(FACTORY_LINES) as ReadonlyArray<LineKey>;
+/** The line a chain runs when no lot says otherwise. */
+export const DEFAULT_LINE: LineKey = 'ammunition';
+
+export type ChainKey = 'arsenal';
 
 /**
  * **A chain that eats a matter spent elsewhere is commanded by the player.** An arsenal at level

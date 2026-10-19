@@ -76,7 +76,6 @@ export type ErrorCode =
    *  carte sur le QG. */
   | 'RESEARCH_REQUIRED'
   | 'RESEARCH_DONE'
-  | 'RESEARCH_COMING'
   | 'RESEARCH_AFTER'
   | 'RESEARCH_BUSY'
   | 'RESEARCH_NEEDS_HQ'

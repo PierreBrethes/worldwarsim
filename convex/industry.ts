@@ -1,11 +1,12 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
 import { playerBuildings, totalLevelOf } from './buildingReads';
-import { isCommanded } from './constants';
+import { DEFAULT_LINE, isCommanded } from './constants';
 import { fail } from './errors';
 import { maxOrderOf, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
-import { BUILDING_KEY } from './validators';
+import { BUILDING_KEY, LINE_KEY } from './validators';
+import { lineLockOf } from '../src/domain/research';
 import { refuseInBlitz } from './blitz';
 
 /**
@@ -17,12 +18,23 @@ import { refuseInBlitz } from './blitz';
  * scheduled job would be a second authority on the same figure.
  */
 export const order = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons'), chain: BUILDING_KEY, quantity: v.number() },
-  handler: async (ctx, { token, seasonId, chain, quantity }) => {
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    chain: BUILDING_KEY,
+    /** Absent means the default line, ammunition. */
+    line: v.optional(LINE_KEY),
+    quantity: v.number(),
+  },
+  handler: async (ctx, { token, seasonId, chain, line = DEFAULT_LINE, quantity }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     refuseInBlitz(season);
     if (!isCommanded(chain)) fail('CHAIN_NOT_COMMANDED', { chain });
+
+    /** The card gate reads the same pure function as the surface (`lineLockOf`). */
+    const lockedBy = lineLockOf(line, player.researched ?? []);
+    if (lockedBy !== null) fail('RESEARCH_REQUIRED', { card: lockedBy });
 
     const buildings = await playerBuildings(ctx, player._id);
     if (totalLevelOf(buildings, chain) === 0) fail('CHAIN_NOT_STANDING', { building: chain });
@@ -49,13 +61,14 @@ export const order = mutation({
       fail('ORDER_RUNNING', { ordered: standing.ordered, produced: Math.floor(standing.produced) });
     }
 
-    const maximum = maxOrderOf(economy, chain);
+    const maximum = maxOrderOf(economy, line);
     if (wanted > maximum) fail('ORDER_ABOVE_RESERVE', { maximum });
 
     if (standing !== null) await ctx.db.delete(standing.row._id);
     await ctx.db.insert('orders', {
       playerId: player._id,
       chain,
+      line,
       ordered: wanted,
       produced: 0,
       placedAt: now,

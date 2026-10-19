@@ -25,7 +25,7 @@ import {
 } from '../src/domain/economy';
 import {
   BASE_CAP,
-  CHAINS,
+  FACTORY_LINES,
   EXTRACTION_PER_HOUR,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
@@ -274,7 +274,7 @@ describe('what the industry window reads', () => {
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    const cast = CHAINS.arsenal.perHourPerLevel;
+    const cast = FACTORY_LINES.ammunition.perHourPerLevel;
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'running' });
     // Ce que l'arsenal sort, et ce qu'il prélève : un charbon et un acier par munition.
     expect(view.me.resources.ammunition.ratePerHour).toBe(cast);
@@ -2007,7 +2007,49 @@ describe('the arsenal is commanded', () => {
 
     // The scarcer of the two inputs sets the ceiling: the kit holds less coal than steel.
     const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'arsenal').maxOrder).toBe(KIT.coal);
+    expect(chainOf(view, 'arsenal').lines[0]?.maxOrder).toBe(KIT.coal);
+  });
+
+  it('refuses the oil line before its card, then runs it at three coal for one oil', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'coal', 100);
+
+    await expect(
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 }),
+    ).rejects.toThrow(/RESEARCH_REQUIRED/);
+    const locked = chainOf(await t.query(api.view.playerView, seat), 'arsenal');
+    expect(locked.lines.find((line) => line.output === 'oil')?.lockedBy).toBe('syntheticOil');
+
+    await research(t, seat, ['syntheticOil']);
+    const oilBefore = (await t.query(api.view.playerView, seat)).me.resources.oil.stock;
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 });
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, seat);
+    const rate = FACTORY_LINES.oil.perHourPerLevel;
+    expect(chainOf(view, 'arsenal')).toMatchObject({ output: 'oil', state: 'running' });
+    expect(view.me.resources.oil.stock).toBeGreaterThanOrEqual(oilBefore + rate);
+    expect(view.me.resources.coal.ratePerHour).toBe(-3 * rate);
+  });
+
+  it('stops the oil line dry of coal and says so', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await research(t, seat, ['syntheticOil']);
+    await fill(t, seat, 'coal', 30);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 });
+    await fill(t, seat, 'coal', 0);
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(chainOf(view, 'arsenal')).toMatchObject({
+      output: 'oil',
+      state: 'starved',
+      missing: 'coal',
+    });
   });
 
   it('refuses to command a building that is no chain', async () => {
@@ -2081,7 +2123,7 @@ describe('what produces what', () => {
       if (deposit !== undefined) {
         expect(EXPLOITED_DEPOSITS[building]).toContain(deposit);
       } else {
-        expect(CHAINS[building as keyof typeof CHAINS].output).toBe(resource);
+        expect(FACTORY_LINES.ammunition.output).toBe(resource);
       }
     }
   });

@@ -2,7 +2,8 @@ import { useMutation } from 'convex/react';
 import { useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { REST_WINDOW_MINUTES } from '../../../convex/constants';
-import { aBuilding, fr } from '@/i18n/fr';
+import { aBuilding, fr, researchRequired } from '@/i18n/fr';
+import type { ResourceKey } from '@/domain/ids';
 import { handleError } from '@/data/errors';
 import { Gauge } from '@/shell/Gauge';
 import { PRODUCER_OF } from '@/domain/economy';
@@ -41,20 +42,27 @@ export function LotControl({
   const [error, setError] = useState<string | null>(null);
   const [sizing, setSizing] = useState(false);
   const [asked, setAsked] = useState<number | null>(null);
+  const [chosen, setChosen] = useState<ResourceKey | null>(null);
 
-  const input = chain.inputs[0];
-  if (input === undefined) return null;
-
-  const { order, maxOrder } = chain;
+  const { order } = chain;
   const running = order !== null && order.produced < order.ordered;
   const delivered = order !== null && order.produced >= order.ordered;
+  /** The line the next lot would run: the player's pick, else the one last used. Free to change,
+   *  since a lot costs nothing until it runs. */
+  const line = chain.lines.find((candidate) => candidate.output === (chosen ?? chain.output));
+  const input = line?.inputs[0];
+  if (line === undefined || input === undefined) return null;
+
+  const { maxOrder } = line;
   const inputLabel = fr.resources[input.resource];
-  const outputLabel = fr.resources[chain.output];
+  const outputLabel = fr.resources[line.output];
+  /** The running or delivered lot is read in its own line, whatever the picker says now. */
+  const lotLabel = fr.resources[chain.output];
 
   // Half the reserve is a lot a player can place without arithmetic, and leaves him the other
   // half for his buildings — the point of commanding the chain in the first place.
   const wanted = Math.max(0, Math.min(asked ?? Math.floor(maxOrder / 2), maxOrder));
-  const hours = chain.nominalPerHour > 0 ? wanted / chain.nominalPerHour : 0;
+  const hours = line.nominalPerHour > 0 ? wanted / line.nominalPerHour : 0;
   const coversNight = hours * 60 >= REST_WINDOW_MINUTES;
 
   const finishesAt = lotFinishesAt(chain, loadedAt);
@@ -71,12 +79,30 @@ export function LotControl({
       <p className="mb-[6px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
         {fr.buildings[chain.by]} — {fr.economy.lot.commandsItself}
       </p>
+      <p className="mb-[8px] flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px]">
+        <span className="text-[var(--ink-soft)]">{fr.economy.lot.activeLine}</span>
+        <b>{fr.resources[running || delivered ? chain.output : line.output]}</b>
+        <span className="font-(family-name:--font-mono)">
+          {fr.economy.lot.flow(
+            (running || delivered ? chain : line).inputs.map(({ resource, quantity }) => ({
+              resource: fr.resources[resource],
+              quantity,
+            })),
+            fr.resources[running || delivered ? chain.output : line.output],
+          )}
+        </span>
+        {chain.level > 0 && chain.state === 'starved' && chain.missing !== null && (
+          <span className="text-[var(--critical)]">
+            {fr.personalBoard.starvedChain(fr.buildings[chain.by], fr.resources[chain.missing])}
+          </span>
+        )}
+      </p>
       {running ? (
         <>
           <Gauge filled={order.produced / order.ordered} height={12} />
           <div className="mt-[7px] flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12.5px]">
             <span className="text-[var(--ink)]">
-              {fr.economy.lot.progress(order.produced, order.ordered, outputLabel)}
+              {fr.economy.lot.progress(order.produced, order.ordered, lotLabel)}
             </span>
             <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
               {finishesAt === null
@@ -106,6 +132,14 @@ export function LotControl({
         </>
       ) : sizing ? (
         <>
+          <LinePicker
+            lines={chain.lines}
+            current={line.output}
+            onPick={(output) => {
+              setChosen(output);
+              setAsked(null);
+            }}
+          />
           <input
             type="range"
             min={0}
@@ -172,20 +206,32 @@ export function LotControl({
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <LinePicker
+            lines={chain.lines}
+            current={line.output}
+            onPick={(output) => {
+              setChosen(output);
+              setAsked(null);
+            }}
+          />
           {delivered && (
             <>
               <span className="border border-[var(--ink)] px-[7px] py-[2px] text-[10px] tracking-[.14em] text-[var(--ink)] uppercase">
                 {fr.economy.lot.done}
               </span>
               <span className="text-[12.5px] font-semibold text-[var(--ink)]">
-                {fr.economy.lot.delivered(order.ordered, outputLabel)}
+                {fr.economy.lot.delivered(order.ordered, lotLabel)}
               </span>
             </>
           )}
           {/* Les deux repos sont exclusifs : une réserve vide nomme son goulot et ne porte
               aucun bouton — offrir « commander un lot » là où le serveur refuserait serait la
               seule promesse fausse de la fenêtre. */}
-          {maxOrder <= 0 ? (
+          {line.lockedBy !== null ? (
+            <span className="text-[12px] text-[var(--critical)]">
+              {researchRequired(line.lockedBy)}
+            </span>
+          ) : maxOrder <= 0 ? (
             <>
               <span className="text-[12px] text-[var(--critical)]">
                 {fr.economy.lot.impossible(inputLabel)}
@@ -218,6 +264,41 @@ export function LotControl({
         </div>
       )}
       {error !== null && <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">{error}</p>}
+    </div>
+  );
+}
+
+/** **The choice of line** on the factory: one button per line, the one picked inked. Nothing is
+ *  greyed — a line whose card is missing says so when picked, before any order. */
+function LinePicker({
+  lines,
+  current,
+  onPick,
+}: {
+  lines: ChainView['lines'];
+  current: ResourceKey;
+  onPick: (output: ResourceKey) => void;
+}) {
+  return (
+    <div className="mb-[8px] flex flex-wrap items-center gap-2">
+      <span className="text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+        {fr.economy.lot.line}
+      </span>
+      {lines.map((candidate) => (
+        <button
+          key={candidate.output}
+          type="button"
+          aria-pressed={candidate.output === current}
+          onClick={() => onPick(candidate.output)}
+          className={`cursor-pointer border border-[var(--ink)] px-[10px] py-[4px] text-[9px] tracking-[.16em] uppercase ${
+            candidate.output === current
+              ? 'bg-[var(--ink)] text-[var(--paper)]'
+              : 'text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]'
+          }`}
+        >
+          {fr.resources[candidate.output]}
+        </button>
+      ))}
     </div>
   );
 }

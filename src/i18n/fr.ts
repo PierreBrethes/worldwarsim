@@ -347,7 +347,7 @@ export const fr = {
     farm: 'exploite des terres',
     mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
-    arsenal: 'charbon + acier → munitions, sur commande',
+    arsenal: 'charbon + acier → munitions, ou 3 charbon → 1 pétrole après recherche, sur commande',
     barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
@@ -723,8 +723,6 @@ export const fr = {
     ALREADY_QUEUED_HERE: () => 'un chantier est déjà en file sur ce bâtiment',
     RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
     RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
-    RESEARCH_COMING: (d) =>
-      `${cardName(d.card)} : à venir — ce qu’elle ouvre n’existe pas encore en Mondiale`,
     RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
     RESEARCH_BUSY: (d) => `le QG cherche déjà ${cardName(d.card)} — une carte à la fois`,
     RESEARCH_NEEDS_HQ: () => 'posez d’abord votre quartier général — c’est lui qui cherche',
@@ -3378,7 +3376,6 @@ export const fr = {
     /** Un contre qu'on forme sans carte : `l'infanterie, au départ`. */
     atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
     done: 'acquise',
-    coming: 'à venir',
     left: (time: string) => `reste ${time}`,
     waiting: 'attend son QG',
     dropOnHq: 'Lâchez la carte sur votre quartier général',
@@ -3422,6 +3419,11 @@ export const fr = {
       keepsAvailable: (resource: string) =>
         `${startsWithVowel(resource) ? 'L’' : 'Le '}${resource} reste disponible pour les bâtiments et les troupes.`,
       commandsItself: 'se commande',
+      line: 'ligne',
+      activeLine: 'ligne active',
+      /** `− 3 charbon / + 1 pétrole` : ce que la ligne prend pour un de ce qu'elle rend. */
+      flow: (inputs: ReadonlyArray<{ resource: string; quantity: number }>, output: string) =>
+        `${inputs.map(({ resource, quantity }) => `− ${quantity} ${resource}`).join(' ')} / + 1 ${output}`,
       order: 'commander un lot',
       launch: 'lancer le lot',
       empty: 'un lot de zéro ne se lance pas — tirez la réglette',

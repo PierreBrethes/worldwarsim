@@ -18,11 +18,13 @@ import {
 import { activeBuildings, playerBuildings, totalLevelOf } from './buildingReads';
 import {
   BASE_CAP,
-  CHAINS,
+  COMMANDED_CHAINS,
+  DEFAULT_LINE,
+  FACTORY_LINES,
   EXTRACTION_PER_HOUR,
   STORAGE_CAP_PER_LEVEL,
   isCommanded,
-  type ChainKey,
+  type LineKey,
   type Costs,
 } from './constants';
 import { fail } from './errors';
@@ -124,6 +126,7 @@ export function storageCaps(
 /** A lot as the settlement reads it, whether it comes from the table or from a settled copy. */
 export type OrderState = {
   readonly chain: BuildingKey;
+  readonly line: LineKey;
   readonly ordered: number;
   readonly produced: number;
 };
@@ -150,9 +153,11 @@ export function chainsOf(
    */
   const linked = buildings.filter((building) => isLinked(building, held, ownerId));
 
-  return (Object.keys(CHAINS) as ReadonlyArray<ChainKey>).map((key) => {
-    const { output, inputs, perHourPerLevel } = CHAINS[key];
+  return COMMANDED_CHAINS.map((key) => {
     const lot = orders.find((order) => order.chain === key);
+    /** **The line is the lot's**: a chain with no lot runs the default one, silent at a quota of
+     *  zero, so the industry window can still print it. */
+    const { output, inputs, perHourPerLevel } = FACTORY_LINES[lot?.line ?? DEFAULT_LINE];
     const standing = totalLevelOf(buildings, key);
     return {
       by: key,
@@ -291,6 +296,7 @@ export async function economyOf(
   const orders = orderRows.map((row) => ({
     row,
     chain: row.chain,
+    line: row.line,
     ordered: row.ordered,
     produced: Math.min(row.ordered, row.produced + (madeBy.get(row.chain) ?? 0)),
   }));
@@ -385,10 +391,8 @@ export async function ordersOf(
  * has. It reads the stocks settled to `now`, not the outlook: a player orders against what he
  * holds, not against what he will hold in an hour.
  */
-export function maxOrderOf(economy: Economy, chain: BuildingKey): number {
-  const report = economy.chains.find((candidate) => candidate.conversion.by === chain);
-  if (report === undefined) return 0;
-  const limit = report.conversion.inputs.reduce(
+export function maxOrderOf(economy: Economy, line: LineKey): number {
+  const limit = FACTORY_LINES[line].inputs.reduce(
     (least, [key, quantity]) => Math.min(least, Math.floor(economy.stocks[key] / quantity)),
     Number.POSITIVE_INFINITY,
   );
