@@ -6,6 +6,7 @@ import { handleError } from '@/data/errors';
 import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration } from '@/domain/duration';
+import { speedsUp } from '@/domain/level-speed';
 import { DEPOSITS, RESOURCES } from '@/domain/ids';
 import { currentStock, type Building, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourcePlate } from '@/emblems/Plate';
@@ -62,7 +63,7 @@ export function UpgradeControl({
           {asDuration(building.nextLevelMinutes)}
         </span>
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
-          {fr.upgrade.toLevel(next)}
+          {speedsUp(building.key) ? fr.common.levelSpeed(next) : fr.upgrade.toLevel(next)}
         </span>
         <button
           type="button"

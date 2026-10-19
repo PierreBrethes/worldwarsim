@@ -562,6 +562,30 @@ export const researchScene = internalMutation({
 });
 
 /**
+ * **Les niveaux qui accélèrent** (ADR 0031), pour la démo : une caserne de niveau 3 à la capitale
+ * et la carte Chantier double acquise, la seconde file de chantier ouverte.
+ */
+export const levelsScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    const regionId = capitalRegionOf(player.nation);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'barracks',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 3,
+    });
+    await ctx.db.patch(playerId, {
+      researched: ['transmissions1', 'transmissions2', 'doubleWorks'],
+    });
+  },
+});
+
+/**
  * **La ligne du pétrole synthétique** (4.11), pour la démo : la carte acquise, un arsenal de
  * niveau 2 et un lot de soixante pétroles lancé il y a quatre heures sur la ligne du pétrole.
  */

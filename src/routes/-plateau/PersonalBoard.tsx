@@ -13,8 +13,8 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { MAX_HQ_LEVEL, RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
-import { spedMinutes } from '@/domain/level-speed';
+import { RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
+import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import {
   cardName,
   countdownLabel,
@@ -1222,9 +1222,9 @@ function Works({
           </div>
         );
       })}
-      {view.me.hqLevel > 0 && view.me.hqLevel < MAX_HQ_LEVEL && (
+      {view.me.hqLevel > 0 && (
         <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
-          {fr.personalBoard.nextLane(view.me.hqLevel + 1)}
+          {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
         </small>
       )}
       {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
@@ -1823,7 +1823,10 @@ function readingOf(
       hint:
         hold === null
           ? {
-              text: fr.personalBoard.raise(building.name, building.level + 1),
+              text: (speedsUp(building.key) ? fr.personalBoard.raiseSped : fr.personalBoard.raise)(
+                building.name,
+                building.level + 1,
+              ),
               refused: false,
               cost: building.nextLevelCost,
             }

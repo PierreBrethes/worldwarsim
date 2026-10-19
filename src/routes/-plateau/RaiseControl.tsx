@@ -6,6 +6,7 @@ import { Price } from '@/shell/Price';
 import { handleError } from '@/data/errors';
 import { pledgedWork, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
+import { speedsUp } from '@/domain/level-speed';
 import { type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Building, type PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
@@ -90,6 +91,9 @@ export function RaiseControl({
         >
           <Price costs={building.nextLevelCost} onPaper={!wide} size={11} />
         </span>
+        {speedsUp(building.key) && (
+          <span className="text-[10.5px] leading-none">{fr.common.levelSpeed(next)}</span>
+        )}
       </button>
       {error !== null && (
         <span className="text-[11px] leading-[1.35] text-[var(--critical)]">{error}</span>

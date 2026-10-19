@@ -11,6 +11,7 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
+import { levelGain } from '../domain/level-speed';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
@@ -976,6 +977,12 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    /** **Ce qu'un niveau rend** (ADR 0031), sur la fiche et sur l'aperçu d'élévation :
+     *  « niveau 3 : −28 % ». Le premier niveau dure ce que dit le barème. */
+    levelSpeed: (level: number) =>
+      levelGain(level) === 0
+        ? `niveau ${level} : durée du barème`
+        : `niveau ${level} : −${levelGain(level)} %`,
     /** Le « ? » qui déplie une phrase d'aide : la phrase se lit une fois, le chiffre tous les jours. */
     help: 'aide',
   },
@@ -3326,9 +3333,6 @@ export const fr = {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
-      /** **Un niveau rend** (ADR 0028 §5) : il ne débloque plus rien. */
-      lanes: (level: number) =>
-        level === 1 ? 'Forme une troupe à la fois' : `Forme ${level} troupes à la fois`,
       formHeader: 'former ici',
       formNote: 'un toucher, une troupe',
       lockedHeader: 'Derrière une carte',
@@ -3456,6 +3460,9 @@ export const fr = {
     pieceSite: (building: string) => `sur ${lowerFirst(building)}`,
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
+    /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
+    raiseSped: (building: string, level: number) =>
+      `Élever ${lowerFirst(building)} — ${fr.common.levelSpeed(level)}`,
     form: (role: string, building: string) =>
       `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
     dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
@@ -3463,9 +3470,9 @@ export const fr = {
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
     worksHeader: (lanes: number) =>
-      lanes > 1 ? `chantiers · ${lanes} avancent à la fois` : 'chantiers · un seul avance',
-    /** Ce que le niveau suivant du QG ajouterait, dit sous la file. */
-    nextLane: (level: number) => `le QG niveau ${level} en ajouterait un`,
+      lanes > 1 ? `chantiers · ${lanes} files` : 'chantiers · une file',
+    /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
+    hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
@@ -3511,7 +3518,7 @@ export const fr = {
 
   economy: {
     constructionNone:
-      'Aucun chantier. La file est illimitée et se paie à la mise en file — le niveau du QG dit combien avancent à la fois.',
+      'Aucun chantier. La file est illimitée et se paie à la mise en file — le niveau du QG raccourcit chaque chantier.',
 
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
@@ -3662,8 +3669,8 @@ export const fr = {
     standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
     /** **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout et ce qu'il fait. */
     censusHeader: 'recensement',
-    hqLine: (level: number, maximum: number, lanes: number) =>
-      `niveau ${level} sur ${maximum} · ${lanes} chantier${lanes > 1 ? 's' : ''} à la fois`,
+    hqLine: (level: number, maximum: number) =>
+      `${fr.common.levelSpeed(level)} sur les chantiers · niveau maximal ${maximum}`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     listeningUnfigured: 'rayon de révélation non chiffré',
     listeningTemporary:

@@ -23,7 +23,8 @@
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
- * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
+ * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
+ * ajoute une caserne de niveau 3 et la carte Chantier double : deux montent ensemble.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
  *
  *     npm run demo:mondiale
@@ -54,7 +55,9 @@ const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
-const works = process.argv.includes('--chantiers');
+/** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 et Chantier double (ADR 0031). */
+const levels = process.argv.includes('--niveaux');
+const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
 
@@ -220,6 +223,7 @@ if (!bare) {
       point: { lon: paris.point[0], lat: paris.point[1] },
     });
     cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 3 })]);
+    if (levels) cli(['run', 'dev:levelsScene', JSON.stringify({ playerId: scene.a })]);
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     for (const [building, id] of [
       ['barracks', 'FRA-5268'],

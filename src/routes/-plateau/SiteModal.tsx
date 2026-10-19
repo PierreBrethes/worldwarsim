@@ -26,7 +26,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
-import { spedMinutes } from '@/domain/level-speed';
+import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
@@ -221,7 +221,9 @@ function Site({
         eyebrow={
           <>
             {fr.economy.inRegion(region?.name ?? building.regionId)} ·{' '}
-            {fr.production.siteLevel(building.level)}
+            {speedsUp(building.key)
+              ? fr.common.levelSpeed(building.level)
+              : fr.production.siteLevel(building.level)}
           </>
         }
         title={fr.buildings[building.key]}
@@ -938,8 +940,8 @@ function SheetHeading({ title, note }: { title: string; note: string }) {
 }
 
 /**
- * **Ce que le niveau rend, et le bouton qui le monte** — en tête de « former » : un site de
- * niveau N forme N troupes à la fois (ADR 0028 §5). Le bouton est celui des Chantiers.
+ * **Ce que le niveau rend, et le bouton qui le monte** — en tête de « former » : chaque niveau
+ * raccourcit la formation (ADR 0031). Le bouton est celui des Chantiers.
  */
 function SiteLadder({
   building,
@@ -961,7 +963,7 @@ function SiteLadder({
           {fr.production.sheet.siteKicker(siteLevel)}
         </div>
         <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
-          {fr.production.sheet.lanes(siteLevel)}
+          {fr.common.levelSpeed(siteLevel)}
         </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} />

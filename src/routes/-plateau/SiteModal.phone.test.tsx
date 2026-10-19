@@ -151,7 +151,7 @@ describe('a site sheet on a phone', () => {
     mount();
 
     expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
-    expect(screen.getByText(fr.production.sheet.lanes(1))).toBeTruthy();
+    expect(screen.getByText(fr.common.levelSpeed(1))).toBeTruthy();
     expect(screen.getByText(researchRequired('armor'))).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /\+ 1 troupe/ })).toHaveLength(2);
 
