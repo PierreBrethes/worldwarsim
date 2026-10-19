@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Compass, CompassAction } from './compass-rose';
 import { groupCompassOf, insideStroke, matchingOrder, squadLeadOf, toggleIn } from './selection';
+import { slotsAskedBy } from './movement-orders';
 import type { MarchStation } from './troops';
 
 const at = (lon: number): MarchStation => ({
@@ -54,7 +55,10 @@ describe('a selection of piles (#130)', () => {
 
 describe('a selection let go on a place', () => {
   it('orders what every pile can do there, and says the slots it takes', () => {
-    const group = groupCompassOf([compass([march(), march('attack')]), compass([march()])], 4);
+    const group = groupCompassOf([compass([march(), march('attack')]), compass([march()])], {
+      free: 4,
+      asked: 2,
+    });
     expect(group?.actions.map((action) => action.label)).toEqual(['march']);
     expect(group?.actions[0]?.cost).toBe('2 slots · 4 libres');
     expect(group?.refusal).toBeNull();
@@ -63,21 +67,33 @@ describe('a selection let go on a place', () => {
   it('refuses before the drop when a part of it cannot go', () => {
     const group = groupCompassOf(
       [compass([march()]), compass([], 'pas de pont'), compass([march()])],
-      4,
+      { free: 4, asked: 3 },
     );
     expect(group?.actions).toEqual([]);
     expect(group?.refusal).toBe('1 pile sur 3 ne peut pas y aller : pas de pont');
   });
 
   it('refuses when there are fewer free slots than piles', () => {
-    const group = groupCompassOf([compass([march()]), compass([march()])], 1);
+    const group = groupCompassOf([compass([march()]), compass([march()])], { free: 1, asked: 2 });
     expect(group?.actions).toEqual([]);
     expect(group?.refusal).toBe('2 mouvements pour 1 slot libre');
   });
 
+  it("lets Halifax's holder drop two fleets with no slot free", () => {
+    const crews = [
+      [{ role: 'escort' as const, carried: false }],
+      [{ role: 'escort' as const, carried: false }],
+    ];
+    const asked = slotsAskedBy(crews, true);
+    expect(asked).toBe(0);
+    const group = groupCompassOf([compass([march()]), compass([march()])], { free: 0, asked });
+    expect(group?.refusal).toBeNull();
+    expect(group?.actions).toHaveLength(1);
+  });
+
   it('leaves a single-pile order out: one transport, one delivery', () => {
     const board: CompassAction = { ...march(), boardsOn: 'cargo' } as CompassAction;
-    expect(groupCompassOf([compass([board]), compass([board])], 4)).toBeNull();
+    expect(groupCompassOf([compass([board]), compass([board])], { free: 4, asked: 2 })).toBeNull();
   });
 
   it('finds, in each pile, the order the group chose', () => {

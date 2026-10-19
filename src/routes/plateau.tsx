@@ -118,6 +118,8 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandRefusalOf,
+  freeSlotsOf,
+  slotsAskedBy,
   type Column,
 } from '@/domain/movement-orders';
 import {
@@ -992,7 +994,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ].map((pile) => ({ ...pile, compass: pileCompass(target, pile.station, pile.troopIds) }));
       const group = groupCompassOf(
         reads.map((read) => read.compass),
-        view.mode === 'blitz' ? null : view.me.slots.total - view.me.slots.used,
+        view.mode === 'blitz'
+          ? null
+          : {
+              free: freeSlotsOf(view.me.slots),
+              asked: slotsAskedBy(
+                reads.map((read) =>
+                  read.troopIds.flatMap((id) => {
+                    const troop = view.me.troops.find((one) => one.id === id);
+                    return troop === undefined
+                      ? []
+                      : [{ role: troop.role, carried: troop.carriedBy !== undefined }];
+                  }),
+                ),
+                view.strategicPoints.some((point) => point.key === 'halifax' && point.mine),
+              ),
+            },
       );
       for (const action of group?.actions ?? [])
         if (isOrder(action)) groupReads.current.set(groupKeyOf(action), reads);

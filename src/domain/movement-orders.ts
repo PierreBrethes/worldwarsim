@@ -367,6 +367,17 @@ export const isMaritime = (
   troops.length > 0 &&
   troops.every((troop) => troop.carried || DOMAIN_BY_ROLE[troop.role] === 'sea');
 
+/** Ce qu'un groupe de colonnes demande en slots : une chacune, sauf les maritimes du teneur
+ *  d'Halifax. La porte (`claimSlot`) et la rose de groupe lisent la même. */
+export const slotsAskedBy = (
+  columns: ReadonlyArray<ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>>,
+  holdsHalifax: boolean,
+): number => (holdsHalifax ? columns.filter((crew) => !isMaritime(crew)).length : columns.length);
+
+/** Les slots libres de la bannière : le seul `total - used`. */
+export const freeSlotsOf = (slots: { readonly total: number; readonly used: number }): number =>
+  slots.total - slots.used;
+
 /**
  * The three marches a player orders. **The return is not among them**: it is created by the
  * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things

@@ -67,11 +67,11 @@ export const matchingOrder = (
  * **La rose d'une sélection** : la rose de chaque pile, lue sur la même cible — la fonction que le
  * serveur relit à chaque ordre (ADR 0015). Le groupe n'offre que ce que toutes offrent ; une seule
  * qui ne peut pas, et le refus le dit avant le lâcher. Chaque pile part en un mouvement, avec son
- * slot (`freeSlots`, `null` en Blitz).
+ * slot (`slots`, `null` en Blitz) — sauf les flottes du teneur d'Halifax (`slotsAskedBy`).
  */
 export function groupCompassOf(
   compasses: ReadonlyArray<Compass | null>,
-  freeSlots: number | null,
+  slots: { readonly free: number; readonly asked: number } | null,
 ): Compass | null {
   const [lead] = compasses;
   if (lead === undefined || lead === null) return null;
@@ -87,13 +87,14 @@ export function groupCompassOf(
     const why = unable.find((one) => one?.refusal)?.refusal ?? null;
     return refuse(fr.selection.partRefused(unable.length, count, why));
   }
-  if (freeSlots !== null && count > freeSlots) return refuse(fr.selection.slots(count, freeSlots));
+  if (slots !== null && slots.asked > slots.free)
+    return refuse(fr.selection.slots(slots.asked, slots.free));
   return {
     ...lead,
     kicker: fr.selection.piles(count),
     actions: offered.map((action) => ({
       ...action,
-      cost: freeSlots === null ? null : fr.selection.cost(count, freeSlots),
+      cost: slots === null ? null : fr.selection.cost(slots.asked, slots.free),
     })),
   };
 }

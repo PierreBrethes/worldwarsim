@@ -14,7 +14,7 @@ import {
   captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
-  isMaritime,
+  slotsAskedBy,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -660,12 +660,9 @@ export async function slotsTaken(
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
   ];
-  if (!(await holdsPoint(ctx, player, 'halifax'))) return holders.length;
-  let kept = 0;
-  for (const troopIds of holders) {
-    if (!isMaritime(await crewOf(ctx, troopIds))) kept += 1;
-  }
-  return kept;
+  const crews = [];
+  for (const troopIds of holders) crews.push(await crewOf(ctx, troopIds));
+  return slotsAskedBy(crews, await holdsPoint(ctx, player, 'halifax'));
 }
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
@@ -691,7 +688,8 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
-  if ((await holdsPoint(ctx, player, 'halifax')) && isMaritime(await crewOf(ctx, troopIds))) return;
+  const halifax = await holdsPoint(ctx, player, 'halifax');
+  if (slotsAskedBy([await crewOf(ctx, troopIds)], halifax) === 0) return;
   const maximum = movementSlots(player.researched ?? []);
   if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
     fail('MOVEMENT_IN_FLIGHT', { maximum });

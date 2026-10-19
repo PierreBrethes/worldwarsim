@@ -29,6 +29,7 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   foundingRefusal,
+  freeSlotsOf,
   legalMovementTypes,
   lootCollectionOrderRefusalOf,
   ORDERABLE_TYPES,
@@ -658,7 +659,7 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
 function slotCost(view: PlayerView): string | null {
   /** Pas de slots en Blitz (B5) : la branche ne porte pas de prix. */
   if (view.mode === 'blitz') return null;
-  const free = view.me.slots.total - view.me.slots.used;
+  const free = freeSlotsOf(view.me.slots);
   return fr.compass.slotsCost(free);
 }
 
