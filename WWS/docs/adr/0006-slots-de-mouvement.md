@@ -1,5 +1,7 @@
 # ADR 0006 — Slots de mouvement comme régulateur central
 
+> **Révisée par l'[ADR 0030](0030-le-qg-batit-la-recherche-transmet.md)** (source des slots) : ils ne viennent plus du niveau du centre logistique ni du QG, mais de la recherche (deux au départ, +1 par carte Transmissions). Le régulateur reste ; la formule `1 + niveau` ci-dessous est historique.
+
 **Statut :** acceptée
 
 ## Contexte

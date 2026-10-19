@@ -10,8 +10,21 @@ avant de les exécuter. La file historique ci-dessous est complétée par la dir
 
 ## Retours de Pierre sur la pré-prod — 19/10
 
-Suivis en issues GitHub, de #121 à #134. Le label « à trancher » marque une décision de Pierre à
+Suivis en issues GitHub, de #121 à #155. Le label « à trancher » marque une décision de Pierre à
 prendre avant de coder. Chaque issue porte ses tâches : contrat, règle et serveur, écran, revue.
+État au 19/10 (les détails vivent dans les issues) :
+
+- **Fermés** : #121, #122, #124 (slots par la recherche, ADR 0030) et #125 à #136 ; #136 (N
+  chantiers par niveau du QG) est remplacé par #138 (ADR 0031).
+- **#123 Centre de recherche** : ouvert ; codé (un par nation, `searcherLevel`, son niveau raccourcit
+  les cartes, entrée « RECH. »), reste la maquette GLB et la revue.
+- **#138 Les niveaux accélèrent** (ADR 0031) : codé (`level-speed.ts`, une file par défaut,
+  `laneCount`, cartes de file) ; l'issue reste ouverte pour la revue.
+- **#139 à #141** : skills du projet, deux invariants de `CLAUDE.md`, découpe de `plateau.tsx` ;
+  **#142** : ces docs ; **#143 à #151** : charge et performances (banc 8 × 150, vue, détection,
+  jobs, carte, client, relevés, lectures, bundle) ; **#152 à #154** : nettoyage du code mort et des
+  reliquats ; tous ouverts.
+- **#155** (fiche du QG en Mondiale, `hasSiteSheet`) : codé, issue encore ouverte.
 
 ## La file au 17/10 — vers la saison test Mondiale v2
 
@@ -21,16 +34,15 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 1. ~~**Proposition « Mondiale : économie, logistique, escouades »**~~ : faite et grillée le 18/10
    ([proposition](design/propositions/mondiale-economie-logistique-escouades.md),
    [ADR 0028](adr/0028-l-economie-de-la-mondiale.md)). Ses lots forment le point 4.
-2. ~~**Retirer les plafonds**~~ : faite le 18/10. Plafond de troupes et casernements remplacés par
+2. ~~**Retirer les plafonds**~~ : faite le 18/10. Plafond de troupes et casernes remplacés par
    la borne invisible `MONDIALE_TROOP_BOUND` (150, `@a-mesurer`) ; emplacements par site retirés.
 3. ~~**Le socle Mondiale du 14/10**~~ : fait le 18/10. Vitesses ×12 (`MONDIALE_PACE`), durée
    réglée au salon (3 à 14 jours), plus d'entrée après le départ, QG capturé en 12 ou 24 h =
    éliminé (le reste au siège irrégulier), les Sept posés à chaque saison et leurs règles —
-   Halifax, Narvik, Lisbonne, Istanbul, Tanger ; Rangoun et Hong Kong comptent, « règle à
-   venir » —, victoire 4 sur 7 tenus 24 h, écrasement, horloge en filet. La domination de test
+   Halifax, Narvik, Lisbonne, Istanbul, Tanger ; Rangoun et Hong Kong comptent (règles faites le 19/10, #133) —, victoire 4 sur 7 tenus 24 h, écrasement, horloge en filet. La domination de test
    par réduction est retirée.
 4. **L'économie de la Mondiale** ([ADR 0028](adr/0028-l-economie-de-la-mondiale.md),
-   [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en dix features vues du joueur.
+   [ADR 0029](adr/0029-placement-libre-et-gisements-ponctuels.md)), en onze features vues du joueur.
    Chacune se livre de bout en bout, back et front, avec ses visuels, son scénario de démo, et le
    code qu'elle rend mort ; « se voit » liste ce qu'il faut dessiner ou animer.
    1. ~~**Cinq ressources**~~ : faite le 18/10. Vivres, acier, charbon, pétrole, munitions ; la mine
@@ -51,7 +63,7 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       `NOT_ENOUGH_FUEL` dit avant le clic ; à sec ni frappe ni riposte (`NO_ROUNDS`, dépêche et
       rejeu « à sec ») ; cartouche et jerrican sous la pile, à l'affiche, dans la garnison,
       l'abaque et la formation. Le débit national et `DRY_AMMUNITION_FACTOR` sont retirés.
-   4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
+   4. ~~**Prototype du plateau personnel**~~ (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
       trois versions ; il sert de référence aux features 5 à 8.
    5. ~~**Placement libre et gisements ponctuels**~~ : fait le 18/10. `buildings.point` obligatoire,
       `start` prend le point visé et sa région ; `placementRefusal` lit le point (portée, gisement
@@ -84,13 +96,13 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       reste à bord. Un largage se relève et s'intercepte comme un ravitaillement. Le fil monte
       de la piste, reste en l'air sur la cible et se pose au retour ; tampon « largué » et
       dépêche. Démo : `npm run demo:mondiale -- --largage`.
-   9. ~~**La recherche**~~ : faite le 19/10. Onze cartes en quatre branches (`RESEARCH_TREE`,
+   9. ~~**La recherche**~~ : faite le 19/10. Seize cartes (`RESEARCH_CARDS`, `src/domain/ids.ts`) en quatre branches (`RESEARCH_TREE`,
       `RESEARCH_SPEC` à l'échelle ×10 de l'artefact) sur le plateau personnel ; une carte lâchée sur
       le QG (`research.start`, `researchRefusalOf`) se paie, court en heures de jeu, attend un QG
       tombé sans rien perdre, et débloque à la fin avec sa dépêche. Toute pièce et toute tuile hors
       du départ attend sa carte (`RESEARCH_REQUIRED`), visible ; artillerie et pétrole synthétique
       étaient « à venir » (faits en 4.10 et 4.11). `UNLOCKED_AT`, `TIER_2_HQ_LEVEL`, `ROLE_SITE_LEVEL` et `chainSpeed`
-      retirés ; un site de projection de niveau N forme N troupes à la fois ; invariant du contre
+      retirés ; un site forme une troupe à la fois, une de plus avec la carte de formation double, et son niveau accélère la formation (ADR 0031) ; invariant du contre
       testé. Barre sur l'affiche du QG, sur la carte et dans « en cours ». Démo :
       `npm run demo:mondiale -- --recherche`. Le schéma change : `players.researched`,
       `players.research`.
@@ -108,7 +120,7 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
        verrouille (`lineLockOf`, `RESEARCH_REQUIRED` dit avant le geste). Ligne active, débit et
        choix sur la fenêtre du lot ; à sec de charbon, la ligne le dit. `comingSoon` et
        `RESEARCH_COMING` retirés. Démo : `npm run demo:mondiale -- --petrole`. Le schéma change :
-       `orders.line`. Pas encore vu à l'écran (captures non faites).
+       `orders.line`. À vérifier à l'écran (aucune capture au dépôt).
 
    Bakou, Dakar et Singapour sont faits le 19/10 : le vivier compte dix lieux, sept tirés par la
    graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et
@@ -449,7 +461,7 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   (`outpostRaiseHold`), la fin est le **quatrième événement de couleur** (régler, patcher,
   rapporter) et relève le sol neuf du cercle. Porte : le panneau de garnison du point, où les
   trois refus « avant-poste plein » mènent maintenant. Non commité.
-- **Fondation en chantier, plus d'entretien** (révision ADR 0020 §10, décision 7a du 15/09) : fonder coûte alliage + durée, un point debout ne consomme rien ; prompt
+- **Fondation en chantier, plus d'entretien** (révision ADR 0020 §10, décision 7a du 15/09) : fonder coûtait de l'alliage (mort le 18/10, aujourd'hui l'acier) + durée, un point debout ne consomme rien ; prompt
   `fondation-en-chantier.md`, après l'élévation.
 - **Zone hors service hachurée** (UX) : rendu seul, §7 intact ; prompt
   `zone-hors-service-hachuree.md`.
