@@ -1480,7 +1480,7 @@ const PLACING_CARD_GAP = 22;
 function GestureHint({ mapping }: { mapping: MouseMapping }) {
   const hint = fr.mapUi.gestureHint(mapping);
   return (
-    <div className="hud paper-grain pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--ink)] float">
+    <div className="hud paper-grain pointer-events-none absolute bottom-[max(24px,calc(var(--mat-rise,0px)/var(--hud-scale)))] left-1/2 z-10 -translate-x-1/2 border border-[var(--ink)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--ink)] float">
       {hint.orient}
       <span className="text-[var(--ink-soft)]">{hint.separator}</span>
       {hint.pan}

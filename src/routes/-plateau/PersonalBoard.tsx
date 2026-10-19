@@ -7,25 +7,14 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import {
-  MAX_HQ_LEVEL,
-  RESEARCH_SPEC,
-  UPKEEP_UNSUPPLIED_MULTIPLIER,
-} from '../../../convex/constants';
-import {
-  aBuilding,
-  cardName,
-  fr,
-  noBuilding,
-  researchRequired,
-  roleLabel,
-  upgradeHoldText,
-} from '@/i18n/fr';
+import { RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
+import { cardName, fr, noBuilding, researchRequired, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -43,7 +32,6 @@ import {
   BUILDABLE_BUILDINGS,
   RESEARCH_CARDS,
   RESOURCES,
-  isOutpostWork,
   type BuildingKey,
   type ResearchCard,
   type ResourceKey,
@@ -59,14 +47,17 @@ import {
   researchProgressOf,
   researchRefusalOf,
 } from '@/domain/research';
-import { unlinkedProducers } from '@/domain/next-actions';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN, recruitRefusalOf, tierLabel } from '@/domain/troops';
-import { upkeepStep } from '@/domain/upkeep';
+import {
+  PROJECTION_BY_DOMAIN,
+  projectionKeyOf,
+  recruitRefusalOf,
+  tierLabel,
+} from '@/domain/troops';
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { conditionText } from './FoundationRows';
 import { HelpMark } from './HelpMark';
@@ -86,19 +77,24 @@ type Cost = Readonly<Partial<Record<ResourceKey, number>>>;
 
 type Workshop = FunctionReturnType<typeof api.troops.workshop>;
 
+type Tab = 'buildings' | 'troops';
+
 /** Under this travel a press is a click, not a drag: the tile stays in hand for a click on the map. */
 const DRAG_THRESHOLD_PX = 5;
 
-/** How long the deltas of the harvest stay over their store. */
-const DELTA_MS = 6000;
+/** Under this travel a finger has not yet said whether it scrolls the rail or lifts the tile. */
+const TOUCH_SLOP_PX = 8;
+
+/** The room the folded band leaves to the protractor's corner, on the phone. */
+const CORNER_ROOM = 'calc(78px + var(--safe-right) / var(--hud-scale))';
 
 /**
- * **Le plateau personnel** (ADR 0028 §7 et sa précision du 18/10) : chaque stock en nombre exact
- * et en barre jusqu'au plafond de l'entrepôt ; à l'ouverture, la récolte tombe en pastilles qui
- * volent vers leur barre ; les tuiles se prennent ici et se lâchent sur la carte pour bâtir, ou
- * sur leur pareille pour l'élever ; les pièces se lâchent sur un site de projection pour y être
- * formées. Il a remplacé la fenêtre Économie : chantiers, entretien par paliers et pénuries avec
- * leur remède s'y lisent au pied.
+ * **Le plateau personnel, en sous-main** (issue #122, maquette B) : une bande sur toute la largeur
+ * au pied de la table. Repliée, elle tient en une ligne qui garde les bacs — on en glisse des
+ * jetons sur un transport sans la déplier —, le chantier en tête et la récolte. Dépliée, les bacs
+ * en jauges jusqu'au plafond de l'entrepôt, le plateau à tuiles en deux onglets (bâtiments,
+ * troupes) qu'on fait défiler, et la file des chantiers. Les consommations vivent dans les
+ * tickets du bandeau (#121). La recherche s'ouvre au-dessus d'elle, en attendant sa fenêtre (#123).
  *
  * La grammaire est celle des pièces de la carte (`drop-order.ts`) : ce qui s'allume sous la main
  * est ce qu'on prend, un refus se dit en rouge et la pièce rentre.
@@ -106,8 +102,9 @@ const DELTA_MS = 6000;
 export function PersonalBoard({
   view,
   seat,
+  open,
   focused,
-  onClose,
+  onOpen,
   onHoldTile,
   onPlaceTile,
   onTakeTokens,
@@ -115,13 +112,15 @@ export function PersonalBoard({
 }: {
   view: PlayerView;
   seat: Seat;
+  /** Dépliée : la fenêtre `personalBoard` de l'adresse, que « Écon. » bascule. */
+  open: boolean;
+  onOpen: (open: boolean) => void;
   /** **La bulle des premiers pas** (ADR 0027 §2) : l'étagère où se prend le geste du pas allumé. */
   cue?: { readonly rack: 'tiles' | 'pieces' | 'research'; readonly text: string } | null;
   /** **Charger** (ADR 0028 §4) : des jetons pris dans un bac, glissés sur un transport. */
   onTakeTokens?: (resource: keyof SupplyLoad, event: ReactPointerEvent<HTMLElement>) => void;
   /** The building the board was opened on, from its mast: its tile is lit. */
   focused: string | null;
-  onClose: () => void;
   /** Arms the map's ghost for the tile in hand, or disarms it (ADR 0029). */
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
@@ -132,10 +131,11 @@ export function PersonalBoard({
   const motion = useMapMotion();
   const board = useRef<HTMLElement>(null);
   const binRefs = useRef(new Map<ResourceKey, HTMLElement>());
-  const [open, setOpen] = useState(true);
+  const [tab, setTab] = useState<Tab>('buildings');
+  const [research, setResearch] = useState(false);
   const observing = view.me.defeated;
 
-  const { shown, deltas, ledger, mark } = useHarvest(view, seat, motion, binRefs);
+  const { shown, harvest, ledger, mark, replay } = useHarvest(view, seat, motion, binRefs);
   const workshop = useQuery(api.troops.workshop, seat);
   const { held, hint, away, take, chip } = useHand({
     view,
@@ -147,195 +147,241 @@ export function PersonalBoard({
     onHoldTile,
     onPlaceTile,
   });
+  /** Au téléphone, la main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
+  const folded = !open || research || (narrow && away);
+  useMatRise(board);
 
   useEffect(() => {
+    if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && held === null) onClose();
+      if (event.key === 'Escape' && held === null) onOpen(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [held, onClose]);
+  }, [held, open, onOpen]);
 
-  const shortages = shortagesOf(view);
-  // A shortage is read with its remedy as soon as the board opens: it is why one comes here.
-  const [details, setDetails] = useState(() => shortages.length > 0);
+  // The step's bubble points at a rack: its tab comes forward.
+  const cuedRack = cue?.rack ?? null;
+  useEffect(() => {
+    if (cuedRack === 'tiles') setTab('buildings');
+    if (cuedRack === 'pieces') setTab('troops');
+  }, [cuedRack]);
+
   const focusedKey = view.me.buildings.find((building) => building.id === focused)?.key ?? null;
-  const peeking = away || (narrow && !open);
+  useEffect(() => {
+    if (focusedKey !== null) setTab('buildings');
+  }, [focusedKey]);
+
+  const bin = (resource: ResourceKey) => ({
+    resource,
+    view,
+    now,
+    shown: shown?.[resource] ?? null,
+    onTake:
+      observing || onTakeTokens === undefined || !isSupplyKey(resource)
+        ? null
+        : (event: ReactPointerEvent<HTMLElement>) => onTakeTokens(resource, event),
+    register: (node: HTMLElement | null) => {
+      if (node === null) binRefs.current.delete(resource);
+      else binRefs.current.set(resource, node);
+    },
+  });
+  const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
+  const researchCue = cue?.rack === 'research' ? cue.text : null;
+  const unfoldCued = rackCue !== null && folded && !research;
+
+  const handle = (
+    <button
+      type="button"
+      aria-expanded={!folded}
+      aria-label={folded ? fr.personalBoard.open : fr.personalBoard.fold}
+      onClick={() => {
+        setResearch(false);
+        onOpen(folded);
+      }}
+      className={`relative cursor-pointer px-3 font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
+        narrow ? 'flex-1 py-[10px] text-center' : 'self-stretch border-r border-[var(--ink)]'
+      } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
+    >
+      {fr.personalBoard.header}
+      <span aria-hidden className="ml-[6px] font-(family-name:--font-body) text-[11px]">
+        {folded ? '▴' : '▾'}
+      </span>
+      {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
+      {unfoldCued && narrow && <CueBubble text={fr.firstSteps.cue.unfold} />}
+    </button>
+  );
+  const researchButton = (
+    <button
+      type="button"
+      aria-expanded={research}
+      onClick={() => setResearch((was) => !was)}
+      className={`relative shrink-0 cursor-pointer border border-[var(--ink)] px-[9px] py-[5px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-(--ink)/8 ${
+        research ? 'bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--ink)]' : ''
+      } ${narrow ? 'mr-2' : ''}`}
+    >
+      {fr.research.header}
+      {researchCue !== null && !research && (
+        <CueBubble
+          text={researchCue}
+          place="first-step-cue--corner absolute right-0 bottom-[calc(100%+9px)]"
+        />
+      )}
+    </button>
+  );
 
   return (
     <>
       <section
         ref={board}
         aria-label={fr.personalBoard.header}
-        className={`hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] transition-transform duration-300 ${
-          narrow
-            ? 'inset-x-0 z-[var(--z-window)] max-h-[62dvh] border-x-0'
-            : 'z-[var(--z-band)] max-h-[min(440px,60dvh)]'
+        className={`hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
+          narrow ? 'border-x-0' : ''
         }`}
         style={
           narrow
             ? {
+                left: 0,
+                right: folded ? CORNER_ROOM : 0,
                 bottom: 'calc(var(--board-bottom) / var(--hud-scale))',
-                transform: peeking ? 'translateY(calc(100% - 46px))' : undefined,
+                maxHeight: 'calc(55dvh / var(--hud-scale))',
+                zIndex: folded ? 'var(--z-band)' : 'var(--z-window)',
               }
             : {
-                transform: peeking ? 'translateY(calc(100% - 46px))' : undefined,
                 left: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
+                right: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
                 bottom: 'calc(var(--table-margin) / var(--hud-scale))',
-                width:
-                  'min(1100px, calc((100dvw - var(--board-left) - var(--table-gap) - var(--table-margin) - 330px) / var(--hud-scale)))',
+                // Over the to-do card of the column, which it would otherwise hide.
+                zIndex: 'calc(var(--z-band) + 1)',
               }
         }
       >
-        <header className="flex h-[46px] shrink-0 items-center gap-3 border-b border-(color:--ink)/30 px-4">
-          {narrow ? (
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => setOpen((was) => !was)}
-              aria-label={open ? fr.personalBoard.fold : fr.personalBoard.open}
-              className="shrink-0 cursor-pointer font-(family-name:--font-display) text-[19px] leading-none font-extrabold"
-            >
-              {fr.personalBoard.header}
-              <span aria-hidden className="ml-[6px] text-[12px]">
-                {open ? '▾' : '▴'}
-              </span>
-            </button>
-          ) : (
-            <h2 className="shrink-0 font-(family-name:--font-display) text-[19px] leading-none font-extrabold">
-              {fr.personalBoard.header}
-            </h2>
-          )}
-          <span className="min-w-0 flex-1 truncate font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {!narrow && ledger}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[10px] font-semibold tracking-[.16em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" inert={narrow && !open}>
-          {narrow && (
-            <p className="px-3 pt-2 font-(family-name:--font-mono) text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {ledger}
-            </p>
-          )}
-          <div className="grid grid-cols-5 gap-[6px] px-3 pt-3 md:gap-2 md:px-4">
-            {RESOURCES.map((resource) => (
-              <Bin
-                key={resource}
-                resource={resource}
-                view={view}
-                now={now}
-                shown={shown?.[resource] ?? null}
-                delta={deltas?.[resource] ?? null}
-                narrow={narrow}
-                onTake={
-                  observing || onTakeTokens === undefined || !isSupplyKey(resource)
-                    ? null
-                    : (event) => onTakeTokens(resource, event)
-                }
-                register={(node) => {
-                  if (node === null) binRefs.current.delete(resource);
-                  else binRefs.current.set(resource, node);
-                }}
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 px-3 pt-3 pb-3 md:flex-row md:px-4">
-            <Rack
-              title={fr.personalBoard.tilesHeader}
-              note={fr.personalBoard.tilesNote}
-              cue={cue?.rack === 'tiles' ? cue.text : null}
-            >
-              {BUILDABLE_BUILDINGS.map((key) => (
-                <Tile
-                  key={key}
-                  buildingKey={key}
-                  view={view}
-                  lit={key === focusedKey || (held?.kind === 'tile' && held.key === key)}
-                  onTake={observing ? null : (event) => take({ kind: 'tile', key }, event)}
-                />
-              ))}
-            </Rack>
-            <Pieces
-              view={view}
-              workshop={workshop}
-              held={held}
-              cue={cue?.rack === 'pieces' ? cue.text : null}
-              onTake={
-                observing
-                  ? null
-                  : (role, tier) => (event) => take({ kind: 'piece', role, tier }, event)
-              }
-            />
-          </div>
-          <Research
+        {research && (
+          <ResearchPanel
             view={view}
             now={now}
             held={held}
-            cue={cue?.rack === 'research' ? cue.text : null}
-            onTake={observing ? null : (card) => (event) => take({ kind: 'card', card }, event)}
+            cue={researchCue}
+            onClose={() => setResearch(false)}
+            onTake={observing ? null : (card) => (grab) => take({ kind: 'card', card }, grab)}
           />
+        )}
+        {rackCue !== null && !folded && (
+          <CueBubble
+            text={rackCue}
+            place={
+              narrow
+                ? 'absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2'
+                : // Over the tray, past the five gauges.
+                  'absolute bottom-[calc(100%+9px)] left-[340px]'
+            }
+          />
+        )}
 
-          <button
-            type="button"
-            aria-expanded={details}
-            onClick={() => setDetails((was) => !was)}
-            className="flex w-full cursor-pointer flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-(color:--ink)/30 px-3 py-[7px] text-left text-[11.5px] hover:bg-(--ink)/5 md:px-4"
-          >
-            <span className="eyebrow">{fr.personalBoard.details}</span>
-            <span className="min-w-0 truncate text-[var(--ink-soft)]">
-              {view.me.construction === null
-                ? fr.personalBoard.noWorks
-                : fr.personalBoard.works(
-                    view.me.construction.name,
-                    asDuration(
-                      currentMinutes(view.me.construction.minutesLeft, view.loadedAt, now),
-                    ),
-                    view.me.constructionQueue.length,
-                  )}
-            </span>
-            <span
-              className="font-(family-name:--font-mono)"
-              style={{
-                color: view.me.resources.food.ratePerHour < 0 ? 'var(--critical)' : undefined,
-              }}
-            >
-              {fr.economy.upkeepBalance(view.me.resources.food.ratePerHour)}
-            </span>
-            <span style={{ color: shortages.length > 0 ? 'var(--critical)' : 'var(--ink-soft)' }}>
-              {fr.personalBoard.shortages(shortages.length)}
-            </span>
-            <span aria-hidden className="ml-auto">
-              {details ? '▾' : '▸'}
-            </span>
-          </button>
-          {details && (
-            <div className="grid gap-x-5 gap-y-3 px-3 pb-3 md:grid-cols-4 md:px-4">
-              <Works view={view} seat={seat} now={now} observing={observing} onSpent={mark} />
-              <Upkeep view={view} />
-              <Shortages shortages={shortages} />
-              <Census view={view} />
+        {narrow ? (
+          <div className="flex shrink-0 flex-col gap-[6px] pb-[6px]">
+            <div className="flex items-center border-b border-(color:--ink)/30">
+              {handle}
+              {researchButton}
             </div>
-          )}
-          {view.me.chains
-            .filter((chain) => chain.commanded && chain.level > 0)
-            .map((chain) => (
-              <LotControl
-                key={chain.by}
-                chain={chain}
-                seat={seat}
-                loadedAt={view.loadedAt}
-                now={now}
-                observing={observing}
-              />
-            ))}
+            <div className="flex gap-[3px] px-2">
+              {RESOURCES.map((resource) => (
+                <MiniBin key={resource} {...bin(resource)} narrow />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`flex h-[36px] shrink-0 items-center gap-[14px] pr-[10px] ${
+              folded ? '' : 'border-b border-[var(--ink)]'
+            }`}
+          >
+            {handle}
+            {folded && (
+              <div className="flex gap-[4px]">
+                {RESOURCES.map((resource) => (
+                  <MiniBin key={resource} {...bin(resource)} narrow={false} />
+                ))}
+              </div>
+            )}
+            <span className="min-w-0 truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
+              <WorkLine view={view} now={now} />
+            </span>
+            <button
+              type="button"
+              title={`${fr.personalBoard.harvestReplay} — ${ledger}`}
+              onClick={replay}
+              className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-[8px] px-[6px] py-[4px] font-(family-name:--font-mono) text-[11px] font-semibold whitespace-nowrap"
+            >
+              {harvest === null ? (
+                <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
+                  {fr.personalBoard.harvestHeader}
+                </em>
+              ) : (
+                <>
+                  <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
+                    {fr.personalBoard.harvestSince(harvest.hours)}
+                  </em>
+                  {harvest.deltas
+                    .filter(({ amount }) => amount !== 0)
+                    .map(({ resource, amount }) => (
+                      <span
+                        key={resource}
+                        className="inline-flex items-center gap-[2px]"
+                        style={amount < 0 ? { color: 'var(--critical)' } : undefined}
+                      >
+                        <span className="flex" style={{ color: resourceColor(resource, true) }}>
+                          <ResourceIcon resource={resource} size={13} />
+                        </span>
+                        {fr.personalBoard.delta(amount)}
+                      </span>
+                    ))}
+                </>
+              )}
+            </button>
+            {researchButton}
+          </div>
+        )}
+
+        <div
+          className="grid min-h-0 transition-[grid-template-rows] duration-(--dur-slow) ease-(--ease-out)"
+          style={{ gridTemplateRows: folded ? '0px' : narrow ? 'auto' : '156px' }}
+          inert={folded}
+        >
+          <div
+            className={`min-h-0 overflow-hidden ${
+              narrow ? 'flex flex-col overflow-y-auto overscroll-contain' : 'grid'
+            }`}
+            style={narrow ? undefined : { gridTemplateColumns: 'auto 1fr 236px' }}
+          >
+            {!narrow && (
+              <section className="grid grid-cols-[repeat(5,54px)] items-end gap-[6px] px-3 py-[10px]">
+                {RESOURCES.map((resource) => (
+                  <GaugeBin key={resource} {...bin(resource)} />
+                ))}
+              </section>
+            )}
+            <Tray
+              view={view}
+              workshop={workshop}
+              tab={tab}
+              onTab={setTab}
+              narrow={narrow}
+              cued={cuedRack === 'tiles' ? 'buildings' : cuedRack === 'pieces' ? 'troops' : null}
+              focusedKey={focusedKey}
+              held={held}
+              onTake={observing ? null : take}
+            />
+            <Works
+              view={view}
+              seat={seat}
+              now={now}
+              narrow={narrow}
+              observing={observing}
+              ledger={ledger}
+              onSpent={mark}
+            />
+          </div>
         </div>
       </section>
       {createPortal(
@@ -353,6 +399,33 @@ export function PersonalBoard({
   );
 }
 
+/**
+ * **Ce que la bande prend au pied de la table**, publié en `--mat-rise` (pixels d'écran, du bas
+ * de l'écran au-dessus d'elle) : ce qui se pose au bas de la carte — boutons, fiche du sol,
+ * tickets — se lève d'autant au lieu de passer dessous.
+ */
+function useMatRise(mat: { readonly current: HTMLElement | null }) {
+  useEffect(() => {
+    const node = mat.current;
+    if (node === null) return;
+    const root = document.documentElement.style;
+    const publish = () =>
+      root.setProperty(
+        '--mat-rise',
+        `${Math.round(window.innerHeight - node.getBoundingClientRect().top + 8)}px`,
+      );
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(node);
+    window.addEventListener('resize', publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', publish);
+      root.removeProperty('--mat-rise');
+    };
+  }, [mat]);
+}
+
 // ---------------------------------------------------------------------------------------
 // The stores and their harvest
 // ---------------------------------------------------------------------------------------
@@ -363,11 +436,12 @@ const stocksAt = (view: PlayerView, now: number): Record<ResourceKey, number> =>
   ) as Record<ResourceKey, number>;
 
 /**
- * **La récolte, une fois par ouverture** : l'écart avec la dernière lecture, pris au montage et
- * jamais repris — la vue change sous les pastilles, la récolte non.
+ * **La récolte, une fois par arrivée** : l'écart avec la dernière lecture, pris au montage et
+ * jamais repris — la vue change sous les pastilles, la récolte non. Un clic sur la récolte de la
+ * bande la rejoue.
  *
- * Les bacs montrent ce qui est déjà tombé (`shown`) le temps du vol ; « coupées », rien ne vole et
- * les écarts s'affichent seuls ; « réduites », les pastilles naissent au bac sans trajet.
+ * Les bacs montrent ce qui est déjà tombé (`shown`) le temps du vol ; « coupées », rien ne vole ;
+ * « réduites », les pastilles naissent au bac sans trajet.
  */
 function useHarvest(
   view: PlayerView,
@@ -383,18 +457,14 @@ function useHarvest(
     };
   });
   const harvest = opened.harvest;
-  const [shown, setShown] = useState<Record<ResourceKey, number> | null>(() =>
-    harvest === null || motion === 'off' ? null : before(view, harvest),
-  );
-  const [deltas, setDeltas] = useState<Partial<Record<ResourceKey, number>> | null>(() =>
-    harvest === null || motion !== 'off' ? null : deltasOf(harvest),
-  );
+  const [round, setRound] = useState(0);
+  const [shown, setShown] = useState<Record<ResourceKey, number> | null>(null);
   const markRead = useMutation(api.personalBoard.markRead);
   const mark = useCallback(() => void markRead(seat).catch(() => {}), [markRead, seat]);
 
-  /** **Lu à l'ouverture, relu en le quittant** — fermé, démonté ou la page masquée — et après
-   *  chaque dépense faite depuis lui : la récolte suivante dit ce qui a bougé depuis qu'on l'a
-   *  quitté, jamais le prix de ce qu'on vient d'y acheter. */
+  /** **Lu à l'arrivée, relu en partant** — démonté ou la page masquée — et après chaque dépense
+   *  faite depuis la bande : la récolte suivante dit ce qui a bougé depuis qu'on l'a quittée,
+   *  jamais le prix de ce qu'on vient d'y acheter. */
   useEffect(() => {
     mark();
     const hidden = () => {
@@ -407,8 +477,11 @@ function useHarvest(
     };
   }, [mark]);
 
+  const latest = useRef(view);
+  latest.current = view;
   useEffect(() => {
     if (harvest === null || motion === 'off') return;
+    setShown(before(latest.current, harvest));
     const layer = document.createElement('div');
     layer.className = 'pointer-events-none fixed inset-0 z-[var(--z-notice)]';
     document.body.append(layer);
@@ -430,21 +503,14 @@ function useHarvest(
       ),
     );
     void Promise.all(flights).then(() => {
-      if (!live) return;
-      setShown(null);
-      setDeltas(deltasOf(harvest));
+      if (live) setShown(null);
     });
     return () => {
       live = false;
       layer.remove();
+      setShown(null);
     };
-  }, [harvest, motion, bins]);
-
-  useEffect(() => {
-    if (deltas === null) return;
-    const timer = setTimeout(() => setDeltas(null), DELTA_MS);
-    return () => clearTimeout(timer);
-  }, [deltas]);
+  }, [harvest, motion, bins, round]);
 
   const ledger =
     harvest === null
@@ -461,7 +527,7 @@ function useHarvest(
           ),
         ].join(' · ');
 
-  return { shown, deltas, ledger, mark };
+  return { shown, harvest, ledger, mark, replay: () => setRound((count) => count + 1) };
 }
 
 const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number> => {
@@ -470,17 +536,10 @@ const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number>
   return stocks;
 };
 
-const deltasOf = (harvest: Harvest): Partial<Record<ResourceKey, number>> =>
-  Object.fromEntries(
-    harvest.deltas
-      .filter(({ amount }) => amount !== 0)
-      .map(({ resource, amount }) => [resource, amount]),
-  );
-
 /**
  * **Une pastille qui tombe dans son bac, ou qui en sort** : un disque à la couleur de la
- * ressource, qui arrive d'au-dessus du plateau personnel — de la table — en arc. Elle montre que
- * ça coule, jamais combien.
+ * ressource, qui arrive d'au-dessus de la bande — de la table — en arc. Elle montre que ça coule,
+ * jamais combien.
  */
 function flyPastille(
   layer: HTMLElement,
@@ -492,7 +551,7 @@ function flyPastille(
 ): Promise<void> {
   if (bin === undefined) return Promise.resolve();
   const box = bin.getBoundingClientRect();
-  const atBin = { x: box.left + box.width / 2, y: box.top + 18 };
+  const atBin = { x: box.left + box.width / 2, y: box.top + Math.min(18, box.height / 2) };
   const table = { x: atBin.x + (Math.random() - 0.5) * 120, y: Math.max(40, box.top - 220) };
   const pastille = document.createElement('span');
   pastille.className = 'harvest-pastille';
@@ -528,105 +587,127 @@ function flyPastille(
     );
 }
 
-/**
- * **Un bac** : son nombre exact sur le plafond de l'entrepôt, et une barre jusqu'à lui. Le débit
- * réel dessous, net de ce qui sort ; plein, il le dit — ce qui arrive ensuite est perdu.
- */
-function Bin({
-  resource,
-  view,
-  now,
-  shown,
-  delta,
-  narrow,
-  register,
-  onTake,
-}: {
+type BinProps = {
   resource: ResourceKey;
   view: PlayerView;
   now: number;
   shown: number | null;
-  delta: number | null;
-  narrow: boolean;
   register: (node: HTMLElement | null) => void;
   /** Munitions, pétrole et charbon se prennent ici pour charger un transport. */
   onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
-}) {
+};
+
+/** Ce qu'un bac dit au survol : son nombre sur son plafond, son débit, ou ce qui lui manque. */
+function binReading({ resource, view, now, shown }: BinProps) {
   const held = view.me.resources[resource];
-  const stock = shown ?? currentStock(held, view.loadedAt, now);
-  const full = held.cap > 0 && stock >= held.cap;
+  const stock = Math.floor(shown ?? currentStock(held, view.loadedAt, now));
+  const share = held.cap > 0 ? Math.min(100, (stock / held.cap) * 100) : 0;
   /** **Rien ne le produit** : ni bâti, ni en chantier, ni en file — le manque, pas la panne. */
   const missing =
     held.ratePerHour <= 0 &&
     !view.me.buildings.some((building) => building.key === PRODUCER_OF[resource]) &&
     view.me.construction?.key !== PRODUCER_OF[resource] &&
     !view.me.constructionQueue.some((entry) => entry.key === PRODUCER_OF[resource]);
+  const full = held.cap > 0 && stock >= held.cap;
+  const title = [
+    `${fr.resources[resource]} : ${stock} ${fr.personalBoard.ofCap(held.cap)}`,
+    full
+      ? fr.personalBoard.full
+      : missing
+        ? noBuilding(PRODUCER_OF[resource])
+        : fr.personalBoard.rate(held.ratePerHour),
+  ].join(' · ');
+  return { held, stock, share, title };
+}
+
+const takeTokens = (onTake: BinProps['onTake']) =>
+  onTake === null ? {} : { onPointerDown: onTake, 'data-grab': fr.logistics.grab };
+
+/** **Un bac plié** : sa plaque, son nombre, et un filet jusqu'au plafond. */
+function MiniBin(props: BinProps & { narrow: boolean }) {
+  const { resource, register, onTake, narrow } = props;
+  const { stock, share, title } = binReading(props);
+  const color = resourceColor(resource, true);
+  return (
+    <span
+      ref={register}
+      title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
+      {...takeTokens(onTake)}
+      className={`relative inline-flex touch-none items-center gap-[4px] border border-(color:--ink)/35 font-(family-name:--font-mono) text-[12px] leading-none font-semibold select-none ${
+        narrow
+          ? 'min-w-0 flex-1 justify-center gap-[3px] px-[2px] pt-[6px] pb-[7px] text-[11.5px]'
+          : 'py-[3px] pr-[6px] pl-[4px]'
+      } ${onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'}`}
+    >
+      <ResourcePlate resource={resource} height={narrow ? 14 : 16} />
+      {stock}
+      <span
+        aria-hidden
+        className={`absolute bottom-[2px] ${narrow ? 'inset-x-[3px] h-[3px]' : 'left-0 h-[2px]'}`}
+        style={
+          narrow
+            ? {
+                background: `linear-gradient(90deg, ${color} ${share}%, color-mix(in srgb, var(--ink) 14%, transparent) ${share}%)`,
+              }
+            : { width: `${share}%`, background: color }
+        }
+      />
+    </span>
+  );
+}
+
+/** **Un bac en thermomètre de souscription** : le plafond en tête, le tube jusqu'à lui, le
+ *  nombre exact et le débit net dessous. */
+function GaugeBin(props: BinProps) {
+  const { resource, register, onTake } = props;
+  const { held, stock, share, title } = binReading(props);
   return (
     <div
       ref={register}
-      onPointerDown={onTake ?? undefined}
-      title={onTake === null ? undefined : fr.logistics.grab}
-      className={`relative min-w-0 border border-(color:--ink)/40 bg-white/15 px-[6px] pt-[5px] pb-[7px]${onTake === null ? '' : ' cursor-grab touch-none'}`}
+      title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
+      {...takeTokens(onTake)}
+      className={`grid touch-none justify-items-center gap-[3px] py-[3px] select-none ${
+        onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/12'
+      }`}
     >
-      <div className="flex min-w-0 items-center gap-[5px]">
-        <ResourcePlate resource={resource} height={narrow ? 16 : 20} />
-        {!narrow && (
-          <span className="truncate text-[11px] font-semibold tracking-[.06em] uppercase">
-            {fr.resources[resource]}
-          </span>
-        )}
-      </div>
-      <div className="mt-[4px] flex items-baseline gap-[3px] font-(family-name:--font-mono)">
-        <span className="text-[13px] font-semibold md:text-[15px]">{Math.floor(stock)}</span>
-        {!narrow && (
-          <span className="text-[10px] text-[var(--ink-soft)]">
-            {fr.personalBoard.ofCap(held.cap)}
-          </span>
-        )}
-      </div>
+      <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+        {held.cap}
+      </small>
       <span
         aria-hidden
-        className="mt-[3px] block h-[8px] overflow-hidden bg-(--ink)/14 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ink)_35%,transparent)]"
+        className="relative h-[62px] w-[16px] overflow-hidden rounded-[8px_8px_3px_3px] border-[1.5px] border-[var(--ink)] bg-white/25"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(to top, transparent 0 14.5px, color-mix(in srgb, var(--ink) 35%, transparent) 14.5px 15.5px)',
+        }}
       >
         <i
-          className="block h-full transition-[width] duration-500"
-          style={{
-            width: `${held.cap > 0 ? Math.min(100, (stock / held.cap) * 100) : 0}%`,
-            background: resourceColor(resource, true),
-          }}
+          className="absolute inset-x-0 bottom-0 transition-[height] duration-500"
+          style={{ height: `${share}%`, background: resourceColor(resource, true) }}
         />
       </span>
-      <span
-        className="mt-[3px] block truncate font-(family-name:--font-mono) text-[10px]"
-        style={{ color: full ? 'var(--notable-paper)' : 'var(--ink-soft)' }}
-        title={full ? fr.personalBoard.full : undefined}
+      <ResourcePlate resource={resource} height={22} />
+      <b className="font-(family-name:--font-mono) text-[14px] leading-none font-semibold">
+        {stock}
+      </b>
+      <small
+        className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
+        style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
       >
-        {full && !narrow
-          ? fr.personalBoard.full
-          : missing
-            ? noBuilding(PRODUCER_OF[resource])
-            : fr.personalBoard.rate(held.ratePerHour)}
-      </span>
-      {delta !== null && (
-        <span
-          className="absolute -top-[10px] right-[4px] px-[4px] py-[2px] font-(family-name:--font-mono) text-[10.5px] leading-none text-[var(--paper)]"
-          style={{ background: delta < 0 ? 'var(--critical)' : 'var(--ink)' }}
-        >
-          {fr.personalBoard.delta(delta)}
-        </span>
-      )}
+        {fr.personalBoard.rate(held.ratePerHour)}
+      </small>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------------------
-// Tiles and pieces
+// The tray: buildings and troops
 // ---------------------------------------------------------------------------------------
 
 /**
  * **Ce qui retient une tuile avant même la carte** : une clé que le QG n'ouvre pas, ou dont aucun
- * point ne prendrait la pose, et qui n'a pas de pareille debout à élever. Sa condition se dit au
- * survol et à la prise, et la tuile rentre (`placementOf`).
+ * point ne prendrait la pose, et qui n'a pas de pareille debout à élever. Sa condition se dit sur
+ * la tuile et à la prise, et la tuile rentre (`placementOf`).
  */
 function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
   if (view.me.buildings.some((building) => building.key === key)) return null;
@@ -644,126 +725,116 @@ function pieceRefusalOf(
   return lockedBy === null ? null : researchRequired(lockedBy);
 }
 
-function Rack({
-  title,
-  note,
-  cue = null,
-  children,
-}: {
-  title: string;
-  note: string;
-  /** La bulle des premiers pas, quand le geste du pas allumé se prend ici. */
-  cue?: string | null;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-w-0 md:flex-1">
-      <RackHead title={title} note={note} cue={cue} />
-      <div className="flex gap-[7px] overflow-x-auto pb-[4px]">{children}</div>
-    </div>
-  );
-}
+/** Where a press starts: the element pressed, the pointer (`null` for Entrée), the point. */
+type Grab = {
+  readonly element: HTMLElement;
+  readonly pointerId: number | null;
+  readonly x: number;
+  readonly y: number;
+};
 
-/** Le titre d'une étagère, et la bulle des premiers pas qui s'y pose : l'étagère vient à l'écran,
- *  le plateau défile au téléphone. */
-function RackHead({ title, note, cue }: { title: string; note: string; cue: string | null }) {
-  const head = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (cue !== null) head.current?.scrollIntoView({ block: 'nearest' });
-  }, [cue]);
-  return (
-    <div ref={head} className="flex flex-wrap items-center gap-2 pb-[9px]">
-      <span className="eyebrow">{title}</span>
-      <HelpMark>{note}</HelpMark>
-      {cue !== null && <CueBubble text={cue} place="relative ml-1" />}
-    </div>
-  );
-}
+type Take = (grab: Grab) => void;
 
-/** What a tile or a piece hands the hand: a press of the pointer, or Entrée on its button. */
-type Take = (event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>) => void;
-
-/** **Une pièce de la main est un bouton** : le pointeur la prend en glissant, Entrée la met en
- *  main, et le clic qu'un pointeur laisse derrière sa pression ne la reprend pas. */
+/**
+ * **Une pièce de la main est un bouton** : la souris la prend en glissant, Entrée la met en main,
+ * et le clic qu'un pointeur laisse derrière sa pression ne la reprend pas. **Au doigt**, le rang
+ * défile sous un balayage et la tuile se prend d'un geste vers le haut ; touchée sans glisser,
+ * elle se met en main comme au clavier.
+ */
 const takeProps = (take: Take | null) =>
   take === null
     ? {}
     : {
-        onPointerDown: take,
+        onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+          if (event.button !== 0) return;
+          const grab = {
+            element: event.currentTarget,
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+          };
+          if (event.pointerType !== 'touch') {
+            event.preventDefault();
+            return take(grab);
+          }
+          liftOrSwipe(grab, take);
+        },
         onClick: (event: ReactMouseEvent<HTMLElement>) => {
-          if (event.detail === 0) take(event);
+          if (event.detail === 0)
+            take({ element: event.currentTarget, pointerId: null, x: 0, y: 0 });
         },
       };
 
-function Tile({
-  buildingKey,
-  view,
-  lit,
-  onTake,
-}: {
-  buildingKey: BuildingKey;
-  view: PlayerView;
-  lit: boolean;
-  onTake: Take | null;
-}) {
-  const standing = view.me.buildings.filter((building) => building.key === buildingKey).length;
-  const free = view.me.foundation.some((due) => due.key === buildingKey);
-  const refusal = tileRefusalOf(view, buildingKey);
-  const name = fr.buildings[buildingKey];
-  return (
-    <button
-      type="button"
-      {...takeProps(onTake)}
-      title={refusal === null ? name : `${name} — ${refusal}`}
-      aria-label={refusal === null ? name : `${name} — ${refusal}`}
-      className={`grid w-[84px] shrink-0 touch-none justify-items-center gap-[3px] border border-[var(--ink)] bg-[#efe5cc] px-[5px] pt-[5px] pb-[6px] text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
-        onTake === null
-          ? ''
-          : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'
-      } ${lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''}`}
-    >
-      <span className="relative">
-        <BuildingPlate building={buildingKey} height={30} />
-        {standing > 0 && (
-          <span className="absolute -top-[4px] -right-[14px] font-(family-name:--font-mono) text-[9.5px] text-[var(--ink-soft)]">
-            {fr.personalBoard.tileCount(standing)}
-          </span>
-        )}
-      </span>
-      <b className="line-clamp-2 min-h-[2.2em] w-full text-center text-[11px] leading-[1.1] font-semibold">
-        {name}
-      </b>
-      <span className="font-(family-name:--font-mono) text-[10px]">
-        {free ? (
-          fr.construction.free
-        ) : (
-          <Price costs={view.buildCatalog[buildingKey].cost} size={10} />
-        )}
-      </span>
-    </button>
-  );
+function liftOrSwipe(grab: Grab, take: Take) {
+  const off = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', off);
+  };
+  function move(event: PointerEvent) {
+    if (event.pointerId !== grab.pointerId) return;
+    const dx = event.clientX - grab.x;
+    const dy = event.clientY - grab.y;
+    if (Math.hypot(dx, dy) < TOUCH_SLOP_PX) return;
+    off();
+    if (Math.abs(dy) > Math.abs(dx)) take({ ...grab, x: event.clientX, y: event.clientY });
+  }
+  function up(event: PointerEvent) {
+    if (event.pointerId !== grab.pointerId) return;
+    off();
+    take({ ...grab, pointerId: null });
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', off);
 }
 
-/**
- * **La réserve de pièces** : une silhouette par rôle que le QG ouvre, son prix dessous. Lâchée sur
- * une caserne, un port ou un aérodrome, elle y commande une troupe — le même ordre que la modale
- * du site, `troops.recruit`, au palier 1.
- */
-function Pieces({
+/** **Le plateau à tuiles** : deux onglets d'index, et leur rang qu'on fait défiler — flèches et
+ *  molette au bureau, balayage au doigt. */
+function Tray({
   view,
   workshop,
+  tab,
+  onTab,
+  narrow,
+  cued,
+  focusedKey,
   held,
-  cue,
   onTake,
 }: {
   view: PlayerView;
   workshop: Workshop | undefined;
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  narrow: boolean;
+  /** L'onglet que la bulle des premiers pas désigne : il porte l'anneau. */
+  cued: Tab | null;
+  focusedKey: BuildingKey | null;
   held: Held | null;
-  cue: string | null;
-  onTake: ((role: UnitRole, tier: UnitTier) => Take) | null;
+  onTake: ((what: Held, grab: Grab) => void) | null;
 }) {
-  /** **Chaque pièce, ouverte ou derrière sa carte** : rien n'est caché, la carte se dit au survol
-   *  et à la prise (ADR 0028 §5). */
+  const rail = useRef<HTMLDivElement>(null);
+  const lit = useRef<HTMLButtonElement>(null);
+
+  // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones".
+  useEffect(() => {
+    const node = rail.current;
+    if (node === null) return;
+    const wheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      node.scrollLeft += event.deltaY;
+    };
+    node.addEventListener('wheel', wheel, { passive: false });
+    return () => node.removeEventListener('wheel', wheel);
+  }, []);
+  useEffect(() => {
+    if (rail.current) rail.current.scrollLeft = 0;
+  }, [tab]);
+  useEffect(() => {
+    lit.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [focusedKey, tab]);
+
   const pieces = (workshop?.grid ?? []).flatMap((entry) => [
     { role: entry.role, tier: 1 as UnitTier, unit: entry.unit },
     ...(entry.unitTier2 === null
@@ -771,39 +842,215 @@ function Pieces({
       : [{ role: entry.role, tier: 2 as UnitTier, unit: entry.unitTier2 }]),
   ]);
   const sites = view.me.buildings.some((building) => PROJECTION_KEYS.includes(building.key));
+  const scroll = (direction: 1 | -1) =>
+    rail.current?.scrollBy({ left: direction * 324, behavior: 'smooth' });
+
   return (
-    <Rack title={fr.personalBoard.piecesHeader} note={fr.personalBoard.piecesNote} cue={cue}>
-      {!sites && (
-        <p className="w-[210px] shrink-0 self-center text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
-          {fr.personalBoard.piecesNone}
-        </p>
-      )}
-      {pieces.map(({ role, tier, unit }) => {
-        const name = pieceName(role, tier);
-        const title =
-          unit.lockedBy === null ? name : `${name} — ${researchRequired(unit.lockedBy)}`;
-        return (
+    <section
+      className={`grid min-w-0 ${
+        narrow
+          ? 'grid-cols-1 gap-[6px] px-[10px] py-[6px]'
+          : 'grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[10px] pl-3'
+      }`}
+    >
+      <nav className={narrow ? 'flex justify-center gap-[4px]' : 'grid content-start gap-[4px]'}>
+        {(['buildings', 'troops'] as const).map((name) => (
           <button
+            key={name}
             type="button"
-            key={`${role}-${tier}`}
-            {...takeProps(onTake === null ? null : onTake(role, tier))}
-            title={title}
-            aria-label={title}
-            className={`grid w-[74px] shrink-0 touch-none justify-items-center gap-[3px] border border-(color:--ink)/50 px-[4px] ${unit.lockedBy === null ? '' : 'border-dashed'} pt-[4px] pb-[5px] text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
-              onTake === null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre)]'
-            } ${held?.kind === 'piece' && held.role === role && held.tier === tier ? 'shadow-[0_0_0_2px_var(--ochre)]' : ''}`}
+            aria-pressed={tab === name}
+            title={name === 'buildings' ? fr.personalBoard.tilesNote : fr.personalBoard.piecesNote}
+            onClick={() => onTab(name)}
+            className={`cursor-pointer border border-[var(--ink)] text-[10px] leading-none font-semibold tracking-[.08em] uppercase ${
+              narrow
+                ? 'px-[14px] py-[8px]'
+                : 'rotate-180 px-[5px] py-[10px] [writing-mode:vertical-rl]'
+            } ${tab === name ? 'bg-[var(--ink)] text-[var(--paper)]' : 'hover:bg-(--ink)/8'} ${
+              cued === name ? 'first-step-ring' : ''
+            }`}
           >
-            <UnitSprite nation={view.me.nation} role={role} tier={tier} height={30} width={60} />
-            <b className="w-full truncate text-center text-[11px] leading-none font-semibold">
-              {name}
-            </b>
-            <span className="font-(family-name:--font-mono) text-[10px]">
-              <Price costs={unit.costs} size={10} />
-            </span>
+            {fr.personalBoard.tabs[name]}
           </button>
-        );
-      })}
-    </Rack>
+        ))}
+      </nav>
+      <div className="relative min-w-0">
+        <div
+          ref={rail}
+          className={`flex h-full snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
+            narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pr-[30px] pb-[10px] pl-[2px]'
+          }`}
+        >
+          {tab === 'buildings' &&
+            BUILDABLE_BUILDINGS.map((key) => (
+              <Tile
+                key={key}
+                ref={key === focusedKey ? lit : undefined}
+                buildingKey={key}
+                view={view}
+                narrow={narrow}
+                lit={key === focusedKey || (held?.kind === 'tile' && held.key === key)}
+                onTake={onTake === null ? null : (grab) => onTake({ kind: 'tile', key }, grab)}
+              />
+            ))}
+          {tab === 'troops' && !sites && (
+            <p className="w-[200px] shrink-0 self-center text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
+              {fr.personalBoard.piecesNone}
+            </p>
+          )}
+          {tab === 'troops' &&
+            pieces.map(({ role, tier, unit }) => {
+              const name = pieceName(role, tier);
+              const lock = unit.lockedBy === null ? null : researchRequired(unit.lockedBy);
+              return (
+                <TileFrame
+                  key={`${role}-${tier}`}
+                  name={name}
+                  narrow={narrow}
+                  locked={lock !== null}
+                  lit={held?.kind === 'piece' && held.role === role && held.tier === tier}
+                  onTake={
+                    onTake === null ? null : (grab) => onTake({ kind: 'piece', role, tier }, grab)
+                  }
+                  picture={
+                    <UnitSprite
+                      nation={view.me.nation}
+                      role={role}
+                      tier={tier}
+                      height={narrow ? 34 : 50}
+                      width={narrow ? 60 : 84}
+                    />
+                  }
+                  meta={lock ?? fr.personalBoard.pieceSite(fr.buildings[projectionKeyOf(role)])}
+                  price={<Price costs={unit.costs} size={10} />}
+                />
+              );
+            })}
+        </div>
+        {!narrow && (
+          <>
+            <button
+              type="button"
+              aria-label={fr.personalBoard.previous}
+              onClick={() => scroll(-1)}
+              className="paper-grain absolute top-[44px] -left-[4px] h-[40px] w-[22px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label={fr.personalBoard.next}
+              onClick={() => scroll(1)}
+              className="paper-grain absolute top-[44px] right-[4px] h-[40px] w-[22px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
+            >
+              ›
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** **Une tuile du plateau** : son nom, son image, ce qu'elle dit (durée, site, ou la carte qui
+ *  la retient, en rouge), son prix. Retenue, elle est en pointillé — jamais grisée. */
+function TileFrame({
+  ref,
+  name,
+  narrow,
+  locked,
+  lit,
+  onTake,
+  picture,
+  meta,
+  price,
+}: {
+  ref?: Ref<HTMLButtonElement> | undefined;
+  name: string;
+  narrow: boolean;
+  locked: boolean;
+  lit: boolean;
+  onTake: Take | null;
+  picture: ReactNode;
+  meta: string;
+  price: ReactNode;
+}) {
+  const label = `${name} — ${meta}`;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      {...takeProps(onTake)}
+      title={label}
+      aria-label={label}
+      className={`grid shrink-0 snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        narrow
+          ? 'h-[98px] w-[84px] touch-pan-x px-[5px] pt-[4px] pb-[5px]'
+          : 'h-[128px] w-[100px] touch-none px-[6px] pt-[5px] pb-[6px] transition-transform duration-(--dur-base) ease-(--ease-out)'
+      } ${
+        locked
+          ? 'border-dashed bg-transparent'
+          : `bg-[#efe5cc] shadow-[0_2px_0_var(--ink)] ${narrow ? '' : 'hover:-translate-y-[3px] hover:shadow-[0_5px_0_var(--ink)]'}`
+      } ${onTake === null ? '' : 'cursor-grab'} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
+    >
+      <b
+        className={`line-clamp-2 leading-[1.1] font-semibold first-letter:uppercase ${narrow ? 'text-[11px]' : 'text-[12px]'}`}
+      >
+        {name}
+      </b>
+      <span className="grid place-items-center overflow-hidden">{picture}</span>
+      <span
+        className={`line-clamp-2 leading-[1.1] ${
+          locked
+            ? 'font-semibold text-[var(--critical)]'
+            : 'font-(family-name:--font-mono) text-[var(--ink-soft)]'
+        } ${narrow ? 'text-[9px]' : 'text-[9.5px]'}`}
+      >
+        {meta}
+      </span>
+      <span className="mt-[2px] font-(family-name:--font-mono) text-[9.5px] whitespace-nowrap">
+        {price}
+      </span>
+    </button>
+  );
+}
+
+function Tile({
+  ref,
+  buildingKey,
+  view,
+  narrow,
+  lit,
+  onTake,
+}: {
+  ref?: Ref<HTMLButtonElement> | undefined;
+  buildingKey: BuildingKey;
+  view: PlayerView;
+  narrow: boolean;
+  lit: boolean;
+  onTake: Take | null;
+}) {
+  const standing = view.me.buildings.filter((building) => building.key === buildingKey).length;
+  const free = view.me.foundation.some((due) => due.key === buildingKey);
+  const refusal = tileRefusalOf(view, buildingKey);
+  const time = asDuration(view.buildCatalog[buildingKey].minutes);
+  return (
+    <TileFrame
+      ref={ref}
+      name={fr.buildings[buildingKey]}
+      narrow={narrow}
+      locked={refusal !== null}
+      lit={lit}
+      onTake={onTake}
+      picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
+      meta={refusal ?? (standing > 0 ? `${fr.personalBoard.tileCount(standing)} · ${time}` : time)}
+      price={
+        free ? (
+          fr.construction.free
+        ) : (
+          <Price costs={view.buildCatalog[buildingKey].cost} size={10} />
+        )
+      }
+    />
   );
 }
 
@@ -812,7 +1059,160 @@ const pieceName = (role: UnitRole, tier: UnitTier): string =>
   tier === 2 ? `${roleLabel(role, 1)} ${tierLabel(2)}` : roleLabel(role, 1);
 
 // ---------------------------------------------------------------------------------------
-// Research
+// Works and harvest
+// ---------------------------------------------------------------------------------------
+
+/** Le chantier en tête en une ligne : nom, niveau, lieu, ce qui lui reste, la file derrière. */
+function WorkLine({ view, now }: { view: PlayerView; now: number }) {
+  const running = view.me.construction;
+  if (running === null) return <>{fr.personalBoard.noWorks}</>;
+  const queued = view.me.constructionQueue.length;
+  return (
+    <>
+      <b className="font-semibold text-[var(--ink)]">
+        {fr.personalBoard.work(running.name, running.level, running.regionName)}
+      </b>
+      {' · '}
+      {fr.personalBoard.left(asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)))}
+      {queued > 0 && ` · ${fr.personalBoard.queued(queued)}`}
+    </>
+  );
+}
+
+/**
+ * **Le chantier en tête et la file derrière** : la seule échéance est celle de la tête, sa règle
+ * avance ; une ligne en file se retire et se rembourse, un chantier commencé non
+ * (`constructions.cancel`). Dessous, la récolte et les lots que le joueur commande. Au téléphone,
+ * le tout replié en une ligne qu'on déplie au toucher.
+ */
+function Works({
+  view,
+  seat,
+  now,
+  narrow,
+  observing,
+  ledger,
+  onSpent,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  narrow: boolean;
+  observing: boolean;
+  ledger: string;
+  onSpent: () => void;
+}) {
+  const drop = useMutation(api.constructions.cancel);
+  const [error, setError] = useState<string | null>(null);
+  const [unfolded, setUnfolded] = useState(false);
+  const running = view.me.construction;
+  const total = running === null ? 0 : buildMinutes(running.key, running.level);
+  const left = running === null ? 0 : currentMinutes(running.minutesLeft, view.loadedAt, now);
+  const list = (
+    <div className="grid gap-[5px]">
+      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
+      {running === null ? (
+        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+          {fr.economy.constructionNone}
+        </p>
+      ) : (
+        <div className="grid gap-[2px] text-[12px] leading-[1.2]">
+          <span>
+            <b className="font-semibold">
+              1. {fr.personalBoard.work(running.name, running.level, '')}
+            </b>
+            {running.regionName}
+          </span>
+          <span aria-hidden className="block h-[3px] bg-(--ink)/14">
+            <i
+              className="block h-full bg-[var(--arc-mine)]"
+              style={{ width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%` }}
+            />
+          </span>
+          <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+            {fr.personalBoard.left(asDuration(left))}
+          </small>
+        </div>
+      )}
+      {view.me.constructionQueue.map((entry, index) => (
+        <div key={entry.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
+          <span className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1">
+              <b className="font-semibold">
+                {index + 2}. {fr.personalBoard.work(entry.name, entry.level, '')}
+              </b>
+              {entry.regionName}
+            </span>
+            {!observing && (
+              <button
+                type="button"
+                title={fr.economy.queueCancelTitle}
+                onClick={() => {
+                  setError(null);
+                  drop({ ...seat, constructionId: entry.id as Id<'constructions'> }).then(
+                    onSpent,
+                    (problem: unknown) => handleError(problem, setError),
+                  );
+                }}
+                className="cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 hover:text-[var(--critical)]"
+              >
+                {fr.economy.queueCancel}
+              </button>
+            )}
+          </span>
+          <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+            {fr.personalBoard.queuedLine(asDuration(buildMinutes(entry.key, entry.level)))}
+          </small>
+        </div>
+      ))}
+      {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+      <span className="eyebrow mt-[4px]">{fr.personalBoard.harvestHeader}</span>
+      <p className="text-[11px] leading-[1.35] text-[var(--ink-soft)]">{ledger}</p>
+      {view.me.chains
+        .filter((chain) => chain.commanded && chain.level > 0)
+        .map((chain) => (
+          <LotControl
+            key={chain.by}
+            chain={chain}
+            seat={seat}
+            loadedAt={view.loadedAt}
+            now={now}
+            observing={observing}
+          />
+        ))}
+    </div>
+  );
+  if (!narrow)
+    return (
+      <section className="min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]">
+        {list}
+      </section>
+    );
+  return (
+    <section className="border-t border-[var(--ink)] px-[10px] py-[6px]">
+      <button
+        type="button"
+        aria-expanded={unfolded}
+        onClick={() => setUnfolded((was) => !was)}
+        className="flex w-full cursor-pointer items-center gap-[6px] px-[2px] py-[6px] text-left text-[12px] leading-[1.2]"
+      >
+        <span aria-hidden className="text-[10px]">
+          {unfolded ? '▾' : '▸'}
+        </span>
+        <span className="min-w-0 flex-1 truncate">
+          <WorkLine view={view} now={now} />
+        </span>
+        <small className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
+          {fr.personalBoard.worksFold}
+        </small>
+      </button>
+      {unfolded && list}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// Research, until its own window (#123)
 // ---------------------------------------------------------------------------------------
 
 const situationOf = (view: PlayerView, now: number) => ({
@@ -834,26 +1234,41 @@ const names = (cards: ReadonlyArray<ResearchCard>): string =>
   cards.map(cardName).join(fr.research.and);
 
 /**
- * **Les cartes de recherche** (ADR 0028 §5), par branche : leur durée, leur prix, ce qu'elles
- * attendent et ce qu'elles contrent. Celle que le QG porte avance dans sa barre ; une acquise
- * porte son tampon ; une carte à venir reste dans l'arbre.
+ * **Les cartes de recherche** (ADR 0028 §5), posées au-dessus de la bande le temps que la
+ * recherche ait sa fenêtre (#123) : on en glisse une sur le QG.
  */
-function Research({
+function ResearchPanel({
   view,
   now,
   held,
   cue,
+  onClose,
   onTake,
 }: {
   view: PlayerView;
   now: number;
   held: Held | null;
   cue: string | null;
+  onClose: () => void;
   onTake: ((card: ResearchCard) => Take) | null;
 }) {
   return (
-    <div className="px-3 pb-3 md:px-4">
-      <RackHead title={fr.research.header} note={fr.research.note} cue={cue} />
+    <section
+      aria-label={fr.research.header}
+      className="paper-grain float absolute inset-x-0 bottom-[calc(100%+8px)] border border-[var(--ink)] px-3 pt-[8px] pb-[10px]"
+    >
+      {cue !== null && <CueBubble text={cue} />}
+      <div className="flex items-center gap-2 pb-[8px]">
+        <span className="eyebrow">{fr.research.header}</span>
+        <HelpMark>{fr.research.note}</HelpMark>
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-auto cursor-pointer border border-[var(--ink)] px-[9px] py-[4px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          {fr.common.close}
+        </button>
+      </div>
       <div className="flex gap-[7px] overflow-x-auto pb-[4px]">
         {RESEARCH_CARDS.map((card) => (
           <ResearchCardTile
@@ -866,7 +1281,7 @@ function Research({
           />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -900,7 +1315,7 @@ function ResearchCardTile({
       title={label}
       aria-label={label}
       data-research-card={card}
-      className={`grid w-[150px] shrink-0 touch-none content-start gap-[2px] border border-[var(--ink)] bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`grid w-[150px] shrink-0 touch-pan-x content-start gap-[2px] border border-[var(--ink)] bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         onTake === null || done || running !== null
           ? ''
           : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'
@@ -945,7 +1360,7 @@ function ResearchCardTile({
 }
 
 /** **Une carte qui avance** : sa barre, et ce qui lui reste — ou qu'elle attend son QG. */
-export function ResearchGauge({
+function ResearchGauge({
   share,
   finishesAt,
   now,
@@ -1060,20 +1475,13 @@ function useHand({
 
   useEffect(() => () => gesture.current?.cancel(), []);
 
-  const take = (
-    what: Held,
-    event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>,
-  ): void => {
-    if (event.button !== 0) return;
+  const take = (what: Held, { element, pointerId, x, y }: Grab): void => {
     gesture.current?.cancel();
-    event.preventDefault();
-    const element = event.currentTarget;
-    const pointerId = 'pointerId' in event ? event.pointerId : null;
     if (pointerId !== null && element.hasPointerCapture(pointerId))
       element.releasePointerCapture(pointerId);
     const origin = element.getBoundingClientRect();
     const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
-    const from = pointerId === null ? home : { x: event.clientX, y: event.clientY };
+    const from = pointerId === null ? home : { x, y };
     const refusal =
       what.kind === 'tile'
         ? tileRefusalOf(latest.current.view, what.key)
@@ -1386,253 +1794,4 @@ function readingOf(
       refused: false,
     },
   };
-}
-
-// ---------------------------------------------------------------------------------------
-// The foot: works, upkeep, shortages
-// ---------------------------------------------------------------------------------------
-
-function Foot({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <span className="eyebrow block pb-[4px]">{title}</span>
-      {children}
-    </div>
-  );
-}
-
-/**
- * **Le chantier en tête et la file derrière** : la seule échéance est celle de la tête ; une ligne
- * en file se retire et se rembourse, un chantier commencé non (`constructions.cancel`).
- */
-function Works({
-  view,
-  seat,
-  now,
-  observing,
-  onSpent,
-}: {
-  view: PlayerView;
-  seat: Seat;
-  now: number;
-  observing: boolean;
-  onSpent: () => void;
-}) {
-  const drop = useMutation(api.constructions.cancel);
-  const [error, setError] = useState<string | null>(null);
-  const running = view.me.construction;
-  return (
-    <Foot title={fr.personalBoard.worksHeader}>
-      {running === null ? (
-        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.economy.constructionNone}
-        </p>
-      ) : (
-        <div className="flex items-center gap-2">
-          {!isOutpostWork(running.key) && <BuildingPlate building={running.key} height={22} />}
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
-            {running.name}{' '}
-            <span className="font-normal text-[var(--ink-soft)]">{running.regionName}</span>
-          </span>
-          <span className="shrink-0 font-(family-name:--font-mono) text-[12px]">
-            {asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now))}
-          </span>
-        </div>
-      )}
-      {view.me.constructionQueue.length > 0 && (
-        <p className="mt-[5px] text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
-          {fr.personalBoard.queueHeader(view.me.constructionQueue.length)}
-        </p>
-      )}
-      {view.me.constructionQueue.map((entry, index) => (
-        <div key={entry.id} className="mt-[3px] flex items-center gap-2 text-[11.5px]">
-          <span className="w-[20px] font-(family-name:--font-mono) text-[var(--ink-quiet)]">
-            {fr.economy.queueRank(index + 2)}
-          </span>
-          <span className="min-w-0 flex-1 truncate">
-            {entry.name}{' '}
-            <span className="text-[var(--ink-soft)]">· {fr.economy.queueLevel(entry.level)}</span>
-          </span>
-          {!observing && (
-            <button
-              type="button"
-              title={fr.economy.queueCancelTitle}
-              onClick={() => {
-                setError(null);
-                drop({ ...seat, constructionId: entry.id as Id<'constructions'> }).then(
-                  onSpent,
-                  (problem: unknown) => handleError(problem, setError),
-                );
-              }}
-              className="cursor-pointer text-[10px] tracking-[.14em] uppercase underline underline-offset-2 hover:text-[var(--critical)]"
-            >
-              {fr.economy.queueCancel}
-            </button>
-          )}
-        </div>
-      ))}
-      {error !== null && <p className="pt-1 text-[11px] text-[var(--critical)]">{error}</p>}
-    </Foot>
-  );
-}
-
-/**
- * **Ce que l'armée et l'empire mangent** : les troupes et leur palier (ADR 0028 §2), les
- * avant-postes debout, les écoutes au charbon, puis le solde de vivres — déjà net sur le bac.
- */
-function Upkeep({ view }: { view: PlayerView }) {
-  const { troops, unsupplied, foodPerHour, outpostFoodPerHour, listeningCoalPerHour, outposts } =
-    view.me.upkeep;
-  const step = upkeepStep(troops);
-  const balance = view.me.resources.food.ratePerHour;
-  const line = (label: string, drain: string, note?: string) => (
-    <div className="flex items-baseline justify-between gap-3 text-[12px]">
-      <span className="min-w-0">
-        {label}
-        {note !== undefined && (
-          <span className="block text-[10.5px] text-[var(--ink-soft)]">{note}</span>
-        )}
-      </span>
-      <span className="shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--critical)]">
-        {drain}
-      </span>
-    </div>
-  );
-  return (
-    <Foot title={fr.personalBoard.upkeepHeader}>
-      {troops > 0 &&
-        line(
-          fr.economy.upkeepTroops(troops),
-          fr.economy.upkeepDrain(foodPerHour),
-          `${fr.economy.upkeepStep(step.rate, step.nextAt, step.nextRate)}${
-            unsupplied > 0
-              ? ` · ${fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}`
-              : ` · ${fr.personalBoard.allSupplied}`
-          }`,
-        )}
-      {outpostFoodPerHour > 0 &&
-        line(fr.economy.upkeepOutposts(outposts), fr.economy.upkeepDrain(outpostFoodPerHour))}
-      {listeningCoalPerHour > 0 &&
-        line(fr.economy.upkeepListening, fr.economy.upkeepCoalDrain(listeningCoalPerHour))}
-      <div
-        className="mt-[3px] border-t border-(color:--ink)/25 pt-[3px] text-right font-(family-name:--font-mono) text-[12.5px]"
-        style={{ color: balance < 0 ? 'var(--critical)' : 'var(--ink)' }}
-      >
-        {fr.economy.upkeepBalance(balance)}
-      </div>
-    </Foot>
-  );
-}
-
-type Shortage =
-  | { readonly key: string; readonly said: string; readonly fix: string | null }
-  | { readonly key: 'unlinked'; readonly cut: number };
-
-/** **Une pénurie se dit avec ce qui la répare** : on ne perd jamais le joueur (ADR 0028 §1). */
-function shortagesOf(view: PlayerView): ReadonlyArray<Shortage> {
-  const cut = unlinkedProducers(view).length;
-  return [
-    ...(view.me.starving ? [{ key: 'food', said: fr.economy.upkeepStarving, fix: null }] : []),
-    ...(view.me.upkeep.listeningSilent
-      ? [
-          {
-            key: 'listening',
-            said: `${fr.buildings.listening} ${fr.economy.listeningSilent}`,
-            fix: fr.economy.listeningSilentFix,
-          },
-        ]
-      : []),
-    ...view.me.chains.flatMap((chain) =>
-      chain.level > 0 && chain.state === 'starved' && chain.missing !== null
-        ? [
-            {
-              key: chain.by,
-              said: fr.personalBoard.starvedChain(
-                fr.buildings[chain.by],
-                fr.resources[chain.missing],
-              ),
-              fix: fr.personalBoard.starvedChainFix(aBuilding(PRODUCER_OF[chain.missing])),
-            },
-          ]
-        : [],
-    ),
-    ...(cut > 0 ? [{ key: 'unlinked' as const, cut }] : []),
-  ];
-}
-
-function Shortages({ shortages }: { shortages: ReadonlyArray<Shortage> }) {
-  return (
-    <Foot title={fr.personalBoard.shortagesHeader}>
-      {shortages.length === 0 && (
-        <p className="text-[11.5px] text-[var(--ink-soft)]">{fr.personalBoard.noShortage}</p>
-      )}
-      {shortages.map((item) =>
-        'cut' in item ? (
-          <div key={item.key} className="flex items-center gap-2 pt-[2px]">
-            <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
-            <span className="text-[11px] leading-[1.35] text-[var(--critical)]">
-              {fr.economy.unlinkedSites(item.cut)}
-            </span>
-          </div>
-        ) : (
-          <p key={item.key} className="pb-[3px] text-[11.5px] leading-[1.4] text-[var(--critical)]">
-            <span className="font-semibold">{item.said}</span>
-            {item.fix !== null && <span className="text-[var(--ink-soft)]"> — {item.fix}</span>}
-          </p>
-        ),
-      )}
-    </Foot>
-  );
-}
-
-/**
- * **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout — sa région, son
- * niveau et ce qu'il fait, l'écoute avec sa note, l'arsenal débordé quand son bac est plein.
- */
-function Census({ view }: { view: PlayerView }) {
-  const hq = view.me.buildings.find((building) => building.key === 'hq') ?? null;
-  const others = view.me.buildings.filter((building) => building.key !== 'hq');
-  const region = (regionId: string) =>
-    view.me.regions.find((candidate) => candidate.id === regionId)?.name ?? regionId;
-  const chain = (key: BuildingKey) => view.me.chains.find((candidate) => candidate.by === key);
-  return (
-    <Foot title={fr.personalBoard.censusHeader}>
-      {hq === null ? (
-        <p className="text-[11.5px] leading-[1.4] text-[var(--critical)]">
-          {fr.personalBoard.hqMissing}
-        </p>
-      ) : (
-        <p className="text-[12px] leading-[1.4]">
-          <span className="font-semibold">{fr.buildings.hq}</span>{' '}
-          <span className="text-[var(--ink-soft)]">
-            {fr.personalBoard.hqLine(view.me.hqLevel, MAX_HQ_LEVEL, view.me.slots.total)}
-          </span>
-        </p>
-      )}
-      {others.map((building) => (
-        <p key={building.id} className="mt-[3px] text-[11.5px] leading-[1.35]">
-          <span className="font-semibold">{fr.buildings[building.key]}</span>{' '}
-          <span className="font-(family-name:--font-mono) text-[10.5px]">
-            {fr.common.levelShort(building.level)}
-          </span>{' '}
-          <span className="text-[var(--ink-soft)]">· {region(building.regionId)} · </span>
-          {building.key === 'listening' ? (
-            view.me.upkeep.listeningSilent ? (
-              <span className="text-[var(--critical)]">{fr.economy.listeningSilent}</span>
-            ) : (
-              <span className="text-[var(--ink-soft)]">
-                {fr.personalBoard.listeningUnfigured}{' '}
-                <HelpMark>{fr.personalBoard.listeningTemporary}</HelpMark>
-              </span>
-            )
-          ) : (
-            <span className="text-[var(--ink-soft)]">{fr.buildingEffects[building.key]}</span>
-          )}
-          {chain(building.key)?.state === 'overflowing' && (
-            <span className="text-[var(--notable-paper)]"> · {fr.personalBoard.overflowing}</span>
-          )}
-        </p>
-      ))}
-    </Foot>
-  );
 }

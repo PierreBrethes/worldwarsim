@@ -2615,7 +2615,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       telegraphUnread={telegraph.unread}
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
-      economyCue={stepCue?.kind === 'rack' && !boardOpen ? fr.firstSteps.cue.economy : null}
       onResumeSteps={resumeSteps}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
@@ -2905,7 +2904,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               </div>
             )}
             {narrow && sent !== null && (
-              <div className="absolute inset-x-[10px] bottom-[96px] z-[var(--z-indicator)]">
+              <div
+                className="absolute inset-x-[10px] bottom-[96px] z-[var(--z-indicator)]"
+                style={{ marginBottom: MAT_LIFT }}
+              >
                 <SentNotice
                   order={sent.order}
                   destination={sent.destination}
@@ -2923,21 +2925,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
               {!aimingOnPhone && (
-                <GroundPanel
-                  selected={country ?? null}
-                  hoveredCountry={quietHover ? null : hoveredCountry}
-                  hoveredRegion={quietHover ? null : hoveredRegion}
-                  holding={
-                    hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
-                  }
-                  suspendedUntil={
-                    hoveredRegion === null
-                      ? null
-                      : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
-                  }
-                  view={view}
-                  onDeselect={() => select(null)}
-                />
+                <div style={{ marginBottom: MAT_LIFT }}>
+                  <GroundPanel
+                    selected={country ?? null}
+                    hoveredCountry={quietHover ? null : hoveredCountry}
+                    hoveredRegion={quietHover ? null : hoveredRegion}
+                    holding={
+                      hoveredRegion === null
+                        ? null
+                        : (knownRegionById.get(hoveredRegion.id) ?? null)
+                    }
+                    suspendedUntil={
+                      hoveredRegion === null
+                        ? null
+                        : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
+                    }
+                    view={view}
+                    onDeselect={() => select(null)}
+                  />
+                </div>
               )}
               {!narrow && (
                 <div className="pointer-events-none flex flex-col items-end gap-(--table-gap) [&>*]:pointer-events-auto">
@@ -2974,7 +2980,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place au
             cartouche « transmis » le temps qu'il se lit. */}
             {narrow && sent === null && replay === null && (
-              <div className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]">
+              <div
+                className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]"
+                style={{ marginBottom: MAT_LIFT }}
+              >
                 <MapButtons
                   narrow
                   layers={view.mode !== 'blitz'}
@@ -3007,6 +3016,29 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               </div>
             )}
           </div>
+          {/* **Le sous-main** (#122) : en Mondiale, la bande du plateau personnel est toujours sur
+          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire. */}
+          {!blitz && replay === null && (
+            <Suspense fallback={null}>
+              <PersonalBoard
+                view={view}
+                seat={seat}
+                open={boardOpen}
+                onOpen={(open) =>
+                  open ? openWindow('personalBoard') : closeWindow('personalBoard')
+                }
+                focused={boardOpen ? (focused ?? null) : null}
+                onHoldTile={holdTile}
+                onPlaceTile={placeTile}
+                onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
+                cue={
+                  stepCue?.kind === 'rack' && stepText !== null
+                    ? { rack: stepCue.rack, text: stepText }
+                    : null
+                }
+              />
+            </Suspense>
+          )}
           <Suspense fallback={null}>
             {windows.map((name, rank) => {
               const windowProps = {
@@ -3061,23 +3093,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     />
                   );
                 case 'personalBoard':
-                  return (
-                    <PersonalBoard
-                      key={name}
-                      view={view}
-                      seat={seat}
-                      focused={focused ?? null}
-                      onClose={windowProps.onClose}
-                      onHoldTile={holdTile}
-                      onPlaceTile={placeTile}
-                      onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
-                      cue={
-                        stepCue?.kind === 'rack' && stepText !== null
-                          ? { rack: stepCue.rack, text: stepText }
-                          : null
-                      }
-                    />
-                  );
+                  // The band below is always on the table: the window only unfolds it.
+                  return null;
                 case 'nation':
                   return (
                     <NationWindow
@@ -3146,6 +3163,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
+
+/** **Ce qui se pose au bas de la carte se lève au-dessus du sous-main** (#122) : de ce que la bande
+ *  prend au-delà de la marge de la table (`--mat-rise`, publié par la bande). */
+const MAT_LIFT = 'max(0px, var(--mat-rise, 0px) - var(--table-margin))';
 
 /** **À l'ouverture d'une Mondiale, la carte se cadre sur la nation** : assez près pour qu'elle
  *  tienne l'écran, sans fond de table. @a-mesurer */

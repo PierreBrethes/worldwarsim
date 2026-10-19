@@ -85,7 +85,7 @@ function Ticket({
       style={
         {
           maxHeight:
-            'calc((100dvh - var(--board-top) - 6px - var(--table-margin)) / var(--hud-scale))',
+            'calc((100dvh - var(--board-top) - 6px - max(var(--table-margin), var(--mat-rise, 0px))) / var(--hud-scale))',
           WebkitMask: PERFORATION,
           mask: PERFORATION,
           fontFamily: 'var(--font-body)',

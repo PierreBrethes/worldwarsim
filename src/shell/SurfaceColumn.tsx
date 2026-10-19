@@ -24,14 +24,11 @@ export function SurfaceColumn({
   view,
   telegraphUnread,
   todo,
-  economyCued = false,
   ref,
 }: {
   view: PlayerView;
   telegraphUnread: number;
   todo: ReactNode;
-  /** L'anneau des premiers pas sur « Écon. » : le geste du pas allumé se prend là. */
-  economyCued?: boolean;
   ref?: Ref<HTMLElement>;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
@@ -46,7 +43,6 @@ export function SurfaceColumn({
     icon: ReactNode,
     corner?: ReactNode,
     count = 0,
-    cued = false,
   ) => {
     const active = windowOpen(search, name);
     return (
@@ -56,7 +52,7 @@ export function SurfaceColumn({
         title={surface.title}
         aria-label={surface.title}
         aria-current={active ? 'true' : undefined}
-        className={cued ? `${SQUARE} first-step-ring` : SQUARE}
+        className={SQUARE}
       >
         {icon}
         <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
@@ -88,15 +84,7 @@ export function SurfaceColumn({
           sur la réglette, en fonds, et l'édition finale s'ouvre à l'horloge. */}
       {!blitz &&
         square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
-      {!blitz &&
-        square(
-          'personalBoard',
-          fr.rail.economy,
-          <IndustryGlyph size={18} />,
-          undefined,
-          0,
-          economyCued,
-        )}
+      {!blitz && square('personalBoard', fr.rail.economy, <IndustryGlyph size={18} />)}
       {square('gunnery', fr.rail.gunnery, <AbacusMark size={17} />)}
       {square(
         'journal',

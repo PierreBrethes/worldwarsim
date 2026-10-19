@@ -2852,9 +2852,8 @@ export const fr = {
     },
     /** Ce que dit la bulle, là où le geste se fait. */
     cue: {
-      economy: 'Ouvrez Écon.',
-      /** Au téléphone, « Écon. » est un rond du coin : on touche d'abord le coin. */
-      corner: '(touchez le coin)',
+      /** La bande repliée : on la déplie d'abord. */
+      unfold: 'Dépliez le plateau personnel',
       hq: 'La tuile du QG, lâchée sur votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
       pieces: 'Une pièce, lâchée sur la caserne',
@@ -3398,6 +3397,10 @@ export const fr = {
     header: 'Plateau personnel',
     open: 'déplier le plateau personnel',
     fold: 'replier le plateau personnel',
+    /** Les deux onglets du plateau à tuiles, et ce que fait chacun au survol. */
+    tabs: { buildings: 'Bâtiments', troops: 'Troupes' },
+    previous: 'précédentes',
+    next: 'suivantes',
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
     ofCap: (cap: number) => `/ ${num(cap)}`,
     rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
@@ -3408,14 +3411,18 @@ export const fr = {
         : `Récolte · ${num(hours)} h depuis que vous avez quitté le plateau personnel`,
     harvestNone: 'Rien n’est entré ni sorti depuis votre dernière visite.',
     harvestFirst: 'Ce qui entre se lira ici à votre prochaine visite.',
+    /** La récolte pliée dans la bande : depuis quand, puis l'écart de chaque bac. */
+    harvestSince: (hours: number) => (hours < 1 ? 'depuis peu' : `depuis ${num(hours)} h`),
+    harvestReplay: 'revoir la récolte',
+    harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
-    tilesHeader: 'tuiles',
     tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
-    piecesHeader: 'réserve de pièces',
     piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
     piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',
+    /** Où une pièce se forme. */
+    pieceSite: (building: string) => `sur ${lowerFirst(building)}`,
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     form: (role: string, building: string) =>
@@ -3424,32 +3431,16 @@ export const fr = {
     dropBack: 'Relâchée ici, elle rentre',
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
-    worksHeader: 'chantiers',
-    upkeepHeader: 'entretien',
-    shortagesHeader: 'pénuries',
-    censusHeader: 'recensement',
-    hqLine: (level: number, maximum: number, slots: number) =>
-      `niveau ${level} sur ${maximum} · ${slots} slots de mouvement`,
-    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
-    listeningUnfigured: 'rayon de révélation non chiffré',
-    listeningTemporary:
-      'La station d’écoute est ici en attendant l’espionnage : un jalon inerte serait pire.',
-    overflowing: 'débordé — bac plein',
-    allSupplied: 'toutes ravitaillées, sol national ou rayon d’un avant-poste',
-    queueHeader: (count: number) =>
-      `en file — ${count} chantier${plural(count, '', 's')}, payé${plural(count, '', 's')} d’avance`,
-    /** Le pied replié en une ligne : le chantier, le solde de vivres, les pénuries. */
-    details: 'chantiers, entretien, pénuries, recensement',
+    worksHeader: 'chantiers · un seul avance',
+    worksFold: 'chantiers',
     noWorks: 'aucun chantier',
-    works: (name: string, time: string, queued: number) =>
-      `${name} · ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
-    shortages: (count: number) =>
-      count === 0 ? 'aucune pénurie' : `${count} pénurie${plural(count, '', 's')}`,
-    noShortage: 'Aucune pénurie.',
-    /** Une pénurie, et ce qui la répare : on ne perd jamais le joueur (ADR 0028 §1). */
+    /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
+    work: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
+    left: (time: string) => `reste ${time}`,
+    queued: (count: number) => `${count} en file`,
+    queuedLine: (time: string) => `${time}, en file`,
     starvedChain: (building: string, resource: string) =>
       `${building} à sec de ${lowerFirst(resource)}`,
-    starvedChainFix: (a: string) => `bâtissez ou élevez ${a}`,
   },
 
   /** **Les cartes de recherche** (ADR 0028 §5) : sur le plateau personnel, sur le QG. */

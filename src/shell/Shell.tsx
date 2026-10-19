@@ -14,7 +14,6 @@ export function Shell({
   telegraphUnread,
   todo,
   onShowBriefing,
-  economyCue = null,
   onResumeSteps = null,
   children,
 }: {
@@ -25,9 +24,6 @@ export function Shell({
   todo: ReactNode;
   /** L'aide-mémoire, que le dossier de la nation rouvre sous le seuil. */
   onShowBriefing: () => void;
-  /** **La bulle des premiers pas**, quand le geste du pas allumé se prend au plateau personnel
-   *  encore fermé : l'entrée « Écon. » porte un anneau, et le coin du téléphone une bulle. */
-  economyCue?: string | null;
   /** Reprendre les premiers pas repliés ou passés, depuis le dossier du téléphone. */
   onResumeSteps?: (() => void) | null;
   children: ReactNode;
@@ -73,12 +69,7 @@ export function Shell({
                 ref={top}
               />
               {tickets}
-              <Protractor
-                view={view}
-                telegraphUnread={telegraphUnread}
-                todo={todo}
-                economyCue={economyCue}
-              />
+              <Protractor view={view} telegraphUnread={telegraphUnread} todo={todo} />
             </main>
           </div>
         </BoardInsetsContext.Provider>
@@ -93,13 +84,7 @@ export function Shell({
           {children}
           <Reglette view={view} pinned={pinned} onPin={togglePin} ref={top} />
           {tickets}
-          <SurfaceColumn
-            view={view}
-            telegraphUnread={telegraphUnread}
-            todo={todo}
-            economyCued={economyCue !== null}
-            ref={side}
-          />
+          <SurfaceColumn view={view} telegraphUnread={telegraphUnread} todo={todo} ref={side} />
         </main>
       </div>
     </BoardInsetsContext.Provider>
