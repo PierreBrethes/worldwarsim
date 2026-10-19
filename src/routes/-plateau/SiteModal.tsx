@@ -17,6 +17,7 @@ import { equipmentLabel } from '@/emblems/units/equipment';
 import type { UnitTier } from '@/domain/troops';
 import {
   DOMAIN_BY_ROLE,
+  hasSiteSheet,
   marchingTroopIds,
   stationKeyOf,
   TIERS_BY_ROLE,
@@ -72,7 +73,7 @@ export function SiteModal({
   const building = view.me.buildings.find((candidate) => candidate.id === buildingId) ?? null;
   /** Un lien mort — le bâtiment est tombé, l'URL le nomme encore — n'ouvre pas un cadre vide :
    *  il n'ouvre rien, et la carte reste ce qu'elle est. */
-  if (building === null) return null;
+  if (building === null || !hasSiteSheet(view.mode, building.key)) return null;
 
   return (
     <FloatingWindow name="site" onClose={onClose} {...windowProps} alignment="top" width={1180}>

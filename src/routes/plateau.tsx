@@ -136,6 +136,7 @@ import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underwa
 import {
   carrierIn,
   PROJECTION_BY_DOMAIN,
+  hasSiteSheet,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
@@ -293,10 +294,6 @@ function freeCapacityOf(view: PlayerView, troopIds: ReadonlyArray<string>): numb
 /** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
-
-/** The three buildings that station a column — their mast opens a garrison. Since ADR 0019 they
- *  no longer decide what it may ask for, only where a domain gate is read. */
-const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
 
 const JournalWindow = lazy(() =>
   import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
@@ -819,7 +816,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
-      const siteModal = view.mode === 'blitz' || PROJECTION_KEYS.includes(standing.key);
+      const siteModal = hasSiteSheet(view.mode, standing.key);
       if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
@@ -837,10 +834,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }
       }
       void navigate({
-        search: (previous) => ({
-          ...withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]),
-          building: buildingId,
-        }),
+        search: (previous) => {
+          const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
+          /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
+          const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
+          return { ...next, windows, building: buildingId };
+        },
       });
     },
     [
