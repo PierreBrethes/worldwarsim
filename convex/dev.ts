@@ -112,6 +112,24 @@ export const fillStocks = internalMutation({
 });
 
 /**
+ * **Un QG élevé d'un coup**, pour la démo des chantiers parallèles (#136) : le niveau fait les voies.
+ *
+ * `npx convex run dev:promoteHq '{"playerId":"…","level":3}'`
+ */
+export const promoteHq = internalMutation({
+  args: { playerId: v.id('players'), level: v.number() },
+  handler: async (ctx, { playerId, level }) => {
+    const hq = (
+      await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).find((building) => building.key === 'hq');
+    if (hq) await ctx.db.patch(hq._id, { level });
+  },
+});
+
+/**
  * **Une visite passée du plateau personnel**, pour la démo de la récolte : datée de `hours` plus
  * tôt, avec des stocks qui font paraître à l'ouverture suivante ce que `gains` dit — positif
  * entré, négatif sorti.

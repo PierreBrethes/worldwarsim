@@ -21,7 +21,8 @@
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  * `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
- * (production et consommation, #121).
+ * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
+ * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
  *
  *     npm run demo:mondiale
  *
@@ -49,6 +50,7 @@ const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
+const works = process.argv.includes('--chantiers');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -195,6 +197,35 @@ if (!bare) {
         building,
         regionId: site.regionId,
         point: { lon: site.lon, lat: site.lat },
+      });
+    }
+  }
+  if (works && scene.a !== null) {
+    const paris = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).me.regions.find((one) => one.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'hq',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
+    });
+    cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 3 })]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const [building, id] of [
+      ['barracks', 'FRA-5268'],
+      ['warehouse', 'FRA-5312'],
+      ['barracks', 'FRA-5321'],
+      ['warehouse', 'FRA-5328'],
+    ]) {
+      const region = me.regions.find((one) => one.id === id);
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId: id,
+        point: { lon: region.point[0], lat: region.point[1] },
       });
     }
   }
