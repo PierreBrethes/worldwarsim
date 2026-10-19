@@ -648,6 +648,7 @@ export type DispatchSeverity = 'critical' | 'notable' | 'routine';
 export type DispatchKind =
   | 'seasonConcluded'
   | 'pointTaken'
+  | 'depotBurned'
   /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
   | 'assault'
   | 'attacked'
@@ -947,7 +948,7 @@ type NoticeBody =
   | {
       readonly kind: 'pointsDrawn';
       readonly at: number;
-      readonly keys: ReadonlyArray<StrategicPointKey>;
+      readonly keys?: ReadonlyArray<StrategicPointKey>;
     }
   /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
   | {
@@ -1317,6 +1318,8 @@ export type PlayerView = {
     readonly regionId: string;
     /** Where it stood when seen (ADR 0029): its mast, and the point a capture marches at. */
     readonly point: LonLat;
+    /** Un entrepôt du teneur de Dakar : ses réserves ne se pillent pas (`SEALED`). */
+    readonly sealed?: true;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{

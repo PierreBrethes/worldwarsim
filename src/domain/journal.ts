@@ -4,6 +4,7 @@ import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
+import { FIRST_SEVEN } from './strategic-points';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
 import { SUPPLY_KEYS, type SupplyLoad } from './logistics';
@@ -526,17 +527,17 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'pointTaken',
-        text: fr.points.drawn(notice.keys),
+        text: fr.points.drawn(notice.keys ?? FIRST_SEVEN),
       };
     case 'depotBurned':
       return {
         at: notice.at,
         severity: 'notable',
-        kind: 'pointTaken',
+        kind: 'depotBurned',
         text: fr.points.depotBurned(
           notice.side,
           countryLabel(notice.country),
-          supplyWords(notice.lost) || 'rien',
+          supplyWords(notice.lost) || fr.points.nothing,
         ),
       };
     case 'readAtIstanbul':

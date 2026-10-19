@@ -86,7 +86,18 @@ export function topUp(
  * paient leur route comme avant ; ceux-ci ne consomment rien, ne manquent de rien, et ne portent
  * pas de jerrican à l'écran.
  */
-export const FUEL_FREE_ROLES: ReadonlyArray<UnitRole> = ['landTransport', 'cargo'];
+const FUEL_FREE_ROLES: ReadonlyArray<UnitRole> = ['landTransport', 'cargo'];
+
+/** Ce moteur roule-t-il sans plein ? Le seul prédicat de Singapour, lu par le serveur et la vue. */
+export const isFuelFree = (role: UnitRole, holdsSingapore: boolean): boolean =>
+  holdsSingapore && FUEL_FREE_ROLES.includes(role);
+
+/**
+ * **Bakou** : le teneur reprend le plein d'une troupe à l'arrêt hors de toute ancre, comme si elle
+ * était ancrée — pour les moteurs seulement. Le seul prédicat, lu par `convex/supplies.ts`.
+ */
+export const bakuRefuels = (role: UnitRole, holdsBaku: boolean, anchored: boolean): boolean =>
+  holdsBaku && !anchored && fullSupplies(role).fuel > 0;
 
 export type FuelShortfall = {
   readonly needed: number;

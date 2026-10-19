@@ -274,7 +274,7 @@ export const setClock = (t: Bench, seasonId: Id<'seasons'>, hours: number | null
   t.run((ctx) => ctx.db.patch(seasonId, { durationHours: hours }));
 
 /** Un point stratégique de la saison, posé neutre s'il n'a pas été tiré (`layPoint`). */
-export const pointOf = async (
+export const neutralPoint = async (
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   key: Doc<'strategicPoints'>['key'],
@@ -289,7 +289,7 @@ export const holdPoint = (
 ) =>
   t.run(async (ctx) => {
     const player = await seatIn(ctx, holder);
-    const point = await pointOf(ctx, seat.seasonId, key);
+    const point = await neutralPoint(ctx, seat.seasonId, key);
     await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
     return point._id;
   });

@@ -23,7 +23,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
-import { holdsPoint } from '../strategicPoints';
+import { holdsPoint, sealedByDakar } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
@@ -53,10 +53,10 @@ import {
 } from './forces';
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
 import {
-  FUEL_FREE_ROLES,
   fuelRefusalOf,
   fuelStepsFor,
   fullSupplies,
+  isFuelFree,
   outOfRounds,
   suppliesOf,
 } from '../../src/domain/supplies';
@@ -181,6 +181,8 @@ export type SurveyedPlunderTarget = {
   readonly key: Doc<'buildings'>['key'];
   readonly regionId: string;
   readonly point: LonLat;
+  /** Dakar : l'entrepôt est celui de son teneur, refusé avant le départ (`SEALED`). */
+  readonly sealed: boolean;
 };
 
 /**
@@ -238,6 +240,7 @@ export async function surveyedTarget(
     key: seen.key,
     regionId: seen.regionId,
     point: pointOfBuilding(building ?? seen),
+    sealed: building !== null && (await sealedByDakar(ctx, building)),
   };
 }
 
@@ -246,7 +249,7 @@ export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
   const region = regionFacts(target.regionId);
   if (region === null || target.point === null) fail('UNKNOWN_BUILDING');
   return {
-    aim: { kind: 'building', buildingId: target._id, key: target.key },
+    aim: { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
     target: { kind: 'building', buildingId: target._id },
     point: target.point,
     name: region.name,
@@ -272,6 +275,7 @@ export async function captureAimOf(
         key: neutral.key,
         regionId: neutral.regionId,
         point: pointOfBuilding(neutral),
+        sealed: false,
       });
     }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
@@ -671,15 +675,13 @@ export async function slotsTaken(
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
   ];
-  if (!(await holdsHalifax(ctx, player))) return holders.length;
+  if (!(await holdsPoint(ctx, player, 'halifax'))) return holders.length;
   let kept = 0;
   for (const troopIds of holders) {
     if (!isMaritime(await crewOf(ctx, troopIds))) kept += 1;
   }
   return kept;
 }
-
-const holdsHalifax = (ctx: QueryCtx, player: Doc<'players'>) => holdsPoint(ctx, player, 'halifax');
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
   const crew = [];
@@ -699,7 +701,7 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
-  if ((await holdsHalifax(ctx, player)) && isMaritime(await crewOf(ctx, troopIds))) return;
+  if ((await holdsPoint(ctx, player, 'halifax')) && isMaritime(await crewOf(ctx, troopIds))) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
   if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
@@ -718,29 +720,26 @@ export function fuelBill(
   /** **Un largage paie l'aller-retour** (ADR 0028 §4) : la route compte deux fois. */
   roundTrip = false,
   /** **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. */
-  fuelFree = false,
+  holdsSingapore = false,
 ) {
   const column = troops.map(seatedOf);
   const seated = seatLoose(column);
   /** À bord, c'est le transport de la colonne qui le porte — un `carriedBy` resté d'un
    *  transport parti ailleurs ne fait rouler personne gratis (`carrierIn`). */
-  const drivers = blitz
+  const engines = blitz
     ? []
     : troops.filter(
         (troop) =>
           fullSupplies(troop.role).fuel > 0 &&
-          !(fuelFree && FUEL_FREE_ROLES.includes(troop.role)) &&
           carrierIn(seatedOf(troop), column) === null &&
           !seated.has(troop._id),
       );
+  const drivers = engines.filter((troop) => !isFuelFree(troop.role, holdsSingapore));
   const km = Math.round(distanceUnits * (roundTrip ? 2 : 1) * KM_PER_UNIT);
   return {
     drivers,
     /** Singapour a dispensé au moins un moteur de cette colonne : la carte le dit. */
-    freed:
-      fuelFree &&
-      !blitz &&
-      troops.some((troop) => FUEL_FREE_ROLES.includes(troop.role) && !seated.has(troop._id)),
+    freed: engines.length > drivers.length,
     km,
     steps: drivers.length === 0 ? 0 : fuelStepsFor(km),
     short: fuelRefusalOf(drivers, km),
@@ -870,7 +869,7 @@ export async function march(
     route.distanceUnits,
     column.blitz !== undefined,
     airdrop !== undefined,
-    await holdsPoint(ctx, (await ctx.db.get(playerId))!, 'singapore'),
+    await holdsPoint(ctx, { _id: playerId, seasonId: season._id }, 'singapore'),
   );
   if (fuel.short !== null)
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });

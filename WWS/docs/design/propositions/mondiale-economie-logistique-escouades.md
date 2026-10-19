@@ -244,7 +244,7 @@ personnel » : « le plateau » seul désigne la table.
 |---|---|---|
 | Bakou | vos motorisés font le plein partout | ils reprennent leur pétrole sur le plateau personnel, ancrés ou non ; la règle prend tout son poids (★★ → ★★★) |
 | Narvik | vos exploitations produisent même hors réseau | règle inchangée ; elle vaut plus, puisque le pétrole et le fer d'ailleurs se tiennent par avant-poste |
-| Dakar | vos réserves ne se pillent pas | elle s'étend aux dépôts : un dépôt du teneur, capturé, brûle au lieu de passer |
+| Dakar | vos réserves ne se pillent pas | elle s'étend aux dépôts : un dépôt du teneur, capturé, brûle au lieu de passer ; le pillage d'un entrepôt du teneur est refusé avant le départ (`SEALED`) ; la saisie du stock à la chute du QG n'est pas un pillage, Dakar ne la bloque pas |
 | Singapour | vos blindés et camions se forment sans pétrole → **vos camions et vos cargos roulent sans plein** | l'ancienne règle s'affaiblit avec le plein (un blindé formé sans pétrole reste à sec) ; la nouvelle rend la logistique du teneur gratuite en carburant |
 
 ## 10. Le code que ça rend mort

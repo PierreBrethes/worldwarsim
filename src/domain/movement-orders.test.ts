@@ -122,6 +122,15 @@ describe('what an attack may be aimed at', () => {
       plunderOrderRefusalOf({ kind: 'building', buildingId: 'w', key: 'warehouse' }, dry, false),
     ).toBe('NO_ROUNDS');
   });
+
+  /** Dakar : le teneur est public, donc le refus se dit avant le geste. */
+  it('refuses to plunder the warehouse of the holder of Dakar', () => {
+    const aim = { kind: 'building' as const, buildingId: 'w', key: 'warehouse' as const };
+    expect(plunderOrderRefusalOf({ ...aim, sealed: true }, column(['infantry']), false)).toBe(
+      'SEALED',
+    );
+    expect(plunderOrderRefusalOf(aim, column(['infantry']), false)).toBeNull();
+  });
 });
 
 describe('what a column may ask for', () => {

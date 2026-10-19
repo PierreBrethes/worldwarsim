@@ -405,7 +405,7 @@ async function stop(
 }
 
 /**
- * **Dakar** (P11) : un dépôt d'avant-poste pris au teneur brûle au lieu de passer au capteur. Son
+ * **Dakar** (P11) : un dépôt d'avant-poste capturé au teneur brûle au lieu de passer au capteur. Son
  * contenu est perdu, et les deux camps l'apprennent — une dépêche chacun.
  */
 async function burnDepotAtDakar(
@@ -502,6 +502,7 @@ export const complete = internalMutation({
         level: Math.max(1, site.level - 1),
       });
       taken.push(site);
+      // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
       await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
       await toIrregulars(ctx, capture, loser, now);
     } else if (isPoint(site)) {

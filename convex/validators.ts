@@ -625,7 +625,8 @@ export const NOTICE = v.union(
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('pointsDrawn'),
-    keys: v.array(STRATEGIC_POINT_KEY),
+    /** Absent sur les notices d'avant le tirage : les sept du premier vivier. */
+    keys: v.optional(v.array(STRATEGIC_POINT_KEY)),
   }),
   /** **Dakar brûle le dépôt** (P11) : un avant-poste pris à son teneur ne livre pas son dépôt. */
   v.object({

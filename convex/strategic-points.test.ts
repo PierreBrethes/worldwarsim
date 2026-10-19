@@ -14,7 +14,7 @@ import {
   holdPoint,
   joinSeat,
   placeHq,
-  pointOf,
+  neutralPoint,
   seatIn,
   surveyCamp,
   TEST_SEASON_SEED,
@@ -58,7 +58,7 @@ async function launched(t: Bench, mode: 'mondiale' | 'blitz' = 'mondiale') {
 const pointsOf = (t: Bench) => t.run((ctx) => ctx.db.query('strategicPoints').collect());
 const playerOf = (t: Bench, seat: Seat) => t.run((ctx) => seatIn(ctx, seat));
 const pointCalled = (t: Bench, key: Doc<'strategicPoints'>['key']) =>
-  t.run(async (ctx) => pointOf(ctx, (await ctx.db.query('seasons').first())!._id, key));
+  t.run(async (ctx) => neutralPoint(ctx, (await ctx.db.query('seasons').first())!._id, key));
 
 /** Une infanterie posée sur le point même, prête à le prendre : la marche est celle de tout
  *  ordre, ce qui se prouve ici est ce que la prise fait du point. */
@@ -241,7 +241,7 @@ describe('winning the race', () => {
     t.run(async (ctx) => {
       const player = await seatIn(ctx, seat);
       for (const key of keys) {
-        await handOver(ctx, await pointOf(ctx, seat.seasonId, key), player._id, Date.now());
+        await handOver(ctx, await neutralPoint(ctx, seat.seasonId, key), player._id, Date.now());
       }
     });
   const seasonOf = (t: Bench) => t.run(async (ctx) => (await ctx.db.query('seasons').first())!);

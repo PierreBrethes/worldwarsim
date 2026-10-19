@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { holdsPoint, pointsView, seasonPoints } from './strategicPoints';
+import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -73,7 +73,7 @@ import {
   regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { FUEL_FREE_ROLES, suppliesOf } from '../src/domain/supplies';
+import { isFuelFree, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
@@ -241,7 +241,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     specializationLocked: locked.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyedInstallations = (
+  const surveyed = (
     await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerHasInstallations', (q) =>
@@ -255,6 +255,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       regionId: survey.regionId,
       point: pointOfBuilding(installation),
     })),
+  );
+  /** Dakar : les entrepôts de son teneur, que l'ordre refusera de piller. */
+  const surveyedInstallations = await Promise.all(
+    surveyed.map(async (installation) => {
+      const row =
+        installation.key === 'warehouse'
+          ? await ctx.db.get(installation.id as Id<'buildings'>)
+          : null;
+      return row !== null && (await sealedByDakar(ctx, row))
+        ? { ...installation, sealed: true as const }
+        : installation;
+    }),
   );
   const lootSightings = await ctx.db
     .query('lootCrateSightings')
@@ -657,7 +669,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(depotOf(troop._id) === null ? {} : { depotId: depotOf(troop._id)! }),
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
-        ...(singapore && FUEL_FREE_ROLES.includes(troop.role) ? { fuelFree: true as const } : {}),
+        ...(isFuelFree(troop.role, singapore) ? { fuelFree: true as const } : {}),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
          *  isolée, que seul un largage ravitaille. */

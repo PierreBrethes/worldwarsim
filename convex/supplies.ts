@@ -1,7 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
-  fullSupplies,
+  bakuRefuels,
   suppliesOf,
   topUp,
   type Supplies,
@@ -33,10 +33,10 @@ export async function toppedUp(
 ): Promise<{
   readonly troops: Array<Doc<'troops'>>;
   readonly bill: Bill;
-  /** Les troupes dont le plein a été repris à Bakou, hors de toute ancre. */
-  readonly viaBaku: ReadonlySet<string>;
+  /** Combien de troupes ont repris leur plein à Bakou, hors de toute ancre. */
+  readonly viaBaku: number;
 }> {
-  const none = { troops: [...troops], bill: new Map(), viaBaku: new Set<string>() };
+  const none = { troops: [...troops], bill: new Map(), viaBaku: 0 };
   const player = await ctx.db.get(playerId);
   if (player === null || troops.length === 0 || (await isBlitz(ctx, player.seasonId))) return none;
   const { storeOf } = await upkeepOf(ctx, playerId, at);
@@ -51,7 +51,7 @@ export async function toppedUp(
   for (const troop of troops) {
     if (marching.has(troop._id)) continue;
     let store = storeOf[troop._id];
-    if (store === undefined && baku && fullSupplies(troop.role).fuel > 0) {
+    if (bakuRefuels(troop.role, baku, store !== undefined)) {
       store = 'board';
       unanchored.add(troop._id);
     }
@@ -80,11 +80,9 @@ export async function toppedUp(
       return refill === undefined ? troop : { ...troop, ...refill };
     }),
     bill,
-    viaBaku: new Set(
-      [...unanchored].filter(
-        (id) => refills.get(id)!.fuel > suppliesOf(troops.find((troop) => troop._id === id)!).fuel,
-      ),
-    ),
+    viaBaku: [...unanchored].filter(
+      (id) => refills.get(id)!.fuel > suppliesOf(troops.find((troop) => troop._id === id)!).fuel,
+    ).length,
   };
 }
 

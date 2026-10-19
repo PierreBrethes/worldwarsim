@@ -17,7 +17,7 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { holdsPoint } from './strategicPoints';
+import { sealedByDakar } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seats';
@@ -99,9 +99,7 @@ async function sealedAtDakar(
   now: number,
   movement: Doc<'movements'>,
 ): Promise<boolean> {
-  if (canonicalBuildingKey(target.key) !== 'warehouse') return false;
-  const owner = await ctx.db.get(target.playerId);
-  if (owner === null || !(await holdsPoint(ctx, owner, 'dakar'))) return false;
+  if (!(await sealedByDakar(ctx, target))) return false;
   await ctx.db.insert('notices', {
     playerId: movement.playerId,
     at: now,

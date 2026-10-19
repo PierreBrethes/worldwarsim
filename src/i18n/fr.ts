@@ -527,7 +527,7 @@ export const fr = {
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
       baku: 'Vos troupes à l’arrêt font le plein sur le plateau personnel, où qu’elles soient : comme si elles étaient ancrées.',
       dakar:
-        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste qu’on vous prend brûle avec son contenu.',
+        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
       singapore: 'Vos camions et vos cargos roulent sans plein.',
     } satisfies Record<StrategicPointKey, string | null>,
     ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
@@ -577,11 +577,12 @@ export const fr = {
       const names = keys.map((key) => fr.points.names[key]);
       return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
-    /** **Dakar** : le dépôt qu'on prend au teneur brûle ; les deux camps l'apprennent. */
+    /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
     depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
       side === 'capturer'
-        ? `Le dépôt d’avant-poste de ${country} a brûlé à la prise, Dakar le garde : ${lost} perdu.`
+        ? `Le dépôt d’avant-poste de ${country} a brûlé à la capture, Dakar le garde : ${lost} perdu.`
         : `Votre dépôt d’avant-poste de ${country} a brûlé plutôt que de passer à l’ennemi (Dakar) : ${lost} perdu.`,
+    nothing: 'rien',
   },
 
   objectives: {
@@ -815,6 +816,7 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    SEALED: () => 'Dakar garde ces réserves : elles ne se pillent pas',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     INSUFFICIENT_FUNDS: (d) =>
@@ -2297,6 +2299,7 @@ export const fr = {
     dispatches: {
       seasonConcluded: 'saison close',
       pointTaken: 'point stratégique',
+      depotBurned: 'dépôt brûlé',
       assault: 'assaut mené',
       attacked: 'attaque subie',
       construction: 'chantier',

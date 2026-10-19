@@ -34,6 +34,8 @@ export type PointFamily = 'economy' | 'supply' | 'intel' | 'sea' | 'diplomacy';
 /**
  * **Ce que le tirage lit d'un lieu** : sa famille, et ses étoiles (★ utile, ★★ forte, ★★★ change
  * la partie). Une donnée : ajuster un lieu se fait ici, jamais dans les contraintes du tirage.
+ *
+ * @a-mesurer familles et étoiles posées par jugement, aucune doc ne les fixait
  */
 export const POINT_TRAITS = {
   tangier: { family: 'economy', stars: 2 },
@@ -47,6 +49,18 @@ export const POINT_TRAITS = {
   dakar: { family: 'economy', stars: 2 },
   singapore: { family: 'supply', stars: 1 },
 } as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 | 2 | 3 }>;
+
+/** Les sept du premier vivier, posés tous à chaque saison avant le tirage : ce que dit une notice
+ *  `pointsDrawn` écrite sans `keys`. */
+export const FIRST_SEVEN: ReadonlyArray<StrategicPointKey> = [
+  'tangier',
+  'istanbul',
+  'rangoon',
+  'hongKong',
+  'halifax',
+  'narvik',
+  'lisbon',
+];
 
 /** Les lieux tirés à chaque saison. */
 export const POINTS_DRAWN = 7;

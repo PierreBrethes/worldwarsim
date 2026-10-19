@@ -698,8 +698,7 @@ const previewTroopsAt = async (
   )
     return null;
   /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
-  const { troops: topped, viaBaku } = await toppedUp(ctx, playerId, troops, Date.now());
-  return { troops: topped, viaBaku };
+  return toppedUp(ctx, playerId, troops, Date.now());
 };
 
 /** **Le plein que la route coûte** (ADR 0028 §3), et son refus avant le clic s'il manque. */
@@ -710,7 +709,7 @@ const fuelFacts = async (
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
-  viaBaku: ReadonlySet<string>,
+  viaBaku: number,
 ) => {
   const { steps, short, km, freed } = fuelBill(
     troops,
@@ -721,7 +720,7 @@ const fuelFacts = async (
   );
   /** **Bakou** et **Singapour** se disent à la carte : le plein repris sur le plateau personnel,
    *  les camions et cargos qui roulent sans. */
-  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku.size > 0 };
+  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku > 0 };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -745,7 +744,7 @@ export const previewPlunder = query({
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
       plunderRefusalOf(
-        { kind: 'building', buildingId: target._id, key: target.key },
+        { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
         column.roles,
         false,
       ) !== null

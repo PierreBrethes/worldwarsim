@@ -571,9 +571,9 @@ export const artilleryScene = internalMutation({
 });
 
 /**
- * **Bakou, Dakar et Singapour tenus** (4.3) : le joueur tient les trois, une infanterie à sec, un
- * blindé et un camion au plein vide en Rhénanie (le blindé reprend le sien à Bakou, le camion roule
- * sans), et les deux dépêches du dépôt qui brûle à Dakar.
+ * **Bakou, Dakar et Singapour tenus** : le joueur tient les trois, un blindé et un camion au plein
+ * vide en Rhénanie (le blindé reprend le sien à Bakou, le camion roule sans), et les deux dépêches
+ * du dépôt qui brûle à Dakar.
  */
 export const pointsScene = internalMutation({
   args: { playerId: v.id('players'), enemyId: v.id('players') },

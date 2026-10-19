@@ -259,6 +259,27 @@ describe('the journal', () => {
     expect(transferred!.severity).toBe('routine');
   });
 
+  /** Une notice écrite avant le tirage n'a pas de `keys` : elle nomme les sept d'alors. */
+  it('names the first seven when the drawn notice carries no keys, and the drawn ones otherwise', () => {
+    const [old] = journalDispatches([], null, [{ kind: 'pointsDrawn', at: NOON }]);
+    expect(old!.text).toContain('Tanger');
+    const [drawn] = journalDispatches([], null, [
+      { kind: 'pointsDrawn', at: NOON, keys: ['baku', 'dakar'] },
+    ]);
+    expect(drawn!.text).toContain('Bakou et Dakar');
+  });
+
+  it('tells both sides of a depot burnt at Dakar', () => {
+    const lost = { ammunition: 40, oil: 0, coal: 0 };
+    const [mine, theirs] = journalDispatches([], null, [
+      { kind: 'depotBurned', at: NOON, side: 'holder', country: 'BEL', lost },
+      { kind: 'depotBurned', at: NOON, side: 'capturer', country: 'BEL', lost },
+    ]);
+    expect(mine!.kind).toBe('depotBurned');
+    expect(mine!.text).toContain('brûlé plutôt que de passer');
+    expect(theirs!.text).toContain('Dakar le garde');
+  });
+
   /** **La course se lit par toute la table** (P2) : qui prend quel point, là où il est. */
   it('says who takes which strategic point, where it stands', () => {
     const [taken] = journalDispatches([], null, [

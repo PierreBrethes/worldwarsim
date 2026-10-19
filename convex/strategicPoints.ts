@@ -14,6 +14,7 @@ import {
   raceLeaderOf,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
+import { canonicalBuildingKey } from '../src/domain/ids';
 import { fail } from './errors';
 import { emptyStocks } from '../src/domain/economy';
 import { creditToStorage, debit, economyOf } from './resources';
@@ -78,6 +79,16 @@ export async function holdsPoint(
   return (await seasonPoints(ctx, player.seasonId)).some(
     (point) => point.key === key && point.holderId === player._id,
   );
+}
+
+/** **Dakar** : un entrepôt du teneur du point, dont les réserves ne se pillent pas. */
+export async function sealedByDakar(
+  ctx: QueryCtx,
+  building: Pick<Doc<'buildings'>, 'key' | 'playerId'>,
+): Promise<boolean> {
+  if (canonicalBuildingKey(building.key) !== 'warehouse') return false;
+  const owner = await ctx.db.get(building.playerId);
+  return owner !== null && (await holdsPoint(ctx, owner, 'dakar'));
 }
 
 export const seasonPoints = (

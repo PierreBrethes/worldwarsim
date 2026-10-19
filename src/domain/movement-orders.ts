@@ -137,7 +137,12 @@ export type MovementAim =
    * building (`aimOf`), so nothing here has to ask. The key travels because the rule reads it
    * (`GARRISON_KEYS_BY_ROLE`), and the client holds it off the mast it clicked.
    */
-  | { readonly kind: 'building'; readonly buildingId: string; readonly key: BuildingKey }
+  | {
+      readonly kind: 'building';
+      readonly buildingId: string;
+      readonly key: BuildingKey;
+      readonly sealed?: boolean;
+    }
   /**
    * **Une colonne adverse en vue**, visée en Blitz seulement (B18) : l'attaquant la poursuit et
    * frappe au contact. Le relevé du fil répond — sa position à l'instant de l'ordre —, jamais la
@@ -252,10 +257,17 @@ export type PlunderAim = {
   readonly kind: 'building';
   readonly buildingId: string;
   readonly key: BuildingKey;
+  /** L'entrepôt est celui du teneur de Dakar : public, donc servi avec la visée comme `coastal`. */
+  readonly sealed?: boolean;
 };
 
 export type PlunderRefusal =
-  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
+  | 'EMPTY_MOVEMENT'
+  | 'FRIENDLY_TARGET'
+  | 'INFANTRY_REQUIRED'
+  | 'WAREHOUSE_TARGET_ONLY'
+  /** **Dakar** : les réserves de son teneur ne se pillent pas. */
+  | 'SEALED';
 
 export type LootCollectionRefusal = 'NO_CARGO_CAPACITY';
 
@@ -271,6 +283,7 @@ export function plunderRefusalOf(
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
+  if (aim.sealed === true) return 'SEALED';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
 }
 
