@@ -148,6 +148,11 @@ export type ErrorCode =
   | 'NOTHING_TO_DELIVER'
   | 'DEPOT_NOT_STANDING'
   | 'DEPOT_FULL'
+  /** **Larguer** (ADR 0028 §4). */
+  | 'DROP_BY_AIR_ONLY'
+  | 'NO_SQUAD_THERE'
+  | 'SQUAD_ANCHORED'
+  | 'SQUAD_SUPPLIED'
   | 'TOUR_NOT_AT_LOADING_POINT'
   | 'TOUR_NO_STOP'
   | 'TOUR_TOO_LONG'

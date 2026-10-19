@@ -625,6 +625,19 @@ export default defineSchema({
      *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
      *  reste en garnison. */
     delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
+    /** **Un largage** (ADR 0028 §4) : à l'arrivée, l'avion lâche son paquet sur cet avant-poste ou
+     *  sur l'escouade isolée de ce point, sans se poser, puis rentre ; son retour porte `back`,
+     *  pour que le fil le dessine en vol. */
+    drop: v.optional(
+      v.union(
+        v.object({
+          leg: v.literal('out'),
+          outpostId: v.optional(v.id('outposts')),
+          point: v.optional(LON_LAT),
+        }),
+        v.object({ leg: v.literal('back') }),
+      ),
+    ),
     /** **Un pas de tournée** : vers un de ses dépôts (`stop`), ou de retour au chargement
      *  (`base`), où elle recharge sa consigne et repart. */
     tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),

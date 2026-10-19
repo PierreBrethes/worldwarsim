@@ -69,7 +69,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
-import { arriveToDeliver } from './logistics';
+import { arriveToDeliver, arriveToDrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
@@ -946,6 +946,13 @@ export const arrive = internalMutation({
     if (movement.tourLeg !== undefined) {
       if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
       else await arriveAtBase(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    /** **Un largage lâche son paquet et rentre sans se poser** (ADR 0028 §4). */
+    if (movement.drop?.leg === 'out') {
+      await arriveToDrop(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }

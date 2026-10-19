@@ -424,6 +424,18 @@ function written(notice: Notice): Written {
           supplyWords(notice.kept),
         ),
       };
+    case 'supplyDropped':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'drop',
+        text: said.supplyDropped(
+          countryLabel(notice.hostCountry),
+          supplyWords(notice.delivered),
+          supplyWords(notice.kept),
+          notice.squad === true,
+        ),
+      };
     case 'firedDry':
       return {
         at: notice.at,

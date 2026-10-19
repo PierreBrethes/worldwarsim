@@ -447,6 +447,17 @@ export const NOTICE = v.union(
     role: UNIT_ROLE,
     why: TOUR_END,
   }),
+  /** **Un largage** (ADR 0028 §4) : le paquet descendu, ce qu'il a rendu et ce qui reste à bord.
+   *  `squad` dit si une escouade l'a reçu ; absente, c'est un dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('supplyDropped'),
+    hostCountry: v.string(),
+    point: v.optional(LON_LAT),
+    delivered: SUPPLY_LOAD,
+    kept: SUPPLY_LOAD,
+    squad: v.optional(v.boolean()),
+  }),
   /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
    *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */
   v.object({

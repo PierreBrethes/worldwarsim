@@ -753,6 +753,7 @@ export async function march(
     pursuit,
     boardsOn,
     delivery,
+    drop,
     keepsSlot = false,
   }: {
     playerId: Id<'players'>;
@@ -774,6 +775,9 @@ export async function march(
     boardsOn?: Id<'troops'> | undefined;
     /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
     delivery?: NonNullable<Doc<'movements'>['delivery']>;
+    /** **Un largage** (ADR 0028 §4) : l'avion lâche son paquet à l'arrivée, sans se poser, et
+     *  paie le plein de l'aller-retour. */
+    drop?: { readonly outpostId?: Id<'outposts'>; readonly point?: { lon: number; lat: number } };
     /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
     keepsSlot?: boolean;
   },
@@ -852,8 +856,13 @@ export async function march(
    * sa route, et une route plus longue que le plus petit plein est refusée. Un passager ne
    * consomme pas : son transport le porte.
    */
-  const fuel = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
-  if (fuel.short !== null) fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km });
+  const fuel = fuelBill(
+    troops,
+    route.distanceUnits * (drop === undefined ? 1 : 2),
+    column.blitz !== undefined,
+  );
+  if (fuel.short !== null)
+    fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: drop !== undefined });
   for (const troop of fuel.drivers)
     await ctx.db.patch(troop._id, { fuel: suppliesOf(troop).fuel - fuel.steps });
 
@@ -901,6 +910,7 @@ export async function march(
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...(boardsOn === undefined ? {} : { boardsOn }),
     ...(delivery === undefined ? {} : { delivery }),
+    ...(drop === undefined ? {} : { drop: { leg: 'out' as const, ...drop } }),
     ...movementCargoFields(cargo),
   });
   /** **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte

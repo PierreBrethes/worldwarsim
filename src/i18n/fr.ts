@@ -706,7 +706,7 @@ export const fr = {
       `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     NOT_ENOUGH_FUEL: (d) =>
-      `plein trop court : ${num(d.km)} km demandent ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
@@ -728,6 +728,10 @@ export const fr = {
     NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
     DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
     DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
+    DROP_BY_AIR_ONLY: () => 'seul un avion de transport largue : camions et cargos se posent',
+    NO_SQUAD_THERE: () => 'aucune de vos escouades ne se tient là',
+    SQUAD_ANCHORED: () => 'cette escouade est ancrée : elle se recharge seule, sans paquet',
+    SQUAD_SUPPLIED: () => 'rien à reprendre : coups et plein de l’escouade sont au complet, ou le paquet n’est pas de ce qui lui manque',
     TOUR_NOT_AT_LOADING_POINT: (d) =>
       `une tournée part d’un point de chargement : amenez ${
         d.role === 'cargo'
@@ -2244,6 +2248,7 @@ export const fr = {
       campSighted: 'camp relevé',
       firedDry: 'tir à sec',
       supply: 'ravitaillement',
+      drop: 'largage',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       elimination: 'QG tombé',
@@ -2279,6 +2284,8 @@ export const fr = {
     /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
+    /** Un paquet descendu sous parachute (4.8). */
+    dropped: 'largué',
     engaged: 'engagé',
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
@@ -2541,6 +2548,10 @@ export const fr = {
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
           : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
+      supplyDropped: (country: string, delivered: string, kept: string, squad: boolean) =>
+        delivered === ''
+          ? `Largué pour rien — ${country} : ${squad ? 'l’escouade n’avait rien à reprendre, ou n’était plus là' : 'le dépôt était plein'}, ${kept} encore à bord. L’avion rentre.`
+          : `Largué — ${country} : ${delivered} ${squad ? 'repris par l’escouade' : 'au dépôt'}${kept === '' ? '' : `, ${kept} à bord`}. L’avion rentre.`,
       firedDry: (country: string, troops: number) =>
         `${troops === 1 ? 'Une de nos troupes était à sec' : `${troops} de nos troupes étaient à sec`} — ${country} : sans coups, ni frappe ni riposte. Elles se rechargent à l’ancre.`,
       /**
@@ -3843,6 +3854,7 @@ export const fr = {
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
       deliver: 'Livrer',
+      airdrop: 'Larguer',
       tour: 'Tracer une tournée',
       sea: 'Marcher',
       inland: 'Faire route',
@@ -3869,6 +3881,12 @@ export const fr = {
     deliver: 'livrer',
     deliverConsequence:
       'Décharge au dépôt ce qui y tient, garde le reste à bord, puis rentre seul.',
+    /** **Larguer** (ADR 0028 §4) : l'avion ne se pose pas, et paie le plein de l'aller-retour. */
+    airdrop: 'larguer',
+    airdropOutpostConsequence:
+      'Largue un paquet sous parachute sur le dépôt, sans se poser : ce qui ne tient pas reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
+    airdropSquadConsequence:
+      'Largue un paquet sous parachute : l’escouade reprend ses coups et son plein, dans la limite de ce que chaque troupe porte. Le reste reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
     tour: 'tracer une tournée',
     tourStop: (count: number) => `arrêt ${count} de la tournée`,
     tourConsequence:

@@ -6,7 +6,10 @@ import {
   grabbedAfter,
   deliverRefusalOf,
   deliveryOf,
+  dropOnSquad,
+  dropRefusalOf,
   loadRefusalOf,
+  takeAcross,
   missingOf,
   visitPlan,
   type SupplyLoad,
@@ -182,5 +185,75 @@ describe('tracing a tour', () => {
   it('takes no other order while it tours', () => {
     expect(onTourRefusalOf([{}, { tour: {} }])).toEqual({ code: 'TRANSPORT_ON_TOUR' });
     expect(onTourRefusalOf([{}])).toBeNull();
+  });
+});
+
+describe('dropping a packet by air', () => {
+  const plane = (loaded = load(60, 20)) => ({ role: 'airTransport' as const, load: loaded });
+  const depot = (over = {}) => ({
+    kind: 'outpost' as const,
+    standing: true,
+    depot: load(),
+    capacity: 400,
+    ...over,
+  });
+  const squad = (
+    ...troops: Array<{ role: 'infantry' | 'armor'; anchored?: boolean; rounds?: number }>
+  ) => ({
+    kind: 'squad' as const,
+    troops: troops.map((troop, i) => ({
+      id: `t${i}`,
+      anchored: false,
+      rounds: 0,
+      fuel: 0,
+      ...troop,
+    })),
+  });
+
+  it('drops on an outpost with no airstrip, until its depot is full', () => {
+    expect(dropRefusalOf([plane()], depot())).toBeNull();
+    expect(dropRefusalOf([plane()], depot({ depot: load(400) }))).toEqual({
+      code: 'DEPOT_FULL',
+      capacity: 400,
+    });
+    expect(dropRefusalOf([plane()], depot({ standing: false }))?.code).toBe('DEPOT_NOT_STANDING');
+  });
+
+  it('is the plane that drops, and loaded', () => {
+    expect(dropRefusalOf([{ role: 'landTransport', load: load(50) }], depot())?.code).toBe(
+      'DROP_BY_AIR_ONLY',
+    );
+    expect(dropRefusalOf([plane(load())], depot())?.code).toBe('NOTHING_TO_DELIVER');
+  });
+
+  it('drops on a lone squad, never on an anchored one nor a full one', () => {
+    expect(dropRefusalOf([plane()], squad({ role: 'infantry' }))).toBeNull();
+    expect(dropRefusalOf([plane()], squad({ role: 'infantry', anchored: true }))?.code).toBe(
+      'SQUAD_ANCHORED',
+    );
+    expect(dropRefusalOf([plane()], squad())?.code).toBe('NO_SQUAD_THERE');
+    // rifles use ammunition only: a packet of oil alone has nothing for them
+    expect(dropRefusalOf([plane(load(0, 50))], squad({ role: 'infantry' }))?.code).toBe(
+      'SQUAD_SUPPLIED',
+    );
+    expect(dropRefusalOf([plane()], squad({ role: 'infantry', rounds: 3 }))?.code).toBe(
+      'SQUAD_SUPPLIED',
+    );
+  });
+
+  it('refills rounds and fuel step by step, within what each troop lacks', () => {
+    const troops = [
+      { id: 'a', role: 'infantry' as const, rounds: 1 },
+      { id: 'b', role: 'armor' as const, rounds: 0, fuel: 1 },
+    ];
+    const { taken, supplies } = dropOnSquad(load(40, 100), troops);
+    // a: 2 rounds = 20 ammunition ; b: 2 rounds = 20 -> 40 ; fuel 2 steps = 20 oil
+    expect(taken).toEqual(load(40, 20));
+    expect(supplies.get('a')).toEqual({ rounds: 3, fuel: 0 });
+    expect(supplies.get('b')).toEqual({ rounds: 2, fuel: 3 });
+  });
+
+  it('keeps the rest aboard, taking from each plane in turn', () => {
+    expect(takeAcross([load(30, 5), load(30, 5)], load(40, 10))).toEqual([load(0, 0), load(20, 0)]);
   });
 });

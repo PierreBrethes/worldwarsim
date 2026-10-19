@@ -228,6 +228,7 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     troopIds: movement.troopIds,
     cargo: movement.cargo ?? emptyCargo(),
     mission: movement.mission ?? null,
+    ...(movement.drop === undefined ? {} : { drop: movement.drop }),
     minutesLeft: timing.minutesLeft,
     borderWait: timing.borderWait,
     progress: timing.progress,

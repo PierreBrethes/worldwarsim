@@ -93,6 +93,9 @@ export type ArcView =
       /** Exact cargo and mission data exist only on the owner's branch of the arc union. */
       readonly cargo?: CargoView;
       readonly mission?: OwnMovementMission;
+      /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
+       *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
+      readonly drop?: 'out' | 'back';
       readonly minutesLeft: number;
       /**
        * An arrival falling inside the target's rest window stalls the movement at the
@@ -288,6 +291,9 @@ export type TroopView = {
   readonly carriedBy?: string;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
+  /** **Ancrée** (ADR 0028 §3) : elle se recharge à l'ancre. Absent en Mondiale, c'est une
+   *  escouade isolée, que seul un largage ravitaille ; la Blitz ne compte rien. */
+  readonly anchored?: true;
   /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, pourquoi elle
    *  attend au chargement, si elle finit, rappelée, et les dépôts pleins que ce tour saute. */
   readonly tour?: {
@@ -665,6 +671,8 @@ export type DispatchKind =
   | 'firedDry'
   /** **La logistique** (ADR 0028 §4) : une livraison posée, une tournée qui attend. */
   | 'supply'
+  /** **Un largage** (ADR 0028 §4) : le paquet est descendu. */
+  | 'drop'
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
@@ -879,6 +887,14 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly delivered: SupplyLoad;
       readonly kept: SupplyLoad;
+    }
+  | {
+      readonly kind: 'supplyDropped';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
+      readonly kept: SupplyLoad;
+      readonly squad?: boolean;
     }
   /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
   | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }

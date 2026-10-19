@@ -1,4 +1,5 @@
 import { convexTest } from 'convex-test';
+import type { FunctionArgs } from 'convex/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
@@ -707,5 +708,202 @@ describe('intercepting a supply', () => {
     expect(lost).toMatchObject([{ loot: { ammunition: 80, oil: 40 } }]);
     const [crate] = await t.run(async (ctx) => ctx.db.query('lootCrates').collect());
     expect(crate?.loot).toMatchObject({ ammunition: 80, oil: 40, food: 0 });
+  });
+});
+
+describe('dropping a packet by air', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** Un avion chargé à l'aérodrome de Paris, un avant-poste de niveau 1 à Essen (hors escale). */
+  async function flightLine(
+    t: Bench,
+    seat: Seat,
+    load = { ammunition: 80, oil: 40, coal: 0 },
+    anchor = true,
+  ) {
+    const airfield = await raise(t, seat, 'airfield', MARNE);
+    const plane = await form(t, seat, 'airTransport', airfield);
+    await t.run(async (ctx) => ctx.db.patch(plane, { load }));
+    const outpost = anchor ? await plant(t, seat, ESSEN, 1, GERMANY) : null;
+    return { airfield, plane, outpost: outpost! };
+  }
+
+  /** Le seul mouvement en vol, mené à son arrivée. */
+  async function arriveNext(t: Bench) {
+    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
+    vi.setSystemTime(movement.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: movement._id });
+    return movement;
+  }
+  const flying = (t: Bench) => t.run(async (ctx) => ctx.db.query('movements').collect());
+
+  /** Une escouade posée à Essen, loin de tout ancrage : coups et plein à zéro. */
+  async function strandedSquad(t: Bench, seat: Seat) {
+    const playerId = await playerOf(t, seat);
+    return t.run(async (ctx) =>
+      ctx.db.insert('troops', {
+        seasonId: (await ctx.db.get(playerId))!.seasonId,
+        playerId,
+        role: 'armor',
+        tier: 1,
+        nominalStrength: nominalStrength('armor', 1),
+        currentStrength: nominalStrength('armor', 1),
+        stationedAt: { lon: ESSEN[0], lat: ESSEN[1] },
+        rounds: 0,
+        fuel: 1,
+      }),
+    );
+  }
+
+  it('drops on an outpost without an airstrip, pays the round trip and flies home without landing', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await flightLine(t, seat);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { depot: { ammunition: 350, oil: 0, coal: 0 } }),
+    );
+
+    await t.mutation(api.logistics.airdrop, {
+      ...seat,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: [plane],
+      target: { kind: 'outpost', outpostId: outpost },
+    });
+    // the round trip is billed at departure: more than the one-way step
+    const billed = (await get(t, plane))!.fuel ?? 3;
+    expect(billed).toBeLessThan(3);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    expect((await flying(t))[0]!.drop).toMatchObject({ leg: 'out', outpostId: outpost });
+
+    await arriveNext(t);
+    expect(await depotOf(t, outpost)).toEqual({ ammunition: 400, oil: 0, coal: 0 });
+    const [back] = await flying(t);
+    expect(back).toMatchObject({ type: 'return', drop: { leg: 'back' } });
+    expect((await get(t, plane))!.load).toEqual({ ammunition: 30, oil: 40, coal: 0 });
+    expect((await get(t, plane))!.stationedAt).not.toBe(outpost);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+    const notices = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'supplyDropped'))
+        .collect(),
+    );
+    expect(notices).toMatchObject([
+      { delivered: { ammunition: 50 }, kept: { ammunition: 30, oil: 40 } },
+    ]);
+
+    vi.setSystemTime(back!.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: back!._id });
+    expect((await get(t, plane))!.stationedAt).toBe(airfield);
+    expect(await flying(t)).toHaveLength(0);
+  });
+
+  it('refills a lone squad step by step and keeps the rest of the packet aboard', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane } = await flightLine(t, seat, undefined, false);
+    const tank = await strandedSquad(t, seat);
+
+    await t.mutation(api.logistics.airdrop, {
+      ...seat,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: [plane],
+      target: { kind: 'squad', point: { lon: ESSEN[0], lat: ESSEN[1] } },
+    });
+    await arriveNext(t);
+
+    // 2 rounds missing = 20 ammunition ; 2 fuel steps missing = 20 oil
+    expect(await get(t, tank)).toMatchObject({ rounds: 2, fuel: 3 });
+    expect((await get(t, plane))!.load).toEqual({ ammunition: 60, oil: 20, coal: 0 });
+  });
+
+  it('says why not: anchored squad, a truck, a target past the round trip', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await flightLine(t, seat);
+    const hq = await hqOf(t, seat);
+    const home = await form(t, seat, 'armor', hq);
+    const truck = await form(t, seat, 'landTransport', airfield);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 50, oil: 0, coal: 0 } }));
+    const dropping = (
+      troopId: Id<'troops'>,
+      target: FunctionArgs<typeof api.logistics.airdrop>['target'],
+    ) =>
+      t.mutation(api.logistics.airdrop, {
+        ...seat,
+        origin: { kind: 'building', buildingId: airfield },
+        troopIds: [troopId],
+        target,
+      });
+    const essen = outpost;
+    const far = await plant(t, seat, PLOIESTI, 1, { hostCountry: 'ROU', regionId: PRAHOVA });
+
+    await expect(dropping(truck, { kind: 'outpost', outpostId: essen })).rejects.toThrow(
+      'DROP_BY_AIR_ONLY',
+    );
+    await expect(dropping(plane, { kind: 'outpost', outpostId: far })).rejects.toThrow(
+      'NOT_ENOUGH_FUEL',
+    );
+    const hqPoint = (await t.run(async (ctx) => (await ctx.db.get(hq))!.point))!;
+    await t.run(async (ctx) =>
+      ctx.db.patch(home, { stationedAt: { lon: hqPoint.lon, lat: hqPoint.lat } }),
+    );
+    await expect(dropping(plane, { kind: 'squad', point: hqPoint })).rejects.toThrow(
+      'SQUAD_ANCHORED',
+    );
+    await expect(dropping(plane, { kind: 'squad', point: { lon: 0, lat: 0 } })).rejects.toThrow(
+      'NO_SQUAD_THERE',
+    );
+  });
+
+  it('finds nothing to refill when the squad has gone, and keeps the whole packet', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane } = await flightLine(t, seat, undefined, false);
+    const tank = await strandedSquad(t, seat);
+    await t.mutation(api.logistics.airdrop, {
+      ...seat,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: [plane],
+      target: { kind: 'squad', point: { lon: ESSEN[0], lat: ESSEN[1] } },
+    });
+    await t.run(async (ctx) => ctx.db.delete(tank));
+    await arriveNext(t);
+
+    expect((await get(t, plane))!.load).toEqual({ ammunition: 80, oil: 40, coal: 0 });
+    expect((await flying(t))[0]).toMatchObject({ type: 'return' });
+  });
+
+  it('reads to the enemy as a plane, without its charge or its target', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await flightLine(t, seat);
+    await t.mutation(api.logistics.airdrop, {
+      ...seat,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: [plane],
+      target: { kind: 'outpost', outpostId: outpost },
+    });
+    const [onTheRoad] = await flying(t);
+    const watcher = await playerOf(t, guest);
+    await t.run(async (ctx) =>
+      ctx.db.insert('sightings', {
+        playerId: watcher,
+        movementId: onTheRoad!._id,
+        from: Date.now(),
+        to: onTheRoad!.arrivesAt,
+        detector: 'territory',
+        detectorId: null,
+      }),
+    );
+    const { detected } = await t.query(api.view.playerView, guest);
+    expect(detected).toHaveLength(1);
+    const served = JSON.stringify(detected);
+    for (const secret of ['load', 'drop', 'outpostId', 'ammunition'])
+      expect(served).not.toContain(secret);
   });
 });

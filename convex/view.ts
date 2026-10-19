@@ -657,6 +657,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
         ...(blitz ? {} : { supplies: suppliesOf(troop) }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
+        /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
+         *  isolée, que seul un largage ravitaille. */
+        ...(blitz || economy.upkeep.storeOf[troop._id] === undefined ? {} : { anchored: true as const }),
         ...(troop.load === undefined ? {} : { load: troop.load }),
         ...(troop.tour === undefined
           ? {}
@@ -897,6 +900,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           troopIds: movement.troopIds,
           cargo: cargoView(movementCargoLoads(movement), capacityOf(carriers)),
           mission,
+          /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
+          ...(movement.drop === undefined ? {} : { drop: movement.drop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {
             const troop = troops.find((candidate) => candidate._id === troopId);
             return troop ? [troop.role] : [];
