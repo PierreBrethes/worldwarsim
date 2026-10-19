@@ -77,6 +77,10 @@ describe('the journal', () => {
     expect(fired!.text).toMatch(/^bombardement .* notre tir en abat 30, sans riposte possible$/);
     expect(taken!.text).toMatch(/^bombardés .* leur tir en abat 30, aucune riposte possible$/);
     expect(taken!.kind).toBe('attacked');
+    const salvo = { ...struck, mine: { troops: 4, lost: 120, routed: 0, destroyed: 1 } };
+    expect(journalDispatches([salvo], null, [])[0]!.text).toMatch(
+      /^bombardés .* une salve venue d’on ne sait où touche 4 de nos troupes et en abat 120, aucune riposte possible · 1 détruite$/,
+    );
   });
 
   it('names the nation and the roles faced at the fire, on both sides (F1)', () => {

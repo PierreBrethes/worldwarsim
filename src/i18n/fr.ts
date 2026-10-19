@@ -2207,12 +2207,22 @@ export const fr = {
       faced?: Faced | undefined;
     }) => {
       /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
+      /** **La salve bornée** (ADR 0028 §6) : sur une escouade, elle dit combien de troupes elle
+       *  touche ; la cible ne sait pas d'où elle vient. */
       if (cause === 'bombardment') {
-        const lost = attacking ? theirs.lost : mine.lost;
-        const fell = (attacking ? theirs : mine).destroyed > 0;
-        return attacking
-          ? `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
-          : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
+        const struck = attacking ? theirs : mine;
+        const { lost, troops } = struck;
+        const fell =
+          struck.destroyed === 0
+            ? ''
+            : troops > 1
+              ? ` · ${struck.destroyed} détruite${struck.destroyed > 1 ? 's' : ''}`
+              : attacking
+                ? ' · cible détruite'
+                : ' · unité détruite';
+        if (attacking)
+          return `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}${troops > 1 ? `notre salve touche ${troops} troupes et en abat` : 'notre tir en abat'} ${lost}, sans riposte possible${fell}`;
+        return `bombardés ${where} — ${troops > 1 ? `une salve venue d’on ne sait où touche ${troops} de nos troupes et en abat` : 'leur tir en abat'} ${lost}, aucune riposte possible${fell}`;
       }
       const opening =
         cause === 'interception'
