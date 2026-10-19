@@ -244,6 +244,10 @@ export type MapMarker =
       /** **Un gisement est un point** (ADR 0029 §3) : il se tient là où l'exploitation s'aimante. */
       readonly lonLat: LonLat;
       readonly deposit: DepositKey;
+      /** Who is known to work it (`depositHolders`), absent while it is free. */
+      readonly held?: { readonly mine: boolean; readonly level: number | null };
+      /** A building that takes this deposit is in hand: the free ones light up. */
+      readonly seek?: true;
     };
 
 /**
@@ -396,6 +400,8 @@ export type MapLabel = {
    * no ink beside it.
    */
   readonly deposit: DepositKey | null;
+  /** A free deposit the held building would take: it lights up. */
+  readonly seeking?: true;
   /** The private sighting a click opens; every other label carries null. */
   readonly lootSightingId: string | null;
   /** False gives a known crate its stale, dashed treatment. */
@@ -967,7 +973,13 @@ function markerLabel(marker: MapMarker): MapLabel {
         // A click on a deposit says nothing the ground does not: the region's own click
         // already selects the country, and the crane already opens on the right list.
         hostCountry: null,
-        lines: [],
+        ...(marker.seek === true && marker.held === undefined ? { seeking: true as const } : {}),
+        lines: [
+          { role: 'nature', text: fr.deposits[marker.deposit] },
+          ...(marker.held === undefined
+            ? []
+            : [{ role: 'figures', text: fr.labels.depositHeld(marker.held) } as const]),
+        ],
       };
   }
 }

@@ -51,8 +51,7 @@ import {
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
-import { DepositMark } from '@/emblems/DepositMark';
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { resourcePlate } from '@/emblems/resources/manifest';
 import { YIELD_OF } from '@/domain/economy';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
@@ -965,11 +964,8 @@ export function MapLabels({
                 </span>
               )}
               {label.deposit !== null && (
-                <span
-                  className="label-deposit"
-                  style={{ color: resourceColor(YIELD_OF[label.deposit], true) }}
-                >
-                  <DepositMark deposit={label.deposit} />
+                <span className="label-deposit">
+                  <img src={resourcePlate(YIELD_OF[label.deposit]) ?? undefined} alt="" />
                 </span>
               )}
               {label.lootSightingId !== null && (
@@ -1404,6 +1400,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.identified ? 'label--identified' : '',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     label.washed ? 'label--washed' : '',
+    label.seeking === true ? 'label--seek' : '',
     selected ? 'label--selected' : '',
     label.hostCountry === null &&
     label.building === null &&

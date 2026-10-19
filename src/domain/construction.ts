@@ -284,13 +284,30 @@ const aroundOf = (view: PlayerView) => [
  * settled when the building would stand, and the holder becomes a survey.
  */
 export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
-  const held = [
-    ...aroundOf(view),
-    ...view.surveyedInstallations.map((seen) => ({ key: seen.key, lonLat: seen.point })),
-  ]
-    .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
-    .map((building) => building.lonLat);
-  return DEPOSIT_POINTS.filter((deposit) => !held.some((point) => depositAt(point) === deposit));
+  const held = depositHolders(view);
+  return DEPOSIT_POINTS.filter((deposit) => !held.has(deposit.id));
+}
+
+/**
+ * **Who is known to work each deposit** (map labels): mine, with the level standing (`null` while
+ * only ordered), or a surveyed exploitation of anybody else's — its nation is not in the survey,
+ * so the fog keeps it unsaid. A deposit absent from the map is free.
+ */
+export function depositHolders(
+  view: PlayerView,
+): ReadonlyMap<string, { readonly mine: boolean; readonly level: number | null }> {
+  const holders = new Map<string, { mine: boolean; level: number | null }>();
+  const take = (lonLat: LonLat, mine: boolean, level: number | null) => {
+    const point = depositAt(lonLat);
+    if (point !== null && !holders.has(point.id)) holders.set(point.id, { mine, level });
+  };
+  for (const building of view.me.buildings)
+    if (EXPLOITED_DEPOSITS[building.key] !== undefined) take(building.point, true, building.level);
+  for (const order of pledgedBuildings(view))
+    if (EXPLOITED_DEPOSITS[order.key] !== undefined) take(order.lonLat, true, null);
+  for (const seen of view.surveyedInstallations)
+    if (EXPLOITED_DEPOSITS[seen.key] !== undefined) take(seen.point, false, null);
+  return holders;
 }
 
 /** The player's standing outposts as the reach reads them. `reachKmOf` comes from the balance

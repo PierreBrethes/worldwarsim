@@ -5,6 +5,7 @@ import {
   buildableOn,
   outpostRaiseHold,
   placementOf,
+  depositHolders,
   PLACING_SNAP_KM,
   riseOf,
   snapTo,
@@ -308,6 +309,16 @@ describe('the point aimed at', () => {
         ]),
       ),
     }) as unknown as PlayerView;
+
+  it('names who is known to work a deposit, mine with its level, a survey unnamed', () => {
+    const mine = view({ buildings: [{ key: 'mine', point: COAL.lonLat, level: 2 } as never] });
+    expect(depositHolders(mine).get(COAL.id)).toEqual({ mine: true, level: 2 });
+    expect(depositHolders(view({ surveyed: [COAL.lonLat] })).get(COAL.id)).toEqual({
+      mine: false,
+      level: null,
+    });
+    expect(depositHolders(view({})).has(COAL.id)).toBe(false);
+  });
 
   const aim = (lonLat: LonLat, extra: Partial<Aim> = {}): Aim => ({
     lonLat,

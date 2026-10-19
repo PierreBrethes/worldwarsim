@@ -92,6 +92,7 @@ import {
 } from '@/domain/compass-rose';
 import {
   aimVerdict,
+  depositHolders,
   freeDeposits,
   placementOf,
   reachesOf,
@@ -1534,6 +1535,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // Every building stands at the point written at its placement (ADR 0029), and so does the
   // work that will raise it; an outpost carries its own point, because it *is* a point and
   // colours no ground (fiche 03).
+  const holders = useMemo(() => depositHolders(view), [view]);
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
     const loot: ReadonlyArray<MapMarker> = view.lootSightings
       .filter((sighting) => sighting.present)
@@ -1555,14 +1557,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * au dézoom, rien ne pleut sur la carte.
      */
     /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
+    const seeking =
+      placing === null
+        ? undefined
+        : placing.debt?.deposit != null
+          ? [placing.debt.deposit]
+          : EXPLOITED_DEPOSITS[placing.key];
     const deposits: ReadonlyArray<MapMarker> =
       toggles.deposits && view.mode !== 'blitz'
-        ? DEPOSIT_POINTS.map((point) => ({
-            kind: 'deposit' as const,
-            id: `deposit-${point.id}`,
-            lonLat: point.lonLat,
-            deposit: point.deposit,
-          }))
+        ? DEPOSIT_POINTS.map((point) => {
+            const holder = holders.get(point.id);
+            return {
+              kind: 'deposit' as const,
+              id: `deposit-${point.id}`,
+              lonLat: point.lonLat,
+              deposit: point.deposit,
+              ...(holder === undefined ? {} : { held: holder }),
+              ...(seeking?.includes(point.deposit) ? { seek: true as const } : {}),
+            };
+          })
         : [];
 
     /**
@@ -1828,6 +1841,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     knownRegionById,
     toggles.buildings,
     toggles.deposits,
+    placing,
+    holders,
     view.mode,
     toggles.objectives,
   ]);
