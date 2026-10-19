@@ -38,6 +38,7 @@ const view = {
     nation: 'france',
     defeated: false,
     slots: { total: 3, used: 1 },
+    research: { researched: [], running: null },
     chains: [],
     buildings: [],
     troops: [{}, {}, {}],
@@ -51,14 +52,18 @@ const view = {
 const columns = () =>
   RESOURCES.flatMap((resource) => screen.queryAllByTitle(fr.resources[resource]));
 
-async function mount(onShowBriefing = () => {}, shown = view): Promise<AnyRouter> {
+async function mount(
+  onShowBriefing = () => {},
+  shown = view,
+  onPin: (resource: string) => void = () => {},
+): Promise<AnyRouter> {
   const root = createRootRoute();
   const board = createRoute({
     getParentRoute: () => root,
     path: '/plateau',
     component: () => (
       <SoleSurfaceProvider>
-        <NarrowBand view={shown} onShowBriefing={onShowBriefing} />
+        <NarrowBand view={shown} onShowBriefing={onShowBriefing} pinned={[]} onPin={onPin} />
       </SoleSurfaceProvider>
     ),
   });
@@ -93,10 +98,11 @@ describe('the narrow band', () => {
     expect(screen.queryAllByText(/à sec/)).toHaveLength(2);
   });
 
-  it('opens a resource’s detail on a touch, never on a hover', async () => {
-    await mount();
+  it('asks for a resource’s ledger on a touch, never on a hover', async () => {
+    const onPin = vi.fn();
+    await mount(() => {}, view, onPin);
     act(() => screen.getByTitle(fr.resources.coal).click());
-    expect(screen.getByText(/charbon · 40 \/ 400/)).toBeTruthy();
+    expect(onPin).toHaveBeenCalledWith('coal');
   });
 
   it('opens the nation’s dossier from its flag, one line per door', async () => {

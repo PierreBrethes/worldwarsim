@@ -12,14 +12,17 @@ import {
 
 /**
  * **La recherche débloque, elle ne bonifie jamais** (ADR 0028 §5, décision 44a) : une carte ouvre
- * une unité, une tuile ou une ligne d'usine, et ne touche à aucun chiffre. Tout ce qu'aucune carte
+ * une unité, une tuile, une ligne d'usine ou un slot de mouvement (décision révisée le 19/10 :
+ * une capacité entière, jamais un pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
  * ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
  */
 export type Unlock =
   | { readonly kind: 'role'; readonly role: UnitRole; readonly tier: UnitTier }
   | { readonly kind: 'building'; readonly key: BuildingKey }
   /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
-  | { readonly kind: 'line'; readonly output: 'oil' };
+  | { readonly kind: 'line'; readonly output: 'oil' }
+  /** Un slot de mouvement de plus (`movementSlots`). */
+  | { readonly kind: 'slot' };
 
 export type Branch = 'land' | 'sea' | 'air' | 'industry';
 
@@ -64,7 +67,18 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
     unlocks: [{ kind: 'building', key: 'listening' }],
     after: [],
   },
+  transmissions1: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: [] },
+  transmissions2: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions1'] },
+  transmissions3: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions2'] },
 };
+
+/** Les slots de mouvement qu'ouvrent ces cartes : un par carte Transmissions acquise. */
+export const slotCardsOf = (researched: ReadonlyArray<ResearchCard>): ReadonlyArray<ResearchCard> =>
+  RESEARCH_CARDS.filter(
+    (card) =>
+      researched.includes(card) &&
+      RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'slot'),
+  );
 
 const lockOf = (
   matches: (unlock: Unlock) => boolean,
@@ -207,21 +221,28 @@ export const researchWeight = (card: ResearchCard): number =>
 
 /**
  * **Le contre d'une carte, lu dans `DAMAGE_TABLE`** : X contre Y quand X fait à Y plus de dégâts
- * qu'il n'en reçoit. De tout ce qui contre ses unités, une unité de départ, sinon la carte la
- * moins chère puis la plus courte. `null` pour une carte qui n'ouvre aucune unité, ou que rien ne
- * contre.
+ * qu'il n'en reçoit. De tout ce qui contre ses unités, une unité de départ, sinon une carte de
+ * sa branche avant les autres, puis la moins chère, puis la plus courte. `null` pour une carte
+ * qui n'ouvre aucune arme — une unité dont la ligne de la table est vide ne tire pas, comme le
+ * transport aérien —, ou que rien ne contre.
  */
 export function counterOf(
   card: ResearchCard,
 ): { readonly start: UnitRole } | { readonly card: ResearchCard } | null {
-  const weapons = unitsOf(card);
+  const weapons = unitsOf(card).filter(
+    (unit) => Object.keys(DAMAGE_TABLE[profileOf(unit.role, unit.tier)]).length > 0,
+  );
   const counters = (units: ReadonlyArray<{ role: UnitRole; tier: UnitTier }>) =>
     units.some((unit) => weapons.some((weapon) => beats(unit, weapon)));
   const start = STARTING_UNITS.find((unit) => counters([unit]));
   if (start !== undefined) return { start: start.role };
+  const branch = RESEARCH_TREE[card].branch;
+  const elsewhere = (other: ResearchCard) => (RESEARCH_TREE[other].branch === branch ? 0 : 1);
   const best = RESEARCH_CARDS.filter((other) => other !== card && counters(unitsOf(other))).sort(
     (a, b) =>
-      researchWeight(a) - researchWeight(b) || RESEARCH_SPEC[a].hours - RESEARCH_SPEC[b].hours,
+      elsewhere(a) - elsewhere(b) ||
+      researchWeight(a) - researchWeight(b) ||
+      RESEARCH_SPEC[a].hours - RESEARCH_SPEC[b].hours,
   )[0];
   return best === undefined ? null : { card: best };
 }

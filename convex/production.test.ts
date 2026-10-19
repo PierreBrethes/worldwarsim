@@ -18,13 +18,13 @@ import {
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
 } from './constants';
 import { heldOver } from './holding';
-import { regionFacts, pointOfRegion } from './regions';
+import { regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf, settle } from './resources';
 import schema from './schema';
 import { surveyFoundation } from './surveys';
 import { modules } from './test.setup';
-import { foundSeat, holdPoint, joinSeat, seatDoc } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, seatDoc, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -39,7 +39,7 @@ import type { Seat } from './seats.fixture';
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // nourriture, sol français
-const MEURTHE = 'FRA-5325'; // fer, sol français
+const ANJOU = 'FRA-5321'; // fer, sol français
 const PRAHOVA = 'ROU-310'; // pétrole roumain, le sol de personne
 /** Le point de la Prahova lui-même : un avant-poste planté dessus tient sa propre région. */
 const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
@@ -102,7 +102,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
-      point: pointOfRegion(regionId),
+      point: pointIn(regionId),
       level,
     }),
   );
@@ -224,9 +224,9 @@ describe('a building only produces when its region carries its colour', () => {
   it('leaves a mine on national soil untouched', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await raise(t, seat, 'mine', MEURTHE);
+    await raise(t, seat, 'mine', ANJOU);
 
-    const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === MEURTHE);
+    const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === ANJOU);
     expect(site?.linked).toBe(true);
     expect(site?.perHour).toBe(EXTRACTION_PER_HOUR.iron);
   });
@@ -518,7 +518,7 @@ describe('a building only produces when its region carries its colour', () => {
   it('settles twice to the same figure', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await raise(t, seat, 'mine', MEURTHE);
+    await raise(t, seat, 'mine', ANJOU);
     await fill(t, seat, 'steel', 0);
     const player = await seatOf(t, seat);
 

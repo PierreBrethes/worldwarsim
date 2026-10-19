@@ -57,3 +57,11 @@ export const BoardInsetsContext = createContext<BoardInsets>({
 });
 
 export const useBoardInsets = (): BoardInsets => useContext(BoardInsetsContext);
+
+/**
+ * **Ce qui se pose au bas de la carte se lève au-dessus du sous-main** (#122) : de ce que la bande
+ * du plateau personnel prend au-delà de la marge de la table (`--mat-rise`, qu'elle publie). Une
+ * seule mesure pour tous : sous `.hud`, la diviser par `--hud-scale`.
+ */
+export const MAT_LIFT = 'max(0px, var(--mat-rise, 0px) - var(--table-margin))';
+export const MAT_LIFT_HUD = `calc(${MAT_LIFT} / var(--hud-scale))`;

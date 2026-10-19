@@ -178,16 +178,72 @@
   opacity: 0.85;
 }
 
-/* The level-of-detail threshold never reaches a deposit: it is gone with the admin-1 layer
-   long before the camera is far enough to fold anything. The rule is written anyway, because
-   the day the two distances move it is the mark that must survive, never the words. */
+/* A deposit is the POC's tag: the resource's plate in a paper roundel, its name, and who works it.
+   Folded (far, or crowded out by a neighbour) the roundel stays alone. */
 .label--deposit.label--glyph .label-block {
-  opacity: 0.85;
+  opacity: 1;
+}
+
+.label--deposit.label--glyph .label-lines,
+.label--deposit .label-bar {
+  display: none;
+}
+
+.label--deposit .label-block {
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
 }
 
 .label-deposit {
-  display: block;
-  filter: drop-shadow(0 0 1.4px var(--paper)) drop-shadow(0 0 1.4px var(--paper));
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    0 2px 0 rgb(42 33 24 / 40%);
+}
+
+.label-deposit img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+
+.label--deposit .label-lines {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  text-align: center;
+  text-shadow:
+    0 0 3px var(--paper),
+    0 0 3px var(--paper);
+}
+
+/* Holding a building that takes it: the free deposits of its kind wear an ochre ring that beats.
+   The ring stays when motion is reduced or off. */
+.label--seek .label-deposit {
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    0 0 0 3px color-mix(in srgb, var(--ochre, #c8913a) 85%, transparent);
+  animation: deposit-seek 1s ease-in-out infinite;
+}
+
+@keyframes deposit-seek {
+  50% {
+    box-shadow:
+      inset 0 0 0 2px var(--ink),
+      0 0 0 6px color-mix(in srgb, var(--ochre, #c8913a) 60%, transparent);
+  }
+}
+
+:root[data-motion='reduced'] .label--seek .label-deposit,
+:root[data-motion='off'] .label--seek .label-deposit {
+  animation: none;
 }
 
 /* A crate is a private observation, not a possession: no national mast and no ground shadow.

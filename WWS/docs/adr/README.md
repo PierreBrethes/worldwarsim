@@ -37,3 +37,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0027](0027-la-mondiale-au-centre.md) | La Mondiale au centre, et l'économie comme seul frein | acceptée — remplace la fiche 01, révise 0001, 0020 §10/§11 |
 | [0028](0028-l-economie-de-la-mondiale.md) | L'économie de la Mondiale : cinq ressources, la logistique par les pièces | acceptée — révise 0015, 0026 (16/10), 66a, R1/R5 du 14/10, le relais ; précise 0025 |
 | [0029](0029-placement-libre-et-gisements-ponctuels.md) | Le placement libre des bâtiments, et les gisements ponctuels | acceptée — révise 0013, 0015 (une bâtisse et un gisement par région) |
+| [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a |

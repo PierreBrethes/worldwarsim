@@ -8,6 +8,11 @@ Relecture code du 08/09 : [bilan daté, vérifications et recommandations](techn
 Le bilan relève notamment les cas à préciser dans les briefs de victoire et d'objectifs neutres
 avant de les exécuter. La file historique ci-dessous est complétée par la direction V1 du 08/09.
 
+## Retours de Pierre sur la pré-prod — 19/10
+
+Suivis en issues GitHub, de #121 à #134. Le label « à trancher » marque une décision de Pierre à
+prendre avant de coder. Chaque issue porte ses tâches : contrat, règle et serveur, écran, revue.
+
 ## La file au 17/10 — vers la saison test Mondiale v2
 
 Le cap est l'[ADR 0027](adr/0027-la-mondiale-au-centre.md). Tout ce qui suit cette section date
@@ -107,8 +112,8 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
 
    Bakou, Dakar et Singapour sont faits le 19/10 : le vivier compte dix lieux, sept tirés par la
    graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et
-   l'exclusion du sol national du 14/10 ne sont pas lues). Rangoun (« aucun envoi vers lui »)
-   attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la une.
+   l'exclusion du sol national du 14/10 ne sont pas lues). Rangoun et Hong Kong ont
+   leur règle depuis le 19/10 (#133).
 5. ~~**Le tutoriel de manipulation** (ADR 0027 §2)~~ : fait le 19/10. Les **premiers pas** de la
    Mondiale, dans la vraie partie : cinq gestes (QG, mouvement, formation, recherche, livraison)
    lus dans la vue (`stepsDoneIn`, `src/domain/first-steps.ts`) et retenus par la place

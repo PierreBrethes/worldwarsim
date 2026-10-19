@@ -32,7 +32,7 @@ export type UnitRole =
 export type UnitTier = 1 | 2;
 
 /**
- * **Les onze cartes de recherche de la Mondiale** (ADR 0028 §5), dans l'ordre de l'arbre :
+ * **Les quatorze cartes de recherche de la Mondiale** (ADR 0028 §5), dans l'ordre de l'arbre :
  * terre, mer, air, industrie. Ce qu'elles débloquent vit dans `src/domain/research.ts`.
  */
 export const RESEARCH_CARDS = [
@@ -47,6 +47,9 @@ export const RESEARCH_CARDS = [
   'airlift',
   'syntheticOil',
   'listening',
+  'transmissions1',
+  'transmissions2',
+  'transmissions3',
 ] as const;
 
 export type ResearchCard = (typeof RESEARCH_CARDS)[number];

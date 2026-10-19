@@ -392,7 +392,7 @@ describe('buildLabels', () => {
     expect(deposit?.anchor).toEqual({ kind: 'ground', lonLat: [2.4, 49.4] });
     expect(deposit?.deposit).toBe('coal');
     expect(deposit?.ink).toBeNull();
-    expect(deposit?.lines).toEqual([]);
+    expect(deposit?.lines).toEqual([{ role: 'nature', text: 'charbon' }]);
     expect(deposit?.priority).toBeLessThan(building?.priority ?? 0);
   });
 

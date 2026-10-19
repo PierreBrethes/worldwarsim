@@ -632,6 +632,20 @@ export const NOTICE = v.union(
     key: STRATEGIC_POINT_KEY,
     nation: v.string(),
     point: v.optional(LON_LAT),
+    /** **Hong Kong** : la copie de son teneur seul, qui dit aussi à qui le point est pris
+     *  (absent : neutre). `hongKong` la fait lire « dépêche de Hong Kong ». */
+    hongKong: v.optional(v.literal(true)),
+    from: v.optional(v.string()),
+  }),
+  /** **Hong Kong lit les captures** : un bâtiment ou un avant-poste change de main, et son teneur
+   *  l'apprend même s'il ne le voit pas — qui, quoi, où, et rien de plus. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('captureDispatch'),
+    nation: v.string(),
+    from: v.optional(v.string()),
+    site: CAPTURE_SITE,
+    point: LON_LAT,
   }),
   /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
   v.object({

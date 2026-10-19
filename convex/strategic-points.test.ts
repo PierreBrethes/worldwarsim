@@ -467,6 +467,37 @@ describe('the rules the points break', () => {
     expect((await campsOf())[0]).toMatchObject({ nation: 'ussr' });
   });
 
+  /** Rangoun : la fiche de la tournée dit « invisible » à son maître seul (le voile : `detection.test.ts`). */
+  it('tells the holder of Rangoon his tour is veiled, while he holds it', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const truck = await posted(t, seat, 'landTransport', FIELD);
+    const base = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: { lon: FIELD[0], lat: FIELD[1] },
+        hostCountry: 'ROU',
+        level: 1,
+        specialization: 'listening',
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(truck, {
+        tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
+      }),
+    );
+    const tourOf = async () =>
+      (await t.query(api.view.playerView, seat)).me.troops.find((one) => one.id === truck)?.tour;
+    expect(await tourOf()).not.toHaveProperty('veiled');
+    await holdPoint(t, seat, 'rangoon');
+    expect(await tourOf()).toMatchObject({ veiled: true });
+  });
+
   /** Halifax : vos mouvements maritimes ne prennent pas de slot. */
   it('lets the holder of Halifax sail with every slot taken, and counts no fleet on his banner', async () => {
     const t = boot();
@@ -628,5 +659,70 @@ describe('the rules the points break', () => {
     const stocks = (await t.query(api.view.playerView, seat)).me.resources;
     expect(stocks.food.stock).toBeLessThanOrEqual(100);
     expect(stocks.ammunition.stock).toBeGreaterThanOrEqual(100);
+  });
+});
+
+/**
+ * **Hong Kong** : son teneur lit la dépêche de chaque capture d'un point, avec qui l'a pris et à
+ * qui — rien de plus que la capture, que toute la table lit déjà ; la règle s'éteint à la perte.
+ */
+describe('Hong Kong', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const told = (t: Bench, seat: Seat) =>
+    t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return (
+        await ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      ).filter((notice) => notice.kind === 'pointTaken');
+    });
+
+  it('tells its holder who took a point, and from whom, wherever it is', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await holdPoint(t, guest, 'hongKong');
+    const lisbon = await holdPoint(t, guest, 'lisbon');
+    const point = await pointCalled(t, 'lisbon');
+    expect(lisbon).toBe(point._id);
+    await capture(t, seat, await postedAt(t, seat, point), point);
+    vi.advanceTimersByTime(7 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+
+    expect(await told(t, guest)).toMatchObject([
+      { key: 'lisbon', nation: 'france', hongKong: true, from: 'ussr' },
+    ]);
+    // The taker reads the plain public dispatch, no more.
+    const plain = await told(t, seat);
+    expect(plain).toMatchObject([{ key: 'lisbon', nation: 'france' }]);
+    expect(plain[0]).not.toHaveProperty('hongKong');
+    expect(plain[0]).not.toHaveProperty('from');
+  });
+
+  it('says a point was neutral when nobody held it, and stops with the point', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await holdPoint(t, guest, 'hongKong');
+    const narvik = await pointCalled(t, 'narvik');
+    await capture(t, seat, await postedAt(t, seat, narvik), narvik);
+    vi.advanceTimersByTime(7 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    const [first] = await told(t, guest);
+    expect(first).toMatchObject({ key: 'narvik', hongKong: true });
+    expect(first).not.toHaveProperty('from');
+
+    // Hong Kong falls to the other side: Lisbon's capture is no longer read by its old holder.
+    await holdPoint(t, seat, 'hongKong');
+    const lisbon = await pointCalled(t, 'lisbon');
+    await capture(t, seat, await postedAt(t, seat, lisbon), lisbon);
+    vi.advanceTimersByTime(7 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    expect((await told(t, guest)).filter((notice) => 'hongKong' in notice)).toHaveLength(1);
   });
 });

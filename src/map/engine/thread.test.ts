@@ -8,6 +8,7 @@ import {
   airRise,
   flightAltitude,
   HOVER_ALTITUDE,
+  leadIn,
   pointOnLeg,
   AIR_RISE_MAX,
   AIR_RISE_MIN,
@@ -306,5 +307,27 @@ describe('flightAltitude', () => {
 
   it('holds its cruise in the middle', () => {
     for (const share of [0.4, 0.5, 0.6]) expect(flightAltitude(share)).toBe(1);
+  });
+});
+
+describe('leadIn', () => {
+  const line = Array.from({ length: 11 }, (_, k) => new Vector3(k, 0, 0));
+
+  it('leaves the first vertex along the given direction, then joins the line', () => {
+    const led = leadIn(line, () => [0, 1]);
+    expect(led[0]).toEqual(line[0]);
+    // The first step runs along the axis (+z), not along the line (+x).
+    expect(Math.abs(led[1]!.z)).toBeGreaterThan(Math.abs(led[1]!.x));
+    expect(led.at(-1)).toEqual(line.at(-1));
+  });
+
+  it('is left alone when no direction is wanted', () => {
+    expect(leadIn(line, () => null)).toBe(line);
+  });
+
+  it('asks for the sense the leg goes in', () => {
+    let hint: readonly [number, number] = [0, 0];
+    leadIn(line, (h) => ((hint = h), null));
+    expect(hint[0]).toBeCloseTo(1, 6);
   });
 });

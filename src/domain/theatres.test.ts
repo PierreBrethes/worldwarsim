@@ -48,11 +48,21 @@ describe('le cadrage d’ouverture du plateau', () => {
     expect(high![0]).toBeGreaterThan(180);
   });
 
-  it('va à la capitale d’une Mondiale sans QG, et nulle part une fois le QG posé', () => {
+  it('va à la capitale d’une Mondiale et à ses pièces, QG posé ou non', () => {
     expect(openingFrameOf({ theatre: null, hqLevel: 0, openingPoint: [2.35, 48.85] })).toEqual([
       [2.35, 48.85],
     ]);
-    expect(openingFrameOf({ theatre: null, hqLevel: 1, openingPoint: [2.35, 48.85] })).toBeNull();
+    expect(
+      openingFrameOf({
+        theatre: null,
+        hqLevel: 1,
+        openingPoint: [2.35, 48.85],
+        pieces: [[4.8, 45.7]],
+      }),
+    ).toEqual([
+      [2.35, 48.85],
+      [4.8, 45.7],
+    ]);
     expect(openingFrameOf({ theatre: europe, hqLevel: 1, openingPoint: null })).toBeNull();
   });
 });

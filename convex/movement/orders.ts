@@ -14,7 +14,7 @@ import {
   captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
-  isMaritime,
+  slotsAskedBy,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -26,8 +26,6 @@ import {
 import { holdsPoint, sealedByDakar } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
-import { buildingLevel } from '../buildingReads';
-import { MAX_HQ_LEVEL } from '../constants';
 import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
@@ -626,19 +624,6 @@ export async function columnOf(
   };
 }
 
-/** Same shape and reason as `capReliefOf`: "montez le QG" is advice, "un quartier général niveau
- *  3 les porte à 4" is a plan. Both numbers come out of `movementSlots`, never recopied. */
-const slotRelief = (hqLevel: number) =>
-  hqLevel >= MAX_HQ_LEVEL
-    ? {}
-    : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
-
-/**
- * ADR 0006, carried by the headquarters since ADR 0015 dissolved the logistics centre. The count
- * comes from `movementSlots`, the very function `view.ts` fills the banner from — a placeholder
- * constant once capped this door at one while the banner promised `1 + hqLevel`. **A return does
- * not count**: holding a slot hostage while a beaten column walks back punishes one defeat twice.
- */
 /** **On monte dans le transport qui tient le bâtiment** (15/10) : en Blitz, un bâtiment n'abrite
  *  qu'une unité, et celle qu'on rejoint pour embarquer ne ferme pas la porte. */
 function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Column {
@@ -675,12 +660,9 @@ export async function slotsTaken(
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
   ];
-  if (!(await holdsPoint(ctx, player, 'halifax'))) return holders.length;
-  let kept = 0;
-  for (const troopIds of holders) {
-    if (!isMaritime(await crewOf(ctx, troopIds))) kept += 1;
-  }
-  return kept;
+  const crews = [];
+  for (const troopIds of holders) crews.push(await crewOf(ctx, troopIds));
+  return slotsAskedBy(crews, await holdsPoint(ctx, player, 'halifax'));
 }
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
@@ -692,6 +674,11 @@ async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
   return crew;
 }
 
+/**
+ * ADR 0006, carried by research since #124. The count comes from `movementSlots`, the very
+ * function `view.ts` fills the banner from. **A return does not count**: holding a slot hostage
+ * while a beaten column walks back punishes one defeat twice.
+ */
 export async function claimSlot(
   ctx: MutationCtx,
   playerId: Id<'players'>,
@@ -701,11 +688,11 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
-  if ((await holdsPoint(ctx, player, 'halifax')) && isMaritime(await crewOf(ctx, troopIds))) return;
-  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
-  const maximum = movementSlots(hqLevel);
+  const halifax = await holdsPoint(ctx, player, 'halifax');
+  if (slotsAskedBy([await crewOf(ctx, troopIds)], halifax) === 0) return;
+  const maximum = movementSlots(player.researched ?? []);
   if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
+    fail('MOVEMENT_IN_FLIGHT', { maximum });
   }
 }
 

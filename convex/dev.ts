@@ -12,7 +12,7 @@ import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
 import { UNIT_ROLE } from './validators';
 import { nominalStrength } from './constants';
-import { capitalRegionOf, pointOfRegion } from './regions';
+import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
 import { layPoint } from './strategicPoints';
 
@@ -108,6 +108,24 @@ export const fillStocks = internalMutation({
         .collect();
       for (const row of rows) await ctx.db.patch(row._id, { stock, updatedAt: now });
     }
+  },
+});
+
+/**
+ * **Un QG élevé d'un coup**, pour la démo des chantiers parallèles (#136) : le niveau fait les voies.
+ *
+ * `npx convex run dev:promoteHq '{"playerId":"…","level":3}'`
+ */
+export const promoteHq = internalMutation({
+  args: { playerId: v.id('players'), level: v.number() },
+  handler: async (ctx, { playerId, level }) => {
+    const hq = (
+      await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).find((building) => building.key === 'hq');
+    if (hq) await ctx.db.patch(hq._id, { level });
   },
 });
 
@@ -430,6 +448,25 @@ export const logisticsScene = internalMutation({
 });
 
 /**
+ * **Fait arriver sur-le-champ les mouvements d'un joueur**, pour voir une livraison ou une
+ * tournée se dénouer sans attendre la route (#128).
+ *
+ * `npx convex run dev:arriveNow '{"playerId":"…"}'`
+ */
+export const arriveNow = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const moving = await ctx.db
+      .query('movements')
+      .filter((q) => q.eq(q.field('playerId'), playerId))
+      .collect();
+    for (const movement of moving)
+      await ctx.scheduler.runAfter(0, internal.movements.arrive, { movementId: movement._id });
+    return moving.length;
+  },
+});
+
+/**
  * **La scène du largage** (ADR 0028 §4), pour la démo : un aérodrome à la capitale, un avion
  * chargé, un avant-poste de niveau 1 près de Bruxelles — une escale n'est pas requise — au dépôt
  * entamé, et une escouade isolée en Rhénanie, à sec.
@@ -649,6 +686,51 @@ export const pointsScene = internalMutation({
       side: 'capturer',
       country: 'BEL',
       lost,
+    });
+  },
+});
+
+/**
+ * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
+ * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
+ *
+ * `npx convex run dev:navyScene '{"playerId":"…"}'`
+ */
+export const navyScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = { lon: 5.37, lat: 43.3 };
+    const region = nearestRegion([point.lon, point.lat]);
+    if (region === null) throw new Error('no region at Marseille');
+    const port = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'port',
+      regionId: region.id,
+      point,
+      level: 1,
+    });
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 3, lat: 43.3 },
+      hostCountry: 'FRA',
+      level: 1,
+      specialization: 'relay',
+      foundedAt: Date.now() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId,
+      role: 'cargo',
+      tier: 1,
+      nominalStrength: nominalStrength('cargo', 1),
+      currentStrength: nominalStrength('cargo', 1),
+      stationedAt: port,
     });
   },
 });

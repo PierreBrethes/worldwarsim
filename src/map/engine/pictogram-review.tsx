@@ -1,8 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { DEPOSITS, type RegionType } from '@/domain/ids';
-import { DepositMark } from '@/emblems/DepositMark';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
-import { YIELD_OF } from '@/domain/economy';
+import type { RegionType } from '@/domain/ids';
 import { fr } from '@/i18n/fr';
 import '@/styles/index.css';
 import { INK_BY_NATION } from '@/domain/nations';
@@ -127,42 +124,6 @@ function Review() {
               {SEEDS.map((seed) => (
                 <Cluster key={seed} type={type} seed={seed} scale={1} />
               ))}
-            </Sheet>
-          </article>
-        ))}
-      </section>
-      <section style={{ display: 'grid', gap: 10 }}>
-        <h2 style={{ margin: 0, font: '700 16px Georgia, serif' }}>
-          Gisements — gravure (et l’ancienne silhouette)
-        </h2>
-        {DEPOSITS.map((deposit) => (
-          <article
-            key={deposit}
-            data-deposit={deposit}
-            style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr', gap: 8 }}
-          >
-            <strong
-              style={{
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                fontSize: 12,
-                alignSelf: 'center',
-              }}
-            >
-              {fr.deposits[deposit]}
-            </strong>
-            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>
-              <DepositMark deposit={deposit} size={96} />
-              <DepositMark deposit={deposit} size={30} />
-              <span className="label-deposit">
-                <DepositMark deposit={deposit} />
-              </span>
-            </Sheet>
-            <Sheet ground={PALETTE.neutralLand} ink={resourceColor(YIELD_OF[deposit], true)}>
-              <ResourceIcon resource={YIELD_OF[deposit]} size={96} />
-              <span className="label-deposit">
-                <ResourceIcon resource={YIELD_OF[deposit]} size={15} />
-              </span>
             </Sheet>
           </article>
         ))}

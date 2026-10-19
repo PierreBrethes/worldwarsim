@@ -122,6 +122,36 @@ describe('the damage table holds no absolute counter', () => {
 });
 
 /**
+ * **Les contres voulus** (décision du 19/10, #126) : X contre Y quand X fait à Y plus de dégâts
+ * qu'il n'en reçoit — la définition que la recherche lit (`counterOf`).
+ */
+describe('the damage table says the counters that were meant', () => {
+  const beats = (x: CombatProfile, y: CombatProfile) =>
+    (DAMAGE_TABLE[x][y] ?? 0) > (DAMAGE_TABLE[y][x] ?? 0);
+
+  it.each([
+    ['infantry2', 'armor1'],
+    ['fighter', 'bomber'],
+    ['escort', 'carrier'],
+    ['fighter', 'carrier'],
+  ] as const)('%s counters %s', (x, y) => {
+    expect(beats(x, y)).toBe(true);
+  });
+
+  /** Un seul cycle voulu : le fusil bat l'antichar, l'antichar le char, le char le fusil. */
+  it('closes no cycle of three but the rifle, the anti-tank and the tank', () => {
+    const cycles = COMBAT_PROFILES.flatMap((a) =>
+      COMBAT_PROFILES.flatMap((b) =>
+        COMBAT_PROFILES.filter(
+          (c) => a < b && a < c && beats(a, b) && beats(b, c) && beats(c, a),
+        ).map((c) => `${a} > ${b} > ${c}`),
+      ),
+    );
+    expect(cycles).toEqual(['armor1 > infantry1 > infantry2']);
+  });
+});
+
+/**
  * **L'initiative** (grilling du 14/10, B16) : l'attaquant frappe, le défenseur riposte avec ce
  * qui lui reste. Ce cas de référence dit ce que coûte une attaque frontale, en terrain libre et
  * contre une garnison.

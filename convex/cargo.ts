@@ -425,6 +425,26 @@ export async function stationedCargoGroups(
   }));
 }
 
+/**
+ * **Les points où un butin est posé** : toute ligne `stationedLoot` à un point, qu'elle ait
+ * encore un porteur ou non. Le même compte pour le serveur qui dissout une escouade et pour la
+ * vue qui le dit avant le clic (`disbandRefusalOf`).
+ */
+export async function lootPointsOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<ReadonlyArray<{ lon: number; lat: number }>> {
+  const rows = await ctx.db
+    .query('stationedLoot')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+  return rows.flatMap(({ stationedAt }) =>
+    stationedAt !== null && typeof stationedAt !== 'string'
+      ? [{ lon: stationedAt.lon, lat: stationedAt.lat }]
+      : [],
+  );
+}
+
 export async function selectedStationedCargo(
   ctx: QueryCtx,
   {

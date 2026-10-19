@@ -368,7 +368,7 @@ export const COST_BY_ROLE: Readonly<
  * **Ce qu'une carte de recherche coûte et dure** (ADR 0028 §5, artefact du 18/10) : payée à la
  * pose, elle avance en heures de jeu sur le QG. Les prix de l'artefact sont décuplés pour tenir à
  * l'échelle des coûts du code (une caserne vaut 40 d'acier, la dotation 400) ; les durées sont
- * celles de l'artefact, 182 h pour une saison de 168 h — on ne finit pas l'arbre.
+ * celles de l'artefact, 182 h pour une saison de 168 h (232 h avec les trois cartes Transmissions) — on ne finit pas l'arbre.
  *
  * **Le contre coûte moins et dure moins que l'arme qu'il contre** (`research.test.ts`).
  *
@@ -388,6 +388,9 @@ export const RESEARCH_SPEC: Readonly<
   airlift: { hours: 10, cost: { steel: 80, oil: 40 } },
   syntheticOil: { hours: 18, cost: { steel: 100, coal: 100 } },
   listening: { hours: 10, cost: { steel: 60, coal: 60 } },
+  transmissions1: { hours: 10, cost: { steel: 60, coal: 60 } },
+  transmissions2: { hours: 16, cost: { steel: 100, coal: 90 } },
+  transmissions3: { hours: 24, cost: { steel: 160, coal: 130 } },
 };
 
 /**
@@ -520,6 +523,12 @@ export function recruitmentCost(
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
  * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
+ *
+ * The counters it must keep (#126, `combat.test.ts`): mark-2 infantry over mark-1 armour, the
+ * fighter over the bomber, the escort and the fighter over the carrier. One cycle only, and on
+ * purpose: rifle beats anti-tank, anti-tank beats tank, tank beats rifle.
+ *
+ * @a-mesurer trois cases revues le 19/10 pour les contres (#126), jamais jouées
  */
 export const DAMAGE_TABLE: DamageTable = {
   infantry1: {
@@ -543,7 +552,8 @@ export const DAMAGE_TABLE: DamageTable = {
   },
   armor1: {
     infantry1: 0.7,
-    infantry2: 0.65,
+    /** #126, à mesurer : sous les 0,65 de l'antichar, pour que l'infanterie MK2 contre le blindé */
+    infantry2: 0.55,
     armor1: 0.5,
     armor2: 0.25,
     landTransport: 0.85,
@@ -612,7 +622,8 @@ export const DAMAGE_TABLE: DamageTable = {
     armor2: 0.02,
     landTransport: 0.12,
     artillery: 0.15,
-    fighter: 0.15,
+    /** #126, à mesurer : à égalité avec le chasseur, ce qui défait le cycle chasseur > bombardier > escorte */
+    fighter: 0.1,
     bomber: 0.15,
     airTransport: 0.18,
     escort: 0.5,
@@ -627,7 +638,8 @@ export const DAMAGE_TABLE: DamageTable = {
     armor2: 0.04,
     landTransport: 0.25,
     artillery: 0.2,
-    fighter: 0.4,
+    /** #126, à mesurer : sous les 0,12 du chasseur, pour que le chasseur contre le porte-avions */
+    fighter: 0.1,
     bomber: 0.35,
     airTransport: 0.45,
     escort: 0.3,

@@ -97,6 +97,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             regionName: server.me.construction.regionName,
             point: server.me.construction.point ?? null,
             minutesLeft: server.me.construction.minutesLeft,
+            level: server.me.construction.level ?? 1,
           }
         : null,
       constructionQueue: (server.me.constructionQueue ?? []).map((entry) => ({
@@ -108,7 +109,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
+        minutesLeft: entry.minutesLeft ?? null,
       })),
+      buildLanes: server.me.buildLanes ?? 1,
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
       /** A deployment one version behind knows no upkeep: a troop without the field is one
@@ -120,6 +123,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
       funds: server.me.funds ?? null,
       stationedCargo: server.me.stationedCargo ?? [],
+      lootPoints: server.me.lootPoints ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
        *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
       recruiting: server.me.recruiting ?? [],

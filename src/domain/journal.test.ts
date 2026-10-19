@@ -421,3 +421,23 @@ describe('a research card at its end', () => {
     expect(done?.text).toContain('le blindé MK1');
   });
 });
+
+describe('a delivery dispatch carries what the depot took', () => {
+  it('serves `delivered` for the pastilles, and only on a delivery', () => {
+    const delivered = { ammunition: 40, oil: 0, coal: 5 };
+    const notices = [
+      {
+        kind: 'supplyDelivered',
+        at: NOON,
+        hostCountry: 'BEL',
+        delivered,
+        kept: { ammunition: 0, oil: 0, coal: 0 },
+        place: { lon: 4.35, lat: 50.85 },
+      },
+      { kind: 'tourWaiting', at: NOON - 1, role: 'landTransport', why: 'full' },
+    ] as unknown as ReadonlyArray<Notice>;
+    const [delivery, waiting] = journalDispatches([], null, notices, null);
+    expect(delivery!.delivered).toEqual(delivered);
+    expect(waiting!.delivered).toBeUndefined();
+  });
+});

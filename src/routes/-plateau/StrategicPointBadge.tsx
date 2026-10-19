@@ -60,9 +60,7 @@ export function StrategicPointBadge({
       <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
         {state}
       </p>
-      <p className="mt-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)] italic">
-        {rule ?? fr.points.ruleToCome}
-      </p>
+      <p className="mt-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)] italic">{rule}</p>
       {mine && point.key === 'istanbul' && <Listen seat={seat} nations={nations} />}
       {mine && point.key === 'tangier' && <Trade seat={seat} />}
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">

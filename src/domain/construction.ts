@@ -189,6 +189,8 @@ export const pledgedWork = (
   readonly regionId: string;
   readonly outpostId: string | null;
   readonly point: LonLat | null;
+  /** Daté : il monte déjà (une voie du QG) ; absent ou `null` : il attend. */
+  readonly minutesLeft?: number | null;
 }> =>
   view.me.construction === null
     ? view.me.constructionQueue
@@ -284,13 +286,30 @@ const aroundOf = (view: PlayerView) => [
  * settled when the building would stand, and the holder becomes a survey.
  */
 export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
-  const held = [
-    ...aroundOf(view),
-    ...view.surveyedInstallations.map((seen) => ({ key: seen.key, lonLat: seen.point })),
-  ]
-    .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
-    .map((building) => building.lonLat);
-  return DEPOSIT_POINTS.filter((deposit) => !held.some((point) => depositAt(point) === deposit));
+  const held = depositHolders(view);
+  return DEPOSIT_POINTS.filter((deposit) => !held.has(deposit.id));
+}
+
+/**
+ * **Who is known to work each deposit** (map labels): mine, with the level standing (`null` while
+ * only ordered), or a surveyed exploitation of anybody else's — its nation is not in the survey,
+ * so the fog keeps it unsaid. A deposit absent from the map is free.
+ */
+export function depositHolders(
+  view: PlayerView,
+): ReadonlyMap<string, { readonly mine: boolean; readonly level: number | null }> {
+  const holders = new Map<string, { mine: boolean; level: number | null }>();
+  const take = (lonLat: LonLat, mine: boolean, level: number | null) => {
+    const point = depositAt(lonLat);
+    if (point !== null && !holders.has(point.id)) holders.set(point.id, { mine, level });
+  };
+  for (const building of view.me.buildings)
+    if (EXPLOITED_DEPOSITS[building.key] !== undefined) take(building.point, true, building.level);
+  for (const order of pledgedBuildings(view))
+    if (EXPLOITED_DEPOSITS[order.key] !== undefined) take(order.lonLat, true, null);
+  for (const seen of view.surveyedInstallations)
+    if (EXPLOITED_DEPOSITS[seen.key] !== undefined) take(seen.point, false, null);
+  return holders;
 }
 
 /** The player's standing outposts as the reach reads them. `reachKmOf` comes from the balance
@@ -658,14 +677,20 @@ export type WorkSite = {
   readonly minutes: number;
 };
 
+type RisingWork = Pick<
+  NonNullable<PlayerView['me']['construction']>,
+  'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
+>;
+
 export function workSitesOf(
   me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
   catalog: Readonly<Record<BuildingKey, BuildSpec>>,
   loadedAt: number,
 ): WorkSite[] {
   const sites: WorkSite[] = [];
-  const work = me.construction;
-  if (work !== null && work.outpostId === null && work.key !== 'outpost') {
+  /** Un chantier qui monte, sur n'importe laquelle des voies du QG (#136). */
+  const rising = (work: RisingWork, rank: number) => {
+    if (work.outpostId !== null || work.key === 'outpost') return;
     const key = work.key;
     const at = work.point;
     const standing =
@@ -679,12 +704,17 @@ export function workSitesOf(
       regionName: work.regionName,
       point: work.point,
       level: standing === undefined ? 1 : standing.level + 1,
-      rank: 0,
+      rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
       minutes: standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes,
     });
-  }
+  };
+  if (me.construction !== null) rising(me.construction, 0);
   me.constructionQueue.forEach((queued, k) => {
+    if (queued.minutesLeft != null) {
+      rising({ ...queued, minutesLeft: queued.minutesLeft }, k + 1);
+      return;
+    }
     if (queued.outpostId !== null || queued.key === 'outpost' || queued.level !== 1) return;
     sites.push({
       phase: 'queued',
@@ -699,4 +729,32 @@ export function workSitesOf(
     });
   });
   return sites;
+}
+
+/**
+ * **Chantiers qui montent en même temps par niveau du quartier général** (#136) : le niveau N en
+ * permet N.
+ * @a-mesurer un chantier par niveau, à éprouver sur le rythme réel d'une Mondiale
+ */
+export const LANES_PER_HQ_LEVEL = 1;
+
+/** Sans QG debout, une seule voie : c'est ce qui permet de le rebâtir. */
+export const buildLanes = (hqLevel: number): number => Math.max(1, hqLevel * LANES_PER_HQ_LEVEL);
+
+/**
+ * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), lesquelles
+ * repartent en attente parce que les voies ont rétréci (les dernières), et lesquelles démarrent
+ * (les premières en attente, tant qu'une voie est libre). Une seule lecture pour le serveur.
+ */
+export function lanesPlan(
+  running: ReadonlyArray<boolean>,
+  lanes: number,
+): { pause: number[]; start: number[] } {
+  const indices = running.map((_, index) => index);
+  const rising = indices.filter((index) => running[index]);
+  const waiting = indices.filter((index) => !running[index]);
+  return {
+    pause: rising.slice(lanes),
+    start: waiting.slice(0, Math.max(0, lanes - rising.length)),
+  };
 }

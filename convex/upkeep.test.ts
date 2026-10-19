@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
-import type { UnitRole } from '../src/domain/ids';
+import { RESOURCES, type UnitRole } from '../src/domain/ids';
+import { ledgerOf } from '../src/domain/ledger';
+import type { PlayerView } from '../src/domain/player-view';
 import {
   EXTRACTION_PER_HOUR,
   LISTENING_COAL_PER_HOUR,
@@ -15,11 +17,11 @@ import {
   recruitmentCost,
 } from './constants';
 import { armyUpkeep } from '../src/domain/upkeep';
-import { regionFacts, pointOfRegion } from './regions';
+import { regionFacts } from './regions';
 import { landAtPoint } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, seatIn, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
@@ -104,7 +106,7 @@ async function raise(t: ReturnType<typeof boot>, seat: Seat, key: 'farm' | 'barr
       playerId,
       key,
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
       level: 1,
     }),
   );
@@ -267,6 +269,10 @@ describe('the empire eats and burns (ADR 0028 §2)', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.upkeep.listeningCoalPerHour).toBe(LISTENING_COAL_PER_HOUR);
     expect(view.me.resources.coal.ratePerHour).toBe(-LISTENING_COAL_PER_HOUR);
+    for (const resource of RESOURCES)
+      expect(ledgerOf(view as unknown as PlayerView, resource).balance).toBeCloseTo(
+        view.me.resources[resource].ratePerHour,
+      );
   });
 });
 

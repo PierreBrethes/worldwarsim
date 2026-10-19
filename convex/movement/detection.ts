@@ -29,6 +29,7 @@ import { isNation } from '../../src/domain/nations';
 import { isStanding } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { economyOf } from '../resources';
+import { holdsPoint } from '../strategicPoints';
 import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,
@@ -85,7 +86,10 @@ export async function reassessDetection(
 
   for (const target of movements) {
     const mobile = board.mobileById.get(target._id);
-    const desired = mobile === undefined ? [] : sightingsFor(mobile, board, now);
+    const desired =
+      mobile === undefined || target.troopIds.some((id) => board.veiled.has(id))
+        ? []
+        : sightingsFor(mobile, board, now);
     await syncSightings(ctx, target, await desired, now);
   }
 
@@ -228,6 +232,20 @@ async function detectionBoard(
       .collect(),
   ]);
   const troopById = new Map(troops.map((troop) => [troop._id, troop]));
+  /** **Rangoun** : les tournées de son teneur ne se relèvent par aucun détecteur. Relu ici à
+   *  chaque réévaluation, donc éteint dès que le point change de main. */
+  const veiled = new Set<Id<'troops'>>();
+  const keepers = new Map<Id<'players'>, boolean>();
+  for (const troop of troops) {
+    if (troop.tour === undefined) continue;
+    if (!keepers.has(troop.playerId)) {
+      keepers.set(
+        troop.playerId,
+        await holdsPoint(ctx, { _id: troop.playerId, seasonId }, 'rangoon'),
+      );
+    }
+    if (keepers.get(troop.playerId)) veiled.add(troop._id);
+  }
   const mobileById = new Map<Id<'movements'>, Mobile>();
   for (const movement of movements) {
     const roles = movement.troopIds.flatMap((troopId) => {
@@ -257,7 +275,7 @@ async function detectionBoard(
   >();
 
   for (const troop of troops) {
-    if (moving.has(troop._id)) continue;
+    if (moving.has(troop._id) || veiled.has(troop._id)) continue;
     const station = stationOf(troop, playerById, buildingById, outpostById);
     if (station === null) continue;
     const key = `${troop.playerId}@${station.point[0]},${station.point[1]}`;
@@ -341,7 +359,7 @@ async function detectionBoard(
     });
   }
 
-  return { mobileById, watchers, players, posted };
+  return { mobileById, watchers, players, posted, veiled };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;

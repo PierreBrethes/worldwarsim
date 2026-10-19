@@ -13,7 +13,14 @@ import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
 import { nearWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
-import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
+import {
+  buildThread,
+  pointOnLeg,
+  projectOnGround,
+  stretchTether,
+  type EndsOf,
+  type Thread,
+} from './thread';
 import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
 import { bendAround } from './sway';
@@ -108,8 +115,18 @@ export class ArcLayer {
   private unitsPerPixel = 1;
   /** The dash drift's clock: it lives in the loop, never in React state. */
   private lastFrameMs = 0;
-  /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
-  motion: MapMotion = 'full';
+  private motionSetting: MapMotion = 'full';
+  /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering.
+   *  Full and reduced lay the runway and quay lead-ins (#129): reduced has the pawn on the axis
+   *  at once, off draws the thread as the route runs. */
+  get motion(): MapMotion {
+    return this.motionSetting;
+  }
+  set motion(motion: MapMotion) {
+    const before = this.motionSetting !== 'off';
+    this.motionSetting = motion;
+    if (before !== (motion !== 'off') && this.rendered.length > 0) this.rebuild();
+  }
   private aloft = false;
   /** My troops, read for the strength my movements carry: the arc does not serve it. */
   troops: ReadonlyArray<TroopView> = [];
@@ -124,6 +141,8 @@ export class ArcLayer {
   constructor(
     private readonly frame: WorldFrame,
     private readonly ink: InkLayer,
+    /** Where a plane leaves a runway or a hull a quay (`EndsOf`), by the board's own points. */
+    private readonly ends: EndsOf = () => null,
   ) {}
 
   setPlayerNation(nation: string | null): void {
@@ -169,7 +188,7 @@ export class ArcLayer {
     this.rendered = [];
     this.targets = [];
     for (const arc of arcs) {
-      const key = drawnKey(arc, this.playerNation, this.troops);
+      const key = drawnKey(arc, this.playerNation, this.troops, this.motion !== 'off');
       let rendered = previous.get(arc.id);
       previous.delete(arc.id);
       if (rendered?.key !== key) {
@@ -209,6 +228,7 @@ export class ArcLayer {
       },
       {
         aloft: this.aloft,
+        ...(this.motion !== 'off' ? { ends: this.ends } : {}),
         ...(arc.state === 'mine' && arc.airdrop !== undefined ? { airdrop: arc.airdrop } : {}),
       },
     );
@@ -461,9 +481,15 @@ function release({ thread, pawn, relic }: RenderedArc): void {
  * dressing it, its state, route and end, its roles and wear, the hour its annotation writes and
  * the ink a last known position fades to — read like `CampLayer`'s, by what shows, not by instants.
  */
-function drawnKey(arc: ArcView, nation: string | null, troops: ReadonlyArray<TroopView>): string {
+function drawnKey(
+  arc: ArcView,
+  nation: string | null,
+  troops: ReadonlyArray<TroopView>,
+  lead: boolean,
+): string {
   return JSON.stringify([
     nation,
+    lead,
     arc.state,
     arc.to,
     arc.route,

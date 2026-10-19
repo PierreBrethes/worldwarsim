@@ -13,7 +13,8 @@ export type StampWords = { readonly word: string; readonly hour: string };
  * stamp waits for the first to lift.
  */
 export type InkBurst = {
-  readonly kind: 'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured' | 'airdropped';
+  readonly kind:
+    'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured' | 'airdropped' | 'delivered';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;

@@ -56,6 +56,19 @@ export type RecruitmentDue = {
  * Un mouvement tenu à une frontière par une plage de repos tombe à sa résolution, qui est
  * l'heure où quelque chose se passera.
  */
+/** **Tous les chantiers qui montent**, la tête et les autres voies du QG (`minutesLeft` daté) —
+ *  la même lecture que `sitesOf`. */
+export function datedWorksOf(
+  me: PlayerView['me'],
+): ReadonlyArray<NonNullable<PlayerView['me']['construction']>> {
+  return [
+    ...(me.construction === null ? [] : [me.construction]),
+    ...me.constructionQueue.flatMap((queued) =>
+      queued.minutesLeft == null ? [] : [{ ...queued, minutesLeft: queued.minutesLeft }],
+    ),
+  ];
+}
+
 export function underwayOf(
   view: PlayerView,
   recruitments: ReadonlyArray<RecruitmentDue>,
@@ -78,8 +91,7 @@ export function underwayOf(
     });
   }
 
-  const work = view.me.construction;
-  if (work !== null) {
+  for (const work of datedWorksOf(view.me)) {
     if (isOutpostWork(work.key)) {
       const outpost = view.me.outposts.find((candidate) => candidate.id === work.outpostId);
       if (outpost !== undefined)

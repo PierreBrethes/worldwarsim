@@ -41,6 +41,7 @@ import {
   isCoastCell,
   isLandCell,
   KM_PER_UNIT,
+  type Medium,
   type RouteGrid,
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
@@ -61,7 +62,7 @@ import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { edgeSafeTiltAt, steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
@@ -81,7 +82,7 @@ import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
-import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
@@ -241,6 +242,8 @@ const JOURNEY_MS = 500;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
+/** The far edge is taken this share of its true distance: a margin, not a hair (#131). */
+const EDGE_MARGIN = 0.88;
 /** Development only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
 function forcedInstant(search: string): number | null {
   const raw = import.meta.env.DEV ? new URLSearchParams(search).get('heure') : null;
@@ -289,6 +292,8 @@ type Gesture = {
   /** A mouse held still on a squad: past `DETACH_MS` the drag takes the one troop pressed. */
   detach?: ReturnType<typeof setTimeout> | null;
   single?: boolean;
+  /** **The lasso** (#130): Maj + drag on the bare board, the stroke as the hand drew it. */
+  lasso?: Array<[number, number]>;
 };
 
 /**
@@ -335,6 +340,10 @@ export class MapEngine {
   private hoveredPile: string | null = null;
   /** My transports that could take the piece in hand, ringed while it is held. */
   private available: ReadonlyArray<string> = [];
+  /** The piles taken together (#130), ringed as the one in hand is. */
+  private selected: ReadonlyArray<string> = [];
+  /** The lasso's pencil stroke, over the board while it is drawn. */
+  private lassoPath: SVGPathElement | null = null;
   private aimedPile: string | null = null;
   private lastFrame = performance.now();
   private readonly searchArea: SearchAreaLayer;
@@ -429,6 +438,7 @@ export class MapEngine {
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   /** 0..1, told only when it changes. */
   onTiltShift: (strength: number) => void = () => {};
+  private released = false;
   private tiltShift = -1;
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
@@ -492,6 +502,11 @@ export class MapEngine {
         clientY: number,
       ) => void)
     | undefined;
+  /** **The lasso** (#130): its stroke at every move, and `done` at release. Unset, Maj + drag
+   *  is the plain drag it always was. */
+  onLasso?: ((stroke: ReadonlyArray<readonly [number, number]>, done: boolean) => void) | undefined;
+  /** **A finger held still on the bare board** (#130): the selection starts, taps then add. */
+  onSelectHold?: (() => void) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -603,7 +618,9 @@ export class MapEngine {
       );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
-    this.arcs = new ArcLayer(this.frame, this.ink);
+    this.arcs = new ArcLayer(this.frame, this.ink, (medium, which, at, hint) =>
+      this.endOf(medium, which, at, hint),
+    );
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
@@ -670,6 +687,9 @@ export class MapEngine {
     this.resize();
     this.loop();
   }
+
+  /** The airfields the threads were last laid against (`runwaysKey`). */
+  private runways = '';
 
   /**
    * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
@@ -751,7 +771,12 @@ export class MapEngine {
    *  (ADR 0026 §1). */
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
     // The view is re-served at every step of any column: a frame only when something changed.
-    if (this.maquettes.display(maquettes)) this.invalidate();
+    if (!this.maquettes.display(maquettes)) return;
+    this.invalidate();
+    const runways = this.maquettes.runwaysKey();
+    if (runways === this.runways) return;
+    this.runways = runways;
+    this.arcs.rebuild();
   }
 
   /**
@@ -801,6 +826,13 @@ export class MapEngine {
     this.refreshRings();
   }
 
+  /** **The piles taken together** (#130): each wears the ring of a piece in hand. */
+  setSelected(pileIds: ReadonlyArray<string>): void {
+    this.invalidate();
+    this.selected = pileIds;
+    this.refreshRings();
+  }
+
   private tellCarryOver(
     over: CarryTarget | { readonly kind: 'ground' } | null,
     clientX: number,
@@ -818,10 +850,12 @@ export class MapEngine {
     if (held === null) {
       this.camps.mark(null, null);
       if (this.hoveredPile !== null) rings.set(this.hoveredPile, 'hover');
+      for (const id of this.selected) rings.set(id, 'selected');
       this.standing.setRings(rings);
       return;
     }
     for (const id of this.available) rings.set(id, 'avail');
+    for (const id of this.selected) rings.set(id, 'selected');
     rings.set(held.pileId, 'selected');
     const over = this.carryOver;
     const target =
@@ -1089,8 +1123,7 @@ export class MapEngine {
       .divideScalar(points.length);
     const radius = Math.max(...points.map((point) => point.distanceTo(arrival)));
     const currentDistance = this.camera.position.distanceTo(this.controls.target);
-    const framing = radius / Math.tan((this.camera.fov * Math.PI) / 360);
-    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    const framing = framingDistanceOf(radius, this.camera.fov, this.camera.aspect);
     const arrivalDistance = Math.min(
       this.controls.maxDistance,
       Math.max(
@@ -1098,6 +1131,11 @@ export class MapEngine {
         framing,
         this.controls.minDistance,
       ),
+    );
+    const orientation = this.leanedAt(
+      this.camera.position.clone().sub(this.controls.target).normalize(),
+      arrival,
+      arrivalDistance,
     );
 
     this.journey = {
@@ -1388,10 +1426,14 @@ export class MapEngine {
     // canvas, and a page that rebuilds the map a few times hits the context limit.
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
+    this.lassoPath?.ownerSVGElement?.remove();
   }
 
   private wireInputs(): void {
     const canvas = this.renderer.domElement;
+    this.controls.addEventListener('start', () => {
+      this.released = true;
+    });
     this.controls.addEventListener('change', () => {
       this.invalidate();
       this.hoverDirty = true;
@@ -1452,6 +1494,7 @@ export class MapEngine {
         const pick = this.pieceToTake();
         return pick === null || pick.carried ? null : { kind: 'canvas', pick };
       });
+      this.armSelection(this.gesture, event);
       this.refreshCursor();
     });
     canvas.addEventListener('wheel', () => {
@@ -1486,6 +1529,10 @@ export class MapEngine {
     gesture.traveledPx += Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
     gesture.x = event.clientX;
     gesture.y = event.clientY;
+    if (gesture.lasso !== undefined) {
+      this.drawLasso(gesture as Gesture & { lasso: Array<[number, number]> });
+      return;
+    }
     if (gesture.carrying) {
       // Chorded: a second button down during a drag comes as a move, never as a press.
       if ((event.buttons & 2) !== 0) this.onCarryCancel?.();
@@ -1537,6 +1584,57 @@ export class MapEngine {
       gesture.hold = null;
       if (this.gesture === gesture) this.beginCarry(gesture);
     }, LONG_PRESS_MS);
+  }
+
+  /**
+   * **Maj + drag on the bare board draws the lasso** (#130) — the drag that pans or turns it is
+   * the one without Maj — and **a finger held still there starts a selection**, which its taps
+   * then fill: on a piece, that same long press carries it, as it always did.
+   */
+  private armSelection(gesture: Gesture, event: PointerEvent): void {
+    if (gesture.carry !== null || this.held !== null || this.placing !== null) return;
+    if (event.pointerType === 'touch') {
+      const onSelectHold = this.onSelectHold;
+      if (onSelectHold === undefined) return;
+      gesture.hold = setTimeout(() => {
+        gesture.hold = null;
+        if (this.gesture !== gesture || gesture.pastThreshold) return;
+        gesture.pastThreshold = true;
+        navigator.vibrate?.(12);
+        onSelectHold();
+      }, LONG_PRESS_MS);
+      return;
+    }
+    if (this.onLasso === undefined || !event.shiftKey || gesture.button !== 'left') return;
+    if (this.spaceHeld) return;
+    gesture.lasso = [[event.clientX, event.clientY]];
+    this.holdOrbit();
+  }
+
+  /** The stroke follows the hand, never closed back to its start (POC du 16/10). */
+  private drawLasso(gesture: Gesture & { lasso: Array<[number, number]> }): void {
+    const [lastX, lastY] = gesture.lasso.at(-1)!;
+    if (Math.hypot(gesture.x - lastX, gesture.y - lastY) < 3) return;
+    gesture.lasso.push([gesture.x, gesture.y]);
+    if (this.lassoPath === null) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('map-lasso');
+      this.lassoPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      svg.append(this.lassoPath);
+      this.container.append(svg);
+    }
+    const box = this.container.getBoundingClientRect();
+    this.lassoPath.setAttribute(
+      'd',
+      `M${gesture.lasso.map(([x, y]) => `${x - box.left} ${y - box.top}`).join(' L')}`,
+    );
+    this.onLasso?.(gesture.lasso, false);
+  }
+
+  private endLasso(gesture: Gesture & { lasso: Array<[number, number]> }): void {
+    this.lassoPath?.ownerSVGElement?.remove();
+    this.lassoPath = null;
+    this.onLasso?.(gesture.lasso, true);
   }
 
   private beginCarry(gesture: Gesture): void {
@@ -1671,6 +1769,10 @@ export class MapEngine {
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null) return;
+    if (gesture.lasso !== undefined) {
+      this.endLasso(gesture as Gesture & { lasso: Array<[number, number]> });
+      if (gesture.lasso.length > 2) return;
+    }
     if (gesture.carrying) {
       this.carriedAt = performance.now();
       this.tellCarryOver(null, event.clientX, event.clientY);
@@ -1759,6 +1861,17 @@ export class MapEngine {
       clientX: event.clientX,
       clientY: event.clientY,
     });
+  }
+
+  /** Where a place of the board falls on the page, for what flies to it (`shell/flights`). */
+  screenOf(at: LonLat): { x: number; y: number } | null {
+    const point = this.frame.projectLonLat(at, COUNTRY_THICKNESS).project(this.eye);
+    if (point.z > 1) return null;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: box.left + ((point.x + 1) / 2) * box.width,
+      y: box.top + ((1 - point.y) / 2) * box.height,
+    };
   }
 
   pieceRect(labelId: string): Rect | null {
@@ -2041,6 +2154,31 @@ export class MapEngine {
     return isLandCell(this.routeGrid, lonLat);
   }
 
+  /**
+   * **How a thread leaves or reaches a runway or a quay** (#129): a plane takes the axis of its
+   * airfield in the sense it is going, a hull leaves seaward and arrives along the shore.
+   */
+  private endOf(
+    medium: Medium,
+    which: 'start' | 'end',
+    at: Vector3,
+    hint: readonly [number, number],
+  ): readonly [number, number] | null {
+    if (medium === 'air') {
+      const axis = this.maquettes.runwayAt(at.x, at.z);
+      if (axis === null) return null;
+      return axis[0] * hint[0] + axis[1] * hint[1] >= 0 ? axis : [-axis[0], -axis[1]];
+    }
+    if (medium !== 'sea') return null;
+    const seaward = this.seawardOf(
+      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+    );
+    if (seaward === null) return null;
+    if (which === 'start') return seaward;
+    const shore: readonly [number, number] = [-seaward[1], seaward[0]];
+    return shore[0] * hint[0] + shore[1] * hint[1] >= 0 ? shore : [-shore[0], -shore[1]];
+  }
+
   /** **Toward the water from a point on a shore**, a unit vector on the board — `null` inland, or
    *  out at sea: a pile there has no land side (`formationOf`). */
   private seawardOf(lonLat: LonLat): readonly [number, number] | null {
@@ -2196,13 +2334,15 @@ export class MapEngine {
         this.controls.maxDistance = this.journey.maxDistanceAtEnd;
       }
       this.journey = null;
+      this.released = true;
       this.postponeRest();
     }
   }
 
   private restoreDefaultZoom(): void {
     const currentDistance = this.camera.position.distanceTo(this.controls.target);
-    if (currentDistance <= DEFAULT_MAX_DISTANCE) {
+    // The orbit's clamp leaves a float of noise past the ceiling: not a distance to travel back.
+    if (currentDistance <= DEFAULT_MAX_DISTANCE + 1e-3) {
       this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
       return;
     }
@@ -2329,12 +2469,87 @@ export class MapEngine {
     }
   }
 
+  /**
+   * The steepest tilt the eye may take at `distance` from `target`, looking along `orientation`
+   * (the offset from the target to the eye): the distance's ceiling, lowered so the board's far
+   * edge stays out of the picture (#131). The edge is the board's rectangle along the way the eye
+   * looks; the upright stays allowed, as ever.
+   */
+  private tiltCeilingAt(target: Vector3, orientation: Vector3, distance: number): number {
+    const edge = this.edgeAhead(target, orientation);
+    return Math.max(
+      this.controls.minPolarAngle,
+      Math.min(
+        steepestTiltAt(distance),
+        edgeSafeTiltAt(distance, this.camera.fov, edge * EDGE_MARGIN),
+      ),
+    );
+  }
+
+  /** How far the board runs beyond `target`, along the way the eye looks (`orientation` is the
+   *  offset from the target to the eye): its rectangle, the nearest side ahead. */
+  private edgeAhead(target: Vector3, orientation: Vector3): number {
+    const flat = Math.hypot(orientation.x, orientation.z);
+    let edge = Infinity;
+    if (flat < 1e-6) return edge;
+    const sides: Array<[number, number, number]> = [
+      [target.x, -orientation.x / flat, this.frame.width / 2],
+      [target.z, -orientation.z / flat, this.frame.height / 2],
+    ];
+    for (const [at, step, half] of sides) {
+      if (Math.abs(step) < 1e-6) continue;
+      edge = Math.min(edge, Math.max(0, ((step > 0 ? half : -half) - at) / step));
+    }
+    return edge;
+  }
+
+  /**
+   * Where even the upright sees past the far edge (the world view, the target far from the
+   * middle), the target slides back toward the middle of the board — never past it — until the
+   * desk is a frame all round rather than a band on one side (#131).
+   */
+  private pullTargetFromEdge(): void {
+    const target = this.controls.target;
+    const eye = this.camera.position.clone().sub(target);
+    const distance = eye.length();
+    const half = (this.camera.fov * Math.PI) / 360;
+    const reach = Math.cos(this.controls.getPolarAngle() + half);
+    const need = reach <= 0.05 ? Infinity : (distance * Math.sin(half)) / reach;
+    const edge = this.edgeAhead(target, eye) * EDGE_MARGIN;
+    const flat = Math.hypot(eye.x, eye.z);
+    if (edge >= need || flat < 1e-6) return;
+    const ahead = new Vector3(-eye.x / flat, 0, -eye.z / flat);
+    const toMiddle = Math.max(0, target.dot(ahead));
+    const slide = ahead.multiplyScalar(-Math.min(need - edge, toMiddle));
+    target.add(slide);
+    this.camera.position.add(slide);
+  }
+
+  /** A journey arrives at the tilt the board allows there: otherwise the first frame after it
+   *  would snap the eye down by whatever the arrival let through. */
+  private leanedAt(orientation: Vector3, target: Vector3, distance: number): Vector3 {
+    const ceiling = this.tiltCeilingAt(target, orientation, distance);
+    const flat = Math.hypot(orientation.x, orientation.z);
+    if (Math.acos(Math.min(1, orientation.y)) <= ceiling || flat < 1e-6) return orientation;
+    return new Vector3(
+      (orientation.x / flat) * Math.sin(ceiling),
+      Math.cos(ceiling),
+      (orientation.z / flat) * Math.sin(ceiling),
+    );
+  }
+
   private loop = (): void => {
     this.animation = requestAnimationFrame(this.loop);
     this.animateJourney();
-    this.controls.maxPolarAngle = steepestTiltAt(
-      this.camera.position.distanceTo(this.controls.target),
-    );
+    // The ceiling holds from the first journey's end or the first gesture: the opening starts
+    // further out than the orbit allows, and a ceiling there would stand the eye upright for
+    // every journey after it. A journey is programmatic and arrives at its own ceiling.
+    const settled = this.released && this.journey === null;
+    if (settled) this.pullTargetFromEdge();
+    const eye = this.camera.position.clone().sub(this.controls.target);
+    this.controls.maxPolarAngle = settled
+      ? this.tiltCeilingAt(this.controls.target, eye, eye.length())
+      : steepestTiltAt(eye.length());
     this.controls.update();
     this.syncEye();
     if (this.hoverDirty) {

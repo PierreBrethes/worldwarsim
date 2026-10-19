@@ -2,9 +2,9 @@
  * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) as **points** on
  * the map (ADR 0029 §3): `{ id, deposit, regionId, country, lon, lat }`, one per deposit. The
  * draw still chooses admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as
- * `id`, and each chosen region gives its point; no region gives two yet.
+ * `id`; coal, iron and oil then stand on their site of 1940, food at random inside its region.
  *
- * Run after `generate-region-index.mjs`: the point is the one that index measures from.
+ * Run after `generate-region-grid.mjs`: a point's region is the one its cell carries.
  * Everything is decided here, offline: no client rule derives a deposit from a region type at
  * runtime, so the map stays a fact the server and the client read, never recompute.
  *
@@ -34,6 +34,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { geoNaturalEarth1 } from 'd3-geo';
 import polylabel from 'polylabel';
+import { distanceKm } from '../src/domain/geo.ts';
+import { lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
 
 const WIDTH = 400;
 const HEIGHT = 208;
@@ -77,81 +79,81 @@ if (
 }
 
 const COAL = {
-  'DEU-1572': 'Ruhr — the first coalfield of Europe',
-  'DEU-1581': 'Saar — the second German basin, disputed for a century',
-  'POL-3146': 'Upper Silesia — the other half of the German war effort',
-  'CZE-1612': 'Ostrava — the Bohemian coking coal',
-  'UKR-327': 'Donbass — the Soviet furnace',
-  'UKR-329': 'Donbass east — Voroshilovgrad pits',
-  'RUS-2401': 'Kuzbass — the eastern basin, out of bomber reach',
-  'FRA-5334': 'Nord-Pas-de-Calais — the French basin',
-  'FRA-5328': 'Lorraine coal, next door to the ore',
-  'GBR-2764': 'Midlands — Nottinghamshire pits',
-  'GBR-2115': 'South Wales — Rhondda steam coal',
-  'GBR-2029': 'Durham — the north-east coalfield',
-  'BEL-2': 'Borinage — the Walloon basin',
-  'USA-3554': 'Appalachia — West Virginia',
-  'USA-3560': 'Pennsylvania anthracite',
-  'USA-3546': 'Illinois basin',
-  'CHN-1805': 'Shanxi — the Chinese basin',
-  'CHN-1813': 'Fushun — the Manchurian open pit',
-  'JPN-1829': 'Kyūshū — Chikuhō, the Japanese basin',
-  'JPN-1847': 'Hokkaidō — Ishikari',
-  'IND-3256': 'Jharia — the Indian coal',
-  'AUS-2654': 'Hunter Valley — New South Wales',
-  'ZAF-1209': 'Witbank — the Transvaal coal',
-  'ITA-5371': 'Sulcis — Carbonia, a town built on the pit in 1938',
+  'DEU-1572': ['Ruhr — the first coalfield of Europe', [7.01, 51.46]],
+  'DEU-1581': ['Saar — the second German basin, disputed for a century', [7.15, 49.35]],
+  'POL-3146': ['Upper Silesia — the other half of the German war effort', [19.02, 50.26]],
+  'CZE-1612': ['Ostrava — the Bohemian coking coal', [18.29, 49.84]],
+  'UKR-327': ['Donbass — the Soviet furnace', [37.8, 48.0]],
+  'UKR-329': ['Donbass east — Voroshilovgrad pits', [38.67, 48.57]],
+  'RUS-2401': ['Kuzbass — the eastern basin, out of bomber reach', [86.7, 53.89]],
+  'FRA-5334': ['Nord-Pas-de-Calais — the French basin', [2.83, 50.43]],
+  'FRA-5328': ['Lorraine coal, next door to the ore', [6.6, 49.05]],
+  'GBR-2764': ['Midlands — Nottinghamshire pits', [-1.2, 53.14]],
+  'GBR-2115': ['South Wales — Rhondda steam coal', [-3.45, 51.65]],
+  'GBR-2029': ['Durham — the north-east coalfield', [-1.75, 54.75]],
+  'BEL-2': ['Borinage — the Walloon basin', [3.89, 50.41]],
+  'USA-3554': ['Appalachia — West Virginia', [-81.19, 37.78]],
+  'USA-3560': ['Pennsylvania anthracite', [-75.97, 40.95]],
+  'USA-3546': ['Illinois basin', [-89.03, 37.8]],
+  'CHN-1805': ['Shanxi — the Chinese basin', [113.3, 40.08]],
+  'CHN-1813': ['Fushun — the Manchurian open pit', [123.9, 41.86]],
+  'JPN-1829': ['Kyūshū — Chikuhō, the Japanese basin', [130.69, 33.64]],
+  'JPN-1847': ['Hokkaidō — Ishikari', [141.97, 43.06]],
+  'IND-3256': ['Jharia — the Indian coal', [86.41, 23.75]],
+  'AUS-2654': ['Hunter Valley — New South Wales', [151.35, -32.83]],
+  'ZAF-1209': ['Witbank — the Transvaal coal', [29.23, -25.87]],
+  'ITA-5371': ['Sulcis — Carbonia, a town built on the pit in 1938', [8.52, 39.17]],
 };
 
 const OIL = {
-  'USA-3536': 'East Texas — the largest field in the world in 1940',
-  'USA-3533': 'Oklahoma — Cushing and the Seminole fields',
-  'USA-3521': 'California — Signal Hill and Kern County',
-  'USA-3535': 'Louisiana — the Gulf coast',
-  'MEX-2734': 'Poza Rica — the Mexican Golden Lane',
-  'VEN-31': 'Maracaibo — Zulia, the second exporter of the era',
-  'VEN-46': 'Oriental basin — Monagas',
-  'TTO-55': 'Trinidad — Mayaro, the Caribbean refinery',
-  'COL-1317': 'Barrancabermeja — Santander',
-  'ARG-1274': 'Comodoro Rivadavia — Chubut',
-  'CAN-632': 'Turner Valley — Alberta',
-  'AZE-1690': 'Baku — the Absheron derricks, the Soviet oil',
-  'RUS-2378': 'Bashkiria — the "second Baku" of the Volga-Urals',
-  'RUS-2416': 'Grozny — the Caucasian field',
-  'RUS-2616': 'Sakhalin — Okha, the Pacific field',
-  'ROU-310': 'Ploiești — the Axis refineries',
-  'IRQ-3049': 'Kirkuk — the pipeline to the Mediterranean',
-  'IRN-3219': 'Khuzestan — Abadan, the largest refinery on earth',
-  'SAU-1098': 'Dhahran — the Eastern Province, just opened',
-  'KWT-1665': 'Burgan — Al Ahmadi',
-  'BHR-4928': 'Bahrain — the first field of the Gulf',
-  'IDN-1230': 'Palembang — southern Sumatra',
-  'IDN-1185': 'Balikpapan — eastern Borneo',
-  'MYS-1187': 'Miri — Sarawak',
+  'USA-3536': ['East Texas — the largest field in the world in 1940', [-94.87, 32.39]],
+  'USA-3533': ['Oklahoma — Cushing and the Seminole fields', [-96.67, 35.23]],
+  'USA-3521': ['California — Signal Hill and Kern County', [-119.0, 35.43]],
+  'USA-3535': ['Louisiana — the Gulf coast', [-92.66, 30.22]],
+  'MEX-2734': ['Poza Rica — the Mexican Golden Lane', [-97.45, 20.53]],
+  'VEN-31': ['Maracaibo — Zulia, the second exporter of the era', [-71.26, 10.13]],
+  'VEN-46': ['Oriental basin — Monagas', [-63.24, 9.98]],
+  'TTO-55': ['Trinidad — Mayaro, the Caribbean refinery', [-61.03, 10.15]],
+  'COL-1317': ['Barrancabermeja — Santander', [-73.85, 7.07]],
+  'ARG-1274': ['Comodoro Rivadavia — Chubut', [-67.5, -45.86]],
+  'CAN-632': ['Turner Valley — Alberta', [-114.28, 50.67]],
+  'AZE-1690': ['Baku — the Absheron derricks, the Soviet oil', [49.93, 40.46]],
+  'RUS-2378': ['Bashkiria — the "second Baku" of the Volga-Urals', [53.7, 54.6]],
+  'RUS-2416': ['Grozny — the Caucasian field', [45.69, 43.32]],
+  'RUS-2616': ['Sakhalin — Okha, the Pacific field', [142.95, 53.57]],
+  'ROU-310': ['Ploiești — the Axis refineries', [26.02, 44.94]],
+  'IRQ-3049': ['Kirkuk — the pipeline to the Mediterranean', [44.39, 35.53]],
+  'IRN-3219': ['Khuzestan — Abadan, the largest refinery on earth', [49.29, 31.93]],
+  'SAU-1098': ['Dhahran — the Eastern Province, just opened', [50.1, 26.32]],
+  'KWT-1665': ['Burgan — Al Ahmadi', [47.98, 28.95]],
+  'BHR-4928': ['Bahrain — the first field of the Gulf', [50.55, 26.07]],
+  'IDN-1230': ['Palembang — southern Sumatra', [104.82, -2.99]],
+  'IDN-1185': ['Balikpapan — eastern Borneo', [116.83, -1.24]],
+  'MYS-1187': ['Miri — Sarawak', [113.99, 4.4]],
 };
 
 const IRON = {
-  'FRA-5325': 'Lorraine — the minette iron ore',
-  'SWE-190': 'Kiruna — Norrbotten magnetite',
-  'NOR-1062': 'Sydvaranger — Kirkenes',
-  'ESP-5851': 'Biscay — the Bilbao ore',
-  'GBR-2139': 'Furness — Cumbrian haematite',
-  'DEU-1576': 'Salzgitter — the Lower Saxon ore',
-  'ITA-5380': 'Elba — the Tuscan iron, mined since Rome',
-  'RUS-2386': 'Urals — Sverdlovsk, the metallurgical heart',
-  'RUS-2362': 'Kursk magnetic anomaly',
-  'TUR-2295': 'Divriği — the Anatolian iron',
-  'USA-3514': 'Mesabi Range — Minnesota',
-  'USA-3562': 'Marquette — the Michigan ranges',
-  'CAN-682': 'Sudbury — Ontario nickel',
-  'BRA-601': 'Itabira — Minas Gerais',
-  'CHL-2695': 'Chuquicamata — Antofagasta copper',
-  'ZMB-517': 'Copperbelt — Northern Rhodesia',
-  'COD-1897': 'Katanga — copper and uranium',
-  'ZAF-1188': 'Sishen — Northern Cape iron',
-  'IND-2444': 'Odisha — the Indian iron ranges',
-  'CHN-1807': 'Daye — the Hubei iron that fed Hanyang',
-  'AUS-2651': 'Yampi Sound — Western Australia',
+  'FRA-5325': ['Lorraine — the minette iron ore', [5.94, 49.25]],
+  'SWE-190': ['Kiruna — Norrbotten magnetite', [20.23, 67.85]],
+  'NOR-1062': ['Sydvaranger — Kirkenes', [30.03, 69.67]],
+  'ESP-5851': ['Biscay — the Bilbao ore', [-3.05, 43.3]],
+  'GBR-2139': ['Furness — Cumbrian haematite', [-3.53, 54.48]],
+  'DEU-1576': ['Salzgitter — the Lower Saxon ore', [10.35, 52.15]],
+  'ITA-5380': ['Elba — the Tuscan iron, mined since Rome', [10.42, 42.81]],
+  'RUS-2386': ['Urals — Sverdlovsk, the metallurgical heart', [59.97, 57.91]],
+  'RUS-2362': ['Kursk magnetic anomaly', [35.37, 52.34]],
+  'TUR-2295': ['Divriği — the Anatolian iron', [38.12, 39.37]],
+  'USA-3514': ['Mesabi Range — Minnesota', [-92.94, 47.43]],
+  'USA-3562': ['Marquette — the Michigan ranges', [-87.67, 46.49]],
+  'CAN-682': ['Sudbury — Ontario nickel', [-80.99, 46.49]],
+  'BRA-601': ['Itabira — Minas Gerais', [-43.23, -19.62]],
+  'CHL-2695': ['Chuquicamata — Antofagasta copper', [-68.9, -22.29]],
+  'ZMB-517': ['Copperbelt — Northern Rhodesia', [28.21, -12.82]],
+  'COD-1897': ['Katanga — copper and uranium', [26.73, -10.98]],
+  'ZAF-1188': ['Sishen — Northern Cape iron', [22.99, -27.78]],
+  'IND-2444': ['Odisha — the Indian iron ranges', [85.38, 22.1]],
+  'CHN-1807': ['Daye — the Hubei iron that fed Hanyang', [114.98, 30.1]],
+  'AUS-2651': ['Yampi Sound — Western Australia', [123.6, -16.15]],
 };
 
 const CURATED = { coal: COAL, oil: OIL, iron: IRON };
@@ -365,17 +367,34 @@ const AREA_FLOOR = 0.1;
 const CORRECTIONS = {
   add: {
     // France — iron, not bread: the three basins that fed its steel.
-    'ITA-5372': ['iron', 'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente'],
+    'ITA-5372': [
+      'iron',
+      'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente',
+      [8.56, 39.56],
+    ],
     'FRA-5275': [
       'iron',
       'Soumont and May-sur-Orne, the Normandy iron basin — second to Lorraine, and exported to the Ruhr',
+      [-0.33, 49.05],
     ],
-    'FRA-5321': ['iron', 'Segré in Anjou, worked without interruption through the period'],
+    'FRA-5321': [
+      'iron',
+      'Segré in Anjou, worked without interruption through the period',
+      [-0.87, 47.69],
+    ],
 
     // Japan — the third basin, after Chikuhō and Ishikari: coal is the one thing the archipelago
     // does hold in quantity, which is what makes its lack of oil a shape rather than poverty.
-    'JPN-1864': ['coal', 'the Jōban coalfield around Iwaki, which burned in the Tokyo factories'],
-    'JPN-3500': ['coal', 'Takashima and Hashima, the Mitsubishi undersea pits off Nagasaki'],
+    'JPN-1864': [
+      'coal',
+      'the Jōban coalfield around Iwaki, which burned in the Tokyo factories',
+      [140.89, 37.05],
+    ],
+    'JPN-3500': [
+      'coal',
+      'Takashima and Hashima, the Mitsubishi undersea pits off Nagasaki',
+      [129.76, 32.66],
+    ],
     /**
      * And the one iron. Drawn from nothing, Japan held **no** iron at all, and with looting not
      * coded there is no road to any: at that point the lack stops being a shape and the nation
@@ -386,30 +405,38 @@ const CORRECTIONS = {
     'JPN-1865': [
       'iron',
       'Kamaishi in Iwate, the first blast furnace of Japan and the only iron mine of the archipelago',
+      [141.88, 39.28],
     ],
 
     // United Kingdom — coal is the profile, and the iron that goes with Cumbrian haematite.
-    'GBR-2032': ['iron', 'Cleveland ironstone, which fed the Teesside furnaces'],
+    'GBR-2032': ['iron', 'Cleveland ironstone, which fed the Teesside furnaces', [-1.05, 54.53]],
     'GBR-5688': [
       'coal',
       'the South Yorkshire coalfield around Barnsley — the third of the three, with Wales and the Midlands',
+      [-1.48, 53.55],
     ],
 
     // Germany — lignite is the other half of its coal, and the feedstock of synthetic fuel.
-    'DEU-1600': ['coal', 'the central German lignite of the Halle-Leipzig field, which fed Leuna'],
-    'DEU-3487': ['coal', 'the Lusatian lignite of Brandenburg'],
+    'DEU-1600': [
+      'coal',
+      'the central German lignite of the Halle-Leipzig field, which fed Leuna',
+      [11.95, 51.35],
+    ],
+    'DEU-3487': ['coal', 'the Lusatian lignite of Brandenburg', [14.05, 51.55]],
 
     // Italy — the third iron, and the reason its steel could exist at all.
-    'ITA-5442': ['iron', 'Cogne magnetite in the Aosta valley, smelted on the spot'],
+    'ITA-5442': ['iron', 'Cogne magnetite in the Aosta valley, smelted on the spot', [7.36, 45.61]],
 
     // USSR — the Urals and the Moscow basin, the depth that let it move its industry east.
     'RUS-2379': [
       'iron',
       'Magnitnaya mountain at Magnitogorsk, the largest iron works of the country',
+      [58.98, 53.41],
     ],
     'RUS-2368': [
       'coal',
       'the Moscow basin lignite around Tula, which kept the capital working when the Donbass fell',
+      [38.3, 54.03],
     ],
   },
   // Nothing to take away yet: the capped procedural pass has not put a deposit anywhere the
@@ -593,29 +620,149 @@ for (const id of Object.keys(CORRECTIONS.remove)) {
 }
 
 /**
- * **A deposit is a point, and it carries one exploitation** (ADR 0029 §3). The draw above still
- * picks the regions — that is where the band, the profiles and the exceptions are argued — and
- * each pick becomes one point: the region's own, the pole of inaccessibility `region-index.json`
- * already measures every distance from. Reading it rather than recomputing it keeps one point per
- * place: a deposit and the region it lies in can never be measured from two spots.
+ * **A deposit is a point, and it carries one exploitation** (ADR 0029 §3). The draw above picks
+ * the regions — that is where the band, the profiles and the exceptions are argued — and the
+ * point is then put down on the cells of `region-grid.json`, the raster the server reads a region
+ * from: a point lies in the region of its cell (ADR 0023), so the region baked here is the one
+ * the board colours, read off the point and never the other way round.
  *
- * The region travels with the point as a fact of the map, never as a rule: which region a point
- * lies in is what the board colours (`heldRegions`); what the point is worth is the deposit.
+ * Coal, iron and oil stand on the pit, the mine or the field of 1940 their line names. A site
+ * whose cell is sea or another country moves to the centre of the nearest cell of its own
+ * country — Takashima, Elba and Lake Maracaibo would otherwise sit in the water. Food is a field,
+ * not a site: it falls at random inside its region, from that region's own seed, away from
+ * every other deposit. Two deposits may share a region; the spacing alone keeps them apart.
  */
+/** @a-mesurer — closer, two exploitations would almost touch (buildings keep ≈ 30 km). */
+const SPACING_KM = 40;
+const FOOD_TRIES = 500;
+
 const index = JSON.parse(readFileSync('public/region-index.json', 'utf8'));
-const output = [...deposits]
-  .sort(([a], [b]) => (a < b ? -1 : 1))
-  .map(([regionId, deposit]) => {
-    const [lon, lat] = index.point[regionId];
-    return {
-      id: `${deposit}-${regionId}`,
-      deposit,
-      regionId,
-      country: index.country[regionId],
-      lon,
-      lat,
-    };
-  });
+const { sphere, outline } = JSON.parse(readFileSync('public/projection.json', 'utf8'));
+const raster = JSON.parse(readFileSync('public/region-grid.json', 'utf8'));
+
+const decode = (runs) => {
+  const cells = new Uint16Array(raster.width * raster.height);
+  for (let run = 0, at = 0; run < runs.length; at += runs[run + 1], run += 2)
+    cells.fill(runs[run], at, at + runs[run + 1]);
+  return cells;
+};
+const regionCells = decode(raster.regionRuns);
+const hostCells = decode(raster.hostRuns);
+const regionOfCell = (cell) => raster.ids[regionCells[cell] - 1];
+const hostOfCell = (cell) => raster.hosts[hostCells[cell] - 1];
+
+/** The server's own reading (`cellAtPlanePoint`), so a baked point and a built one agree. */
+const cellOf = (lonLat) => {
+  const [x, y] = projectLonLat(outline, sphere, lonLat);
+  const at = (value, origin, size) =>
+    Math.min(size - 1, Math.max(0, Math.round((value - origin) / raster.step - 0.5)));
+  return at(y, sphere.minY, raster.height) * raster.width + at(x, sphere.minX, raster.width);
+};
+const lonLatIn = (cell, dx = 0.5, dy = 0.5) =>
+  lonLatAtProjected(outline, sphere, [
+    sphere.minX + ((cell % raster.width) + dx) * raster.step,
+    sphere.minY + (Math.floor(cell / raster.width) + dy) * raster.step,
+  ]);
+const rounded = ([lon, lat]) => [Math.round(lon * 1000) / 1000, Math.round(lat * 1000) / 1000];
+
+function landed(site, country) {
+  const start = cellOf(site);
+  if (hostOfCell(start) === country && regionOfCell(start)) return site;
+  const column = start % raster.width;
+  const row = Math.floor(start / raster.width);
+  for (let ring = 1; ring <= 20; ring++) {
+    let best = null;
+    for (let dy = -ring; dy <= ring; dy++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const r = row + dy;
+        const c = (column + dx + raster.width) % raster.width;
+        if (r < 0 || r >= raster.height) continue;
+        const cell = r * raster.width + c;
+        if (hostOfCell(cell) !== country || !regionOfCell(cell)) continue;
+        const at = lonLatIn(cell);
+        const km = distanceKm(at, site);
+        if (best === null || km < best.km) best = { at, km };
+      }
+    }
+    if (best !== null) return best.at;
+  }
+  return null;
+}
+
+const SITES = new Map([
+  ...Object.values(CURATED).flatMap((table) =>
+    Object.entries(table).map(([id, [, site]]) => [id, site]),
+  ),
+  ...Object.entries(CORRECTIONS.add).map(([id, [, , site]]) => [id, site]),
+]);
+
+const cellsOfRegion = new Map();
+for (let cell = 0; cell < regionCells.length; cell++) {
+  const id = regionOfCell(cell);
+  if (id === undefined) continue;
+  const group = cellsOfRegion.get(id);
+  if (group) group.push(cell);
+  else cellsOfRegion.set(id, [cell]);
+}
+
+const placed = [];
+const crowded = [];
+const strayed = [];
+const nearest = (at) =>
+  placed.reduce(
+    (best, other) => {
+      const km = distanceKm(at, other.lonLat);
+      return km < best.km ? { km, other } : best;
+    },
+    { km: Infinity, other: null },
+  );
+
+/** Sites first, so a field never takes the ground a mine of 1940 stands on. */
+const drawn = [...deposits].sort(([a], [b]) => (a < b ? -1 : 1));
+for (const [drawnId, deposit] of drawn.filter(([id]) => SITES.has(id))) {
+  const country = byId.get(drawnId).country;
+  const found = landed(SITES.get(drawnId), country);
+  if (found === null) {
+    strayed.push(`${deposit} ${drawnId}: no ${country} ground near its site`);
+    continue;
+  }
+  const lonLat = rounded(found);
+  const regionId = regionOfCell(cellOf(lonLat));
+  if (index.country[regionId] !== country)
+    strayed.push(`${deposit} ${drawnId}: its site lands in ${regionId}, outside ${country}`);
+  const { km, other } = nearest(lonLat);
+  if (km < SPACING_KM)
+    crowded.push(`${deposit} ${drawnId} is ${Math.round(km)} km from ${other.id}`);
+  placed.push({ id: `${deposit}-${drawnId}`, deposit, regionId, lonLat, site: true });
+}
+
+for (const [regionId, deposit] of drawn.filter(([id]) => !SITES.has(id))) {
+  const random = mulberry(SEED + hash(`point:${regionId}`));
+  const cells = cellsOfRegion.get(regionId) ?? [];
+  let lonLat = null;
+  for (let attempt = 0; attempt < FOOD_TRIES && cells.length > 0 && lonLat === null; attempt++) {
+    const cell = cells[Math.floor(random() * cells.length)];
+    const at = rounded(lonLatIn(cell, random(), random()));
+    if (regionOfCell(cellOf(at)) === regionId && nearest(at).km >= SPACING_KM) lonLat = at;
+  }
+  if (lonLat === null) {
+    crowded.push(`${deposit} ${regionId}: no point of its region ${SPACING_KM} km clear`);
+    continue;
+  }
+  placed.push({ id: `${deposit}-${regionId}`, deposit, regionId, lonLat, site: false });
+}
+
+const output = placed
+  .sort((a, b) => (a.id < b.id ? -1 : 1))
+  .map(({ id, deposit, regionId, lonLat: [lon, lat] }) => ({
+    id,
+    deposit,
+    regionId,
+    country: index.country[regionId],
+    lon,
+    lat,
+  }));
 writeFileSync('public/deposits.json', JSON.stringify(output));
 
 const total = output.length;
@@ -740,6 +887,20 @@ console.log(
   `without oil ${leanest.nation} ${leanest.count} → ${fullest.nation} ${fullest.count}, spread ${(fullest.count / leanest.count).toFixed(2)}×`,
 );
 
+const sites = placed.filter((point) => point.site).length;
+const shared = Object.values(Object.groupBy(placed, (point) => point.regionId)).filter(
+  (group) => group.length > 1,
+);
+console.log(
+  `${sites} sites of 1940, ${placed.length - sites} fields at random; ${shared.length} regions hold two deposits or more`,
+);
+
+if (strayed.length > 0) {
+  console.error(`\na site off its own country:\n  ${strayed.join('\n  ')}`);
+}
+if (crowded.length > 0) {
+  console.error(`\ndeposits closer than ${SPACING_KM} km:\n  ${crowded.join('\n  ')}`);
+}
 if (unknown.length > 0) {
   console.error(`\nids matching no region:\n  ${unknown.join('\n  ')}`);
 }
@@ -766,6 +927,8 @@ if (lopsided) {
 }
 if (
   unknown.length > 0 ||
+  strayed.length > 0 ||
+  crowded.length > 0 ||
   starved.length > 0 ||
   unmet.length > 0 ||
   lopsided ||

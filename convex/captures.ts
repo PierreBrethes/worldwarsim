@@ -193,6 +193,32 @@ async function notifyBoth(
 }
 
 /**
+ * **Hong Kong lit la capture d'un bâtiment ou d'un avant-poste**, partout, y compris ceux qu'il ne
+ * voit pas : qui, quoi, où. Les deux camps ont déjà leur dépêche ; le teneur seul reçoit celle-ci.
+ */
+async function dispatchFromHongKong(
+  ctx: MutationCtx,
+  capture: Pick<Capture, 'seasonId' | 'playerId' | 'site' | 'point'>,
+  loser: Doc<'players'>,
+  now: number,
+): Promise<void> {
+  const capturer = (await ctx.db.get(capture.playerId))!;
+  for (const seat of await seatsOf(ctx, capture.seasonId)) {
+    if (seat._id === capture.playerId || seat._id === loser._id) continue;
+    if (!(await holdsPoint(ctx, seat, 'hongKong'))) continue;
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'captureDispatch',
+      nation: capturer.nation ?? capturer.nickname,
+      ...(loser.irregular === true ? {} : { from: loser.nation ?? loser.nickname }),
+      site: capture.site,
+      point: capture.point,
+    });
+  }
+}
+
+/**
  * **La colonne arrive au site qu'elle vient capturer.** S'il reste des défenseurs, une passe a
  * lieu comme pour une attaque ; si l'attaquant gagne et garde de l'infanterie debout, la capture
  * commence. Sinon chacun rentre comme après une attaque.
@@ -550,10 +576,13 @@ export const complete = internalMutation({
 
     await ctx.db.delete(captureId);
     await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
+    if (!isPoint(site)) await dispatchFromHongKong(ctx, capture, loser, now);
     const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
     await surveyFromPoint(ctx, capture.playerId, point, now);
     if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
+    /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
+    await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
     await reassessDetection(ctx, capture.seasonId, now);
     /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
     if (falls && loser.defeated !== true) {
@@ -584,6 +613,8 @@ async function takePoint(
   takerId: Id<'players'>,
   now: number,
 ): Promise<void> {
+  /** `point` is read before the hand-over: its holder is still the one the point is taken from. */
+  const former = point.holderId === null ? null : await ctx.db.get(point.holderId);
   await handOver(ctx, point, takerId, now);
   const taker = await ctx.db.get(takerId);
   for (const seat of await seatsOf(ctx, point.seasonId)) {
@@ -594,6 +625,13 @@ async function takePoint(
       key: point.key,
       nation: taker?.nation ?? taker?.nickname ?? '',
       point: point.point,
+      /** **Hong Kong** : son teneur lit la même dépêche, avec le nom de celui à qui on le prend. */
+      ...((await holdsPoint(ctx, seat, 'hongKong'))
+        ? {
+            hongKong: true as const,
+            ...(former === null ? {} : { from: former.nation ?? former.nickname }),
+          }
+        : {}),
     });
   }
 }

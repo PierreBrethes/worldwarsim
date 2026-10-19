@@ -15,7 +15,7 @@ import type { TourWait, TroopView } from './player-view';
 type Aboard = Seated & {
   readonly tier: UnitTier;
   readonly load?: SupplyLoad;
-  readonly tour?: Pick<NonNullable<TroopView['tour']>, 'stops' | 'waiting' | 'recalled'>;
+  readonly tour?: Pick<NonNullable<TroopView['tour']>, 'stops' | 'waiting' | 'recalled' | 'veiled'>;
 };
 
 /** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente et
@@ -24,6 +24,7 @@ export type TagTour = {
   readonly state: 'tracing' | 'running' | 'waiting' | 'recalled';
   readonly stops: number;
   readonly waiting: TourWait | null;
+  readonly veiled?: true;
 };
 
 /** **La tournée que la main trace** : son transport et ses dépôts dans l'ordre. */
@@ -103,6 +104,7 @@ export function cargoTagsOf<T extends Aboard>(
                       : ('running' as const),
                   stops: carrier.tour.stops.length,
                   waiting: carrier.tour.waiting,
+                  ...(carrier.tour.veiled === true ? { veiled: true as const } : {}),
                 },
       },
     ];

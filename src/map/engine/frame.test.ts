@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from '@/domain/world';
 import worldAsset from '../../../public/world.json';
-import { WorldFrame } from './frame';
+import { WorldFrame, framingDistanceOf } from './frame';
 
 const world = {
   sphere: worldAsset.meta.sphere,
@@ -32,5 +32,13 @@ describe('reading a place off the board', () => {
     const [backLon, backLat] = roundTrip(lon, lat);
     expect(backLon).toBeCloseTo(lon, 4);
     expect(backLat).toBeCloseTo(lat, 4);
+  });
+});
+
+describe('framingDistanceOf', () => {
+  it('cadre sur la hauteur au bureau, sur la largeur au téléphone', () => {
+    const wide = framingDistanceOf(10, 40, 1.6);
+    expect(wide).toBeCloseTo(10 / Math.tan((40 * Math.PI) / 360), 6);
+    expect(framingDistanceOf(10, 40, 0.46)).toBeCloseTo(wide / 0.46, 6);
   });
 });

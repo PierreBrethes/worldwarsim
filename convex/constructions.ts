@@ -18,12 +18,18 @@ import {
   placementRefusal,
   siteOfPoint,
 } from '../src/domain/economy';
-import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
+import {
+  buildLanes,
+  lanesPlan,
+  outpostRaiseHold,
+  type OutpostRaiseHold,
+} from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
   buildingAt,
   buildingCostKey,
   cappedByHq,
+  levelOf,
   playerBuildings,
   samePoint,
   seasonBuildings,
@@ -326,6 +332,9 @@ export const finish = internalMutation({
     if (!construction) return;
     const season = await playingSeason(ctx, construction.playerId);
     if (season === null) return;
+    /** Un rendez-vous périmé : le chantier est reparti en file (QG tombé) ou n'est pas encore
+     *  à son échéance redatée. Le bon rendez-vous, lui, est déjà pris. */
+    if (construction.finishesAt === null || construction.finishesAt > Date.now()) return;
 
     if (isOutpostWork(construction.building)) {
       await finishRaise(ctx, construction, season._id);
@@ -480,16 +489,29 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
   const season = await ctx.db.get(player.seasonId);
   if (!season) return;
 
+  /** **Autant de chantiers que le QG a de niveaux** (#136), relus à chaque réveil : un QG élevé
+   *  date l'entrée qui attendait, un QG tombé renvoie en file les derniers chantiers qui
+   *  montaient (payés, rien perdu : ils repartent de zéro quand une voie se libère). */
+  const lanes = buildLanes(levelOf(await playerBuildings(ctx, playerId), 'hq'));
+  /** Une élévation qui attend la fin d'une désactivation ne tient pas de voie : la suite passe. */
+  const waitingOut = new Set<Id<'constructions'>>();
+
   for (;;) {
-    const head = (await queueOf(ctx, playerId))[0];
-    if (!head || head.finishesAt !== null) return;
+    const queue = (await queueOf(ctx, playerId)).filter((entry) => !waitingOut.has(entry._id));
+    const plan = lanesPlan(
+      queue.map((entry) => entry.finishesAt !== null),
+      lanes,
+    );
+    for (const index of plan.pause) await ctx.db.patch(queue[index]!._id, { finishesAt: null });
+    const head = plan.start.length === 0 ? undefined : queue[plan.start[0]!];
+    if (!head) return;
 
     /**
      * **Une élévation en tête attend la fin d'une désactivation, elle ne s'annule pas** (décision
      * 3a du 15/09). On ne rénove pas sous le feu, mais on n'a pas non plus perdu le droit de
-     * rénover : le point est toujours là et le chantier est payé. La file s'arrête donc derrière
-     * lui, et il prend son propre rendez-vous à la fin de la désactivation — comme celle-ci prend
-     * le sien (`production.scheduleRestore`). Il n'y a pas d'horloge à interroger.
+     * rénover : le point est toujours là et le chantier est payé. Elle prend son propre
+     * rendez-vous à la fin de la désactivation — comme celle-ci prend le sien
+     * (`production.scheduleRestore`). Il n'y a pas d'horloge à interroger.
      *
      * Le niveau maximal, lui, est un droit qui a disparu : rien ne rouvrirait cette entrée, donc
      * elle se rembourse comme un chantier de bâtiment refusé.
@@ -498,20 +520,23 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
       const outpost = head.outpostId === undefined ? null : await ctx.db.get(head.outpostId);
       if (outpost !== null && !disabledAt(outpost, now) && outpost.level < OUTPOST_MAX_LEVEL) {
         await runHead(ctx, head, now);
-        return;
+        continue;
       }
       if (outpost !== null && disabledAt(outpost, now)) {
-        await ctx.scheduler.runAt(outpost.disabledUntil! + 1, internal.constructions.resume, {
-          playerId,
-        });
-        return;
+        const at = outpost.disabledUntil! + 1;
+        if (outpost.resumeAt !== at) {
+          await ctx.scheduler.runAt(at, internal.constructions.resume, { playerId });
+          await ctx.db.patch(outpost._id, { resumeAt: at });
+        }
+        waitingOut.add(head._id);
+        continue;
       }
       await refundHead(ctx, playerId, head, now);
       continue;
     }
 
-    // The head is measured against what stands, and against nothing queued: everything else in
-    // the queue is behind it and has not happened.
+    // The entry is measured against what stands, and against nothing queued: everything else in
+    // the queue has not happened.
     const refusal =
       head.point === undefined
         ? { code: 'UNKNOWN_REGION' as const }
@@ -529,7 +554,6 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
     }
 
     await runHead(ctx, head, now);
-    return;
   }
 }
 

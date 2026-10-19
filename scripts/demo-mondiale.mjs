@@ -19,6 +19,12 @@
  * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
+ * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
+ * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
+ * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
+ * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
+ * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
+ * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
  *
  *     npm run demo:mondiale
  *
@@ -40,11 +46,16 @@ const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel'
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
+/** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
+const held = process.argv.includes('--sans-depart');
 const airdrops = process.argv.includes('--largage');
 const research = process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
+const mines = process.argv.includes('--exploitations');
+const works = process.argv.includes('--chantiers');
+const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -147,6 +158,9 @@ if (!bare) {
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
     cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
+  /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
+  if (navy && scene.a !== null)
+    cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
   /** Deux cartes acquises, une troisième en cours sur le QG (ADR 0028 §5). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a })]);
@@ -167,13 +181,69 @@ if (!bare) {
     });
   }
   /** Un arsenal et un lot de pétrole synthétique en cours (ADR 0028 §1). */
+  if (mines && scene.a !== null) {
+    const deposits = JSON.parse(readFileSync(`${root}public/deposits.json`, 'utf8'));
+    /** Le QG d'abord (`HQ_FIRST`), à Paris ; les exploitations suivent, offertes. */
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const paris = me.regions.find((region) => region.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'hq',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
+    });
+    for (const [building, id] of [
+      ['farm', 'food-FRA-5291'],
+      ['mine', 'coal-FRA-5334'],
+      ['mine', 'iron-FRA-5275'],
+    ]) {
+      const site = deposits.find((deposit) => deposit.id === id);
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId: site.regionId,
+        point: { lon: site.lon, lat: site.lat },
+      });
+    }
+  }
+  if (works && scene.a !== null) {
+    const paris = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).me.regions.find((one) => one.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'hq',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
+    });
+    cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 3 })]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const [building, id] of [
+      ['barracks', 'FRA-5268'],
+      ['warehouse', 'FRA-5312'],
+      ['barracks', 'FRA-5321'],
+      ['warehouse', 'FRA-5328'],
+    ]) {
+      const region = me.regions.find((one) => one.id === id);
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId: id,
+        point: { lon: region.point[0], lat: region.point[1] },
+      });
+    }
+  }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
   /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */
   if (points && scene.a !== null && scene.b !== null)
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
-  if (tours && scene.a !== null) {
+  if (tours && !held && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const outpostIn = (lon) =>
       me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - lon) < 0.05);

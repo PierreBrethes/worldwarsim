@@ -4,7 +4,7 @@ import { combatsSince, isAlarm, latestDispatchAt } from '@/domain/journal';
 import type { CombatReport, JournalDispatch } from '@/domain/player-view';
 import { useMapMotion } from '@/data/mapMotion';
 import { Stamp } from '@/shell/Stamp';
-import { useNarrowScreen } from '@/shell/viewport';
+import { MAT_LIFT_HUD, useNarrowScreen } from '@/shell/viewport';
 import { ReplayButton } from './ReplayDeck';
 
 const MAX_TOASTS = 3;
@@ -77,6 +77,7 @@ export function CombatToasts({
   const shown = narrow ? toasts.slice(-1) : [...toasts].reverse();
   return (
     <div
+      style={narrow ? { marginBottom: MAT_LIFT_HUD } : undefined}
       className={`hud pointer-events-none absolute z-[var(--z-band)] flex flex-col gap-2 ${
         narrow
           ? 'inset-x-[10px] bottom-[80px]'

@@ -353,6 +353,8 @@ type Lot = {
 };
 
 const UP = new Vector3(0, 1, 0);
+/** How near a thread's end must be to an airfield's point to be its runway's. */
+const RUNWAY_TOLERANCE = 0.05;
 /** A site that stands under the eyes gives a little: up, down, still. */
 const BOUNCE_MS = 450;
 const matrix = new Matrix4();
@@ -464,6 +466,31 @@ export class MaquetteLayer {
       this.byId.set(maquette.id, { item, lot });
     }
     this.place();
+  }
+
+  /** Where the airfields stand, as one string: a thread leaves a runway only once its airfield is
+   *  placed, and is laid again when this changes. */
+  runwaysKey(): string {
+    return [...this.byId]
+      .filter(([id]) => id.startsWith('building-airfield'))
+      .map(([id, { item }]) => `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)}`)
+      .sort()
+      .join(';');
+  }
+
+  /**
+   * **The axis of the airfield standing at (`x`, `z`)**, as a unit vector on the board, or `null`
+   * for none: its hangar's door faces along it, and so does the runway a plane rolls on (#129).
+   * An airfield is read by its label's id, `building-airfield@…`.
+   */
+  runwayAt(x: number, z: number): readonly [number, number] | null {
+    for (const [id, { item }] of this.byId) {
+      if (!id.startsWith('building-airfield')) continue;
+      if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
+      const yaw = yawOf(id);
+      return [Math.sin(yaw), Math.cos(yaw)];
+    }
+    return null;
   }
 
   /** The ring and every matrix follow the size: both are rebuilt on the next `orient`. */

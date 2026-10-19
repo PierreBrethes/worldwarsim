@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
+  buildLanes,
+  lanesPlan,
   blockedOn,
   buildableOn,
   outpostRaiseHold,
   placementOf,
+  depositHolders,
   PLACING_SNAP_KM,
   riseOf,
   snapTo,
@@ -213,6 +216,7 @@ describe('what holds a raise back', () => {
       outpostId: null,
       point: [6.2, 48.7] as LonLat,
       minutesLeft: 20,
+      level: 2,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
   });
@@ -272,9 +276,8 @@ describe('what holds a raise back', () => {
  * refus même de `constructions.start`, lu sur les faits que la vue et la carte portent.
  */
 describe('the point aimed at', () => {
-  const COAL = DEPOSIT_POINTS.find(
-    (deposit) => deposit.country === 'FRA' && deposit.deposit === 'coal',
-  )!;
+  /** The Pas-de-Calais: coal and nothing else in its region, unlike the Moselle and its iron. */
+  const COAL = DEPOSIT_POINTS.find((deposit) => deposit.id === 'coal-FRA-5334')!;
   const FRANCE = { id: 'FRA-5333', name: 'Paris', country: 'FRA' };
   const PARIS: LonLat = [2.35, 48.85];
 
@@ -309,6 +312,16 @@ describe('the point aimed at', () => {
         ]),
       ),
     }) as unknown as PlayerView;
+
+  it('names who is known to work a deposit, mine with its level, a survey unnamed', () => {
+    const mine = view({ buildings: [{ key: 'mine', point: COAL.lonLat, level: 2 } as never] });
+    expect(depositHolders(mine).get(COAL.id)).toEqual({ mine: true, level: 2 });
+    expect(depositHolders(view({ surveyed: [COAL.lonLat] })).get(COAL.id)).toEqual({
+      mine: false,
+      level: null,
+    });
+    expect(depositHolders(view({})).has(COAL.id)).toBe(false);
+  });
 
   const aim = (lonLat: LonLat, extra: Partial<Aim> = {}): Aim => ({
     lonLat,
@@ -552,6 +565,7 @@ describe('workSitesOf', () => {
     regionName: 'Marne',
     point: at(regionId),
     minutesLeft,
+    level: 1,
   });
   const queued = (
     key: BuildingKey | 'outpost',
@@ -611,6 +625,23 @@ describe('workSitesOf', () => {
     ]);
   });
 
+  it('plans a queued entry that rises on another lane like the head, dated by its own clock', () => {
+    const second = { ...queued('warehouse', 'r-b', 1), minutesLeft: 20 };
+    const sites = workSitesOf(
+      me({
+        construction: head('farm', 'r-a', 10),
+        constructionQueue: [second, queued('barracks', 'r-c', 1)],
+      }) as PlayerView['me'],
+      CATALOG,
+      LOADED,
+    );
+    expect(sites.map((site) => [site.phase, site.regionId, site.rank, site.finishesAt])).toEqual([
+      ['rising', 'r-a', 0, LOADED + 600_000],
+      ['rising', 'r-b', 1, LOADED + 1_200_000],
+      ['queued', 'r-c', 2, null],
+    ]);
+  });
+
   it("leaves an outpost's works to its own mast", () => {
     const outpost = { ...head('outpost', 'r-o', 5), outpostId: 'o1' };
     expect(
@@ -623,5 +654,21 @@ describe('workSitesOf', () => {
         LOADED,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('how many works rise at once', () => {
+  it('reads the headquarters level, and one without a headquarters', () => {
+    expect([0, 1, 2, 5].map(buildLanes)).toEqual([1, 1, 2, 5]);
+  });
+
+  it('starts the first waiting entries up to the free lanes', () => {
+    expect(lanesPlan([false, false, false], 2)).toEqual({ pause: [], start: [0, 1] });
+    expect(lanesPlan([true, false, false], 2)).toEqual({ pause: [], start: [1] });
+    expect(lanesPlan([true, true, false], 2)).toEqual({ pause: [], start: [] });
+  });
+
+  it('sends the last running entries back to the queue when the lanes shrink', () => {
+    expect(lanesPlan([true, true, true], 1)).toEqual({ pause: [1, 2], start: [] });
   });
 });

@@ -912,6 +912,28 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **Hong Kong lit la chute d'un QG** que son teneur ne voit pas : qui, quoi, où. */
+  it("tells Hong Kong's holder of a capture it is not part of", async () => {
+    const t = boot();
+    const { seat, guest, third } = await threeAtTable(t);
+    await holdPoint(t, third, 'hongKong');
+    const hq = await headquartersOf(t, guest);
+    await take(t, seat, hq);
+    await finish(t);
+    const told = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, third);
+      return (
+        await ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      ).filter((notice) => notice.kind === 'captureDispatch');
+    });
+    expect(told).toMatchObject([
+      { nation: 'france', from: 'ussr', site: { kind: 'building', building: 'hq' } },
+    ]);
+  });
+
   /** **La carte de recherche attend son QG** (ADR 0028 §5) : la chute l'arrête sans rien
    *  perdre, et un QG rebâti la relance là où elle en était. */
   it('stops his research card at the fall, and lets a rebuilt headquarters run it on', async () => {

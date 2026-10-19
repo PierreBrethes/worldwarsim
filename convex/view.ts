@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
+import { buildLanes } from '../src/domain/construction';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
@@ -35,6 +36,7 @@ import {
 import {
   buildingCostKey,
   cappedByHq,
+  inService,
   levelOf,
   playerBuildings,
   totalLevelOf,
@@ -86,7 +88,7 @@ import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
-import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
+import { cargoTotal, lootPointsOf, movementCargoLoads, stationedCargoGroups } from './cargo';
 import { asWounded, fundsOf, ownedTroopsOnSite } from './blitz';
 import { fundsAt, mendPlan } from '../src/domain/blitz';
 
@@ -174,9 +176,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  placement rule read (`convex/sites.ts`). */
   const sites = await sitesOf(ctx, player);
   const queue = await queueOf(ctx, player._id);
-  /** The head of the queue is the only entry a `finishesAt` ever dates, so it is the only one
-   *  the banner and the map can put a crane on — the rest is a list waiting its turn. */
-  const construction = queue[0] ?? null;
+  /** The first dated entry is the one the banner counts down; the others that rise beside it
+   *  (one lane per headquarters level, #136) travel in `constructionQueue` with their own date. */
+  const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
 
   /**
    * The ground a player may build on: his home country, any region already carrying one of his
@@ -279,6 +281,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   /** **Singapour** : ses camions et ses cargos roulent sans plein (`fuelBill`). */
   const singapore = !blitz && (await holdsPoint(ctx, player, 'singapore'));
+  /** **Rangoun** : ses tournées ne se relèvent jamais (`detectionBoard`). */
+  const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];
     return store === undefined || store === 'board' ? null : store;
@@ -524,11 +528,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
        *  which cannot name the mine that sits on nothing. */
       extraction: economy.extraction,
-      // The slots follow the headquarters since the logistics centre was dissolved
-      // (ADR 0015). One slot outlives the building: a nation always has one movement to
-      // make, even with its capital flattened.
+      // The slots come from research: two at the start, one per Transmissions card.
       slots: {
-        total: movementSlots(hqLevel),
+        total: movementSlots(player.researched ?? []),
         // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
         // (`slotsTaken`).
         used: await slotsTaken(ctx, player, movements, troops),
@@ -575,6 +577,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
         nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
+        ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
       })),
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,
@@ -625,27 +628,34 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   ? null
                   : ([construction.point.lon, construction.point.lat] as [number, number]),
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              level: construction.level,
             }
           : null,
       /**
-       * **What is paid for and waiting its turn**, in the order it will be built. It carries
-       * no due time and cannot: nothing behind the head is dated in the database, precisely
-       * so that a cancellation re-dates nothing (`constructions.ts`). What the screen shows
-       * beside a queued line is its rank, not a countdown it would have had to invent.
+       * **What is paid for besides the first running site**, in build order: the entries that
+       * rise on another lane carry their `minutesLeft`, the ones that wait carry `null` and show
+       * only their rank — a countdown for them would have to be invented.
        */
-      constructionQueue: queue.slice(1).map((entry) => ({
-        id: entry._id,
-        name: entry.building,
-        key: workKey(entry.building),
-        outpostId: entry.outpostId ?? null,
-        regionId: entry.regionId,
-        regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
-        point:
-          entry.point === undefined
-            ? null
-            : ([entry.point.lon, entry.point.lat] as [number, number]),
-        level: entry.level,
-      })),
+      constructionQueue: queue
+        .filter((entry) => entry !== construction)
+        .map((entry) => ({
+          /** Daté : ce chantier monte lui aussi, sur une autre voie du QG (#136). Absent : il attend. */
+          minutesLeft:
+            entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
+          id: entry._id,
+          name: entry.building,
+          key: workKey(entry.building),
+          outpostId: entry.outpostId ?? null,
+          regionId: entry.regionId,
+          regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
+          point:
+            entry.point === undefined
+              ? null
+              : ([entry.point.lon, entry.point.lat] as [number, number]),
+          level: entry.level,
+        })),
+      /** Combien de chantiers montent en même temps : le niveau du QG (`buildLanes`). */
+      buildLanes: buildLanes(hqLevel),
       armyPresent,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
@@ -709,6 +719,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                       },
                 recalled: troop.tour.recalled === true,
                 skipped: troop.tour.skipped ?? [],
+                ...(rangoon ? { veiled: true as const } : {}),
               },
             }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
@@ -724,6 +735,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           : {}),
         mending: mending.has(troop._id),
       })),
+      /** Où un butin est posé, comme le serveur le lit pour dissoudre une escouade. */
+      lootPoints: await lootPointsOf(ctx, player._id),
       stationedCargo: stationedCargo.map((group) => ({
         troopIds: group.troopIds,
         stationedAt: stationOfAddress(group.stationedAt),
@@ -1246,6 +1259,7 @@ function named(notice: PlayableNotice) {
     case 'captureStarted':
     case 'captureSucceeded':
     case 'captureCancelled':
+    case 'captureDispatch':
       return {
         ...notice,
         regionName: notice.site.kind === 'building' ? nameOf(notice.site.regionId) : null,

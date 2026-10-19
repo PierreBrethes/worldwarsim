@@ -3,7 +3,8 @@ import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
 import { bombardsWith } from './indirect-fire';
-import type { BuildingKey, MovementType, UnitRole } from './ids';
+import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
+import { slotCardsOf } from './research';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
 import type { UnitDomain } from './troops';
@@ -334,19 +335,27 @@ export function lootCollectionOrderRefusalOf(
 }
 
 /**
- * **The movement slots, carried by the headquarters** (ADR 0006, reindexed by 0015). One slot
- * outlives the building: a nation always has one movement to make, even with its capital
- * flattened.
+ * **Les slots du départ**, avant toute carte Transmissions.
+ *
+ * @a-mesurer deux, d'après la décision du 19/10, jamais joué
+ */
+export const STARTING_MOVEMENT_SLOTS = 2;
+
+/**
+ * **The movement slots, carried by research** (issue #124, decision 44a revised): two at the
+ * start, one more per Transmissions card acquired. The headquarters no longer gives any, so a
+ * nation with its capital flattened keeps the slots it researched.
  *
  * It lives in the domain so that the count `convex/view.ts` serves and the count `march`
  * refuses on are one reading of one rule. They were two — a placeholder constant capped the
- * server at one movement while the banner promised `1 + hqLevel` — and a screen that promises
+ * server at one movement while the banner promised more — and a screen that promises
  * what the server turns down is exactly the fault ADR 0015 exists to forbid.
  *
  * **A return holds no slot**, and that is not said here: it is a property of the movement, not
  * of the ceiling, so the callers filter their own list before counting it.
  */
-export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
+export const movementSlots = (researched: ReadonlyArray<ResearchCard>): number =>
+  STARTING_MOVEMENT_SLOTS + slotCardsOf(researched).length;
 
 /**
  * **Un mouvement maritime** : des coques, et ce qu'elles portent. C'est ce que **Halifax** sort
@@ -357,6 +366,17 @@ export const isMaritime = (
 ): boolean =>
   troops.length > 0 &&
   troops.every((troop) => troop.carried || DOMAIN_BY_ROLE[troop.role] === 'sea');
+
+/** Ce qu'un groupe de colonnes demande en slots : une chacune, sauf les maritimes du teneur
+ *  d'Halifax. La porte (`claimSlot`) et la rose de groupe lisent la même. */
+export const slotsAskedBy = (
+  columns: ReadonlyArray<ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>>,
+  holdsHalifax: boolean,
+): number => (holdsHalifax ? columns.filter((crew) => !isMaritime(crew)).length : columns.length);
+
+/** Les slots libres de la bannière : le seul `total - used`. */
+export const freeSlotsOf = (slots: { readonly total: number; readonly used: number }): number =>
+  slots.total - slots.used;
 
 /**
  * The three marches a player orders. **The return is not among them**: it is created by the
@@ -775,6 +795,53 @@ export function disembarkRefusalOf({
   if (carrier === null) return 'NOT_ABOARD';
   if (afloat) return 'DISEMBARK_AT_SEA';
   return carrier === 'airTransport' && !atAirfield ? 'AIRFIELD_TARGET_REQUIRED' : null;
+}
+
+export type DisbandRefusal = 'NOT_A_SQUAD' | 'NO_SQUADS_IN_BLITZ' | 'SQUAD_CARRIES_LOOT';
+
+/**
+ * **Dissoudre une escouade** (#130) : une escouade, ce sont plusieurs pièces au même point
+ * (ADR 0028 §6) — une garnison n'en est pas une, la Blitz n'en a pas. Un butin posé est porté
+ * par le groupe qui l'a pris : il le garde, l'escouade aussi.
+ */
+export function disbandRefusalOf({
+  onPoint,
+  pieces,
+  blitz,
+  loaded,
+}: {
+  readonly onPoint: boolean;
+  /** Ses pièces : un passager part avec son transport. */
+  readonly pieces: number;
+  readonly blitz: boolean;
+  readonly loaded: boolean;
+}): DisbandRefusal | null {
+  if (blitz) return 'NO_SQUADS_IN_BLITZ';
+  if (!onPoint || pieces < 2) return 'NOT_A_SQUAD';
+  return loaded ? 'SQUAD_CARRIES_LOOT' : null;
+}
+
+/**
+ * L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude.
+ * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
+ */
+export const DISBAND_SPREAD_DEG = 0.05;
+
+/** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
+ *  autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. */
+export function disbandPointsOf(
+  [lon, lat]: readonly [number, number],
+  count: number,
+): Array<[number, number]> {
+  const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: count }, (_, index): [number, number] => {
+    if (index === 0) return [lon, lat];
+    const turn = (2 * Math.PI * (index - 1)) / (count - 1);
+    return [
+      lon + Math.cos(turn) * DISBAND_SPREAD_DEG * stretch,
+      lat + Math.sin(turn) * DISBAND_SPREAD_DEG,
+    ];
+  });
 }
 
 /** Ce que la phrase du refus nomme, et ce que le geste montre : les places demandées, et

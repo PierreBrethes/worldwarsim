@@ -4,6 +4,8 @@ import {
   barredFrom,
   boardingRefusalDetails,
   boardingRefusalOf,
+  disbandPointsOf,
+  disbandRefusalOf,
   disembarkRefusalOf,
   foundingRefusal,
   landCostOf,
@@ -245,8 +247,9 @@ describe('an empty manifest', () => {
   /** Le plafond ne connaît pas les sortes, il compte les mouvements — et il en reste un même
    *  au joueur dont le quartier général est à terre (ADR 0006). */
   it('would still cost a slot, because the ceiling counts movements and not kinds', () => {
-    expect(movementSlots(0)).toBe(1);
-    expect(movementSlots(2)).toBe(3);
+    expect(movementSlots([])).toBe(2);
+    expect(movementSlots(['armor', 'transmissions1'])).toBe(3);
+    expect(movementSlots(['transmissions1', 'transmissions2', 'transmissions3'])).toBe(5);
   });
 
   /** **Halifax** (P11) : les mouvements maritimes de son teneur ne prennent pas de slot. Est
@@ -977,5 +980,32 @@ describe('a Blitz order (lot 5)', () => {
       refusalOf('march', barracks, blitz(['infantry'], { occupiedBuildingIds: new Set(['b1']) })),
     ).toBe('BUILDING_OCCUPIED');
     expect(refusalOf('march', barracks, blitz(['infantry']))).toBeNull();
+  });
+});
+
+/** **Dissoudre une escouade** (#130) : chacune de ses pièces se pose à part, autour du point. */
+describe('disbanding a squad', () => {
+  const off = (held: Partial<Parameters<typeof disbandRefusalOf>[0]> = {}) =>
+    disbandRefusalOf({ onPoint: true, pieces: 3, blitz: false, loaded: false, ...held });
+
+  it('spreads a squad standing on the board', () => {
+    expect(off()).toBeNull();
+  });
+
+  it('refuses a garrison, a lone piece, a Blitz unit and a squad carrying loot', () => {
+    expect(off({ onPoint: false })).toBe('NOT_A_SQUAD');
+    expect(off({ pieces: 1 })).toBe('NOT_A_SQUAD');
+    expect(off({ blitz: true })).toBe('NO_SQUADS_IN_BLITZ');
+    expect(off({ loaded: true })).toBe('SQUAD_CARRIES_LOOT');
+  });
+
+  it('keeps the first piece on the point and rings the others around it', () => {
+    const points = disbandPointsOf([10, 0], 3);
+    expect(points[0]).toEqual([10, 0]);
+    expect(points).toHaveLength(3);
+    const distances = points.slice(1).map(([lon, lat]) => Math.hypot(lon - 10, lat));
+    expect(distances[0]).toBeCloseTo(distances[1]!);
+    expect(distances[0]).toBeGreaterThan(0);
+    expect(points[1]).not.toEqual(points[2]);
   });
 });
