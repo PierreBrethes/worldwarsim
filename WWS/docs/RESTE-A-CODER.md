@@ -10,46 +10,8 @@ avant de les exécuter. La file historique ci-dessous est complétée par la dir
 
 ## Retours de Pierre sur la pré-prod — 19/10
 
-À reprendre feature par feature, chacune avec son grilling si un choix reste ouvert.
-
-1. **Ce que je consomme** : un clic sur une ressource du bandeau ouvre une fenêtre qui reste ouverte.
-   Elle a des dépliants, un pour les bâtiments et un pour les troupes : le total de la catégorie
-   sur la ligne, le détail dans le dépliant.
-2. **Le plateau personnel, en main de cartes** : au bureau, posé en bas de l'écran comme une main
-   de jeu de cartes (Hearthstone), et repliable. Sans les ressources (le bandeau les porte). Deux
-   onglets, tuiles de bâtiments et troupes, avec un défilement horizontal.
-3. **La recherche dans sa propre fenêtre** : un arbre de talents dessiné comme un arbre
-   généalogique, hors du plateau personnel.
-4. **Les mouvements du bandeau** : ce sont les slots de mouvement (1 + niveau du QG,
-   `movementSlots`), gardés exprès (ADR 0006, ADR 0028 §5 ; Halifax s'appuie dessus). Les plafonds
-   retirés sont ceux des troupes et des emplacements. À trancher : les garder ou non.
-5. **Le placement semble se recentrer au milieu de la région** au lieu de rester au point visé
-   (ADR 0029) : à vérifier dans le rendu.
-6. **La génération des gisements par pays** est à revoir : aujourd'hui, un gisement par région
-   tirée, posé au pôle de la région (185 points, de 1 à 14 par pays). Comme une exploitation
-   s'aimante à son gisement, elle tombe toujours au milieu de sa région : c'est la cause la plus
-   probable du point 5, puisque le code dessine bien un bâtiment à son point exact.
-7. **Ce que les POC ont et que le jeu n'a pas** (lecture du code au 19/10, à confirmer en jeu) :
-   - pions : lasso et Maj+clic (sélection multiple), ⌘Z, G et U au clavier, barre au-dessus d'une
-     sélection, feuille qui défile au bord de l'écran ;
-   - plateau personnel : pastilles qui volent pour payer, charger, livrer et recharger (seule la
-     récolte vole) ; tampons BÂTI, ÉLEVÉ, LIVRÉ, PLEIN ; recharge visible d'une troupe ancrée ;
-     avion aligné sur la piste au décollage et à l'atterrissage ; navire qui s'écarte du quai ;
-   - différent : une tuile bâtit tout de suite dans le POC, elle passe par un chantier dans le jeu
-     (à confirmer) ; la fiche de transport liste ses jetons en icônes, pas en barre.
-8. **Vu en pré-prod le 19/10** (partie de Taco, Allemagne, en lecture seule) :
-   - un clic sur une ressource du bandeau n'ouvre rien (le bouton n'a qu'un libellé) ;
-   - le plateau personnel est un panneau centré qui couvre la moitié de la carte, et en
-     1440×900 il déborde : la rangée de recherche est coupée et le pied (chantiers, entretien)
-     sort de l'écran. La bulle des premiers pas recouvre le titre « Tuiles » ;
-   - les cartes de recherche affichent des contres déroutants, tirés de la table des dégâts
-     (« Infanterie MK2 : contre Transport aérien », « Aviation : contre Blindé ») ;
-   - une ferme et une mine sont posées sur leur gisement, au cœur de leur région : c'est bien
-     l'aimant au pôle qui donne l'impression du point 5 ;
-   - au téléphone, la carte s'ouvre sur le monde entier, la nation minuscule, avec une bande
-     noire sous le bandeau ;
-   - conformes : les slots « 0 / 2 », la fiche d'une troupe (charge, coups et plein 3/3, règle de
-     recharge), les gisements en points, les premiers pas 2/5.
+Suivis en issues GitHub, de #121 à #134. Le label « à trancher » marque une décision de Pierre à
+prendre avant de coder. Chaque issue porte ses tâches : contrat, règle et serveur, écran, revue.
 
 ## La file au 17/10 — vers la saison test Mondiale v2
 
