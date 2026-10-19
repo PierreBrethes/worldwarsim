@@ -584,6 +584,8 @@ async function takePoint(
   takerId: Id<'players'>,
   now: number,
 ): Promise<void> {
+  /** `point` is read before the hand-over: its holder is still the one the point is taken from. */
+  const former = point.holderId === null ? null : await ctx.db.get(point.holderId);
   await handOver(ctx, point, takerId, now);
   const taker = await ctx.db.get(takerId);
   for (const seat of await seatsOf(ctx, point.seasonId)) {
@@ -594,6 +596,13 @@ async function takePoint(
       key: point.key,
       nation: taker?.nation ?? taker?.nickname ?? '',
       point: point.point,
+      /** **Hong Kong** : son teneur lit la même dépêche, avec le nom de celui à qui on le prend. */
+      ...((await holdsPoint(ctx, seat, 'hongKong'))
+        ? {
+            hongKong: true as const,
+            ...(former === null ? {} : { from: former.nation ?? former.nickname }),
+          }
+        : {}),
     });
   }
 }

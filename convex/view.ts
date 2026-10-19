@@ -279,6 +279,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   /** **Singapour** : ses camions et ses cargos roulent sans plein (`fuelBill`). */
   const singapore = !blitz && (await holdsPoint(ctx, player, 'singapore'));
+  /** **Rangoun** : ses tournées ne se relèvent jamais (`detectionBoard`). */
+  const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];
     return store === undefined || store === 'board' ? null : store;
@@ -709,6 +711,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                       },
                 recalled: troop.tour.recalled === true,
                 skipped: troop.tour.skipped ?? [],
+                ...(rangoon ? { veiled: true as const } : {}),
               },
             }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un

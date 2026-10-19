@@ -20,9 +20,11 @@ import { regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import { forgetMovement } from './movement/arrival';
+import { handOver } from './strategicPoints';
+import { neutralPoint } from './seats.fixture';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -370,6 +372,102 @@ describe('what sees a movement go past', () => {
     expect(await sightingsOf(t, guest)).toMatchObject([
       { detector: 'territory', detectorId: null },
     ]);
+  });
+
+  /**
+   * **Rangoun : vos tournées ne se relèvent jamais.** Un transport en tournée, en marche ou
+   * posé, n'est relevé par aucune détection tant que son maître tient le point — et l'est de
+   * nouveau dès qu'il le perd.
+   */
+  describe('Rangoon', () => {
+    /** Une colonne qui traverse le sol soviétique, puis déclarée en tournée du marcheur. */
+    async function touringAcrossSovietSoil() {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const soviet = pointOf('RUS-2335');
+      const { troopIds, origin } = await column(t, seat, eastOf(soviet, -250));
+      await t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin,
+        troopIds,
+        point: asPoint(eastOf(soviet, 300)),
+      });
+      const base = await outpost(t, seat, soviet, 'listening');
+      await t.run(async (ctx) => {
+        await ctx.db.patch(troopIds[0]!, {
+          tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
+        });
+        const [movement] = await ctx.db.query('movements').collect();
+        await ctx.db.patch(movement!._id, { tourLeg: 'stop' });
+      });
+      return { t, seat, guest, troopIds };
+    }
+    const reassess = (t: ReturnType<typeof boot>) =>
+      t.run(async (ctx) => {
+        await reassessDetection(ctx, (await ctx.db.query('seasons').first())!._id);
+      });
+    const open = async (t: ReturnType<typeof boot>, seat: Seat) =>
+      (await sightingsOf(t, seat)).filter((row) => row.to > Date.now());
+
+    it('hides a tour from every detector while its master holds the point, and shows it again once lost', async () => {
+      const { t, seat, guest } = await touringAcrossSovietSoil();
+      await reassess(t);
+      expect(await open(t, guest)).toHaveLength(1);
+
+      // Taking and losing the point re-reads the fog by itself: no reassessment by hand.
+      const give = (to: Seat | null) =>
+        t.run(async (ctx) => {
+          const holder = to === null ? null : (await seatIn(ctx, to))._id;
+          await handOver(
+            ctx,
+            await neutralPoint(ctx, seat.seasonId, 'rangoon'),
+            holder,
+            Date.now(),
+          );
+        });
+      await give(seat);
+      expect(await open(t, guest)).toEqual([]);
+
+      await give(guest);
+      expect(await open(t, guest)).toHaveLength(1);
+    });
+
+    it('does not hide a column that is not on tour', async () => {
+      const { t, seat, guest, troopIds } = await touringAcrossSovietSoil();
+      await t.run(async (ctx) => {
+        await ctx.db.patch(troopIds[0]!, { tour: undefined });
+        const [movement] = await ctx.db.query('movements').collect();
+        await ctx.db.patch(movement!._id, { tourLeg: undefined });
+      });
+      await holdPoint(t, seat, 'rangoon');
+      await reassess(t);
+      expect(await open(t, guest)).toHaveLength(1);
+    });
+
+    it('files no camp for a tour waiting at its base', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const here = pointOf(PRAHOVA);
+      await outpost(t, guest, here, 'listening');
+      const base = await outpost(t, seat, here, 'listening');
+      const truck = await form(t, seat, 'landTransport', null);
+      await t.run((ctx) => ctx.db.patch(truck, { stationedAt: asPoint(here) }));
+      const camps = () =>
+        t
+          .run((ctx) => ctx.db.query('campSightings').collect())
+          .then((rows) => rows.filter((row) => row.until === null));
+      await reassess(t);
+      expect(await camps()).toHaveLength(1);
+
+      await t.run((ctx) =>
+        ctx.db.patch(truck, {
+          tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
+        }),
+      );
+      await holdPoint(t, seat, 'rangoon');
+      await reassess(t);
+      expect(await camps()).toEqual([]);
+    });
   });
 
   /** Celui qui marche ne lit jamais ce qu'on a vu de lui : le relevé n'existe que chez

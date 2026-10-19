@@ -520,7 +520,14 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'pointTaken',
-        text: fr.points.taken(nationName(notice.nation), notice.key),
+        text:
+          notice.hongKong === true
+            ? fr.points.hongKong.dispatch(
+                nationName(notice.nation),
+                notice.key,
+                notice.from === undefined ? null : nationName(notice.from),
+              )
+            : fr.points.taken(nationName(notice.nation), notice.key),
       };
     case 'pointsDrawn':
       return {

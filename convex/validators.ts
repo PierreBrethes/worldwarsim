@@ -632,6 +632,10 @@ export const NOTICE = v.union(
     key: STRATEGIC_POINT_KEY,
     nation: v.string(),
     point: v.optional(LON_LAT),
+    /** **Hong Kong** : la copie de son teneur seul, qui dit aussi à qui le point est pris
+     *  (absent : neutre). `hongKong` la fait lire « dépêche de Hong Kong ». */
+    hongKong: v.optional(v.literal(true)),
+    from: v.optional(v.string()),
   }),
   /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
   v.object({

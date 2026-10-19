@@ -21,6 +21,7 @@ import { creditToStorage, debit, economyOf } from './resources';
 import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
+import { reassessDetection } from './movement/detection';
 
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
@@ -180,6 +181,9 @@ export async function handOver(
       : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
   });
   await tallyRace(ctx, point.seasonId, now);
+  /** **Rangoun** : le voile des tournées suit le point, donc le brouillard se relit à la prise
+   *  comme à la perte. */
+  if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
 }
 
 /**

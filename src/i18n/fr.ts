@@ -499,8 +499,6 @@ export const fr = {
    */
   /**
    * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
-   * Rangoun et Hong Kong comptent pour la victoire, leur règle attend sa feature (décision du
-   * 18/10) : la fiche le dit plutôt que de promettre une règle qui ne joue pas.
    */
   points: {
     names: {
@@ -520,8 +518,10 @@ export const fr = {
         'Vous seul commercez avec le comptoir neutre : trois d’une ressource contre une d’une autre, une fois par édition.',
       istanbul:
         'Une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs — tamponné « lu à Istanbul » chez eux.',
-      rangoon: null,
-      hongKong: null,
+      rangoon:
+        'Vos tournées de ravitaillement ne se relèvent jamais : aucune détection ne les voit.',
+      hongKong:
+        'Vous lisez la dépêche de chaque capture d’un point, où que ce soit : qui l’a pris, et à qui.',
       halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
@@ -529,8 +529,7 @@ export const fr = {
       dakar:
         'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
       singapore: 'Vos camions et vos cargos roulent sans plein.',
-    } satisfies Record<StrategicPointKey, string | null>,
-    ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
+    } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
     neutral: 'neutre — personne ne le tient',
@@ -571,6 +570,12 @@ export const fr = {
       contested: 'contesté',
       palmares: 'Le palmarès — qui a tenu chaque lieu le plus longtemps',
       neverHeld: 'jamais tenu',
+    },
+    hongKong: {
+      dispatch: (nation: string, key: StrategicPointKey, from: string | null) =>
+        `DÉPÊCHE DE HONG KONG — ${nation} prend ${fr.points.names[key]}${
+          from === null ? ', jusque-là neutre' : ` à ${from}`
+        }.`,
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
     drawn: (keys: ReadonlyArray<StrategicPointKey>) => {
@@ -2698,7 +2703,9 @@ export const fr = {
       `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
-    tourLine: ({ state, stops, waiting }: TagTour): string =>
+    tourLine: (tour: TagTour): string =>
+      `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · invisible, Rangoun' : ''}`,
+    tourState: ({ state, stops, waiting }: TagTour): string =>
       state === 'tracing'
         ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
         : state === 'recalled'

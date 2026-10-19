@@ -311,6 +311,8 @@ export type TroopView = {
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
     readonly skipped: ReadonlyArray<string>;
+    /** **Rangoun** : aucune détection ne la relève — la fiche le dit à son seul maître. */
+    readonly veiled?: true;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
@@ -958,6 +960,9 @@ type NoticeBody =
       readonly at: number;
       readonly key: StrategicPointKey;
       readonly nation: string;
+      /** Hong Kong : la copie de son teneur seul, avec le détenteur d'avant (absent : neutre). */
+      readonly hongKong?: true;
+      readonly from?: string;
     }
   | {
       readonly kind: 'pointsDrawn';
