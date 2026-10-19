@@ -11,8 +11,10 @@ import {
   type BuildingKey,
   type DepositKey,
   type Nation,
+  type ResearchCard,
   type ResourceKey,
 } from '../src/domain/ids';
+import { buildingLockOf } from '../src/domain/research';
 import { ADM0_BY_NATION } from '../src/domain/nations';
 import {
   BUILDING_SPACING_KM,
@@ -35,7 +37,6 @@ import {
   buildCost,
   buildMinutes,
   nominalStrength,
-  unlockLevel,
 } from './constants';
 import {
   capitalRegionOf,
@@ -162,6 +163,18 @@ async function fill(t: ReturnType<typeof boot>, seat: Seat, key: ResourceKey, st
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */
+/** Hands the player research cards, as if they had come to their end. */
+async function research(
+  t: ReturnType<typeof boot>,
+  seat: Seat,
+  cards: ReadonlyArray<ResearchCard>,
+) {
+  await t.run(async (ctx) => {
+    const player = await seatIn(ctx, seat);
+    await ctx.db.patch(player._id, { researched: [...cards] });
+  });
+}
+
 async function promoteHq(t: ReturnType<typeof boot>, seat: Seat, level: number) {
   await t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
@@ -333,7 +346,7 @@ describe('what the industry window reads', () => {
     await raise(t, seat, 'arsenal', MOSELLE);
     await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.coal });
     await fill(t, seat, 'coal', 2);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     vi.advanceTimersByTime(20 * 3_600_000);
     // The barracks, not the farm: the farm belongs to the foundation, and a free placement
     // spends nothing — so it would reset no window.
@@ -496,7 +509,7 @@ describe('placement', () => {
     it('refuses a port inland and takes it on the shore', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
+      await promoteHq(t, seat, 2);
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
@@ -516,7 +529,7 @@ describe('placement', () => {
     it('refuses a point that does not lie in the country of its region', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
+      await promoteHq(t, seat, 2);
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
@@ -547,7 +560,7 @@ describe('placement', () => {
     it('travels from the queue to the standing building and out to the board', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
+      await promoteHq(t, seat, 2);
       for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
       await t.mutation(api.constructions.start, {
         ...seat,
@@ -742,7 +755,7 @@ describe('placement', () => {
    * progression, so the refusal has to name the step that opens the line — a locked key that
    * says nothing is a key the player believes is broken.
    */
-  it('refuses a key above the headquarters tier, and names the level it wants', async () => {
+  it('refuses a tile a research card holds, and names the card', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const refused: Record<string, unknown> = await t
@@ -755,14 +768,9 @@ describe('placement', () => {
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
-    expect(refused).toMatchObject({
-      code: 'BUILDING_LOCKED',
-      building: 'airfield',
-      requiredLevel: unlockLevel('airfield'),
-      hqLevel: HQ_LEVEL_AT_LAUNCH,
-    });
+    expect(refused).toMatchObject({ code: 'RESEARCH_REQUIRED', card: 'aviation' });
 
-    await promoteHq(t, seat, unlockLevel('airfield'));
+    await research(t, seat, ['aviation']);
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'airfield',
@@ -772,13 +780,12 @@ describe('placement', () => {
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
-  /** The refusal above, taken back: the very key the tier locked is placed the minute the
-   *  headquarters reaches it, and nothing else changes. */
-  it('opens a tier as soon as the headquarters reaches it', async () => {
+  /** The refusal above, taken back: the very key the card held is placed the minute the card
+   *  comes to its end, at the headquarters the season plants. */
+  it('opens a tile as soon as its card is researched', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    expect(unlockLevel('listening')).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
-    await promoteHq(t, seat, unlockLevel('listening'));
+    await research(t, seat, ['listening']);
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',
@@ -797,18 +804,18 @@ describe('placement', () => {
   it('never owes a foundation key above the headquarters it plants', () => {
     for (const nation of NATIONS) {
       for (const { key } of foundationOwed(nation, [])) {
-        expect(unlockLevel(key)).toBeLessThanOrEqual(HQ_LEVEL_AT_LAUNCH);
+        expect(buildingLockOf(key, [])).toBeNull();
       }
     }
   });
 
   /** The panel prices its lines off the served catalogue; it must lock them off the same one. */
-  it('serves the tier of every key beside its price', async () => {
+  it('serves the card of every key beside its price', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const view = await t.query(api.view.playerView, seat);
     for (const key of BUILDINGS) {
-      expect(view.buildCatalog[key].unlockedAtHqLevel).toBe(unlockLevel(key));
+      expect(view.buildCatalog[key].lockedBy).toBe(buildingLockOf(key, []));
     }
   });
 
@@ -1023,7 +1030,7 @@ describe('the foundation the season owes', () => {
       const under = DEPOSIT_POINTS.find((point) => point.regionId === region.id)?.deposit ?? null;
       return (
         region.buildings.length === 0 &&
-        keyRefusal(key, HQ_LEVEL_AT_LAUNCH, unlockLevel(key)) === null &&
+        keyRefusal(key, HQ_LEVEL_AT_LAUNCH, buildingLockOf(key, [])) === null &&
         (deposit === undefined || deposit === null || under === deposit) &&
         (EXPLOITED_DEPOSITS[key] === undefined
           ? key !== 'port'
@@ -1130,7 +1137,7 @@ describe('the foundation the season owes', () => {
   it('places what the season owes while a paid construction runs', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     const paid = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -1164,7 +1171,7 @@ describe('the foundation the season owes', () => {
   it('keeps an offered placement away from a construction that is rising', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -1189,7 +1196,7 @@ describe('the foundation the season owes', () => {
   it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
@@ -2046,7 +2053,7 @@ describe('a stock that is not a number buys nothing', () => {
   it('refuses a construction that a NaN steel stock would have let through', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await fill(t, seat, 'steel', Number.NaN);
 
     await expect(

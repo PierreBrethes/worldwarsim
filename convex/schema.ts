@@ -33,6 +33,7 @@ import {
   TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
+  RESEARCH_CARD,
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
@@ -253,6 +254,20 @@ export default defineSchema({
      *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
     funds: v.optional(v.number()),
     fundsAt: v.optional(v.number()),
+    /** **Les cartes de recherche acquises** (ADR 0028 §5), dans l'ordre où elles ont abouti.
+     *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
+    researched: v.optional(v.array(RESEARCH_CARD)),
+    /**
+     * **La carte posée sur le QG**, une seule à la fois : ce qu'il lui reste à courir, et depuis
+     * quand — `null` quand son QG manque et qu'elle attend (`research.ts`). Absent : aucune.
+     */
+    research: v.optional(
+      v.object({
+        card: RESEARCH_CARD,
+        remainingMs: v.number(),
+        since: v.union(v.number(), v.null()),
+      }),
+    ),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour

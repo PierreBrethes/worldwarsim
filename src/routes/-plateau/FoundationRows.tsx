@@ -172,7 +172,7 @@ export function conditionText(condition: PlacementCondition): string {
   const said = fr.economy.condition;
   switch (condition.kind) {
     case 'locked':
-      return said.locked(condition.hqLevel);
+      return said.locked(condition.card);
     case 'deposit':
       return said.deposit(condition.deposits.map((deposit) => fr.deposits[deposit]));
   }

@@ -32,7 +32,8 @@ import {
   detectionRangeOf,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
-import { aimRefusalText, fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
+import { researchMs, researchProgressOf } from '@/domain/research';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
@@ -59,6 +60,7 @@ import { captureRate } from '@/domain/capture';
 import {
   buildLabels,
   ownerFlags,
+  type LabelLine,
   type MapLabel,
   type MapMarker,
   type Reach,
@@ -1334,7 +1336,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
                 hasOutposts: widest.length > 0,
               },
-              { requiredLevel: spec.unlockedAtHqLevel, hqLevel: view.me.hqLevel },
+              spec.lockedBy,
               placing.debt?.deposit != null
                 ? [placing.debt.deposit]
                 : (EXPLOITED_DEPOSITS[placing.key] ?? []),
@@ -1768,6 +1770,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
+      ...(building.key === 'hq' ? researchOnHq(view) : {}),
       ink: view.me.ink,
     }));
 
@@ -2476,15 +2479,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
-        const head = facility.queue[0];
-        if (head === undefined || !head.started) return [];
+        /** Un site de niveau N forme N troupes à la fois : la ligne tombe à la plus proche. */
+        const started = facility.queue.filter((batch) => batch.started);
+        if (started.length === 0) return [];
+        const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
         return [
           {
             buildingId: facility.id,
             key: facility.key,
             regionId: facility.regionId,
             regionName: facility.regionName,
-            endsAt: workshop!.loadedAt + head.minutesLeft * 60_000,
+            endsAt: workshop!.loadedAt + minutesLeft * 60_000,
           },
         ];
       }),
@@ -3445,6 +3450,22 @@ function postedStacks(
       ...emplacementOf(held),
     };
   });
+}
+
+/** **La carte que porte mon QG** (ADR 0028 §5) : son nom et sa barre sur le mât. */
+function researchOnHq(view: PlayerView): { research?: Extract<LabelLine, { role: 'research' }> } {
+  const running = view.me.research.running;
+  if (running === null) return {};
+  const { share, finishesAt } = researchProgressOf(running, Date.now());
+  return {
+    research: {
+      role: 'research',
+      text: fr.research.onHq(cardName(running.card)),
+      since: (finishesAt ?? Date.now()) - researchMs(running.card),
+      dueAt: finishesAt,
+      share,
+    },
+  };
 }
 
 /** **L'artillerie** (B20) : la pile est en batterie quand sa dernière pièce posée l'est. */

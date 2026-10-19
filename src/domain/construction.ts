@@ -5,6 +5,7 @@ import {
   type BuildCostKey,
   type BuildingKey,
   type DepositKey,
+  type ResearchCard,
   type ResourceKey,
 } from './ids';
 import {
@@ -91,7 +92,7 @@ export function buildableOn(
     // Nothing rises above the headquarters, and a level-1 building needs one standing.
     if (key === 'hq' ? site.hqLevel > 0 : site.hqLevel === 0) return [];
     const spec = catalog[key];
-    if (keyRefusal(key, site.hqLevel, spec.unlockedAtHqLevel) !== null) return [];
+    if (keyRefusal(key, site.hqLevel, spec.lockedBy) !== null) return [];
 
     /**
      * A key the foundation still owes is placed for nothing and stands at once — so it carries
@@ -123,7 +124,8 @@ export type BlockedReason =
    *  buildings standing and its anchor dead (ADR 0020 §10). */
   | { readonly kind: 'outOfReach' }
   | { readonly kind: 'unique' }
-  | { readonly kind: 'locked'; readonly hqLevel: number };
+  /** `card: null` — rien ne se bâtit avant le QG (`HQ_FIRST`). */
+  | { readonly kind: 'locked'; readonly card: ResearchCard | null };
 
 /** A catalogue line: the bill and the wait are served too, because they are what a player
  *  plans against — the reason says *not yet*, the price says *what it will take*. */
@@ -155,9 +157,7 @@ export function blockedOn(
 function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedReason {
   if (site.site === null) return { kind: 'outOfReach' };
   if (key === 'hq') return { kind: 'unique' };
-  // Un quartier général à zéro refuse toute autre clé, puisque `UNLOCKED_AT` les demande toutes
-  // à 1 — et depuis la décision 1b du 13/09 c'est l'état d'une saison qui vient de s'ouvrir.
-  return { kind: 'locked', hqLevel: Math.max(1, spec.unlockedAtHqLevel) };
+  return { kind: 'locked', card: site.hqLevel === 0 ? null : spec.lockedBy };
 }
 
 /**
@@ -331,12 +331,7 @@ export function aimVerdict(
     coastal: aim.coastal,
     nearest: nearestBuilding(aim.lonLat, around),
   };
-  const refusal = placementRefusal(
-    key,
-    spot,
-    view.me.hqLevel,
-    view.buildCatalog[key].unlockedAtHqLevel,
-  );
+  const refusal = placementRefusal(key, spot, view.me.hqLevel, view.buildCatalog[key].lockedBy);
   if (refusal === null) return { refusal: null, free };
   if (refusal === 'TOO_CLOSE' && spot.nearest !== null) {
     return {
@@ -370,7 +365,8 @@ export function snapTo(pointer: LonLat, magnets: ReadonlyArray<LonLat>): LonLat 
  * chart ever ask: they name a building, never a ground.
  */
 export type PlacementCondition =
-  | { readonly kind: 'locked'; readonly hqLevel: number }
+  /** `card: null` — rien ne se pose avant le QG ; sinon la carte de recherche qui la tient. */
+  | { readonly kind: 'locked'; readonly card: ResearchCard | null }
   | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> };
 
 export type Placement = {
@@ -382,8 +378,8 @@ export type Placement = {
 };
 
 /**
- * **Whether a key can go down anywhere at all.** A key the headquarters does not open names its
- * tier; an exploitation with no free deposit of its kind in a region the player holds names the
+ * **Whether a key can go down anywhere at all.** A key a research card still holds names the
+ * card; an exploitation with no free deposit of its kind in a region the player holds names the
  * deposit. Everything else is a matter of aiming.
  */
 export function placementOf(
@@ -392,15 +388,15 @@ export function placementOf(
   /** The deposits a debt of the foundation names, when it names one. */
   only?: ReadonlyArray<DepositKey>,
 ): Placement {
-  const unlockedAtHqLevel = view.buildCatalog[key].unlockedAtHqLevel;
+  const lockedBy = view.buildCatalog[key].lockedBy;
   const free = view.me.foundation.some((due) => due.key === key);
   const hqLevel = view.me.hqLevel;
   const impossible =
     !BUILDABLE_BUILDINGS.includes(key) ||
     (key === 'hq' ? hqLevel > 0 : hqLevel === 0) ||
-    keyRefusal(key, hqLevel, unlockedAtHqLevel) !== null;
+    keyRefusal(key, hqLevel, lockedBy) !== null;
   if (impossible) {
-    return { key, condition: { kind: 'locked', hqLevel: Math.max(1, unlockedAtHqLevel) }, free };
+    return { key, condition: { kind: 'locked', card: hqLevel === 0 ? null : lockedBy }, free };
   }
   const deposits = only ?? EXPLOITED_DEPOSITS[key];
   if (deposits === undefined) return { key, condition: null, free };

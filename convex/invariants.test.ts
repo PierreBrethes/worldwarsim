@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { BuildingKey, ResourceKey, UnitRole } from '../src/domain/ids';
+import type { BuildingKey, ResourceKey } from '../src/domain/ids';
 import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
 import {
   cellAt,
@@ -18,17 +18,7 @@ import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
 import worldAsset from '../public/world.json';
-import {
-  HQ_LEVEL_AT_LAUNCH,
-  MAX_HQ_LEVEL,
-  ROLE_SITE_LEVEL,
-  STARTING_KIT,
-  TIER_2_HQ_LEVEL,
-  buildCost,
-  recruitmentCost,
-  roleHqLevel,
-  unlockLevel,
-} from './constants';
+import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
 
 /**
  * **Ce que la ligne de départ doit encore payer** (question 51, « le jour où l'on touche
@@ -53,16 +43,6 @@ const sum = (...bills: ReadonlyArray<Bill>): Bill => {
   return total;
 };
 
-/** Ce que coûte la montée du quartier général du lancement jusqu'au niveau visé, ressource par
- *  ressource : depuis le 18/10 un prix est mêlé (ADR 0028 §2), l'acier ne suffit plus à le dire. */
-const hqClimb = (target: number): Bill => {
-  const bills: Array<Bill> = [];
-  for (let level = HQ_LEVEL_AT_LAUNCH + 1; level <= target; level += 1) {
-    bills.push(buildCost('hq', level));
-  }
-  return sum(...bills);
-};
-
 const firstOf = (key: BuildingKey): Bill => buildCost(key, 1);
 
 /** Chaque ressource de la facture tient dans la dotation, nommée quand elle ne tient pas. */
@@ -74,53 +54,16 @@ const fitsTheKit = (bill: Bill) => {
 
 describe('la première projection tient dans la dotation', () => {
   // La mine sur du fer, offerte au socle, rend l'acier : rien d'autre à bâtir avant la caserne.
-  it('par voie de mer : quartier général, port, caserne et un cargo, dans toutes leurs ressources', () => {
-    fitsTheKit(
-      sum(
-        hqClimb(unlockLevel('port')),
-        firstOf('barracks'),
-        firstOf('port'),
-        recruitmentCost('cargo', 1, 1).costs,
-      ),
-    );
+  it('par voie de mer : port, caserne et un cargo, dans toutes leurs ressources', () => {
+    fitsTheKit(sum(firstOf('barracks'), firstOf('port'), recruitmentCost('cargo', 1).costs));
   });
 
-  it('par voie de terre : quartier général, caserne et une première troupe, dans toutes leurs ressources', () => {
-    fitsTheKit(
-      sum(
-        hqClimb(unlockLevel('barracks')),
-        firstOf('barracks'),
-        recruitmentCost('infantry', 1, 1).costs,
-      ),
-    );
+  it('par voie de terre : caserne et une première troupe, dans toutes leurs ressources', () => {
+    fitsTheKit(sum(firstOf('barracks'), recruitmentCost('infantry', 1).costs));
   });
 
   it('laisse former au moins un blindé', () => {
-    fitsTheKit(recruitmentCost('armor', 1, 1).costs);
-  });
-});
-
-describe('les deux verrous d’un rôle', () => {
-  /**
-   * **L'arme et son contre arrivent ensemble** (`plan-progression-v1.md`, question 6c). Le
-   * blindé passe par deux portes : celle de son site, et celle du quartier général qui arme
-   * l'infanterie MK2. `cappedByHq` tient un site sous son quartier général, donc la première
-   * suffit à impliquer un QG au niveau du site — la seconde le dit quand même, parce que c'est
-   * elle qui ouvre le contre.
-   */
-  it('n’ouvre jamais le blindé avant le palier qui arme sa réponse', () => {
-    expect(ROLE_SITE_LEVEL.armor).toBeGreaterThanOrEqual(TIER_2_HQ_LEVEL);
-    expect(roleHqLevel('armor')).toBeGreaterThanOrEqual(TIER_2_HQ_LEVEL);
-  });
-
-  /** Un rôle écrit au-dessus du plafond des niveaux serait un rôle caché toute la saison. */
-  it('ne demande à aucun site un niveau que rien n’atteint', () => {
-    for (const [role, level] of Object.entries(ROLE_SITE_LEVEL) as ReadonlyArray<
-      [UnitRole, number]
-    >) {
-      expect(level, role).toBeGreaterThanOrEqual(1);
-      expect(level, role).toBeLessThanOrEqual(MAX_HQ_LEVEL);
-    }
+    fitsTheKit(recruitmentCost('armor', 1).costs);
   });
 });
 

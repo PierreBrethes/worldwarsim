@@ -17,6 +17,7 @@ import type {
   BuildCostKey,
   BuildingKey,
   DepositKey,
+  ResearchCard,
   ResourceKey,
   UnitRole,
 } from '../src/domain/ids';
@@ -111,45 +112,6 @@ export const BUILDING_SPEC: Readonly<
 };
 
 /**
- * `plan-progression-v1.md`: one headquarters level, one new question — the ground at 1, then the
- * army at 2. **The age of the army carries the sea and the air with it** (66a, 04/09): the port
- * and the airfield used to wait for 3, and the test season measured what that cost an island —
- * 577 steel for the first projection by sea against 198 by land, on an endowment of 500. A
- * nation whose only way out is the water cannot have that way out priced two levels above its
- * neighbour's road. What stays at 3 is the tank and the whole mark-2 step, which is a depth.
- *
- * Exhaustive by type: dropping a key breaks the build rather than quietly unlocking it at zero.
- *
- * **The warehouse and the depot stay at 1, and that is not a rounding**: storage is what protects
- * the absent player, so raising it would punish the one who can do nothing about it.
- */
-export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
-  hq: 1,
-  farm: 1,
-  mine: 1,
-  oilWell: 1,
-  warehouse: 1,
-  depot: 1,
-  barracks: 2,
-  arsenal: 2,
-  listening: 2,
-  airfield: 2,
-  port: 2,
-  city: 1,
-};
-
-/**
- * **`unlockLevel` is a width, `tier2HqLevel` is a depth: they must never be merged.** The
- * catalogue has to open across the whole run, and the mark-2 step has to stay *ahead* of where
- * the player already stands, or raising the headquarters rewards nothing. Somebody will try to
- * unify them; this paragraph is why not.
- *
- * It reads the ladder straight since the season has one single run (ADR 0020 §11): the
- * reprojection it used to do existed only to squeeze that ladder onto a shorter format.
- */
-export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
-
-/**
  * **Une seule ligne de départ** (ADR 0020 §11). L'escarmouche et la campagne ont disparu le
  * 31/08 : sans horloge, une partie n'a plus de fin programmée, et ce sont les valeurs de la
  * campagne qui décrivent le jeu réel. Ce qui reste, ce sont ces quelques nombres — jamais une
@@ -224,7 +186,7 @@ export { settlesDebt } from '../src/domain/economy';
  *
  * **Le quartier général ouvre la liste** (décision 1b du 13/09, révision de l'ADR 0015) : il
  * n'est plus planté sur la capitale de 1940, il entre dans le socle comme première dette — et
- * comme rien d'autre ne se bâtit sans lui (`UNLOCKED_AT`, tout à 1), l'ordre n'est pas une
+ * comme rien d’autre ne se bâtit sans lui (`HQ_FIRST`), l’ordre n’est pas une
  * présentation, c'est la seule séquence que le serveur accepte.
  */
 export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<FoundationDebt> => [
@@ -392,6 +354,32 @@ export const COST_BY_ROLE: Readonly<
 };
 
 /**
+ * **Ce qu'une carte de recherche coûte et dure** (ADR 0028 §5, artefact du 18/10) : payée à la
+ * pose, elle avance en heures de jeu sur le QG. Les prix de l'artefact sont décuplés pour tenir à
+ * l'échelle des coûts du code (une caserne vaut 40 d'acier, la dotation 400) ; les durées sont
+ * celles de l'artefact, 182 h pour une saison de 168 h — on ne finit pas l'arbre.
+ *
+ * **Le contre coûte moins et dure moins que l'arme qu'il contre** (`research.test.ts`).
+ *
+ * @a-mesurer l'artefact ×10, jamais joué
+ */
+export const RESEARCH_SPEC: Readonly<
+  Record<ResearchCard, { readonly hours: number; readonly cost: Costs }>
+> = {
+  infantryMk2: { hours: 8, cost: { steel: 60, food: 40 } },
+  armor: { hours: 16, cost: { steel: 120, oil: 60 } },
+  armorMk2: { hours: 28, cost: { steel: 180, oil: 80 } },
+  artillery: { hours: 12, cost: { steel: 100, oil: 40 } },
+  escort: { hours: 12, cost: { steel: 120, coal: 60 } },
+  carrier: { hours: 36, cost: { steel: 400, coal: 150 } },
+  aviation: { hours: 12, cost: { steel: 100, oil: 60 } },
+  bomber: { hours: 20, cost: { steel: 140, oil: 80 } },
+  airlift: { hours: 10, cost: { steel: 80, oil: 40 } },
+  syntheticOil: { hours: 18, cost: { steel: 100, coal: 100 } },
+  listening: { hours: 10, cost: { steel: 60, coal: 60 } },
+};
+
+/**
  * **Coups et plein, en crans** (ADR 0028 §3, précision du 18/10) : ce qu'une troupe porte pleine.
  * Les coups sont les passes qu'elle peut tirer ; le plein, la distance que ses moteurs couvrent
  * encore, en crans de `FUEL_STEP_KM`. Zéro : elle n'en a pas (un transport ne tire pas,
@@ -482,52 +470,6 @@ export const TOUR_ROAD_WAITS = 3;
 
 export const TIER_2_FACTOR = 1.6;
 
-/**
- * ADR 0015: research lives at the headquarters, not on the projection buildings. **The gate is
- * counted above the launch, never in the absolute** (ADR 0017) — written as an absolute it
- * would open mark 2 wherever the headquarters happens to be planted, and a step that does not
- * exist is not a step.
- *
- * **This is a depth and `unlockLevel` is a width — do not merge them**; see the paragraph there.
- */
-export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
-
-export const TIER_2_HQ_LEVEL = HQ_LEVEL_AT_LAUNCH + TIER_2_LEVELS_ABOVE_LAUNCH;
-
-/**
- * **The weapon and its counter arrive together** (`plan-progression-v1.md`, question 6c): the
- * damage table makes mark-2 infantry the answer to a tank (.65/.45 against .15/.05), so opening
- * the tank first would hand out thirty-three hours of unanswerable armor. It reads the mark-2
- * threshold rather than holding a table of its own. Zero means "nothing above the building".
- */
-export const roleHqLevel = (role: UnitRole): number => (role === 'armor' ? TIER_2_HQ_LEVEL : 0);
-
-/**
- * **The level the projection building must reach to form the role** (67b, 04/09). A *width per
- * site*, never to be confused with `roleHqLevel`, which is a depth at the headquarters: since
- * `cappedByHq` holds a site under its headquarters, a barracks at 3 already implies a
- * headquarters at 3, and the tank keeps its counter (mark-2 infantry, opened at the headquarters)
- * in front of it — `invariants.test.ts` holds that, no reading does.
- *
- * It is what gives a projection site a reason to be raised at all: before this the second level
- * of a barracks bought nothing. Exhaustive by role, and never above `MAX_HQ_LEVEL` — a role
- * written at 6 would be a role hidden for the whole season.
- */
-export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
-  infantry: 1,
-  landTransport: 2,
-  armor: 3,
-  artillery: 3,
-  cargo: 1,
-  escort: 2,
-  carrier: 5,
-  fighter: 1,
-  airTransport: 2,
-  bomber: 3,
-};
-
-export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
-
 /** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob, and **never shown** (ADR 0027
  *  §5): served so the button says the refusal when it bites, with no figure ahead of time. */
@@ -543,14 +485,9 @@ export const MAX_QUEUED_BATCHES = 12;
  */
 export const MONDIALE_TROOP_BOUND = 150;
 
-export function chainSpeed(hqLevel: number): number {
-  return 1 + Math.max(0, hqLevel - 1) * 0.225;
-}
-
 export function recruitmentCost(
   role: UnitRole,
   tier: UnitTier,
-  hqLevel: number,
 ): { readonly costs: Costs; readonly minutes: number } {
   const base = COST_BY_ROLE[role];
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
@@ -559,7 +496,7 @@ export function recruitmentCost(
       steel: Math.round(base.steel * factor),
       [FAMILY_RESOURCE_OF_ROLE[role]]: Math.round(base.family * factor),
     },
-    minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
+    minutes: Math.round(base.minutes * factor),
   };
 }
 

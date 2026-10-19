@@ -225,6 +225,8 @@ export type MapMarker =
       readonly emplacedAt?: number;
       /** **Les transports chargés de sa garnison** : l'étiquette qui pend sous le mât. */
       readonly cargo?: ReadonlyArray<CargoTag>;
+      /** Mon QG seul : la carte de recherche qu'il porte. */
+      readonly research?: Extract<LabelLine, { role: 'research' }>;
       readonly ink: string;
     }
   | {
@@ -312,6 +314,15 @@ export type LabelLine =
   | { readonly role: 'loading'; readonly until: number }
   /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
   | { readonly role: 'supplies'; readonly supplies: PileSupplies }
+  /** **La carte de recherche que porte mon QG** (ADR 0028 §5) : son nom et sa barre, qui court
+   *  de `since` à `dueAt` — figée à `share` quand le QG manque (`dueAt: null`). */
+  | {
+      readonly role: 'research';
+      readonly text: string;
+      readonly since: number;
+      readonly dueAt: number | null;
+      readonly share: number;
+    }
   /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
   | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
@@ -942,6 +953,7 @@ function markerLabel(marker: MapMarker): MapLabel {
           ...(marker.level === null
             ? []
             : [{ role: 'figures', text: fr.labels.buildingLevel(marker.level) } as const]),
+          ...(marker.research === undefined ? [] : [marker.research]),
           ...countdownsOf(marker),
         ],
       };

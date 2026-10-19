@@ -58,6 +58,7 @@ import type * as readMarks from "../readMarks.js";
 import type * as regionGeometry from "../regionGeometry.js";
 import type * as regions from "../regions.js";
 import type * as replay from "../replay.js";
+import type * as research from "../research.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
 import type * as seasonReport from "../seasonReport.js";
@@ -131,6 +132,7 @@ declare const fullApi: ApiFromModules<{
   regionGeometry: typeof regionGeometry;
   regions: typeof regions;
   replay: typeof replay;
+  research: typeof research;
   resources: typeof resources;
   routes: typeof routes;
   seasonReport: typeof seasonReport;

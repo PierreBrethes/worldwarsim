@@ -35,6 +35,7 @@ import type {
   Nation,
   PlayableRegion,
   RegionType,
+  ResearchCard,
   ResourceKey,
   Specialization,
   UnitRole,
@@ -63,6 +64,40 @@ const PLACE_OF: Readonly<Record<string, string>> = {
   Amériques: 'des Amériques',
 };
 const ofPlace = (theatre: string): string => PLACE_OF[theatre] ?? `de ${theatre}`;
+
+/** **Les cartes de recherche** (ADR 0028 §5), comme l'artefact les nomme. */
+const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
+  infantryMk2: 'Infanterie MK2',
+  armor: 'Blindé',
+  armorMk2: 'Blindé MK2',
+  artillery: 'Artillerie',
+  escort: 'Escorte',
+  carrier: 'Porte-avions',
+  aviation: 'Aviation',
+  bomber: 'Bombardier',
+  airlift: 'Transport aérien',
+  syntheticOil: 'Pétrole synthétique',
+  listening: 'Station d’écoute',
+};
+
+/** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
+const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
+  infantryMk2: 'le fantassin antichar',
+  armor: 'le blindé MK1',
+  armorMk2: 'le blindé lourd',
+  artillery: 'le tir indirect',
+  escort: 'le navire qui protège les cargos',
+  carrier: 'l’aviation en mer',
+  aviation: 'la tuile aérodrome et le chasseur',
+  bomber: 'la frappe de loin sur les bâtiments',
+  airlift: 'l’avion qui embarque et largue le ravitaillement',
+  syntheticOil: 'une ligne d’usine : 3 charbon pour 1 pétrole',
+  listening: 'la tuile du relevé à longue portée, qui brûle du charbon',
+};
+
+/** `« Blindé »` — la carte nommée comme sur le plateau personnel. */
+export const cardName = (card: unknown): string =>
+  `« ${RESEARCH_NAMES[card as ResearchCard] ?? String(card)} »`;
 
 type RefusalContext = {
   readonly founder: string | null;
@@ -668,11 +703,13 @@ export const fr = {
     /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
     BUILDING_TOO_CLOSE: (d) => `trop près ${ofTheBuildingName(d.near)} : ${num(d.km)} km au moins`,
     ALREADY_QUEUED_HERE: () => 'un chantier est déjà en file sur ce bâtiment',
-    BUILDING_LOCKED: (d) =>
-      `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
-    ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
-    SITE_LEVEL_LOCKED: (d) =>
-      `ce rôle demande ${aBuildingName(d.building)} de niveau ${num(d.requiredLevel)}`,
+    RESEARCH_REQUIRED: (d) => `demande la recherche ${cardName(d.card)}`,
+    RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
+    RESEARCH_COMING: (d) =>
+      `${cardName(d.card)} : à venir — ce qu’elle ouvre n’existe pas encore en Mondiale`,
+    RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
+    RESEARCH_BUSY: (d) => `le QG cherche déjà ${cardName(d.card)} — une carte à la fois`,
+    RESEARCH_NEEDS_HQ: () => 'posez d’abord votre quartier général — c’est lui qui cherche',
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
@@ -687,7 +724,6 @@ export const fr = {
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
-    TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: () => 'la file de ce site est pleine',
     UNKNOWN_BATCH: () => 'lot inconnu',
     SPECIALIZATION_SEALED: () =>
@@ -2254,6 +2290,7 @@ export const fr = {
       firedDry: 'tir à sec',
       supply: 'ravitaillement',
       airdrop: 'largage',
+      research: 'recherche',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       elimination: 'QG tombé',
@@ -2553,6 +2590,8 @@ export const fr = {
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
           : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
+      researchDone: (card: ResearchCard) =>
+        `Recherche achevée — ${cardName(card)} : ${RESEARCH_UNLOCKS[card]}, désormais à vous.`,
       airdropped: (country: string, delivered: string, kept: string, squad: boolean) =>
         delivered === ''
           ? `Largué pour rien — ${country} : ${squad ? 'l’escouade n’avait rien à reprendre, ou n’était plus là' : 'le dépôt était plein'}, ${kept} encore à bord. L’avion rentre.`
@@ -3121,19 +3160,19 @@ export const fr = {
     /**
      * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : un seul gabarit pour la
      * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le décompte collé
-     * sous eux. Ce qui n'est pas encore ouvert descend sous « plus haut » avec sa condition.
+     * sous eux. Ce qu'une carte de recherche tient encore descend dessous avec elle.
      */
     sheet: {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
-      opens: (level: number, roles: string) => `Le niveau ${level} ouvre ${roles}`,
-      waits: (role: string, level: number) => `${role} attend le niveau ${level}`,
-      and: ' et ',
+      /** **Un niveau rend** (ADR 0028 §5) : il ne débloque plus rien. */
+      lanes: (level: number) =>
+        level === 1 ? 'Forme une troupe à la fois' : `Forme ${level} troupes à la fois`,
       formHeader: 'former ici',
       formNote: 'un toucher, une troupe',
-      lockedHeader: 'Plus haut',
-      lockedNote: 'le site doit monter',
+      lockedHeader: 'Derrière une carte',
+      lockedNote: 'la recherche se pose sur le QG',
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
       queueFull: 'File pleine.',
       short: (missing: number, resource: string) => `Il manque ${missing} ${resource}.`,
@@ -3182,15 +3221,12 @@ export const fr = {
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
-    tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
-    /** The tank waits for the level that arms its counter — said before the click, not after. */
-    roleLocked: (level: number) => `verrouillé — quartier général niveau ${level} requis`,
+    /** **Derrière sa carte** (ADR 0028 §5) : dit avant le clic, la carte nommée. */
+    researchLocked: (card: ResearchCard) => `verrouillé — demande la recherche ${cardName(card)}`,
     /** **La condition en toutes lettres, et la même dans les deux cadres** (contrats 03 et 06) :
      *  l'abaque la dit sans rien posséder, la modale de site la dit sur la carte qu'elle laisse
-     *  affichée. Le niveau ne s'imprime qu'à partir de 2 — « de niveau 1 » se lirait comme une
-     *  condition alors que c'est le bâtiment nu (67b). */
-    formsIn: (building: string, level: number) =>
-      level > 1 ? `se forme dans ${building} de niveau ${level}` : `se forme dans ${building}`,
+     *  affichée. */
+    formsIn: (building: string) => `se forme dans ${building}`,
     tierLabel: (tier: number) => `palier ${tier}`,
     enqueueTitle: (role: string, tier: string, site: string) => `enfiler ${role} ${tier} — ${site}`,
     enqueue: '+ 1 troupe',
@@ -3290,6 +3326,29 @@ export const fr = {
     starvedChainFix: (a: string) => `bâtissez ou élevez ${a}`,
   },
 
+  /** **Les cartes de recherche** (ADR 0028 §5) : sur le plateau personnel, sur le QG. */
+  research: {
+    header: 'recherche',
+    note: 'glissez une carte sur votre QG : payée à la pose, elle avance en heures de jeu et débloque à la fin — une à la fois',
+    names: RESEARCH_NAMES,
+    unlocks: RESEARCH_UNLOCKS,
+    branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
+    hours: (hours: number) => `${num(hours)} h`,
+    after: (cards: string) => `après ${cards}`,
+    and: ' et ',
+    counters: (cards: string) => `contre ${cards}`,
+    counteredBy: (cards: string) => `son contre : ${cards}`,
+    done: 'acquise',
+    coming: 'à venir',
+    left: (time: string) => `reste ${time}`,
+    waiting: 'attend son QG',
+    dropOnHq: 'Lâchez la carte sur votre quartier général',
+    start: (card: string, hours: number) => `Chercher ${card} — ${num(hours)} h`,
+    started: (card: string) => `${card} posée sur le quartier général`,
+    /** La ligne du mât du QG, et celle de « en cours ». */
+    onHq: (card: string) => `recherche ${card}`,
+  },
+
   economy: {
     constructionNone:
       'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
@@ -3303,7 +3362,10 @@ export const fr = {
      *  placement que le serveur refuse avec (`placementOf`). */
     condition: {
       foundation: 'pose de fondation offerte',
-      locked: (level: number) => `demande un quartier général niveau ${level}`,
+      locked: (card: ResearchCard | null) =>
+        card === null
+          ? 'posez d’abord votre quartier général'
+          : `demande la recherche ${cardName(card)}`,
       deposit: (deposits: ReadonlyArray<string>) =>
         `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
       free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
@@ -4099,7 +4161,10 @@ export const fr = {
        *  son ancre est morte (ADR 0020 §10). */
       outOfReach: 'plus aucun avant-poste ne couvre cette région',
       unique: 'un seul quartier général par nation',
-      locked: (level: number) => `demande un quartier général niveau ${level}`,
+      locked: (card: ResearchCard | null) =>
+        card === null
+          ? 'posez d’abord votre quartier général'
+          : `demande la recherche ${cardName(card)}`,
     },
   },
 
@@ -4273,14 +4338,6 @@ export const theBuilding = (key: BuildingKey): string => {
     : `${fr.buildingGender[key] === 'f' ? 'la' : 'le'} ${name}`;
 };
 
-/** `le blindé`, `l’escorte` — a role designated, for the sentence that says what a level opens. */
-export const theRole = (role: UnitRole): string => {
-  const name = fr.roles[role].one;
-  return startsWithVowel(name)
-    ? `l’${name}`
-    : `${fr.roleGender[role] === 'f' ? 'la' : 'le'} ${name}`;
-};
-
 /** `une seconde caserne`, `un second port` — the building a parallel queue would need. */
 export const aSecondBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'une seconde' : 'un second'} ${lowerFirst(fr.buildings[key])}`;
@@ -4293,7 +4350,7 @@ export function aimRefusalText(
   refusal: NonNullable<AimVerdict['refusal']>,
   key: BuildingKey,
   reach: { readonly widestKm: number; readonly hasOutposts: boolean },
-  hq: { readonly requiredLevel: number; readonly hqLevel: number },
+  lockedBy: ResearchCard | null,
   expected: ReadonlyArray<DepositKey>,
 ): string {
   const errors = fr.errors;
@@ -4309,11 +4366,9 @@ export function aimRefusalText(
       return errors.DEPOSIT_REQUIRED({ building: key, expected });
     case 'TOO_CLOSE':
       return errors.BUILDING_TOO_CLOSE({ near: refusal.near, km: refusal.km });
-    // Le serveur renomme le palier zéro en ordre de pose (`HQ_FIRST`) : la phrase suit.
-    case 'BUILDING_LOCKED':
-      return hq.hqLevel === 0
-        ? errors.HQ_FIRST()
-        : errors.BUILDING_LOCKED({ building: key, ...hq });
+    case 'RESEARCH_REQUIRED':
+      return errors.RESEARCH_REQUIRED({ card: lockedBy });
+    case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
     case 'NOT_COASTAL':
     case 'UNKNOWN_BUILDING':

@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { pauseResearch } from './research';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
@@ -6,7 +7,7 @@ import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { demolitionRefusalOf } from '../src/domain/construction';
 import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
-import { levelOf, playerBuildings } from './buildingReads';
+import { playerBuildings } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
@@ -136,6 +137,7 @@ export async function releaseBuilding(
 
   await settle(ctx, player._id, now);
   await groundGarrison(ctx, building);
+  if (building.key === 'hq') await pauseResearch(ctx, player._id, now);
   if (settled.length > 0) {
     await ctx.db.patch(player._id, {
       settledFoundation: [...(fresh.settledFoundation ?? []), ...settled],
@@ -177,7 +179,6 @@ async function cancelWorkOn(
     await ctx.db.delete(entry._id);
   }
 
-  const hqLevel = levelOf(await playerBuildings(ctx, player._id), 'hq');
   /** **Une Blitz n'a jamais de lot en attente** (U6) : un seul par bâtiment libre, daté à
    *  l'ordre, donc rien à y rendre. */
   const batches = await ctx.db
@@ -186,7 +187,7 @@ async function cancelWorkOn(
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      add(recruitmentCost(batch.role, batch.tier, hqLevel).costs);
+      add(recruitmentCost(batch.role, batch.tier).costs);
     }
     await ctx.db.delete(batch._id);
   }

@@ -25,7 +25,7 @@ import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
-import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge, ResearchLine } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
   NEUTRAL_FLAG,
@@ -1001,6 +1001,14 @@ export function MapLabels({
                         <MarchGauge since={line.since} dueAt={line.dueAt} />
                       )}
                     </Fragment>
+                  ) : line.role === 'research' ? (
+                    <ResearchLine
+                      key={rank}
+                      text={line.text}
+                      since={line.since}
+                      dueAt={line.dueAt}
+                      share={line.share}
+                    />
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
                   ) : line.role === 'supplies' ? (

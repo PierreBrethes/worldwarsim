@@ -4,6 +4,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { RunningResearch } from './research';
 import type { StrategicPointKey } from './strategic-points';
 import type {
   BuildCostKey,
@@ -11,6 +12,7 @@ import type {
   DepositKey,
   Detector,
   MovementType,
+  ResearchCard,
   ResourceKey,
   Specialization,
   UnitRole,
@@ -562,14 +564,13 @@ type ExtractionSiteView = {
 
 /**
  * What a first level of a building costs and takes, per key: the construction panel's price
- * list. `unlockedAtHqLevel` travels with the price because it decides the same thing — whether
- * a line exists at all — and a client-side copy of the tier table is how the panel and the
- * server stop refusing the same things.
+ * list. `lockedBy` travels with the price because it decides the same thing — whether a tile goes
+ * down at all — and it is the very card the server refuses with (`buildingLockOf`).
  */
 export type BuildSpec = {
   readonly cost: Cost;
   readonly minutes: number;
-  readonly unlockedAtHqLevel: number;
+  readonly lockedBy: ResearchCard | null;
 };
 
 /**
@@ -673,6 +674,8 @@ export type DispatchKind =
   | 'supply'
   /** **Un largage** (ADR 0028 §4) : le paquet est descendu. */
   | 'airdrop'
+  /** **Une carte de recherche achevée** (ADR 0028 §5). */
+  | 'research'
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
@@ -739,6 +742,7 @@ type NoticeBody =
       readonly regionName: string;
       readonly level: number;
     }
+  | { readonly kind: 'researchDone'; readonly at: number; readonly card: ResearchCard }
   | {
       readonly kind: 'recruitmentDelivered';
       readonly at: number;
@@ -1211,8 +1215,15 @@ export type PlayerView = {
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
-    /** The headquarters level that opens mark 2 in this format — served, never derived here. */
-    readonly tier2HqLevel: number;
+    /**
+     * **Ma recherche** (ADR 0028 §5) : les cartes acquises, et celle que mon QG porte — elle
+     * attend (`since: null`) quand le QG manque. Jamais servie qu'à moi : l'adversaire ne la
+     * devine qu'en relevant mes pièces.
+     */
+    readonly research: {
+      readonly researched: ReadonlyArray<ResearchCard>;
+      readonly running: RunningResearch | null;
+    };
     /**
      * The buildings the season still owes, in placement order — placed for nothing and at
      * once, wherever the player decides. Empty once the foundation stands.

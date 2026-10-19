@@ -16,6 +16,7 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
       ],
       outposts: [],
       chains: [],
+      research: { researched: [], running: null },
       ...over,
     },
   }) as unknown as PlayerView;
@@ -35,6 +36,27 @@ const march = (id: string, minutesLeft: number, over: Partial<ArcView> = {}): Ar
 const minutes = (count: number) => LOADED + count * 60_000;
 
 describe('what runs, nearest first', () => {
+  it('dates the card the headquarters carries, and leaves one waiting for it undated', () => {
+    const hq = { id: 'B-0', key: 'hq', name: 'QG', regionId: 'FRA-1', point: [2, 48], level: 1 };
+    const running = { card: 'armor', remainingMs: 60 * 60_000, since: LOADED } as const;
+    const lines = underwayOf(
+      board({ buildings: [hq], research: { researched: [], running } } as never),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.endsAt])).toEqual([
+      ['research', LOADED + 60 * 60_000],
+    ]);
+    expect(
+      underwayOf(
+        board({
+          buildings: [hq],
+          research: { researched: [], running: { ...running, since: null } },
+        } as never),
+        [],
+      ),
+    ).toEqual([]);
+  });
+
   it('says nothing when nothing runs', () => {
     expect(underwayOf(board(), [])).toEqual([]);
   });

@@ -20,6 +20,7 @@ import {
   RESOURCES,
   type BuildCostKey,
   type BuildingKey,
+  type ResearchCard,
 } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
@@ -43,7 +44,6 @@ import {
   MAX_PLAYERS,
   PRESS_EDITION_HOURS,
   STORAGE_CAP_PER_LEVEL,
-  TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
   OUTPOST_MAX_LEVEL,
@@ -52,7 +52,6 @@ import {
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
   isCommanded,
-  unlockLevel,
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
@@ -80,6 +79,7 @@ import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
+import { buildingLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -348,11 +348,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       {
         cost: buildCost(key, 1),
         minutes: buildMinutes(key, 1),
-        // The tier travels with the price so the panel offers exactly what the server takes.
-        unlockedAtHqLevel: unlockLevel(key),
+        // The card travels with the price so the panel offers exactly what the server takes.
+        // La Blitz garde son catalogue : rien n'y est tenu par une carte.
+        lockedBy: blitz ? null : buildingLockOf(key, player.researched ?? []),
       },
     ]),
-  ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
+  ) as Record<BuildingKey, { cost: Costs; minutes: number; lockedBy: ResearchCard | null }>;
 
   const seats = await seatsOf(ctx, season._id);
   /** The belligerents, never the seats: somebody who joined a running season and is still
@@ -521,13 +522,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        *  Blitz, le QG que la carte de départ a posé. */
       openingPoint:
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
-      /**
-       * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
-       * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the
-       * recruitment that refuses tier 2 have to be the same number, and a client-side copy of
-       * the rule is how they stop being one.
-       */
-      tier2HqLevel: TIER_2_HQ_LEVEL,
+      /** Ma recherche, et à moi seul (ADR 0028 §5) : l'adversaire relève des pièces, rien d'autre. */
+      research: {
+        researched: player.researched ?? [],
+        running: player.research ?? null,
+      },
       /**
        * What the season still owes, in placement order — free and immediate wherever the
        * player decides to put it. Served rather than derived on the client: the debt is read

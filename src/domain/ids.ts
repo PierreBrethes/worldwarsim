@@ -32,6 +32,26 @@ export type UnitRole =
 export type UnitTier = 1 | 2;
 
 /**
+ * **Les onze cartes de recherche de la Mondiale** (ADR 0028 §5), dans l'ordre de l'arbre :
+ * terre, mer, air, industrie. Ce qu'elles débloquent vit dans `src/domain/research.ts`.
+ */
+export const RESEARCH_CARDS = [
+  'infantryMk2',
+  'armor',
+  'armorMk2',
+  'artillery',
+  'escort',
+  'carrier',
+  'aviation',
+  'bomber',
+  'airlift',
+  'syntheticOil',
+  'listening',
+] as const;
+
+export type ResearchCard = (typeof RESEARCH_CARDS)[number];
+
+/**
  * `march` is the plain one, and it was missing until ADR 0019 §7: go to a point and stay there.
  * Every other order comes back — it is the only one whose column has an address at the end of
  * it.

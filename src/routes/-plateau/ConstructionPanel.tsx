@@ -336,7 +336,7 @@ const blockedText = (reason: BlockedReason): string => {
     case 'unique':
       return said.unique;
     case 'locked':
-      return said.locked(reason.hqLevel);
+      return said.locked(reason.card);
   }
 };
 

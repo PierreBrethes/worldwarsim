@@ -13,7 +13,6 @@ import {
   outpostReachKm,
   REST_WINDOW_MINUTES,
   DETECTION_RANGE_KM,
-  unlockLevel,
 } from './constants';
 import { ConvexError } from 'convex/values';
 import { internal } from './_generated/api';
@@ -916,18 +915,16 @@ describe('an outpost opens a radius to build in', () => {
   it('refuses one outside it, and names the widest reach he has', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
-    /** La clé avant la portée, comme `placementRefusal` sous le fantôme : une caserne verrouillée
-     *  hors de portée se dit verrouillée aux deux bouts. */
-    await setHqLevel(t, seat, unlockLevel('barracks') - 1);
+    /** La clé avant la portée, comme `placementRefusal` sous le fantôme : un aérodrome verrouillé
+     *  hors de portée se dit verrouillé aux deux bouts. */
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
-        building: 'barracks',
+        building: 'airfield',
         regionId: RUHR,
         point: pointOfRegion(RUHR),
       }),
-    ).rejects.toThrow('BUILDING_LOCKED');
-    await setHqLevel(t, seat, unlockLevel('barracks'));
+    ).rejects.toThrow('RESEARCH_REQUIRED');
     const refused: Record<string, unknown> = await t
       .mutation(api.constructions.start, {
         ...seat,
@@ -948,15 +945,12 @@ describe('an outpost opens a radius to build in', () => {
 
   /**
    * **The two rules stack, they do not stand in for one another.** The reach says *where* a
-   * building may go up, the catalogue tier says *whether the season has reached it* — so a
-   * region an outpost has opened still refuses an airfield until the headquarters reaches the
-   * level the catalogue opens projection at (`unlockLevel`).
+   * building may go up, the research card says *whether the player has opened it* — so a region
+   * an outpost has opened still refuses an airfield until the aviation card comes to its end.
    */
-  it('stacks the tier of the catalogue on top of the reach', async () => {
+  it('stacks the research card on top of the reach', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
-    const opensAt = unlockLevel('airfield');
-    await setHqLevel(t, seat, opensAt - 1);
 
     await expect(
       t.mutation(api.constructions.start, {
@@ -965,11 +959,13 @@ describe('an outpost opens a radius to build in', () => {
         regionId: PRAHOVA,
         point: pointOfRegion(PRAHOVA),
       }),
-    ).rejects.toThrow('BUILDING_LOCKED');
+    ).rejects.toThrow('RESEARCH_REQUIRED');
 
-    await setHqLevel(t, seat, opensAt);
+    await t.run(async (ctx) => {
+      await ctx.db.patch((await seatIn(ctx, seat))._id, { researched: ['aviation'] });
+    });
 
-    // The reach keeps its own say at that level: an opened tier is not a passport.
+    // The reach keeps its own say: an opened card is not a passport.
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
@@ -991,7 +987,6 @@ describe('an outpost opens a radius to build in', () => {
   it('keeps home free of any reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await setHqLevel(t, seat, unlockLevel('barracks'));
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',

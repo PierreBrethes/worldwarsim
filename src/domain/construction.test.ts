@@ -19,9 +19,10 @@ import {
   BUILDINGS,
   RESOURCES,
   type BuildingKey,
+  type ResearchCard,
   type ResourceKey,
 } from './ids';
-import { unlockLevel } from '../../convex/constants';
+import { buildingLockOf } from './research';
 import { BUILDING_SPACING_KM } from './economy';
 import { destinationPoint, type LonLat } from './geo';
 import { DEPOSIT_POINTS } from './world';
@@ -29,7 +30,7 @@ import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 
 /** Everything open at a headquarters of 1: the tier is under test on its own, below. */
 const CATALOG = Object.fromEntries(
-  BUILDINGS.map((key) => [key, { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: 1 }]),
+  BUILDINGS.map((key) => [key, { cost: { steel: 20 }, minutes: 30, lockedBy: null }]),
 ) as Record<BuildingKey, BuildSpec>;
 
 const RICH = Object.fromEntries(RESOURCES.map((key) => [key, 1000])) as Record<ResourceKey, number>;
@@ -67,10 +68,10 @@ describe('the rest of the catalogue', () => {
     expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
   });
 
-  it('names the tier the headquarters has not reached', () => {
-    const gated = { ...CATALOG, airfield: { ...CATALOG.airfield, unlockedAtHqLevel: 3 } };
+  it('names the research card that still holds a tile', () => {
+    const gated = { ...CATALOG, airfield: { ...CATALOG.airfield, lockedBy: 'aviation' as const } };
     const [airfield] = blockedOn(site({ hqLevel: 2 }), gated).filter((o) => o.key === 'airfield');
-    expect(airfield?.reason).toEqual({ kind: 'locked', hqLevel: 3 });
+    expect(airfield?.reason).toEqual({ kind: 'locked', card: 'aviation' });
   });
 
   it('says a second headquarters is one too many', () => {
@@ -110,25 +111,23 @@ describe('what may be ordered before any point is aimed at', () => {
     expect(keysOn({ site: null })).toEqual([]);
   });
 
-  /**
-   * **The real ladder, read off `unlockLevel`.** Projection travels with the age of the army
-   * since the 04/09 (66a): the port and the airfield open one level above the one the season
-   * plants, and the catalogue offers them the minute it gets there.
-   */
-  it('holds projection back until the headquarters reaches its level', () => {
-    const catalog = Object.fromEntries(
-      BUILDINGS.map((key) => [
-        key,
-        { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key) },
-      ]),
-    ) as Record<BuildingKey, BuildSpec>;
+  /** **La recherche débloque** (ADR 0028 §5) : le port et la caserne au départ, l'aérodrome
+   *  derrière l'aviation, quel que soit le niveau du QG. */
+  it('holds the airfield behind its card and offers the port from the first level', () => {
+    const catalog = (researched: ReadonlyArray<'aviation'>) =>
+      Object.fromEntries(
+        BUILDINGS.map((key) => [
+          key,
+          { cost: { steel: 20 }, minutes: 30, lockedBy: buildingLockOf(key, researched) },
+        ]),
+      ) as Record<BuildingKey, BuildSpec>;
 
-    const offered = (hqLevel: number) =>
-      buildableOn(site({ hqLevel }), catalog).map((option) => option.key);
+    const offered = (researched: ReadonlyArray<'aviation'>) =>
+      buildableOn(site({ hqLevel: 5 }), catalog(researched)).map((option) => option.key);
 
-    expect(offered(1)).not.toContain('port');
-    expect(offered(1)).not.toContain('airfield');
-    expect(offered(unlockLevel('port'))).toEqual(expect.arrayContaining(['port', 'airfield']));
+    expect(offered([])).toEqual(expect.arrayContaining(['port', 'barracks']));
+    expect(offered([])).not.toContain('airfield');
+    expect(offered(['aviation'])).toContain('airfield');
   });
 });
 
@@ -136,7 +135,7 @@ describe('what merely holds a line back', () => {
   it('holds only what the stocks cannot pay for', () => {
     const cheap: Record<BuildingKey, BuildSpec> = {
       ...CATALOG,
-      barracks: { cost: { steel: 5 }, minutes: 10, unlockedAtHqLevel: 1 },
+      barracks: { cost: { steel: 5 }, minutes: 10, lockedBy: null },
     };
     const options = buildableOn(site({ stocks: { ...BROKE, steel: 5 } }), cheap);
     expect(options.find((option) => option.key === 'barracks')?.hold).toBeNull();
@@ -284,7 +283,7 @@ describe('the point aimed at', () => {
     foundation?: PlayerView['me']['foundation'];
     surveyed?: ReadonlyArray<LonLat>;
     regions?: PlayerView['me']['regions'];
-    unlocked?: number;
+    locked?: ResearchCard;
   }): PlayerView =>
     ({
       me: {
@@ -306,7 +305,7 @@ describe('the point aimed at', () => {
       buildCatalog: Object.fromEntries(
         BUILDINGS.map((key) => [
           key,
-          { cost: { steel: 20 }, minutes: 30, unlockedAtHqLevel: overrides.unlocked ?? 1 },
+          { cost: { steel: 20 }, minutes: 30, lockedBy: overrides.locked ?? null },
         ]),
       ),
     }) as unknown as PlayerView;
@@ -353,8 +352,8 @@ describe('the point aimed at', () => {
    *  verrouillée aux deux bouts (`movements.test.ts`). */
   it('names the locked key before the reach', () => {
     const abroad = aim([7, 51], { region: { id: 'DEU-1572', name: 'Ruhr', country: 'DEU' } });
-    expect(refusalOf(view({ unlocked: 3 }), 'barracks', abroad)).toEqual({
-      code: 'BUILDING_LOCKED',
+    expect(refusalOf(view({ locked: 'aviation' }), 'barracks', abroad)).toEqual({
+      code: 'RESEARCH_REQUIRED',
     });
   });
 
@@ -400,10 +399,10 @@ describe('the point aimed at', () => {
       site: { outpostId: null },
     });
 
-    it('names the headquarters level a locked key waits on', () => {
-      expect(placementOf(view({ unlocked: 3 }), 'port').condition).toEqual({
+    it('names the research card a locked key waits on', () => {
+      expect(placementOf(view({ locked: 'aviation' }), 'airfield').condition).toEqual({
         kind: 'locked',
-        hqLevel: 3,
+        card: 'aviation',
       });
     });
 

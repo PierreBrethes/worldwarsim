@@ -59,7 +59,7 @@ const view = {
     ),
   },
   buildCatalog: Object.fromEntries(
-    BUILDINGS.map((key) => [key, { cost: { steel: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
+    BUILDINGS.map((key) => [key, { cost: { steel: 10 }, minutes: 20, lockedBy: null }]),
   ) as Record<BuildingKey, BuildSpec>,
   outpostFoundation: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   arcs: [],

@@ -464,7 +464,7 @@ describe('a dry reserve stops the queue and kills nothing', () => {
     await starve(t, seat);
 
     // Just enough food to pay the order: it empties the reserve, and the line must stop on it.
-    await setFood(t, seat, recruitmentCost('infantry', 1, 1).costs.food!);
+    await setFood(t, seat, recruitmentCost('infantry', 1).costs.food!);
     const { recruitmentId } = await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,
@@ -540,7 +540,7 @@ describe('a delivered troop', () => {
     expect(view.me.troops).toHaveLength(1);
     // Nobody ate during the hours of the queue: the reserve is the one the order left.
     expect(view.me.resources.food.stock).toBeCloseTo(
-      1_000 - recruitmentCost('infantry', 1, 1).costs.food!,
+      1_000 - recruitmentCost('infantry', 1).costs.food!,
       0,
     );
   });

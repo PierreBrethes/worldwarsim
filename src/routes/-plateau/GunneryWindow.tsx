@@ -20,7 +20,7 @@ import {
 } from '@/domain/gunnery';
 import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, tierLabel } from '@/domain/troops';
 import type { UnitTier } from '@/domain/troops';
-import type { UnitRole } from '@/domain/ids';
+import type { ResearchCard, UnitRole } from '@/domain/ids';
 import type { Cost } from '@/domain/player-view';
 import { Price } from '@/shell/Price';
 import { SupplyPictos } from '@/shell/SupplyPictos';
@@ -279,8 +279,7 @@ export function GunnerySheet({
                 roster={
                   workshop?.roster.find((row) => row.role === role && row.tier === mark)?.count ?? 0
                 }
-                locked={mark === 2 && !(workshop?.tier2Unlocked ?? false)}
-                requiredLevel={workshop?.requiredHqLevel ?? 0}
+                lockedBy={(mark === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null}
                 first={rank === 0}
                 blitz={blitz}
               />
@@ -326,13 +325,13 @@ export function GunnerySheet({
             <span className="text-[13.5px] text-[var(--ink)]">
               {blitz
                 ? fr.blitz.formsIn(rolesFormingSites(role).map(aBuilding))
-                : fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+                : fr.production.formsIn(aBuilding(entry.producedBy))}
             </span>
-            {entry.unlockedAtHqLevel > 0 && !blitz && (
+            {entry.unit.lockedBy !== null && !blitz && (
               <>
                 <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
-                  {fr.production.tier2Locked(entry.unlockedAtHqLevel)}
+                  {fr.production.researchLocked(entry.unit.lockedBy)}
                 </span>
               </>
             )}
@@ -358,8 +357,7 @@ function Mark({
   cost,
   role,
   roster,
-  locked,
-  requiredLevel,
+  lockedBy,
   first,
   blitz,
 }: {
@@ -368,8 +366,7 @@ function Mark({
   cost: { costs: Cost; minutes: number; strength: number };
   role: UnitRole;
   roster: number;
-  locked: boolean;
-  requiredLevel: number;
+  lockedBy: ResearchCard | null;
   first: boolean;
   blitz: boolean;
 }) {
@@ -430,9 +427,9 @@ function Mark({
           {roster}
         </span>
       </span>
-      {locked && (
+      {lockedBy !== null && (
         <span className="max-w-[24ch] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
-          {fr.production.tier2Locked(requiredLevel)}
+          {fr.production.researchLocked(lockedBy)}
         </span>
       )}
       {hovered !== null && (

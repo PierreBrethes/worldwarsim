@@ -1,5 +1,11 @@
 import { v } from 'convex/values';
-import { canonicalBuildingKey, isOutpostWork, type BuildingKey } from '../src/domain/ids';
+import {
+  canonicalBuildingKey,
+  isOutpostWork,
+  type BuildingKey,
+  type ResearchCard,
+} from '../src/domain/ids';
+import { buildingLockOf } from '../src/domain/research';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -28,7 +34,6 @@ import {
   MAX_HQ_LEVEL,
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
-  unlockLevel,
   buildCost,
   buildMinutes,
   nominalStrength,
@@ -46,6 +51,7 @@ import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
+import { resumeResearch } from './research';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -156,7 +162,10 @@ export const start = mutation({
         /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
-      if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
+      if (building === 'hq') {
+        await garrisonTheGift(ctx, player, season._id, standingId);
+        await resumeResearch(ctx, player._id, now);
+      }
       return { finishesAt: now, cost: {}, level: placed, rank: null };
     }
 
@@ -614,13 +623,7 @@ async function refusalFor(
     return { code: 'HQ_ALREADY_BUILT' };
   }
 
-  /**
-   * **Le quartier général d'abord** (décision 1b du 13/09). Ce n'est pas une seconde garde : à
-   * niveau 0 `placementRefusal` refuse déjà toute autre clé, puisque `UNLOCKED_AT` les demande
-   * toutes à 1. Ce qu'il en sortait était `BUILDING_LOCKED` — « la mine demande un quartier
-   * général de niveau 1 » —, une phrase qui nomme un palier là où il n'y a qu'un ordre de pose.
-   * Le refus est donc renommé ici, là où la cause est lisible, et pas ajouté.
-   */
+  /** **Le quartier général d'abord** (décision 1b du 13/09) : une élévation aussi l'attend. */
   if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
 
   /**
@@ -632,18 +635,17 @@ async function refusalFor(
   }
 
   if (standing === undefined) {
-    const requiredLevel = unlockLevel(building);
+    const lockedBy = buildingLockOf(building, player.researched ?? []);
     const refusal = placementRefusal(
       building,
       await spotAt(ctx, player, lonLat, reached, buildings, pledged),
       hqLevel,
-      requiredLevel,
+      lockedBy,
     );
     if (refusal !== null)
       return placementRefusalOf(refusal, {
         building,
-        requiredLevel,
-        hqLevel,
+        lockedBy,
         lonLat,
         buildings,
         pledged,
@@ -790,16 +792,14 @@ function placementRefusalOf(
   refusal: NonNullable<ReturnType<typeof placementRefusal>>,
   {
     building,
-    requiredLevel,
-    hqLevel,
+    lockedBy,
     lonLat,
     buildings,
     pledged,
     outposts,
   }: {
     readonly building: BuildingKey;
-    readonly requiredLevel: number;
-    readonly hqLevel: number;
+    readonly lockedBy: ResearchCard | null;
     readonly lonLat: LonLat;
     readonly buildings: ReadonlyArray<Doc<'buildings'>>;
     readonly pledged: ReadonlyArray<Doc<'constructions'>>;
@@ -811,10 +811,11 @@ function placementRefusalOf(
     case 'NOT_COASTAL':
     case 'DEPOSIT_TAKEN':
       return { code: refusal };
-    // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
-    // a wall — and the tier is the one refusal a player can always act on.
-    case 'BUILDING_LOCKED':
-      return { code: refusal, details: { building, requiredLevel, hqLevel } };
+    case 'HQ_FIRST':
+      return { code: refusal };
+    // The refusal names its card: « demande la recherche Aviation » is a plan, « impossible » a wall.
+    case 'RESEARCH_REQUIRED':
+      return { code: refusal, details: { card: lockedBy } };
     case 'DEPOSIT_REQUIRED':
       return { code: refusal, details: { building, expected: EXPLOITED_DEPOSITS[building] } };
     /** **Le rayon nommé est le plus large des siens** — celui qu'il faudrait amener —, ou celui

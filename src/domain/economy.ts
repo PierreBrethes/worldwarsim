@@ -3,6 +3,7 @@ import {
   RESOURCES,
   type BuildingKey,
   type DepositKey,
+  type ResearchCard,
   type ResourceKey,
 } from './ids';
 import { distanceKm, type LonLat } from './geo';
@@ -94,7 +95,8 @@ export const BUILDING_SPACING_KM = 30;
  */
 export type PlacementRefusal =
   | 'UNKNOWN_BUILDING'
-  | 'BUILDING_LOCKED'
+  | 'HQ_FIRST'
+  | 'RESEARCH_REQUIRED'
   | 'OUT_OF_REACH'
   | 'DEPOSIT_REQUIRED'
   | 'DEPOSIT_TAKEN'
@@ -118,19 +120,17 @@ export type Spot = {
 
 /**
  * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before
- * any point exists. `unlockedAtHqLevel` comes in as a number rather than being read from a table
- * here: the tiers are balance figures and live with the other ones (`convex/constants.ts`,
- * `UNLOCKED_AT`), which the pure domain may not import.
+ * any point exists: nothing but the headquarters before it stands (`HQ_FIRST`), and nothing a
+ * research card still holds (`buildingLockOf`, served as `lockedBy`).
  */
 export function keyRefusal(
   key: BuildingKey,
   hqLevel: number,
-  unlockedAtHqLevel: number,
-): 'UNKNOWN_BUILDING' | 'BUILDING_LOCKED' | null {
+  lockedBy: ResearchCard | null,
+): 'UNKNOWN_BUILDING' | 'HQ_FIRST' | 'RESEARCH_REQUIRED' | null {
   if (canonicalBuildingKey(key) !== key) return 'UNKNOWN_BUILDING';
-  // The headquarters gates every other key and never itself: at level 0 it is what the player
-  // is missing, not what he is refused (ADR 0015).
-  if (key !== 'hq' && hqLevel < unlockedAtHqLevel) return 'BUILDING_LOCKED';
+  if (key !== 'hq' && hqLevel === 0) return 'HQ_FIRST';
+  if (lockedBy !== null) return 'RESEARCH_REQUIRED';
   return null;
 }
 
@@ -145,9 +145,9 @@ export function placementRefusal(
   key: BuildingKey,
   spot: Spot,
   hqLevel: number,
-  unlockedAtHqLevel: number,
+  lockedBy: ResearchCard | null,
 ): PlacementRefusal | null {
-  const byKey = keyRefusal(key, hqLevel, unlockedAtHqLevel);
+  const byKey = keyRefusal(key, hqLevel, lockedBy);
   if (byKey !== null) return byKey;
   if (!spot.reached) return 'OUT_OF_REACH';
   if (EXPLOITED_DEPOSITS[key] !== undefined) {

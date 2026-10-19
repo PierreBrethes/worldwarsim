@@ -25,6 +25,21 @@ export const UNIT_ROLE = v.union(
 
 export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
+/** Les cartes de recherche de `RESEARCH_CARDS` (`src/domain/ids.ts`). */
+export const RESEARCH_CARD = v.union(
+  v.literal('infantryMk2'),
+  v.literal('armor'),
+  v.literal('armorMk2'),
+  v.literal('artillery'),
+  v.literal('escort'),
+  v.literal('carrier'),
+  v.literal('aviation'),
+  v.literal('bomber'),
+  v.literal('airlift'),
+  v.literal('syntheticOil'),
+  v.literal('listening'),
+);
+
 /** A point on the globe, in degrees; named fields keep longitude and latitude ordered. */
 export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
 
@@ -313,6 +328,13 @@ export const NOTICE = v.union(
     building: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
+  }),
+  /** **Une carte de recherche achevée** (ADR 0028 §5) : chez son joueur seul, l'adversaire ne
+   *  la devine qu'en relevant les pièces. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('researchDone'),
+    card: RESEARCH_CARD,
   }),
   v.object({
     ...NOTICE_HEAD,

@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_QUEUED_BATCHES,
-  MONDIALE_TROOP_BOUND,
-  ROLE_SITE_LEVEL,
-  TIER_2_HQ_LEVEL,
-} from '../../convex/constants';
+import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import {
   recruitRefusalOf,
   type RecruitSituation,
@@ -394,7 +389,7 @@ describe('stationAtCombat', () => {
 describe('what a projection site refuses to form (the reserve of pieces, ADR 0028 §7)', () => {
   const stocks = { food: 100, steel: 100, coal: 100, oil: 100, ammunition: 100 };
   const at = (overrides: Partial<RecruitSituation> = {}): RecruitSituation => ({
-    hqLevel: 1,
+    researched: [],
     army: 0,
     siteQueue: 0,
     costs: { steel: 18, food: 10 },
@@ -403,39 +398,45 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
   });
 
   it('forms a role in the building of its domain, and nowhere else', () => {
-    expect(recruitRefusalOf('infantry', { key: 'barracks', level: 1 }, at())).toBeNull();
-    expect(recruitRefusalOf('cargo', { key: 'barracks', level: 1 }, at())).toEqual({
+    expect(recruitRefusalOf('infantry', 1, { key: 'barracks' }, at())).toBeNull();
+    expect(recruitRefusalOf('cargo', 1, { key: 'barracks' }, at())).toEqual({
       code: 'WRONG_PROJECTION_BUILDING',
       expected: 'port',
       found: 'barracks',
     });
   });
 
-  it('waits for the headquarters, then for the site, to reach the role', () => {
-    expect(recruitRefusalOf('armor', { key: 'barracks', level: 5 }, at())).toEqual({
-      code: 'ROLE_LOCKED',
-      role: 'armor',
-      requiredLevel: TIER_2_HQ_LEVEL,
+  it('waits for the research card that opens the role at this tier, and names it', () => {
+    expect(recruitRefusalOf('armor', 1, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'armor',
+    });
+    expect(recruitRefusalOf('infantry', 2, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'infantryMk2',
     });
     expect(
-      recruitRefusalOf('armor', { key: 'barracks', level: 1 }, at({ hqLevel: TIER_2_HQ_LEVEL })),
-    ).toEqual({
-      code: 'SITE_LEVEL_LOCKED',
-      building: 'barracks',
-      requiredLevel: ROLE_SITE_LEVEL.armor,
-    });
+      recruitRefusalOf(
+        'armor',
+        1,
+        { key: 'barracks' },
+        at({ researched: ['infantryMk2', 'armor'] }),
+      ),
+    ).toBeNull();
   });
 
   it('stops at the invisible bound, then at a full queue, then at the price', () => {
-    const barracks = { key: 'barracks', level: 1 } as const;
-    expect(recruitRefusalOf('infantry', barracks, at({ army: MONDIALE_TROOP_BOUND }))).toEqual({
+    const barracks = { key: 'barracks' } as const;
+    expect(recruitRefusalOf('infantry', 1, barracks, at({ army: MONDIALE_TROOP_BOUND }))).toEqual({
       code: 'TROOP_BOUND_REACHED',
     });
-    expect(recruitRefusalOf('infantry', barracks, at({ siteQueue: MAX_QUEUED_BATCHES }))).toEqual({
+    expect(
+      recruitRefusalOf('infantry', 1, barracks, at({ siteQueue: MAX_QUEUED_BATCHES })),
+    ).toEqual({
       code: 'QUEUE_FULL',
     });
-    expect(recruitRefusalOf('infantry', barracks, at({ stocks: { ...stocks, steel: 5 } }))).toEqual(
-      { code: 'INSUFFICIENT_RESOURCE', resource: 'steel', needed: 18, available: 5 },
-    );
+    expect(
+      recruitRefusalOf('infantry', 1, barracks, at({ stocks: { ...stocks, steel: 5 } })),
+    ).toEqual({ code: 'INSUFFICIENT_RESOURCE', resource: 'steel', needed: 18, available: 5 });
   });
 });

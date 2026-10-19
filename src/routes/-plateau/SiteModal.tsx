@@ -4,7 +4,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { aBuilding, aSecondBuilding, fr, roleLabel, theRole } from '@/i18n/fr';
+import { aBuilding, aSecondBuilding, fr, roleLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { Stamp } from '@/shell/Stamp';
 import { Price } from '@/shell/Price';
@@ -271,16 +271,11 @@ function Site({
                       setTiers((previous) => ({ ...previous, [entry.role]: picked }))
                     }
                     owned={workshop.roster.filter((row) => row.role === entry.role)}
-                    tier2Unlocked={workshop.tier2Unlocked}
-                    requiredLevel={workshop.requiredHqLevel}
-                    hqLevel={workshop.hqLevel}
-                    siteLevel={facility.level}
                     siteName={facility.regionName}
                     lacking={lackOf(
                       view,
                       now,
-                      roleTermsOf(entry, tiers[entry.role] ?? 1, workshop.hqLevel, facility.level)
-                        .cost.costs,
+                      roleTermsOf(entry, tiers[entry.role] ?? 1).cost.costs,
                     )}
                     onEnqueue={enqueueOf(entry.role)}
                   />
@@ -567,17 +562,18 @@ const lackOf = (
     Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now)),
   )?.resource ?? null;
 
-function roleTermsOf(entry: GridEntry, tier: UnitTier, hqLevel: number, siteLevel: number) {
+function roleTermsOf(entry: GridEntry, tier: UnitTier) {
+  const cost = tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit;
   return {
-    // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
-    roleLocked: hqLevel < (entry.unlockedAtHqLevel ?? 0),
+    /** La carte qui tient ce palier : la marque choisie se dit, la pièce reste lisible. */
+    lockedBy: cost.lockedBy,
     /**
      * **La carte reste, la condition se dit, le bouton s'en va** (67b) : le porte-avions se lit
-     * sur un port de niveau 1 — rien de caché ne se débloque (60b) — et un bouton grisé se lirait
-     * « pas encore » là où il faut lire « montez le port ».
+     * avant sa recherche — rien de caché ne se débloque (60b) — et un bouton grisé se lirait
+     * « pas encore » là où il faut lire « posez la carte ».
      */
-    siteLocked: siteLevel < entry.unlockedAtSiteLevel,
-    cost: tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit,
+    roleLocked: entry.unit.lockedBy !== null,
+    cost,
   };
 }
 
@@ -670,16 +666,15 @@ function NarrowSite({
   const stockOf = (resource: ResourceKey) =>
     Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
   const siteLevel = facility?.level ?? building.level;
-  const termsOf = (entry: GridEntry) =>
-    roleTermsOf(entry, tiers[entry.role] ?? 1, workshop?.hqLevel ?? 0, siteLevel);
-  const open = roles.filter((entry) => !termsOf(entry).siteLocked);
-  const locked = roles.filter((entry) => termsOf(entry).siteLocked);
+  const termsOf = (entry: GridEntry) => roleTermsOf(entry, tiers[entry.role] ?? 1);
+  const open = roles.filter((entry) => !termsOf(entry).roleLocked);
+  const locked = roles.filter((entry) => termsOf(entry).roleLocked);
   /** Ce qui retient un rôle ouvert, dit à la place du bouton : la même chaîne de refus que le
    *  serveur (`troops.recruit`), dans son ordre. */
   const blockOf = (entry: GridEntry): string | null => {
     if (!ready) return null;
-    const { roleLocked, cost } = termsOf(entry);
-    if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
+    const { lockedBy, cost } = termsOf(entry);
+    if (lockedBy !== null) return fr.production.researchLocked(lockedBy);
     if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull;
     const short = shortfallOf(cost.costs, stockOf);
     if (short !== null)
@@ -706,8 +701,8 @@ function NarrowSite({
     garrison: String(held.length),
   };
   /** Une tête que la famine a laissée sans date n'a pas commencé : elle attend, et se rembourse. */
-  const running = queue[0]?.started === true ? queue[0] : undefined;
-  const waiting = running === undefined ? queue : queue.slice(1);
+  const running = queue.filter((batch) => batch.started);
+  const waiting = queue.filter((batch) => !batch.started);
 
   return (
     <article
@@ -785,15 +780,13 @@ function NarrowSite({
         <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
       ) : tab === 'form' ? (
         <>
-          {/* Tout est ouvert : pas de bloc « le site », le niveau se monte depuis Chantiers. */}
-          {!view.me.defeated && locked.length > 0 && (
+          {!view.me.defeated && (
             <SiteLadder
               building={building}
               view={view}
               seat={seat}
               now={now}
               siteLevel={siteLevel}
-              locked={locked}
             />
           )}
           <SheetHeading
@@ -808,8 +801,6 @@ function NarrowSite({
               tier={tiers[entry.role] ?? 1}
               onTier={(picked) => onTier(entry.role, picked)}
               owned={workshop.roster.filter((row) => row.role === entry.role)}
-              tier2Unlocked={workshop.tier2Unlocked}
-              requiredLevel={workshop.requiredHqLevel}
               cost={termsOf(entry).cost}
               siteName={facility.regionName}
               blocked={blockOf(entry)}
@@ -835,16 +826,17 @@ function NarrowSite({
         </>
       ) : tab === 'queue' ? (
         <>
-          {running !== undefined && (
+          {running.map((batch) => (
             <RunningCard
-              batch={running}
+              key={batch.id}
+              batch={batch}
               nation={nation}
               loadedAt={workshop.loadedAt}
               now={now}
-              totalMinutes={minutesOf(running)}
-              deliveredAt={deliveredAt(running)}
+              totalMinutes={minutesOf(batch)}
+              deliveredAt={deliveredAt(batch)}
             />
-          )}
+          ))}
           {waiting.length > 0 && (
             <>
               <SheetHeading
@@ -855,7 +847,7 @@ function NarrowSite({
                 <WaitingLine
                   key={batch.id}
                   batch={batch}
-                  rank={index + (running === undefined ? 1 : 2)}
+                  rank={index + running.length + 1}
                   nation={nation}
                   minutes={minutesOf(batch)}
                   deliveredAt={deliveredAt(batch)}
@@ -934,9 +926,8 @@ function SheetHeading({ title, note }: { title: string; note: string }) {
 }
 
 /**
- * **Ce que le niveau suivant ouvre, et le bouton qui le monte** — en tête de « former », parce que
- * c'est la seule question que pose un rôle encore fermé. Le premier palier qui ouvre quelque chose
- * est la phrase ; les suivants l'attendent dessous. Le bouton est celui des Chantiers.
+ * **Ce que le niveau rend, et le bouton qui le monte** — en tête de « former » : un site de
+ * niveau N forme N troupes à la fois (ADR 0028 §5). Le bouton est celui des Chantiers.
  */
 function SiteLadder({
   building,
@@ -944,43 +935,22 @@ function SiteLadder({
   seat,
   now,
   siteLevel,
-  locked,
 }: {
   building: Building;
   view: PlayerView;
   seat: Seat;
   now: number;
   siteLevel: number;
-  locked: ReadonlyArray<GridEntry>;
 }) {
-  const levels = [...new Set(locked.map((entry) => entry.unlockedAtSiteLevel))].sort(
-    (a, b) => a - b,
-  );
-  const [first, ...later] = levels;
-  const rolesAt = (level: number) =>
-    locked.filter((entry) => entry.unlockedAtSiteLevel === level).map((entry) => entry.role);
-
   return (
     <div className="mx-3 mt-3 flex items-center gap-[10px] border border-[var(--ink)] bg-(--paper)/35 py-[10px] pr-[10px] pl-3">
       <div className="min-w-0 flex-1">
         <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
           {fr.production.sheet.siteKicker(siteLevel)}
         </div>
-        {first !== undefined && (
-          <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
-            {fr.production.sheet.opens(
-              first,
-              rolesAt(first).map(theRole).join(fr.production.sheet.and),
-            )}
-          </div>
-        )}
-        {later.flatMap((level) =>
-          rolesAt(level).map((role) => (
-            <div key={role} className="mt-[2px] text-[12px] text-[var(--ink-soft)]">
-              {fr.production.sheet.waits(theRole(role), level)}
-            </div>
-          )),
-        )}
+        <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
+          {fr.production.sheet.lanes(siteLevel)}
+        </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} />
     </div>
@@ -998,8 +968,6 @@ function RoleSheetCard({
   tier,
   onTier,
   owned,
-  tier2Unlocked,
-  requiredLevel,
   cost,
   siteName,
   blocked,
@@ -1011,8 +979,6 @@ function RoleSheetCard({
   tier: UnitTier;
   onTier: (chosen: UnitTier) => void;
   owned: ReadonlyArray<{ tier: number; count: number }>;
-  tier2Unlocked: boolean;
-  requiredLevel: number;
   cost: GridEntry['unit'];
   siteName: string;
   blocked: string | null;
@@ -1068,16 +1034,15 @@ function RoleSheetCard({
         <div className="flex gap-[6px] p-[10px]">
           {tiers === 2 &&
             ([1, 2] as const).map((level) => {
-              const locked = level === 2 && !tier2Unlocked;
+              const lockedBy = (level === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null;
               return (
                 <button
                   key={level}
                   type="button"
-                  disabled={locked}
                   aria-pressed={tier === level}
                   title={
-                    locked
-                      ? fr.production.tier2Locked(requiredLevel)
+                    lockedBy !== null
+                      ? fr.production.researchLocked(lockedBy)
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
@@ -1139,7 +1104,9 @@ function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string })
           {[equipment, `${unit.strength} ${fr.strengthUnits[role]}`].filter(Boolean).join(' · ')}
         </div>
         <div className="mt-1 text-[10.5px] font-semibold tracking-[.1em] text-[var(--critical)] uppercase">
-          {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+          {unit.lockedBy === null
+            ? fr.production.formsIn(aBuilding(entry.producedBy))
+            : fr.production.researchLocked(unit.lockedBy)}
         </div>
       </div>
     </div>
@@ -1330,10 +1297,6 @@ function RoleCard({
   tier,
   onTier,
   owned,
-  tier2Unlocked,
-  requiredLevel,
-  hqLevel,
-  siteLevel,
   siteName,
   lacking,
   onEnqueue,
@@ -1343,16 +1306,12 @@ function RoleCard({
   tier: UnitTier;
   onTier: (chosen: UnitTier) => void;
   owned: ReadonlyArray<{ tier: number; count: number }>;
-  tier2Unlocked: boolean;
-  requiredLevel: number;
-  hqLevel: number;
-  siteLevel: number;
   siteName: string;
   lacking: ResourceKey | null;
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
-  const { roleLocked, siteLocked, cost } = roleTermsOf(entry, tier, hqLevel, siteLevel);
+  const { lockedBy, cost } = roleTermsOf(entry, tier);
   const sheet = fr.unitSheets[role];
   const equipment = equipmentLabel(nation, role, tier);
   const total = owned.reduce((sum, row) => sum + row.count, 0);
@@ -1364,15 +1323,15 @@ function RoleCard({
         {tiers === 2 && (
           <div className="absolute top-[8px] left-[8px] flex gap-[2px]">
             {([1, 2] as const).map((level) => {
-              const locked = level === 2 && !tier2Unlocked;
+              const locked = (level === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null;
               return (
                 <button
                   key={level}
                   type="button"
-                  disabled={locked}
+                  aria-pressed={tier === level}
                   title={
-                    locked
-                      ? fr.production.tier2Locked(requiredLevel)
+                    locked !== null
+                      ? fr.production.researchLocked(locked)
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
@@ -1405,14 +1364,9 @@ function RoleCard({
         {equipment && (
           <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">{equipment}</div>
         )}
-        {roleLocked && (
+        {lockedBy !== null && (
           <div className="mt-[3px] text-[11.5px] text-[var(--critical)]">
-            {fr.production.roleLocked(entry.unlockedAtHqLevel)}
-          </div>
-        )}
-        {siteLocked && (
-          <div className="mt-[3px] text-[11.5px] text-[var(--critical)]">
-            {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+            {fr.production.researchLocked(lockedBy)}
           </div>
         )}
       </div>
@@ -1467,18 +1421,14 @@ function RoleCard({
         )}
       </div>
 
-      {onEnqueue !== null && !siteLocked && (
+      {/* Derrière sa carte, la carte reste et le bouton s'en va : la phrase est dans le corps. */}
+      {onEnqueue !== null && lockedBy === null && (
         <div className="px-4 pt-3 pb-[14px]">
           <button
             type="button"
-            disabled={roleLocked}
             onClick={onEnqueue}
-            title={
-              roleLocked
-                ? fr.production.roleLocked(entry.unlockedAtHqLevel)
-                : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)
-            }
-            className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-(color:--ink)/35 disabled:text-(color:--ink)/35 disabled:hover:bg-transparent"
+            title={fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)}
+            className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
           >
             {fr.production.enqueue}
           </button>

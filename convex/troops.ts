@@ -20,13 +20,11 @@ import {
   COST_BY_ROLE,
   type Costs,
   MAX_QUEUED_BATCHES,
-  TIER_2_HQ_LEVEL,
-  chainSpeed,
   nominalStrength,
   recruitmentCost,
-  roleHqLevel,
-  roleSiteLevel,
 } from './constants';
+import { roleLockOf } from '../src/domain/research';
+import type { ResearchCard } from '../src/domain/ids';
 import { fail } from './errors';
 import { pointOfBuilding, regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf, settle } from './resources';
@@ -65,6 +63,8 @@ export const workshop = query({
     const economy = await economyOf(ctx, player._id, now);
 
     const blitz = modeOf(season.mode) === 'blitz';
+    /** La Blitz garde son catalogue : une marque par rôle, rien derrière une carte. */
+    const researched = blitz ? null : (player.researched ?? []);
     const facilities = buildings
       .filter(
         (building) => DOMAIN_OF_PROJECTION.has(building.key) || (blitz && building.key === 'hq'),
@@ -78,7 +78,8 @@ export const workshop = query({
         regionName: regionFacts(building.regionId)?.name ?? building.regionId,
         queue: dateQueue(
           waiting.filter((batch) => batch.buildingId === building._id).sort(byRank),
-          blitz ? null : hqLevel,
+          blitz,
+          lanesOf(building, blitz),
           now,
         ),
       }));
@@ -92,11 +93,6 @@ export const workshop = query({
       blitz,
       nation: player.nation ?? '?',
       hqLevel,
-      speed: chainSpeed(hqLevel),
-      // Served rather than left to the client: the case the screen greys out and the
-      // recruitment the server refuses read the same number (ADR 0017).
-      tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
-      requiredHqLevel: TIER_2_HQ_LEVEL,
       maxQueue: MAX_QUEUED_BATCHES,
       troopsInService: troops.length,
       troopsQueued: waiting.length,
@@ -109,19 +105,8 @@ export const workshop = query({
           role,
           tiers: TIERS_BY_ROLE[role],
           producedBy: projectionKeyOf(role),
-          /**
-           * What the headquarters must reach before this role is recruitable at all — zero for
-           * the roles their projection building already carries. Served, like the mark-2
-           * threshold above, so the line the screen greys and the recruitment the server refuses
-           * are the same number.
-           */
-          unlockedAtHqLevel: roleHqLevel(role),
-          /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
-           *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
-           *  et la modale de site le compare au niveau de *son* bâtiment. */
-          unlockedAtSiteLevel: roleSiteLevel(role),
-          unit: priced(role, 1, hqLevel),
-          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
+          unit: priced(role, 1, researched),
+          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, researched) : null,
         })),
     };
   },
@@ -145,11 +130,6 @@ export const recruit = mutation({
     if (blitzOnly(role)) fail('BLITZ_ONLY');
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
 
-    const buildings = await playerBuildings(ctx, player._id);
-    const hqLevel = levelOf(buildings, 'hq');
-    if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
-      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
-    }
     /**
      * The queue counts against the bound, or it would be where a nation stores the army the
      * server cannot follow. Nothing serves the number: only the refusal says it.
@@ -158,10 +138,10 @@ export const recruit = mutation({
       (await troopsOf(ctx, player._id)).length + (await recruitmentsOf(ctx, player._id)).length;
     const queue = await queueOf(ctx, buildingId);
     const now = Date.now();
-    const cost = recruitmentCost(role, tier, hqLevel);
+    const cost = recruitmentCost(role, tier);
     const { stocks } = await economyOf(ctx, player._id, now);
-    const refusal = recruitRefusalOf(role, building, {
-      hqLevel,
+    const refusal = recruitRefusalOf(role, tier, building, {
+      researched: player.researched ?? [],
       army,
       siteQueue: queue.length,
       costs: cost.costs,
@@ -242,8 +222,7 @@ export const cancel = mutation({
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
-    const hqLevel = await hqLevelOf(ctx, player._id);
-    const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
+    const cost = recruitmentCost(batch.role, batch.tier);
     await credit(ctx, player._id, cost.costs, Date.now());
     await ctx.db.delete(recruitmentId);
     return { refunded: cost };
@@ -347,7 +326,7 @@ async function startHead(
 ): Promise<void> {
   const queue = await queueOf(ctx, buildingId);
   const head = queue[0];
-  if (!head || head.finishesAt !== null) return;
+  if (!head) return;
 
   /**
    * **A hungry nation forms nothing** (`consommation-continue.md` D3). The queue *stops*, it is
@@ -359,18 +338,28 @@ async function startHead(
    * A batch **already** dated runs to its end: its time was bought before the reserve ran out,
    * and taking it back would be an attrition on the queue by another name.
    */
-  if ((await economyOf(ctx, head.playerId, now)).starving) return;
-
   const player = await ctx.db.get(head.playerId);
   const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
+  const building = await ctx.db.get(buildingId);
+  const lanes = building === null ? 1 : lanesOf(building, blitz);
+  const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
+  if (idle.length === 0) return;
+  if ((await economyOf(ctx, head.playerId, now)).starving) return;
 
-  const minutes = blitz
-    ? BLITZ.recruitMinutes
-    : recruitmentCost(head.role, head.tier, await hqLevelOf(ctx, head.playerId)).minutes;
-  const finishesAt = now + minutes * 60_000;
-  await ctx.db.patch(head._id, { finishesAt });
-  await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: head._id });
+  for (const batch of idle) {
+    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    const finishesAt = now + minutes * 60_000;
+    await ctx.db.patch(batch._id, { finishesAt });
+    await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: batch._id });
+  }
 }
+
+/**
+ * **Un niveau rend** (ADR 0028 §5) : un site de projection de niveau N forme N troupes à la fois,
+ * chacune à sa durée. La Blitz forme une unité par bâtiment.
+ */
+const lanesOf = (building: Doc<'buildings'>, blitz: boolean): number =>
+  blitz ? 1 : Math.max(1, building.level);
 
 async function queueOf(
   ctx: QueryCtx,
@@ -393,14 +382,14 @@ export async function recruitmentsOf(
     .collect();
 }
 
-const hqLevelOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<number> =>
-  levelOf(await playerBuildings(ctx, playerId), 'hq');
-
 const byRank = (a: Doc<'recruitments'>, b: Doc<'recruitments'>): number => a.rank - b.rank;
 
-const priced = (role: UnitRole, tier: 1 | 2, hqLevel: number) => ({
-  ...recruitmentCost(role, tier, hqLevel),
+/** `researched: null` en Blitz : rien n'y est tenu par une carte. */
+const priced = (role: UnitRole, tier: 1 | 2, researched: ReadonlyArray<ResearchCard> | null) => ({
+  ...recruitmentCost(role, tier),
   strength: nominalStrength(role, tier),
+  /** La carte qui manque pour le former, servie : la pièce la dit, le serveur la refuse. */
+  lockedBy: researched === null ? null : roleLockOf(role, tier, researched),
 });
 
 /**
@@ -410,19 +399,18 @@ const priced = (role: UnitRole, tier: 1 | 2, hqLevel: number) => ({
  */
 function dateQueue(
   queue: ReadonlyArray<Doc<'recruitments'>>,
-  /** `null` en Blitz : une recrue y sort en `BLITZ.recruitMinutes`, sans QG ni marque. */
-  hqLevel: number | null,
+  /** En Blitz une recrue sort en `BLITZ.recruitMinutes`, sans marque. */
+  blitz: boolean,
+  /** Ce que le site forme à la fois (`lanesOf`) : chaque lot prend le premier banc libre. */
+  lanes: number,
   now: number,
 ) {
-  let cursor = now;
+  const free = Array.from({ length: lanes }, () => now);
   return queue.map((batch) => {
-    const minutes =
-      hqLevel === null
-        ? BLITZ.recruitMinutes
-        : recruitmentCost(batch.role, batch.tier, hqLevel).minutes;
-    const duration = batch.finishesAt === null ? minutes * 60_000 : 0;
-    const finishesAt = batch.finishesAt ?? cursor + duration;
-    cursor = finishesAt;
+    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    const bench = free.indexOf(Math.min(...free));
+    const finishesAt = batch.finishesAt ?? (free[bench] ?? now) + minutes * 60_000;
+    free[bench] = finishesAt;
     return {
       id: batch._id,
       role: batch.role,

@@ -382,37 +382,43 @@ describe('placement at a point (ADR 0029)', () => {
   const coal = { key: 'coal', taken: false } as const;
 
   it('refuses a new depot even on free ground', () => {
-    expect(placementRefusal('depot', free, 2, 1)).toBe('UNKNOWN_BUILDING');
+    expect(placementRefusal('depot', free, 2, null)).toBe('UNKNOWN_BUILDING');
+  });
+
+  it('refuses a tile a research card still holds, and anything before the headquarters', () => {
+    expect(placementRefusal('airfield', free, 2, 'aviation')).toBe('RESEARCH_REQUIRED');
+    expect(placementRefusal('barracks', free, 0, null)).toBe('HQ_FIRST');
+    expect(placementRefusal('hq', free, 0, null)).toBeNull();
   });
 
   it('refuses a point no soil and no reach of the player covers', () => {
-    expect(placementRefusal('barracks', { ...free, reached: false }, 2, 1)).toBe('OUT_OF_REACH');
+    expect(placementRefusal('barracks', { ...free, reached: false }, 2, null)).toBe('OUT_OF_REACH');
   });
 
   it('wants an exploitation on its own deposit, and on a free one', () => {
-    expect(placementRefusal('mine', free, 2, 1)).toBe('DEPOSIT_REQUIRED');
-    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, 1)).toBe('DEPOSIT_REQUIRED');
-    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, 1)).toBeNull();
-    expect(placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, 1)).toBe(
-      'DEPOSIT_TAKEN',
-    );
+    expect(placementRefusal('mine', free, 2, null)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, null)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, null)).toBeNull();
+    expect(
+      placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, null),
+    ).toBe('DEPOSIT_TAKEN');
   });
 
   it('wants a port on a coast', () => {
-    expect(placementRefusal('port', free, 2, 1)).toBe('NOT_COASTAL');
-    expect(placementRefusal('port', { ...free, coastal: true }, 2, 1)).toBeNull();
+    expect(placementRefusal('port', free, 2, null)).toBe('NOT_COASTAL');
+    expect(placementRefusal('port', { ...free, coastal: true }, 2, null)).toBeNull();
   });
 
   it(`keeps ${BUILDING_SPACING_KM} km between two buildings of the player`, () => {
     const near = (km: number) => ({ ...free, nearest: { key: 'arsenal' as const, km } });
-    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, 1)).toBe('TOO_CLOSE');
-    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, 1)).toBeNull();
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, null)).toBe('TOO_CLOSE');
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, null)).toBeNull();
   });
 
   it('counts no region: two buildings far enough apart stand in the same one', () => {
-    expect(placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, 1)).toBe(
-      null,
-    );
+    expect(
+      placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, null),
+    ).toBe(null);
   });
 });
 

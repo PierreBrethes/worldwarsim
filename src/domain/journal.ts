@@ -424,6 +424,13 @@ function written(notice: Notice): Written {
           supplyWords(notice.kept),
         ),
       };
+    case 'researchDone':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'research',
+        text: said.researchDone(notice.card),
+      };
     case 'airdropped':
       return {
         at: notice.at,

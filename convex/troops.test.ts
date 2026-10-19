@@ -4,20 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { TIERS_BY_ROLE } from '../src/domain/troops';
-import type { ResourceKey, UnitRole } from '../src/domain/ids';
+import type { ResearchCard, ResourceKey, UnitRole } from '../src/domain/ids';
 import {
   COST_BY_ROLE,
-  HQ_LEVEL_AT_LAUNCH,
-  MAX_HQ_LEVEL,
   MONDIALE_TROOP_BOUND,
   NOMINAL_STRENGTH,
   STARTING_KIT,
-  ROLE_SITE_LEVEL,
   TIER_2_FACTOR,
-  TIER_2_HQ_LEVEL,
   recruitmentCost,
-  roleHqLevel,
-  roleSiteLevel,
 } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -116,6 +110,18 @@ async function raze(t: ReturnType<typeof boot>, buildingId: Id<'buildings'>) {
 }
 
 /** The starting kit does not pay for a season's worth of troops; this saves building a mine. */
+/** Hands the player research cards, as if they had come to their end. */
+async function researched(
+  t: ReturnType<typeof boot>,
+  seat: Seat,
+  cards: ReadonlyArray<ResearchCard>,
+) {
+  const playerId = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    await ctx.db.patch(playerId, { researched: [...cards] });
+  });
+}
+
 async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
   const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
@@ -157,14 +163,12 @@ async function ammunitionOf(t: ReturnType<typeof boot>, seat: Seat): Promise<num
 }
 
 describe('a queue per projection building', () => {
-  it('only starts the head batch and leaves the followers waiting', async () => {
+  it('only starts the head batch on a first-level site and leaves the followers waiting', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
-    // The tank opens at the level that arms its counter, one above what the season plants —
-    // and, since 67b, on a barracks raised to its own level.
-    await setHqLevel(t, seat, ROLE_SITE_LEVEL.armor);
-    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    await researched(t, seat, ['infantryMk2', 'armor']);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     await t.mutation(api.troops.recruit, {
       ...seat,
@@ -181,6 +185,28 @@ describe('a queue per projection building', () => {
       ['armor', false],
     ]);
     expect(queue[1]!.minutesLeft).toBeGreaterThan(queue[0]!.minutesLeft);
+  });
+
+  /** **Un niveau rend** (ADR 0028 §5) : une caserne de niveau N forme N troupes à la fois. */
+  it('forms as many troops at once as the site has levels', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    await setHqLevel(t, seat, 2);
+    const barracks = await raise(t, seat, 'barracks', MARNE, 2);
+    for (let batch = 0; batch < 3; batch += 1)
+      await t.mutation(api.troops.recruit, {
+        ...seat,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
+
+    const workshop = await t.query(api.troops.workshop, seat);
+    const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
+    expect(queue.map((batch) => batch.started)).toEqual([true, true, false]);
+    const minutes = recruitmentCost('infantry', 1).minutes;
+    expect(queue[2]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
   });
 
   it('gives two barracks two independent queues', async () => {
@@ -224,8 +250,8 @@ describe('a queue per projection building', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
-    await setHqLevel(t, seat, ROLE_SITE_LEVEL.armor);
-    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    await researched(t, seat, ['infantryMk2', 'armor']);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
     await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,
@@ -236,7 +262,7 @@ describe('a queue per projection building', () => {
 
     const before = await t.query(api.troops.workshop, seat);
     const queue = before.facilities.find((facility) => facility.id === barracks)!.queue;
-    const cost = recruitmentCost('armor', 1, before.hqLevel);
+    const cost = recruitmentCost('armor', 1);
 
     await expect(
       t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[0]!.id }),
@@ -353,140 +379,64 @@ describe('the invisible troop bound', () => {
 });
 
 describe('tiers', () => {
-  /**
-   * **The threshold is counted above the launch, never in the absolute** (ADR 0017): written as
-   * an absolute it would open mark 2 wherever the headquarters happens to be planted, and a
-   * step that does not exist is not a step.
-   */
-  it('counts the tier-2 gate above the headquarters the season plants', () => {
-    expect(TIER_2_HQ_LEVEL).toBe(2);
-    expect(TIER_2_HQ_LEVEL).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
-    expect(TIER_2_HQ_LEVEL).toBeLessThanOrEqual(MAX_HQ_LEVEL);
-  });
-
-  it('serves the threshold to the workshop, rather than leaving it to a constant', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-
-    const shop = await t.query(api.troops.workshop, seat);
-    expect(shop.requiredHqLevel).toBe(TIER_2_HQ_LEVEL);
-    // The headquarters the season plants is one short of it: locked at the first minute.
-    expect(shop.hqLevel).toBe(HQ_LEVEL_AT_LAUNCH);
-    expect(shop.tier2Unlocked).toBe(false);
-  });
-
-  it('rejects a tier the role does not have and tier 2 without the headquarters level', async () => {
+  it('rejects a tier the role does not have, and mark 2 before its card, naming the card', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
-    await setHqLevel(t, seat, TIER_2_HQ_LEVEL - 1);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const port = await raise(t, seat, 'port', PAS_DE_CALAIS);
 
-    await expect(
-      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 2 }),
-    ).rejects.toThrow('TIER_2_LOCKED');
+    const refused: Record<string, unknown> = await t
+      .mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 2 })
+      .then(() => ({}))
+      .catch((error: { data: Record<string, unknown> }) => error.data);
+    expect(refused).toMatchObject({ code: 'RESEARCH_REQUIRED', card: 'infantryMk2' });
     await expect(
       t.mutation(api.troops.recruit, { ...seat, buildingId: port, role: 'carrier', tier: 2 }),
     ).rejects.toThrow('SINGLE_TIER_ROLE');
+
+    await researched(t, seat, ['infantryMk2']);
+    const { rank } = await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 2,
+    });
+    expect(rank).toBe(0);
   });
 
-  /**
-   * **The weapon and its counter arrive together.** The tank leaves the launch headquarters for
-   * the level that opens mark-2 infantry, its answer in the damage table: a season no longer
-   * spends its first thirty hours with armor nobody can reply to.
-   */
-  it('holds the tank at the level that opens its counter, and lets the infantry through', async () => {
+  /** **La recherche débloque, un niveau rend** (ADR 0028 §5) : ni le QG ni le site n'ouvrent le blindé. */
+  it('holds the tank behind its card whatever the levels, and lets the infantry through at once', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
-    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    await setHqLevel(t, seat, 5);
+    const barracks = await raise(t, seat, 'barracks', MARNE, 5);
 
-    // Mark-1 infantry is the age of the barracks: recruitable the minute one stands.
     await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
-
-    const refused: Record<string, unknown> = await t
-      .mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 })
-      .then(() => ({}))
-      .catch((error: { data: Record<string, unknown> }) => error.data);
-    expect(refused).toMatchObject({
-      code: 'ROLE_LOCKED',
-      role: 'armor',
-      requiredLevel: TIER_2_HQ_LEVEL,
-    });
-
-    await setHqLevel(t, seat, TIER_2_HQ_LEVEL);
-    const { rank } = await t.mutation(api.troops.recruit, {
-      ...seat,
-      buildingId: barracks,
-      role: 'armor',
-      tier: 1,
-    });
-    expect(rank).toBe(1);
-  });
-
-  /**
-   * **Le second verrou est local, et il ne remplace pas le premier** (67b) : le transport
-   * terrestre attend une caserne, le blindé attend la caserne *et* le quartier général. Un
-   * seul test les tient ensemble — c'est le seul endroit où l'on voit qu'ils ne se confondent
-   * pas.
-   */
-  it('holds a role until the site that forms it is raised to its level', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await credit(t, seat, 4000);
-    await setHqLevel(t, seat, MAX_HQ_LEVEL);
-    const barracks = await raise(t, seat, 'barracks', MARNE);
-
-    const refused: Record<string, unknown> = await t
-      .mutation(api.troops.recruit, {
-        ...seat,
-        buildingId: barracks,
-        role: 'landTransport',
-        tier: 1,
-      })
-      .then(() => ({}))
-      .catch((error: { data: Record<string, unknown> }) => error.data);
-    expect(refused).toMatchObject({
-      code: 'SITE_LEVEL_LOCKED',
-      building: 'barracks',
-      requiredLevel: roleSiteLevel('landTransport'),
-    });
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(barracks, { level: roleSiteLevel('landTransport') });
-    });
-    const { rank } = await t.mutation(api.troops.recruit, {
-      ...seat,
-      buildingId: barracks,
-      role: 'landTransport',
-      tier: 1,
-    });
-    expect(rank).toBe(0);
-
-    // The headquarters is at its maximum and the barracks is not: the tank still waits.
     await expect(
       t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 }),
-    ).rejects.toThrow('SITE_LEVEL_LOCKED');
+    ).rejects.toThrow('RESEARCH_REQUIRED');
+
+    await researched(t, seat, ['infantryMk2', 'armor']);
+    await t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 });
   });
 
-  it('serves the tank’s threshold to the workshop, and nothing for the roles their building carries', async () => {
+  it('serves each piece its card', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const shop = await t.query(api.troops.workshop, seat);
-    for (const entry of shop.grid) {
-      expect(entry.unlockedAtHqLevel).toBe(roleHqLevel(entry.role));
-      expect(entry.unlockedAtSiteLevel).toBe(roleSiteLevel(entry.role));
-    }
-    expect(shop.grid.find((entry) => entry.role === 'armor')?.unlockedAtHqLevel).toBe(
-      TIER_2_HQ_LEVEL,
-    );
-    expect(shop.grid.find((entry) => entry.role === 'infantry')?.unlockedAtHqLevel).toBe(0);
+    const lockOf = (role: UnitRole) => shop.grid.find((entry) => entry.role === role)!;
+    expect(lockOf('infantry').unit.lockedBy).toBeNull();
+    expect(lockOf('infantry').unitTier2?.lockedBy).toBe('infantryMk2');
+    expect(lockOf('armor').unit.lockedBy).toBe('armor');
+    expect(lockOf('cargo').unit.lockedBy).toBeNull();
+    expect(lockOf('fighter').unit.lockedBy).toBe('aviation');
   });
 
   it('gives every role a nominal strength for exactly the tiers it knows', () => {
@@ -511,17 +461,17 @@ describe('a price mixes the family (ADR 0028 §2)', () => {
     for (const [role, resource] of Object.entries(family) as ReadonlyArray<
       [UnitRole, 'food' | 'oil' | 'coal']
     >) {
-      const { costs } = recruitmentCost(role, 1, 1);
+      const { costs } = recruitmentCost(role, 1);
       expect(Object.keys(costs).sort(), role).toEqual([resource, 'steel'].sort());
     }
     for (const role of Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>) {
-      expect(Object.keys(recruitmentCost(role, 1, 1).costs), role).toHaveLength(2);
+      expect(Object.keys(recruitmentCost(role, 1).costs), role).toHaveLength(2);
     }
   });
 
   it('scales both figures with the mark', () => {
-    const one = recruitmentCost('infantry', 1, 1).costs;
-    const two = recruitmentCost('infantry', 2, 1).costs;
+    const one = recruitmentCost('infantry', 1).costs;
+    const two = recruitmentCost('infantry', 2).costs;
     expect(two.steel).toBe(Math.round(one.steel! * TIER_2_FACTOR));
     expect(two.food).toBe(Math.round(one.food! * TIER_2_FACTOR));
   });
@@ -531,7 +481,7 @@ describe('a price mixes the family (ADR 0028 §2)', () => {
     const seat = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const food = (await t.query(api.view.playerView, seat)).me.resources.food.stock;
-    const price = recruitmentCost('infantry', 1, 1).costs;
+    const price = recruitmentCost('infantry', 1).costs;
 
     // Two batches: the second one waits, so it can be withdrawn.
     for (let rank = 0; rank < 2; rank += 1) {

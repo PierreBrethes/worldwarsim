@@ -150,7 +150,8 @@ describe('raser un bâtiment', () => {
     const { seat } = await launchedSeason(t);
     await promoteHq(t, seat, 3);
     await fillAll(t, seat);
-    const barracks = await raise(t, seat, 'barracks', MARNE, 2);
+    // Au niveau 1, une troupe à la fois : le second lot attend (ADR 0028 §5).
+    const barracks = await raise(t, seat, 'barracks', MARNE, 1);
     await t.run(async (ctx) => {
       const player = await seatIn(ctx, seat);
       const strength = nominalStrength('infantry', 1);
@@ -177,7 +178,7 @@ describe('raser un bâtiment', () => {
       role: 'infantry',
       tier: 1,
     });
-    const waiting = recruitmentCost('infantry', 1, 1).costs.steel!;
+    const waiting = recruitmentCost('infantry', 1).costs.steel!;
 
     const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: barracks });
@@ -190,7 +191,7 @@ describe('raser un bâtiment', () => {
     );
     expect(garrison).toHaveLength(1);
     expect(await noticesOf(t, seat, 'buildingDemolished')).toMatchObject([
-      { building: 'barracks', regionId: MARNE, level: 2 },
+      { building: 'barracks', regionId: MARNE, level: 1 },
     ]);
   });
 

@@ -1,4 +1,5 @@
-import { countryLabel, fr } from '@/i18n/fr';
+import { cardName, countryLabel, fr } from '@/i18n/fr';
+import { researchProgressOf } from './research';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
@@ -141,6 +142,21 @@ export function underwayOf(
       moving: false,
     });
   }
+
+  /** La carte que porte mon QG ; une carte qui attend son QG n'a pas d'heure, elle n'y est pas. */
+  const research = view.me.research.running;
+  const hq = view.me.buildings.find((building) => building.key === 'hq');
+  const researchEnds =
+    research === null ? null : researchProgressOf(research, view.loadedAt).finishesAt;
+  if (research !== null && hq !== undefined && researchEnds !== null)
+    lines.push({
+      id: 'research',
+      endsAt: researchEnds,
+      label: fr.research.onHq(cardName(research.card)),
+      face: { kind: 'building', key: 'hq' },
+      place: { kind: 'building', regionId: hq.regionId, key: 'hq', point: hq.point },
+      moving: false,
+    });
 
   for (const chain of view.me.chains) {
     const finishesAt = lotFinishesAt(chain, view.loadedAt);

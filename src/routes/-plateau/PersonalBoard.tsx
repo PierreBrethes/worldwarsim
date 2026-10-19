@@ -12,8 +12,12 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { MAX_HQ_LEVEL, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
-import { aBuilding, fr, noBuilding, roleLabel, upgradeHoldText } from '@/i18n/fr';
+import {
+  MAX_HQ_LEVEL,
+  RESEARCH_SPEC,
+  UPKEEP_UNSUPPLIED_MULTIPLIER,
+} from '../../../convex/constants';
+import { aBuilding, cardName, fr, noBuilding, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -28,15 +32,24 @@ import { PRODUCER_OF } from '@/domain/economy';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
   BUILDABLE_BUILDINGS,
+  RESEARCH_CARDS,
   RESOURCES,
   isOutpostWork,
   type BuildingKey,
+  type ResearchCard,
   type ResourceKey,
   type UnitRole,
+  type UnitTier,
 } from '@/domain/ids';
+import {
+  RESEARCH_TREE,
+  comingSoon,
+  researchProgressOf,
+  researchRefusalOf,
+} from '@/domain/research';
 import { unlinkedProducers } from '@/domain/next-actions';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN, recruitRefusalOf } from '@/domain/troops';
+import { PROJECTION_BY_DOMAIN, recruitRefusalOf, tierLabel } from '@/domain/troops';
 import { upkeepStep } from '@/domain/upkeep';
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
@@ -47,10 +60,12 @@ import { conditionText } from './FoundationRows';
 import { HelpMark } from './HelpMark';
 import { LotControl } from './LotControl';
 
-/** What the hand holds: a tile builds or raises, a piece is formed on a projection site. */
+/** What the hand holds: a tile builds or raises, a piece is formed on a projection site, a
+ *  research card is put on the headquarters. */
 type Held =
   | { readonly kind: 'tile'; readonly key: BuildingKey }
-  | { readonly kind: 'piece'; readonly role: UnitRole };
+  | { readonly kind: 'piece'; readonly role: UnitRole; readonly tier: UnitTier }
+  | { readonly kind: 'card'; readonly card: ResearchCard };
 
 /** What the hand says over where it is: a verb with its bill, or the refusal in red. */
 type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: Cost } | null;
@@ -233,9 +248,19 @@ export function PersonalBoard({
               view={view}
               workshop={workshop}
               held={held}
-              onTake={observing ? null : (role) => (event) => take({ kind: 'piece', role }, event)}
+              onTake={
+                observing
+                  ? null
+                  : (role, tier) => (event) => take({ kind: 'piece', role, tier }, event)
+              }
             />
           </div>
+          <Research
+            view={view}
+            now={now}
+            held={held}
+            onTake={observing ? null : (card) => (event) => take({ kind: 'card', card }, event)}
+          />
 
           <button
             type="button"
@@ -588,6 +613,16 @@ function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
   return condition === null ? null : conditionText(condition);
 }
 
+/** Une pièce derrière sa carte dit la carte et rentre, avant même un site. */
+function pieceRefusalOf(
+  workshop: Workshop | undefined,
+  held: { readonly role: UnitRole; readonly tier: UnitTier },
+): string | null {
+  const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
+  const lockedBy = (held.tier === 2 ? entry?.unitTier2 : entry?.unit)?.lockedBy ?? null;
+  return lockedBy === null ? null : fr.production.researchLocked(lockedBy);
+}
+
 function Rack({ title, note, children }: { title: string; note: string; children: ReactNode }) {
   return (
     <div className="min-w-0 md:flex-1">
@@ -678,11 +713,16 @@ function Pieces({
   view: PlayerView;
   workshop: Workshop | undefined;
   held: Held | null;
-  onTake: ((role: UnitRole) => Take) | null;
+  onTake: ((role: UnitRole, tier: UnitTier) => Take) | null;
 }) {
-  const roles = (workshop?.grid ?? []).filter(
-    (entry) => entry.unlockedAtHqLevel <= view.me.hqLevel,
-  );
+  /** **Chaque pièce, ouverte ou derrière sa carte** : rien n'est caché, la carte se dit au survol
+   *  et à la prise (ADR 0028 §5). */
+  const pieces = (workshop?.grid ?? []).flatMap((entry) => [
+    { role: entry.role, tier: 1 as UnitTier, unit: entry.unit },
+    ...(entry.unitTier2 === null
+      ? []
+      : [{ role: entry.role, tier: 2 as UnitTier, unit: entry.unitTier2 }]),
+  ]);
   const sites = view.me.buildings.some((building) => PROJECTION_KEYS.includes(building.key));
   return (
     <Rack title={fr.personalBoard.piecesHeader} note={fr.personalBoard.piecesNote}>
@@ -691,26 +731,200 @@ function Pieces({
           {fr.personalBoard.piecesNone}
         </p>
       )}
-      {roles.map((entry) => (
-        <button
-          type="button"
-          key={entry.role}
-          {...takeProps(onTake === null ? null : onTake(entry.role))}
-          title={roleLabel(entry.role, 1)}
-          className={`grid w-[74px] shrink-0 touch-none justify-items-center gap-[3px] border border-(color:--ink)/50 px-[4px] pt-[4px] pb-[5px] text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
-            onTake === null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre)]'
-          } ${held?.kind === 'piece' && held.role === entry.role ? 'shadow-[0_0_0_2px_var(--ochre)]' : ''}`}
-        >
-          <UnitSprite nation={view.me.nation} role={entry.role} height={30} width={60} />
-          <b className="w-full truncate text-center text-[11px] leading-none font-semibold">
-            {roleLabel(entry.role, 1)}
-          </b>
-          <span className="font-(family-name:--font-mono) text-[10px]">
-            <Price costs={entry.unit.costs} size={10} />
-          </span>
-        </button>
-      ))}
+      {pieces.map(({ role, tier, unit }) => {
+        const name = pieceName(role, tier);
+        const title =
+          unit.lockedBy === null
+            ? name
+            : `${name} — ${fr.production.researchLocked(unit.lockedBy)}`;
+        return (
+          <button
+            type="button"
+            key={`${role}-${tier}`}
+            {...takeProps(onTake === null ? null : onTake(role, tier))}
+            title={title}
+            aria-label={title}
+            className={`grid w-[74px] shrink-0 touch-none justify-items-center gap-[3px] border border-(color:--ink)/50 px-[4px] ${unit.lockedBy === null ? '' : 'border-dashed'} pt-[4px] pb-[5px] text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+              onTake === null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre)]'
+            } ${held?.kind === 'piece' && held.role === role && held.tier === tier ? 'shadow-[0_0_0_2px_var(--ochre)]' : ''}`}
+          >
+            <UnitSprite nation={view.me.nation} role={role} tier={tier} height={30} width={60} />
+            <b className="w-full truncate text-center text-[11px] leading-none font-semibold">
+              {name}
+            </b>
+            <span className="font-(family-name:--font-mono) text-[10px]">
+              <Price costs={unit.costs} size={10} />
+            </span>
+          </button>
+        );
+      })}
     </Rack>
+  );
+}
+
+/** `Fantassin`, `Blindé MK2` — la marque seulement quand le rôle en a deux et que c'est la seconde. */
+const pieceName = (role: UnitRole, tier: UnitTier): string =>
+  tier === 2 ? `${roleLabel(role, 1)} ${tierLabel(2)}` : roleLabel(role, 1);
+
+// ---------------------------------------------------------------------------------------
+// Research
+// ---------------------------------------------------------------------------------------
+
+const situationOf = (view: PlayerView, now: number) => ({
+  researched: view.me.research.researched,
+  running: view.me.research.running?.card ?? null,
+  hqHeld: view.me.buildings.some((building) => building.key === 'hq'),
+  stocks: stocksAt(view, now),
+});
+
+/** Ce qui retient une carte avant même le QG, dit au survol et à la prise : elle rentre. */
+function cardRefusalOf(view: PlayerView, card: ResearchCard): string | null {
+  const refusal = researchRefusalOf(card, situationOf(view, Date.now()));
+  if (refusal === null) return null;
+  const { code, ...details } = refusal;
+  return fr.errors[code](details);
+}
+
+const names = (cards: ReadonlyArray<ResearchCard>): string =>
+  cards.map(cardName).join(fr.research.and);
+
+/**
+ * **Les cartes de recherche** (ADR 0028 §5), par branche : leur durée, leur prix, ce qu'elles
+ * attendent et ce qu'elles contrent. Celle que le QG porte avance dans sa barre ; une acquise
+ * porte son tampon ; une carte à venir reste dans l'arbre.
+ */
+function Research({
+  view,
+  now,
+  held,
+  onTake,
+}: {
+  view: PlayerView;
+  now: number;
+  held: Held | null;
+  onTake: ((card: ResearchCard) => Take) | null;
+}) {
+  return (
+    <div className="px-3 pb-3 md:px-4">
+      <div className="flex items-center gap-2 pb-[5px]">
+        <span className="eyebrow">{fr.research.header}</span>
+        <HelpMark>{fr.research.note}</HelpMark>
+      </div>
+      <div className="flex gap-[7px] overflow-x-auto pb-[4px]">
+        {RESEARCH_CARDS.map((card) => (
+          <ResearchCardTile
+            key={card}
+            card={card}
+            view={view}
+            now={now}
+            lit={held?.kind === 'card' && held.card === card}
+            onTake={onTake === null ? null : onTake(card)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResearchCardTile({
+  card,
+  view,
+  now,
+  lit,
+  onTake,
+}: {
+  card: ResearchCard;
+  view: PlayerView;
+  now: number;
+  lit: boolean;
+  onTake: Take | null;
+}) {
+  const spec = RESEARCH_TREE[card];
+  const { hours, cost } = RESEARCH_SPEC[card];
+  const done = view.me.research.researched.includes(card);
+  const running = view.me.research.running?.card === card ? view.me.research.running : null;
+  const progress = running === null ? null : researchProgressOf(running, now);
+  const counters = RESEARCH_CARDS.filter((weapon) =>
+    RESEARCH_TREE[weapon].counteredBy.includes(card),
+  );
+  const refusal = done || running !== null ? null : cardRefusalOf(view, card);
+  const name = fr.research.names[card];
+  const label = refusal === null ? name : `${name} — ${refusal}`;
+  return (
+    <button
+      type="button"
+      {...takeProps(done || running !== null ? null : onTake)}
+      title={label}
+      aria-label={label}
+      data-research-card={card}
+      className={`grid w-[150px] shrink-0 touch-none content-start gap-[2px] border bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        comingSoon(card) ? 'border-dashed border-(color:--ink)/60' : 'border-[var(--ink)]'
+      } ${onTake === null || done || running !== null ? '' : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'} ${
+        lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''
+      }`}
+    >
+      <span className="flex items-baseline justify-between gap-1 text-[9.5px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
+        <span>{fr.research.branches[spec.branch]}</span>
+        <span className="font-(family-name:--font-mono) tracking-normal">
+          {fr.research.hours(hours)}
+        </span>
+      </span>
+      <b className="text-[12.5px] leading-[1.15] font-extrabold">{name}</b>
+      <span className="line-clamp-2 text-[10.5px] leading-[1.25] text-[var(--ink-soft)]">
+        {fr.research.unlocks[card]}
+      </span>
+      {spec.after.length > 0 && (
+        <span className="text-[10.5px] leading-[1.25]">{fr.research.after(names(spec.after))}</span>
+      )}
+      {counters.length > 0 && (
+        <span className="text-[10.5px] leading-[1.25] text-[var(--interaction)]">
+          {fr.research.counters(names(counters))}
+        </span>
+      )}
+      {spec.counteredBy.length > 0 && (
+        <span className="text-[10.5px] leading-[1.25] text-[var(--critical)]">
+          {fr.research.counteredBy(names(spec.counteredBy))}
+        </span>
+      )}
+      <span className="mt-[2px] font-(family-name:--font-mono) text-[10px]">
+        {done ? (
+          <Stamp label={fr.research.done} size="small" />
+        ) : comingSoon(card) ? (
+          <Stamp label={fr.research.coming} size="small" />
+        ) : progress !== null ? (
+          <ResearchGauge share={progress.share} finishesAt={progress.finishesAt} now={now} />
+        ) : (
+          <Price costs={cost} size={10} />
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** **Une carte qui avance** : sa barre, et ce qui lui reste — ou qu'elle attend son QG. */
+export function ResearchGauge({
+  share,
+  finishesAt,
+  now,
+}: {
+  share: number;
+  finishesAt: number | null;
+  now: number;
+}) {
+  return (
+    <span className="block">
+      <span className="loading-gauge loading-gauge--march block" data-testid="research-gauge">
+        <b style={{ width: `${Math.round(100 * share)}%` }} />
+      </span>
+      <span
+        className="block text-[10px]"
+        style={finishesAt === null ? { color: 'var(--critical)' } : undefined}
+      >
+        {finishesAt === null
+          ? fr.research.waiting
+          : fr.research.left(asDuration(Math.max(0, (finishesAt - now) / 60_000)))}
+      </span>
+    </span>
   );
 }
 
@@ -723,8 +937,18 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
       <div className="grid rotate-[-3deg] justify-items-center border border-[var(--ink)] bg-[#efe5cc] p-[6px] shadow-[0_10px_18px_rgba(0,0,0,.45)]">
         {held.kind === 'tile' ? (
           <BuildingPlate building={held.key} height={34} />
+        ) : held.kind === 'card' ? (
+          <b className="px-[6px] py-[4px] text-[13px] font-extrabold">
+            {fr.research.names[held.card]}
+          </b>
         ) : (
-          <UnitSprite nation={view.me.nation} role={held.role} height={34} width={64} />
+          <UnitSprite
+            nation={view.me.nation}
+            role={held.role}
+            tier={held.tier}
+            height={34}
+            width={64}
+          />
         )}
       </div>
       {hint !== null && (
@@ -783,6 +1007,7 @@ function useHand({
   const chip = useRef<HTMLDivElement>(null);
   const start = useMutation(api.constructions.start);
   const recruit = useMutation(api.troops.recruit);
+  const research = useMutation(api.research.start);
   const latest = useRef({ view, workshop });
   latest.current = { view, workshop };
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
@@ -806,7 +1031,12 @@ function useHand({
     const origin = element.getBoundingClientRect();
     const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
     const from = pointerId === null ? home : { x: event.clientX, y: event.clientY };
-    const refusal = what.kind === 'tile' ? tileRefusalOf(latest.current.view, what.key) : null;
+    const refusal =
+      what.kind === 'tile'
+        ? tileRefusalOf(latest.current.view, what.key)
+        : what.kind === 'card'
+          ? cardRefusalOf(latest.current.view, what.card)
+          : pieceRefusalOf(latest.current.workshop, what);
     let mode: 'drag' | 'click' = pointerId === null ? 'click' : 'drag';
     let moved = false;
     let armed = false;
@@ -922,13 +1152,18 @@ function useHand({
           regionId: building.regionId,
           point: { lon: building.point[0], lat: building.point[1] },
         }).then(() => spent(fr.personalBoard.raised(building.name, building.level + 1)), refused);
+      } else if (what.kind === 'card') {
+        research({ ...seat, card: what.card }).then(
+          () => spent(fr.research.started(cardName(what.card))),
+          refused,
+        );
       } else {
         recruit({
           ...seat,
           buildingId: building.id as Id<'buildings'>,
           role: what.role,
-          tier: 1,
-        }).then(() => spent(fr.personalBoard.formed(roleLabel(what.role, 1))), refused);
+          tier: what.tier,
+        }).then(() => spent(fr.personalBoard.formed(pieceName(what.role, what.tier))), refused);
       }
     };
 
@@ -943,7 +1178,10 @@ function useHand({
       }
       if (refusal !== null) return drop(home);
       mode = 'click';
-      say({ text: fr.personalBoard.dropOnSite, refused: false });
+      say({
+        text: what.kind === 'card' ? fr.research.dropOnHq : fr.personalBoard.dropOnSite,
+        refused: false,
+      });
       leave();
     };
 
@@ -1058,17 +1296,37 @@ function readingOf(
           : { text: upgradeHoldText(hold), refused: true },
     };
   }
+  if (held.kind === 'card') {
+    const hq = under.find((candidate) => candidate.key === 'hq');
+    if (hq === undefined)
+      return { kind: 'map', hint: { text: fr.research.dropOnHq, refused: true } };
+    const refusal = researchRefusalOf(held.card, situationOf(view, Date.now()));
+    if (refusal !== null) {
+      const { code, ...details } = refusal;
+      return { kind: 'act', building: hq, hint: { text: fr.errors[code](details), refused: true } };
+    }
+    return {
+      kind: 'act',
+      building: hq,
+      hint: {
+        text: fr.research.start(cardName(held.card), RESEARCH_SPEC[held.card].hours),
+        refused: false,
+        cost: RESEARCH_SPEC[held.card].cost,
+      },
+    };
+  }
   const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
+  const unit = held.tier === 2 ? entry?.unitTier2 : entry?.unit;
   const sites = under.filter((candidate) => PROJECTION_KEYS.includes(candidate.key));
-  if (sites.length === 0 || workshop === undefined || entry === undefined) {
+  if (sites.length === 0 || workshop === undefined || unit == null) {
     return { kind: 'map', hint: { text: fr.personalBoard.dropOnSite, refused: true } };
   }
   const refusalAt = (site: Building) =>
-    recruitRefusalOf(held.role, site, {
-      hqLevel: view.me.hqLevel,
+    recruitRefusalOf(held.role, held.tier, site, {
+      researched: view.me.research.researched,
       army: workshop.troopsInService + workshop.troopsQueued,
       siteQueue: workshop.facilities.find((facility) => facility.id === site.id)?.queue.length ?? 0,
-      costs: entry.unit.costs,
+      costs: unit.costs,
       stocks: stocksAt(view, Date.now()),
     });
   const site = sites.find((candidate) => refusalAt(candidate) === null) ?? sites[0]!;
@@ -1080,7 +1338,10 @@ function readingOf(
   return {
     kind: 'act',
     building: site,
-    hint: { text: fr.personalBoard.form(roleLabel(held.role, 1), site.name), refused: false },
+    hint: {
+      text: fr.personalBoard.form(pieceName(held.role, held.tier), site.name),
+      refused: false,
+    },
   };
 }
 
