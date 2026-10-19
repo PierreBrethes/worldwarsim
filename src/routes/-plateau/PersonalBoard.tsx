@@ -14,7 +14,14 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
-import { cardName, fr, noBuilding, researchRequired, roleLabel, upgradeHoldText } from '@/i18n/fr';
+import {
+  cardName,
+  countdownLabel,
+  fr,
+  researchRequired,
+  roleLabel,
+  upgradeHoldText,
+} from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -26,7 +33,6 @@ import { CueBubble } from '@/shell/CueBubble';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, upgradeHold } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
-import { PRODUCER_OF } from '@/domain/economy';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
   BUILDABLE_BUILDINGS,
@@ -85,8 +91,11 @@ const DRAG_THRESHOLD_PX = 5;
 /** Under this travel a finger has not yet said whether it scrolls the rail or lifts the tile. */
 const TOUCH_SLOP_PX = 8;
 
+/** The air left between the band and what rises over it. */
+const MAT_GAP_PX = 8;
+
 /** The room the folded band leaves to the protractor's corner, on the phone. */
-const CORNER_ROOM = 'calc(78px + var(--safe-right) / var(--hud-scale))';
+const CORNER_ROOM = 'calc(72px + var(--safe-right) / var(--hud-scale))';
 
 /**
  * **Le plateau personnel, en sous-main** (issue #122, maquette B) : une bande sur toute la largeur
@@ -103,8 +112,11 @@ export function PersonalBoard({
   view,
   seat,
   open,
+  research,
+  front,
   focused,
   onOpen,
+  onResearch,
   onHoldTile,
   onPlaceTile,
   onTakeTokens,
@@ -115,6 +127,12 @@ export function PersonalBoard({
   /** Dépliée : la fenêtre `personalBoard` de l'adresse, que « Écon. » bascule. */
   open: boolean;
   onOpen: (open: boolean) => void;
+  /** **La recherche ouverte au-dessus de la bande**, en attendant sa fenêtre (#123) : le plateau
+   *  la tient, pour ranger la carte « à faire » comme pour la bande dépliée. */
+  research: boolean;
+  onResearch: (open: boolean) => void;
+  /** Aucune fenêtre n'est devant la bande : Échap est à elle. */
+  front: boolean;
   /** **La bulle des premiers pas** (ADR 0027 §2) : l'étagère où se prend le geste du pas allumé. */
   cue?: { readonly rack: 'tiles' | 'pieces' | 'research'; readonly text: string } | null;
   /** **Charger** (ADR 0028 §4) : des jetons pris dans un bac, glissés sur un transport. */
@@ -132,7 +150,6 @@ export function PersonalBoard({
   const board = useRef<HTMLElement>(null);
   const binRefs = useRef(new Map<ResourceKey, HTMLElement>());
   const [tab, setTab] = useState<Tab>('buildings');
-  const [research, setResearch] = useState(false);
   const observing = view.me.defeated;
 
   const { shown, harvest, ledger, mark, replay } = useHarvest(view, seat, motion, binRefs);
@@ -147,18 +164,33 @@ export function PersonalBoard({
     onHoldTile,
     onPlaceTile,
   });
-  /** Au téléphone, la main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
-  const folded = !open || research || (narrow && away);
-  useMatRise(board);
+  /** La main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
+  const folded = !open || research || away;
+  const handleRef = useRef<HTMLButtonElement>(null);
+  useMatRise(board, `${folded}-${research}-${cue?.text ?? ''}`);
 
+  // Escape folds what the band shows, when no window stands in front of it: research first.
   useEffect(() => {
-    if (!open) return;
+    if (!front || (!open && !research)) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && held === null) onOpen(false);
+      if (event.key !== 'Escape' || held !== null) return;
+      if (research) onResearch(false);
+      else onOpen(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [held, open, onOpen]);
+  }, [front, held, open, research, onOpen, onResearch]);
+
+  // Folded, the focus that was inside the band (or that it took to the body) goes to its handle.
+  const wasFolded = useRef(folded);
+  useEffect(() => {
+    const was = wasFolded.current;
+    wasFolded.current = folded;
+    if (was || !folded || away) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body || board.current?.contains(active))
+      handleRef.current?.focus({ preventScroll: true });
+  }, [folded, away]);
 
   // The step's bubble points at a rack: its tab comes forward.
   const cuedRack = cue?.rack ?? null;
@@ -190,37 +222,48 @@ export function PersonalBoard({
   const researchCue = cue?.rack === 'research' ? cue.text : null;
   const unfoldCued = rackCue !== null && folded && !research;
 
+  /** Au téléphone, repliée, la bande tient sur une rangée : la poignée n'y garde que sa flèche. */
+  const compact = narrow && folded;
   const handle = (
     <button
+      ref={handleRef}
       type="button"
       aria-expanded={!folded}
-      aria-label={folded ? fr.personalBoard.open : fr.personalBoard.fold}
       onClick={() => {
-        setResearch(false);
+        onResearch(false);
         onOpen(folded);
       }}
-      className={`relative cursor-pointer px-3 font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
-        narrow ? 'flex-1 py-[10px] text-center' : 'self-stretch border-r border-[var(--ink)]'
+      className={`relative cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
+        compact
+          ? 'shrink-0 self-stretch border-r border-(color:--ink)/35 px-[5px]'
+          : narrow
+            ? 'flex-1 px-3 py-[10px] text-center'
+            : 'self-stretch border-r border-[var(--ink)] px-3'
       } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
     >
-      {fr.personalBoard.header}
+      <span className={compact ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
       <span aria-hidden className="ml-[6px] font-(family-name:--font-body) text-[11px]">
         {folded ? '▴' : '▾'}
       </span>
       {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
-      {unfoldCued && narrow && <CueBubble text={fr.firstSteps.cue.unfold} />}
+      {unfoldCued && narrow && (
+        <CueBubble
+          text={fr.firstSteps.cue.unfold}
+          place="first-step-cue--start absolute bottom-[calc(100%+9px)] left-[4px]"
+        />
+      )}
     </button>
   );
   const researchButton = (
     <button
       type="button"
       aria-expanded={research}
-      onClick={() => setResearch((was) => !was)}
-      className={`relative shrink-0 cursor-pointer border border-[var(--ink)] px-[9px] py-[5px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-(--ink)/8 ${
+      onClick={() => onResearch(!research)}
+      className={`relative shrink-0 cursor-pointer border border-[var(--ink)] py-[5px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-(--ink)/8 ${
         research ? 'bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--ink)]' : ''
-      } ${narrow ? 'mr-2' : ''}`}
+      } ${compact ? 'mr-[2px] px-[3px] text-[9px] tracking-normal' : narrow ? 'mr-2 px-[9px]' : 'px-[9px]'}`}
     >
-      {fr.research.header}
+      {compact ? fr.personalBoard.researchShort : fr.research.header}
       {researchCue !== null && !research && (
         <CueBubble
           text={researchCue}
@@ -262,7 +305,7 @@ export function PersonalBoard({
             now={now}
             held={held}
             cue={researchCue}
-            onClose={() => setResearch(false)}
+            onClose={() => onResearch(false)}
             onTake={observing ? null : (card) => (grab) => take({ kind: 'card', card }, grab)}
           />
         )}
@@ -278,7 +321,17 @@ export function PersonalBoard({
           />
         )}
 
-        {narrow ? (
+        {compact ? (
+          <div className="flex h-[44px] shrink-0 items-center gap-[3px]">
+            {handle}
+            <div className="flex min-w-0 flex-1 gap-[1px]">
+              {RESOURCES.map((resource) => (
+                <MiniBin key={resource} {...bin(resource)} narrow />
+              ))}
+            </div>
+            {researchButton}
+          </div>
+        ) : narrow ? (
           <div className="flex shrink-0 flex-col gap-[6px] pb-[6px]">
             <div className="flex items-center border-b border-(color:--ink)/30">
               {handle}
@@ -344,7 +397,7 @@ export function PersonalBoard({
         )}
 
         <div
-          className="grid min-h-0 transition-[grid-template-rows] duration-(--dur-slow) ease-(--ease-out)"
+          className="mat-fold grid min-h-0"
           style={{ gridTemplateRows: folded ? '0px' : narrow ? 'auto' : '156px' }}
           inert={folded}
         >
@@ -379,6 +432,7 @@ export function PersonalBoard({
               narrow={narrow}
               observing={observing}
               ledger={ledger}
+              onReplay={harvest === null ? null : replay}
               onSpent={mark}
             />
           </div>
@@ -401,29 +455,30 @@ export function PersonalBoard({
 
 /**
  * **Ce que la bande prend au pied de la table**, publié en `--mat-rise` (pixels d'écran, du bas
- * de l'écran au-dessus d'elle) : ce qui se pose au bas de la carte — boutons, fiche du sol,
- * tickets — se lève d'autant au lieu de passer dessous.
+ * de l'écran au-dessus d'elle et de ce qu'elle pose au-dessus d'elle : la recherche, la bulle) :
+ * ce qui se pose au bas de la carte se lève d'autant (`MAT_LIFT`) au lieu de passer dessous.
+ * `shape` change quand ce qu'elle pose change : on remesure, et on observe les nouvelles pièces.
  */
-function useMatRise(mat: { readonly current: HTMLElement | null }) {
+function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string) {
   useEffect(() => {
     const node = mat.current;
     if (node === null) return;
+    const parts = [node, ...node.querySelectorAll<HTMLElement>('[data-mat-part], .first-step-cue')];
     const root = document.documentElement.style;
-    const publish = () =>
-      root.setProperty(
-        '--mat-rise',
-        `${Math.round(window.innerHeight - node.getBoundingClientRect().top + 8)}px`,
-      );
+    const publish = () => {
+      const top = Math.min(...parts.map((part) => part.getBoundingClientRect().top));
+      root.setProperty('--mat-rise', `${Math.round(window.innerHeight - top + MAT_GAP_PX)}px`);
+    };
     publish();
     const observer = new ResizeObserver(publish);
-    observer.observe(node);
+    for (const part of parts) observer.observe(part);
     window.addEventListener('resize', publish);
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', publish);
       root.removeProperty('--mat-rise');
     };
-  }, [mat]);
+  }, [mat, shape]);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -597,26 +652,13 @@ type BinProps = {
   onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
 };
 
-/** Ce qu'un bac dit au survol : son nombre sur son plafond, son débit, ou ce qui lui manque. */
+/** Ce qu'un bac dit au survol : son nombre sur son plafond, et son débit. Ce qui l'arrête se lit
+ *  dans son ticket (`ledgerNotesOf`). */
 function binReading({ resource, view, now, shown }: BinProps) {
   const held = view.me.resources[resource];
   const stock = Math.floor(shown ?? currentStock(held, view.loadedAt, now));
   const share = held.cap > 0 ? Math.min(100, (stock / held.cap) * 100) : 0;
-  /** **Rien ne le produit** : ni bâti, ni en chantier, ni en file — le manque, pas la panne. */
-  const missing =
-    held.ratePerHour <= 0 &&
-    !view.me.buildings.some((building) => building.key === PRODUCER_OF[resource]) &&
-    view.me.construction?.key !== PRODUCER_OF[resource] &&
-    !view.me.constructionQueue.some((entry) => entry.key === PRODUCER_OF[resource]);
-  const full = held.cap > 0 && stock >= held.cap;
-  const title = [
-    `${fr.resources[resource]} : ${stock} ${fr.personalBoard.ofCap(held.cap)}`,
-    full
-      ? fr.personalBoard.full
-      : missing
-        ? noBuilding(PRODUCER_OF[resource])
-        : fr.personalBoard.rate(held.ratePerHour),
-  ].join(' · ');
+  const title = `${fr.resources[resource]} : ${stock} ${fr.personalBoard.ofCap(held.cap)} · ${fr.personalBoard.rate(held.ratePerHour)}`;
   return { held, stock, share, title };
 }
 
@@ -635,11 +677,15 @@ function MiniBin(props: BinProps & { narrow: boolean }) {
       {...takeTokens(onTake)}
       className={`relative inline-flex touch-none items-center gap-[4px] border border-(color:--ink)/35 font-(family-name:--font-mono) text-[12px] leading-none font-semibold select-none ${
         narrow
-          ? 'min-w-0 flex-1 justify-center gap-[3px] px-[2px] pt-[6px] pb-[7px] text-[11.5px]'
+          ? 'min-w-0 flex-1 justify-center gap-[1px] overflow-hidden px-0 pt-[6px] pb-[7px] text-[10px] tracking-[-.04em]'
           : 'py-[3px] pr-[6px] pl-[4px]'
       } ${onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'}`}
     >
-      <ResourcePlate resource={resource} height={narrow ? 14 : 16} />
+      {narrow ? (
+        <ResourcePlate resource={resource} height={11} width={11} />
+      ) : (
+        <ResourcePlate resource={resource} height={16} />
+      )}
       {stock}
       <span
         aria-hidden
@@ -682,7 +728,7 @@ function GaugeBin(props: BinProps) {
         }}
       >
         <i
-          className="absolute inset-x-0 bottom-0 transition-[height] duration-500"
+          className="mat-gauge absolute inset-x-0 bottom-0"
           style={{ height: `${share}%`, background: resourceColor(resource, true) }}
         />
       </span>
@@ -985,15 +1031,15 @@ function TileFrame({
       className={`grid shrink-0 snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] touch-pan-x px-[5px] pt-[4px] pb-[5px]'
-          : 'h-[128px] w-[100px] touch-none px-[6px] pt-[5px] pb-[6px] transition-transform duration-(--dur-base) ease-(--ease-out)'
+          : 'h-[128px] w-[100px] touch-none px-[6px] pt-[5px] pb-[6px]'
       } ${
         locked
           ? 'border-dashed bg-transparent'
-          : `bg-[#efe5cc] shadow-[0_2px_0_var(--ink)] ${narrow ? '' : 'hover:-translate-y-[3px] hover:shadow-[0_5px_0_var(--ink)]'}`
+          : `bg-[#efe5cc] shadow-[0_2px_0_var(--ink)] ${narrow ? '' : 'mat-tile'}`
       } ${onTake === null ? '' : 'cursor-grab'} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
     >
       <b
-        className={`line-clamp-2 leading-[1.1] font-semibold first-letter:uppercase ${narrow ? 'text-[11px]' : 'text-[12px]'}`}
+        className={`line-clamp-2 leading-[1.1] font-semibold ${narrow ? 'text-[11px]' : 'text-[12px]'}`}
       >
         {name}
       </b>
@@ -1029,10 +1075,16 @@ function Tile({
   lit: boolean;
   onTake: Take | null;
 }) {
-  const standing = view.me.buildings.filter((building) => building.key === buildingKey).length;
+  const standing = view.me.buildings.filter((building) => building.key === buildingKey);
+  /** **Sa pareille debout**, la plus basse : la tuile dit l'élévation et son prix, comme la
+   *  maquette ; lâchée ailleurs sur la carte, elle bâtit toujours. */
+  const lowest = standing.reduce<Building | null>(
+    (low, building) => (low === null || building.level < low.level ? building : low),
+    null,
+  );
   const free = view.me.foundation.some((due) => due.key === buildingKey);
   const refusal = tileRefusalOf(view, buildingKey);
-  const time = asDuration(view.buildCatalog[buildingKey].minutes);
+  const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
   return (
     <TileFrame
       ref={ref}
@@ -1042,12 +1094,20 @@ function Tile({
       lit={lit}
       onTake={onTake}
       picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
-      meta={refusal ?? (standing > 0 ? `${fr.personalBoard.tileCount(standing)} · ${time}` : time)}
+      meta={
+        refusal ??
+        (lowest === null
+          ? time
+          : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level + 1)}`)
+      }
       price={
         free ? (
           fr.construction.free
         ) : (
-          <Price costs={view.buildCatalog[buildingKey].cost} size={10} />
+          <Price
+            costs={lowest === null ? view.buildCatalog[buildingKey].cost : lowest.nextLevelCost}
+            size={10}
+          />
         )
       }
     />
@@ -1055,8 +1115,10 @@ function Tile({
 }
 
 /** `Fantassin`, `Blindé MK2` — la marque seulement quand le rôle en a deux et que c'est la seconde. */
-const pieceName = (role: UnitRole, tier: UnitTier): string =>
-  tier === 2 ? `${roleLabel(role, 1)} ${tierLabel(2)}` : roleLabel(role, 1);
+const pieceName = (role: UnitRole, tier: UnitTier): string => {
+  const name = tier === 2 ? `${roleLabel(role, 1)} ${tierLabel(2)}` : roleLabel(role, 1);
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+};
 
 // ---------------------------------------------------------------------------------------
 // Works and harvest
@@ -1070,11 +1132,12 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
-        {fr.personalBoard.work(running.name, running.level, running.regionName)}
+        {fr.personalBoard.workAt(running.name, running.level, running.regionName)}
       </b>
-      {' · '}
-      {fr.personalBoard.left(asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)))}
-      {queued > 0 && ` · ${fr.personalBoard.queued(queued)}`}
+      {fr.personalBoard.workTail(
+        countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
+        queued,
+      )}
     </>
   );
 }
@@ -1092,6 +1155,7 @@ function Works({
   narrow,
   observing,
   ledger,
+  onReplay,
   onSpent,
 }: {
   view: PlayerView;
@@ -1100,6 +1164,8 @@ function Works({
   narrow: boolean;
   observing: boolean;
   ledger: string;
+  /** Rejouer la récolte : au téléphone, la bande n'a pas la place de sa ligne. */
+  onReplay: (() => void) | null;
   onSpent: () => void;
 }) {
   const drop = useMutation(api.constructions.cancel);
@@ -1119,9 +1185,9 @@ function Works({
         <div className="grid gap-[2px] text-[12px] leading-[1.2]">
           <span>
             <b className="font-semibold">
-              1. {fr.personalBoard.work(running.name, running.level, '')}
-            </b>
-            {running.regionName}
+              {fr.personalBoard.workRank(1, fr.personalBoard.work(running.name, running.level))}
+            </b>{' '}
+            <span className="text-[var(--ink-soft)]">{running.regionName}</span>
           </span>
           <span aria-hidden className="block h-[3px] bg-(--ink)/14">
             <i
@@ -1130,7 +1196,7 @@ function Works({
             />
           </span>
           <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-            {fr.personalBoard.left(asDuration(left))}
+            {fr.personalBoard.left(countdownLabel(left * 60_000))}
           </small>
         </div>
       )}
@@ -1139,9 +1205,12 @@ function Works({
           <span className="flex items-baseline gap-2">
             <span className="min-w-0 flex-1">
               <b className="font-semibold">
-                {index + 2}. {fr.personalBoard.work(entry.name, entry.level, '')}
-              </b>
-              {entry.regionName}
+                {fr.personalBoard.workRank(
+                  index + 2,
+                  fr.personalBoard.work(entry.name, entry.level),
+                )}
+              </b>{' '}
+              <span className="text-[var(--ink-soft)]">{entry.regionName}</span>
             </span>
             {!observing && (
               <button
@@ -1161,12 +1230,25 @@ function Works({
             )}
           </span>
           <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-            {fr.personalBoard.queuedLine(asDuration(buildMinutes(entry.key, entry.level)))}
+            {fr.personalBoard.queuedLine(
+              countdownLabel(buildMinutes(entry.key, entry.level) * 60_000),
+            )}
           </small>
         </div>
       ))}
       {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-      <span className="eyebrow mt-[4px]">{fr.personalBoard.harvestHeader}</span>
+      <span className="mt-[4px] flex items-baseline gap-2">
+        <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>
+        {onReplay !== null && (
+          <button
+            type="button"
+            onClick={onReplay}
+            className="ml-auto cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2"
+          >
+            {fr.personalBoard.harvestReplay}
+          </button>
+        )}
+      </span>
       <p className="text-[11px] leading-[1.35] text-[var(--ink-soft)]">{ledger}</p>
       {view.me.chains
         .filter((chain) => chain.commanded && chain.level > 0)
@@ -1255,6 +1337,7 @@ function ResearchPanel({
   return (
     <section
       aria-label={fr.research.header}
+      data-mat-part
       className="paper-grain float absolute inset-x-0 bottom-[calc(100%+8px)] border border-[var(--ink)] px-3 pt-[8px] pb-[10px]"
     >
       {cue !== null && <CueBubble text={cue} />}

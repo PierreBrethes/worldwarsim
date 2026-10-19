@@ -16,6 +16,7 @@ import { upkeepStep } from '@/domain/upkeep';
 import { ResourcePlate } from '@/emblems/Plate';
 import { BottomSheet } from './BottomSheet';
 import { useClock } from './clock';
+import { MAT_LIFT } from './viewport';
 
 /** Trois tickets côte à côte au plus : un quatrième décroche le plus ancien (`Shell`). */
 export const MAX_TICKETS = 3;
@@ -92,8 +93,7 @@ function Ticket({
       className="paper-grain float pointer-events-auto grid w-[300px] grid-rows-[auto_1fr] border border-[var(--ink)] pt-[7px] text-[var(--ink)]"
       style={
         {
-          maxHeight:
-            'calc((100dvh - var(--board-top) - 6px - max(var(--table-margin), var(--mat-rise, 0px))) / var(--hud-scale))',
+          maxHeight: `calc((100dvh - var(--board-top) - 6px - var(--table-margin) - ${MAT_LIFT}) / var(--hud-scale))`,
           WebkitMask: PERFORATION,
           mask: PERFORATION,
           fontFamily: 'var(--font-body)',

@@ -3405,8 +3405,6 @@ export const fr = {
    */
   personalBoard: {
     header: 'Plateau personnel',
-    open: 'déplier le plateau personnel',
-    fold: 'replier le plateau personnel',
     /** Les deux onglets du plateau à tuiles, et ce que fait chacun au survol. */
     tabs: { buildings: 'Bâtiments', troops: 'Troupes' },
     previous: 'précédentes',
@@ -3445,10 +3443,18 @@ export const fr = {
     worksFold: 'chantiers',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
-    work: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
+    work: (name: string, level: number) => `${name} niv. ${level}`,
+    workAt: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
+    workTail: (time: string, queued: number) =>
+      ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
+    workRank: (rank: number, work: string) => `${rank}. ${work}`,
     left: (time: string) => `reste ${time}`,
-    queued: (count: number) => `${count} en file`,
     queuedLine: (time: string) => `${time}, en file`,
+    /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
+    raiseTo: (level: number) => `élever au niv. ${level}`,
+    /** Le bouton de la recherche dans la bande repliée du téléphone. */
+    researchShort: 'rech.',
     starvedChain: (building: string, resource: string) =>
       `${building} à sec de ${lowerFirst(resource)}`,
   },

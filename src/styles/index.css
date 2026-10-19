@@ -550,8 +550,9 @@ body {
   animation: none;
 }
 
-/* **La bulle des premiers pas** : elle bat doucement au-dessus de ce qu'elle désigne, et l'entrée
-   « Écon. » porte un anneau d'ocre. Réduites ou coupées, l'une et l'autre se tiennent. */
+/* **La bulle des premiers pas** : elle bat doucement au-dessus de ce qu'elle désigne, et ce qu'on
+   doit toucher — la poignée du plateau personnel, un onglet — porte un anneau d'ocre. Réduites ou
+   coupées, l'une et l'autre se tiennent. */
 .first-step-cue {
   animation: first-step-bob 1.4s ease-in-out infinite alternate;
 }
@@ -570,11 +571,40 @@ body {
   border-top-color: transparent;
   border-bottom-color: var(--ink);
 }
+.first-step-cue--start::after {
+  left: 12px;
+  translate: none;
+}
 .first-step-cue--corner::after {
   left: auto;
   right: 22px;
   translate: none;
 }
+/* **Le sous-main** (#122) : la bande qui se plie, la tuile qui se lève au survol, la jauge qui
+   monte. Réduites, rien ne glisse ; coupées, la tuile ne se lève pas non plus. */
+.mat-fold {
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+}
+.mat-tile {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+.mat-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 0 var(--ink);
+}
+.mat-gauge {
+  transition: height 500ms var(--ease-out);
+}
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile, .mat-gauge) {
+  transition: none;
+}
+:root[data-motion='off'] .mat-tile:hover {
+  transform: none;
+  box-shadow: 0 2px 0 var(--ink);
+}
+
 @keyframes first-step-bob {
   to {
     transform: translateY(-3px);

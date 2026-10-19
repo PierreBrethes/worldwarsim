@@ -53,7 +53,7 @@ import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { useClock } from '@/shell/clock';
-import { useNarrowScreen } from '@/shell/viewport';
+import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { captureRate } from '@/domain/capture';
@@ -2241,6 +2241,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [briefing, setBriefing] = useState(() => blitz && !briefingSeen());
   const firstSteps = useFirstSteps(view, seat);
   const boardOpen = windows.includes('personalBoard');
+  /** **La recherche posée au-dessus de la bande** (#122), en attendant sa fenêtre (#123). « Écon. »
+   *  qui déplie la bande la referme. */
+  const [boardResearch, setBoardResearch] = useState(false);
+  useEffect(() => {
+    if (boardOpen) setBoardResearch(false);
+  }, [boardOpen]);
+  /** The windows drawn as windows: the personal board is the band, its flag only unfolds it. */
+  const surfaces = windows.filter(
+    (name): name is Exclude<BoardWindow, 'personalBoard'> => name !== 'personalBoard',
+  );
   const stepCue = firstSteps?.cue ?? null;
   const stepText = stepCue === null ? null : fr.firstSteps.cue[stepCue.say];
   /** Repliés ou passés, les premiers pas se reprennent depuis l'aide ; finis, il n'y a rien à reprendre. */
@@ -2594,7 +2604,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
-      shut={boardOpen}
+      shut={boardOpen || boardResearch}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
@@ -3024,6 +3034,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 view={view}
                 seat={seat}
                 open={boardOpen}
+                research={boardResearch}
+                onResearch={setBoardResearch}
+                front={surfaces.length === 0 || windows.at(-1) === 'personalBoard'}
                 onOpen={(open) =>
                   open ? openWindow('personalBoard') : closeWindow('personalBoard')
                 }
@@ -3040,10 +3053,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             </Suspense>
           )}
           <Suspense fallback={null}>
-            {windows.map((name, rank) => {
+            {surfaces.map((name, rank) => {
               const windowProps = {
                 rank,
-                inFront: rank === windows.length - 1,
+                inFront: rank === surfaces.length - 1,
                 onBringForward: () => bringForward(name),
                 onClose: () => {
                   /** La manchette d'une notification ne survit pas au journal qui la portait. */
@@ -3092,9 +3105,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       {...windowProps}
                     />
                   );
-                case 'personalBoard':
-                  // The band below is always on the table: the window only unfolds it.
-                  return null;
                 case 'nation':
                   return (
                     <NationWindow
@@ -3163,10 +3173,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
-
-/** **Ce qui se pose au bas de la carte se lève au-dessus du sous-main** (#122) : de ce que la bande
- *  prend au-delà de la marge de la table (`--mat-rise`, publié par la bande). */
-const MAT_LIFT = 'max(0px, var(--mat-rise, 0px) - var(--table-margin))';
 
 /** **À l'ouverture d'une Mondiale, la carte se cadre sur la nation** : assez près pour qu'elle
  *  tienne l'écran, sans fond de table. @a-mesurer */
