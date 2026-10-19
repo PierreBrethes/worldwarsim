@@ -368,7 +368,7 @@ export const COST_BY_ROLE: Readonly<
  * **Ce qu'une carte de recherche coûte et dure** (ADR 0028 §5, artefact du 18/10) : payée à la
  * pose, elle avance en heures de jeu sur le QG. Les prix de l'artefact sont décuplés pour tenir à
  * l'échelle des coûts du code (une caserne vaut 40 d'acier, la dotation 400) ; les durées sont
- * celles de l'artefact, 182 h pour une saison de 168 h — on ne finit pas l'arbre.
+ * celles de l'artefact, 182 h pour une saison de 168 h (232 h avec les trois cartes Transmissions) — on ne finit pas l'arbre.
  *
  * **Le contre coûte moins et dure moins que l'arme qu'il contre** (`research.test.ts`).
  *
@@ -388,6 +388,9 @@ export const RESEARCH_SPEC: Readonly<
   airlift: { hours: 10, cost: { steel: 80, oil: 40 } },
   syntheticOil: { hours: 18, cost: { steel: 100, coal: 100 } },
   listening: { hours: 10, cost: { steel: 60, coal: 60 } },
+  transmissions1: { hours: 10, cost: { steel: 60, coal: 60 } },
+  transmissions2: { hours: 16, cost: { steel: 100, coal: 90 } },
+  transmissions3: { hours: 24, cost: { steel: 160, coal: 130 } },
 };
 
 /**

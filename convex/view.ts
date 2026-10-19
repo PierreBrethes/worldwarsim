@@ -527,11 +527,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
        *  which cannot name the mine that sits on nothing. */
       extraction: economy.extraction,
-      // The slots follow the headquarters since the logistics centre was dissolved
-      // (ADR 0015). One slot outlives the building: a nation always has one movement to
-      // make, even with its capital flattened.
+      // The slots come from research: two at the start, one per Transmissions card.
       slots: {
-        total: movementSlots(hqLevel),
+        total: movementSlots(player.researched ?? []),
         // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
         // (`slotsTaken`).
         used: await slotsTaken(ctx, player, movements, troops),

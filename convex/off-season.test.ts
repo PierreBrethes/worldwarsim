@@ -192,8 +192,8 @@ describe('launching', () => {
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
     ]);
-    // Un slot survit au bâtiment : une nation a toujours un mouvement à faire (ADR 0006).
-    expect(view.me.slots).toEqual({ total: 1, used: 0 });
+    // Les slots viennent de la recherche : deux au départ, QG à terre ou non.
+    expect(view.me.slots).toEqual({ total: 2, used: 0 });
     // The home regions that carry a deposit, and only those.
     expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
     expect(view.season.playableRegion).toBe('europe');

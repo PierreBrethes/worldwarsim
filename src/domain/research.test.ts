@@ -13,6 +13,7 @@ import {
   researchProgressOf,
   researchRefusalOf,
   roleLockOf,
+  slotCardsOf,
 } from './research';
 
 const stocks = { food: 500, steel: 500, coal: 500, oil: 500, ammunition: 0 };
@@ -69,7 +70,7 @@ describe('the research tree', () => {
 
   it('is not finished within a season', () => {
     const hours = RESEARCH_CARDS.reduce((sum, card) => sum + RESEARCH_SPEC[card].hours, 0);
-    expect(hours).toBe(182);
+    expect(hours).toBe(232);
   });
 
   it('opens with mark-1 infantry, the truck and the cargo, everything else behind a card', () => {
@@ -153,5 +154,20 @@ describe('a card under way', () => {
       share: 0.25,
       finishesAt: null,
     });
+  });
+});
+
+describe('the Transmissions cards', () => {
+  it('chain one after the other, each opening a slot and nothing else', () => {
+    expect(RESEARCH_TREE.transmissions1.after).toEqual([]);
+    expect(RESEARCH_TREE.transmissions2.after).toEqual(['transmissions1']);
+    expect(RESEARCH_TREE.transmissions3.after).toEqual(['transmissions2']);
+    expect(slotCardsOf(['armor', 'transmissions1', 'transmissions2'])).toEqual([
+      'transmissions1',
+      'transmissions2',
+    ]);
+    for (const card of ['transmissions1', 'transmissions2', 'transmissions3'] as const) {
+      expect(counterOf(card), card).toBeNull();
+    }
   });
 });

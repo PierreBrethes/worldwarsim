@@ -38,6 +38,7 @@ const view = {
     nation: 'france',
     defeated: false,
     slots: { total: 3, used: 1 },
+    research: { researched: [], running: null },
     chains: [],
     buildings: [],
     troops: [{}, {}, {}],

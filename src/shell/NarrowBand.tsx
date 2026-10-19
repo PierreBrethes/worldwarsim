@@ -4,6 +4,7 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { CATEGORIES } from '@/domain/indicators';
+import { slotCardsOf } from '@/domain/research';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
@@ -77,7 +78,11 @@ export function NarrowBand({
         {view.mode !== 'blitz' && (
           <span
             className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
-            title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+            title={fr.banner.slotsTitle(
+              me.slots.used,
+              me.slots.total,
+              slotCardsOf(me.research.researched),
+            )}
           >
             <SlotBoxes used={me.slots.used} total={me.slots.total} />
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">

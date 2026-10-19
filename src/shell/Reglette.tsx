@@ -11,6 +11,7 @@ import {
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
+import { slotCardsOf } from '@/domain/research';
 import { currentMinutes, currentStock, type PlayerView, type Resource } from '@/domain/player-view';
 import { announceOf, nextAnnounceIn, onNewView, type Announcement } from '@/domain/reserve-counter';
 import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
@@ -113,7 +114,11 @@ export function Reglette({
       {view.mode !== 'blitz' && (
         <div
           className={`${CELL} gap-[9px] whitespace-nowrap`}
-          title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+          title={fr.banner.slotsTitle(
+            me.slots.used,
+            me.slots.total,
+            slotCardsOf(me.research.researched),
+          )}
         >
           <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
             {fr.resourceBand.slots}
@@ -123,7 +128,11 @@ export function Reglette({
           </span>
           <span
             className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums"
-            aria-label={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+            aria-label={fr.banner.slotsTitle(
+              me.slots.used,
+              me.slots.total,
+              slotCardsOf(me.research.researched),
+            )}
           >
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>

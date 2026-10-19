@@ -78,6 +78,9 @@ const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
   airlift: 'Transport aérien',
   syntheticOil: 'Pétrole synthétique',
   listening: 'Station d’écoute',
+  transmissions1: 'Transmissions I',
+  transmissions2: 'Transmissions II',
+  transmissions3: 'Transmissions III',
 };
 
 /** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
@@ -93,6 +96,9 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   airlift: 'l’avion qui embarque et largue le ravitaillement',
   syntheticOil: 'une ligne d’usine : 3 charbon pour 1 pétrole',
   listening: 'la tuile du relevé à longue portée, qui brûle du charbon',
+  transmissions1: 'un slot de mouvement de plus',
+  transmissions2: 'un slot de mouvement de plus',
+  transmissions3: 'un slot de mouvement de plus',
 };
 
 /** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
@@ -343,7 +349,7 @@ export const fr = {
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
-    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche ; son niveau est le nombre de chantiers en même temps',
+    hq: 'unique et chez soi — plafonne les autres, porte la recherche ; son niveau est le nombre de chantiers en même temps',
     farm: 'exploite des terres',
     mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
@@ -760,10 +766,9 @@ export const fr = {
     ORDER_RUNNING: (d) =>
       `un lot court déjà : ${num(d.produced)} sur ${num(d.ordered)} — annulez-le d’abord`,
     NO_ORDER: () => 'aucun lot en cours',
-    /** Même règle que le plafond de bâtiments : le refus dit son remède **chiffré**. Les deux
-     *  nombres viennent de `movementSlots`, servis par le serveur — jamais recopiés ici. */
+    /** Le remède est la recherche ; le nombre vient de `movementSlots`, servi par le serveur. */
     MOVEMENT_IN_FLIGHT: (d) =>
-      `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
+      `slots de mouvement tous engagés (${num(d.maximum)}) — chaque carte Transmissions en ouvre un`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     NOT_ENOUGH_FUEL: (d) =>
       `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
@@ -1976,8 +1981,8 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
-    slotsTitle: (used: number, total: number) =>
-      `${used} slot${plural(used, '', 's')} engagé${plural(used, '', 's')} sur ${total}`,
+    slotsTitle: (used: number, total: number, cards: ReadonlyArray<ResearchCard> = []) =>
+      `mouvements en vol : ${used} / ${total}. Deux slots au départ, un de plus par carte Transmissions.${cards.map((card) => ` ${RESEARCH_NAMES[card]} : +1.`).join('')}`,
     counter: (label: string, stock: number, cap: number, rate: number) =>
       `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
@@ -3639,8 +3644,8 @@ export const fr = {
     standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
     /** **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout et ce qu'il fait. */
     censusHeader: 'recensement',
-    hqLine: (level: number, maximum: number, slots: number, lanes: number) =>
-      `niveau ${level} sur ${maximum} · ${lanes} chantier${lanes > 1 ? 's' : ''} à la fois · ${slots} slots de mouvement`,
+    hqLine: (level: number, maximum: number, lanes: number) =>
+      `niveau ${level} sur ${maximum} · ${lanes} chantier${lanes > 1 ? 's' : ''} à la fois`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     listeningUnfigured: 'rayon de révélation non chiffré',
     listeningTemporary:
@@ -4601,11 +4606,6 @@ export function countdownLabel(milliseconds: number): string {
   if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
   return `${Math.floor(hours / 24)} j ${String(hours % 24).padStart(2, '0')} h`;
 }
-
-const slotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
-  typeof nextHqLevel === 'number' && typeof nextSlots === 'number'
-    ? ` — un quartier général niveau ${nextHqLevel} les porte à ${nextSlots}`
-    : ' — le quartier général est au maximum';
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '—');
 const num = (value: unknown): string => (typeof value === 'number' ? String(value) : '—');

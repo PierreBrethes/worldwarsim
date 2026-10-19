@@ -130,21 +130,6 @@ async function raise(
   });
 }
 
-/** The headquarters is not raised, it is promoted: one already stands on the capital. */
-async function setHqLevel(t: ReturnType<typeof boot>, seat: Seat, level: number) {
-  const playerId = await playerOf(t, seat);
-  await t.run(async (ctx) => {
-    const hq = (
-      await ctx.db
-        .query('buildings')
-        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-        .collect()
-    ).find((building) => building.key === 'hq');
-    if (!hq) throw new Error('no headquarters');
-    await ctx.db.patch(hq._id, { level });
-  });
-}
-
 async function form(
   t: ReturnType<typeof boot>,
   seat: Seat,
@@ -2319,15 +2304,12 @@ describe('a march goes to a point and the column stays there', () => {
    * **A slot like any other** (ADR 0006): the march is an order, and orders are what the
    * regulator counts. Nothing about "going nowhere in particular" exempts it.
    *
-   * **And the ceiling is the headquarters'**, `1 + niveau` (ADR 0015) — the very number the
-   * banner reads. A placeholder constant used to hold this door at one movement while `view.ts`
-   * promised three: the fan then offered what the server turned down, which is the one fault
-   * ADR 0015 exists to forbid.
+   * **And the ceiling is the research's**: two at the start, one per Transmissions card — the
+   * very number the banner reads.
    */
-  it('spends a slot, and is refused once the headquarters has no more to give', async () => {
+  it('spends a slot, and is refused once the research has no more to give', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await setHqLevel(t, seat, 1);
     const barracks = await raise(t, seat, 'barracks', MARNE);
 
     const send = async (km: number) =>
@@ -2343,21 +2325,14 @@ describe('a march goes to a point and the column stays there', () => {
     const held = await t.query(api.view.playerView, seat);
     expect(held.me.slots).toEqual({ used: 2, total: 2 });
 
-    // The refusal names the level that would buy the next slot, in figures the screen never
-    // recomputes — both out of `movementSlots`, like the building ceiling's own remedy.
     const refused: Record<string, unknown> = await send(400)
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
-    expect(refused).toMatchObject({
-      code: 'MOVEMENT_IN_FLIGHT',
-      maximum: 2,
-      hqLevel: 1,
-      nextHqLevel: 2,
-      nextSlots: 3,
-    });
+    expect(refused).toMatchObject({ code: 'MOVEMENT_IN_FLIGHT', maximum: 2 });
 
-    // The same order goes through the moment the headquarters carries a wider one.
-    await setHqLevel(t, seat, 2);
+    // The same order goes through the moment a Transmissions card is acquired.
+    const playerId = await playerOf(t, seat);
+    await t.run((ctx) => ctx.db.patch(playerId, { researched: ['transmissions1'] }));
     expect((await t.query(api.view.playerView, seat)).me.slots.total).toBe(3);
     await send(100);
   });

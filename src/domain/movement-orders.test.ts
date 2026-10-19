@@ -245,8 +245,9 @@ describe('an empty manifest', () => {
   /** Le plafond ne connaît pas les sortes, il compte les mouvements — et il en reste un même
    *  au joueur dont le quartier général est à terre (ADR 0006). */
   it('would still cost a slot, because the ceiling counts movements and not kinds', () => {
-    expect(movementSlots(0)).toBe(1);
-    expect(movementSlots(2)).toBe(3);
+    expect(movementSlots([])).toBe(2);
+    expect(movementSlots(['armor', 'transmissions1'])).toBe(3);
+    expect(movementSlots(['transmissions1', 'transmissions2', 'transmissions3'])).toBe(5);
   });
 
   /** **Halifax** (P11) : les mouvements maritimes de son teneur ne prennent pas de slot. Est
