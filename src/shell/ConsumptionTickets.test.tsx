@@ -34,6 +34,8 @@ const view = {
     extraction: [],
     chains: [],
     buildings: [],
+    construction: null,
+    constructionQueue: [],
     outposts: [],
     upkeep: {
       troops: 0,

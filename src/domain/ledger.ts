@@ -4,7 +4,7 @@ import {
   UPKEEP_STEPS,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../convex/constants';
-import { YIELD_OF } from './economy';
+import { PRODUCER_OF, YIELD_OF } from './economy';
 import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
 
@@ -188,4 +188,41 @@ export function horizonOf(stock: number, cap: number, netPerHour: number): Horiz
   if (netPerHour < 0) return { kind: 'dry', hours: stock / -netPerHour };
   if (netPerHour > 0 && stock < cap) return { kind: 'full', hours: (cap - stock) / netPerHour };
   return { kind: 'steady' };
+}
+
+/**
+ * **Ce que le ticket dit à côté de ses chiffres** : ce qui arrête une réserve, et ce qui la
+ * répare — on ne perd jamais le joueur (ADR 0028 §1). Le bac plein se dit déjà dans le diagnostic
+ * du ticket (`marksOf`).
+ */
+export type LedgerNote =
+  | { readonly kind: 'starving' }
+  | { readonly kind: 'starvedChain'; readonly building: BuildingKey; readonly missing: ResourceKey }
+  | { readonly kind: 'listeningSilent' }
+  | { readonly kind: 'noProducer'; readonly producer: BuildingKey };
+
+export function ledgerNotesOf(view: PlayerView, resource: ResourceKey): ReadonlyArray<LedgerNote> {
+  const { me } = view;
+  const producer = PRODUCER_OF[resource];
+  /** Rien ne la produit : ni bâti, ni en chantier, ni en file — le manque, pas la panne. */
+  const unproduced =
+    me.resources[resource].ratePerHour <= 0 &&
+    !me.buildings.some((building) => building.key === producer) &&
+    me.construction?.key !== producer &&
+    !me.constructionQueue.some((entry) => entry.key === producer);
+  return [
+    ...(resource === 'food' && me.starving ? [{ kind: 'starving' as const }] : []),
+    ...me.chains.flatMap((chain) =>
+      chain.level > 0 &&
+      chain.state === 'starved' &&
+      chain.missing !== null &&
+      (chain.missing === resource || chain.output === resource)
+        ? [{ kind: 'starvedChain' as const, building: chain.by, missing: chain.missing }]
+        : [],
+    ),
+    ...(resource === 'coal' && me.upkeep.listeningSilent
+      ? [{ kind: 'listeningSilent' as const }]
+      : []),
+    ...(unproduced ? [{ kind: 'noProducer' as const, producer }] : []),
+  ];
 }

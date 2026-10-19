@@ -1,8 +1,16 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { fr } from '@/i18n/fr';
+import { aBuilding, fr, noBuilding } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
-import { horizonOf, ledgerOf, type LedgerRow, type LedgerSection } from '@/domain/ledger';
+import {
+  horizonOf,
+  ledgerNotesOf,
+  ledgerOf,
+  type LedgerNote,
+  type LedgerRow,
+  type LedgerSection,
+} from '@/domain/ledger';
 import { currentStock, type PlayerView } from '@/domain/player-view';
+import { PRODUCER_OF } from '@/domain/economy';
 import { marksOf } from '@/domain/resource-band';
 import { upkeepStep } from '@/domain/upkeep';
 import { ResourcePlate } from '@/emblems/Plate';
@@ -145,6 +153,14 @@ function Ledger({ view, resource }: { view: PlayerView; resource: ResourceKey })
               ? fr.ledger.fullIn(horizon.hours)
               : fr.ledger.steady}
       </p>
+      {ledgerNotesOf(view, resource).map((note) => (
+        <p
+          key={noteKey(note)}
+          className="m-0 px-[2px] pb-[4px] text-[12px] leading-[1.35] font-semibold text-[var(--critical)]"
+        >
+          {noteText(note)}
+        </p>
+      ))}
       {ledger.sections.map((section) => (
         <Section key={section.id} section={section} view={view} />
       ))}
@@ -218,9 +234,34 @@ function Section({ section, view }: { section: LedgerSection; view: PlayerView }
             {fr.ledger.empty[section.id]}
           </p>
         )}
+        {section.id === 'troops' && !empty && view.me.upkeep.unsupplied === 0 && (
+          <p className="m-0 text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
+            {fr.ledger.allSupplied}
+          </p>
+        )}
       </div>
     </details>
   );
+}
+
+const noteKey = (note: LedgerNote): string =>
+  note.kind === 'starvedChain' ? `${note.kind}-${note.building}` : note.kind;
+
+function noteText(note: LedgerNote): string {
+  switch (note.kind) {
+    case 'starving':
+      return fr.ledger.starving;
+    case 'starvedChain':
+      return fr.ledger.starvedChain(
+        fr.buildings[note.building],
+        fr.resources[note.missing],
+        aBuilding(PRODUCER_OF[note.missing]),
+      );
+    case 'listeningSilent':
+      return fr.ledger.listeningSilent;
+    case 'noProducer':
+      return fr.ledger.noProducer(noBuilding(note.producer));
+  }
 }
 
 function rowLabel({ what }: LedgerRow): ReactNode {

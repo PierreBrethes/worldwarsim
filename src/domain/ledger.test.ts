@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RESOURCES } from './ids';
-import { horizonOf, ledgerOf } from './ledger';
+import { horizonOf, ledgerNotesOf, ledgerOf } from './ledger';
 import type { PlayerView } from './player-view';
 import { armyUpkeep } from './upkeep';
 
@@ -123,5 +123,49 @@ describe('the horizon', () => {
     expect(horizonOf(100, 400, 30)).toEqual({ kind: 'full', hours: 10 });
     expect(horizonOf(400, 400, 30)).toEqual({ kind: 'steady' });
     expect(horizonOf(100, 400, 0)).toEqual({ kind: 'steady' });
+  });
+});
+
+describe('what the ticket says beside its figures', () => {
+  const with_ = (me: Record<string, unknown>) =>
+    ({
+      ...view,
+      me: { ...view.me, constructionQueue: [], construction: null, starving: false, ...me },
+    }) as unknown as PlayerView;
+  const quiet = with_({ upkeep: { ...view.me.upkeep, listeningSilent: false } });
+
+  it('says nothing of a reserve that runs', () => {
+    expect(ledgerNotesOf(quiet, 'food')).toEqual([]);
+  });
+
+  it('says a starving nation stops recruiting and loses nothing', () => {
+    expect(ledgerNotesOf(with_({ starving: true, upkeep: quiet.me.upkeep }), 'food')).toEqual([
+      { kind: 'starving' },
+    ]);
+  });
+
+  it('names a chain out of matter in the ticket of what it lacks and of what it makes', () => {
+    const starved = with_({
+      upkeep: quiet.me.upkeep,
+      chains: [{ ...arsenal, state: 'starved', missing: 'coal' }],
+    });
+    const note = { kind: 'starvedChain', building: 'arsenal', missing: 'coal' };
+    expect(ledgerNotesOf(starved, 'coal')).toContainEqual(note);
+    expect(ledgerNotesOf(starved, 'ammunition')).toContainEqual(note);
+    expect(ledgerNotesOf(starved, 'steel')).toEqual([]);
+  });
+
+  it('says the listening posts are silent in the coal ticket', () => {
+    const silent = with_({ upkeep: { ...view.me.upkeep, listeningSilent: true } });
+    expect(ledgerNotesOf(silent, 'coal')).toContainEqual({ kind: 'listeningSilent' });
+  });
+
+  it('says what to build when nothing fills a reserve', () => {
+    expect(ledgerNotesOf(quiet, 'oil')).toEqual([{ kind: 'noProducer', producer: 'oilWell' }]);
+    const queued = with_({
+      upkeep: quiet.me.upkeep,
+      constructionQueue: [{ key: 'oilWell' }],
+    });
+    expect(ledgerNotesOf(queued, 'oil')).toEqual([]);
   });
 });

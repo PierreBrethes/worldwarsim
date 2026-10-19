@@ -2049,6 +2049,16 @@ export const fr = {
       `${region === null ? 'Avant-poste' : `Avant-poste ${ofName(region)}`} · niv. ${level}`,
     station: (region: string | null, outpost: boolean) =>
       `${outpost ? 'Avant-poste d’écoute' : 'Station d’écoute'}${region === null ? '' : ` ${ofName(region)}`}`,
+    /** Ce qui arrête une réserve, et ce qui la répare (`ledgerNotesOf`). */
+    starving:
+      'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
+    starvedChain: (building: string, resource: string, a: string) =>
+      `${building} à sec de ${lowerFirst(resource)} — bâtissez ou élevez ${a}.`,
+    listeningSilent:
+      'Écoutes muettes — plus de charbon. Une mine sur du charbon, ou du charbon livré, les fera entendre de nouveau.',
+    noProducer: (none: string) =>
+      `${none.charAt(0).toUpperCase()}${none.slice(1)} : rien ne remplit cette réserve.`,
+    allSupplied: 'Toutes ravitaillées : sol national ou rayon d’un avant-poste.',
   },
 
   /**
