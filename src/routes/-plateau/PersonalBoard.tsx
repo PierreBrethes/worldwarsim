@@ -295,13 +295,13 @@ export function PersonalBoard({
               narrow
                 ? 'absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2'
                 : // Over the tray, past the five gauges.
-                  'absolute bottom-[calc(100%+9px)] left-[340px]'
+                  'absolute bottom-[calc(100%+9px)] left-[390px]'
             }
           />
         )}
 
         {compact ? (
-          <div className="flex h-[44px] shrink-0 items-center gap-[3px]">
+          <div className="flex h-[56px] shrink-0 items-center gap-[3px]">
             {handle}
             <div className="flex min-w-0 flex-1 gap-[1px]">
               {RESOURCES.map((resource) => (
@@ -324,8 +324,8 @@ export function PersonalBoard({
           </div>
         ) : (
           <div
-            className={`flex h-[36px] shrink-0 items-center gap-[14px] pr-[10px] ${
-              folded ? '' : 'border-b border-[var(--ink)]'
+            className={`flex shrink-0 items-center gap-[14px] pr-[10px] ${
+              folded ? 'h-[54px]' : 'h-[36px] border-b border-[var(--ink)]'
             }`}
           >
             {handle}
@@ -387,7 +387,7 @@ export function PersonalBoard({
             style={narrow ? undefined : { gridTemplateColumns: 'auto 1fr 236px' }}
           >
             {!narrow && (
-              <section className="grid grid-cols-[repeat(5,54px)] items-end gap-[6px] px-3 py-[10px]">
+              <section className="grid grid-cols-[repeat(5,66px)] gap-[6px] px-3 py-[10px]">
                 {RESOURCES.map((resource) => (
                   <GaugeBin key={resource} {...bin(resource)} />
                 ))}
@@ -615,10 +615,10 @@ function binReading({ resource, view, now, shown }: BinProps) {
 const takeTokens = (onTake: BinProps['onTake']) =>
   onTake === null ? {} : { onPointerDown: onTake, 'data-grab': fr.logistics.grab };
 
-/** **Un bac plié** : sa plaque, son nombre, et un filet jusqu'au plafond. */
+/** **Un bac plié**, à la logique du grand : l'icône, la barre, possédé / max, puis le débit. */
 function MiniBin(props: BinProps & { narrow: boolean }) {
   const { resource, register, onTake, narrow } = props;
-  const { stock, share, title } = binReading(props);
+  const { held, stock, share, title } = binReading(props);
   const color = resourceColor(resource, true);
   return (
     <span
@@ -626,35 +626,37 @@ function MiniBin(props: BinProps & { narrow: boolean }) {
       data-bin={resource}
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       {...takeTokens(onTake)}
-      className={`relative inline-flex touch-none items-center gap-[4px] border border-(color:--ink)/35 font-(family-name:--font-mono) text-[12px] leading-none font-semibold select-none ${
+      className={`flex touch-none flex-col items-center justify-center border border-(color:--ink)/35 font-(family-name:--font-mono) leading-none whitespace-nowrap select-none ${
         narrow
-          ? 'min-w-0 flex-1 justify-center gap-[1px] overflow-hidden px-0 pt-[6px] pb-[7px] text-[10px] tracking-[-.04em]'
-          : 'py-[3px] pr-[6px] pl-[4px]'
+          ? 'h-full min-w-0 flex-1 gap-[3px] overflow-hidden px-0 py-[3px] text-[7.5px] tracking-[-.06em]'
+          : 'h-[44px] w-[64px] gap-[3px] py-[3px] text-[9.5px]'
       } ${onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'}`}
     >
       {narrow ? (
         <ResourcePlate resource={resource} height={11} width={11} />
       ) : (
-        <ResourcePlate resource={resource} height={16} />
+        <ResourcePlate resource={resource} height={14} />
       )}
-      {stock}
       <span
         aria-hidden
-        className={`absolute bottom-[2px] ${narrow ? 'inset-x-[3px] h-[3px]' : 'left-0 h-[2px]'}`}
-        style={
-          narrow
-            ? {
-                background: `linear-gradient(90deg, ${color} ${share}%, color-mix(in srgb, var(--ink) 14%, transparent) ${share}%)`,
-              }
-            : { width: `${share}%`, background: color }
-        }
+        className={`block ${narrow ? 'h-[3px] w-[calc(100%-6px)]' : 'h-[3px] w-[calc(100%-10px)]'}`}
+        style={{
+          background: `linear-gradient(90deg, ${color} ${share}%, color-mix(in srgb, var(--ink) 14%, transparent) ${share}%)`,
+        }}
       />
+      <span>
+        <b className="font-semibold">{stock}</b>
+        {narrow ? `/${held.cap}` : ` ${fr.personalBoard.ofCap(held.cap)}`}
+      </span>
+      <span style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}>
+        {fr.personalBoard.rate(held.ratePerHour)}
+      </span>
     </span>
   );
 }
 
-/** **Un bac en thermomètre de souscription** : le plafond en tête, le tube jusqu'à lui, le
- *  nombre exact et le débit net dessous. */
+/** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net, centrés dans la
+ *  hauteur de la bande pour que les marges du haut et du bas soient égales. */
 function GaugeBin(props: BinProps) {
   const { resource, register, onTake } = props;
   const { held, stock, share, title } = binReading(props);
@@ -664,16 +666,14 @@ function GaugeBin(props: BinProps) {
       data-bin={resource}
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       {...takeTokens(onTake)}
-      className={`grid touch-none justify-items-center gap-[3px] py-[3px] select-none ${
+      className={`grid touch-none content-center justify-items-center gap-[7px] select-none ${
         onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/12'
       }`}
     >
-      <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-        {held.cap}
-      </small>
+      <ResourcePlate resource={resource} height={22} />
       <span
         aria-hidden
-        className="relative h-[62px] w-[16px] overflow-hidden rounded-[8px_8px_3px_3px] border-[1.5px] border-[var(--ink)] bg-white/25"
+        className="relative h-[58px] w-[16px] overflow-hidden rounded-[8px_8px_3px_3px] border-[1.5px] border-[var(--ink)] bg-white/25"
         style={{
           backgroundImage:
             'repeating-linear-gradient(to top, transparent 0 14.5px, color-mix(in srgb, var(--ink) 35%, transparent) 14.5px 15.5px)',
@@ -684,10 +684,12 @@ function GaugeBin(props: BinProps) {
           style={{ height: `${share}%`, background: resourceColor(resource, true) }}
         />
       </span>
-      <ResourcePlate resource={resource} height={22} />
-      <b className="font-(family-name:--font-mono) text-[14px] leading-none font-semibold">
-        {stock}
-      </b>
+      <span className="font-(family-name:--font-mono) text-[11px] leading-none whitespace-nowrap">
+        <b className="text-[13px] font-semibold">{stock}</b>{' '}
+        <small className="text-[9.5px] text-[var(--ink-soft)]">
+          {fr.personalBoard.ofCap(held.cap)}
+        </small>
+      </span>
       <small
         className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
         style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
