@@ -523,9 +523,11 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
         continue;
       }
       if (outpost !== null && disabledAt(outpost, now)) {
-        await ctx.scheduler.runAt(outpost.disabledUntil! + 1, internal.constructions.resume, {
-          playerId,
-        });
+        const at = outpost.disabledUntil! + 1;
+        if (outpost.resumeAt !== at) {
+          await ctx.scheduler.runAt(at, internal.constructions.resume, { playerId });
+          await ctx.db.patch(outpost._id, { resumeAt: at });
+        }
         waitingOut.add(head._id);
         continue;
       }

@@ -835,6 +835,8 @@ export default defineSchema({
     standsAt: v.optional(v.number()),
     disabledUntil: v.union(v.number(), v.null()),
     immuneUntil: v.union(v.number(), v.null()),
+    /** L'heure du `resume` déjà planifié pour la fin de la désactivation : un seul rendez-vous. */
+    resumeAt: v.optional(v.number()),
     /** **Le dépôt d'avant-poste** (ADR 0028 §4) : munitions, pétrole et charbon, une seule charge
      *  maximale partagée (`depotCapacity`). Il se capture avec le point. Absent, vide. */
     depot: v.optional(SUPPLY_LOAD),
