@@ -36,6 +36,7 @@ import {
 import {
   buildingCostKey,
   cappedByHq,
+  inService,
   levelOf,
   playerBuildings,
   totalLevelOf,
@@ -576,6 +577,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
         nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
+        ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
       })),
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,

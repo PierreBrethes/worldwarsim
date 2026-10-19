@@ -7,6 +7,7 @@ import {
 import { PRODUCER_OF, YIELD_OF } from './economy';
 import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
+import { cumulative } from './upkeep';
 
 /**
  * **Le registre d'une réserve** (issue #121) : ce qui l'alimente et ce qui la ronge, ventilé depuis
@@ -106,13 +107,14 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
         if (near > 0)
           rows.push({
             what: { kind: 'ranks', from: from + 1, to: from + near, rate, outside: false },
-            perHour: -near * rate,
+            perHour: -(cumulative(from + near) - cumulative(from)),
           });
         if (far > 0) {
           const first = Math.max(from, plain) + 1;
           rows.push({
             what: { kind: 'ranks', from: first, to: first + far - 1, rate, outside: true },
-            perHour: -far * rate * UPKEEP_UNSUPPLIED_MULTIPLIER,
+            perHour:
+              -(cumulative(first + far - 1) - cumulative(first - 1)) * UPKEEP_UNSUPPLIED_MULTIPLIER,
           });
         }
         from = upTo;
@@ -133,7 +135,7 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
     listening: () => {
       const rows: LedgerRow[] = [
         ...me.buildings
-          .filter((building) => building.key === 'listening')
+          .filter((building) => building.key === 'listening' && !building.disabled)
           .map((building) => ({
             what: {
               kind: 'station' as const,

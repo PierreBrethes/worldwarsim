@@ -109,6 +109,22 @@ describe('the ledger', () => {
     expect(sections('coal').find((s) => s.id === 'listening')!.rows).toHaveLength(2);
   });
 
+  it('leaves a raided listening post out of the ticket', () => {
+    const raided = {
+      ...view,
+      me: {
+        ...view.me,
+        buildings: [
+          { key: 'listening', regionId: 'r1', disabled: true },
+          ...view.me.buildings.slice(1),
+        ],
+      },
+    } as unknown as PlayerView;
+    expect(ledgerOf(raided, 'coal').sections.find((s) => s.id === 'listening')!.rows).toHaveLength(
+      1,
+    );
+  });
+
   it('keeps the production out of consumption', () => {
     const coal = ledgerOf(view, 'coal');
     expect(coal.production).toBe(12);

@@ -1,7 +1,7 @@
 import { UPKEEP_STEPS, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../convex/constants';
 
 /** Food an hour for the first `troops` ranks of the army, each rank at its step's rate. */
-const cumulative = (troops: number): number => {
+export const cumulative = (troops: number): number => {
   let total = 0;
   let from = 0;
   for (const { upTo, rate } of UPKEEP_STEPS) {

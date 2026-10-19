@@ -529,6 +529,8 @@ export type Building = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly cappedByHq: boolean;
+  /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
+  readonly disabled?: true;
 };
 
 /**
