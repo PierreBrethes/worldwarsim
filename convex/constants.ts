@@ -741,10 +741,11 @@ export const contactKm = (theatre: Theatre | null): number =>
   theatre === null ? ARRIVAL_RADIUS_KM : theatreKm(theatre, BLITZ_SHARE.contact);
 
 /**
- * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
- * le déclenche pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne.
+ * **Le rechargement** (B19) : après une frappe, ce délai sans attaquer. La riposte ne le déclenche
+ * pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne. En Mondiale, seule
+ * l'artillerie le lit, après une salve, aux mêmes valeurs (4.10) : ses crans bornent le reste.
  *
- * @a-mesurer toute la table ; rien n'a encore joué une soirée
+ * @a-mesurer toute la table, Blitz comme Mondiale ; rien n'a encore joué une soirée
  */
 export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,

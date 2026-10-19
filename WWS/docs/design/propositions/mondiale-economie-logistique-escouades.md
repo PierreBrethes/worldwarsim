@@ -181,7 +181,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
 - **L'artillerie répond à l'escouade monstre, par une salve bornée** : une salve touche jusqu'à
   quatre troupes de l'escouade visée, jamais ses voisines. Un pion seul prend un coup, une grosse
   escouade en prend quatre. Le tir direct frappe une troupe. La Blitz, sans escouade, n'y voit
-  aucune différence.
+  aucune différence. **Après une salve, la pièce recharge aussi en Mondiale** (19/10, lot 4.10),
+  aux valeurs de la Blitz, à mesurer : ses deux crans bornent sa journée, le rechargement
+  empêche de les vider d'un geste.
 - **L'adversaire n'en relève qu'une taille** : petite, moyenne ou grande force (N4), jamais la
   composition.
 - **Au-delà de douze troupes**, l'escouade se dessine en une figurine par rôle, et son fanion porte
