@@ -68,9 +68,9 @@ const view = {
         disabledMinutesLeft: null,
       },
     ],
-    upkeep: { ...army, foodPerHour: food, outpostFoodPerHour: 3, listeningCoalPerHour: 2 },
+    upkeep: { ...army, foodPerHour: food, outpostFoodPerHour: 9, listeningCoalPerHour: 2 },
     resources: {
-      food: { ratePerHour: 32 - food - 3 },
+      food: { ratePerHour: 32 - food - 9 },
       coal: { ratePerHour: 12 - 6 - 2 },
       steel: { ratePerHour: 14 - 6 },
       oil: { ratePerHour: 0 },

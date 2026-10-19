@@ -138,8 +138,8 @@ export const HQ_LEVEL_AT_LAUNCH = 1;
 export const MAX_HQ_LEVEL = 5;
 
 /**
- * **La première projection par mer doit tenir dans la dotation** (333 acier : quartier général
- * au niveau 2, caserne, port, un cargo — `invariants.test.ts`), et c'est la règle de design de la
+ * **La première projection par mer doit tenir dans la dotation** (quartier général au niveau 2, caserne,
+ * port, un cargo : la facture que `invariants.test.ts` calcule, sans chiffre gravé ici), et c'est la règle de design de la
  * décision 66a du 04/09 qui fixe la borne : une île ne doit pas être tarifée au-dessus de son
  * voisin. 400 laisse une marge à cette facture : la mine sur du fer, offerte au socle, rend
  * l'acier sans rien bâtir d'autre.
@@ -153,7 +153,7 @@ export const STARTING_STEEL = 400;
  * No table per nation, deliberately: the asymmetry comes from the map, and eight hand-written
  * values would be eight more numbers to balance for an effect geography gives away free.
  */
-export const STARTING_OIL = 40;
+export const STARTING_OIL = 90;
 
 /**
  * **How many steps of rounds a nation can hand out before its arsenal has to exist**: a step
@@ -207,7 +207,7 @@ export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<
   })),
 ];
 
-export const LEVEL_COST_FACTOR = 1.8;
+export const LEVEL_COST_FACTOR = 2.0;
 
 /**
  * **Monter un avant-poste se tarife comme un bâtiment de projection du même niveau** (précision
@@ -625,9 +625,9 @@ export const DAMAGE_TABLE: DamageTable = {
     armor2: 0.02,
     landTransport: 0.12,
     artillery: 0.15,
-    /** #126, à mesurer : à égalité avec le chasseur, ce qui défait le cycle chasseur > bombardier > escorte */
-    fighter: 0.1,
-    bomber: 0.15,
+    /** Revu le 19/10 (#158), à mesurer : l'escorte est le contre du chasseur (DCA navale), à égalité avec le bombardier : sinon le cycle escorte > chasseur > bombardier revient */
+    fighter: 0.12,
+    bomber: 0.55,
     airTransport: 0.18,
     escort: 0.5,
     cargo: 0.7,
@@ -853,7 +853,7 @@ export const UPKEEP_STEPS: ReadonlyArray<{ readonly upTo: number; readonly rate:
  *
  * @a-mesurer set by eye: a level-one point against the twelve of a farm
  */
-export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 1;
+export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 3;
 
 /**
  * **A listening post burns coal as long as it listens** (ADR 0028 §2, R17): a station, and an

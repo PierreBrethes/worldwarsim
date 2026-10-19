@@ -1487,8 +1487,8 @@ describe('the construction queue', () => {
       regionId: MARNE,
       point: pointIn(MARNE),
     });
-    // A level-3 headquarters builds at 0.85² of the scale (ADR 0031).
-    const minutes = Math.round(buildMinutes('farm', 2) * 0.7225);
+    // A level-3 headquarters builds at 0.8² of the scale (ADR 0031).
+    const minutes = Math.round(buildMinutes('farm', 2) * 0.64);
     vi.advanceTimersByTime(minutes * 60_000 + 1);
     await t.finishInProgressScheduledFunctions();
 
@@ -1552,7 +1552,7 @@ describe('the construction queue', () => {
           .length,
     );
 
-  /** **Un niveau accélère** (ADR 0031) : un QG de niveau 2 bâtit un chantier à la fois, 15 %
+  /** **Un niveau accélère** (ADR 0031) : un QG de niveau 2 bâtit un chantier à la fois, 20 %
    *  plus vite que le barème. */
   it('runs one works at a time, sped up by the level of the headquarters', async () => {
     const t = boot();
@@ -1564,10 +1564,10 @@ describe('the construction queue', () => {
     expect(await datedCount(t)).toBe(1);
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.construction?.minutesLeft).toBeCloseTo(
-      Math.round(buildMinutes('barracks', 1) * 0.85),
+      Math.round(buildMinutes('barracks', 1) * 0.8),
       0,
     );
-    expect(view.buildCatalog.barracks.minutes).toBe(Math.round(buildMinutes('barracks', 1) * 0.85));
+    expect(view.buildCatalog.barracks.minutes).toBe(Math.round(buildMinutes('barracks', 1) * 0.8));
   });
 
   /** **Chantier double** (ADR 0031) : la carte acquise date tout de suite l'entrée qui attendait,
@@ -2298,9 +2298,9 @@ describe('legacy depot compatibility', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.find((b) => b.id === before._id)).toMatchObject({
       key: 'warehouse',
-      nextLevelCost: { steel: 72, coal: 27 },
-      // 54 minutes on the scale, at 0.85² under the level-3 headquarters (ADR 0031).
-      nextLevelMinutes: 39,
+      nextLevelCost: { steel: 80, coal: 30 },
+      // 60 minutes on the scale, at 0.8² under the level-3 headquarters (ADR 0031).
+      nextLevelMinutes: 38,
     });
     const started = await t.mutation(api.constructions.start, {
       ...seat,
@@ -2308,7 +2308,7 @@ describe('legacy depot compatibility', () => {
       regionId: JURA,
       point: pointIn(JURA),
     });
-    expect(started).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
+    expect(started).toMatchObject({ level: 2, cost: { steel: 80, coal: 30 } });
     vi.advanceTimersByTime(54 * 60_000);
     await t.finishInProgressScheduledFunctions();
     const after = await t.run((ctx) => ctx.db.get(before._id));
@@ -2338,8 +2338,8 @@ describe('legacy depot compatibility', () => {
     expect(building).toMatchObject({
       key: 'warehouse',
       level: 1,
-      nextLevelCost: { steel: 72, coal: 27 },
-      nextLevelMinutes: 54,
+      nextLevelCost: { steel: 80, coal: 30 },
+      nextLevelMinutes: 60,
     });
     expect(await t.run((ctx) => ctx.db.get(building.id as Id<'buildings'>))).toMatchObject({
       key: 'warehouse',
@@ -2366,7 +2366,7 @@ describe('legacy depot compatibility', () => {
       regionId: JURA,
       point: pointIn(JURA),
     });
-    expect(raised).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
+    expect(raised).toMatchObject({ level: 2, cost: { steel: 80, coal: 30 } });
     vi.advanceTimersByTime(54 * 60_000);
     await t.finishInProgressScheduledFunctions();
     expect(await t.run((ctx) => ctx.db.get(building.id as Id<'buildings'>))).toMatchObject({
@@ -2423,11 +2423,11 @@ describe('legacy depot compatibility', () => {
     await fill(t, seat, 'coal', 2000);
     const { id } = await legacy(t, seat, 2);
     expect(await t.mutation(api.constructions.cancel, { ...seat, constructionId: id })).toEqual({
-      refunded: { steel: 72, coal: 27 },
+      refunded: { steel: 80, coal: 30 },
     });
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.steel.stock).toBe(2072);
-    expect(view.me.resources.coal.stock).toBe(2027);
+    expect(view.me.resources.steel.stock).toBe(2080);
+    expect(view.me.resources.coal.stock).toBe(2030);
     const running = await legacy(t, seat, 1, Date.now() + 60_000);
     await expect(
       t.mutation(api.constructions.cancel, { ...seat, constructionId: running.id }),

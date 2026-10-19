@@ -55,7 +55,7 @@ describe('the research tree', () => {
 
   it('reads the counters off the table: the escort answers the carrier, the fighter the bomber', () => {
     expect(counterOf('carrier')).toEqual({ card: 'escort' });
-    expect(countersOf('escort')).toEqual(['carrier']);
+    expect(countersOf('escort')).toEqual(['carrier', 'aviation']);
     expect(countersOf('aviation')).toEqual(expect.arrayContaining(['bomber']));
     expect(countersOf('aviation')).not.toContain('armor');
     expect(countersOf('infantryMk2')).toEqual(['armor']);
@@ -72,7 +72,7 @@ describe('the research tree', () => {
 
   it('runs a card faster at a higher centre (ADR 0031)', () => {
     expect(researchMs('infantryMk2', 1)).toBe(8 * 3_600_000);
-    expect(researchMs('infantryMk2', 2)).toBeCloseTo(8 * 3_600_000 * 0.85);
+    expect(researchMs('infantryMk2', 2)).toBeCloseTo(8 * 3_600_000 * 0.8);
   });
 
   it('is not finished within a season', () => {

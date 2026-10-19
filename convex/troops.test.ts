@@ -187,7 +187,7 @@ describe('a queue per projection building', () => {
     expect(queue[1]!.minutesLeft).toBeGreaterThan(queue[0]!.minutesLeft);
   });
 
-  /** **Un niveau accélère** (ADR 0031) : une troupe à la fois, 15 % plus vite au niveau 2. */
+  /** **Un niveau accélère** (ADR 0031) : une troupe à la fois, 20 % plus vite au niveau 2. */
   it('forms one troop at a time, faster with each level of its site', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
@@ -205,7 +205,7 @@ describe('a queue per projection building', () => {
     const workshop = await t.query(api.troops.workshop, seat);
     const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
     expect(queue.map((batch) => batch.started)).toEqual([true, false]);
-    const minutes = Math.round(recruitmentCost('infantry', 1).minutes * 0.85);
+    const minutes = Math.round(recruitmentCost('infantry', 1).minutes * 0.8);
     expect(queue[0]!.minutesLeft).toBeCloseTo(minutes, 0);
     expect(queue[1]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
   });

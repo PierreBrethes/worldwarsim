@@ -8,7 +8,7 @@ import { PROJECTION_BY_DOMAIN } from './troops';
  * retire une part de la durée, les parts se multiplient, un plancher les borne.
  * @a-mesurer l'équilibrage chiffrera la part par niveau
  */
-const LEVEL_SPEEDUP = 0.15;
+const LEVEL_SPEEDUP = 0.2;
 
 /** @a-mesurer la durée ne descend jamais sous cette part de la base */
 const LEVEL_SPEED_FLOOR = 0.4;
