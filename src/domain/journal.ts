@@ -102,6 +102,7 @@ export function journalDispatches(
       resolutionAt: entry.resolutionAt ?? null,
       combat: entry.combat ?? null,
       place: entry.place ?? null,
+      ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
     }));
 }
 
@@ -116,6 +117,7 @@ type Written = {
   readonly resolutionAt?: string | null;
   readonly combat?: CombatReport;
   readonly place?: MapPlace | null;
+  readonly delivered?: SupplyLoad;
 };
 
 /**
@@ -424,6 +426,7 @@ function written(notice: Notice): Written {
           supplyWords(notice.delivered),
           supplyWords(notice.kept),
         ),
+        delivered: notice.delivered,
       };
     case 'researchDone':
       return {

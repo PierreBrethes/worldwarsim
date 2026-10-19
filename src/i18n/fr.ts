@@ -2423,6 +2423,13 @@ export const fr = {
     arrived: 'arrivé',
     /** Un paquet descendu sous parachute (4.8). */
     airdropped: 'largué',
+    /** **Les échanges de la Mondiale**, tamponnés à la réponse du serveur ou à la dépêche. */
+    exchange: {
+      built: 'bâti',
+      raised: 'élevé',
+      delivered: 'livré',
+      full: 'plein',
+    },
     engaged: 'engagé',
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */

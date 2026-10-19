@@ -708,6 +708,16 @@ body {
 
 /* **Une pastille de la récolte** (plateau personnel, ADR 0028 §7) : un disque à la couleur de sa
    ressource, qui ne vit que le temps de son vol (`PersonalBoard.tsx`). */
+.recharge-pulse {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+}
+
 .harvest-pastille {
   position: absolute;
   left: 0;

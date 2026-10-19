@@ -1115,6 +1115,9 @@ export type JournalDispatch = {
   readonly combat: CombatReport | null;
   /** Where it happened, for « Localiser »; `null` for what happened nowhere. */
   readonly place: MapPlace | null;
+  /** **Ce qu'une livraison a versé au dépôt** : les pastilles qui volent du transport le lisent
+   *  ici, jamais dans la phrase. Absent de toute autre dépêche. */
+  readonly delivered?: SupplyLoad;
 };
 
 export type SeasonVerdict = {

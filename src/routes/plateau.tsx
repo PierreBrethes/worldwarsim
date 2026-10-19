@@ -145,6 +145,9 @@ import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, errorMessage, handleError } from '@/data/errors';
 import { notify } from '@/shell/notifications';
+import { binPoint, centreOf, flyFlows, mapPoint, spent as flySpent } from '@/shell/flights';
+import { useMapMotion } from '@/data/mapMotion';
+import { useSupplyFlights } from './-plateau/useSupplyFlights';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
@@ -872,6 +875,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view, column, freeCapacity, trace],
   );
 
+  const motion = useMapMotion();
+  useSupplyFlights(view, motion);
   const foundHere = useMutation(api.movements.foundOutpostHere);
   const startConstruction = useMutation(api.constructions.start);
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
@@ -890,8 +895,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       loadReadingOf(view, carrierId, from, resource, grabbed, Date.now()),
     drop: (_from, carrierId, resource, amount) => {
       setOrderError(null);
+      const carrier = document.querySelector(`[data-carrier-id="${carrierId}"]`);
+      const depot = typeof _from === 'string' ? undefined : _from.outpostId;
       loadTransport({ ...seat, troopId: carrierId as Id<'troops'>, resource, amount }).then(
-        () => notify(fr.logistics.loaded(amount, fr.resources[resource]), 'info'),
+        () => {
+          // Confirmé : les jetons partent du bac, ou du dépôt, vers l'étiquette du transport.
+          const lonLat = view.me.outposts.find((one) => one.id === depot)?.lonLat;
+          const from = depot === undefined ? binPoint(resource) : lonLat && mapPoint(lonLat);
+          if (carrier !== null && from)
+            void flyFlows([{ resource, amount, from, to: centreOf(carrier) }], motion);
+          notify(fr.logistics.loaded(amount, fr.resources[resource]), 'info');
+        },
         (problem: unknown) => handleError(problem, setOrderError),
       );
     },
@@ -1012,7 +1026,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             building: action.buildingKey,
             regionId: action.regionId,
             point: { lon: action.point[0], lat: action.point[1] },
-          }).catch((problem: unknown) => handleError(problem, setOrderError));
+          }).then(
+            () => {
+              const raised = view.me.buildings.find(
+                (one) => one.key === action.buildingKey && one.regionId === action.regionId,
+              );
+              flySpent(raised?.nextLevelCost ?? {}, action.point, motion, 'raised');
+            },
+            (problem: unknown) => handleError(problem, setOrderError),
+          );
           return;
         /**
          * **Raser demande une confirmation, et rien d'autre ne la demande** (demande du 15/09) :
@@ -1185,6 +1207,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
     },
     [
+      motion,
+      view.me.buildings,
       foundHere,
       startConstruction,
       raiseOutpost,
@@ -1374,13 +1398,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
       }).then(
         () => {
+          flySpent(free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat, motion, 'built');
           if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
         },
         (problem: unknown) =>
           handleError(problem, ordered.debt === null ? setOrderError : setMobilizeError),
       );
     },
-    [placing, startConstruction, seat, view, reaches, hold],
+    [placing, startConstruction, seat, view, reaches, hold, motion],
   );
 
   /** **La tuile prise sur le plateau personnel** arme le même fantôme qu'une clé choisie : la

@@ -26,6 +26,7 @@ import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
 import { useClock } from '@/shell/clock';
+import { bindSpots, centreOf, flyPastille, spent as flySpent } from '@/shell/flights';
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
@@ -153,6 +154,18 @@ export function PersonalBoard({
   const observing = view.me.defeated;
 
   const { shown, harvest, ledger, mark, replay } = useHarvest(view, seat, motion, binRefs);
+  // Les échanges payent d'un bac, ou du bandeau quand la bande n'en montre pas.
+  useEffect(
+    () =>
+      bindSpots({
+        bin: (resource) => {
+          const nodes = document.querySelectorAll<HTMLElement>(`[data-bin="${resource}"]`);
+          const seen = [...nodes].map(centreOf).find((at) => onScreen(at));
+          return seen ?? (board.current === null ? null : centreOf(board.current));
+        },
+      }),
+    [],
+  );
   const workshop = useQuery(api.troops.workshop, seat);
   const { held, hint, away, take, chip } = useHand({
     view,
@@ -485,6 +498,10 @@ function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string
 // The stores and their harvest
 // ---------------------------------------------------------------------------------------
 
+/** Le bac dont la jauge est repliée hors de l'écran ne s'y voit pas : le bandeau le remplace. */
+const onScreen = ({ x, y }: { x: number; y: number }) =>
+  x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
+
 const stocksAt = (view: PlayerView, now: number): Record<ResourceKey, number> =>
   Object.fromEntries(
     RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
@@ -543,7 +560,7 @@ function useHarvest(
     let live = true;
     const flights = harvest.deltas.flatMap(({ resource, amount }, rank) =>
       pastilleShares(amount).map((share, index) =>
-        flyPastille(layer, resource, bins.current.get(resource), amount > 0, motion, {
+        flyToBin(layer, resource, bins.current.get(resource), amount > 0, motion, {
           delay: 250 + rank * 120 + index * 160,
         }).then(() => {
           if (!live) return;
@@ -592,11 +609,10 @@ const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number>
 };
 
 /**
- * **Une pastille qui tombe dans son bac, ou qui en sort** : un disque à la couleur de la
- * ressource, qui arrive d'au-dessus de la bande — de la table — en arc. Elle montre que ça coule,
- * jamais combien.
+ * **Une pastille qui tombe dans son bac, ou qui en sort** : elle arrive d'au-dessus de la bande
+ * — de la table — en arc (`flyPastille`, partagé avec les échanges).
  */
-function flyPastille(
+function flyToBin(
   layer: HTMLElement,
   resource: ResourceKey,
   bin: HTMLElement | undefined,
@@ -608,38 +624,8 @@ function flyPastille(
   const box = bin.getBoundingClientRect();
   const atBin = { x: box.left + box.width / 2, y: box.top + Math.min(18, box.height / 2) };
   const table = { x: atBin.x + (Math.random() - 0.5) * 120, y: Math.max(40, box.top - 220) };
-  const pastille = document.createElement('span');
-  pastille.className = 'harvest-pastille';
-  pastille.style.setProperty('--pastille', resourceColor(resource, false));
-  pastille.style.setProperty('--pastille-rim', resourceColor(resource, true));
-  layer.append(pastille);
-  const place = (point: { x: number; y: number }, scale = 1) =>
-    `translate(${point.x - 9}px, ${point.y - 9}px) scale(${scale})`;
   const [from, to] = gain ? [table, atBin] : [atBin, table];
-  const arc = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 40 };
-  const frames =
-    motion === 'reduced'
-      ? [
-          { transform: place(atBin), opacity: 0 },
-          { transform: place(atBin), opacity: 1, offset: 0.4 },
-          { transform: place(atBin), opacity: 0 },
-        ]
-      : [
-          { transform: place(from), opacity: gain ? 1 : 0.9 },
-          { transform: place(arc, 1.25), offset: 0.5 },
-          { transform: place(to), opacity: gain ? 1 : 0 },
-        ];
-  return pastille
-    .animate(frames, {
-      duration: motion === 'reduced' ? 420 : 640,
-      delay,
-      easing: 'cubic-bezier(.35,.1,.3,1)',
-      fill: 'both',
-    })
-    .finished.then(
-      () => pastille.remove(),
-      () => pastille.remove(),
-    );
+  return flyPastille(layer, resource, { from, to, rest: atBin, fade: !gain }, motion, { delay });
 }
 
 type BinProps = {
@@ -673,6 +659,7 @@ function MiniBin(props: BinProps & { narrow: boolean }) {
   return (
     <span
       ref={register}
+      data-bin={resource}
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       {...takeTokens(onTake)}
       className={`relative inline-flex touch-none items-center gap-[4px] border border-(color:--ink)/35 font-(family-name:--font-mono) text-[12px] leading-none font-semibold select-none ${
@@ -710,6 +697,7 @@ function GaugeBin(props: BinProps) {
   return (
     <div
       ref={register}
+      data-bin={resource}
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       {...takeTokens(onTake)}
       className={`grid touch-none justify-items-center gap-[3px] py-[3px] select-none ${
@@ -1689,19 +1677,28 @@ function useHand({
           building: building.key,
           regionId: building.regionId,
           point: { lon: building.point[0], lat: building.point[1] },
-        }).then(() => spent(fr.personalBoard.raised(building.name, building.level + 1)), refused);
+        }).then(() => {
+          flySpent(building.nextLevelCost, building.point, motion, 'raised');
+          spent(fr.personalBoard.raised(building.name, building.level + 1));
+        }, refused);
       } else if (what.kind === 'card') {
         research({ ...seat, card: what.card }).then(
           () => spent(fr.research.started(cardName(what.card))),
           refused,
         );
       } else {
+        const entry = latest.current.workshop?.grid.find((one) => one.role === what.role);
+        const pieceCost =
+          (entry === undefined ? undefined : pieceAt(entry, what.tier))?.costs ?? {};
         recruit({
           ...seat,
           buildingId: building.id as Id<'buildings'>,
           role: what.role,
           tier: what.tier,
-        }).then(() => spent(fr.personalBoard.formed(pieceName(what.role, what.tier))), refused);
+        }).then(() => {
+          flySpent(pieceCost, building.point, motion);
+          spent(fr.personalBoard.formed(pieceName(what.role, what.tier)));
+        }, refused);
       }
     };
 

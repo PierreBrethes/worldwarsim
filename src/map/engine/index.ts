@@ -1782,6 +1782,17 @@ export class MapEngine {
     });
   }
 
+  /** Where a place of the board falls on the page, for what flies to it (`shell/flights`). */
+  screenOf(at: LonLat): { x: number; y: number } | null {
+    const point = this.frame.projectLonLat(at, COUNTRY_THICKNESS).project(this.eye);
+    if (point.z > 1) return null;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: box.left + ((point.x + 1) / 2) * box.width,
+      y: box.top + ((1 - point.y) / 2) * box.height,
+    };
+  }
+
   pieceRect(labelId: string): Rect | null {
     const box =
       this.standing.boxOf(labelId) ??

@@ -36,6 +36,7 @@ import {
 } from '@/domain/player-view';
 import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
+import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
@@ -1133,6 +1134,15 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);
   }, [readyEngine, maquettes]);
+
+  // The exchanges fly to a place of this board, and press their stamps on it.
+  useEffect(() => {
+    if (readyEngine === null) return;
+    return bindSpots({
+      onMap: (at) => readyEngine.screenOf(at),
+      stamp: (burst) => readyEngine.inkBurst(burst),
+    });
+  }, [readyEngine]);
 
   const reachedBefore = useRef<ReadonlyArray<ReachedOutpost> | null>(null);
   useEffect(() => {

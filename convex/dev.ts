@@ -448,6 +448,25 @@ export const logisticsScene = internalMutation({
 });
 
 /**
+ * **Fait arriver sur-le-champ les mouvements d'un joueur**, pour voir une livraison ou une
+ * tournée se dénouer sans attendre la route (#128).
+ *
+ * `npx convex run dev:arriveNow '{"playerId":"…"}'`
+ */
+export const arriveNow = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const moving = await ctx.db
+      .query('movements')
+      .filter((q) => q.eq(q.field('playerId'), playerId))
+      .collect();
+    for (const movement of moving)
+      await ctx.scheduler.runAfter(0, internal.movements.arrive, { movementId: movement._id });
+    return moving.length;
+  },
+});
+
+/**
  * **La scène du largage** (ADR 0028 §4), pour la démo : un aérodrome à la capitale, un avion
  * chargé, un avant-poste de niveau 1 près de Bruxelles — une escale n'est pas requise — au dépôt
  * entamé, et une escouade isolée en Rhénanie, à sec.

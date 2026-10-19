@@ -24,6 +24,7 @@
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
+ * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
  *
  *     npm run demo:mondiale
  *
@@ -45,6 +46,8 @@ const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel'
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
+/** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
+const held = process.argv.includes('--sans-depart');
 const airdrops = process.argv.includes('--largage');
 const research = process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
@@ -240,7 +243,7 @@ if (!bare) {
   if (points && scene.a !== null && scene.b !== null)
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
-  if (tours && scene.a !== null) {
+  if (tours && !held && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const outpostIn = (lon) =>
       me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - lon) < 0.05);
