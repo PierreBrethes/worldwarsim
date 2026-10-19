@@ -50,6 +50,8 @@ const PLACE: Readonly<Record<ResearchCard, readonly [column: number, row: number
 
 const HEADS: ReadonlyArray<{
   readonly label: string;
+  /** Le nom qui tient au-dessus d'une carte, à côté de sa durée. */
+  readonly short?: string;
   readonly from: number;
   readonly span: number;
 }> = [
@@ -57,7 +59,7 @@ const HEADS: ReadonlyArray<{
   { label: fr.research.branches.sea, from: 2, span: 1 },
   { label: fr.research.branches.air, from: 3, span: 2 },
   { label: fr.research.branches.industry, from: 5, span: 1 },
-  { label: fr.research.transmissions, from: 6, span: 1 },
+  { label: fr.research.transmissions, short: fr.research.transmissionsShort, from: 6, span: 1 },
 ];
 
 const headOf = (card: ResearchCard) =>
@@ -520,7 +522,7 @@ function ResearchCardView({
     >
       <span className="flex items-baseline justify-between gap-1">
         <span className="min-w-0 truncate text-[8.5px] leading-none font-semibold tracking-[.08em] text-[var(--ink-soft)] uppercase">
-          {headOf(card).label}
+          {headOf(card).short ?? headOf(card).label}
         </span>
         <span className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap text-[var(--ink-soft)]">
           {durationOf(running?.totalMs ?? researchMs(card, level ?? 1))}

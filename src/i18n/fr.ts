@@ -985,6 +985,7 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    level: (level: number) => `niveau ${level}`,
     /** **Ce qu'un niveau rend** (ADR 0031), sur la fiche et sur l'aperçu d'élévation :
      *  « niveau 3 : −28 % ». Le premier niveau dure ce que dit le barème. */
     levelSpeed: (level: number) =>
@@ -3500,8 +3501,9 @@ export const fr = {
     branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
     /** La colonne des cartes qui ouvrent un slot, à part de l'industrie. */
     transmissions: 'transmissions',
+    transmissionsShort: 'transm.',
     benchesHeader: 'le poste du centre',
-    bench: 'en cours',
+    bench: 'poste 1',
     waitingRank: (rank: number) => `file · carte ${rank}`,
     inQueue: (rank: number) => `en file · carte ${rank}`,
     expectedEnd: (time: string) => `fin prévue ${time}`,

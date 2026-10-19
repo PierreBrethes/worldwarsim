@@ -11,6 +11,7 @@ import {
   rendezvousLabel,
   countdownLabel,
 } from '@/i18n/fr';
+import { typo } from '@/i18n/typo';
 import type { PlayableRegion } from '@/domain/ids';
 import { frontPageOrder } from '@/domain/front-page';
 import { normalizeGameCode } from '@/domain/off-season';
@@ -138,7 +139,7 @@ function ConnectedHome() {
             {lead === undefined ? (
               <section className="lead" aria-labelledby="t-lead">
                 <div>
-                  <h1 id="t-lead">{fr.home.emptyHeadline}</h1>
+                  <h1 id="t-lead">{typo(fr.home.emptyHeadline)}</h1>
                   <p className="italic stand">{fr.home.emptyStand}</p>
                 </div>
               </section>
@@ -150,7 +151,7 @@ function ConnectedHome() {
               <div className="ad ad-found">
                 <span className="corner">{fr.home.adCorner}</span>
                 <div className="eyebrow">{fr.home.foundEyebrow}</div>
-                <h3>{fr.home.foundTitle}</h3>
+                <h3>{typo(fr.home.foundTitle)}</h3>
                 <p className="note">{fr.home.foundNote}</p>
                 <Link className="btn primary wide" to="/fonder">
                   {fr.home.foundSubmit}
@@ -158,7 +159,7 @@ function ConnectedHome() {
               </div>
               <form className="ad code" onSubmit={openCode}>
                 <div className="eyebrow">{fr.home.joinEyebrow}</div>
-                <h3>{fr.home.joinTitle}</h3>
+                <h3>{typo(fr.home.joinTitle)}</h3>
                 <label className="sr" htmlFor="code">
                   {fr.home.codeLabel}
                 </label>
@@ -269,7 +270,7 @@ function Lead({ seat, now, onResume }: { seat: Seat; now: number; onResume: () =
           <span className="chip solid">{fr.home.onTheFront}</span>
           <span className="eyebrow">{story.kicker}</span>
         </div>
-        <h1 id="t-lead">{story.headline}</h1>
+        <h1 id="t-lead">{typo(story.headline)}</h1>
         {story.stand && <p className="italic stand">{story.stand}</p>}
         {blitzLobby && seat.orders.scheduledAt !== null && (
           <div className="countbox" role="group" aria-label={fr.table.rendezvous}>
@@ -383,7 +384,7 @@ function Story({
         <FlagChip nation={seat.nation} width={22} />
         <span className="eyebrow">{story.kicker}</span>
       </span>
-      <h2>{story.headline}</h2>
+      <h2>{typo(story.headline)}</h2>
       {story.stand && <span className="meta">{story.stand}</span>}
       <button type="button" className="go btn small" onClick={onResume}>
         {story.action}
