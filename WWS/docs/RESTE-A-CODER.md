@@ -72,8 +72,13 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       slot, rappelée quand on veut ; un ravitaillement se relève et s'intercepte comme un
       mouvement, un transport détruit laisse sa charge en caisse, une déroute finit la tournée.
       Démo : `npm run demo:mondiale -- --livraison` ou `--tournee`.
-   8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
-      et y atterrit, paquet sous parachute.
+   8. ~~**Larguer**~~ : faite le 19/10. L'avion chargé, lâché sur un de ses avant-postes (escale
+      ou non) ou sur une de ses escouades isolées (`logistics.airdrop`, `dropRefusalOf`), paie le
+      plein de l'aller-retour, lâche un paquet sous parachute sans se poser et rentre seul ; une
+      escouade reprend coups et plein dans la limite de ce que chaque troupe porte, le reste
+      reste à bord. Un largage se relève et s'intercepte comme un ravitaillement. Le fil monte
+      de la piste, reste en l'air sur la cible et se pose au retour ; tampon « largué » et
+      dépêche. Démo : `npm run demo:mondiale -- --largage`.
    9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
       verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
       recherche, pose sur le QG, carte qui avance.
