@@ -424,12 +424,12 @@ function written(notice: Notice): Written {
           supplyWords(notice.kept),
         ),
       };
-    case 'supplyDropped':
+    case 'airdropped':
       return {
         at: notice.at,
         severity: 'notable',
-        kind: 'drop',
-        text: said.supplyDropped(
+        kind: 'airdrop',
+        text: said.airdropped(
           countryLabel(notice.hostCountry),
           supplyWords(notice.delivered),
           supplyWords(notice.kept),

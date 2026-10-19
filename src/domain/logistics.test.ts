@@ -6,8 +6,8 @@ import {
   grabbedAfter,
   deliverRefusalOf,
   deliveryOf,
-  dropOnSquad,
-  dropRefusalOf,
+  airdropOnSquad,
+  airdropRefusalOf,
   loadRefusalOf,
   takeAcross,
   missingOf,
@@ -211,32 +211,43 @@ describe('dropping a packet by air', () => {
   });
 
   it('drops on an outpost with no airstrip, until its depot is full', () => {
-    expect(dropRefusalOf([plane()], depot())).toBeNull();
-    expect(dropRefusalOf([plane()], depot({ depot: load(400) }))).toEqual({
+    expect(airdropRefusalOf([plane()], depot())).toBeNull();
+    expect(airdropRefusalOf([plane()], depot({ depot: load(400) }))).toEqual({
       code: 'DEPOT_FULL',
       capacity: 400,
     });
-    expect(dropRefusalOf([plane()], depot({ standing: false }))?.code).toBe('DEPOT_NOT_STANDING');
+    expect(airdropRefusalOf([plane()], depot({ standing: false }))?.code).toBe(
+      'DEPOT_NOT_STANDING',
+    );
   });
 
   it('is the plane that drops, and loaded', () => {
-    expect(dropRefusalOf([{ role: 'landTransport', load: load(50) }], depot())?.code).toBe(
-      'DROP_BY_AIR_ONLY',
+    expect(airdropRefusalOf([{ role: 'landTransport', load: load(50) }], depot())?.code).toBe(
+      'AIRDROP_AIR_ONLY',
     );
-    expect(dropRefusalOf([plane(load())], depot())?.code).toBe('NOTHING_TO_DELIVER');
+    expect(airdropRefusalOf([plane(load())], depot())?.code).toBe('NOTHING_TO_DELIVER');
+  });
+
+  it('refuses a column that is not planes alone, loaded or not', () => {
+    const empty = { role: 'landTransport' as const, load: load() };
+    expect(airdropRefusalOf([plane(), empty], depot())?.code).toBe('AIRDROP_AIR_ONLY');
+    expect(airdropRefusalOf([plane(), { role: 'fighter' as const }], depot())?.code).toBe(
+      'AIRDROP_AIR_ONLY',
+    );
+    expect(airdropRefusalOf([plane(), plane()], depot())).toBeNull();
   });
 
   it('drops on a lone squad, never on an anchored one nor a full one', () => {
-    expect(dropRefusalOf([plane()], squad({ role: 'infantry' }))).toBeNull();
-    expect(dropRefusalOf([plane()], squad({ role: 'infantry', anchored: true }))?.code).toBe(
+    expect(airdropRefusalOf([plane()], squad({ role: 'infantry' }))).toBeNull();
+    expect(airdropRefusalOf([plane()], squad({ role: 'infantry', anchored: true }))?.code).toBe(
       'SQUAD_ANCHORED',
     );
-    expect(dropRefusalOf([plane()], squad())?.code).toBe('NO_SQUAD_THERE');
+    expect(airdropRefusalOf([plane()], squad())?.code).toBe('NO_SQUAD_THERE');
     // rifles use ammunition only: a packet of oil alone has nothing for them
-    expect(dropRefusalOf([plane(load(0, 50))], squad({ role: 'infantry' }))?.code).toBe(
+    expect(airdropRefusalOf([plane(load(0, 50))], squad({ role: 'infantry' }))?.code).toBe(
       'SQUAD_SUPPLIED',
     );
-    expect(dropRefusalOf([plane()], squad({ role: 'infantry', rounds: 3 }))?.code).toBe(
+    expect(airdropRefusalOf([plane()], squad({ role: 'infantry', rounds: 3 }))?.code).toBe(
       'SQUAD_SUPPLIED',
     );
   });
@@ -246,7 +257,7 @@ describe('dropping a packet by air', () => {
       { id: 'a', role: 'infantry' as const, rounds: 1 },
       { id: 'b', role: 'armor' as const, rounds: 0, fuel: 1 },
     ];
-    const { taken, supplies } = dropOnSquad(load(40, 100), troops);
+    const { taken, supplies } = airdropOnSquad(load(40, 100), troops);
     // a: 2 rounds = 20 ammunition ; b: 2 rounds = 20 -> 40 ; fuel 2 steps = 20 oil
     expect(taken).toEqual(load(40, 20));
     expect(supplies.get('a')).toEqual({ rounds: 3, fuel: 0 });

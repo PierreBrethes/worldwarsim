@@ -570,6 +570,33 @@ describe('in aim', () => {
       ).toEqual(['deliver', 'airdrop', 'aim']);
     });
 
+    it('offers nothing when the march itself is illegal, nor in a Blitz, and says why on a mixed column', () => {
+      const keys = (compass: ReturnType<typeof compassOf>) => compass?.actions.map((a) => a.key);
+      const grounded = { ...flying, departureBuildings: new Set<BuildingKey>(['barracks']) };
+      expect(keys(compassOf(outpost, withTroops(1), grounded, null, 0, ['P1']))).not.toContain(
+        'airdrop',
+      );
+      // a Blitz serves no load: the plane carries nothing to drop
+      const unloaded = { ...plane, load: undefined };
+      const blitz = withTroops(1);
+      (blitz.me.troops as unknown as object[])[0] = unloaded;
+      expect(keys(compassOf(outpost, blitz, flying, null, 0, ['P1']))).not.toContain('airdrop');
+      const truck = { id: 'T1', role: 'landTransport', tier: 1, stationedAt: plane.stationedAt };
+      const mixed = withTroops(1, truck);
+      expect(
+        keys(
+          compassOf(
+            outpost,
+            mixed,
+            { ...flying, roles: ['airTransport', 'landTransport'] },
+            null,
+            0,
+            ['P1', 'T1'],
+          ),
+        ),
+      ).not.toContain('airdrop');
+    });
+
     it('drops on a lone squad that lacks rounds, and says why not on an anchored or a full one', () => {
       const far = { kind: 'building', buildingId: 'AF' } as const;
       const at = (...troops: object[]) =>

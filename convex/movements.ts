@@ -69,7 +69,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
-import { arriveToDeliver, arriveToDrop } from './logistics';
+import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
@@ -601,8 +601,10 @@ export const preview = query({
     troopIds: v.array(v.id('troops')),
     target: ATTACK_TARGET,
     type: MOVEMENT_TYPE,
+    /** **Un largage** (ADR 0028 §4) : le plein de l'aller-retour, dit avant le lâcher. */
+    roundTrip: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target, type }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip }) => {
     const { player } = await playerOf(ctx, token, seasonId);
     if (type === 'decoy' || namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
@@ -640,7 +642,7 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: fuelFacts(troops, route, column),
+      fuel: fuelFacts(troops, route, column, roundTrip === true),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -702,9 +704,15 @@ const fuelFacts = (
   troops: ReadonlyArray<Doc<'troops'>>,
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
+  roundTrip = false,
 ) => {
-  const { steps, short, km } = fuelBill(troops, route.distanceUnits, column.blitz !== undefined);
-  return { steps, short, km };
+  const { steps, short, km } = fuelBill(
+    troops,
+    route.distanceUnits,
+    column.blitz !== undefined,
+    roundTrip,
+  );
+  return { steps, short, km, roundTrip };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -951,8 +959,8 @@ export const arrive = internalMutation({
     }
 
     /** **Un largage lâche son paquet et rentre sans se poser** (ADR 0028 §4). */
-    if (movement.drop?.leg === 'out') {
-      await arriveToDrop(ctx, movement, now);
+    if (movement.airdrop?.leg === 'out') {
+      await arriveToAirdrop(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }

@@ -1064,46 +1064,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             carrierId: action.carrierId as Id<'troops'>,
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
-        /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. */
-        case 'deliver': {
-          if (column === null || inFlight.current) return;
-          inFlight.current = true;
-          setOrderError(null);
-          deliver({
-            ...seat,
-            origin: wireOrigin(column.station),
-            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            outpostId: action.outpostId as Id<'outposts'>,
-          }).then(
-            (filed) => {
-              settle();
-              afterSent({ ...filed, destination: action.destination }, action.label);
-            },
-            (problem: unknown) => {
-              settle();
-              handleError(problem, setOrderError);
-              dropHand();
-            },
-          );
-          return;
-        }
-        /** **Larguer** (ADR 0028 §4) : l'avion part au lâcher, paie l'aller-retour et rentre seul. */
+        /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. **Larguer** :
+         *  l'avion part de même, paie l'aller-retour et rentre seul. */
+        case 'deliver':
         case 'airdrop': {
           if (column === null || inFlight.current) return;
           inFlight.current = true;
           setOrderError(null);
-          airdrop({
+          const order = {
             ...seat,
             origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            target:
-              action.target.kind === 'outpost'
-                ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
-                : {
-                    kind: 'squad',
-                    point: { lon: action.target.point[0], lat: action.target.point[1] },
-                  },
-          }).then(
+          };
+          (action.key === 'deliver'
+            ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
+            : airdrop({
+                ...order,
+                target:
+                  action.target.kind === 'outpost'
+                    ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
+                    : {
+                        kind: 'squad',
+                        point: { lon: action.target.point[0], lat: action.target.point[1] },
+                      },
+              })
+          ).then(
             (filed) => {
               settle();
               afterSent({ ...filed, destination: action.destination }, action.label);
@@ -2401,7 +2386,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     api.movements.preview,
     dispatch === null || aimed === null || mission?.kind !== 'march'
       ? 'skip'
-      : { ...dispatch, target: wireTarget(aimed.aim), type: aimed.type },
+      : {
+          ...dispatch,
+          target: wireTarget(aimed.aim),
+          type: aimed.type,
+          ...(mission.roundTrip === true ? { roundTrip: true } : {}),
+        },
   );
   const plunderPreview = useQuery(
     api.movements.previewPlunder,
@@ -3240,6 +3230,17 @@ function choiceOf(action: OrderAction): OrderChoice {
             ? { kind: 'march' }
             : { kind: 'march', boardsOn: action.boardsOn },
       };
+    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
+     *  paie l'aller-retour, et l'aperçu le dit. */
+    case 'deliver':
+    case 'tour':
+    case 'airdrop':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: action.key === 'airdrop' ? { kind: 'march', roundTrip: true } : { kind: 'march' },
+      };
     case 'plunder':
       return {
         ...said,
@@ -3274,8 +3275,19 @@ function choiceOf(action: OrderAction): OrderChoice {
 /** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
 function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
   if (fuel.short !== null)
-    return [{ text: fr.errors.NOT_ENOUGH_FUEL({ ...fuel.short, km: fuel.km }), alarm: true }];
-  return fuel.steps > 0 ? [{ text: fr.supplies.route(fuel.steps), alarm: false }] : [];
+    return [
+      {
+        text: fr.errors.NOT_ENOUGH_FUEL({
+          ...fuel.short,
+          km: fuel.km,
+          roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
+        }),
+        alarm: true,
+      },
+    ];
+  return fuel.steps > 0
+    ? [{ text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip), alarm: false }]
+    : [];
 }
 
 function armedColumn(

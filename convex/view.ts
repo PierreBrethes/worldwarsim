@@ -903,7 +903,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           cargo: cargoView(movementCargoLoads(movement), capacityOf(carriers)),
           mission,
           /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
-          ...(movement.drop === undefined ? {} : { drop: movement.drop.leg }),
+          ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {
             const troop = troops.find((candidate) => candidate._id === troopId);
             return troop ? [troop.role] : [];

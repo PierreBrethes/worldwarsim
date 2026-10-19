@@ -7,6 +7,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { nominalStrength } from './constants';
 import { pointOfRegion } from './regions';
+import { resolveContact } from './combat';
 import schema from './schema';
 import { modules } from './test.setup';
 import {
@@ -777,19 +778,19 @@ describe('dropping a packet by air', () => {
     const billed = (await get(t, plane))!.fuel ?? 3;
     expect(billed).toBeLessThan(3);
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
-    expect((await flying(t))[0]!.drop).toMatchObject({ leg: 'out', outpostId: outpost });
+    expect((await flying(t))[0]!.airdrop).toMatchObject({ leg: 'out', outpostId: outpost });
 
     await arriveNext(t);
     expect(await depotOf(t, outpost)).toEqual({ ammunition: 400, oil: 0, coal: 0 });
     const [back] = await flying(t);
-    expect(back).toMatchObject({ type: 'return', drop: { leg: 'back' } });
+    expect(back).toMatchObject({ type: 'return', airdrop: { leg: 'back' } });
     expect((await get(t, plane))!.load).toEqual({ ammunition: 30, oil: 40, coal: 0 });
     expect((await get(t, plane))!.stationedAt).not.toBe(outpost);
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
     const notices = await t.run(async (ctx) =>
       ctx.db
         .query('notices')
-        .filter((q) => q.eq(q.field('kind'), 'supplyDropped'))
+        .filter((q) => q.eq(q.field('kind'), 'airdropped'))
         .collect(),
     );
     expect(notices).toMatchObject([
@@ -843,7 +844,7 @@ describe('dropping a packet by air', () => {
     const far = await plant(t, seat, PLOIESTI, 1, { hostCountry: 'ROU', regionId: PRAHOVA });
 
     await expect(dropping(truck, { kind: 'outpost', outpostId: essen })).rejects.toThrow(
-      'DROP_BY_AIR_ONLY',
+      'AIRDROP_AIR_ONLY',
     );
     await expect(dropping(plane, { kind: 'outpost', outpostId: far })).rejects.toThrow(
       'NOT_ENOUGH_FUEL',
@@ -903,7 +904,146 @@ describe('dropping a packet by air', () => {
     const { detected } = await t.query(api.view.playerView, guest);
     expect(detected).toHaveLength(1);
     const served = JSON.stringify(detected);
-    for (const secret of ['load', 'drop', 'outpostId', 'ammunition'])
+    for (const secret of ['load', 'airdrop', 'outpostId', 'ammunition'])
       expect(served).not.toContain(secret);
+  });
+});
+
+const ROME: LonLat = [12.5, 41.9];
+
+describe('an airdrop, checked before and after', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function line(t: Bench, seat: Seat, fuel?: number) {
+    const airfield = await raise(t, seat, 'airfield', MARNE);
+    const plane = await form(t, seat, 'airTransport', airfield);
+    await t.run(async (ctx) =>
+      ctx.db.patch(plane, {
+        load: { ammunition: 80, oil: 0, coal: 0 },
+        ...(fuel === undefined ? {} : { fuel }),
+      }),
+    );
+    const outpost = await plant(t, seat, ROME, 1, GERMANY);
+    return { airfield, plane, outpost };
+  }
+
+  it('says the round trip before the drop: a target the plane reaches one way, not there and back', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await line(t, seat);
+    const ask = (roundTrip?: boolean) =>
+      t.query(api.movements.preview, {
+        ...seat,
+        origin: { kind: 'building', buildingId: airfield },
+        troopIds: [plane],
+        target: { kind: 'outpost', outpostId: outpost },
+        type: 'march',
+        ...(roundTrip === undefined ? {} : { roundTrip }),
+      });
+
+    expect((await ask())!.fuel.short).toBeNull();
+    const back = (await ask(true))!.fuel;
+    expect(back.short).toMatchObject({ held: 3 });
+    expect(back.roundTrip).toBe(true);
+    await expect(
+      t.mutation(api.logistics.airdrop, {
+        ...seat,
+        origin: { kind: 'building', buildingId: airfield },
+        troopIds: [plane],
+        target: { kind: 'outpost', outpostId: outpost },
+      }),
+    ).rejects.toThrow('NOT_ENOUGH_FUEL');
+  });
+
+  it('refuses a column that holds anything but planes, an empty truck included', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await line(t, seat);
+    const truck = await form(t, seat, 'landTransport', airfield);
+    await expect(
+      t.mutation(api.logistics.airdrop, {
+        ...seat,
+        origin: { kind: 'building', buildingId: airfield },
+        troopIds: [plane, truck],
+        target: { kind: 'outpost', outpostId: outpost },
+      }),
+    ).rejects.toThrow('AIRDROP_AIR_ONLY');
+  });
+
+  it('never serves an enemy troop as anchored, nor an enemy flight as an airdrop', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await line(t, seat);
+    const mine = await t.query(api.view.playerView, seat);
+    expect(mine.me.troops.some((troop) => 'anchored' in troop)).toBe(true);
+    const theirs = await t.query(api.view.playerView, guest);
+    expect(JSON.stringify(theirs)).not.toContain('"anchored"');
+    expect(JSON.stringify(theirs)).not.toContain('"airdrop"');
+  });
+
+  it('is refused in a Blitz', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await line(t, seat);
+    await t.run(async (ctx) => {
+      const season = (await seatIn(ctx, seat)).seasonId;
+      await ctx.db.patch(season, { mode: 'blitz' });
+    });
+    await expect(
+      t.mutation(api.logistics.airdrop, {
+        ...seat,
+        origin: { kind: 'building', buildingId: airfield },
+        troopIds: [plane],
+        target: { kind: 'outpost', outpostId: outpost },
+      }),
+    ).rejects.toThrow('NOT_IN_BLITZ');
+  });
+
+  /** Un avion abattu en largage laisse sa charge en une seule caisse, à terre seulement. */
+  it('leaves one crate when the loaded plane is shot down ashore, and none over the sea', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { airfield, plane } = await line(t, seat);
+    await t.run(async (ctx) => ctx.db.patch(plane, { currentStrength: 1 }));
+    const barracks = await raise(t, guest, 'barracks', PRAHOVA);
+    const rifles = [
+      await form(t, guest, 'fighter', barracks),
+      await form(t, guest, 'fighter', barracks),
+    ];
+    const owner = await playerOf(t, seat);
+    const finder = await playerOf(t, guest);
+    const fight = (flying: Id<'troops'>, point: { lon: number; lat: number }) =>
+      t.run(async (ctx) => {
+        const seasonId = (await ctx.db.get(owner))!.seasonId;
+        const troops = async (ids: Array<Id<'troops'>>) =>
+          (await Promise.all(ids.map((id) => ctx.db.get(id)))).filter((one) => one !== null);
+        await resolveContact(ctx, {
+          seasonId,
+          attacker: { playerId: finder, troops: await troops(rifles) },
+          defender: { playerId: owner, troops: await troops([flying]) },
+          cause: 'interception',
+          point,
+          hostCountry: '',
+          outpostId: null,
+          disabledUntil: null,
+          at: Date.now(),
+        });
+        return (await ctx.db.query('lootCrates').collect()).length;
+      });
+
+    const second = await form(t, seat, 'airTransport', airfield);
+    await t.run(async (ctx) =>
+      ctx.db.patch(second, { currentStrength: 1, load: { ammunition: 40, oil: 10, coal: 0 } }),
+    );
+
+    expect(await fight(plane, { lon: -30, lat: 40 })).toBe(0);
+    expect(await fight(second, { lon: ESSEN[0], lat: ESSEN[1] })).toBe(1);
+    expect(await get(t, second)).toBeNull();
+    const [crate] = await t.run(async (ctx) => ctx.db.query('lootCrates').collect());
+    expect(crate?.loot).toMatchObject({ ammunition: 40, oil: 10 });
   });
 });

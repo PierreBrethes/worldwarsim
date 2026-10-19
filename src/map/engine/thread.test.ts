@@ -267,9 +267,9 @@ describe('the air arc', () => {
     const route = directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
     const surface = buildThread(route, frame, colors, thickness, opacities).legs[0]!.strands[0]!
       .vertices[0]!.y;
-    const heights = (drop?: 'out' | 'back') => {
+    const heights = (airdrop?: 'out' | 'back') => {
       const vertices = buildThread(route, frame, colors, thickness, opacities, {
-        ...(drop === undefined ? {} : { drop }),
+        ...(airdrop === undefined ? {} : { airdrop }),
       }).legs[0]!.strands[0]!.vertices;
       return [vertices[0]!.y - surface, vertices.at(-1)!.y - surface] as const;
     };

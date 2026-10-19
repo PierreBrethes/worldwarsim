@@ -628,13 +628,10 @@ export default defineSchema({
     /** **Un largage** (ADR 0028 §4) : à l'arrivée, l'avion lâche son paquet sur cet avant-poste ou
      *  sur l'escouade isolée de ce point, sans se poser, puis rentre ; son retour porte `back`,
      *  pour que le fil le dessine en vol. */
-    drop: v.optional(
+    airdrop: v.optional(
       v.union(
-        v.object({
-          leg: v.literal('out'),
-          outpostId: v.optional(v.id('outposts')),
-          point: v.optional(LON_LAT),
-        }),
+        v.object({ leg: v.literal('out'), outpostId: v.id('outposts') }),
+        v.object({ leg: v.literal('out'), point: LON_LAT }),
         v.object({ leg: v.literal('back') }),
       ),
     ),

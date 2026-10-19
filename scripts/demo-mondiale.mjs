@@ -31,7 +31,7 @@ const bare = process.argv.includes('--nu');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
-const drops = process.argv.includes('--largage');
+const airdrops = process.argv.includes('--largage');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -132,8 +132,8 @@ if (!bare) {
   if (logistics && scene.a !== null)
     cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a, fullDepot: tours })]);
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
-  if (drops && scene.a !== null)
-    cli(['run', 'dev:dropScene', JSON.stringify({ playerId: scene.a })]);
+  if (airdrops && scene.a !== null)
+    cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });

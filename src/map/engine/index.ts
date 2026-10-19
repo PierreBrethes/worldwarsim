@@ -696,7 +696,7 @@ export class MapEngine {
       );
       this.ink.traceReach(shot, performance.now());
     }
-    if (burst.kind === 'dropped') this.parachutes.drop(burst.at, performance.now());
+    if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
     this.ink.burst(burst, performance.now());
   }
 

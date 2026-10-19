@@ -451,7 +451,7 @@ export const NOTICE = v.union(
    *  `squad` dit si une escouade l'a reçu ; absente, c'est un dépôt. */
   v.object({
     ...NOTICE_HEAD,
-    kind: v.literal('supplyDropped'),
+    kind: v.literal('airdropped'),
     hostCountry: v.string(),
     point: v.optional(LON_LAT),
     delivered: SUPPLY_LOAD,

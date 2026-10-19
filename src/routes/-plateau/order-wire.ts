@@ -23,7 +23,7 @@ export type Previewed =
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
 type PreviewMission =
   /** `boardsOn` : lâchée sur un transport, la colonne y monte en arrivant (15/10). */
-  | { readonly kind: 'march'; readonly boardsOn?: string }
+  | { readonly kind: 'march'; readonly boardsOn?: string; readonly roundTrip?: true }
   | { readonly kind: 'plunder'; readonly buildingId: string }
   | {
       readonly kind: 'capture';

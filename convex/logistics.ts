@@ -1,14 +1,16 @@
 import { v } from 'convex/values';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type MutationCtx, type QueryCtx } from './_generated/server';
 import {
   addLoads,
   deliverRefusalOf,
   deliveryOf,
-  dropOnSquad,
-  dropRefusalOf,
+  airdropOnSquad,
+  airdropRefusalOf,
   emptyLoad,
   carriersAmong,
+  hullsAmong,
+  squadTarget,
   takeAcross,
   loadRefusalOf,
   type Busy,
@@ -125,6 +127,13 @@ export const depotOf = (outpost: Doc<'outposts'>, now: number) => ({
   depot: outpost.depot ?? emptyLoad(),
   capacity: depotCapacity(outpost.level),
 });
+
+/** **Les coques d'une colonne** : toute troupe qui n'est pas à bord d'une autre. Un largage
+ *  n'en tolère que des avions de transport (`airdropRefusalOf`). */
+const hullsOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
+  const hulls = new Set(hullsAmong(troops.map(seatedOf)).map((troop) => troop.id));
+  return troops.filter((troop) => hulls.has(troop._id));
+};
 
 /** Les transports d'une colonne, ceux qui ne sont pas à bord d'un autre. */
 const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
@@ -257,15 +266,14 @@ async function squadAt(
   const troops = await standingPile(ctx, playerId, point);
   return {
     troops,
-    target: {
-      kind: 'squad' as const,
-      troops: troops.map((troop) => ({
+    target: squadTarget(
+      troops.map((troop) => ({
         id: troop._id as string,
         role: troop.role,
-        ...suppliesOf(troop),
+        supplies: suppliesOf(troop),
         anchored: storeOf[troop._id] !== undefined,
       })),
-    },
+    ),
   };
 }
 
@@ -291,16 +299,16 @@ export const airdrop = mutation({
     requirePlayable(player, season);
     if (await isBlitz(ctx, seasonId)) fail('NOT_IN_BLITZ');
     const now = Date.now();
-    const carriers = carriersOf(await troopsAmong(ctx, player._id, troopIds));
+    const hulls = hullsOf(await troopsAmong(ctx, player._id, troopIds));
     let refusal;
     if (target.kind === 'outpost') {
       const outpost = await ctx.db.get(target.outpostId);
       if (outpost === null || outpost.playerId !== player._id)
         fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
       const { standing, depot, capacity } = depotOf(outpost, now);
-      refusal = dropRefusalOf(carriers, { kind: 'outpost', standing, depot, capacity });
+      refusal = airdropRefusalOf(hulls, { kind: 'outpost', standing, depot, capacity });
     } else
-      refusal = dropRefusalOf(carriers, (await squadAt(ctx, player._id, target.point, now)).target);
+      refusal = airdropRefusalOf(hulls, (await squadAt(ctx, player._id, target.point, now)).target);
     if (refusal !== null) {
       const { code, ...details } = refusal;
       fail(code, details);
@@ -318,7 +326,8 @@ export const airdrop = mutation({
           ? { kind: 'outpost', outpostId: target.outpostId }
           : { kind: 'point', point: target.point },
       ),
-      drop: target.kind === 'outpost' ? { outpostId: target.outpostId } : { point: target.point },
+      airdrop:
+        target.kind === 'outpost' ? { outpostId: target.outpostId } : { point: target.point },
     });
   },
 });
@@ -328,39 +337,40 @@ export const airdrop = mutation({
  * encore, et l'avion rentre seul sans s'être posé. Un point perdu, une escouade partie ou déjà
  * pleine : rien ne descend, la charge reste à bord, et la dépêche le dit.
  */
-export async function arriveToDrop(
+export async function arriveToAirdrop(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
 ): Promise<void> {
-  const drop = movement.drop!;
-  if (drop.leg !== 'out') return;
+  const flight = movement.airdrop;
+  if (flight === undefined || flight.leg !== 'out') return;
   const troops = await troopsAmong(ctx, movement.playerId, movement.troopIds);
   const carriers = carriersOf(troops).sort((a, b) => (a._id < b._id ? -1 : 1));
   const loads = carriers.map((carrier) => carrier.load ?? emptyLoad());
   const packet = loads.reduce(addLoads, emptyLoad());
   let delivered = emptyLoad();
   let hostCountry = movement.hostCountry;
-  const outpost = drop.outpostId === undefined ? null : await ctx.db.get(drop.outpostId);
-  if (outpost !== null && outpost.playerId === movement.playerId && isStanding(outpost, now)) {
-    const { moved } = deliveryOf(
-      packet,
-      outpost.depot ?? emptyLoad(),
-      depotCapacity(outpost.level),
-    );
+  const outpost = 'outpostId' in flight ? await ctx.db.get(flight.outpostId) : null;
+  const mine = outpost !== null && outpost.playerId === movement.playerId ? outpost : null;
+  const squad = 'point' in flight ? await squadAt(ctx, movement.playerId, flight.point, now) : null;
+  /** La règle de l'ordre, relue à l'arrivée : un point perdu, une escouade partie, ancrée ou
+   *  pleine, et rien ne descend. */
+  const refusal = airdropRefusalOf(
+    hullsOf(troops),
+    mine !== null ? { kind: 'outpost', ...depotOf(mine, now) } : (squad?.target ?? squadTarget([])),
+  );
+  if (refusal === null && mine !== null) {
+    const { moved } = deliveryOf(packet, mine.depot ?? emptyLoad(), depotCapacity(mine.level));
     delivered = moved;
-    await ctx.db.patch(outpost._id, { depot: addLoads(outpost.depot ?? emptyLoad(), moved) });
-    hostCountry = outpost.hostCountry;
-  } else if (drop.point !== undefined) {
-    const squad = await squadAt(ctx, movement.playerId, drop.point, now);
-    if (squad.target.troops.length > 0 && squad.target.troops.every((one) => !one.anchored)) {
-      const { taken, supplies } = dropOnSquad(packet, squad.target.troops);
-      delivered = taken;
-      for (const troop of squad.troops) {
-        const filled = supplies.get(troop._id);
-        if (filled !== undefined)
-          await ctx.db.patch(troop._id, { rounds: filled.rounds, fuel: filled.fuel });
-      }
+    await ctx.db.patch(mine._id, { depot: addLoads(mine.depot ?? emptyLoad(), moved) });
+    hostCountry = mine.hostCountry;
+  } else if (refusal === null && squad !== null) {
+    const { taken, supplies } = airdropOnSquad(packet, squad.target.troops);
+    delivered = taken;
+    for (const troop of squad.troops) {
+      const filled = supplies.get(troop._id);
+      if (filled !== undefined)
+        await ctx.db.patch(troop._id, { rounds: filled.rounds, fuel: filled.fuel });
     }
   }
   const left = takeAcross(loads, delivered);
@@ -369,15 +379,36 @@ export async function arriveToDrop(
   await ctx.db.insert('notices', {
     playerId: movement.playerId,
     at: now,
-    kind: 'supplyDropped',
+    kind: 'airdropped',
     hostCountry,
     point: movement.to,
     delivered,
     kept: left.reduce(addLoads, emptyLoad()),
-    ...(drop.point === undefined ? {} : { squad: true }),
+    ...(squad === null ? {} : { squad: true }),
   });
   await forgetMovement(ctx, movement._id, now);
+  /** **L'avion ne se pose pas** : dont la base est tombée en son absence rentre à l'ancre la plus
+   *  proche, comme une troupe en déroute, plutôt que de rester sur le point largué. */
   const flying = await troopsAmong(ctx, movement.playerId, movement.troopIds);
-  const back = await walkHome(ctx, { winners: flying, beaten: [] }, pointOf(movement.to), now);
-  for (const movementId of back) await ctx.db.patch(movementId, { drop: { leg: 'back' as const } });
+  const homeless = new Set<Id<'troops'>>();
+  for (const troop of flying) {
+    const id =
+      typeof troop.stationedAt === 'string'
+        ? ctx.db.normalizeId('buildings', troop.stationedAt)
+        : null;
+    const base = id === null ? null : await ctx.db.get(id);
+    if (id !== null && (base === null || base.playerId !== movement.playerId))
+      homeless.add(troop._id);
+  }
+  const back = await walkHome(
+    ctx,
+    {
+      winners: flying.filter((troop) => !homeless.has(troop._id)),
+      beaten: flying.filter((troop) => homeless.has(troop._id)),
+    },
+    pointOf(movement.to),
+    now,
+  );
+  for (const movementId of back)
+    await ctx.db.patch(movementId, { airdrop: { leg: 'back' as const } });
 }

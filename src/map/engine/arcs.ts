@@ -209,7 +209,7 @@ export class ArcLayer {
       },
       {
         aloft: this.aloft,
-        ...(arc.state === 'mine' && arc.drop !== undefined ? { drop: arc.drop } : {}),
+        ...(arc.state === 'mine' && arc.airdrop !== undefined ? { airdrop: arc.airdrop } : {}),
       },
     );
     thread.setResolution(this.width, this.height);

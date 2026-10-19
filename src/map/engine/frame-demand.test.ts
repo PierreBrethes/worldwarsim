@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PARACHUTE_MS } from './parachute';
 import { FrameDemand, HEARTBEAT_MS, SETTLE_MS } from './frame-demand';
 
 describe('FrameDemand', () => {
@@ -111,5 +112,19 @@ describe('every public method of the engine asks for a frame', () => {
   it('lists as read-only only methods that exist', () => {
     const names = new Set(methods.map((method) => method.name));
     expect([...READ_ONLY].filter((name) => !names.has(name))).toEqual([]);
+  });
+});
+
+describe('an airdrop longer than the settle window is declared to the loop', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps the frames coming while a packet falls, and starts it from a stirring method', () => {
+    expect(PARACHUTE_MS).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(/this\.ink\.active \|\|\s+this\.parachutes\.active/);
+    const burst = source.slice(source.indexOf('  inkBurst('));
+    expect(burst.slice(0, burst.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);[\s\S]*parachutes\.release/,
+    );
   });
 });

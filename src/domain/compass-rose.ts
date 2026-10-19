@@ -39,7 +39,9 @@ import { NATION_BY_ADM0 } from './nations';
 import {
   carriersAmong,
   deliverRefusalOf,
-  dropRefusalOf,
+  airdropRefusalOf,
+  squadTarget,
+  hullsAmong,
   loadTotal,
   onTourRefusalOf,
   tourRefusalOf,
@@ -536,11 +538,13 @@ export type CompassAction =
       readonly outpostId: string;
       /** Le nom du point, pour le cartouche « transmis ». */
       readonly destination: string;
+      /** La visée de la marche : l'aperçu de route en tire l'heure et le plein. */
+      readonly aim: MovementAim;
     }
   /**
    * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche son paquet sur un de mes
    * avant-postes — escale ou non — ou sur une de mes escouades isolées, et rentre seul. Un
-   * mouvement, avec son slot ; la règle est `dropRefusalOf`, celle que `logistics.airdrop` relit.
+   * mouvement, avec son slot ; la règle est `airdropRefusalOf`, celle que `logistics.airdrop` relit.
    */
   | {
       readonly key: 'airdrop';
@@ -551,6 +555,8 @@ export type CompassAction =
       readonly target:
         | { readonly kind: 'outpost'; readonly outpostId: string }
         | { readonly kind: 'squad'; readonly point: LonLat };
+      /** La visée de la marche : l'aperçu de route en tire le plein de l'aller-retour. */
+      readonly aim: MovementAim;
       /** Le nom du lieu, pour le cartouche « transmis ». */
       readonly destination: string;
     }
@@ -560,7 +566,18 @@ export type CompassAction =
    * et l'étiquette du transport la lance. Rien ne part avant.
    */
   | {
-      readonly key: 'tour' | 'tourStop';
+      readonly key: 'tour';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly carrierId: string;
+      /** La visée de la marche : l'aperçu en tire l'heure et le plein du premier pas. */
+      readonly aim: MovementAim;
+    }
+  | {
+      readonly key: 'tourStop';
       readonly pictogram: CompassPictogram;
       readonly label: string;
       readonly cost: string | null;
@@ -587,14 +604,17 @@ export type CompassAction =
  *  téléphone offre en onglets (refonte mobile, 1c). */
 export type OrderAction = Extract<
   CompassAction,
-  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' }
+  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' | 'airdrop' | 'deliver' | 'tour' }
 >;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'aim' ||
   action.key === 'plunder' ||
   action.key === 'capture' ||
-  action.key === 'collect';
+  action.key === 'collect' ||
+  action.key === 'airdrop' ||
+  action.key === 'deliver' ||
+  action.key === 'tour';
 
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
@@ -1202,10 +1222,11 @@ function withDelivery(
   if (
     outpost === undefined ||
     !carriers.some((troop) => loadTotal(troop.load) > 0) ||
-    !fan.actions.some((action) => action.key === 'aim' && action.type === 'march')
+    marchOf(fan) === undefined
   )
     return fan;
   const depot = depotOfView(outpost);
+  const marching = marchOf(fan)!;
   const carrier = carriers.length === 1 ? carriers[0]! : null;
   const touring =
     carrier !== null &&
@@ -1221,23 +1242,11 @@ function withDelivery(
           consequence: fr.compass.tourConsequence,
           outpostId,
           carrierId: carrier!.id,
+          aim: marching.aim,
         },
       ]
     : [];
-  const drop: ReadonlyArray<CompassAction> =
-    dropRefusalOf(carriers, { kind: 'outpost', ...depot }) === null
-      ? [
-          {
-            key: 'airdrop',
-            pictogram: 'crate',
-            label: fr.compass.airdrop,
-            cost: slotCost(view),
-            consequence: fr.compass.airdropOutpostConsequence,
-            target: { kind: 'outpost', outpostId },
-            destination: fan.name,
-          },
-        ]
-      : [];
+  const drop = airdropBranch(view, fan, held, { kind: 'outpost', outpostId }, fan.name).actions;
   const refusal = deliverRefusalOf(carriers, depot);
   if (refusal !== null) {
     const { code, ...details } = refusal;
@@ -1252,9 +1261,17 @@ function withDelivery(
     consequence: fr.compass.deliverConsequence,
     outpostId,
     destination: fan.name,
+    aim: marching.aim,
   };
   return { ...fan, actions: [deliver, ...drop, ...tour, ...fan.actions], refusal: null };
 }
+
+/** La marche légale d'un éventail : celle que livrer, tourner et larguer empruntent. */
+const marchOf = (fan: Compass) =>
+  fan.actions.find(
+    (action): action is Extract<CompassAction, { key: 'aim' }> =>
+      action.key === 'aim' && action.type === 'march',
+  );
 
 /** **Le dépôt d'un de mes points**, tel que livrer et tourner le lisent — la lecture de
  *  `logistics.depotOf`. */
@@ -1819,8 +1836,14 @@ function towardsMyPile(
             : [],
         )
       : [];
-  const dropped = airdropOnSquad(station, target.name, view, column, heldTroopIds);
-  const actions = [...(onto?.actions ?? []), ...dropped.actions, ...join];
+  const airdropped = airdropBranch(
+    view,
+    fan,
+    view.me.troops.filter((troop) => heldTroopIds.includes(troop.id)),
+    { kind: 'squad', station },
+    target.name,
+  );
+  const actions = [...(onto?.actions ?? []), ...airdropped.actions, ...join];
   return {
     kicker: fr.compass.aiming(column.roles.length),
     name: target.name,
@@ -1828,7 +1851,7 @@ function towardsMyPile(
     /** Le motif d'un largage refusé se dit à côté de « rejoindre » : l'avion chargé qu'on tient
      *  n'apprendrait sinon jamais pourquoi la branche manque. */
     refusal:
-      dropped.refusal ??
+      airdropped.refusal ??
       (actions.length > 0
         ? null
         : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad))),
@@ -1836,29 +1859,41 @@ function towardsMyPile(
 }
 
 /**
- * **Larguer sur une escouade isolée** (ADR 0028 §4) : l'avion chargé en main, lâché sur une de mes
- * piles posées. Rien si la main ne porte aucun avion chargé ; sinon la branche, ou le motif de
- * `dropRefusalOf` — ancrée, déjà pleine — que la rose dit à la place.
+ * **Larguer** (ADR 0028 §4) : l'avion chargé en main, lâché sur un de mes avant-postes ou sur une de
+ * mes escouades isolées. Rien si la main ne porte aucun avion chargé, ou si la marche elle-même
+ * n'est pas légale (`marchOf`) ; sinon la branche, ou le motif de `airdropRefusalOf` — ancrée,
+ * déjà pleine, dépôt plein. Le plein de l'aller-retour se dit à l'aperçu de la visée.
  */
-function airdropOnSquad(
-  station: Extract<TroopStation, { kind: 'point' }>,
-  name: string,
+function airdropBranch(
   view: PlayerView,
-  column: Column,
-  heldTroopIds: ReadonlyArray<string>,
+  fan: Compass,
+  held: ReadonlyArray<TroopView>,
+  at:
+    | { readonly kind: 'outpost'; readonly outpostId: string }
+    | { readonly kind: 'squad'; readonly station: Extract<TroopStation, { kind: 'point' }> },
+  name: string,
 ): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } {
-  const carriers = carriersAmong(view.me.troops.filter((troop) => heldTroopIds.includes(troop.id)));
-  if (column.blitz !== undefined || !carriers.some((troop) => loadTotal(troop.load) > 0))
+  const march = marchOf(fan);
+  if (march === undefined || !carriersAmong(held).some((troop) => loadTotal(troop.load) > 0))
     return { actions: [], refusal: null };
-  const refusal = dropRefusalOf(carriers, {
-    kind: 'squad',
-    troops: heldAt(station, view).map((troop) => ({
-      id: troop.id,
-      role: troop.role,
-      ...troop.supplies,
-      anchored: troop.anchored === true,
-    })),
-  });
+  const outpost =
+    at.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === at.outpostId)
+      : undefined;
+  if (at.kind === 'outpost' && outpost === undefined) return { actions: [], refusal: null };
+  const refusal = airdropRefusalOf(
+    hullsAmong(held),
+    at.kind === 'outpost'
+      ? { kind: 'outpost', ...depotOfView(outpost!) }
+      : squadTarget(
+          heldAt(at.station, view).map((troop) => ({
+            id: troop.id,
+            role: troop.role,
+            supplies: troop.supplies,
+            anchored: troop.anchored === true,
+          })),
+        ),
+  );
   if (refusal !== null) {
     const { code, ...details } = refusal;
     return { actions: [], refusal: fr.errors[code](details) };
@@ -1870,8 +1905,15 @@ function airdropOnSquad(
         pictogram: 'crate',
         label: fr.compass.airdrop,
         cost: slotCost(view),
-        consequence: fr.compass.airdropSquadConsequence,
-        target: { kind: 'squad', point: station.lonLat },
+        consequence:
+          at.kind === 'outpost'
+            ? fr.compass.airdropOutpostConsequence
+            : fr.compass.airdropSquadConsequence,
+        target:
+          at.kind === 'outpost'
+            ? { kind: 'outpost', outpostId: at.outpostId }
+            : { kind: 'squad', point: at.station.lonLat },
+        aim: march.aim,
         destination: name,
       },
     ],

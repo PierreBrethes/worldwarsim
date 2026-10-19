@@ -54,8 +54,8 @@ describe('what runs, nearest first', () => {
   it('calls a plane flying out to drop a packet a drop, and its way home a return', () => {
     const lines = underwayOf(
       board({}, [
-        march('M-1', 14, { drop: 'out' }),
-        march('M-2', 20, { type: 'return', drop: 'back' }),
+        march('M-1', 14, { airdrop: 'out' }),
+        march('M-2', 20, { type: 'return', airdrop: 'back' }),
       ]),
       [],
     );

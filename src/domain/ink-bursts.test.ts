@@ -39,8 +39,8 @@ describe('inkBursts', () => {
       ...dispatch(20, kind),
       place: { lon: 9, lat: 52 },
     });
-    expect(inkBursts([at('drop'), at('supply')], 10, [])).toEqual([
-      { kind: 'dropped', at: [9, 52], words: { word: 'largué', hour: hour(20) } },
+    expect(inkBursts([at('airdrop'), at('supply')], 10, [])).toEqual([
+      { kind: 'airdropped', at: [9, 52], words: { word: 'largué', hour: hour(20) } },
     ]);
   });
 

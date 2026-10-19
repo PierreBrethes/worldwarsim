@@ -315,7 +315,7 @@ export function takeAcross(
  * cran, dans l'ordre des identifiants et dans la limite de ce que chaque troupe porte. La même
  * recharge qu'à l'ancre (`topUp`), avec le paquet pour stock.
  */
-export function dropOnSquad(
+export function airdropOnSquad(
   load: SupplyLoad,
   troops: ReadonlyArray<Carrying & { readonly id: string }>,
 ): { readonly taken: SupplyLoad; readonly supplies: ReadonlyMap<string, Supplies> } {
@@ -326,7 +326,21 @@ export function dropOnSquad(
   return { taken: cost, supplies };
 }
 
-export type DropTarget =
+/** **Une escouade comme le largage la lit** : ses troupes, ancrées ou non, et ce qu'elles portent
+ *  de coups et de plein. La rose (sur la vue) et le serveur (sur les lignes) la bâtissent ici. */
+export const squadTarget = (
+  troops: ReadonlyArray<{
+    readonly id: string;
+    readonly role: UnitRole;
+    readonly supplies?: Supplies | undefined;
+    readonly anchored: boolean;
+  }>,
+): Extract<AirdropTarget, { kind: 'squad' }> => ({
+  kind: 'squad',
+  troops: troops.map(({ id, role, supplies, anchored }) => ({ id, role, ...supplies, anchored })),
+});
+
+export type AirdropTarget =
   | {
       readonly kind: 'outpost';
       readonly standing: boolean;
@@ -340,9 +354,9 @@ export type DropTarget =
       >;
     };
 
-export type DropRefusal =
+export type AirdropRefusal =
   | { readonly code: 'NOTHING_TO_DELIVER' }
-  | { readonly code: 'DROP_BY_AIR_ONLY' }
+  | { readonly code: 'AIRDROP_AIR_ONLY' }
   | { readonly code: 'DEPOT_NOT_STANDING' }
   | { readonly code: 'DEPOT_FULL'; readonly capacity: number }
   | { readonly code: 'NO_SQUAD_THERE' }
@@ -350,19 +364,27 @@ export type DropRefusal =
   | { readonly code: 'SQUAD_SUPPLIED' };
 
 /**
+ * **Les coques d'une colonne** : les troupes qui ne sont pas à bord d'une autre de la colonne.
+ * Un largage les lit toutes — un camion, même vide, ou un chasseur dans la main refuse l'ordre,
+ * faute de quoi il suivrait l'avion et paierait le double plein.
+ */
+export const hullsAmong = <T extends Seated>(troops: ReadonlyArray<T>): T[] =>
+  troops.filter((troop) => carrierIn(troop, troops) === null);
+
+/**
  * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche un paquet sur un de ses
  * avant-postes — escale ou non —, ou sur une de ses escouades isolées, qui reprend ses coups et
  * son plein. Une escouade ancrée se recharge seule ; une escouade pleine n'a que faire du paquet.
  * La rose le lit avant le lâcher, `logistics.airdrop` et l'arrivée le relisent.
  */
-export function dropRefusalOf(
+export function airdropRefusalOf(
   transports: ReadonlyArray<{ readonly role: UnitRole; readonly load?: SupplyLoad }>,
-  target: DropTarget,
-): DropRefusal | null {
+  target: AirdropTarget,
+): AirdropRefusal | null {
+  if (transports.some((transport) => transport.role !== 'airTransport'))
+    return { code: 'AIRDROP_AIR_ONLY' };
   const loaded = transports.filter((transport) => loadTotal(transport.load) > 0);
   if (loaded.length === 0) return { code: 'NOTHING_TO_DELIVER' };
-  if (loaded.some((transport) => transport.role !== 'airTransport'))
-    return { code: 'DROP_BY_AIR_ONLY' };
   if (target.kind === 'outpost') {
     if (!target.standing) return { code: 'DEPOT_NOT_STANDING' };
     return loadTotal(target.depot) >= target.capacity
@@ -372,7 +394,7 @@ export function dropRefusalOf(
   if (target.troops.length === 0) return { code: 'NO_SQUAD_THERE' };
   if (target.troops.some((troop) => troop.anchored)) return { code: 'SQUAD_ANCHORED' };
   const packet = loaded.reduce((sum, transport) => addLoads(sum, transport.load!), emptyLoad());
-  return loadTotal(dropOnSquad(packet, target.troops).taken) === 0
+  return loadTotal(airdropOnSquad(packet, target.troops).taken) === 0
     ? { code: 'SQUAD_SUPPLIED' }
     : null;
 }

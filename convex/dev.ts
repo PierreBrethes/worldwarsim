@@ -432,9 +432,9 @@ export const logisticsScene = internalMutation({
  * chargé, un avant-poste de niveau 1 près de Bruxelles — une escale n'est pas requise — au dépôt
  * entamé, et une escouade isolée en Rhénanie, à sec.
  *
- * `npx convex run dev:dropScene '{"playerId":"…"}'`
+ * `npx convex run dev:airdropScene '{"playerId":"…"}'`
  */
-export const dropScene = internalMutation({
+export const airdropScene = internalMutation({
   args: { playerId: v.id('players') },
   handler: async (ctx, { playerId }) => {
     const player = await ctx.db.get(playerId);

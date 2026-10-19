@@ -95,7 +95,7 @@ export type ArcView =
       readonly mission?: OwnMovementMission;
       /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
        *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
-      readonly drop?: 'out' | 'back';
+      readonly airdrop?: 'out' | 'back';
       readonly minutesLeft: number;
       /**
        * An arrival falling inside the target's rest window stalls the movement at the
@@ -672,7 +672,7 @@ export type DispatchKind =
   /** **La logistique** (ADR 0028 §4) : une livraison posée, une tournée qui attend. */
   | 'supply'
   /** **Un largage** (ADR 0028 §4) : le paquet est descendu. */
-  | 'drop'
+  | 'airdrop'
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
@@ -889,7 +889,7 @@ type NoticeBody =
       readonly kept: SupplyLoad;
     }
   | {
-      readonly kind: 'supplyDropped';
+      readonly kind: 'airdropped';
       readonly at: number;
       readonly hostCountry: string;
       readonly delivered: SupplyLoad;

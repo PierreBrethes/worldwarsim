@@ -63,12 +63,20 @@ const LINES = (() => {
 })();
 const SHADOW = new CircleGeometry(0.22, 16);
 
-type Packet = { readonly object: Group; readonly start: number; readonly ground: Vector3 };
+type Packet = {
+  readonly object: Group;
+  readonly shadow: Mesh;
+  readonly canopy: Mesh;
+  /** Un jeu de matériaux par paquet — chacun fond à son rythme — libéré avec lui. */
+  readonly materials: ReadonlyArray<MeshBasicMaterial | LineBasicMaterial>;
+  readonly start: number;
+  readonly ground: Vector3;
+};
 
 /**
  * **Le paquet sous parachute** (ADR 0028 §4): a canopy, four lines and a crate coming down on
- * the target, drawn the size of a hand whatever the zoom. One per drop; gone a moment after it
- * lands.
+ * the target, drawn the size of a hand whatever the zoom. One per airdrop; gone a moment after it
+ * lands, its materials released with it.
  */
 export class ParachuteLayer {
   readonly group = new Group();
@@ -81,78 +89,68 @@ export class ParachuteLayer {
     return this.packets.length > 0;
   }
 
-  drop(at: LonLat, now: number): void {
+  release(at: LonLat, now: number): void {
     if (this.motion === 'off') return;
-    const object = new Group();
-    const paper = new MeshBasicMaterial({ color: '#efe6cf', transparent: true, toneMapped: false });
+    const paint = (color: string, opacity = 1) =>
+      new MeshBasicMaterial({ color, transparent: true, opacity, toneMapped: false });
+    const paper = paint('#efe6cf');
+    const wood = paint('#8a6a3e');
+    const dark = paint('#000000', 0.25);
+    const rope = new LineBasicMaterial({ color: '#5e4526', transparent: true, toneMapped: false });
     const canopy = new Mesh(CANOPY, paper);
-    canopy.name = 'canopy';
     canopy.position.y = 0.2;
-    const rope = new LineSegments(
-      LINES,
-      new LineBasicMaterial({ color: '#5e4526', transparent: true, toneMapped: false }),
-    );
-    const crate = new Mesh(
-      CRATE,
-      new MeshBasicMaterial({ color: '#8a6a3e', transparent: true, toneMapped: false }),
-    );
+    const crate = new Mesh(CRATE, wood);
     crate.position.y = -0.53;
-    // On the ground the canopy lies flat beside the crate: the shadow stays under it.
-    const shadow = new Mesh(
-      SHADOW,
-      new MeshBasicMaterial({
-        color: '#000000',
-        transparent: true,
-        opacity: 0.25,
-        toneMapped: false,
-      }),
-    );
-    shadow.name = 'shadow';
+    const shadow = new Mesh(SHADOW, dark);
     shadow.rotation.x = -Math.PI / 2;
-    object.add(canopy, rope, crate);
-    const ground = this.frame.projectLonLat(at);
+    const object = new Group();
+    object.add(canopy, new LineSegments(LINES, rope), crate);
     this.group.add(object, shadow);
-    object.userData.shadow = shadow;
-    this.packets.push({ object, start: now, ground });
+    this.packets.push({
+      object,
+      shadow,
+      canopy,
+      materials: [paper, wood, dark, rope],
+      start: now,
+      ground: this.frame.projectLonLat(at),
+    });
   }
 
   animate(now: number, unitsPerPixel: number): void {
     this.packets = this.packets.filter((packet) => this.place(packet, now, unitsPerPixel));
   }
 
-  private place({ object, start, ground }: Packet, now: number, unitsPerPixel: number): boolean {
-    const shadow = object.userData.shadow as Mesh;
+  private place(packet: Packet, now: number, unitsPerPixel: number): boolean {
+    const { object, shadow, canopy, materials, start, ground } = packet;
     const state = parachuteAt(now - start, this.motion);
     if (state === null) {
       this.group.remove(object, shadow);
+      for (const material of materials) material.dispose();
       return false;
     }
     const size = CANOPY_PX * unitsPerPixel;
     const landed = state.height === 0;
     object.scale.setScalar(size * (landed ? 0.7 : 1));
     // The pack hangs 0.53 under the origin: resting, it sits on the sheet.
+    const sway = landed || this.motion !== 'full' ? 0 : Math.sin((now - start) / 340) * 0.12;
     object.position.set(
-      ground.x +
-        (landed || this.motion !== 'full'
-          ? 0
-          : Math.sin((now - start) / 340) * size * 0.12 * state.height),
+      ground.x + size * sway * state.height,
       ground.y + 0.53 * object.scale.x + state.height * HEIGHT_PX * unitsPerPixel,
       ground.z,
     );
     object.rotation.z = landed ? 0 : Math.sin((now - start) / 420) * 0.12 * state.height;
     // Down, the canopy collapses onto the ground and the lines go slack.
-    const canopy = object.getObjectByName('canopy')!;
     canopy.scale.y = landed ? 0.15 : 1;
     canopy.position.y = landed ? -0.5 : 0.2;
     shadow.position.set(ground.x, ground.y + 0.001, ground.z);
     shadow.scale.setScalar(size * (1 + state.height * 0.4));
-    for (const child of [...object.children, shadow])
-      ((child as Mesh).material as MeshBasicMaterial).opacity =
-        child === shadow ? 0.25 * state.opacity : state.opacity;
+    for (const material of materials)
+      material.opacity = (material === materials[2] ? 0.25 : 1) * state.opacity;
     return true;
   }
 
   dispose(): void {
+    for (const packet of this.packets) for (const material of packet.materials) material.dispose();
     this.group.clear();
     this.packets = [];
   }
