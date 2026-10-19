@@ -198,6 +198,15 @@ export default defineSchema({
      */
     accountId: v.optional(v.id('accounts')),
     /**
+     * **Les jobs que ce joueur a en attente** (#146) : on garde l'id, on annule avant de
+     * replanifier, et on ne replanifie que si l'échéance change. `dryJob` est le réveil des
+     * oreilles à l'instant où le charbon s'épuise ; `reassessJobId` et `resumeJobId`, les réveils
+     * immédiats d'un règlement (oreilles muettes, file de recrues affamée).
+     */
+    dryJob: v.optional(v.object({ jobId: v.id('_scheduled_functions'), at: v.number() })),
+    reassessJobId: v.optional(v.id('_scheduled_functions')),
+    resumeJobId: v.optional(v.id('_scheduled_functions')),
+    /**
      * **Ce siège n'est pas un joueur** (objectifs neutres, 17/09/2026) : il ne tient que les
      * garnisons locales des objectifs neutres. Absent vaut « un vrai joueur », comme tout champ
      * posé après coup (leçon du 27/08 sur `buildings.seasonId`).

@@ -582,6 +582,55 @@ describe('the supply tour', () => {
       expect(served).not.toContain(secret);
   });
 
+  it('looks again every half hour without reassessing the fog until something changed', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const hq = await hqOf(t, seat);
+    const truck = await form(t, seat, 'landTransport', hq);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    const full = await plant(t, seat, ESSEN, 1, GERMANY);
+    const other = await plant(t, seat, HANOVER, 1, GERMANY);
+    for (const id of [full, other])
+      await t.run(async (ctx) => ctx.db.patch(id, { depot: { ammunition: 400, oil: 0, coal: 0 } }));
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [full, other] });
+    expect((await get(t, truck))!.tour?.waiting).toMatchObject({ why: 'full' });
+    const first = (await get(t, truck))!.tour!.retryJobId!;
+
+    /** The fog's re-read leaves one trace: the dry-coal wake-up of a listening post. */
+    const playerId = await playerOf(t, seat);
+    const dryJobOf = () => t.run(async (ctx) => (await ctx.db.get(playerId))!.dryJob);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('buildings', {
+        seasonId: seat.seasonId,
+        playerId,
+        key: 'listening',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+        level: 1,
+      });
+      await ctx.db.patch(playerId, { dryJob: undefined });
+    });
+    await t.mutation(internal.tours.retry, { troopId: truck });
+    expect(await dryJobOf()).toBeNull();
+    const second = (await get(t, truck))!.tour!.retryJobId!;
+    expect(second).not.toBe(first);
+    expect((await t.run(async (ctx) => ctx.db.system.get(first)))?.state.kind === 'pending').toBe(
+      false,
+    );
+    const pending = await t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name === 'tours:retry' && job.state.kind === 'pending',
+      ),
+    );
+    expect(pending).toHaveLength(1);
+
+    await t.run(async (ctx) => ctx.db.patch(other, { depot: { ammunition: 0, oil: 0, coal: 0 } }));
+    await t.mutation(internal.tours.retry, { troopId: truck });
+    expect(await dryJobOf()).not.toBeNull();
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: other } }]);
+  });
+
   it('ends on a rout, its next look cancelled, and a late look finds nothing to do', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);

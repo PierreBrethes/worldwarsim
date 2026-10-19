@@ -861,6 +861,48 @@ export const benchReassess = internalMutation({
   },
 });
 
+/**
+ * **Les réveils qui s'empilaient** (#146) : deux joueurs avec une station d'écoute, l'un au
+ * charbon qui brûle, l'autre à sec. Chaque appel règle le muet puis relit le brouillard, comme
+ * le font les règlements et les départs d'une partie ; sans garde, chacun laissait un job de plus.
+ */
+export const benchWakeups = internalMutation({
+  args: { seasonId: v.id('seasons'), burning: v.id('players'), silent: v.id('players') },
+  handler: async (ctx, { seasonId, burning, silent }) => {
+    for (const [playerId, coal] of [
+      [burning, 50],
+      [silent, 0],
+    ] as const) {
+      const has = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).some((building) => building.key === 'listening');
+      if (!has) {
+        const nation = (await ctx.db.get(playerId))!.nation;
+        if (!isNation(nation)) continue;
+        const regionId = capitalRegionOf(nation);
+        await ctx.db.insert('buildings', {
+          seasonId,
+          playerId,
+          key: 'listening',
+          regionId,
+          point: pointOfRegion(regionId),
+          level: 1,
+        });
+        for (const row of await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect())
+          if (row.key === 'coal') await ctx.db.patch(row._id, { stock: coal });
+      }
+    }
+    await settle(ctx, silent, Date.now());
+    await reassessDetection(ctx, seasonId, Date.now());
+  },
+});
+
 /** Ce que le banc a posé, et la file des jobs planifiés encore en attente. */
 export const benchStats = internalQuery({
   args: { seasonId: v.id('seasons') },
@@ -879,11 +921,16 @@ export const benchStats = internalQuery({
       .query('_scheduled_functions')
       .withIndex('by_creation_time', (q) => q.gte('_creationTime', since))
       .collect();
+    const byName = new Map<string, number>();
+    for (const job of jobs)
+      if (job.state.kind === 'pending') byName.set(job.name, (byName.get(job.name) ?? 0) + 1);
     return {
       troops: await count('troops'),
       movements: await count('movements'),
       outposts: await count('outposts'),
       pendingJobs: jobs.filter((job) => job.state.kind === 'pending').length,
+      /** Par fonction : de quoi voir quel job s'empile (#146). */
+      pendingByName: [...byName].sort((a, b) => b[1] - a[1]),
     };
   },
 });

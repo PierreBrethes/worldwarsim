@@ -62,6 +62,7 @@ import type * as replay from "../replay.js";
 import type * as research from "../research.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
+import type * as scheduledJobs from "../scheduledJobs.js";
 import type * as seasonReport from "../seasonReport.js";
 import type * as seasons from "../seasons.js";
 import type * as seats from "../seats.js";
@@ -137,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   research: typeof research;
   resources: typeof resources;
   routes: typeof routes;
+  scheduledJobs: typeof scheduledJobs;
   seasonReport: typeof seasonReport;
   seasons: typeof seasons;
   seats: typeof seats;

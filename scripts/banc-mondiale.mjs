@@ -235,6 +235,15 @@ const view = {
 const reassess = await passes('dev:benchReassess', () =>
   admin.mutation(internal('dev:benchReassess'), { seasonId }),
 );
+/** Dix règlements et dix relectures de deux joueurs aux oreilles ouvertes : #146. */
+for (let round = 0; round < 10; round++)
+  await coldRetry(() =>
+    admin.mutation(internal('dev:benchWakeups'), {
+      seasonId,
+      burning: playerOf(2),
+      silent: playerOf(3),
+    }),
+  );
 const stats = await admin.query(internal('dev:benchStats'), { seasonId });
 /** Le joueur mesuré a deux slots : deux départs, deux chiffres. */
 const marches = [];
@@ -288,6 +297,8 @@ console.log(
   `| \`march\` d'un joueur aux 23 colonnes en vol | ${cell(busy)} | ${String(busy.read)} | ${String(busy.written)} |`,
 );
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
+for (const [name, count] of stats.pendingByName)
+  console.log(`| ↳ \`${name}\` | ${String(count)} | | |`);
 console.log('\nMontée en charge de `reassessDetection` :\n');
 console.log(
   '| Mouvements en vol | `reassessDetection` (ms) | docs lus | `playerView` (ms) | docs lus |',

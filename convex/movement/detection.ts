@@ -28,6 +28,7 @@ import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { isStanding } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
+import { cancelJob, isPending } from '../scheduledJobs';
 import { economyOf } from '../resources';
 import { holdsPoint } from '../strategicPoints';
 import {
@@ -224,12 +225,40 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   arrivesAt: movement.arrivesAt,
 });
 
-async function cancelJob(ctx: MutationCtx, jobId: Id<'_scheduled_functions'>): Promise<void> {
-  try {
-    await ctx.scheduler.cancel(jobId);
-  } catch {
-    // A callback that has already started validates the stored prediction before doing anything.
-  }
+/**
+ * **Un seul réveil de charbon par joueur** (#146). Le même état redonne la même heure (à l'arrondi
+ * près) : le job en attente la couvre déjà et reste. Une autre heure, ou plus de charbon qui brûle,
+ * l'annule d'abord. La tolérance reste sous la seconde de marge que porte l'heure, pour que le
+ * réveil ne parte jamais avant que le charbon soit à sec.
+ */
+const DRY_TOLERANCE_MS = 500;
+
+async function keepDryWakeUp(
+  ctx: MutationCtx,
+  player: Doc<'players'> | undefined,
+  dryAt: number | null,
+): Promise<void> {
+  if (player === undefined) return;
+  const kept = player.dryJob;
+  if (
+    kept !== undefined &&
+    dryAt !== null &&
+    Math.abs(kept.at - dryAt) <= DRY_TOLERANCE_MS &&
+    (await isPending(ctx, kept.jobId))
+  )
+    return;
+  if (kept === undefined && dryAt === null) return;
+  if (kept !== undefined) await cancelJob(ctx, kept.jobId);
+  const dryJob =
+    dryAt === null
+      ? undefined
+      : {
+          jobId: await ctx.scheduler.runAt(dryAt, internal.listening.reassess, {
+            playerId: player._id,
+          }),
+          at: dryAt,
+        };
+  await ctx.db.patch(player._id, { dryJob });
 }
 
 async function detectionBoard(
@@ -335,10 +364,14 @@ async function detectionBoard(
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
       // The coal is burning down: wake the ears at the instant it runs out, since nothing else will.
-      if (!economy.listeningSilent && economy.ratePerHour.coal < 0) {
-        const dryAt = now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000;
-        await ctx.scheduler.runAt(dryAt, internal.listening.reassess, { playerId });
-      }
+      const burning = !economy.listeningSilent && economy.ratePerHour.coal < 0;
+      await keepDryWakeUp(
+        ctx,
+        playerById.get(playerId),
+        burning
+          ? now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000
+          : null,
+      );
     }
     return silent.get(playerId)!;
   };
@@ -755,6 +788,11 @@ function nextLootCrateDetectionTransition(
   return null;
 }
 
+/**
+ * **Seules les dates qui bougent bougent** (#146). Chaque prédiction garde son job tant que sa
+ * paire, son sens et son heure sont ceux de la nouvelle planche ; une autre est annulée et
+ * recréée, une qui n'a plus lieu disparaît.
+ */
 async function rescheduleLootCrateDetectionJobs(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -765,11 +803,12 @@ async function rescheduleLootCrateDetectionJobs(
     .query('lootCrateDetectionJobs')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
+  const kept = new Map<string, Doc<'lootCrateDetectionJobs'>>();
+  const stale: Array<Doc<'lootCrateDetectionJobs'>> = [];
   for (const prediction of previous) {
-    if (prediction.scheduledJobId !== undefined) {
-      await cancelJob(ctx, prediction.scheduledJobId);
-    }
-    await ctx.db.delete(prediction._id);
+    const key = `${prediction.movementId}|${prediction.crateId}`;
+    if (kept.has(key)) stale.push(prediction);
+    else kept.set(key, prediction);
   }
 
   const crates = await ctx.db
@@ -778,8 +817,22 @@ async function rescheduleLootCrateDetectionJobs(
     .collect();
   for (const mobile of board.mobileById.values()) {
     for (const crate of crates) {
+      const key = `${mobile.movement._id}|${crate._id}`;
       const transition = nextLootCrateDetectionTransition(mobile, pointOf(crate.point), now);
-      if (transition === null || transition.at >= crate.expiresAt) continue;
+      const current = kept.get(key);
+      kept.delete(key);
+      if (transition === null || transition.at >= crate.expiresAt) {
+        if (current !== undefined) stale.push(current);
+        continue;
+      }
+      if (
+        current !== undefined &&
+        current.kind === transition.kind &&
+        current.at === transition.at &&
+        (await isPending(ctx, current.scheduledJobId))
+      )
+        continue;
+      if (current !== undefined) stale.push(current);
       const detectionJobId = await ctx.db.insert('lootCrateDetectionJobs', {
         seasonId,
         movementId: mobile.movement._id,
@@ -793,6 +846,11 @@ async function rescheduleLootCrateDetectionJobs(
       );
       await ctx.db.patch(detectionJobId, { scheduledJobId });
     }
+  }
+  stale.push(...kept.values());
+  for (const prediction of stale) {
+    if (prediction.scheduledJobId !== undefined) await cancelJob(ctx, prediction.scheduledJobId);
+    await ctx.db.delete(prediction._id);
   }
 }
 

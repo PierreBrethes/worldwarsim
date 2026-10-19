@@ -70,6 +70,12 @@ la dernière position connue.
   sur une réévaluation suivante. Mesure du banc, 161 colonnes croisées dans un même carré
   d'Europe : un départ passe de plus d'une seconde (coupé) à quelques centaines de millisecondes.
 
+- **Un job planifié ne s'empile pas** (#146). Le réveil des oreilles à l'instant où le charbon
+  s'épuise, la reprise d'une file affamée, le regard d'une tournée et le regard d'une caisse
+  gardent leur id sur le joueur, la tournée ou la ligne de prédiction : on annule avant de
+  replanifier, et on ne replanifie que si l'échéance change. Un regard de tournée qui retrouve la
+  même attente ne réévalue rien.
+
 ## Le même piège au sol
 
 La couleur des territoires (ADR 0020 §5) est exactement la même requête sous un autre nom : « les
