@@ -92,9 +92,9 @@ describe('the research tree', () => {
       expect(buildingLockOf(key, [])).toBeNull();
   });
 
-  it('says what is still to come: a line the factory does not have, a role only the Blitz fires', () => {
+  it('says what is still to come: a line the factory does not have', () => {
     expect(comingSoon('syntheticOil')).toBe(true);
-    expect(comingSoon('artillery')).toBe(true);
+    expect(comingSoon('artillery')).toBe(false);
     expect(comingSoon('armor')).toBe(false);
   });
 });

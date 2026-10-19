@@ -1,6 +1,5 @@
 import { DAMAGE_TABLE, RESEARCH_SPEC } from '../../convex/constants';
 import { profileOf } from './combat';
-import { blitzOnly } from './blitz';
 import { shortfallOf } from './economy';
 import {
   RESEARCH_CARDS,
@@ -69,14 +68,10 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
 
 /**
  * **Une carte dont ce qu'elle ouvre n'existe pas encore en Mondiale** reste dans l'arbre, et sa
- * pose se refuse « à venir » : la ligne d'usine du pétrole synthétique, et l'artillerie, dont le
- * tir indirect ne sert qu'en Blitz (4.10). Lu sur `blitzOnly` : le jour où la Mondiale la tire,
- * la carte s'ouvre seule.
+ * pose se refuse « à venir » : la ligne d'usine du pétrole synthétique.
  */
 export const comingSoon = (card: ResearchCard): boolean =>
-  RESEARCH_TREE[card].unlocks.some(
-    (unlock) => unlock.kind === 'line' || (unlock.kind === 'role' && blitzOnly(unlock.role)),
-  );
+  RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'line');
 
 const lockOf = (
   matches: (unlock: Unlock) => boolean,

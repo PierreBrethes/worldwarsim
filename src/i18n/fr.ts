@@ -888,7 +888,7 @@ export const fr = {
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
     SITE_OCCUPIED: () =>
       'ce bâtiment n’est pas libre : une de vos unités s’y tient ou s’y forme — faites-la sortir pour recruter',
-    BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
+    ONE_GUN_ONLY: () => 'une pièce tire seule : levez-la sans le reste de l’escouade',
     ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
     INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
     NOT_EMPLACED: (details) =>

@@ -12,7 +12,7 @@ import {
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings } from './buildingReads';
-import { blitzOnly, blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
+import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
 import { fundsOf, isBlitz, occupiedBuildingIds, spendFunds } from './blitz';
 import {
@@ -99,15 +99,13 @@ export const workshop = query({
       steel: snapshotOf(economy, 'steel'),
       facilities,
       roster: roster(troops),
-      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>)
-        .filter((role) => blitz || !blitzOnly(role))
-        .map((role) => ({
-          role,
-          tiers: TIERS_BY_ROLE[role],
-          producedBy: projectionKeyOf(role),
-          unit: priced(role, 1, researched),
-          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, researched) : null,
-        })),
+      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
+        role,
+        tiers: TIERS_BY_ROLE[role],
+        producedBy: projectionKeyOf(role),
+        unit: priced(role, 1, researched),
+        unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, researched) : null,
+      })),
     };
   },
 });
@@ -127,7 +125,6 @@ export const recruit = mutation({
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
-    if (blitzOnly(role)) fail('BLITZ_ONLY');
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
 
     /**

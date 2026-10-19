@@ -2105,7 +2105,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
        *  une seule règle, celle que l'arrivée lit pour trouver qui se tient là. */
       contactKm: firing ? null : contactKm(blitzTheatre),
-      ...(firing && blitzTheatre !== null ? { fire: fireReachOf(blitzTheatre) } : {}),
+      ...(firing ? { fire: fireReachOf(blitzTheatre) } : {}),
     };
   }, [column, view.me, blitzTheatre]);
   const movementReach = useMemo<Reach | null>(() => {

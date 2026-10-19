@@ -1580,4 +1580,16 @@ describe('the bombardment on the rose', () => {
       fr.errors.ABOARD(),
     );
   });
+  /** **En Mondiale** (4.10) : des kilomètres, des salves en crans, et l'escouade mêlée attaque. */
+  it('fires in a Mondiale, out of rounds says so, and a mixed squad attacks instead', () => {
+    const mondiale = { ...gunner(), mode: 'mondiale', theatre: null } as unknown as PlayerView;
+    const open = { ...rule, blitz: undefined };
+    const at = (column: object) =>
+      compassOf(camp(ROUEN), mondiale, column as never, battery as never, 0, ['G-1'], NOW);
+    expect(at(open)?.actions.map((action) => action.key)).toEqual(['bombard']);
+    expect(at({ ...open, outOfRounds: true })?.refusal).toBe(fr.errors.NO_ROUNDS());
+    expect(at({ ...open, roles: ['artillery', 'infantry'] })?.actions ?? []).not.toContainEqual(
+      expect.objectContaining({ key: 'bombard' }),
+    );
+  });
 });

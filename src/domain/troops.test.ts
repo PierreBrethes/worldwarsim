@@ -415,6 +415,10 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
       code: 'RESEARCH_REQUIRED',
       card: 'infantryMk2',
     });
+    expect(recruitRefusalOf('artillery', 1, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'artillery',
+    });
     expect(
       recruitRefusalOf(
         'armor',

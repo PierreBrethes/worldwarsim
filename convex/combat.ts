@@ -54,7 +54,7 @@ export type Resolution = {
  * A troop's hit points **are** its strength (ADR 0014), so the account is written in the same
  * unit the screen reads: 32 of 50 soldiers left.
  */
-const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
+export const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
   id: troop._id,
   role: troop.role,
   tier: troop.tier,

@@ -184,7 +184,7 @@ export type ErrorCode =
   | 'RELOADING'
   | 'BUILDING_OCCUPIED'
   | 'SITE_OCCUPIED'
-  | 'BLITZ_ONLY'
+  | 'ONE_GUN_ONLY'
   | 'ARTILLERY_ONLY'
   | 'INDIRECT_FIRE_ONLY'
   | 'NOT_EMPLACED'

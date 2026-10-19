@@ -1055,7 +1055,13 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
-  if ((target.kind === 'camp' || target.kind === 'track') && column.roles.some(firesIndirect))
+  /** **En Mondiale, une escouade mêlée attaque** : seules ses pièces d'artillerie, levées seules,
+   *  bombardent ; en Blitz, une unité qui porte l'artillerie s'entend dire de bombarder. */
+  const bombarding =
+    column.blitz !== undefined
+      ? column.roles.some(firesIndirect)
+      : column.roles.every(firesIndirect);
+  if ((target.kind === 'camp' || target.kind === 'track') && bombarding)
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
@@ -1382,6 +1388,7 @@ function bombardFan(
     aboard:
       (origin.kind === 'point' && origin.afloat) ||
       carrierIn(troop, troopsAt(view.me, stationKeyOf(origin), marching)) !== null,
+    outOfRounds: column.outOfRounds === true,
     now,
   };
   const refused = bombardRefusalOf(order);

@@ -17,12 +17,11 @@ import {
   roleLabel,
 } from '@/i18n/fr';
 import { pieceAt } from '@/domain/research';
-import { TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
+import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
   gunneryRows,
   movementSheetOf,
   PROFILE_UNITS,
-  profilesFor,
   type Band,
   type GunneryShot,
 } from '@/domain/gunnery';
@@ -68,8 +67,8 @@ export function GunneryWindow({
   ...windowProps
 }: WindowProps & { seat: Seat; theatre: Theatre | null }) {
   const workshop = useQuery(api.troops.workshop, seat);
-  const columns = profilesFor(workshop?.blitz === true ? 'blitz' : 'mondiale');
-  const rows = gunneryRows(DAMAGE_TABLE, columns);
+  const columns = COMBAT_PROFILES;
+  const rows = gunneryRows(DAMAGE_TABLE);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (
