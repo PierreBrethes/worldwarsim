@@ -349,6 +349,9 @@ export function aimVerdict(
         : { key: deposit.deposit, taken: !freeDeposits(view).includes(deposit) },
     coastal: aim.coastal,
     nearest: nearestBuilding(aim.lonLat, around),
+    already:
+      view.me.buildings.some((building) => building.key === key && building.captured !== true) ||
+      pledgedBuildings(view).some((order) => order.key === key),
   };
   const refusal = placementRefusal(key, spot, view.me.hqLevel, view.buildCatalog[key].lockedBy);
   if (refusal === null) return { refusal: null, free };

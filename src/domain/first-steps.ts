@@ -24,7 +24,8 @@ export type FirstSteps = {
 };
 
 /** What the bubble says, named here and worded in `fr.firstSteps.cue`. */
-export type CueSay = 'hq' | 'move' | 'tiles' | 'pieces' | 'research' | 'truck' | 'load' | 'outpost';
+export type CueSay =
+  'hq' | 'move' | 'tiles' | 'pieces' | 'center' | 'research' | 'truck' | 'load' | 'outpost';
 
 /** Where the bubble stands — over a rack of the personal board, or under a piece on the map —
  *  and what it says there. */
@@ -111,7 +112,9 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
         ? { kind: 'rack', rack: 'pieces', say: 'pieces' }
         : { kind: 'rack', rack: 'tiles', say: 'tiles' };
     case 'research':
-      return { kind: 'rack', rack: 'research', say: 'research' };
+      return view.me.buildings.some((building) => building.key === 'researchCenter')
+        ? { kind: 'rack', rack: 'research', say: 'research' }
+        : { kind: 'rack', rack: 'tiles', say: 'center' };
     case 'deliver': {
       if (outpostFirst(view))
         return onPiece(

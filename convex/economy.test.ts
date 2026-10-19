@@ -781,6 +781,27 @@ describe('placement', () => {
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
+  /** **Un seul Centre de recherche** (#123) : sa tuile est ouverte dès le départ, et le second,
+   *  même quand le premier n'est encore qu'un chantier, est refusé. */
+  it('takes one research centre from the start, and refuses a second', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'researchCenter',
+      regionId: ARDENNES,
+      point: pointIn(ARDENNES),
+    });
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'researchCenter',
+        regionId: JURA,
+        point: pointIn(JURA),
+      }),
+    ).rejects.toThrow('ALREADY_BUILT');
+  });
+
   /** The refusal above, taken back: the very key the card held is placed the minute the card
    *  comes to its end, at the headquarters the season plants. */
   it('opens a tile as soon as its card is researched', async () => {

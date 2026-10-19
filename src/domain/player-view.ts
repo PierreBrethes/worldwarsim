@@ -531,6 +531,8 @@ export type Building = {
   readonly cappedByHq: boolean;
   /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
   readonly disabled?: true;
+  /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */
+  readonly captured?: true;
 };
 
 /**

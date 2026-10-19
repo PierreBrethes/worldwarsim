@@ -73,14 +73,16 @@ export type ErrorCode =
   | 'BUILDING_TOO_CLOSE'
   | 'ALREADY_QUEUED_HERE'
   /** **La recherche** (ADR 0028 §5) : une tuile ou une pièce derrière sa carte, et la pose d'une
-   *  carte sur le QG. */
+   *  carte sur le Centre de recherche (#123). */
   | 'RESEARCH_REQUIRED'
   | 'RESEARCH_DONE'
   | 'RESEARCH_AFTER'
   | 'RESEARCH_BUSY'
-  | 'RESEARCH_NEEDS_HQ'
+  | 'RESEARCH_NEEDS_CENTER'
   | 'MAX_LEVEL_REACHED'
   | 'HQ_ALREADY_BUILT'
+  /** Un bâtiment qu'on ne bâtit qu'une fois (`UNIQUE_BUILDINGS`) : le Centre de recherche. */
+  | 'ALREADY_BUILT'
   | 'HQ_FIRST'
   | 'UNKNOWN_BUILDING'
   /** Raser (demande du 15/09) : le mât visé n'est pas à soi, ou c'est le quartier général. */

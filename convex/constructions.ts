@@ -52,7 +52,7 @@ import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
-import { resumeResearch } from './research';
+import { followCenter } from './research';
 import { spedMinutes } from '../src/domain/level-speed';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
@@ -164,10 +164,7 @@ export const start = mutation({
         /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
-      if (building === 'hq') {
-        await garrisonTheGift(ctx, player, season._id, standingId);
-        await resumeResearch(ctx, player._id, now);
-      }
+      if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
       return { finishesAt: now, cost: {}, level: placed, rank: null };
     }
 
@@ -388,9 +385,9 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
-    /** **Un QG de nouveau debout relance la carte qui l'attendait** (ADR 0028 §5). */
-    if (standing === undefined && canonicalBuildingKey(construction.building) === 'hq')
-      await resumeResearch(ctx, construction.playerId, Date.now());
+    /** **Un Centre de recherche de nouveau debout relance la carte qui l'attendait** (#123). */
+    if (standing === undefined && construction.building === 'researchCenter')
+      await followCenter(ctx, construction.playerId, Date.now());
     /** **Une station qui vient d'ouvrir relève le sol qu'elle écoute** (ADR 0020 §5) : c'est une
      *  portée de plus, et une portée neuve n'a rien relevé tant qu'un événement ne le lui a pas
      *  demandé — il n'y a pas d'horloge pour le faire à sa place. */
@@ -662,7 +659,7 @@ async function refusalFor(
     const lockedBy = buildingLockOf(building, player.researched ?? []);
     const refusal = placementRefusal(
       building,
-      await spotAt(ctx, player, lonLat, reached, buildings, pledged),
+      await spotAt(ctx, player, building, lonLat, reached, buildings, pledged),
       hqLevel,
       lockedBy,
     );
@@ -726,6 +723,7 @@ const exploitsAt = (key: BuildingKey, at: LonLat, deposit: DepositPoint): boolea
 async function spotAt(
   ctx: QueryCtx,
   player: Doc<'players'>,
+  key: BuildingKey,
   lonLat: LonLat,
   reached: boolean,
   buildings: ReadonlyArray<Doc<'buildings'>>,
@@ -758,6 +756,9 @@ async function spotAt(
           },
     coastal: coastAtPoint(lonLat),
     nearest: nearestBuilding(lonLat, aroundOf(buildings, pledged)),
+    already:
+      buildings.some((held) => held.key === key && held.capturedAt === undefined) ||
+      pledged.some((entry) => entry.building === key),
   };
 }
 
@@ -835,6 +836,8 @@ function placementRefusalOf(
     case 'NOT_COASTAL':
     case 'DEPOSIT_TAKEN':
       return { code: refusal };
+    case 'ALREADY_BUILT':
+      return { code: refusal, details: { building } };
     case 'HQ_FIRST':
       return { code: refusal };
     // The refusal names its card: « demande la recherche Aviation » is a plan, « impossible » a wall.

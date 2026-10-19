@@ -302,8 +302,12 @@ function buildingPoster(
     }
   }
 
-  /** **La carte que porte mon QG** (ADR 0028 §5) : son nom, ce qui lui reste, sa barre. */
-  const research = building.key === 'hq' ? view.me.research.running : null;
+  /** **La carte que cherche mon Centre de recherche** (#123) : son nom, ce qui lui reste, sa barre. */
+  const research =
+    building.key === 'researchCenter' &&
+    view.me.buildings.find((mine) => mine.id === building.id)?.captured !== true
+      ? view.me.research.running
+      : null;
   if (research !== null) {
     const { share, finishesAt } = researchProgressOf(research, now);
     lines.push({

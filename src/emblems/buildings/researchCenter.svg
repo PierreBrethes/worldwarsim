@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Centre de recherche : une coupole d'observatoire sur un pavillon, à l'encre -->
+  <g fill="none" stroke="#2a2118" stroke-width="2" stroke-linejoin="round">
+    <path d="M8 56h48" />
+    <path d="M12 56V34h40v22" fill="#cfc09e" />
+    <path d="M16 34a16 16 0 0 1 32 0z" fill="#aab6bf" />
+    <path d="M30 18.5l5 15.5" stroke-width="3" />
+    <path d="M33 14l6 4-3 3-6-4z" fill="#2a2118" />
+    <path d="M20 42h6v14h-6zM38 42h6v6h-6z" fill="#e4d8bd" />
+    <path d="M30 44h4v12h-4z" fill="#5f5039" />
+    <path d="M12 38h40" stroke-width="1" />
+  </g>
+</svg>

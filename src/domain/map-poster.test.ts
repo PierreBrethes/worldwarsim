@@ -507,8 +507,8 @@ describe('the Blitz poster', () => {
     expect(posterFor(view({ mode: 'mondiale' }), [hq], 'm-b-hq')!.lines).toEqual([]);
   });
 
-  it('carries the research card my HQ runs, with its bar', () => {
-    const hq = building('b-hq', 'hq', 'r-plain', null, 1);
+  it('carries the research card my research centre runs, with its bar', () => {
+    const hq = building('b-hq', 'researchCenter', 'r-plain', null, 1);
     const running = { card: 'armor', remainingMs: 16 * 3_600_000, since: LOADED_AT } as const;
     const poster = posterFor(
       view({ mode: 'mondiale', me: { ...me, research: { researched: [], running } } as never }),

@@ -14,6 +14,7 @@ import { clipToStorage, credit, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
 import { refuseInBlitz } from './blitz';
+import { followCenter } from './research';
 
 export type { BuildingKey };
 
@@ -93,6 +94,7 @@ export async function razeBuilding(
   if (player === null) return { refunded: {}, clipped: null };
   const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
+  if (building.key === 'researchCenter') await followCenter(ctx, player._id, now);
   const clipped =
     canonicalBuildingKey(building.key) === 'warehouse'
       ? await clipToStorage(ctx, player._id, now)

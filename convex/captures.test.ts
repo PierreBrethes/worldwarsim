@@ -44,13 +44,19 @@ async function restWindow(t: Bench, seat: Seat, window: Doc<'players'>['restWind
   await t.run((ctx) => ctx.db.patch(player._id, { restWindow: window }));
 }
 
-async function building(t: Bench, seat: Seat, regionId: string, level = 2) {
+async function building(
+  t: Bench,
+  seat: Seat,
+  regionId: string,
+  level = 2,
+  key: Doc<'buildings'>['key'] = 'barracks',
+) {
   const player = await playerOf(t, seat);
   return t.run((ctx) =>
     ctx.db.insert('buildings', {
       seasonId: player.seasonId,
       playerId: player._id,
-      key: 'barracks',
+      key,
       regionId,
       point: pointOfRegion(regionId),
       level,
@@ -934,30 +940,32 @@ describe('a Mondiale headquarters', () => {
     ]);
   });
 
-  /** **La carte de recherche attend son QG** (ADR 0028 §5) : la chute l'arrête sans rien
-   *  perdre, et un QG rebâti la relance là où elle en était. */
-  it('stops his research card at the fall, and lets a rebuilt headquarters run it on', async () => {
+  /** **La carte de recherche attend son Centre** (#123) : sa prise l'arrête sans rien perdre, et
+   *  un Centre rebâti la relance là où elle en était. */
+  it('stops his research card when his research centre is taken, and lets a new one run it on', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
-    const hq = await headquartersOf(t, guest);
+    const centerId = await building(t, guest, PSKOV, 1, 'researchCenter');
+    const center = (await t.run((ctx) => ctx.db.get(centerId)))!;
     const loser = await playerOf(t, guest);
     await t.run((ctx) =>
       ctx.db.patch(loser._id, {
-        research: { card: 'carrier', remainingMs: 36 * HOUR, since: MIDDAY },
+        research: { card: 'carrier', totalMs: 36 * HOUR, remainingMs: 36 * HOUR, since: MIDDAY },
       }),
     );
 
-    await take(t, seat, hq);
+    await take(t, seat, center);
     await finish(t);
+    const left = 36 * HOUR - (Date.now() - MIDDAY);
     const paused = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
-    expect(paused).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: null });
+    expect(paused).toMatchObject({ card: 'carrier', remainingMs: left, since: null });
 
     const constructionId = await t.run((ctx) =>
       ctx.db.insert('constructions', {
         playerId: loser._id,
-        building: 'hq',
-        regionId: PSKOV,
-        point: pointOfRegion(PSKOV),
+        building: 'researchCenter',
+        regionId: 'RUS-2371',
+        point: pointOfRegion('RUS-2371'),
         level: 1,
         rank: 0,
         finishesAt: Date.now(),
@@ -965,9 +973,9 @@ describe('a Mondiale headquarters', () => {
     );
     await t.mutation(internal.constructions.finish, { constructionId });
     const resumed = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
-    expect(resumed).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: Date.now() });
+    expect(resumed).toMatchObject({ card: 'carrier', remainingMs: left, since: Date.now() });
 
-    vi.advanceTimersByTime(24 * HOUR);
+    vi.advanceTimersByTime(left);
     await t.finishInProgressScheduledFunctions();
     expect((await t.run((ctx) => ctx.db.get(loser._id)))!.researched).toEqual(['carrier']);
   });

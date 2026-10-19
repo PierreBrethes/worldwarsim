@@ -261,12 +261,15 @@ export default defineSchema({
      *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
     researched: v.optional(v.array(RESEARCH_CARD)),
     /**
-     * **La carte posée sur le QG**, une seule à la fois : ce qu'il lui reste à courir, et depuis
-     * quand — `null` quand son QG manque et qu'elle attend (`research.ts`). Absent : aucune.
+     * **La carte posée sur le Centre de recherche**, une seule à la fois : sa durée au niveau du
+     * Centre qui l'a prise, ce qu'il lui reste à courir, et depuis quand — `null` quand son Centre
+     * manque et qu'elle attend (`research.ts`). Absent : aucune.
      */
     research: v.optional(
       v.object({
         card: RESEARCH_CARD,
+        /** Absent sur une carte posée avant #123 : la durée du premier niveau. */
+        totalMs: v.optional(v.number()),
         remainingMs: v.number(),
         since: v.union(v.number(), v.null()),
       }),

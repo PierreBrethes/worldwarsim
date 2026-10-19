@@ -316,6 +316,9 @@ const TelegraphWindow = lazy(() =>
 const GunneryWindow = lazy(() =>
   import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
 );
+const ResearchWindow = lazy(() =>
+  import('./-plateau/ResearchWindow').then((module) => ({ default: module.ResearchWindow })),
+);
 const PressWindow = lazy(() =>
   import('./-plateau/PressWindow').then((module) => ({ default: module.PressWindow })),
 );
@@ -335,6 +338,8 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   warehouse: 'personalBoard',
   depot: 'personalBoard',
   listening: 'personalBoard',
+  /** Le Centre de recherche ouvre l'arbre (#123). */
+  researchCenter: 'research',
   barracks: 'site',
   airfield: 'site',
   port: 'site',
@@ -1983,7 +1988,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
-      ...(building.key === 'hq' ? researchOnHq(view.me) : {}),
+      ...(building.key === 'researchCenter' && building.captured !== true
+        ? researchOnCenter(view.me)
+        : {}),
       ink: view.me.ink,
     }));
 
@@ -2613,12 +2620,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [briefing, setBriefing] = useState(() => blitz && !briefingSeen());
   const firstSteps = useFirstSteps(view, seat);
   const boardOpen = windows.includes('personalBoard');
-  /** **La recherche posée au-dessus de la bande** (#122), en attendant sa fenêtre (#123). « Écon. »
-   *  qui déplie la bande la referme. */
-  const [boardResearch, setBoardResearch] = useState(false);
-  useEffect(() => {
-    if (boardOpen) setBoardResearch(false);
-  }, [boardOpen]);
+  const researchOpen = windows.includes('research');
   /** The windows drawn as windows: the personal board is the band, its flag only unfolds it. */
   const surfaces = windows.filter(
     (name): name is Exclude<BoardWindow, 'personalBoard'> => name !== 'personalBoard',
@@ -2976,7 +2978,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
-      shut={boardOpen || boardResearch}
+      shut={boardOpen}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
@@ -3410,8 +3412,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 view={view}
                 seat={seat}
                 open={boardOpen}
-                research={boardResearch}
-                onResearch={setBoardResearch}
+                research={researchOpen}
+                onResearch={(open) => (open ? openWindow('research') : closeWindow('research'))}
                 front={surfaces.length === 0 || windows.at(-1) === 'personalBoard'}
                 onOpen={(open) =>
                   open ? openWindow('personalBoard') : closeWindow('personalBoard')
@@ -3507,6 +3509,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       {...windowProps}
                     />
                   );
+                case 'research':
+                  return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
                 case 'settings':
                   return (
                     <SettingsWindow
@@ -3933,8 +3937,8 @@ function postedStacks(
   });
 }
 
-/** **La carte que porte mon QG** (ADR 0028 §5) : son nom et sa barre sur le mât. */
-function researchOnHq(me: PlayerView['me']): {
+/** **La carte que cherche mon Centre de recherche** (#123) : son nom et sa barre sur son mât. */
+function researchOnCenter(me: PlayerView['me']): {
   research?: Extract<LabelLine, { role: 'research' }>;
 } {
   const running = me.research.running;
@@ -3943,8 +3947,8 @@ function researchOnHq(me: PlayerView['me']): {
   return {
     research: {
       role: 'research',
-      text: fr.research.onHq(cardName(running.card)),
-      since: (finishesAt ?? Date.now()) - researchMs(running.card),
+      text: fr.research.onCenter(cardName(running.card)),
+      since: (finishesAt ?? Date.now()) - (running.totalMs ?? researchMs(running.card)),
       dueAt: finishesAt,
       share,
     },

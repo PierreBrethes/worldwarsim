@@ -101,7 +101,8 @@ export const STORAGE_CAP_PER_LEVEL = 600;
  * arsenal, warehouse, headquarters) and for the port and the listening post, food for the
  * barracks, oil for the airfield. The outpost, priced below, is the one that costs food.
  *
- * @a-mesurer the second figure of the three extractors is new; set by eye against their steel
+ * @a-mesurer the second figure of the three extractors is new; set by eye against their steel,
+ * and the research centre (#123) is set near the barracks
  */
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
@@ -115,6 +116,8 @@ export const BUILDING_SPEC: Readonly<
   airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
   port: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   listening: { cost: { steel: 35, coal: 15 }, minutes: 40 },
+  // De l'ordre de la caserne (#123), à mesurer comme le reste du barème.
+  researchCenter: { cost: { steel: 45, coal: 30 }, minutes: 45 },
   warehouse: { cost: { steel: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { steel: 40, coal: 15 }, minutes: 30 },

@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { pauseResearch } from './research';
+import { followCenter } from './research';
 import { stopTour } from './tours';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -519,8 +519,6 @@ export const complete = internalMutation({
      *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
     const falls = isBuilding(site) && site.homeOf === loser._id;
     if (falls && mode === 'mondiale') {
-      /** Sa carte de recherche attend un QG : ce qu'elle a couru et payé n'est pas perdu. */
-      await pauseResearch(ctx, loser._id, now);
       await releaseBuilding(ctx, loser, site, now);
       await ctx.db.patch(site._id, {
         playerId: capture.playerId,
@@ -572,6 +570,9 @@ export const complete = internalMutation({
     if (taken.some((building) => canonicalBuildingKey(building.key) === 'warehouse')) {
       await clipToStorage(ctx, loser._id, now);
     }
+    /** Son Centre de recherche pris, sa carte attend : ce qu'elle a couru et payé n'est pas perdu. */
+    if (taken.some((building) => building.key === 'researchCenter'))
+      await followCenter(ctx, loser._id, now);
     await reportChange(ctx, capture.seasonId, before, now);
 
     await ctx.db.delete(captureId);

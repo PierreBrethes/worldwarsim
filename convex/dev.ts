@@ -9,6 +9,7 @@ import { viewOf } from './view';
 import { seatedOf } from './movement/forces';
 import { reassessDetection } from './movement/detection';
 import { seatLoose } from '../src/domain/troops';
+import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { UNIT_ROLE } from './validators';
 import { nominalStrength } from './constants';
@@ -538,21 +539,39 @@ export const airdropScene = internalMutation({
 });
 
 /**
- * **Une recherche en cours** (ADR 0028 §5) : l'infanterie MK2 et l'aviation acquises, le blindé
- * posé sur le QG il y a six heures — dix heures à courir.
+ * **Une recherche en cours** (ADR 0028 §5, #123) : un Centre de recherche de niveau 2 au sud de la
+ * capitale, l'infanterie MK2 et l'aviation acquises, le blindé posé il y a six heures sur le
+ * Centre — le reste de sa durée, raccourcie au niveau 2, à courir.
  */
 export const researchScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  /** `idle` : le Centre debout et rien de posé, pour poser une carte depuis l'arbre. */
+  args: { playerId: v.id('players'), idle: v.optional(v.boolean()) },
+  handler: async (ctx, { playerId, idle }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
     await headquartersOf(ctx, player);
+    const regionId = capitalRegionOf(player.nation);
+    const { lon, lat } = pointOfRegion(regionId);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'researchCenter',
+      regionId,
+      point: { lon, lat: lat - 0.45 },
+      level: 2,
+      outpostId: null,
+    });
+    if (idle === true) {
+      await ctx.db.patch(playerId, { researched: ['infantryMk2', 'aviation'] });
+      return;
+    }
     const now = Date.now();
     const hour = 3_600_000;
-    const remainingMs = 10 * hour;
+    const totalMs = researchMs('armor', 2);
+    const remainingMs = totalMs - 6 * hour;
     await ctx.db.patch(playerId, {
       researched: ['infantryMk2', 'aviation'],
-      research: { card: 'armor', remainingMs: 16 * hour, since: now - 6 * hour },
+      research: { card: 'armor', totalMs, remainingMs: totalMs, since: now - 6 * hour },
     });
     await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
       playerId,

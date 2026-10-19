@@ -52,6 +52,7 @@ export const BUILDING_KEY = v.union(
   v.literal('airfield'),
   v.literal('port'),
   v.literal('listening'),
+  v.literal('researchCenter'),
   v.literal('warehouse'),
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
   v.literal('city'),

@@ -3,7 +3,12 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { RESEARCH_TREE, holdsHq, researchMs, researchRefusalOf } from '../src/domain/research';
+import {
+  RESEARCH_TREE,
+  researchMs,
+  researchRefusalOf,
+  searcherLevel,
+} from '../src/domain/research';
 import { RESEARCH_SPEC } from './constants';
 import { refuseInBlitz } from './blitz';
 import { playerBuildings } from './buildingReads';
@@ -12,10 +17,21 @@ import { debit, economyOf } from './resources';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { RESEARCH_CARD } from './validators';
 
+/** Le niveau du Centre de recherche du joueur, tel que `searcherLevel` le lit. */
+const centerLevelOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
+  searcherLevel(
+    (await playerBuildings(ctx, playerId)).map((building) => ({
+      key: building.key,
+      level: building.level,
+      captured: building.capturedAt !== undefined,
+    })),
+  );
+
 /**
- * **Poser une carte sur son QG** (ADR 0028 §5) : payée à la pose, elle court en heures de jeu
- * et débloque à la fin. Une seule à la fois ; le refus est celui que la carte dit au survol du
- * QG (`researchRefusalOf`).
+ * **Poser une carte sur son Centre de recherche** (ADR 0028 §5, #123) : payée à la pose, elle
+ * court en heures de jeu, raccourcies au niveau du Centre (ADR 0031), et débloque à la fin. Une
+ * seule à la fois ; le refus est celui que la fenêtre de l'arbre dit avant le geste
+ * (`researchRefusalOf`).
  */
 export const start = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), card: RESEARCH_CARD },
@@ -25,16 +41,11 @@ export const start = mutation({
     refuseInBlitz(season);
     const now = Date.now();
     const { stocks } = await economyOf(ctx, player._id, now);
+    const centerLevel = await centerLevelOf(ctx, player._id);
     const refusal = researchRefusalOf(card, {
       researched: player.researched ?? [],
       running: player.research?.card ?? null,
-      hqHeld: holdsHq(
-        (await playerBuildings(ctx, player._id)).map((building) => ({
-          key: building.key,
-          level: building.level,
-          captured: building.capturedAt !== undefined,
-        })),
-      ),
+      centerLevel,
       stocks,
     });
     if (refusal !== null) {
@@ -42,8 +53,10 @@ export const start = mutation({
       fail(code, details);
     }
     await debit(ctx, player._id, RESEARCH_SPEC[card].cost, now);
-    const remainingMs = researchMs(card);
-    await ctx.db.patch(player._id, { research: { card, remainingMs, since: now } });
+    const remainingMs = researchMs(card, centerLevel ?? 1);
+    await ctx.db.patch(player._id, {
+      research: { card, totalMs: remainingMs, remainingMs, since: now },
+    });
     await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
       playerId: player._id,
       finishesAt: now + remainingMs,
@@ -86,34 +99,32 @@ export const finish = internalMutation({
   },
 });
 
-/** **Un QG qui tombe arrête la carte** : ce qu'elle a couru reste couru. */
-export async function pauseResearch(
+/**
+ * **La carte suit son Centre de recherche** (#123) : sans Centre à soi — rasé, pris, jamais bâti —
+ * elle s'arrête, et ce qu'elle a couru reste couru ; un Centre de nouveau debout la relance.
+ * Appelée partout où un Centre paraît ou disparaît.
+ */
+export async function followCenter(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   now: number,
 ): Promise<void> {
   const running = (await ctx.db.get(playerId))?.research;
-  if (running === undefined || running.since === null) return;
-  await ctx.db.patch(playerId, {
-    research: {
-      ...running,
-      remainingMs: Math.max(0, running.remainingMs - (now - running.since)),
-      since: null,
-    },
-  });
-}
-
-/** **Un QG de nouveau debout** relance la carte qui l'attendait. */
-export async function resumeResearch(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  now: number,
-): Promise<void> {
-  const running = (await ctx.db.get(playerId))?.research;
-  if (running === undefined || running.since !== null) return;
-  await ctx.db.patch(playerId, { research: { ...running, since: now } });
-  await ctx.scheduler.runAt(now + running.remainingMs, internal.research.finish, {
-    playerId,
-    finishesAt: now + running.remainingMs,
-  });
+  if (running === undefined) return;
+  const standing = (await centerLevelOf(ctx, playerId)) !== null;
+  if (!standing && running.since !== null) {
+    await ctx.db.patch(playerId, {
+      research: {
+        ...running,
+        remainingMs: Math.max(0, running.remainingMs - (now - running.since)),
+        since: null,
+      },
+    });
+  } else if (standing && running.since === null) {
+    await ctx.db.patch(playerId, { research: { ...running, since: now } });
+    await ctx.scheduler.runAt(now + running.remainingMs, internal.research.finish, {
+      playerId,
+      finishesAt: now + running.remainingMs,
+    });
+  }
 }

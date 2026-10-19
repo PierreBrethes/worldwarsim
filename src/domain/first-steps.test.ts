@@ -118,6 +118,13 @@ describe('cueOf', () => {
     });
   });
 
+  it('asks for a research centre before the tree', () => {
+    expect(cueOf('research', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'center' });
+    expect(
+      cueOf('research', view({ buildings: [{ id: 'C-1', key: 'researchCenter' } as never] })),
+    ).toEqual({ kind: 'rack', rack: 'research', say: 'research' });
+  });
+
   it('founds an outpost first, then points at a transport or at the piece rack', () => {
     expect(cueOf('deliver', view({ troops: [troop({})] }))).toEqual({
       kind: 'piece',

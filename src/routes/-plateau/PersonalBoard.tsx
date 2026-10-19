@@ -13,16 +13,9 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { RESEARCH_SPEC, buildMinutes } from '../../../convex/constants';
+import { buildMinutes } from '../../../convex/constants';
 import { spedMinutes, speedsUp } from '@/domain/level-speed';
-import {
-  cardName,
-  countdownLabel,
-  fr,
-  researchRequired,
-  roleLabel,
-  upgradeHoldText,
-} from '@/i18n/fr';
+import { countdownLabel, fr, researchRequired, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -30,31 +23,19 @@ import { useClock } from '@/shell/clock';
 import { bindSpots, centreOf, flightLayer, flyPastille, spent as flySpent } from '@/shell/flights';
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
-import { Stamp } from '@/shell/Stamp';
 import { CueBubble } from '@/shell/CueBubble';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, upgradeHold } from '@/domain/construction';
-import { asDuration } from '@/domain/duration';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
   BUILDABLE_BUILDINGS,
-  RESEARCH_CARDS,
   RESOURCES,
   type BuildingKey,
-  type ResearchCard,
   type ResourceKey,
   type UnitRole,
   type UnitTier,
 } from '@/domain/ids';
-import {
-  RESEARCH_TREE,
-  counterOf,
-  countersOf,
-  holdsHq,
-  pieceAt,
-  researchProgressOf,
-  researchRefusalOf,
-} from '@/domain/research';
+import { pieceAt } from '@/domain/research';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
 import {
   PROJECTION_BY_DOMAIN,
@@ -68,15 +49,12 @@ import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { conditionText } from './FoundationRows';
-import { HelpMark } from './HelpMark';
 import { LotControl } from './LotControl';
 
-/** What the hand holds: a tile builds or raises, a piece is formed on a projection site, a
- *  research card is put on the headquarters. */
+/** What the hand holds: a tile builds or raises, a piece is formed on a projection site. */
 type Held =
   | { readonly kind: 'tile'; readonly key: BuildingKey }
-  | { readonly kind: 'piece'; readonly role: UnitRole; readonly tier: UnitTier }
-  | { readonly kind: 'card'; readonly card: ResearchCard };
+  | { readonly kind: 'piece'; readonly role: UnitRole; readonly tier: UnitTier };
 
 /** What the hand says over where it is: a verb with its bill, or the refusal in red. */
 type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: Cost } | null;
@@ -105,7 +83,7 @@ const CORNER_ROOM = 'calc(72px + var(--safe-right) / var(--hud-scale))';
  * jetons sur un transport sans la déplier —, le chantier en tête et la récolte. Dépliée, les bacs
  * en jauges jusqu'au plafond de l'entrepôt, le plateau à tuiles en deux onglets (bâtiments,
  * troupes) qu'on fait défiler, et la file des chantiers. Les consommations vivent dans les
- * tickets du bandeau (#121). La recherche s'ouvre au-dessus d'elle, en attendant sa fenêtre (#123).
+ * tickets du bandeau (#121). « Recherche » ouvre la fenêtre de l'arbre (#123).
  *
  * La grammaire est celle des pièces de la carte (`drop-order.ts`) : ce qui s'allume sous la main
  * est ce qu'on prend, un refus se dit en rouge et la pièce rentre.
@@ -129,8 +107,7 @@ export function PersonalBoard({
   /** Dépliée : la fenêtre `personalBoard` de l'adresse, que « Écon. » bascule. */
   open: boolean;
   onOpen: (open: boolean) => void;
-  /** **La recherche ouverte au-dessus de la bande**, en attendant sa fenêtre (#123) : le plateau
-   *  la tient, pour ranger la carte « à faire » comme pour la bande dépliée. */
+  /** **La fenêtre de l'arbre ouverte** (#123) : la bande se replie devant elle. */
   research: boolean;
   onResearch: (open: boolean) => void;
   /** Aucune fenêtre n'est devant la bande : Échap est à elle. */
@@ -183,17 +160,16 @@ export function PersonalBoard({
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${research}-${cue?.text ?? ''}`);
 
-  // Escape folds what the band shows, when no window stands in front of it: research first.
+  // Escape folds the band, when no window stands in front of it.
   useEffect(() => {
-    if (!front || (!open && !research)) return;
+    if (!front || !open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || held !== null) return;
-      if (research) onResearch(false);
-      else onOpen(false);
+      onOpen(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [front, held, open, research, onOpen, onResearch]);
+  }, [front, held, open, onOpen]);
 
   // Folded, the focus that was inside the band (or that it took to the body) goes to its handle.
   const wasFolded = useRef(folded);
@@ -313,16 +289,6 @@ export function PersonalBoard({
               }
         }
       >
-        {research && (
-          <ResearchPanel
-            view={view}
-            now={now}
-            held={held}
-            cue={researchCue}
-            onClose={() => onResearch(false)}
-            onTake={observing ? null : (card) => (grab) => take({ kind: 'card', card }, grab)}
-          />
-        )}
         {rackCue !== null && !folded && (
           <CueBubble
             text={rackCue}
@@ -1284,182 +1250,6 @@ function Works({
   );
 }
 
-// ---------------------------------------------------------------------------------------
-// Research, until its own window (#123)
-// ---------------------------------------------------------------------------------------
-
-const situationOf = (view: PlayerView, now: number) => ({
-  researched: view.me.research.researched,
-  running: view.me.research.running?.card ?? null,
-  hqHeld: holdsHq(view.me.buildings),
-  stocks: stocksAt(view, now),
-});
-
-/** Ce qui retient une carte avant même le QG, dit au survol et à la prise : elle rentre. */
-function cardRefusalOf(view: PlayerView, card: ResearchCard): string | null {
-  const refusal = researchRefusalOf(card, situationOf(view, Date.now()));
-  if (refusal === null) return null;
-  const { code, ...details } = refusal;
-  return fr.errors[code](details);
-}
-
-const names = (cards: ReadonlyArray<ResearchCard>): string =>
-  cards.map(cardName).join(fr.research.and);
-
-/**
- * **Les cartes de recherche** (ADR 0028 §5), posées au-dessus de la bande le temps que la
- * recherche ait sa fenêtre (#123) : on en glisse une sur le QG.
- */
-function ResearchPanel({
-  view,
-  now,
-  held,
-  cue,
-  onClose,
-  onTake,
-}: {
-  view: PlayerView;
-  now: number;
-  held: Held | null;
-  cue: string | null;
-  onClose: () => void;
-  onTake: ((card: ResearchCard) => Take) | null;
-}) {
-  return (
-    <section
-      aria-label={fr.research.header}
-      data-mat-part
-      className="paper-grain float absolute inset-x-0 bottom-[calc(100%+8px)] border border-[var(--ink)] px-3 pt-[8px] pb-[10px]"
-    >
-      {cue !== null && <CueBubble text={cue} />}
-      <div className="flex items-center gap-2 pb-[8px]">
-        <span className="eyebrow">{fr.research.header}</span>
-        <HelpMark>{fr.research.note}</HelpMark>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto cursor-pointer border border-[var(--ink)] px-[9px] py-[4px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-        >
-          {fr.common.close}
-        </button>
-      </div>
-      <div className="flex gap-[7px] overflow-x-auto pb-[4px]">
-        {RESEARCH_CARDS.map((card) => (
-          <ResearchCardTile
-            key={card}
-            card={card}
-            view={view}
-            now={now}
-            lit={held?.kind === 'card' && held.card === card}
-            onTake={onTake === null ? null : onTake(card)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ResearchCardTile({
-  card,
-  view,
-  now,
-  lit,
-  onTake,
-}: {
-  card: ResearchCard;
-  view: PlayerView;
-  now: number;
-  lit: boolean;
-  onTake: Take | null;
-}) {
-  const spec = RESEARCH_TREE[card];
-  const { hours, cost } = RESEARCH_SPEC[card];
-  const done = view.me.research.researched.includes(card);
-  const running = view.me.research.running?.card === card ? view.me.research.running : null;
-  const progress = running === null ? null : researchProgressOf(running, now);
-  const counters = countersOf(card);
-  const counter = counterOf(card);
-  const refusal = done || running !== null ? null : cardRefusalOf(view, card);
-  const name = fr.research.names[card];
-  const label = refusal === null ? name : `${name} — ${refusal}`;
-  return (
-    <button
-      type="button"
-      {...takeProps(done || running !== null ? null : onTake)}
-      title={label}
-      aria-label={label}
-      data-research-card={card}
-      className={`grid w-[150px] shrink-0 touch-pan-x content-start gap-[2px] border border-[var(--ink)] bg-[#efe5cc] px-[7px] pt-[5px] pb-[6px] text-left text-[var(--ink)] shadow-[0_2px_0_var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
-        onTake === null || done || running !== null
-          ? ''
-          : 'cursor-grab hover:shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]'
-      } ${lit ? 'shadow-[0_0_0_2px_var(--ochre),0_2px_0_var(--ink)]' : ''}`}
-    >
-      <span className="flex items-baseline justify-between gap-1 text-[9.5px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
-        <span>{fr.research.branches[spec.branch]}</span>
-        <span className="font-(family-name:--font-mono) tracking-normal">
-          {fr.research.hours(hours)}
-        </span>
-      </span>
-      <b className="text-[12.5px] leading-[1.15] font-extrabold">{name}</b>
-      <span className="line-clamp-2 text-[10.5px] leading-[1.25] text-[var(--ink-soft)]">
-        {fr.research.unlocks[card]}
-      </span>
-      {spec.after.length > 0 && (
-        <span className="text-[10.5px] leading-[1.25]">{fr.research.after(names(spec.after))}</span>
-      )}
-      {counters.length > 0 && (
-        <span className="text-[10.5px] leading-[1.25] text-[var(--interaction)]">
-          {fr.research.counters(names(counters))}
-        </span>
-      )}
-      {counter !== null && (
-        <span className="text-[10.5px] leading-[1.25] text-[var(--critical)]">
-          {fr.research.counteredBy(
-            'card' in counter ? cardName(counter.card) : fr.research.atStart(counter.start),
-          )}
-        </span>
-      )}
-      <span className="mt-[2px] font-(family-name:--font-mono) text-[10px]">
-        {done ? (
-          <Stamp label={fr.research.done} size="small" />
-        ) : progress !== null ? (
-          <ResearchGauge share={progress.share} finishesAt={progress.finishesAt} now={now} />
-        ) : (
-          <Price costs={cost} size={10} />
-        )}
-      </span>
-    </button>
-  );
-}
-
-/** **Une carte qui avance** : sa barre, et ce qui lui reste — ou qu'elle attend son QG. */
-function ResearchGauge({
-  share,
-  finishesAt,
-  now,
-}: {
-  share: number;
-  finishesAt: number | null;
-  now: number;
-}) {
-  return (
-    <span className="block">
-      <span className="loading-gauge loading-gauge--march block" data-testid="research-gauge">
-        <b style={{ width: `${Math.round(100 * share)}%` }} />
-      </span>
-      <span
-        className="block text-[10px]"
-        style={finishesAt === null ? { color: 'var(--critical)' } : undefined}
-      >
-        {finishesAt === null
-          ? fr.research.waiting
-          : fr.research.left(asDuration(Math.max(0, (finishesAt - now) / 60_000)))}
-      </span>
-    </span>
-  );
-}
-
 const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
 
 /** What travels under the hand: the tile or the piece, and what the place under it says. */
@@ -1469,10 +1259,6 @@ function Carried({ held, view, hint }: { held: Held; view: PlayerView; hint: Hin
       <div className="grid rotate-[-3deg] justify-items-center border border-[var(--ink)] bg-[#efe5cc] p-[6px] shadow-[0_10px_18px_rgba(0,0,0,.45)]">
         {held.kind === 'tile' ? (
           <BuildingPlate building={held.key} height={34} />
-        ) : held.kind === 'card' ? (
-          <b className="px-[6px] py-[4px] text-[13px] font-extrabold">
-            {fr.research.names[held.card]}
-          </b>
         ) : (
           <UnitSprite
             nation={view.me.nation}
@@ -1539,7 +1325,6 @@ function useHand({
   const chip = useRef<HTMLDivElement>(null);
   const start = useMutation(api.constructions.start);
   const recruit = useMutation(api.troops.recruit);
-  const research = useMutation(api.research.start);
   const latest = useRef({ view, workshop });
   latest.current = { view, workshop };
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
@@ -1559,9 +1344,7 @@ function useHand({
     const refusal =
       what.kind === 'tile'
         ? tileRefusalOf(latest.current.view, what.key)
-        : what.kind === 'card'
-          ? cardRefusalOf(latest.current.view, what.card)
-          : pieceRefusalOf(latest.current.workshop, what);
+        : pieceRefusalOf(latest.current.workshop, what);
     let mode: 'drag' | 'click' = pointerId === null ? 'click' : 'drag';
     let moved = false;
     let armed = false;
@@ -1680,11 +1463,6 @@ function useHand({
           flySpent(building.nextLevelCost, building.point, motion);
           spent(fr.personalBoard.raised(building.name, building.level + 1));
         }, refused);
-      } else if (what.kind === 'card') {
-        research({ ...seat, card: what.card }).then(
-          () => spent(fr.research.started(cardName(what.card))),
-          refused,
-        );
       } else {
         const entry = latest.current.workshop?.grid.find((one) => one.role === what.role);
         const pieceCost =
@@ -1713,7 +1491,7 @@ function useHand({
       if (refusal !== null) return drop(home);
       mode = 'click';
       say({
-        text: what.kind === 'card' ? fr.research.dropOnHq : fr.personalBoard.dropOnSite,
+        text: fr.personalBoard.dropOnSite,
         refused: false,
       });
       leave();
@@ -1831,25 +1609,6 @@ function readingOf(
               cost: building.nextLevelCost,
             }
           : { text: upgradeHoldText(hold), refused: true },
-    };
-  }
-  if (held.kind === 'card') {
-    const hq = under.find((candidate) => candidate.key === 'hq');
-    if (hq === undefined)
-      return { kind: 'map', hint: { text: fr.research.dropOnHq, refused: true } };
-    const refusal = researchRefusalOf(held.card, situationOf(view, Date.now()));
-    if (refusal !== null) {
-      const { code, ...details } = refusal;
-      return { kind: 'act', building: hq, hint: { text: fr.errors[code](details), refused: true } };
-    }
-    return {
-      kind: 'act',
-      building: hq,
-      hint: {
-        text: fr.research.start(cardName(held.card), RESEARCH_SPEC[held.card].hours),
-        refused: false,
-        cost: RESEARCH_SPEC[held.card].cost,
-      },
     };
   }
   const entry = workshop?.grid.find((candidate) => candidate.role === held.role);

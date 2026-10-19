@@ -225,7 +225,7 @@ export type MapMarker =
       readonly emplacedAt?: number;
       /** **Les transports chargés de sa garnison** : l'étiquette qui pend sous le mât. */
       readonly cargo?: ReadonlyArray<CargoTag>;
-      /** Mon QG seul : la carte de recherche qu'il porte. */
+      /** Mon Centre de recherche seul : la carte qu'il cherche. */
       readonly research?: Extract<LabelLine, { role: 'research' }>;
       readonly ink: string;
     }
@@ -318,8 +318,8 @@ export type LabelLine =
   | { readonly role: 'loading'; readonly until: number }
   /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
   | { readonly role: 'supplies'; readonly supplies: PileSupplies }
-  /** **La carte de recherche que porte mon QG** (ADR 0028 §5) : son nom et sa barre, qui court
-   *  de `since` à `dueAt` — figée à `share` quand le QG manque (`dueAt: null`). */
+  /** **La carte que cherche mon Centre de recherche** (#123) : son nom et sa barre, qui court
+   *  de `since` à `dueAt` — figée à `share` quand elle attend un Centre (`dueAt: null`). */
   | {
       readonly role: 'research';
       readonly text: string;
