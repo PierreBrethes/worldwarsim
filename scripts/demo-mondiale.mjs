@@ -19,6 +19,9 @@
  * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
+ * `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
+ * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
+ * (production et consommation, #121).
  *
  *     npm run demo:mondiale
  *
@@ -45,6 +48,7 @@ const research = process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
+const mines = process.argv.includes('--exploitations');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -167,6 +171,33 @@ if (!bare) {
     });
   }
   /** Un arsenal et un lot de pétrole synthétique en cours (ADR 0028 §1). */
+  if (mines && scene.a !== null) {
+    const deposits = JSON.parse(readFileSync(`${root}public/deposits.json`, 'utf8'));
+    /** Le QG d'abord (`HQ_FIRST`), à Paris ; les exploitations suivent, offertes. */
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const paris = me.regions.find((region) => region.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'hq',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
+    });
+    for (const [building, id] of [
+      ['farm', 'food-FRA-5291'],
+      ['mine', 'coal-FRA-5334'],
+      ['mine', 'iron-FRA-5275'],
+    ]) {
+      const site = deposits.find((deposit) => deposit.id === id);
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId: site.regionId,
+        point: { lon: site.lon, lat: site.lat },
+      });
+    }
+  }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
   /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */

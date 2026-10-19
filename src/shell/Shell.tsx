@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
+import { ConsumptionTickets, MAX_TICKETS, pinToggled } from './ConsumptionTickets';
 import { NarrowBand } from './NarrowBand';
 import { Protractor } from './Protractor';
 import { Reglette } from './Reglette';
@@ -38,6 +40,14 @@ export function Shell({
   const top = useRef<HTMLElement>(null);
   const side = useRef<HTMLElement>(null);
   const insets = usePublishedEdges(board, top, side, narrow);
+  /** **Les registres épinglés**, du plus ancien au plus récent (#121) : un clic sur une réserve du
+   *  bandeau en pose ou en décroche le ticket ; au-delà de trois, le plus ancien part. */
+  const [pinned, setPinned] = useState<ReadonlyArray<ResourceKey>>([]);
+  const togglePin = (resource: ResourceKey) =>
+    setPinned((held) => pinToggled(held, resource, narrow ? 1 : MAX_TICKETS));
+  const tickets = (
+    <ConsumptionTickets view={view} pinned={pinned} narrow={narrow} onUnpin={togglePin} />
+  );
   /** **Le pincement est à la carte tant que le plateau est monté** (`.on-board`, `index.css`) : sur
    *  la racine du document et non sur ce cadre, parce que fenêtres et docks sont des portails. */
   useEffect(() => {
@@ -58,8 +68,11 @@ export function Shell({
                 view={view}
                 onShowBriefing={onShowBriefing}
                 onResumeSteps={onResumeSteps}
+                pinned={pinned}
+                onPin={togglePin}
                 ref={top}
               />
+              {tickets}
               <Protractor
                 view={view}
                 telegraphUnread={telegraphUnread}
@@ -78,7 +91,8 @@ export function Shell({
       <div className="board-frame flex h-full overflow-hidden">
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           {children}
-          <Reglette view={view} ref={top} />
+          <Reglette view={view} pinned={pinned} onPin={togglePin} ref={top} />
+          {tickets}
           <SurfaceColumn
             view={view}
             telegraphUnread={telegraphUnread}

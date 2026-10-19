@@ -15,6 +15,8 @@ import {
   type ResourceKey,
 } from '../src/domain/ids';
 import { buildingLockOf } from '../src/domain/research';
+import { ledgerOf } from '../src/domain/ledger';
+import type { PlayerView } from '../src/domain/player-view';
 import { ADM0_BY_NATION } from '../src/domain/nations';
 import {
   BUILDING_SPACING_KM,
@@ -274,6 +276,11 @@ describe('what the industry window reads', () => {
     expect(view.me.resources.ammunition.ratePerHour).toBe(cast);
     expect(view.me.resources.coal.ratePerHour).toBe(-cast);
     expect(view.me.resources.steel.ratePerHour).toBe(-cast);
+    // Le registre de chaque réserve se ferme sur ce débit : une seule source pour le bandeau et le ticket.
+    for (const resource of RESOURCES)
+      expect(ledgerOf(view as unknown as PlayerView, resource).balance).toBeCloseTo(
+        view.me.resources[resource].ratePerHour,
+      );
   });
 
   /** Un arsenal qui ne peut rien poser ne prélève rien non plus : le joueur lirait sinon une

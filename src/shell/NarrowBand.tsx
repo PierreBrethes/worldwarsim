@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { CATEGORIES } from '@/domain/indicators';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
-import { marksOf } from '@/domain/resource-band';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
 import { withWindow, type BoardSearch, type BoardWindow } from '@/routes/-plateau/board-search';
@@ -13,7 +12,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
-import { BlitzClock, FundsCell, ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
+import { BlitzClock, FundsCell, ResourceCell, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
@@ -22,19 +21,24 @@ import { useSoleSurface } from './sole-surface';
  * **La réglette du téléphone** (table plein écran, 13/10, qui reprend la refonte mobile du 04/10) :
  * la bande de papier du bureau sur deux lignes, posée sur la carte — la nation et les mouvements,
  * puis les huit réserves en colonnes, icône, chiffre et jauge. L'alerte y est la même qu'au bureau
- * (`marksOf`), sans le cercle : le chiffre rouge et l'étiquette qui pend.
+ * (`drynessOf`), sans le cercle : le chiffre rouge et l'étiquette qui pend.
  *
  * **Le drapeau ouvre le dossier de la nation** (1s), où vit ce qu'on cherche à froid. **Le détail
- * d'une réserve s'ouvre au toucher**, jamais au survol (M1) : le nom, le plafond, le débit, la
- * source et le diagnostic, dans la même carte de papier qu'au bureau.
+ * d'une réserve s'ouvre au toucher**, jamais au survol (M1) : son registre, en feuille basse
+ * (`ConsumptionTickets`).
  */
 export function NarrowBand({
   view,
   onShowBriefing,
   onResumeSteps = null,
+  pinned,
+  onPin,
   ref,
 }: {
   view: PlayerView;
+  /** Les réserves dont le registre est ouvert, et le toucher qui l'ouvre en feuille (#121). */
+  pinned: ReadonlyArray<ResourceKey>;
+  onPin: (resource: ResourceKey) => void;
   /** L'aide-mémoire est un état du plateau, qui le sert aussi à la première arrivée. */
   onShowBriefing: () => void;
   /** Les premiers pas repliés ou passés : le dossier les reprend. */
@@ -43,21 +47,8 @@ export function NarrowBand({
 }) {
   const now = useClock();
   const search = useSearch({ strict: false }) as BoardSearch;
-  const [shown, setShown] = useState<{ resource: ResourceKey; left: number } | null>(null);
   const [surface, setSurface] = useState<'dossier' | 'layers' | null>(null);
-  const columns = useRef<HTMLDivElement>(null);
-  const marks = marksOf(view, now);
   const { me } = view;
-
-  useEffect(() => {
-    if (shown === null) return;
-    const elsewhere = (event: globalThis.PointerEvent) => {
-      if (columns.current?.contains(event.target as Node)) return;
-      setShown(null);
-    };
-    document.addEventListener('pointerdown', elsewhere);
-    return () => document.removeEventListener('pointerdown', elsewhere);
-  }, [shown]);
 
   return (
     <header
@@ -102,7 +93,7 @@ export function NarrowBand({
           <BlitzClock view={view} now={now} openEnding={search} />
         </div>
       ) : (
-        <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
+        <div className="grid grid-cols-8 px-[4px] py-[4px]">
           {RESOURCES.map((resource) => (
             <ResourceCell
               key={resource}
@@ -110,32 +101,10 @@ export function NarrowBand({
               view={view}
               now={now}
               stacked
-              onClick={(event) => {
-                const left = event.currentTarget.offsetLeft;
-                setShown((open) =>
-                  open?.resource === resource
-                    ? null
-                    : {
-                        resource,
-                        left: Math.max(
-                          0,
-                          Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
-                        ),
-                      },
-                );
-              }}
+              pressed={pinned.includes(resource)}
+              onClick={() => onPin(resource)}
             />
           ))}
-          {shown !== null && (
-            <ReserveCard
-              resource={shown.resource}
-              view={view}
-              now={now}
-              mark={marks[shown.resource]}
-              left={shown.left}
-              width={DETAIL_WIDTH}
-            />
-          )}
         </div>
       )}
 
@@ -162,9 +131,6 @@ export function NarrowBand({
     </header>
   );
 }
-
-/** Assez large pour que le diagnostic passe à la ligne sans sortir de l'écran. */
-const DETAIL_WIDTH = 220;
 
 /**
  * **Le dossier de la nation** (1s) : posé sous le bandeau, la carte voilée jusqu'à la barre de

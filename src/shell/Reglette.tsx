@@ -7,7 +7,6 @@ import {
   type ComponentProps,
   type CSSProperties,
   type Ref,
-  type RefObject,
 } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
@@ -36,14 +35,23 @@ import { useClock } from './clock';
  * étiquette pend sous la case. **Au plafond n'est pas une alarme** (Pierre, 13/10) : la jauge
  * pleine le dit à l'encre, et le diagnostic reste à la carte de la réserve.
  */
-export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElement> }) {
+export function Reglette({
+  view,
+  pinned,
+  onPin,
+  ref,
+}: {
+  view: PlayerView;
+  /** Les réserves dont le ticket est épinglé : le clic en pose ou en décroche un (#121). */
+  pinned: ReadonlyArray<ResourceKey>;
+  onPin: (resource: ResourceKey) => void;
+  ref?: Ref<HTMLElement>;
+}) {
   const { me } = view;
   const search = useSearch({ strict: false }) as BoardSearch;
   const now = useClock();
   const marks = marksOf(view, now);
   const [shown, setShown] = useState<ResourceKey | null>(null);
-  const reserves = useRef<HTMLDivElement>(null);
-  useClosedOnTouchElsewhere(shown !== null, reserves, () => setShown(null));
 
   return (
     <header
@@ -123,7 +131,6 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
       )}
 
       <div
-        ref={reserves}
         className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px] max-[1500px]:gap-[2px] max-[1500px]:pl-[8px] max-[1500px]:pr-[16px] max-[1350px]:pl-[4px] max-[1350px]:pr-[12px]"
         onPointerLeave={(event) => {
           if (event.pointerType !== 'touch') setShown(null);
@@ -140,7 +147,11 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
                 onPointerEnter={(event) => {
                   if (event.pointerType !== 'touch') setShown(resource);
                 }}
-                onClick={() => setShown((open) => (open === resource ? null : resource))}
+                pressed={pinned.includes(resource)}
+                onClick={() => {
+                  setShown(null);
+                  onPin(resource);
+                }}
               />
               {shown === resource && (
                 <ReserveCard
@@ -220,12 +231,15 @@ export function ResourceCell({
   view,
   now,
   stacked = false,
+  pressed = false,
   ...button
 }: {
   resource: ResourceKey;
   view: PlayerView;
   now: number;
   stacked?: boolean;
+  /** Son ticket est épinglé sous la réglette. */
+  pressed?: boolean;
 } & Pick<ComponentProps<'button'>, 'onClick' | 'onPointerEnter'>) {
   const reserve = view.me.resources[resource];
   const stock = currentStock(reserve, view.loadedAt, now);
@@ -246,13 +260,14 @@ export function ResourceCell({
   return (
     <button
       type="button"
+      aria-pressed={pressed}
       aria-label={fr.resourceBand.tooltip(
         fr.resources[resource],
         stock,
         reserve.cap,
         reserve.ratePerHour,
       )}
-      className={`relative grid cursor-pointer items-center ${
+      className={`relative grid cursor-pointer items-center ${pressed ? 'bg-(--ink)/10' : ''} ${
         stacked
           ? 'min-h-[44px] justify-items-center gap-[3px]'
           : 'grid-cols-[auto_auto] grid-rows-[auto_3px] gap-x-[6px] gap-y-[4px]'
@@ -646,23 +661,6 @@ export function ReserveCard({
       )}
     </HoverCard>
   );
-}
-
-/** Un doigt n'a pas de survol : ce que la souris quitterait, un toucher ailleurs le referme. */
-function useClosedOnTouchElsewhere(
-  open: boolean,
-  inside: RefObject<HTMLElement | null>,
-  close: () => void,
-): void {
-  useEffect(() => {
-    if (!open) return;
-    const elsewhere = (event: PointerEvent) => {
-      if (inside.current?.contains(event.target as Node)) return;
-      close();
-    };
-    document.addEventListener('pointerdown', elsewhere);
-    return () => document.removeEventListener('pointerdown', elsewhere);
-  }, [open, inside, close]);
 }
 
 /** La saison et sa fin, contre l'enseigne, comme elle l'était au pied du rail : un repère, pas une entrée. */

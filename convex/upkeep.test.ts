@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
-import type { UnitRole } from '../src/domain/ids';
+import { RESOURCES, type UnitRole } from '../src/domain/ids';
+import { ledgerOf } from '../src/domain/ledger';
+import type { PlayerView } from '../src/domain/player-view';
 import {
   EXTRACTION_PER_HOUR,
   LISTENING_COAL_PER_HOUR,
@@ -267,6 +269,10 @@ describe('the empire eats and burns (ADR 0028 §2)', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.upkeep.listeningCoalPerHour).toBe(LISTENING_COAL_PER_HOUR);
     expect(view.me.resources.coal.ratePerHour).toBe(-LISTENING_COAL_PER_HOUR);
+    for (const resource of RESOURCES)
+      expect(ledgerOf(view as unknown as PlayerView, resource).balance).toBeCloseTo(
+        view.me.resources[resource].ratePerHour,
+      );
   });
 });
 

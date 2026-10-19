@@ -2020,6 +2020,53 @@ export const fr = {
   },
 
   /**
+   * **Le ticket d'une réserve** (issue #121) : la production, la consommation et le solde, avec le
+   * détail par catégorie. Le solde est le débit net du bandeau, jamais un second chiffre.
+   */
+  ledger: {
+    title: (resource: string) => `Registre : ${resource}`,
+    pin: (resource: string) => `Épingler le registre : ${resource}`,
+    unpin: 'Décrocher',
+    production: 'Production',
+    consumption: 'Consommation',
+    balance: 'Solde',
+    perHour: (value: number) => `${value > 0 ? '+' : ''}${tenths(value)} / h`,
+    dryIn: (hours: number) => `À sec dans ${Math.max(1, Math.round(hours))} h.`,
+    dry: 'À sec.',
+    fullIn: (hours: number) => `Plein dans ${Math.max(1, Math.round(hours))} h.`,
+    steady: 'Stable.',
+    sections: {
+      buildings: 'Bâtiments',
+      troops: 'Troupes',
+      outposts: 'Avant-postes',
+      listening: 'Écoutes',
+      factory: 'Usine',
+    },
+    empty: {
+      buildings: 'Aucun gisement exploité.',
+      troops: 'Aucune troupe à nourrir.',
+      outposts: 'Aucun avant-poste debout.',
+      listening: 'Aucune écoute ne brûle.',
+      factory: 'Aucune chaîne n’y touche.',
+    },
+    site: (building: string, region: string, level: number, linked: boolean) =>
+      `${building} ${ofName(region)} · niv. ${level}${linked ? '' : ' · coupé'}`,
+    chain: (building: string, level: number) => `${building} · niv. ${level}`,
+    ranks: (from: number, to: number, rate: number, outside: boolean) =>
+      `${from === to ? `Rang ${from}` : `Rangs ${from} à ${to}`}${outside ? ', hors ancrage' : ''}` +
+      ` · ${outside ? `2 × ${rate}` : rate} par troupe`,
+    /** Sous les traits de l'armée : le coût de la prochaine troupe et du palier d'après. */
+    tallyNote: (rate: number, nextAt: number | null, nextRate: number | null) =>
+      `Un trait par troupe, plus haut à chaque palier ; hachuré, hors ancrage, ×2. Pointillé : la prochaine, ${rate} / h${
+        nextAt === null || nextRate === null ? '' : `, puis ${nextRate} / h dès la ${nextAt}ᵉ`
+      }.`,
+    outpost: (region: string | null, level: number) =>
+      `${region === null ? 'Avant-poste' : `Avant-poste ${ofName(region)}`} · niv. ${level}`,
+    station: (region: string | null, outpost: boolean) =>
+      `${outpost ? 'Avant-poste d’écoute' : 'Station d’écoute'}${region === null ? '' : ` ${ofName(region)}`}`,
+  },
+
+  /**
    * **La presse — le classement, à l'heure du dernier relevé** (contrat de vue 07, annexe
    * `07-presse-donnees.md`, barème `propositions/classement-bareme.md`). Les chaînes sont celles
    * de l'annexe, mot pour mot : la maquette a été validée dessus, et une reformulation ici
