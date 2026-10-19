@@ -870,7 +870,13 @@ export const benchStats = internalQuery({
           .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
           .collect()
       ).length;
-    const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+    /** Les jobs nés depuis la saison seulement : la table système garde ceux des bancs passés,
+     *  et les relire tous dépassait les 4 096 lectures d'une query. */
+    const since = (await ctx.db.get(seasonId))?._creationTime ?? 0;
+    const jobs = await ctx.db.system
+      .query('_scheduled_functions')
+      .withIndex('by_creation_time', (q) => q.gte('_creationTime', since))
+      .collect();
     return {
       troops: await count('troops'),
       movements: await count('movements'),
