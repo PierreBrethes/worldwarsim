@@ -39,6 +39,7 @@ import {
   carriersAmong,
   deliverRefusalOf,
   loadTotal,
+  onTourRefusalOf,
   tourRefusalOf,
   type LoadingPlace,
 } from './logistics';
@@ -962,7 +963,14 @@ export function compassOf(
       return towardsMyPile(target, station, view, column, heldTroopIds ?? []);
   }
   if (column !== null && target.kind !== 'force') {
-    return aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
+    const fan = aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
+    /** **En tournée, rien d'autre** (ADR 0028) : la rose le dit, la marche le relit. */
+    const touring = onTourRefusalOf(
+      view.me.troops.filter((troop) => heldTroopIds?.includes(troop.id) === true),
+    );
+    return fan === null || touring === null
+      ? fan
+      : { ...fan, actions: [], refusal: fr.errors[touring.code]() };
   }
   const here =
     origin !== null &&

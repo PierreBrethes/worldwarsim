@@ -248,6 +248,13 @@ export const CAPTURE_TARGET = v.union(
 
 const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
 
+/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque (`stock`, et de
+ *  quoi), tous ses dépôts sont pleins (`full`), ou sa route est refusée (`road`). */
+export const TOUR_WAIT = v.object({
+  why: v.union(v.literal('stock'), v.literal('full'), v.literal('road')),
+  resource: v.optional(RESOURCE_KEY),
+});
+
 export const NOTICE = v.union(
   /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
    *  chez le capteur. L'heure est celle de la perte si rien ne change. */
@@ -427,8 +434,7 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('tourWaiting'),
     role: UNIT_ROLE,
-    why: v.union(v.literal('stock'), v.literal('full'), v.literal('road')),
-    resource: v.optional(RESOURCE_KEY),
+    ...TOUR_WAIT.fields,
   }),
   /** **Une tournée qui finit** : rappelée, ou coupée — chargement ou dépôts perdus, route refusée. */
   v.object({

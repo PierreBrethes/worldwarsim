@@ -36,6 +36,7 @@ import {
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
+  TOUR_WAIT,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -442,9 +443,9 @@ export default defineSchema({
     /**
      * **Sa tournée** (ADR 0028, précision du 18/10) : une boucle depuis son point de chargement
      * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
-     * est l'arrêt que le tour en cours visite après celui-ci ; `waitingSince` dit qu'elle attend
-     * au chargement, `recalled` qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son
-     * slot tant qu'elle tourne.
+     * est l'arrêt que le tour en cours visite après celui-ci, `skipped` les dépôts pleins qu'il
+     * saute ; `waiting` dit qu'elle attend au chargement, depuis quand et pourquoi, `recalled`
+     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne.
      */
     tour: v.optional(
       v.object({
@@ -452,7 +453,8 @@ export default defineSchema({
         stops: v.array(v.id('outposts')),
         consigne: SUPPLY_LOAD,
         next: v.number(),
-        waitingSince: v.optional(v.number()),
+        skipped: v.optional(v.array(v.id('outposts'))),
+        waiting: v.optional(v.object({ since: v.number(), ...TOUR_WAIT.fields })),
         recalled: v.optional(v.boolean()),
         retryJobId: v.optional(v.id('_scheduled_functions')),
       }),

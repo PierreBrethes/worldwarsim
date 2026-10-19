@@ -471,7 +471,12 @@ describe('the supply tour', () => {
     const { hq, truck, hungry } = await touring(t, seat);
 
     expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: hungry } }]);
-    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.slots.used).toBe(1);
+    expect(view.me.troops.find((troop) => troop.id === truck)?.tour).toMatchObject({
+      skipped: 1,
+      waiting: null,
+    });
 
     await arriveNext(t);
     expect(await depotOf(t, hungry)).toEqual({ ammunition: 60, oil: 0, coal: 0 });
@@ -493,8 +498,12 @@ describe('the supply tour', () => {
     await arriveNext(t);
 
     expect(await flying(t)).toEqual([]);
-    expect((await get(t, truck))!.tour?.waitingSince).toBeDefined();
-    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.slots.used).toBe(1);
+    expect(view.me.troops.find((troop) => troop.id === truck)?.tour?.waiting).toEqual({
+      why: 'stock',
+      resource: 'ammunition',
+    });
     const waiting = await t.run(async (ctx) =>
       ctx.db
         .query('notices')
@@ -506,6 +515,25 @@ describe('the supply tour', () => {
     await t.mutation(api.tours.recall, { ...seat, troopId: truck });
     expect((await get(t, truck))!.tour).toBeUndefined();
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+  });
+
+  it('refuses any other order to a transport on tour, until it is recalled', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { hq, truck, hungry } = await touring(t, seat);
+    await arriveNext(t);
+    await setStock(t, seat, 'ammunition', 0);
+    await arriveNext(t);
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+
+    await expect(
+      t.mutation(api.logistics.deliver, {
+        ...seat,
+        origin: { kind: 'building', buildingId: hq },
+        troopIds: [truck],
+        outpostId: hungry,
+      }),
+    ).rejects.toThrow('TRANSPORT_ON_TOUR');
   });
 
   it('finishes the leg it is on when recalled, and stops at its loading point', async () => {

@@ -262,6 +262,13 @@ export type TroopStation =
  * `stationedAt` is its address, `home` meaning the troop whose building is gone. No enemy troop
  * ever travels in this list.
  */
+/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque de `resource`,
+ *  tous ses dépôts sont pleins, ou sa route est refusée. */
+export type TourWait = {
+  readonly why: 'stock' | 'full' | 'road';
+  readonly resource?: ResourceKey;
+};
+
 export type TroopView = {
   readonly id: string;
   readonly role: UnitRole;
@@ -288,13 +295,14 @@ export type TroopView = {
   readonly carriedBy?: string;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
-  /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, et si elle
-   *  attend au chargement ou finit, rappelée. */
+  /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, pourquoi elle
+   *  attend au chargement, si elle finit, rappelée, et combien de dépôts pleins ce tour saute. */
   readonly tour?: {
     readonly baseId: string;
     readonly stops: ReadonlyArray<string>;
-    readonly waiting: boolean;
+    readonly waiting: TourWait | null;
     readonly recalled: boolean;
+    readonly skipped: number;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
@@ -850,13 +858,11 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly troops?: number;
     }
-  | {
+  | ({
       readonly kind: 'tourWaiting';
       readonly at: number;
       readonly role: UnitRole;
-      readonly why: 'stock' | 'full' | 'road';
-      readonly resource?: ResourceKey;
-    }
+    } & TourWait)
   | {
       readonly kind: 'tourEnded';
       readonly at: number;

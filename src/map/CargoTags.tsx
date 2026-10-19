@@ -128,7 +128,7 @@ export function CargoTags({
                   <span
                     className={tag.tour.state === 'waiting' ? 'cargo-tag-tour--waiting' : undefined}
                   >
-                    {fr.logistics.tourLine(tag.tour.state, tag.tour.stops)}
+                    {fr.logistics.tourLine(tag.tour)}
                   </span>
                   {onTour !== undefined &&
                     (tag.tour.state === 'tracing' ? (

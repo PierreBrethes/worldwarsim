@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   depotRefundOf,
+  onTourRefusalOf,
   tourRefusalOf,
   grabbedAfter,
   deliverRefusalOf,
@@ -175,5 +176,10 @@ describe('tracing a tour', () => {
   it('needs a standing order to reload, and an idle transport', () => {
     expect(tourRefusalOf({ ...base, load: load() })?.code).toBe('NOTHING_TO_DELIVER');
     expect(tourRefusalOf({ ...base, busy: 'touring' })?.code).toBe('TRANSPORT_ON_TOUR');
+  });
+
+  it('takes no other order while it tours', () => {
+    expect(onTourRefusalOf([{}, { tour: {} }])).toEqual({ code: 'TRANSPORT_ON_TOUR' });
+    expect(onTourRefusalOf([{}])).toBeNull();
   });
 });

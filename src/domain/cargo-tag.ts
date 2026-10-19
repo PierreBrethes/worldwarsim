@@ -10,21 +10,24 @@ import {
   type DisembarkRefusal,
 } from './movement-orders';
 import { carrierIn, fareOf, seatsLeft, seatsOf, type Seated } from './troops';
+import type { TourWait, TroopView } from './player-view';
 
 type Aboard = Seated & {
   readonly tier: UnitTier;
   readonly load?: SupplyLoad;
-  readonly tour?: {
-    readonly stops: ReadonlyArray<string>;
-    readonly waiting: boolean;
-    readonly recalled: boolean;
-  };
+  readonly tour?: Pick<
+    NonNullable<TroopView['tour']>,
+    'stops' | 'waiting' | 'recalled' | 'skipped'
+  >;
 };
 
-/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente, rappelée. */
+/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente et
+ *  pourquoi, rappelée ; et les dépôts pleins que ce tour saute. */
 export type TagTour = {
   readonly state: 'tracing' | 'running' | 'waiting' | 'recalled';
   readonly stops: number;
+  readonly waiting: TourWait | null;
+  readonly skipped: number;
 };
 
 export type CargoTag = {
@@ -83,16 +86,23 @@ export function cargoTagsOf<T extends Aboard>(
         loadCapacity: loadCapacityOf(carrier.role),
         tour:
           where.trace?.carrierId === carrier.id
-            ? { state: 'tracing' as const, stops: where.trace.stops.length }
+            ? {
+                state: 'tracing' as const,
+                stops: where.trace.stops.length,
+                waiting: null,
+                skipped: 0,
+              }
             : carrier.tour === undefined
               ? null
               : {
                   state: carrier.tour.recalled
                     ? ('recalled' as const)
-                    : carrier.tour.waiting
+                    : carrier.tour.waiting !== null
                       ? ('waiting' as const)
                       : ('running' as const),
                   stops: carrier.tour.stops.length,
+                  waiting: carrier.tour.waiting,
+                  skipped: carrier.tour.skipped,
                 },
       },
     ];

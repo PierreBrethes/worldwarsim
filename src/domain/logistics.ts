@@ -182,6 +182,13 @@ export function deliverRefusalOf(
   return null;
 }
 
+/** **Un transport en tournée ne prend pas d'autre ordre** (ADR 0028) : on le rappelle d'abord.
+ *  La rose le dit sur la colonne en main, la marche le relit. */
+export const onTourRefusalOf = (
+  troops: ReadonlyArray<{ readonly tour?: unknown }>,
+): { readonly code: 'TRANSPORT_ON_TOUR' } | null =>
+  troops.some((troop) => troop.tour !== undefined) ? { code: 'TRANSPORT_ON_TOUR' } : null;
+
 /** **Ce que la tournée remonte à bord** pour retrouver sa consigne. */
 export const missingOf = (consigne: SupplyLoad, held: SupplyLoad): SupplyLoad => ({
   ammunition: Math.max(0, consigne.ammunition - held.ammunition),
@@ -191,7 +198,6 @@ export const missingOf = (consigne: SupplyLoad, held: SupplyLoad): SupplyLoad =>
 
 /** **Les arrêts qu'un tour visite vraiment** : un dépôt qui ne prendrait rien de ce qui reste à
  *  bord est sauté. */
-// used by the supply round (4.7 B)
 export function visitPlan<T extends string>(
   load: SupplyLoad,
   stops: ReadonlyArray<{ readonly id: T; readonly depot: SupplyLoad; readonly capacity: number }>,

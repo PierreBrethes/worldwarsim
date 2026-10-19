@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
@@ -16,9 +16,10 @@ import { isStanding } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
 import { TOUR_RETRY_MINUTES, depotCapacity } from './constants';
 import { fail } from './errors';
+import type { TOUR_WAIT } from './validators';
 import { busyOf, placeOf, unloadAt } from './logistics';
 import { forgetMovement, standAt, walkHome } from './movement/arrival';
-import { asPoint, movementsOf, pointOf } from './movement/forces';
+import { movementsOf, pointOf } from './movement/forces';
 import { aimOf, claimSlot, march, troopsAmong, type MarchOrigin } from './movement/orders';
 import { reassessDetection } from './movement/detection';
 import { debit, economyOf } from './resources';
@@ -120,7 +121,7 @@ export const retry = internalMutation({
   args: { troopId: v.id('troops') },
   handler: async (ctx, { troopId }) => {
     const troop = await ctx.db.get(troopId);
-    if (troop?.tour?.waitingSince === undefined) return;
+    if (troop?.tour?.waiting === undefined) return;
     if (!(await seasonStillPlays(ctx, troop.playerId))) return;
     const now = Date.now();
     await atBase(ctx, troopId, now);
@@ -234,8 +235,8 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
   const ready = { ...(await ctx.db.get(troopId))!, tour: { ...tour, next } };
   if (!(await leg(ctx, ready, { kind: 'stop', outpostId: first })))
     return wait(ctx, ready, now, { why: 'road' });
-  const { waitingSince: _since, retryJobId: _job, ...rolling } = tour;
-  await ctx.db.patch(troopId, { tour: { ...rolling, next } });
+  const { waiting: _waiting, retryJobId: _job, ...rolling } = tour;
+  await ctx.db.patch(troopId, { tour: { ...rolling, next, skipped: [...plan.skipped] } });
 }
 
 /**
@@ -265,9 +266,8 @@ export async function arriveOnTour(
       await walkHome(ctx, { winners: [carrier], beaten: [] }, pointOf(movement.to), now);
       continue;
     }
-    /** Un navire se tient au quai, le long du point ; le reste entre au point. */
-    const stationedAt =
-      carrier.role === 'cargo' ? asPoint(pointOf(movement.to)) : unloaded.outpost._id;
+    /** Il se tient au point, d'où il repart : un point côtier est une côte pour un cargo. */
+    const stationedAt = unloaded.outpost._id;
     await ctx.db.patch(carrier._id, { stationedAt });
     const here = { ...carrier, stationedAt };
     const stops = await stopsOf(ctx, here, tour, now);
@@ -321,7 +321,7 @@ async function wait(
   ctx: MutationCtx,
   troop: Doc<'troops'>,
   now: number,
-  reason: { readonly why: 'stock'; readonly resource: string } | { readonly why: 'full' | 'road' },
+  reason: Infer<typeof TOUR_WAIT>,
 ): Promise<void> {
   const tour = troop.tour!;
   const retryJobId = await ctx.scheduler.runAfter(
@@ -329,18 +329,18 @@ async function wait(
     internal.tours.retry,
     { troopId: troop._id },
   );
+  const was = tour.waiting;
   await ctx.db.patch(troop._id, {
-    tour: { ...tour, waitingSince: tour.waitingSince ?? now, retryJobId },
+    tour: { ...tour, waiting: { since: was?.since ?? now, ...reason }, retryJobId },
   });
-  /** Une dépêche quand elle se met à attendre, pas à chaque regard. */
-  if (tour.waitingSince !== undefined) return;
+  /** Une dépêche quand elle se met à attendre, ou pour une autre raison — pas à chaque regard. */
+  if (was?.why === reason.why && was.resource === reason.resource) return;
   await ctx.db.insert('notices', {
     playerId: troop.playerId,
     at: now,
     kind: 'tourWaiting',
     role: troop.role,
-    why: reason.why,
-    ...(reason.why === 'stock' ? { resource: reason.resource as 'ammunition' } : {}),
+    ...reason,
   });
 }
 

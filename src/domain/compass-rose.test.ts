@@ -472,6 +472,23 @@ describe('in aim', () => {
       ).toEqual(['tour']);
     });
 
+    it('says a transport on tour takes no other order', () => {
+      const base = atHq(0);
+      const touring = {
+        ...base,
+        me: {
+          ...base.me,
+          troops: base.me.troops.map((troop) => ({
+            ...troop,
+            tour: { baseId: 'HQ', stops: ['AP-01'], waiting: null, recalled: false, skipped: 0 },
+          })),
+        },
+      } as unknown as PlayerView;
+      const compass = compassOf(target, touring, trucking, null, 0, ['T1']);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe('ce transport est en tournée : rappelez-le d’abord');
+    });
+
     it('adds stops while tracing, never the same twice', () => {
       const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
       expect(traced.actions).toEqual([]);

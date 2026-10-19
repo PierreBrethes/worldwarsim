@@ -114,7 +114,7 @@ export const load = mutation({
 });
 
 /** Les transports d'une colonne, ceux qui ne sont pas à bord d'un autre. */
-export const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
+const carriersOf = (troops: ReadonlyArray<Doc<'troops'>>): Array<Doc<'troops'>> => {
   const hulls = new Set(carriersAmong(troops.map(seatedOf)).map((troop) => troop.id));
   return troops.filter((troop) => hulls.has(troop._id));
 };

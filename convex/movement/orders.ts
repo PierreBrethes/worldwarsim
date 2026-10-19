@@ -28,7 +28,7 @@ import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
 import { MAX_HQ_LEVEL } from '../constants';
-import { isAirStop } from '../../src/domain/logistics';
+import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -662,13 +662,17 @@ export async function slotsTaken(
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect()
-  ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id)).length;
-  if (!(await holdsHalifax(ctx, player))) return flying.length + resting;
+  ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id));
+  const holders = [
+    ...flying.map((movement) => movement.troopIds),
+    ...resting.map((troop) => [troop._id]),
+  ];
+  if (!(await holdsHalifax(ctx, player))) return holders.length;
   let kept = 0;
-  for (const movement of flying) {
-    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept += 1;
+  for (const troopIds of holders) {
+    if (!isMaritime(await crewOf(ctx, troopIds))) kept += 1;
   }
-  return kept + resting;
+  return kept;
 }
 
 const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
@@ -768,7 +772,6 @@ export async function march(
     /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
     delivery?: NonNullable<Doc<'movements'>['delivery']>;
     /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
-    // used by the supply round (4.7 B)
     keepsSlot?: boolean;
   },
 ) {
@@ -795,6 +798,8 @@ export async function march(
     }
     troops.push(troop);
   }
+  const touring = keepsSlot ? null : onTourRefusalOf(troops);
+  if (touring !== null) fail(touring.code);
   /** **Les passagers suivent leur transport** (15/10) : un transport part avec sa cargaison, et
    *  un passager ne part pas sans lui — on le débarque d'abord. */
   const pile = (await standingPile(ctx, playerId, departure.stationId)).map(seatedOf);

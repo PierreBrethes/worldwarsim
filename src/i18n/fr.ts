@@ -13,6 +13,7 @@ import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, Faced } from '../domain/player-view';
+import type { TagTour } from '../domain/cargo-tag';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
@@ -2599,12 +2600,24 @@ export const fr = {
       `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
-    tourLine: (state: 'tracing' | 'running' | 'waiting' | 'recalled', stops: number) =>
+    tourLine: ({ state, stops, waiting, skipped }: TagTour): string =>
       state === 'tracing'
         ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
         : state === 'recalled'
           ? 'tournée rappelée · finit au chargement'
-          : `tournée · ${stops} arrêt${plural(stops, '', 's')}${state === 'waiting' ? ' · attend' : ''}`,
+          : waiting !== null
+            ? `tournée · attend : ${
+                waiting.why === 'stock'
+                  ? `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
+                  : waiting.why === 'full'
+                    ? 'dépôts pleins'
+                    : 'route refusée'
+              }`
+            : `tournée · ${stops} arrêt${plural(stops, '', 's')}${
+                skipped > 0
+                  ? ` · saute ${skipped} dépôt${plural(skipped, '', 's')} plein${plural(skipped, '', 's')}`
+                  : ''
+              }`,
     launch: 'lancer',
     clear: 'effacer',
     recall: 'rappeler',
