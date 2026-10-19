@@ -140,6 +140,15 @@ describe('a big squad', () => {
     expect(pieces.count).toBe(15);
     expect(pieces.squad).toBe(true);
   });
+
+  it('counts the riders at the threshold as on the pennant', () => {
+    const truck = troop('landTransport');
+    const riders = [1, 2].map(() => ({ ...troop('infantry'), carriedBy: truck.id }));
+    const walkers = Array.from({ length: 10 }, () => troop('infantry'));
+    const pieces = pilePieces([...walkers, truck, ...riders]);
+    expect(pieces.groups.map((group) => group.role)).toEqual(['infantry', 'landTransport']);
+    expect(pieces.count).toBe(13);
+  });
 });
 
 describe('pileSheet', () => {

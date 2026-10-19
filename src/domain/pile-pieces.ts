@@ -115,8 +115,9 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
     };
   };
   const ids = troops.map((t) => t.id);
-  /** **Au-delà de douze, une figurine par rôle** (ADR 0028 §6) : ce qu'on y lève est le rôle. */
-  if (standing.length > SQUAD_DRAWN_WHOLE)
+  /** **Au-delà de douze troupes, une figurine par rôle** (ADR 0028 §6) : les passagers comptent,
+   *  au seuil comme au fanion, et ce qu'on lève est le rôle. */
+  if (ids.length > SQUAD_DRAWN_WHOLE)
     return {
       groups: bucketsOf(standing).map(piece),
       troopIds: ids,
