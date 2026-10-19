@@ -627,6 +627,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   ? null
                   : ([construction.point.lon, construction.point.lat] as [number, number]),
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              level: construction.level,
             }
           : null,
       /**

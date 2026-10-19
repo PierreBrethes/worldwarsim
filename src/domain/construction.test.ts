@@ -214,6 +214,7 @@ describe('what holds a raise back', () => {
       outpostId: null,
       point: [6.2, 48.7] as LonLat,
       minutesLeft: 20,
+      level: 2,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
   });
@@ -562,6 +563,7 @@ describe('workSitesOf', () => {
     regionName: 'Marne',
     point: at(regionId),
     minutesLeft,
+    level: 1,
   });
   const queued = (
     key: BuildingKey | 'outpost',

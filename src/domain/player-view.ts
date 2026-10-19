@@ -635,6 +635,8 @@ type RunningWork = {
    *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
+  /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
+  readonly level: number;
 };
 
 export type QueuedWork = {

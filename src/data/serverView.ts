@@ -97,6 +97,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             regionName: server.me.construction.regionName,
             point: server.me.construction.point ?? null,
             minutesLeft: server.me.construction.minutesLeft,
+            level: server.me.construction.level ?? 1,
           }
         : null,
       constructionQueue: (server.me.constructionQueue ?? []).map((entry) => ({
