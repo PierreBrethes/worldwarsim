@@ -511,7 +511,14 @@ describe('the Blitz poster', () => {
     const hq = building('b-hq', 'researchCenter', 'r-plain', null, 1);
     const running = { card: 'armor', remainingMs: 16 * 3_600_000, since: LOADED_AT } as const;
     const poster = posterFor(
-      view({ mode: 'mondiale', me: { ...me, research: { researched: [], running } } as never }),
+      view({
+        mode: 'mondiale',
+        me: {
+          ...me,
+          buildings: [{ id: 'b-hq', key: 'researchCenter', level: 1 }],
+          research: { researched: [], running },
+        } as never,
+      }),
       [hq],
       'm-b-hq',
     )!;

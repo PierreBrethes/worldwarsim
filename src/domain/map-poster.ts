@@ -1,7 +1,7 @@
 import { pileSupplies, type PileSupplies } from './supplies';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { cardName, fr, stackLabel } from '@/i18n/fr';
-import { researchProgressOf } from './research';
+import { researchProgressOf, searcherOf } from './research';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
@@ -304,10 +304,7 @@ function buildingPoster(
 
   /** **La carte que cherche mon Centre de recherche** (#123) : son nom, ce qui lui reste, sa barre. */
   const research =
-    building.key === 'researchCenter' &&
-    view.me.buildings.find((mine) => mine.id === building.id)?.captured !== true
-      ? view.me.research.running
-      : null;
+    searcherOf(view.me.buildings)?.id === building.id ? view.me.research.running : null;
   if (research !== null) {
     const { share, finishesAt } = researchProgressOf(research, now);
     lines.push({

@@ -121,7 +121,7 @@ describe('cueOf', () => {
   it('asks for a research centre before the tree', () => {
     expect(cueOf('research', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'center' });
     expect(
-      cueOf('research', view({ buildings: [{ id: 'C-1', key: 'researchCenter' } as never] })),
+      cueOf('research', view({ buildings: [{ id: 'C-1', key: 'researchCenter', level: 1 } as never] })),
     ).toEqual({ kind: 'rack', rack: 'research', say: 'research' });
   });
 

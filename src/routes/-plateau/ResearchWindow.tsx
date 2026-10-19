@@ -15,6 +15,7 @@ import {
   researchProgressOf,
   researchRefusalOf,
   searcherLevel,
+  searcherOf,
 } from '@/domain/research';
 import { useClock } from '@/shell/clock';
 import { notify } from '@/shell/notifications';
@@ -91,9 +92,7 @@ export function ResearchWindow({
   const now = useClock(30_000);
   const start = useMutation(api.research.start);
   const level = searcherLevel(view.me.buildings);
-  const center = view.me.buildings
-    .filter((building) => building.key === 'researchCenter' && building.captured !== true)
-    .sort((a, b) => b.level - a.level)[0];
+  const center = searcherOf(view.me.buildings) ?? undefined;
   const place = view.me.regions.find((region) => region.id === center?.regionId)?.name;
   const situation = {
     researched: view.me.research.researched,
@@ -244,7 +243,7 @@ const progressText = (
 ) => {
   const percent = Math.round(progress.share * 100);
   return progress.finishesAt === null
-    ? `${percent} % · ${fr.research.waiting}`
+    ? fr.research.waitingAt(percent)
     : fr.research.running(percent, fr.research.time(progress.finishesAt - now));
 };
 

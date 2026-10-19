@@ -285,19 +285,27 @@ export const countersOf = (card: ResearchCard): ReadonlyArray<ResearchCard> =>
   });
 
 /**
- * **Le niveau du Centre de recherche qui cherche** : un Centre à soi, debout et jamais pris, le
- * plus haut s'il y en a deux ; `null` sans Centre, et la carte posée attend. Un Centre pris à un
- * autre ne cherche pas pour son preneur. Lu par l'écran et par le serveur.
+ * **Mon Centre de recherche qui cherche** : un Centre à soi, debout et jamais pris, le plus haut
+ * s'il y en a deux ; `null` sans Centre, et la carte posée attend. Un Centre pris à un autre ne
+ * cherche pas pour son preneur. La seule lecture, de l'écran comme du serveur.
  */
+export const searcherOf = <
+  B extends { readonly key: BuildingKey; readonly level: number; readonly captured?: boolean },
+>(
+  buildings: ReadonlyArray<B>,
+): B | null =>
+  buildings
+    .filter((building) => building.key === 'researchCenter' && building.captured !== true)
+    .reduce<B | null>(
+      (best, building) => (best === null || building.level > best.level ? building : best),
+      null,
+    );
+
+/** Le niveau de ce Centre, `null` sans lui. */
 export const searcherLevel = (
   buildings: ReadonlyArray<{
     readonly key: BuildingKey;
     readonly level: number;
     readonly captured?: boolean;
   }>,
-): number | null => {
-  const levels = buildings
-    .filter((building) => building.key === 'researchCenter' && building.captured !== true)
-    .map((building) => building.level);
-  return levels.length === 0 ? null : Math.max(...levels);
-};
+): number | null => searcherOf(buildings)?.level ?? null;

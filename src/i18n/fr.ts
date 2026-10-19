@@ -3510,7 +3510,8 @@ export const fr = {
     title: 'Centre de recherche',
     subtitle: (place: string, level: number) => `${place} · niveau ${level} · une carte à la fois`,
     noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',
-    captured: 'votre Centre est pris — la carte attend un Centre à vous',
+    captured:
+      'un Centre pris à un autre ne cherche pas pour vous — la carte attend un Centre à vous',
     names: RESEARCH_NAMES,
     unlocks: RESEARCH_UNLOCKS,
     branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
@@ -3531,6 +3532,7 @@ export const fr = {
     },
     running: (percent: number, time: string) => `en cours · ${percent} % · reste ${time}`,
     waiting: 'attend un Centre de recherche',
+    waitingAt: (percent: number) => `${percent} % · attend un Centre de recherche`,
     left: (time: string) => `reste ${time}`,
     missing: (cards: string) => `il manque ${cards}`,
     inProgress: ' (en cours)',

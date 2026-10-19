@@ -33,7 +33,7 @@ import {
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
-import { researchMs, researchProgressOf } from '@/domain/research';
+import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
@@ -1968,6 +1968,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       };
     };
+    const searcher = searcherOf(view.me.buildings);
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: buildingLabelId(building),
@@ -1988,7 +1989,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
-      ...(building.key === 'researchCenter' && building.captured !== true
+      ...(building === searcher
         ? researchOnCenter(view.me)
         : {}),
       ink: view.me.ink,

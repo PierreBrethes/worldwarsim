@@ -1,5 +1,5 @@
 import { cardName, countryLabel, fr } from '@/i18n/fr';
-import { researchProgressOf } from './research';
+import { researchProgressOf, searcherOf } from './research';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
@@ -158,9 +158,7 @@ export function underwayOf(
   /** La carte que cherche mon Centre ; une carte qui attend un Centre n'a pas d'heure, elle n'y
    *  est pas. */
   const research = view.me.research.running;
-  const center = view.me.buildings.find(
-    (building) => building.key === 'researchCenter' && building.captured !== true,
-  );
+  const center = searcherOf(view.me.buildings) ?? undefined;
   const researchEnds =
     research === null ? null : researchProgressOf(research, view.loadedAt).finishesAt;
   if (research !== null && center !== undefined && researchEnds !== null)
