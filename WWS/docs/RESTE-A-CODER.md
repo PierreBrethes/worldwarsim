@@ -63,19 +63,15 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       dit en rouge et elle rentre. Chantiers, entretien par paliers et pénuries avec leur remède
       au pied, le lot de l'arsenal dessous ; la fenêtre Économie est retirée. Démo :
       `npm run demo:mondiale -- --recolte`. Le schéma change : `readMarks` gagne deux champs.
-   7. **Livrer et tournées** : dépôt d'avant-poste, charge unique, charger au QG, à l'entrepôt, au
-      port ou à l'aérodrome, aller-retour, tournée en boucle depuis le point de chargement qui saute
-      un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.
-      *Se voit* : barre de charge par couleur, boucle tracée à l'encre, transport qui attend,
-      navire qui accoste le long du quai.
-      A faite le 19/10 : dépôt d'avant-poste (`outposts.depot`, 400 par niveau) qui recharge les
-      troupes ancrées dans son rayon à la place du plateau personnel ; charger en glissant des
-      jetons d'un bac ou du dépôt sur l'étiquette d'un transport (`logistics.load`, camion 200,
-      cargo 800, avion 120) ; livrer en lâchant le transport chargé sur un de ses avant-postes
-      (`logistics.deliver`, un slot, retour seul) ; escale aérienne au niveau 2 ; barre de charge
-      par couleur sur l'étiquette et sur le dépôt, coques le long du quai. Démo :
-      `npm run demo:mondiale -- --livraison`. Reste B : tournée, interception et caisse, Dakar,
-      transport qui attend.
+   7. ~~**Livrer et tournées**~~ : faite le 19/10. A : dépôt d'avant-poste qui recharge les
+      troupes ancrées dans son rayon, charger en glissant des jetons sur l'étiquette d'un
+      transport, livrer en le lâchant sur un de ses avant-postes, escale aérienne au niveau 2,
+      barre de charge par couleur, coques le long du quai. B : tournée tracée de dépôt en dépôt
+      depuis le point de chargement (`tours.start`, quatre arrêts), qui recharge sa consigne,
+      saute un dépôt plein (encre pointillée), attend en le disant sur l'étiquette et garde son
+      slot, rappelée quand on veut ; un ravitaillement se relève et s'intercepte comme un
+      mouvement, un transport détruit laisse sa charge en caisse, une déroute finit la tournée.
+      Démo : `npm run demo:mondiale -- --livraison` ou `--tournee`.
    8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
       et y atterrit, paquet sous parachute.
    9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
