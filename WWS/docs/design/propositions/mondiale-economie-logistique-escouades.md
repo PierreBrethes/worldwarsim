@@ -320,3 +320,15 @@ transport et par dépôt ; un camion qui se charge au QG ou à l'entrepôt, une 
 depuis le point de chargement ; le placement libre des bâtiments et les gisements ponctuels
 (ADR 0029). Pierre veut aussi un avion qui atterrit sur la piste et un navire qui accoste le long
 du quai.
+
+Précisions de la 4.9 (la recherche, 19/10) :
+- « N troupes à la fois » vaut pour tous les sites de projection : caserne, port et aérodrome de
+  niveau N forment chacun N troupes en même temps.
+- Une carte posée sur le QG ne s'annule pas, et il n'y a pas de plan : on pose une carte, puis la
+  suivante quand elle a abouti.
+- Ce qui est payé n'est pas remboursé quand le QG tombe : la carte attend un QG debout et reprend
+  là où elle en était.
+- Le soin n'existe pas en Mondiale : « une caserne N soigne N troupes » n'a rien à coder.
+- Le contre se lit dans `DAMAGE_TABLE` (X contre Y quand X fait à Y plus de dégâts qu'il n'en
+  reçoit) ; l'invariant porte sur chaque carte qui en demande une autre : son contre est au départ,
+  ou coûte et dure moins qu'elle.
