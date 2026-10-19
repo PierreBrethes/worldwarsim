@@ -822,7 +822,7 @@ export const benchScene = internalMutation({
   },
 });
 
-/** Les mouvements d'un lot d'escouades : le vrai `march`, sans le slot (`keepsSlot`), un refus compté. */
+/** Les mouvements d'un lot d'escouades : le vrai `march`, sans le slot (`keepsSlot`), un refus compté, puis la relecture du brouillard de leur joueur. */
 export const benchFlights = internalMutation({
   args: {
     playerId: v.id('players'),
@@ -847,6 +847,8 @@ export const benchFlights = internalMutation({
       } catch {
         failedAt.push(flights.indexOf(flight));
       }
+    /** `keepsSlot` laisse la relecture à l'appelant, comme un pas de tournée. */
+    await reassessDetection(ctx, season._id, Date.now(), playerId);
     return { filed: flights.length - failedAt.length, failedAt };
   },
 });
