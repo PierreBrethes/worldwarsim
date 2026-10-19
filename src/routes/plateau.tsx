@@ -1770,7 +1770,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
-      ...(building.key === 'hq' ? researchOnHq(view) : {}),
+      ...(building.key === 'hq' ? researchOnHq(view.me) : {}),
       ink: view.me.ink,
     }));
 
@@ -3453,8 +3453,10 @@ function postedStacks(
 }
 
 /** **La carte que porte mon QG** (ADR 0028 §5) : son nom et sa barre sur le mât. */
-function researchOnHq(view: PlayerView): { research?: Extract<LabelLine, { role: 'research' }> } {
-  const running = view.me.research.running;
+function researchOnHq(me: PlayerView['me']): {
+  research?: Extract<LabelLine, { role: 'research' }>;
+} {
+  const running = me.research.running;
   if (running === null) return {};
   const { share, finishesAt } = researchProgressOf(running, Date.now());
   return {
