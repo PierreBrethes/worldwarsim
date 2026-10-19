@@ -123,6 +123,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
       funds: server.me.funds ?? null,
       stationedCargo: server.me.stationedCargo ?? [],
+      lootPoints: server.me.lootPoints ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
        *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
       recruiting: server.me.recruiting ?? [],

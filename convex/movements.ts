@@ -24,6 +24,7 @@ import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildingReads';
 import {
   cargoTotal,
+  lootPointsOf,
   selectedStationedCargo,
   stationCargoLoads,
   stationMovementLoot,
@@ -390,17 +391,8 @@ export const disband = mutation({
     const pile = await standingPile(ctx, player._id, point);
     const seated = pile.map(seatedOf);
     const pieces = seated.filter((troop) => carrierIn(troop, seated) === null);
-    const loaded = (
-      await ctx.db
-        .query('stationedLoot')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect()
-    ).some(
-      ({ stationedAt }) =>
-        stationedAt !== null &&
-        typeof stationedAt !== 'string' &&
-        stationedAt.lon === point.lon &&
-        stationedAt.lat === point.lat,
+    const loaded = (await lootPointsOf(ctx, player._id)).some(
+      (spot) => spot.lon === point.lon && spot.lat === point.lat,
     );
     const refusal = disbandRefusalOf({
       onPoint: true,
@@ -418,6 +410,8 @@ export const disband = mutation({
       for (const troop of [piece, ...cargoOf(piece, seated)])
         await ctx.db.patch(troop.id as Id<'troops'>, { stationedAt: at });
     }
+    /** Les pièces posées à part se voient ailleurs : l'œil adverse relit la scène. */
+    await reassessDetection(ctx, season._id, Date.now());
     return { pieces: pieces.length };
   },
 });

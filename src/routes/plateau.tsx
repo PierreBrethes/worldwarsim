@@ -2255,10 +2255,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onPoint: only?.kind === 'point' && chosen.length === 1,
       pieces: pile.filter((troop) => carrierIn(troop, pile) === null).length,
       blitz,
-      loaded: view.me.stationedCargo.some(
-        (group) =>
-          group.cargo.carried > 0 && group.troopIds.some((id) => pile.some((t) => t.id === id)),
-      ),
+      loaded:
+        only?.kind === 'point' &&
+        view.me.lootPoints.some(
+          (spot) => spot.lon === only.lonLat[0] && spot.lat === only.lonLat[1],
+        ),
     });
     if (refusal !== null || only?.kind !== 'point') {
       setBarRefusal(fr.errors[refusal ?? 'NOT_A_SQUAD']());

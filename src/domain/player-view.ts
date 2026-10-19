@@ -1293,6 +1293,9 @@ export type PlayerView = {
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
     readonly troops: ReadonlyArray<TroopView>;
+    /** **Les points où un butin est posé**, tel que le serveur le lit pour dissoudre une
+     *  escouade : de quoi dire le refus avant le clic (`disbandRefusalOf`). */
+    readonly lootPoints: ReadonlyArray<{ readonly lon: number; readonly lat: number }>;
     /** Shared stationed loads are grouped once by their connected carrier set. */
     readonly stationedCargo: ReadonlyArray<{
       readonly troopIds: ReadonlyArray<string>;

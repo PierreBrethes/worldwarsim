@@ -87,7 +87,7 @@ import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
-import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
+import { cargoTotal, lootPointsOf, movementCargoLoads, stationedCargoGroups } from './cargo';
 import { asWounded, fundsOf, ownedTroopsOnSite } from './blitz';
 import { fundsAt, mendPlan } from '../src/domain/blitz';
 
@@ -733,6 +733,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           : {}),
         mending: mending.has(troop._id),
       })),
+      /** Où un butin est posé, comme le serveur le lit pour dissoudre une escouade. */
+      lootPoints: await lootPointsOf(ctx, player._id),
       stationedCargo: stationedCargo.map((group) => ({
         troopIds: group.troopIds,
         stationedAt: stationOfAddress(group.stationedAt),
