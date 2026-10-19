@@ -5,7 +5,7 @@ import { currentStock, type Resource } from './player-view';
  * réglette ne suit plus l'horloge, il s'annonce. Chaque réserve tire son propre instant entre
  * trente secondes et une minute après la précédente, et dit ce qu'elle a gagné depuis ; un gain que le débit n'explique pas (dépôt, butin, caisse,
  * remboursement) s'annonce dès que la vue l'apporte. Le chiffre affiché est en retard sur le
- * stock — au-dessus de lui sous un débit négatif, jusqu'à l'annonce : la jauge, l'alerte et le
+ * stock — jamais au-dessus (`displayedStock`) : la jauge, l'alerte et le
  * libellé accessible lisent le stock réel.
  */
 const ANNOUNCE_MIN_MS = 30_000;
@@ -26,6 +26,12 @@ export type Announcement = {
  *  s'accumule attend l'annonce suivante. */
 export const announceOf = (shown: number, stockNow: number): Announcement | null =>
   stockNow === shown ? null : { shown: stockNow, gain: stockNow - shown };
+
+/** Le chiffre que la réglette montre : en retard sur le stock quand il monte (l'annonce), jamais
+ *  au-dessus de lui — la bande, les tickets et la pose lisent le stock, un même stock ne se lit
+ *  pas deux fois. */
+export const displayedStock = (shown: number, stockNow: number): number =>
+  Math.min(shown, stockNow);
 
 type Reading = { readonly reserve: Resource; readonly at: number };
 
