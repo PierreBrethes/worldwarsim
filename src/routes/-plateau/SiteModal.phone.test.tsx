@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fr } from '@/i18n/fr';
+import { fr, researchRequired } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
@@ -152,7 +152,7 @@ describe('a site sheet on a phone', () => {
 
     expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
     expect(screen.getByText(fr.production.sheet.lanes(1))).toBeTruthy();
-    expect(screen.getByText(fr.production.researchLocked('armor'))).toBeTruthy();
+    expect(screen.getByText(researchRequired('armor'))).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /\+ 1 troupe/ })).toHaveLength(2);
 
     act(() => screen.getByRole('button', { name: 'MK2' }).click());

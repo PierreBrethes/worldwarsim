@@ -95,6 +95,11 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   listening: 'la tuile du relevé à longue portée, qui brûle du charbon',
 };
 
+/** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
+ *  la pièce, l'abaque et le site. */
+export const researchRequired = (card: ResearchCard): string =>
+  `demande la recherche ${cardName(card)}`;
+
 /** `« Blindé »` — la carte nommée comme sur le plateau personnel. */
 export const cardName = (card: unknown): string =>
   `« ${RESEARCH_NAMES[card as ResearchCard] ?? String(card)} »`;
@@ -703,7 +708,7 @@ export const fr = {
     /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
     BUILDING_TOO_CLOSE: (d) => `trop près ${ofTheBuildingName(d.near)} : ${num(d.km)} km au moins`,
     ALREADY_QUEUED_HERE: () => 'un chantier est déjà en file sur ce bâtiment',
-    RESEARCH_REQUIRED: (d) => `demande la recherche ${cardName(d.card)}`,
+    RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
     RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
     RESEARCH_COMING: (d) =>
       `${cardName(d.card)} : à venir — ce qu’elle ouvre n’existe pas encore en Mondiale`,
@@ -3221,7 +3226,6 @@ export const fr = {
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
     /** **Derrière sa carte** (ADR 0028 §5) : dit avant le clic, la carte nommée. */
-    researchLocked: (card: ResearchCard) => `verrouillé — demande la recherche ${cardName(card)}`,
     /** **La condition en toutes lettres, et la même dans les deux cadres** (contrats 03 et 06) :
      *  l'abaque la dit sans rien posséder, la modale de site la dit sur la carte qu'elle laisse
      *  affichée. */

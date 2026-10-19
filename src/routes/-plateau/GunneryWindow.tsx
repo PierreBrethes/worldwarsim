@@ -8,7 +8,15 @@ import {
   GARRISON_DAMAGE_TAKEN,
   detectionRangeOf,
 } from '../../../convex/constants';
-import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
+import {
+  aBuilding,
+  fr,
+  profileAbbreviation,
+  profileLabel,
+  researchRequired,
+  roleLabel,
+} from '@/i18n/fr';
+import { pieceAt } from '@/domain/research';
 import { TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
   gunneryRows,
@@ -274,12 +282,12 @@ export function GunnerySheet({
                 key={mark}
                 mark={mark}
                 marked={marked}
-                cost={mark === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit}
+                cost={pieceAt(entry, mark)}
                 role={role}
                 roster={
                   workshop?.roster.find((row) => row.role === role && row.tier === mark)?.count ?? 0
                 }
-                lockedBy={(mark === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null}
+                lockedBy={pieceAt(entry, mark).lockedBy}
                 first={rank === 0}
                 blitz={blitz}
               />
@@ -331,7 +339,7 @@ export function GunnerySheet({
               <>
                 <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
-                  {fr.production.researchLocked(entry.unit.lockedBy)}
+                  {researchRequired(entry.unit.lockedBy)}
                 </span>
               </>
             )}
@@ -429,7 +437,7 @@ function Mark({
       </span>
       {lockedBy !== null && (
         <span className="max-w-[24ch] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
-          {fr.production.researchLocked(lockedBy)}
+          {researchRequired(lockedBy)}
         </span>
       )}
       {hovered !== null && (

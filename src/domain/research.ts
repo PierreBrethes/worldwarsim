@@ -97,6 +97,13 @@ export const roleLockOf = (
     researched,
   );
 
+/** **La pièce d'un rôle à ce palier**, telle que l'atelier la sert : la seconde marque quand le
+ *  rôle en a une, la première sinon. */
+export const pieceAt = <Piece>(
+  entry: { readonly unit: Piece; readonly unitTier2: Piece | null },
+  tier: UnitTier,
+): Piece => (tier === 2 && entry.unitTier2 !== null ? entry.unitTier2 : entry.unit);
+
 /** La carte qui manque pour poser cette tuile, `null` quand rien ne la retient. */
 export const buildingLockOf = (
   key: BuildingKey,

@@ -4,7 +4,8 @@ import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { aBuilding, aSecondBuilding, fr, roleLabel } from '@/i18n/fr';
+import { aBuilding, aSecondBuilding, fr, researchRequired, roleLabel } from '@/i18n/fr';
+import { pieceAt } from '@/domain/research';
 import { useClock } from '@/shell/clock';
 import { Stamp } from '@/shell/Stamp';
 import { Price } from '@/shell/Price';
@@ -563,7 +564,7 @@ const lackOf = (
   )?.resource ?? null;
 
 function roleTermsOf(entry: GridEntry, tier: UnitTier) {
-  const cost = tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit;
+  const cost = pieceAt(entry, tier);
   return {
     /** La carte qui tient ce palier : la marque choisie se dit, la pièce reste lisible. */
     lockedBy: cost.lockedBy,
@@ -674,7 +675,7 @@ function NarrowSite({
   const blockOf = (entry: GridEntry): string | null => {
     if (!ready) return null;
     const { lockedBy, cost } = termsOf(entry);
-    if (lockedBy !== null) return fr.production.researchLocked(lockedBy);
+    if (lockedBy !== null) return researchRequired(lockedBy);
     if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull;
     const short = shortfallOf(cost.costs, stockOf);
     if (short !== null)
@@ -1034,16 +1035,14 @@ function RoleSheetCard({
         <div className="flex gap-[6px] p-[10px]">
           {tiers === 2 &&
             ([1, 2] as const).map((level) => {
-              const lockedBy = (level === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null;
+              const lockedBy = pieceAt(entry, level).lockedBy;
               return (
                 <button
                   key={level}
                   type="button"
                   aria-pressed={tier === level}
                   title={
-                    lockedBy !== null
-                      ? fr.production.researchLocked(lockedBy)
-                      : fr.production.tierLabel(level)
+                    lockedBy !== null ? researchRequired(lockedBy) : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
                   className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -1106,7 +1105,7 @@ function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string })
         <div className="mt-1 text-[10.5px] font-semibold tracking-[.1em] text-[var(--critical)] uppercase">
           {unit.lockedBy === null
             ? fr.production.formsIn(aBuilding(entry.producedBy))
-            : fr.production.researchLocked(unit.lockedBy)}
+            : researchRequired(unit.lockedBy)}
         </div>
       </div>
     </div>
@@ -1323,16 +1322,14 @@ function RoleCard({
         {tiers === 2 && (
           <div className="absolute top-[8px] left-[8px] flex gap-[2px]">
             {([1, 2] as const).map((level) => {
-              const locked = (level === 2 ? entry.unitTier2 : entry.unit)?.lockedBy ?? null;
+              const locked = pieceAt(entry, level).lockedBy;
               return (
                 <button
                   key={level}
                   type="button"
                   aria-pressed={tier === level}
                   title={
-                    locked !== null
-                      ? fr.production.researchLocked(locked)
-                      : fr.production.tierLabel(level)
+                    locked !== null ? researchRequired(locked) : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
                   className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -1366,7 +1363,7 @@ function RoleCard({
         )}
         {lockedBy !== null && (
           <div className="mt-[3px] text-[11.5px] text-[var(--critical)]">
-            {fr.production.researchLocked(lockedBy)}
+            {researchRequired(lockedBy)}
           </div>
         )}
       </div>

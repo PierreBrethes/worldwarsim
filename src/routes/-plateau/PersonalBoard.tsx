@@ -17,7 +17,15 @@ import {
   RESEARCH_SPEC,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../../convex/constants';
-import { aBuilding, cardName, fr, noBuilding, roleLabel, upgradeHoldText } from '@/i18n/fr';
+import {
+  aBuilding,
+  cardName,
+  fr,
+  noBuilding,
+  researchRequired,
+  roleLabel,
+  upgradeHoldText,
+} from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
@@ -47,6 +55,7 @@ import {
   counterOf,
   countersOf,
   holdsHq,
+  pieceAt,
   researchProgressOf,
   researchRefusalOf,
 } from '@/domain/research';
@@ -622,8 +631,8 @@ function pieceRefusalOf(
   held: { readonly role: UnitRole; readonly tier: UnitTier },
 ): string | null {
   const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
-  const lockedBy = (held.tier === 2 ? entry?.unitTier2 : entry?.unit)?.lockedBy ?? null;
-  return lockedBy === null ? null : fr.production.researchLocked(lockedBy);
+  const lockedBy = entry === undefined ? null : pieceAt(entry, held.tier).lockedBy;
+  return lockedBy === null ? null : researchRequired(lockedBy);
 }
 
 function Rack({ title, note, children }: { title: string; note: string; children: ReactNode }) {
@@ -737,9 +746,7 @@ function Pieces({
       {pieces.map(({ role, tier, unit }) => {
         const name = pieceName(role, tier);
         const title =
-          unit.lockedBy === null
-            ? name
-            : `${name} — ${fr.production.researchLocked(unit.lockedBy)}`;
+          unit.lockedBy === null ? name : `${name} — ${researchRequired(unit.lockedBy)}`;
         return (
           <button
             type="button"
@@ -1320,7 +1327,7 @@ function readingOf(
     };
   }
   const entry = workshop?.grid.find((candidate) => candidate.role === held.role);
-  const unit = held.tier === 2 ? entry?.unitTier2 : entry?.unit;
+  const unit = entry === undefined ? undefined : pieceAt(entry, held.tier);
   const sites = under.filter((candidate) => PROJECTION_KEYS.includes(candidate.key));
   if (sites.length === 0 || workshop === undefined || unit == null) {
     return { kind: 'map', hint: { text: fr.personalBoard.dropOnSite, refused: true } };
