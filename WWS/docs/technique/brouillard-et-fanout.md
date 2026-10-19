@@ -57,14 +57,18 @@ la dernière position connue.
   joueur, et elle sert *moins* de points qu'avant, un tronçon n'étant qu'une part du trajet.
   Mesure du banc, huit mouvements vus par un même guetteur : trente et un points par arc.
 
+- **La grille d'échantillons est celle du trajet** (#145) : elle part du départ — de la paire pour
+  deux colonnes — et se rogne à l'instant de la lecture. Une fenêtre relue plus tard est la même
+  fenêtre, coupée ; une grille qui partait de l'instant déplaçait chaque fenêtre future d'un pas à
+  chaque événement, jusqu'à un quart d'heure pour une marche de trois jours.
 - **Un événement d'un seul joueur ne relit que lui** (#145). Un départ, une arrivée sans combat,
   un pas de tournée, une recrue ne changent que les détecteurs et les colonnes de leur joueur :
-  la réévaluation refait ses relevés et ceux tenus sur ses colonnes, et rend à cet instant ce que
-  rendrait la réévaluation entière (test d'équivalence de `detection.test.ts`). Les camps, les
-  caisses et les captures se relisent toujours en entier. Corollaire : **un événement qui change
-  un détecteur appelle la réévaluation lui-même** — il ne compte plus sur le suivant pour le
-  rattraper. Mesure du banc, 161 colonnes croisées dans un même carré d'Europe : un départ passe
-  de plus d'une seconde (coupé) à quelques centaines de millisecondes.
+  la réévaluation refait ses relevés et ceux tenus sur ses colonnes, et rend ce que rendrait la
+  réévaluation entière (test d'équivalence de `detection.test.ts`, sans passe entière entre les
+  événements). Les camps, les caisses et les captures se relisent toujours en entier. Corollaire :
+  **un événement qui change un détecteur appelle la réévaluation lui-même** — on ne compte plus
+  sur une réévaluation suivante. Mesure du banc, 161 colonnes croisées dans un même carré
+  d'Europe : un départ passe de plus d'une seconde (coupé) à quelques centaines de millisecondes.
 
 ## Le même piège au sol
 
