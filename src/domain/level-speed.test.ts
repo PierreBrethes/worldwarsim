@@ -25,8 +25,10 @@ describe('the duration factor of a level (ADR 0031)', () => {
     expect(spedMinutes(120, 3)).toBe(87);
   });
 
-  it('speeds up what the headquarters and the projection sites do, and nothing else', () => {
-    expect((['hq', 'barracks', 'port', 'airfield'] as const).every(speedsUp)).toBe(true);
+  it('speeds up what the headquarters, the projection sites and the research centre do, and nothing else', () => {
+    expect(
+      (['hq', 'barracks', 'port', 'airfield', 'researchCenter'] as const).every(speedsUp),
+    ).toBe(true);
     expect(speedsUp('mine')).toBe(false);
   });
 });

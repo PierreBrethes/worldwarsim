@@ -34,7 +34,7 @@ export const foundationMinutes = (hqLevel: number): number => worksMinutes('outp
 /** Le gain qu'imprime la fiche, en pour cent entiers : « niveau 3 : −28 % ». */
 export const levelGain = (level: number): number => Math.round((1 - levelSpeed(level)) * 100);
 
-/** Le QG accélère les chantiers, les sites de projection la formation (le Centre de recherche,
- *  #123, la recherche). Une exploitation produit un débit, pas une durée : elle n'y est pas. */
+/** Le QG accélère les chantiers, les sites de projection la formation, le Centre de recherche
+ *  la recherche. Une exploitation produit un débit, pas une durée : elle n'y est pas. */
 export const speedsUp = (key: BuildingKey): boolean =>
-  key === 'hq' || Object.values(PROJECTION_BY_DOMAIN).includes(key);
+  key === 'hq' || key === 'researchCenter' || Object.values(PROJECTION_BY_DOMAIN).includes(key);
