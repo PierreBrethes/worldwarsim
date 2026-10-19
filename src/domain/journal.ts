@@ -307,12 +307,7 @@ function written(notice: Notice): Written {
     case 'captureStarted':
     case 'captureSucceeded':
     case 'captureCancelled': {
-      const site =
-        notice.site.kind === 'building'
-          ? `${theBuilding(canonicalBuildingKey(notice.site.building))} ${ofName(notice.regionName ?? '')}`.trim()
-          : notice.site.kind === 'point'
-            ? fr.points.site(notice.site.key)
-            : fr.capture.outpostSite(notice.site.level, countryLabel(notice.site.hostCountry));
+      const site = captureSiteText(notice.site, notice.regionName);
       const defending = notice.side === 'defender';
       if (notice.kind === 'captureStarted') {
         const until = asClockTime(notice.completesAt);
@@ -531,6 +526,17 @@ function written(notice: Notice): Written {
                 notice.from === undefined ? null : nationName(notice.from),
               )
             : fr.points.taken(nationName(notice.nation), notice.key),
+      };
+    case 'captureDispatch':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.hongKong.captured(
+          nationName(notice.nation),
+          captureSiteText(notice.site, notice.regionName),
+          notice.from === undefined ? null : nationName(notice.from),
+        ),
       };
     case 'pointsDrawn':
       return {
@@ -769,3 +775,15 @@ export const combatsSince = (
 
 export const latestDispatchAt = (journal: ReadonlyArray<JournalDispatch>): number =>
   Math.max(0, ...journal.map((dispatch) => dispatch.at));
+
+/** Le site d'une capture, dit comme les deux camps le lisent. */
+function captureSiteText(
+  site: Extract<Notice, { kind: 'captureDispatch' }>['site'],
+  regionName: string | null,
+): string {
+  return site.kind === 'building'
+    ? `${theBuilding(canonicalBuildingKey(site.building))} ${ofName(regionName ?? '')}`.trim()
+    : site.kind === 'point'
+      ? fr.points.site(site.key)
+      : fr.capture.outpostSite(site.level, countryLabel(site.hostCountry));
+}

@@ -527,7 +527,7 @@ export const fr = {
       rangoon:
         'Vos tournées de ravitaillement ne se relèvent jamais : aucune détection ne les voit.',
       hongKong:
-        'Vous lisez la dépêche de chaque capture d’un point, où que ce soit : qui l’a pris, et à qui.',
+        'Vous lisez la dépêche de chaque capture, où que ce soit — points, bâtiments et avant-postes, même ceux que vous ne voyez pas : qui prend quoi, et où.',
       halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
@@ -582,6 +582,9 @@ export const fr = {
         `DÉPÊCHE DE HONG KONG — ${nation} prend ${fr.points.names[key]}${
           from === null ? ', jusque-là neutre' : ` à ${from}`
         }.`,
+      /** Qui, quoi, où — la région ou le pays est dans le site. */
+      captured: (nation: string, site: string, from: string | null) =>
+        `DÉPÊCHE DE HONG KONG — ${nation} prend ${site}${from === null ? '' : ` à ${from}`}.`,
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
     drawn: (keys: ReadonlyArray<StrategicPointKey>) => {

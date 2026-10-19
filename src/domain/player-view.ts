@@ -970,6 +970,15 @@ type NoticeBody =
       readonly hongKong?: true;
       readonly from?: string;
     }
+  /** **Hong Kong lit une capture** de bâtiment ou d'avant-poste : qui, quoi, où. */
+  | {
+      readonly kind: 'captureDispatch';
+      readonly at: number;
+      readonly nation: string;
+      readonly from?: string;
+      readonly site: CaptureSite;
+      readonly regionName: string | null;
+    }
   | {
       readonly kind: 'pointsDrawn';
       readonly at: number;

@@ -1259,6 +1259,7 @@ function named(notice: PlayableNotice) {
     case 'captureStarted':
     case 'captureSucceeded':
     case 'captureCancelled':
+    case 'captureDispatch':
       return {
         ...notice,
         regionName: notice.site.kind === 'building' ? nameOf(notice.site.regionId) : null,

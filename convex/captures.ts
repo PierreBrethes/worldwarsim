@@ -193,6 +193,32 @@ async function notifyBoth(
 }
 
 /**
+ * **Hong Kong lit la capture d'un bâtiment ou d'un avant-poste**, partout, y compris ceux qu'il ne
+ * voit pas : qui, quoi, où. Les deux camps ont déjà leur dépêche ; le teneur seul reçoit celle-ci.
+ */
+async function dispatchFromHongKong(
+  ctx: MutationCtx,
+  capture: Pick<Capture, 'seasonId' | 'playerId' | 'site' | 'point'>,
+  loser: Doc<'players'>,
+  now: number,
+): Promise<void> {
+  const capturer = (await ctx.db.get(capture.playerId))!;
+  for (const seat of await seatsOf(ctx, capture.seasonId)) {
+    if (seat._id === capture.playerId || seat._id === loser._id) continue;
+    if (!(await holdsPoint(ctx, seat, 'hongKong'))) continue;
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'captureDispatch',
+      nation: capturer.nation ?? capturer.nickname,
+      ...(loser.irregular === true ? {} : { from: loser.nation ?? loser.nickname }),
+      site: capture.site,
+      point: capture.point,
+    });
+  }
+}
+
+/**
  * **La colonne arrive au site qu'elle vient capturer.** S'il reste des défenseurs, une passe a
  * lieu comme pour une attaque ; si l'attaquant gagne et garde de l'infanterie debout, la capture
  * commence. Sinon chacun rentre comme après une attaque.
@@ -550,6 +576,7 @@ export const complete = internalMutation({
 
     await ctx.db.delete(captureId);
     await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
+    if (!isPoint(site)) await dispatchFromHongKong(ctx, capture, loser, now);
     const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
     await surveyFromPoint(ctx, capture.playerId, point, now);
     if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
