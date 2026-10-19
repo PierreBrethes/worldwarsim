@@ -285,6 +285,11 @@ export function GarrisonPanel({
                   )
                 : fr.specializationEffects.listening(outpostReachKm(outpost.level))}
             </p>
+            {outpost.specialization === 'listening' && view.me.upkeep.listeningSilent && (
+              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
+                {fr.economy.listeningSilent} — {fr.economy.listeningSilentFix}
+              </p>
+            )}
             {outpost.specializationLocked && (
               <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
                 {fr.garrison.specializationSealed}

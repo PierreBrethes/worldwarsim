@@ -1,11 +1,12 @@
+import { depotRefundOf, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { Price } from '@/shell/Price';
 import { fr } from '@/i18n/fr';
 import { pledgedWork } from '@/domain/construction';
-import { RESOURCES } from '@/domain/ids';
-import type { OutpostView, PlayerView } from '@/domain/player-view';
+import { currentStock, type OutpostView, type PlayerView } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
 
@@ -62,6 +63,15 @@ export function DismantleCard({
   /** Une entrée qui court a déjà consommé son tour : c'est la règle de la file, et le
    *  démantèlement ne l'assouplit pas (`constructions.cancel`). */
   const running = head !== null && head.outpostId === outpost.id;
+  /** **Le dépôt revient au plateau personnel**, le surplus de l'entrepôt perdu — la règle même
+   *  que le serveur crédite (`depotRefundOf`). */
+  const room = (key: keyof SupplyLoad) =>
+    view.me.resources[key].cap - currentStock(view.me.resources[key], view.loadedAt, Date.now());
+  const depot = depotRefundOf(outpost.depot, {
+    ammunition: room('ammunition'),
+    oil: room('oil'),
+    coal: room('coal'),
+  });
   const garrison = view.me.troops.filter(
     (troop) => troop.stationedAt.kind === 'outpost' && troop.stationedAt.outpostId === outpost.id,
   ).length;
@@ -109,10 +119,17 @@ export function DismantleCard({
             {queued !== undefined && (
               <li>
                 {fr.demolition.queueCancelled} —{' '}
-                {running
-                  ? fr.demolition.queueRunning
-                  : fr.demolition.queueRefund(priceOf(outpost.nextLevelCost))}
+                {running ? (
+                  fr.demolition.queueRunning
+                ) : (
+                  <>
+                    {fr.demolition.queueRefund} <Price costs={outpost.nextLevelCost} size={11} />
+                  </>
+                )}
               </li>
+            )}
+            {loadTotal(outpost.depot) > 0 && (
+              <li>{fr.dismantle.depot(loadTotal(depot.returned), loadTotal(depot.lost))}</li>
             )}
             {garrison > 0 && <li>{fr.dismantle.garrison(garrison)}</li>}
             {outpost.standsAt !== null && <li>{fr.dismantle.underConstruction}</li>}
@@ -151,10 +168,3 @@ export function DismantleCard({
     </div>
   );
 }
-
-/** La facture d'une entrée de file, en une phrase — les mêmes chiffres que la branche
- *  « élever » de la rose annonçait. */
-const priceOf = (cost: OutpostView['nextLevelCost']): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => `${cost[key]} ${fr.resources[key]}`)
-    .join(' · ');

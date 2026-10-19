@@ -5,9 +5,10 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { nicknameKey } from '../src/domain/account';
 import { isNation } from '../src/domain/nations';
-import { capitalRegionOf } from './regions';
+import { capitalRegionOf, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
+import { layPoint } from './strategicPoints';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -139,7 +140,12 @@ export async function placeHq(t: Bench, seat: Seat, regionId?: string): Promise<
       if (!isNation(player.nation)) throw new Error('seat without a nation');
       return capitalRegionOf(player.nation);
     }));
-  await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: region });
+  await t.mutation(api.constructions.start, {
+    ...seat,
+    building: 'hq',
+    regionId: region,
+    point: pointOfRegion(region),
+  });
   return region;
 }
 
@@ -174,7 +180,7 @@ async function writeSurvey(ctx: MutationCtx, seat: Seat, regionId: string): Prom
     .unique();
   const row = {
     seenAt: Date.now(),
-    installations: [{ buildingId: building._id, key: building.key }],
+    installations: [{ buildingId: building._id, key: building.key, point: building.point }],
     hasInstallations: true,
   };
   if (existing === null) {
@@ -266,3 +272,24 @@ async function writeCampSighting(
 /** A short or absent clock, for the suites that measure what the end of a season does. */
 export const setClock = (t: Bench, seasonId: Id<'seasons'>, hours: number | null) =>
   t.run((ctx) => ctx.db.patch(seasonId, { durationHours: hours }));
+
+/** Un point stratégique de la saison, posé neutre s'il n'a pas été tiré (`layPoint`). */
+export const neutralPoint = async (
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  key: Doc<'strategicPoints'>['key'],
+) => (await layPoint(ctx, seasonId, key))!;
+
+/** Un point tenu par une place, posé s'il manquait. */
+export const holdPoint = (
+  t: Bench,
+  seat: Seat,
+  key: Doc<'strategicPoints'>['key'],
+  holder: Seat = seat,
+) =>
+  t.run(async (ctx) => {
+    const player = await seatIn(ctx, holder);
+    const point = await neutralPoint(ctx, seat.seasonId, key);
+    await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
+    return point._id;
+  });

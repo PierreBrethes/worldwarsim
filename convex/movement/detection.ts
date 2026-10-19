@@ -28,6 +28,7 @@ import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { isStanding } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
+import { economyOf } from '../resources';
 import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,
@@ -289,8 +290,24 @@ async function detectionBoard(
         ];
   });
 
+  /** A post with no coal hears nothing (ADR 0028 §1): one economy read per owner, not per post. */
+  const silent = new Map<Id<'players'>, boolean>();
+  const isSilent = async (playerId: Id<'players'>): Promise<boolean> => {
+    if (!silent.has(playerId)) {
+      const economy = await economyOf(ctx, playerId, now);
+      silent.set(playerId, economy.listeningSilent);
+      // The coal is burning down: wake the ears at the instant it runs out, since nothing else will.
+      if (!economy.listeningSilent && economy.ratePerHour.coal < 0) {
+        const dryAt = now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000;
+        await ctx.scheduler.runAt(dryAt, internal.listening.reassess, { playerId });
+      }
+    }
+    return silent.get(playerId)!;
+  };
+
   for (const building of buildings) {
     if (building.key !== 'listening') continue;
+    if (await isSilent(building.playerId)) continue;
     const facts = regionFacts(building.regionId);
     const point = pointOfBuilding(building);
     if (facts === null || point === null) continue;
@@ -308,6 +325,7 @@ async function detectionBoard(
 
   for (const outpost of outposts) {
     if (outpost.specialization !== 'listening') continue;
+    if (await isSilent(outpost.playerId)) continue;
     /** Un chantier n'écoute pas : le point n'existe pas encore (révision du 15/09). */
     if (!isStanding(outpost, now)) continue;
     if (outpost.disabledUntil !== null && outpost.disabledUntil > now) continue;

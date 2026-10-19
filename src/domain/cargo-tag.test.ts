@@ -30,6 +30,9 @@ describe('cargoTagsOf', () => {
           { id: 'i2', role: 'infantry', tier: 1, seats: 1 },
         ],
         refusal: null,
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 200,
+        tour: null,
       },
       // Empty, it still has a tag: the hand reads its free seats on it (POC, `avail`).
       {
@@ -39,8 +42,42 @@ describe('cargoTagsOf', () => {
         used: 0,
         riders: [],
         refusal: 'NOT_ABOARD',
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 200,
+        tour: null,
       },
     ]);
+  });
+
+  it('carries the charge of each transport beside its seats (ADR 0028 §4)', () => {
+    const [truck] = cargoTagsOf(
+      [{ ...troop('t1', 'landTransport'), load: { ammunition: 60, oil: 20, coal: 0 } }],
+      ashore,
+    );
+    expect(truck).toMatchObject({ load: { ammunition: 60, oil: 20 }, loadCapacity: 200 });
+  });
+
+  it('says why its tour waits (ADR 0028)', () => {
+    const tour = { stops: ['a', 'b'], recalled: false, skipped: [] };
+    const [waiting] = cargoTagsOf(
+      [
+        {
+          ...troop('t1', 'landTransport'),
+          tour: { ...tour, waiting: { why: 'stock' as const, resource: 'oil' as const } },
+        },
+      ],
+      ashore,
+    );
+    expect(waiting?.tour).toEqual({
+      state: 'waiting',
+      stops: 2,
+      waiting: { why: 'stock', resource: 'oil' },
+    });
+    const [running] = cargoTagsOf(
+      [{ ...troop('t1', 'landTransport'), tour: { ...tour, waiting: null } }],
+      ashore,
+    );
+    expect(running?.tour).toMatchObject({ state: 'running', waiting: null });
   });
 
   it('counts a heavy rider by the seats it takes: a tank fills three of a hull', () => {

@@ -2,6 +2,7 @@ import {
   type Box3,
   BoxGeometry,
   BufferGeometry,
+  CanvasTexture,
   CylinderGeometry,
   DoubleSide,
   Group,
@@ -15,6 +16,7 @@ import {
   PlaneGeometry,
   type Raycaster,
   RingGeometry,
+  SRGBColorSpace,
   Vector3,
 } from 'three';
 import type { Forbidden } from '@/domain/drop-order';
@@ -49,7 +51,11 @@ export type StandingPile = {
    * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is
    * lifted by its figurines like any pile; the maquette itself opens its site.
    */
-  readonly at: { readonly lonLat: LonLat } | { readonly beside: string };
+  readonly at:
+    | { readonly lonLat: LonLat }
+    /** `quay` : la garnison d'un port, dont les coques **accostent le long du quai**, côté mer,
+     *  en rangs le long de la côte (ADR 0028) — et non tournées comme la maquette. */
+    | { readonly beside: string; readonly quay?: LonLat };
   readonly pieces: PilePieces;
 };
 
@@ -254,7 +260,7 @@ export function pileObject(
       () => {},
     );
   });
-  if (pieces.squad) object.add(squadMarks(layout, nation));
+  if (pieces.squad) object.add(squadMarks(layout, nation, pieces.count));
   const margin = GROUP_SPACING * 0.62;
   const xs = layout.map(({ x }) => x);
   const zs = layout.map(({ z }) => z);
@@ -307,16 +313,47 @@ POLE.translate(0, 0.3, 0);
 const POLE_WOOD = new MeshStandardMaterial({ color: '#2a1c10', roughness: 0.6 });
 const CLOTH = new PlaneGeometry(0.3, 0.19);
 CLOTH.translate(0.15, 0.495, 0);
+/** A counted pennant flies wider: the count must read at the pile's scale. */
+const COUNTED_CLOTH = new PlaneGeometry(0.46, 0.29);
+COUNTED_CLOTH.translate(0.23, 0.455, 0);
 const flags = new Map<string, MeshStandardMaterial>();
-/** The pennant's cloth: the nation's ink — the squad's pieces say how many they are. */
-function flagOf(nation: string | null): MeshStandardMaterial {
-  const key = String(nation);
+/** The pennant's cloth: the nation's ink — the squad's pieces say how many they are, or past
+ *  twelve, the count printed on it in the paper's tone (ADR 0028 §6). */
+function flagOf(nation: string | null, count?: number): MeshStandardMaterial {
+  const key = `${nation}:${count ?? ''}`;
   let flag = flags.get(key);
   if (!flag) {
     flag = new MeshStandardMaterial({ color: nationInk(nation), roughness: 0.9, side: DoubleSide });
+    const printed = count === undefined ? null : countCloth(nationInk(nation), count);
+    if (printed !== null) {
+      flag.color.set('#ffffff');
+      flag.map = printed;
+      // The count glows a little through the cloth: it must read by night too.
+      flag.emissive.set('#ffffff');
+      flag.emissiveMap = printed;
+      flag.emissiveIntensity = 0.45;
+    }
     flags.set(key, flag);
   }
   return flag;
+}
+
+function countCloth(ink: string, count: number): CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 160;
+  canvas.height = 100;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = ink;
+  ctx.fillRect(0, 0, 160, 100);
+  ctx.fillStyle = PALETTE.paper;
+  ctx.font = '700 84px "Bodoni Moda", Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(count), 80, 54);
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
 }
 
 /**
@@ -324,7 +361,11 @@ function flagOf(nation: string | null): MeshStandardMaterial {
  * d'encre autour de ses pièces et un fanion à l'encre de la nation. Pas de socle : le plateau est
  * le papier de la carte.
  */
-function squadMarks(layout: ReadonlyArray<Slot>, nation: string | null): Group {
+function squadMarks(
+  layout: ReadonlyArray<Slot>,
+  nation: string | null,
+  count: number | undefined,
+): Group {
   const margin = GROUP_SPACING * 0.62;
   const rx = Math.max(...layout.map(({ x }) => Math.abs(x))) + margin;
   const rz = Math.max(...layout.map(({ z }) => Math.abs(z))) + margin;
@@ -333,7 +374,10 @@ function squadMarks(layout: ReadonlyArray<Slot>, nation: string | null): Group {
   outline.scale.set(rx, 1, rz);
   marks.add(outline);
   const pennant = new Group();
-  pennant.add(new Mesh(POLE, POLE_WOOD), new Mesh(CLOTH, flagOf(nation)));
+  pennant.add(
+    new Mesh(POLE, POLE_WOOD),
+    new Mesh(count === undefined ? CLOTH : COUNTED_CLOTH, flagOf(nation, count)),
+  );
   pennant.position.set(-rx * Math.SQRT1_2, 0, -rz * Math.SQRT1_2);
   pennant.traverse((part) => (part.castShadow = true));
   marks.add(pennant);
@@ -563,9 +607,9 @@ export type PiecePick = PieceHold & {
   readonly carried?: true;
 };
 
-/** What a pile draws: its nation, and per piece the role, the figures, the wear and the riders. */
-export const drawnKey = (nation: string | null, { groups }: PilePieces): string =>
-  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.wear, g.aboard])]);
+/** What a pile draws: its nation, its count, and per piece the role, the figures, the wear and the riders. */
+export const drawnKey = (nation: string | null, { groups, count }: PilePieces): string =>
+  JSON.stringify([nation, count, groups.map((g) => [g.role, g.figures, g.wear, g.aboard])]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
@@ -649,11 +693,7 @@ export class StandingLayer {
         next.set(pile.id, kept);
         continue;
       }
-      const built = pileObject(
-        this.nation,
-        pile.pieces,
-        'lonLat' in pile.at ? this.seaward(pile.at.lonLat) : null,
-      );
+      const built = pileObject(this.nation, pile.pieces, this.shoreOf(pile.at));
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
@@ -844,7 +884,7 @@ export class StandingLayer {
     const copy = pileObject(
       this.nation,
       heldPieces(entry.pieces, held.troopIds),
-      'lonLat' in entry.at ? this.seaward(entry.at.lonLat) : null,
+      this.shoreOf(entry.at),
     );
     if (copy === null) return;
     for (const disc of copy.object.getObjectsByProperty('name', CONTACT)) disc.visible = false;
@@ -1009,6 +1049,12 @@ export class StandingLayer {
     if (entry) wash(entry.object, false);
   }
 
+  /** Toward the water from a pile on a shore, or from the quay of a port's garrison. */
+  private shoreOf(at: StandingPile['at']): readonly [number, number] | null {
+    const point = 'lonLat' in at ? at.lonLat : at.quay;
+    return point === undefined ? null : this.seaward(point);
+  }
+
   /** Every dressed pile set back on its point; a garrison is set at its maquette's foot by `orient`. */
   rebuild(): void {
     for (const { at, object } of this.dressed.values())
@@ -1030,7 +1076,7 @@ export class StandingLayer {
           foot.at.y,
           foot.at.z + foot.step[1] * near,
         );
-        object.rotation.y = foot.facing;
+        object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;

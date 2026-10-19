@@ -35,7 +35,15 @@ import {
 } from '@/domain/mouse-mapping';
 import type { LonLat } from '@/domain/geo';
 import type { HoveredRegion, RegionIdentity, RegionsData, World } from '@/domain/world';
-import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
+import {
+  buildGrid,
+  coastCellsIn,
+  isCoastCell,
+  isLandCell,
+  KM_PER_UNIT,
+  type RouteGrid,
+} from '@/domain/routing';
+import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
@@ -57,6 +65,8 @@ import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
+import { ParachuteLayer } from './parachute';
+import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import { AimRibbon } from './aim';
@@ -69,7 +79,8 @@ import { HELD_OPACITY, nationShades, PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
-import { PlacingGhost, type CoastSpot } from './placing';
+import { PlacingGhost } from './placing';
+import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
@@ -131,6 +142,22 @@ export type BuiltRegions = {
  * everywhere the region layer has faded out — far from the ground, the game aims at a country,
  * up close at a region.
  */
+/**
+ * **What the held building leaps onto** (ADR 0029): nothing (it stands under the pointer), the
+ * nearest quay of the routing grid, or the nearest of a list of points — the free deposits.
+ */
+export type PlacingMagnet =
+  | { readonly kind: 'free' }
+  | { readonly kind: 'coast' }
+  | { readonly kind: 'points'; readonly points: ReadonlyArray<LonLat> };
+
+/** The point the ghost holds, with what the board knows of it: whose region, and a coast. */
+export type PlacingSpot = {
+  readonly lonLat: LonLat;
+  readonly region: RegionIdentity | null;
+  readonly coastal: boolean;
+};
+
 export type MapActClick = {
   country: string | null;
   region: RegionIdentity | null;
@@ -294,9 +321,11 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   private readonly camps: CampLayer;
   private readonly ink: InkLayer;
+  private readonly parachutes: ParachuteLayer;
   private readonly reach: ReachRing;
   /** The road the piece in hand would take (POC « Manipuler les pions »). */
   private readonly aimRibbon = new AimRibbon();
+  private readonly tourInk: TourInk;
   private aimRoute: Vector3[] | null = null;
   private verdict: DropVerdict = 'none';
   /** What the carried piece is over, and the ring the drop gives it (POC, `ringStyle`). */
@@ -337,10 +366,10 @@ export class MapEngine {
   private spaceHeld = false;
   private building = false;
   private aiming = false;
-  private designating = false;
-  /** The region a building is being placed on, `null` when nothing is held. */
-  private placing: string | null = null;
+  /** The building held over the board, `null` when nothing is held. */
+  private placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null = null;
   private readonly ghost: PlacingGhost;
+  private placingRefused = false;
   /**
    * The routing grid, built on the first placement and kept — 1.33 M cells, the same raster the
    * server routes on (`convex/routes.ts`). Nothing else on the client needs it, so nothing else
@@ -378,17 +407,13 @@ export class MapEngine {
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
   /**
-   * A clean left click while the board is **designating** — a mobilisation key is armed and
-   * the next click names the ground it goes down on. It replaces the selection rather than
-   * doubling it: a click that both places an arsenal and re-frames the country would answer
-   * two questions where the player asked one.
+   * A clean left click while a building is held: the point the ghost holds. It replaces the
+   * selection rather than doubling it: a click that both places an arsenal and re-frames the
+   * country would answer two questions where the player asked one.
    */
-  onRegionClick: (regionId: string | null) => void = () => {};
-  /**
-   * A clean left click while a building is held: the coast point it snapped onto. Like
-   * `onRegionClick`, it replaces the selection rather than doubling it — one click, one answer.
-   */
-  onPlacePoint: (point: LonLat) => void = () => {};
+  onPlacePoint: (spot: PlacingSpot) => void = () => {};
+  /** The ghost moved onto another point — what the board reads its refusal off, before the click. */
+  onPlacingAim: (spot: PlacingSpot | null) => void = () => {};
   onAct: (click: MapActClick) => void = () => {};
   /**
    * The first orientation drag. It is the instant the player discovers that dragging the
@@ -475,10 +500,11 @@ export class MapEngine {
   constructor(
     private readonly container: HTMLElement,
     /** Kept for the one thing that is asked of the world after the board is built: the routing
-     *  raster, rasterised on the first placement and never before (`coastOfRegion`). */
+     *  raster, rasterised on the first placement and never before (`snapFor`). */
     private readonly world: World,
   ) {
     this.frame = new WorldFrame(world);
+    this.tourInk = new TourInk(this.frame);
 
     this.scene.background = new Color(PALETTE.desk);
     this.scene.fog = new Fog(PALETTE.desk, FOG_NEAR, FOG_FAR);
@@ -607,8 +633,11 @@ export class MapEngine {
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
+    this.parachutes = new ParachuteLayer(this.frame);
+    this.scene.add(this.parachutes.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.aimRibbon.group);
+    this.scene.add(this.tourInk.group);
     this.standing.elsewhere = (id) => this.camps.positionOf(id);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
@@ -629,7 +658,6 @@ export class MapEngine {
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.built);
-    this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
     this.scene.add(this.regions.terrain.group);
 
@@ -668,6 +696,7 @@ export class MapEngine {
       );
       this.ink.traceReach(shot, performance.now());
     }
+    if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
     this.ink.burst(burst, performance.now());
   }
 
@@ -821,6 +850,12 @@ export class MapEngine {
   setAimRoute(points: ReadonlyArray<LonLat> | null): void {
     this.invalidate();
     this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
+  }
+
+  /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
+  showTours(loops: ReadonlyArray<TourLoop>): void {
+    this.invalidate();
+    this.tourInk.show(loops);
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */
@@ -1283,12 +1318,6 @@ export class MapEngine {
     this.regions.showHeld(claims);
   }
 
-  /** The ground an armed key accepts, as the domain computed it — see `RegionLayer.showDesignated`. */
-  showDesignatedRegions(regionIds: ReadonlyArray<string>): void {
-    this.invalidate();
-    this.regions.showDesignated(new Set(regionIds));
-  }
-
   /**
    * **The ground one detector covers, while the pointer asks for it and no longer** (fiche 03).
    * `null` puts it away — the ring is an answer to a hover, not a layer of the board.
@@ -1337,6 +1366,7 @@ export class MapEngine {
 
     this.reach.dispose();
     this.aimRibbon.dispose();
+    this.tourInk.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
@@ -1345,6 +1375,7 @@ export class MapEngine {
     this.replay?.scene.dispose();
     this.arcs.dispose();
     this.ink.dispose();
+    this.parachutes.dispose();
     this.regions.dispose();
     this.sea?.dispose();
     this.veil.dispose();
@@ -1482,7 +1513,7 @@ export class MapEngine {
    * not turn the table under the piece.
    */
   private armCarry(gesture: Gesture, event: PointerEvent, from: () => CarryTarget | null): void {
-    if (this.onPieceCarry === undefined || this.placing !== null || this.designating) return;
+    if (this.onPieceCarry === undefined || this.placing !== null) return;
     const finger = event.pointerType === 'touch';
     if (!finger && (buttonAt(event.button) !== 'left' || this.spaceHeld)) return;
     gesture.carry = from();
@@ -1664,7 +1695,7 @@ export class MapEngine {
     }
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
-    if (press.reads) this.readAt(event);
+    if (press.reads) this.readAt();
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
 
@@ -1693,7 +1724,7 @@ export class MapEngine {
   /** A building held or a key armed wants the ground, not the piece standing on it. */
   private pickAt(event: PointerEvent, single: boolean): boolean {
     const onPieceClick = this.onPieceClick;
-    if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
+    if (onPieceClick === undefined || this.placing !== null) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
     const piece = this.pieceToTake();
     if (piece === null) return false;
@@ -1717,7 +1748,7 @@ export class MapEngine {
 
   /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
   private pressPiece(event: PointerEvent, press: CleanPress): boolean {
-    if (this.onPiecePress === undefined || this.placing !== null || this.designating) return false;
+    if (this.onPiecePress === undefined || this.placing !== null) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
     const labelId = this.pieceUnder()?.id;
     if (labelId === undefined) return false;
@@ -1774,14 +1805,10 @@ export class MapEngine {
     this.onRest?.({ ...click, labelId: this.restLabel ?? this.hoveredLabel });
   }
 
-  private readAt(event: PointerEvent): void {
+  private readAt(): void {
     if (this.placing !== null) {
       const spot = this.ghost.spot;
-      if (spot !== null) this.onPlacePoint(spot.lonLat);
-      return;
-    }
-    if (this.designating) {
-      this.onRegionClick(this.regionAtPoint(event.clientX, event.clientY)?.id ?? null);
+      if (spot !== null) this.onPlacePoint(this.placingSpotAt(spot));
       return;
     }
     if (this.fingerOnBoard) {
@@ -1885,6 +1912,7 @@ export class MapEngine {
     this.camps.motion = motion;
     this.veil.motion = motion;
     this.ink.motion = motion;
+    this.parachutes.motion = motion;
     this.maquettes.motion = motion;
     this.regions.terrain.motion = motion;
   }
@@ -1922,8 +1950,9 @@ export class MapEngine {
     if (this.gesture?.panning === true) style.cursor = 'grabbing';
     else if (this.spaceHeld) style.cursor = 'grab';
     else if (this.placing !== null)
-      style.cursor = this.ghost.spot === null ? REFUSED_CURSOR : TROWEL_CURSOR;
-    else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
+      style.cursor =
+        this.ghost.spot === null || this.placingRefused ? REFUSED_CURSOR : TROWEL_CURSOR;
+    else if (this.building) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
@@ -1946,41 +1975,54 @@ export class MapEngine {
     this.refreshCursor();
   }
 
-  /**
-   * A mobilisation key is armed: the left click names a region instead of selecting a country.
-   * It wears the same trowel as the construction panel, because it is the same verb — putting
-   * a building down — and a second cursor for one gesture is one vocabulary too many.
-   */
-  setDesignating(designating: boolean): void {
+  /** The board says whether the point the ghost holds is refused: the cursor says it too. */
+  setPlacingRefused(refused: boolean): void {
     this.invalidate();
-    if (designating === this.designating) return;
-    this.designating = designating;
+    if (refused === this.placingRefused) return;
+    this.placingRefused = refused;
     this.refreshCursor();
   }
 
   /**
-   * **The board is holding a building, and the next left click puts it down** (ADR 0013,
-   * revision of 04/09). Only the port enters this mode, and what it may take is settled here,
-   * once: the coast cells of the routing grid that fall inside this region and no other.
-   *
-   * Two readings meet and neither is guessed — the grid says what a ship can sail from
-   * (`coastCellsIn`, the very function the server refuses with), the region layer says where the
-   * region stops. A region whose polygons have not landed yet, or one the grid finds no shore
-   * in, arms an empty magnet: the ghost stays away and the cursor refuses, rather than offering
-   * a click the server would send back.
+   * **The board is holding a building, and the next left click puts it down** (ADR 0029). The
+   * ghost follows the pointer anywhere; its magnet, when it has one, makes it leap onto a quay of
+   * the routing grid (`isCoastCell`, the very function the server refuses with) or onto one of a
+   * list of points — the free deposits. What the point is worth is not decided here: the board
+   * reads it off `onPlacingAim`, through the placement rule.
    */
-  setPlacing(regionId: string | null, sprite: string | null): void {
+  setPlacing(
+    placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null,
+  ): void {
     this.invalidate();
-    if (regionId === this.placing) return;
-    this.placing = regionId;
-    if (regionId === null) {
+    if (placing === this.placing) return;
+    this.placing = placing;
+    if (placing === null) {
       this.ghost.disarm();
+      this.onPlacingAim(null);
       this.refreshCursor();
       return;
     }
-    this.ghost.arm(sprite, this.coastOfRegion(regionId));
+    this.ghost.arm(placing.sprite, (pointer) => this.snapFor(placing.magnet, pointer));
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  private snapFor(magnet: PlacingMagnet, pointer: LonLat): LonLat {
+    if (magnet.kind === 'free') return pointer;
+    if (magnet.kind === 'points') return snapTo(pointer, magnet.points);
+    this.routeGrid ??= buildGrid(this.world);
+    const at = this.frame.projectLonLat(pointer);
+    const [x, y] = [at.x + this.frame.centerX, at.z + this.frame.centerY];
+    const reach = PLACING_SNAP_KM / KM_PER_UNIT;
+    const quays = coastCellsIn(this.routeGrid, [x - reach, y - reach, x + reach, y + reach]);
+    return snapTo(
+      pointer,
+      quays.map((quay) => quay.lonLat),
+    );
+  }
+
+  private placingSpotAt(lonLat: LonLat): PlacingSpot {
+    return { lonLat, region: this.regionAtLonLat(lonLat), coastal: this.coastAt(lonLat) };
   }
 
   /**
@@ -2021,15 +2063,6 @@ export class MapEngine {
     }
     const length = Math.hypot(x, z);
     return wet === 0 || wet === SHORE_PROBES || length === 0 ? null : [x / length, z / length];
-  }
-
-  private coastOfRegion(regionId: string): ReadonlyArray<CoastSpot> {
-    const outline = this.regions.outlineOf(regionId);
-    if (outline === null) return [];
-    this.routeGrid ??= buildGrid(this.world);
-    return coastCellsIn(this.routeGrid, outline.box).filter((cell) =>
-      outline.covers(cell.x, cell.y),
-    );
   }
 
   /**
@@ -2203,11 +2236,7 @@ export class MapEngine {
     const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
     const pointing =
-      onScreen &&
-      !this.fingerOnBoard &&
-      this.gesture === null &&
-      this.placing === null &&
-      !this.designating;
+      onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
     const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
     if (label !== this.hoveredLabel) {
       this.hoveredLabel = label;
@@ -2250,14 +2279,18 @@ export class MapEngine {
      *  only wanted the land. It has just walked the arcs, hence the second aim rather than the
      *  hit already in hand. */
     if (this.placing !== null) {
-      const arrived = this.ghost.spot === null;
+      const before = this.ghost.spot;
       this.ray.setFromCamera(this.pointer, this.syncEye());
       const board = onScreen ? this.ray.intersectObjects(this.aimable, false)[0]?.point : undefined;
       this.ghost.aimAt(
         board === undefined ? null : board.x + this.frame.centerX,
         board === undefined ? null : board.z + this.frame.centerY,
       );
-      if (arrived && this.ghost.spot !== null) this.refreshCursor();
+      const after = this.ghost.spot;
+      if (after !== null && after !== before) {
+        if (before === null) this.refreshCursor();
+        this.onPlacingAim(this.placingSpotAt(after));
+      }
     }
 
     this.hovered = touched ?? null;
@@ -2315,6 +2348,7 @@ export class MapEngine {
     if (
       this.arcs.isFlowing ||
       this.ink.active ||
+      this.parachutes.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isCarrying ||
@@ -2349,6 +2383,7 @@ export class MapEngine {
     const yaw = cameraYaw(this.camera.position, this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
+    this.parachutes.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
@@ -2364,6 +2399,7 @@ export class MapEngine {
           : [reading.from, reading.to],
       tone === 'none' ? 'order' : tone,
     );
+    this.tourInk.animate(this.unitsPerPixel(distance), this.screenHeight);
     this.aimRibbon.animate(
       this.unitsPerPixel(distance),
       this.screenHeight,

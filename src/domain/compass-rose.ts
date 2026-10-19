@@ -1,4 +1,5 @@
 import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
+import type { TourTrace } from './cargo-tag';
 import {
   availabilityOf,
   buildOptionsAt,
@@ -13,7 +14,13 @@ import {
 } from './construction';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
-import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
+import {
+  bombardRefusalDetails,
+  bombardRefusalOf,
+  bombardsWith,
+  firesIndirect,
+  gunsReach,
+} from './indirect-fire';
 import { playedTheatre } from './theatres';
 import { captureDurationAt, type CaptureTarget } from './capture';
 import { PRODUCER_OF } from './economy';
@@ -35,6 +42,17 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
+import {
+  carriersAmong,
+  deliverRefusalOf,
+  airdropRefusalOf,
+  squadTarget,
+  hullsAmong,
+  loadTotal,
+  onTourRefusalOf,
+  tourRefusalOf,
+  type LoadingPlace,
+} from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import {
   carrierIn,
@@ -52,6 +70,7 @@ import {
   currentStock,
   type Building,
   type OutpostView,
+  type Cost,
   type PlayerView,
   type TroopStation,
   type TroopView,
@@ -275,6 +294,13 @@ export type CompassPictogram =
   /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
   | 'shell';
 
+/** One resource of a bill: its sentence, its picto's resource, and whether it is the one short. */
+export type BillLine = {
+  readonly resource: ResourceKey;
+  readonly text: string;
+  readonly lacking: boolean;
+};
+
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
  * mute: label, cost and consequence only appear on hover, in the tooltip. The array order is
@@ -332,8 +358,8 @@ export type CompassAction =
        * paie et prend du temps ; les deux chiffres décident du clic, et les faire attendre le
        * survol ferait ouvrir la rose pour lire un tarif. Même forme que la branche « monter ».
        */
-      readonly figure: string;
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly figure: Cost;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
     }
   /**
@@ -355,10 +381,12 @@ export type CompassAction =
       readonly consequence: string;
       readonly buildingKey: BuildingKey;
       readonly regionId: string;
+      /** Le point du bâtiment — ce qu'une élévation nomme (ADR 0029). */
+      readonly point: LonLat;
       /** Le coût à plat, dans la rose : « 54 », multi-matières « 108 · 72 ». */
-      readonly figure: string;
+      readonly figure: Cost;
       /** Une ligne par matière due, avec le stock en regard — celle qui manque se marque. */
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
       /** Grisée quand elle est là : la raison du serveur, et l'échéance quand elle se date. */
       readonly hold: {
@@ -423,8 +451,8 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly outpostId: string;
-      readonly figure: string;
-      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly figure: Cost;
+      readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
       readonly hold: {
         readonly reason: string;
@@ -503,6 +531,67 @@ export type CompassAction =
         | { readonly kind: 'track'; readonly movementId: string };
     }
   /**
+   * **Livrer** (ADR 0028 §4) : le transport chargé, lâché sur un de mes avant-postes, y décharge
+   * dans la limite du dépôt et rentre seul. Un mouvement, avec son slot ; la règle est
+   * `deliverRefusalOf`, celle que `logistics.deliver` relit.
+   */
+  | {
+      readonly key: 'deliver';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      /** Le nom du point, pour le cartouche « transmis ». */
+      readonly destination: string;
+      /** La visée de la marche : l'aperçu de route en tire l'heure et le plein. */
+      readonly aim: MovementAim;
+    }
+  /**
+   * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche son paquet sur un de mes
+   * avant-postes — escale ou non — ou sur une de mes escouades isolées, et rentre seul. Un
+   * mouvement, avec son slot ; la règle est `airdropRefusalOf`, celle que `logistics.airdrop` relit.
+   */
+  | {
+      readonly key: 'airdrop';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly target:
+        | { readonly kind: 'outpost'; readonly outpostId: string }
+        | { readonly kind: 'squad'; readonly point: LonLat };
+      /** La visée de la marche : l'aperçu de route en tire le plein de l'aller-retour. */
+      readonly aim: MovementAim;
+      /** Le nom du lieu, pour le cartouche « transmis ». */
+      readonly destination: string;
+    }
+  /**
+   * **Tracer une tournée** (ADR 0028, précision du 18/10) : le premier dépôt d'une boucle qui
+   * part du point de chargement où le transport se tient ; les suivants s'ajoutent (`tourStop`),
+   * et l'étiquette du transport la lance. Rien ne part avant.
+   */
+  | {
+      readonly key: 'tour';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly carrierId: string;
+      /** La visée de la marche : l'aperçu en tire l'heure et le plein du premier pas. */
+      readonly aim: MovementAim;
+    }
+  | {
+      readonly key: 'tourStop';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly carrierId: string;
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -521,14 +610,17 @@ export type CompassAction =
  *  téléphone offre en onglets (refonte mobile, 1c). */
 export type OrderAction = Extract<
   CompassAction,
-  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' }
+  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' | 'airdrop' | 'deliver' | 'tour' }
 >;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'aim' ||
   action.key === 'plunder' ||
   action.key === 'capture' ||
-  action.key === 'collect';
+  action.key === 'collect' ||
+  action.key === 'airdrop' ||
+  action.key === 'deliver' ||
+  action.key === 'tour';
 
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
@@ -711,8 +803,9 @@ function outpostRaiseBranch(
       cost: null,
       consequence: fr.compass.raiseConsequence(outpost.level + 1),
       outpostId: outpost.id,
-      figure: due.map((resource) => String(outpost.nextLevelCost[resource])).join(' · '),
+      figure: outpost.nextLevelCost,
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           outpost.nextLevelCost[resource] ?? 0,
@@ -753,7 +846,15 @@ function plunderFan(
   view: PlayerView,
   column: Column,
 ): Compass {
-  const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
+  const sealed = view.surveyedInstallations.some(
+    (installation) => installation.id === target.id && installation.sealed === true,
+  );
+  const aimed: PlunderAim = {
+    kind: 'building',
+    buildingId: target.id,
+    key: target.key,
+    ...(sealed ? { sealed } : {}),
+  };
   const isMine = view.me.buildings.some((standing) => standing.id === target.id);
   const refused = notInBlitz(view.mode) ?? plunderOrderRefusalOf(aimed, column, isMine);
   const label =
@@ -915,7 +1016,14 @@ export function compassOf(
       return towardsMyPile(target, station, view, column, heldTroopIds ?? []);
   }
   if (column !== null && target.kind !== 'force') {
-    return aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
+    const fan = aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
+    /** **En tournée, rien d'autre** (ADR 0028) : la rose le dit, la marche le relit. */
+    const touring = onTourRefusalOf(
+      view.me.troops.filter((troop) => heldTroopIds?.includes(troop.id) === true),
+    );
+    return fan === null || touring === null
+      ? fan
+      : { ...fan, actions: [], refusal: fr.errors[touring.code]() };
   }
   const here =
     origin !== null &&
@@ -961,7 +1069,7 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
-  if ((target.kind === 'camp' || target.kind === 'track') && column.roles.some(firesIndirect))
+  if ((target.kind === 'camp' || target.kind === 'track') && bombardsWith(column.roles, view.mode))
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
@@ -973,7 +1081,7 @@ function aim(
     };
     const fan = fanOf(target.name, view, column, [aimed]);
     const isMine = view.me.outposts.some((outpost) => outpost.id === target.id);
-    if (isMine) return fan;
+    if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
     const capture = captureBranch(
       { kind: 'outpost' },
       { kind: 'outpost', id: target.id },
@@ -1111,6 +1219,163 @@ function aim(
 }
 
 /**
+ * **Un transport chargé lâché sur son avant-poste y livre** (ADR 0028 §4) : la branche passe
+ * devant l'entrée en garnison, que Tab rend. Refusée — dépôt plein, avion hors escale —, elle
+ * dit pourquoi et ne laisse pas entrer en douce : c'est livrer que la main portait. Il faut que
+ * la marche elle-même soit légale, sinon la rose garde son motif.
+ */
+function withDelivery(
+  fan: Compass,
+  outpostId: string,
+  view: PlayerView,
+  heldTroopIds: ReadonlyArray<string>,
+): Compass {
+  const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
+  const carriers = carriersAmong(held);
+  const outpost = view.me.outposts.find((candidate) => candidate.id === outpostId);
+  if (
+    outpost === undefined ||
+    !carriers.some((troop) => loadTotal(troop.load) > 0) ||
+    marchOf(fan) === undefined
+  )
+    return fan;
+  const depot = depotOfView(outpost);
+  const marching = marchOf(fan)!;
+  const carrier = carriers.length === 1 ? carriers[0]! : null;
+  const touring =
+    carrier !== null &&
+    tourRefusalOfView(view, carrier, [outpostId]) === null &&
+    deliverRefusalOf([carrier], depot, true) === null;
+  const tour: ReadonlyArray<CompassAction> = touring
+    ? [
+        {
+          key: 'tour',
+          pictogram: 'crate',
+          label: fr.compass.tour,
+          cost: slotCost(view),
+          consequence: fr.compass.tourConsequence,
+          outpostId,
+          carrierId: carrier!.id,
+          aim: marching.aim,
+        },
+      ]
+    : [];
+  const drop = airdropBranch(view, fan, held, { kind: 'outpost', outpostId }, fan.name).actions;
+  const refusal = deliverRefusalOf(carriers, depot);
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    const actions = [...drop, ...tour];
+    return { ...fan, actions, refusal: actions.length > 0 ? null : fr.errors[code](details) };
+  }
+  const deliver: CompassAction = {
+    key: 'deliver',
+    pictogram: 'crate',
+    label: fr.compass.deliver,
+    cost: slotCost(view),
+    consequence: fr.compass.deliverConsequence,
+    outpostId,
+    destination: fan.name,
+    aim: marching.aim,
+  };
+  return { ...fan, actions: [deliver, ...drop, ...tour, ...fan.actions], refusal: null };
+}
+
+/** La marche légale d'un éventail : celle que livrer, tourner et larguer empruntent. */
+const marchOf = (fan: Compass) =>
+  fan.actions.find(
+    (action): action is Extract<CompassAction, { key: 'aim' }> =>
+      action.key === 'aim' && action.type === 'march',
+  );
+
+/** **Le dépôt d'un de mes points**, tel que livrer et tourner le lisent — la lecture de
+ *  `logistics.depotOf`. */
+const depotOfView = (outpost: OutpostView) => ({
+  level: outpost.level,
+  standing: outpost.standsAt === null,
+  depot: outpost.depot,
+  capacity: outpost.depotCapacity,
+});
+
+/** **La tournée de ce transport par ces dépôts**, lue comme `tours.start` la lit. */
+const tourRefusalOfView = (view: PlayerView, carrier: TroopView, stops: ReadonlyArray<string>) =>
+  tourRefusalOf({
+    role: carrier.role,
+    place: loadingPlaceOf(view, carrier),
+    busy: carrier.tour === undefined ? null : 'touring',
+    load: carrier.load,
+    stops,
+    baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
+  });
+
+/** **Où se tient le transport, pour charger ou partir en tournée** : un de mes bâtiments, un de
+ *  mes avant-postes debout, ou ailleurs — la lecture de `logistics.placeOf`. */
+export function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace {
+  const at = troop.stationedAt;
+  if (at.kind === 'building') {
+    const building = view.me.buildings.find((one) => one.id === at.buildingId);
+    if (building !== undefined) return { kind: 'building', key: building.key };
+  }
+  if (at.kind === 'outpost') {
+    const outpost = view.me.outposts.find((one) => one.id === at.outpostId);
+    if (outpost !== undefined && outpost.standsAt === null)
+      return { kind: 'outpost', level: outpost.level };
+  }
+  return { kind: 'elsewhere' };
+}
+
+/**
+ * **La tournée en cours de tracé** : le transport en main ne fait plus qu'ajouter des dépôts à sa
+ * boucle, quatre au plus, chacun une fois ; ailleurs, la rose dit où le lâcher. L'étiquette du
+ * transport la lance ou l'efface.
+ */
+export function traceCompass(target: CompassTarget, view: PlayerView, trace: TourTrace): Compass {
+  const carrier = view.me.troops.find((troop) => troop.id === trace.carrierId);
+  const outpost =
+    target.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === target.id)
+      : undefined;
+  const name = target.kind === 'outpost' ? target.name : fr.compass.fallbackOutpost;
+  const kicker = fr.compass.tracing(trace.stops.length);
+  if (carrier === undefined || outpost === undefined)
+    return { kicker, name, actions: [], refusal: fr.compass.traceElsewhere };
+  const stops = [...trace.stops, outpost.id];
+  const refusal =
+    tourRefusalOfView(view, carrier, stops) ??
+    deliverRefusalOf([carrier], depotOfView(outpost), true);
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    return { kicker, name, actions: [], refusal: fr.errors[code](details) };
+  }
+  return {
+    kicker,
+    name,
+    refusal: null,
+    actions: [
+      {
+        key: 'tourStop',
+        pictogram: 'crate',
+        label: fr.compass.tourStop(stops.length),
+        cost: null,
+        consequence: fr.compass.tourConsequence,
+        outpostId: outpost.id,
+        carrierId: carrier.id,
+      },
+    ],
+  };
+}
+
+/** Le milieu d'une cible relevée : celui du camp, ou du fil de la colonne — seul ce qui s'en voit. */
+function mediumOf(
+  target: Extract<CompassTarget, { kind: 'camp' | 'track' }>,
+  view: PlayerView,
+): 'land' | 'sea' | 'air' {
+  if (target.kind === 'camp')
+    return view.camps.find((camp) => camp.id === target.id)?.medium ?? 'land';
+  const mode = view.arcs.find((arc) => arc.id === target.id)?.route.mode;
+  return mode === 'air' ? 'air' : mode === 'naval' ? 'sea' : 'land';
+}
+
+/**
  * **La pièce en main tire, ou dit pourquoi elle se tait** (B20) : une seule branche, et la même
  * règle que le serveur. L'heure est celle du clic — batterie et rechargement s'égrènent.
  */
@@ -1136,12 +1401,14 @@ function bombardFan(
     seen:
       target.kind === 'track' ||
       view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),
+    reachable: gunsReach(mediumOf(target, view)),
     emplacedAt: troop.emplacedAt ?? 0,
     reloadUntil: troop.reloadUntil ?? null,
     moving: marching.has(troop.id),
     aboard:
       (origin.kind === 'point' && origin.afloat) ||
       carrierIn(troop, troopsAt(view.me, stationKeyOf(origin), marching)) !== null,
+    outOfRounds: column.outOfRounds === true,
     now,
   };
   const refused = bombardRefusalOf(order);
@@ -1596,15 +1863,88 @@ function towardsMyPile(
             : [],
         )
       : [];
-  const actions = [...(onto?.actions ?? []), ...join];
+  const airdropped = airdropBranch(
+    view,
+    fan,
+    view.me.troops.filter((troop) => heldTroopIds.includes(troop.id)),
+    { kind: 'squad', station },
+    target.name,
+  );
+  const actions = [...(onto?.actions ?? []), ...airdropped.actions, ...join];
   return {
     kicker: fr.compass.aiming(column.roles.length),
     name: target.name,
     actions,
+    /** Le motif d'un largage refusé se dit à côté de « rejoindre » : l'avion chargé qu'on tient
+     *  n'apprendrait sinon jamais pourquoi la branche manque. */
     refusal:
-      actions.length > 0
+      airdropped.refusal ??
+      (actions.length > 0
         ? null
-        : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad)),
+        : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad))),
+  };
+}
+
+/**
+ * **Larguer** (ADR 0028 §4) : l'avion chargé en main, lâché sur un de mes avant-postes ou sur une de
+ * mes escouades isolées. Rien si la main ne porte aucun avion chargé, ou si la marche elle-même
+ * n'est pas légale (`marchOf`) ; sinon la branche, ou le motif de `airdropRefusalOf` — ancrée,
+ * déjà pleine, dépôt plein. Le plein de l'aller-retour se dit à l'aperçu de la visée.
+ */
+function airdropBranch(
+  view: PlayerView,
+  fan: Compass,
+  held: ReadonlyArray<TroopView>,
+  at:
+    | { readonly kind: 'outpost'; readonly outpostId: string }
+    | { readonly kind: 'squad'; readonly station: Extract<TroopStation, { kind: 'point' }> },
+  name: string,
+): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } {
+  const march = marchOf(fan);
+  if (march === undefined || !carriersAmong(held).some((troop) => loadTotal(troop.load) > 0))
+    return { actions: [], refusal: null };
+  const outpost =
+    at.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === at.outpostId)
+      : undefined;
+  if (at.kind === 'outpost' && outpost === undefined) return { actions: [], refusal: null };
+  const refusal = airdropRefusalOf(
+    hullsAmong(held),
+    at.kind === 'outpost'
+      ? { kind: 'outpost', ...depotOfView(outpost!) }
+      : squadTarget(
+          heldAt(at.station, view).map((troop) => ({
+            id: troop.id,
+            role: troop.role,
+            supplies: troop.supplies,
+            anchored: troop.anchored === true,
+          })),
+        ),
+  );
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    return { actions: [], refusal: fr.errors[code](details) };
+  }
+  return {
+    actions: [
+      {
+        key: 'airdrop',
+        pictogram: 'crate',
+        label: fr.compass.airdrop,
+        cost: slotCost(view),
+        consequence:
+          at.kind === 'outpost'
+            ? fr.compass.airdropOutpostConsequence
+            : fr.compass.airdropSquadConsequence,
+        target:
+          at.kind === 'outpost'
+            ? { kind: 'outpost', outpostId: at.outpostId }
+            : { kind: 'squad', point: at.station.lonLat },
+        aim: march.aim,
+        destination: name,
+      },
+    ],
+    refusal: null,
   };
 }
 
@@ -1715,8 +2055,9 @@ function foundHere(
       point: station.lonLat,
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
-      figure: due.map((resource) => String(cost[resource])).join(' · '),
+      figure: cost,
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           cost[resource] ?? 0,
@@ -1762,8 +2103,10 @@ function upgradeBranch(
       consequence: fr.upgrade.title(building.name, building.level + 1),
       buildingKey: building.key,
       regionId: building.regionId,
-      figure: due.map((resource) => String(building.nextLevelCost[resource])).join(' · '),
+      point: building.point,
+      figure: building.nextLevelCost,
       bill: due.map((resource) => ({
+        resource,
         text: fr.compass.upgradeBill(
           fr.resources[resource],
           building.nextLevelCost[resource] ?? 0,

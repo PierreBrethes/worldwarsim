@@ -1,3 +1,5 @@
+import type { SupplyLoad } from './logistics';
+import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
@@ -42,12 +44,14 @@ export type MapMarker =
       readonly buildingId: string;
       readonly key: Exclude<BuildingKey, 'depot'>;
       readonly regionId: string;
+      /** **Où il se tenait quand on l'a relevé** (ADR 0029) : son mât, et le point que la capture
+       *  et la frappe visent. */
+      readonly lonLat: LonLat;
       readonly name: string;
       readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
-      /** **Un neutre de la Blitz** (lot 4) : public, posé à son point — le quai d'un port —, et
-       *  jamais délavé ; `null` hors Blitz, où le relevé ne porte que la région. */
+      /** **Un neutre de la Blitz** (lot 4) : public et jamais délavé ; `null` hors Blitz. */
       readonly neutral: { readonly lonLat: LonLat } | null;
     }
   | {
@@ -126,6 +130,10 @@ export type MapMarker =
       readonly garrison: number;
       readonly reach: Reach | null;
       readonly ink: string;
+      /** **Son dépôt** (ADR 0028 §4), la barre découpée par couleur sous le niveau. */
+      readonly depot?: { readonly load: SupplyLoad; readonly capacity: number };
+      /** Les étiquettes de ses transports en garnison : on y charge depuis son dépôt. */
+      readonly cargo?: ReadonlyArray<CargoTag>;
     }
   | {
       /**
@@ -157,6 +165,8 @@ export type MapMarker =
       readonly reloadUntil?: number;
       /** **L'artillerie** (B20) : l'instant où la pile sera en batterie, absent sinon. */
       readonly emplacedAt?: number;
+      /** **Ses coups et son plein** (ADR 0028 §3), absents en Blitz. */
+      readonly supplies?: PileSupplies | null;
       readonly ink: string;
     }
   | {
@@ -215,6 +225,8 @@ export type MapMarker =
       readonly emplacedAt?: number;
       /** **Les transports chargés de sa garnison** : l'étiquette qui pend sous le mât. */
       readonly cargo?: ReadonlyArray<CargoTag>;
+      /** Mon QG seul : la carte de recherche qu'il porte. */
+      readonly research?: Extract<LabelLine, { role: 'research' }>;
       readonly ink: string;
     }
   | {
@@ -229,7 +241,8 @@ export type MapMarker =
        */
       readonly kind: 'deposit';
       readonly id: string;
-      readonly regionId: string;
+      /** **Un gisement est un point** (ADR 0029 §3) : il se tient là où l'exploitation s'aimante. */
+      readonly lonLat: LonLat;
       readonly deposit: DepositKey;
     };
 
@@ -299,6 +312,19 @@ export type LabelLine =
     }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
+  /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
+  | { readonly role: 'supplies'; readonly supplies: PileSupplies }
+  /** **La carte de recherche que porte mon QG** (ADR 0028 §5) : son nom et sa barre, qui court
+   *  de `since` à `dueAt` — figée à `share` quand le QG manque (`dueAt: null`). */
+  | {
+      readonly role: 'research';
+      readonly text: string;
+      readonly since: number;
+      readonly dueAt: number | null;
+      readonly share: number;
+    }
+  /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
+  | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
   | {
@@ -670,15 +696,9 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
 
 const exists = <T>(value: T | null): value is T => value !== null;
 
-/** A port hangs from its quay, a deposit and every other building from their region, and
- *  everything that carries a coordinate from that coordinate. */
+/** Everything hangs from its coordinate — a deposit, a building, a surveyed installation —
+ *  save a building the view serves without one. */
 function anchorOf(marker: MapMarker): LabelAnchor {
-  if (marker.kind === 'installation' && marker.neutral !== null) {
-    return { kind: 'ground', lonLat: marker.neutral.lonLat };
-  }
-  if (marker.kind === 'deposit' || marker.kind === 'installation') {
-    return { kind: 'region', regionId: marker.regionId };
-  }
   if (marker.kind === 'building') {
     return marker.lonLat === null
       ? { kind: 'region', regionId: marker.regionId }
@@ -842,6 +862,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: 'outpost',
         station: marker.station,
         hostCountry: marker.hostCountry,
+        ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
         lines:
           marker.standsAt === null
             ? [
@@ -850,6 +871,9 @@ function markerLabel(marker: MapMarker): MapLabel {
                   role: 'figures',
                   text: fr.labels.levelAndGarrison(marker.level, marker.garrison),
                 },
+                ...(marker.depot === undefined
+                  ? []
+                  : [{ role: 'charge', ...marker.depot } as const]),
               ]
             : [
                 { role: 'nature', text: fr.labels.outpostUnderConstruction },
@@ -884,6 +908,9 @@ function markerLabel(marker: MapMarker): MapLabel {
             role: 'nature',
             text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
           },
+          ...(marker.supplies == null
+            ? []
+            : [{ role: 'supplies', supplies: marker.supplies } as const]),
           ...countdownsOf(marker),
         ],
       };
@@ -926,6 +953,7 @@ function markerLabel(marker: MapMarker): MapLabel {
           ...(marker.level === null
             ? []
             : [{ role: 'figures', text: fr.labels.buildingLevel(marker.level) } as const]),
+          ...(marker.research === undefined ? [] : [marker.research]),
           ...countdownsOf(marker),
         ],
       };

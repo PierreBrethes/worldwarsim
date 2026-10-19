@@ -8,11 +8,12 @@ import {
   DETECTION_RANGE_KM,
   STARTING_AMMUNITION,
   STARTING_KIT,
-  STRENGTH_PER_ROUND,
+  SUPPLY_BY_ROLE,
+  SUPPLY_STEP_COST,
   buildCost,
   nominalStrength,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import { GAME_TABLES } from './dev';
 import schema from './schema';
@@ -178,8 +179,8 @@ describe('launching', () => {
     /**
      * **Rien n'est planté** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2) : le
      * quartier général est la première dette du socle, et le joueur la pose où il veut sur son
-     * sol. Une bâtisse par région, donc un gisement sous le QG est un gisement perdu — c'est ce
-     * choix-là que la décision lui rend.
+     * sol. Un QG posé sur un gisement le prend (ADR 0029) — c'est ce choix-là que la décision
+     * lui rend.
      */
     expect(view.me.buildings).toEqual([]);
     expect(view.me.troops).toEqual([]);
@@ -242,7 +243,12 @@ describe('launching', () => {
         await ctx.db.patch(held._id, { stock: 10_000, updatedAt: Date.now() });
       }
     });
-    await t.mutation(api.constructions.start, { ...creator, building: 'hq', regionId: MOSELLE });
+    await t.mutation(api.constructions.start, {
+      ...creator,
+      building: 'hq',
+      regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
+    });
 
     const view = await t.query(api.view.playerView, creator);
     // Une élévation passe par la file : ce qui compte ici est qu'elle n'ait rien enrôlé.
@@ -251,9 +257,9 @@ describe('launching', () => {
   });
 
   /**
-   * **Le kit de munitions** (décision du 25/08). Since question 18 the rounds are billed at the
-   * pass and nowhere else, so what this endowment buys is *engagements*, not companies. The
-   * figure belongs to the starting line, never to a nation, like the steel and the oil beside it.
+   * **Le kit de munitions** (décision du 25/08). Since ADR 0028 the rounds are steps a troop
+   * carries, taken back at the anchor: what this endowment buys is rearming. The figure belongs
+   * to the starting line, never to a nation, like the steel and the oil beside it.
    */
   it('hands out the ammunition of the starting line, not a nation’s own figure', async () => {
     const t = boot();
@@ -262,10 +268,10 @@ describe('launching', () => {
 
     const view = await t.query(api.view.playerView, creator);
     expect(view.me.resources.ammunition.stock).toBe(STARTING_AMMUNITION);
-    // Enough for the given company to fight several passes: an endowment that covered one
-    // engagement would be a nation disarmed by its first contact.
-    const onePass = Math.ceil(nominalStrength('infantry', 1) / STRENGTH_PER_ROUND);
-    expect(view.me.resources.ammunition.stock).toBeGreaterThan(onePass * 3);
+    // Enough to rearm the given company twice over: an endowment that covered one rearming
+    // would be a nation disarmed by its first contact.
+    const rearm = SUPPLY_BY_ROLE.infantry.rounds * SUPPLY_STEP_COST;
+    expect(view.me.resources.ammunition.stock).toBeGreaterThan(rearm * 2);
   });
 });
 
@@ -314,6 +320,7 @@ describe('constructions', () => {
       ...creator,
       building: 'warehouse',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
 
     const before = await t.query(api.view.playerView, creator);
@@ -343,6 +350,7 @@ describe('constructions', () => {
       ...creator,
       building: 'mine',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
 
     const after = await t.query(api.view.playerView, creator);
@@ -372,11 +380,17 @@ describe('constructions', () => {
         ...creator,
         building: 'mine',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
       });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
     }
     await expect(
-      t.mutation(api.constructions.start, { ...creator, building: 'mine', regionId: MOSELLE }),
+      t.mutation(api.constructions.start, {
+        ...creator,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      }),
     ).rejects.toThrow('CAPPED_BY_HQ');
   });
 });
@@ -464,6 +478,7 @@ describe('a concluded season', () => {
         playerId,
         key: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
         level: 1,
       }),
     );
@@ -476,6 +491,7 @@ describe('a concluded season', () => {
         playerId: theirs,
         key: 'barracks',
         regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
         level: 1,
       });
       await ctx.db.insert('troops', {
@@ -560,6 +576,7 @@ describe('a concluded season', () => {
         playerId,
         key: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
         level: 1,
       }),
     );
@@ -660,6 +677,7 @@ describe('a season without a clock', () => {
         ...creator,
         building: 'barracks',
         regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
     expect((await t.query(api.view.playerView, creator)).season.outcome.concludedAt).not.toBeNull();
@@ -722,6 +740,7 @@ describe('scrapping a season', () => {
           playerId,
           key: 'barracks',
           regionId,
+          point: pointOfRegion(regionId),
           level: 1,
         }),
       );
@@ -780,7 +799,18 @@ describe('scrapping a season', () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
 
-      // An outpost, planted where a column of its own stands.
+      // An outpost, planted where a column of its own stands. It is paid in food now.
+      await t.run(async (ctx) => {
+        const player = await seatIn(ctx, creator);
+        const rows = await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+        for (const row of rows) {
+          if (row.key === 'food')
+            await ctx.db.patch(row._id, { stock: 1_000, updatedAt: Date.now() });
+        }
+      });
       const desert = pointOf(RIYADH);
       await t.mutation(api.movements.foundOutpostHere, {
         regionId: null,
@@ -925,6 +955,7 @@ describe('scrapping a season', () => {
         await ctx.db.insert('orders', {
           playerId,
           chain: 'arsenal',
+          line: 'ammunition',
           ordered: 200,
           produced: 0,
           placedAt: Date.now(),

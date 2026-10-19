@@ -2,11 +2,14 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   BUILDING_KEY,
+  LINE_KEY,
   BUILD_COST_KEY,
   CAPTURE_SITE,
   CAPTURE_TARGET,
   COMBAT_SIDE,
   DETECTOR,
+  FIRST_STEP,
+  FIRST_STEPS_SHOWN,
   FOUNDATION_DEBT,
   LON_LAT,
   LOOT_DELIVERY,
@@ -22,6 +25,7 @@ import {
   PUSH_TYPE,
   PLUNDER_MISSION,
   RESOURCE_AMOUNTS,
+  SUPPLY_LOAD,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_STATUS,
@@ -32,9 +36,11 @@ import {
   TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
+  RESEARCH_CARD,
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
+  TOUR_WAIT,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -251,6 +257,20 @@ export default defineSchema({
      *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
     funds: v.optional(v.number()),
     fundsAt: v.optional(v.number()),
+    /** **Les cartes de recherche acquises** (ADR 0028 §5), dans l'ordre où elles ont abouti.
+     *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
+    researched: v.optional(v.array(RESEARCH_CARD)),
+    /**
+     * **La carte posée sur le QG**, une seule à la fois : ce qu'il lui reste à courir, et depuis
+     * quand — `null` quand son QG manque et qu'elle attend (`research.ts`). Absent : aucune.
+     */
+    research: v.optional(
+      v.object({
+        card: RESEARCH_CARD,
+        remainingMs: v.number(),
+        since: v.union(v.number(), v.null()),
+      }),
+    ),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
@@ -333,17 +353,12 @@ export default defineSchema({
     regionId: v.string(),
     level: v.number(),
     /**
-     * **Where the building stands, when its region's point is not enough** — the port and only
-     * the port (ADR 0013, revision of 04/09). A ship leaves from the water, and a region as
-     * large as Hokkaido has several coasts: the player picks the coast point at the placement
-     * and it is written here, once, never moved by a raise.
-     *
-     * Absent everywhere else, and absent on a port put up before this landed: `pointOfBuilding`
-     * falls back on the region's point, which is exactly what those rows always meant. It is
-     * `v.optional` for the same reason as `outpostId` — a required field would make the
-     * deployment refuse every row already written (the lesson of 27/08 on `seasonId`).
+     * **Where the building stands** (ADR 0029 §1): the exact point the player aimed at, written
+     * once at the placement and never moved by a raise. `regionId` is the region that point lies
+     * in, read at the placement too: it carries the colour, the point carries everything else —
+     * the spacing, the deposit, the quay of a port, the march of a capture or a strike.
      */
-    point: v.optional(LON_LAT),
+    point: LON_LAT,
     /**
      * **Which site carries this building's placement** (ADR 0020 §10): `null` is national soil,
      * an id is the outpost the placement was anchored to. Written **at the placement and never
@@ -436,6 +451,34 @@ export default defineSchema({
      *  a embarqué, plus parce qu'on se tient au point d'un transport. Absent, à pied. Il ne vaut
      *  qu'à la même adresse que son transport (`carrierIn`). */
     carriedBy: v.optional(v.id('troops')),
+    /** **Coups et plein, en crans** (ADR 0028 §3, Mondiale) : ce qu'elle porte encore. Absents,
+     *  pleins — elle n'a rien dépensé depuis sa formation (`SUPPLY_BY_ROLE`). */
+    rounds: v.optional(v.number()),
+    fuel: v.optional(v.number()),
+    /** **La charge d'un transport** (ADR 0028 §4) : munitions, pétrole et charbon dans une seule
+     *  capacité (`LOAD_CAPACITY_BY_ROLE`), séparée de ses places. Absente, vide. */
+    load: v.optional(SUPPLY_LOAD),
+    /**
+     * **Sa tournée** (ADR 0028, précision du 18/10) : une boucle depuis son point de chargement
+     * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
+     * est l'arrêt que le tour en cours visite après celui-ci, `skipped` les dépôts pleins qu'il
+     * saute ; `waiting` dit qu'elle attend au chargement, depuis quand, pourquoi et combien de fois sa route a été refusée d'affilée, `recalled`
+     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne.
+     */
+    tour: v.optional(
+      v.object({
+        base: v.union(v.id('buildings'), v.id('outposts')),
+        stops: v.array(v.id('outposts')),
+        consigne: SUPPLY_LOAD,
+        next: v.number(),
+        skipped: v.optional(v.array(v.id('outposts'))),
+        waiting: v.optional(
+          v.object({ since: v.number(), roads: v.optional(v.number()), ...TOUR_WAIT.fields }),
+        ),
+        recalled: v.optional(v.boolean()),
+        retryJobId: v.optional(v.id('_scheduled_functions')),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -495,6 +538,8 @@ export default defineSchema({
   orders: defineTable({
     playerId: v.id('players'),
     chain: BUILDING_KEY,
+    /** The line of the chain the lot runs on (`FACTORY_LINES`); absent reads `DEFAULT_LINE`. */
+    line: v.optional(LINE_KEY),
     ordered: v.number(),
     produced: v.number(),
     placedAt: v.number(),
@@ -596,6 +641,23 @@ export default defineSchema({
     /** **Le transport où la colonne monte en arrivant** (15/10) : lâchée de loin sur un
      *  transport, elle y marche et embarque s'il y est encore et s'il a de la place. */
     boardsOn: v.optional(v.id('troops')),
+    /** **Une livraison** (ADR 0028 §4) : à l'arrivée sur cet avant-poste, les transports
+     *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
+     *  reste en garnison. */
+    delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
+    /** **Un largage** (ADR 0028 §4) : à l'arrivée, l'avion lâche son paquet sur cet avant-poste ou
+     *  sur l'escouade isolée de ce point, sans se poser, puis rentre ; son retour porte `back`,
+     *  pour que le fil le dessine en vol. */
+    airdrop: v.optional(
+      v.union(
+        v.object({ leg: v.literal('out'), outpostId: v.id('outposts') }),
+        v.object({ leg: v.literal('out'), point: LON_LAT }),
+        v.object({ leg: v.literal('back') }),
+      ),
+    ),
+    /** **Un pas de tournée** : vers un de ses dépôts (`stop`), ou de retour au chargement
+     *  (`base`), où elle recharge sa consigne et repart. */
+    tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -773,6 +835,9 @@ export default defineSchema({
     standsAt: v.optional(v.number()),
     disabledUntil: v.union(v.number(), v.null()),
     immuneUntil: v.union(v.number(), v.null()),
+    /** **Le dépôt d'avant-poste** (ADR 0028 §4) : munitions, pétrole et charbon, une seule charge
+     *  maximale partagée (`depotCapacity`). Il se capture avec le point. Absent, vide. */
+    depot: v.optional(SUPPLY_LOAD),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
@@ -897,6 +962,8 @@ export default defineSchema({
         strengthBefore: v.number(),
         strengthAfter: v.number(),
         state: TROOP_STATE,
+        /** **À sec** (ADR 0028 §1) : elle aurait tiré, et n'avait plus de coups. */
+        dry: v.optional(v.literal(true)),
       }),
     ),
   })
@@ -947,15 +1014,16 @@ export default defineSchema({
      * portent aucun, et n'en ont aucun besoin — elles bâtissent.
      *
      * `regionId` reste rempli pour l'écran, qui nomme le lieu de tout ce qui est en file ; ce
-     * n'est pas une réservation de sol — une élévation ne prend pas la région de son point, et
-     * la règle « une entrée par région » l'ignore (`constructions.ts`).
+     * n'est pas une réservation de sol — une élévation ne pose rien, et ni l'espacement ni la
+     * règle « une entrée par point » ne la voient (`constructions.ts`).
      */
     outpostId: v.optional(v.id('outposts')),
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
-    /** The coast point a port was ordered on, carried through the queue so the mast is drawn
-     *  there from the moment it is enqueued and `finish` has nothing left to choose. */
+    /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
+     *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
+     *  Absent on an outpost's raise only: the point already stands on its own row. */
     point: v.optional(LON_LAT),
   }).index('byPlayer', ['playerId']),
 
@@ -1028,6 +1096,13 @@ export default defineSchema({
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
     telegraphPushedAt: v.optional(v.number()),
+    /** **La dernière ouverture du plateau personnel, et les stocks qu'il montrait alors** : la
+     *  récolte de la visite suivante est l'écart entre ces stocks et ceux de l'heure. */
+    boardReadAt: v.optional(v.number()),
+    boardReadStocks: v.optional(v.record(v.string(), v.number())),
+    /** **Les premiers pas** (ADR 0027 §2) : les gestes vus faits, et la liste dépliée, repliée
+     *  ou passée. Absent : rien de fait, la liste ouverte. */
+    firstSteps: v.optional(v.object({ done: v.array(FIRST_STEP), shown: FIRST_STEPS_SHOWN })),
   }).index('byPlayer', ['playerId']),
 
   /**

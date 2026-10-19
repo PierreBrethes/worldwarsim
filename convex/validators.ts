@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+import { RESEARCH_CARDS } from '../src/domain/ids';
+import { FIRST_STEPS } from '../src/domain/first-steps';
 
 /**
  * The argument validators shared by the schema and the functions. They were duplicated —
@@ -25,6 +27,18 @@ export const UNIT_ROLE = v.union(
 
 export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
+/** Les cartes de recherche de `RESEARCH_CARDS` (`src/domain/ids.ts`). */
+export const RESEARCH_CARD = v.union(...RESEARCH_CARDS.map((card) => v.literal(card)));
+
+/** Les premiers pas de `FIRST_STEPS` (`src/domain/first-steps.ts`). */
+export const FIRST_STEP = v.union(...FIRST_STEPS.map((step) => v.literal(step)));
+
+export const FIRST_STEPS_SHOWN = v.union(
+  v.literal('open'),
+  v.literal('folded'),
+  v.literal('skipped'),
+);
+
 /** A point on the globe, in degrees; named fields keep longitude and latitude ordered. */
 export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
 
@@ -48,11 +62,15 @@ export const BUILDING_KEY = v.union(
  * (précision du 15/09). `outpost` n'est pas un bâtiment de plus — aucune table de pose ne le
  * connaît — et c'est `constructions.outpostId` qui dit *lequel* (`schema.ts`).
  */
+export const LINE_KEY = v.union(v.literal('ammunition'), v.literal('oil'));
+
 export const BUILD_COST_KEY = v.union(BUILDING_KEY, v.literal('outpost'));
 
 export const SURVEYED_INSTALLATION = v.object({
   buildingId: v.id('buildings'),
   key: BUILDING_KEY,
+  /** Where it stood when it was seen (ADR 0029): a capture or a strike marches at this point. */
+  point: LON_LAT,
 });
 
 export const RESOURCE_KEY = v.union(
@@ -87,6 +105,14 @@ export const RESOURCE_AMOUNTS = v.object({
   coal: v.number(),
   oil: v.number(),
   ammunition: v.number(),
+});
+
+/** **Ce que portent un dépôt d'avant-poste et un transport** (ADR 0028 §4) : munitions, pétrole
+ *  et charbon, jamais vivres ni acier. */
+export const SUPPLY_LOAD = v.object({
+  ammunition: v.number(),
+  oil: v.number(),
+  coal: v.number(),
 });
 
 /** Le sol sous une chose : la route le porte par tronçon, un camp relevé une fois pour toutes. */
@@ -212,7 +238,7 @@ const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.strin
  * sa région, un avant-poste par son pays et son niveau. Jamais celui qui capture — le défenseur ne
  * le voit pas, il voit un bloc s'il le relève.
  */
-/** Les sept du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
+/** Les dix du vivier (`STRATEGIC_POINTS`) : un point hors de cette liste n'a pas de règle. Une
  *  clé du domaine absente d'ici refuse son écriture au typage (`strategicPoints.layOut`). */
 export const STRATEGIC_POINT_KEY = v.union(
   v.literal('tangier'),
@@ -222,6 +248,9 @@ export const STRATEGIC_POINT_KEY = v.union(
   v.literal('halifax'),
   v.literal('narvik'),
   v.literal('lisbon'),
+  v.literal('baku'),
+  v.literal('dakar'),
+  v.literal('singapore'),
 );
 
 export const CAPTURE_SITE = v.union(
@@ -237,6 +266,17 @@ export const CAPTURE_TARGET = v.union(
 );
 
 const CAPTURE_SIDE = v.union(v.literal('capturer'), v.literal('defender'));
+
+/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque (`stock`, et de
+ *  quoi), tous ses dépôts sont pleins (`full`), ou sa route est refusée (`road`). */
+export const TOUR_WAIT = v.object({
+  why: v.union(v.literal('stock'), v.literal('full'), v.literal('road')),
+  resource: v.optional(RESOURCE_KEY),
+});
+
+/** **Pourquoi une tournée finit** : rappelée, coupée (chargement ou dépôts perdus, déroute,
+ *  chute), ou sa route refusée trop longtemps (`road`). */
+export const TOUR_END = v.union(v.literal('recalled'), v.literal('cut'), v.literal('road'));
 
 export const NOTICE = v.union(
   /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
@@ -273,6 +313,9 @@ export const NOTICE = v.union(
     kind: v.literal('constructionCancelled'),
     building: BUILD_COST_KEY,
     regionId: v.string(),
+    /** **Perdu à la fin du chantier** (ADR 0029) : le gisement pris par un autre — relevé du même
+     *  coup —, ou un bâtiment à soi venu trop près. Absent : le droit perdu avant son tour. */
+    reason: v.optional(v.union(v.literal('depositTaken'), v.literal('tooClose'))),
   }),
   /** **Un bâtiment rasé par son propriétaire** (demande du 15/09). Chez lui seul : ce que la
    *  démolition change chez les autres se relève, il ne s'annonce pas (ADR 0005). */
@@ -289,6 +332,13 @@ export const NOTICE = v.union(
     building: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
+  }),
+  /** **Une carte de recherche achevée** (ADR 0028 §5) : chez son joueur seul, l'adversaire ne
+   *  la devine qu'en relevant les pièces. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('researchDone'),
+    card: RESEARCH_CARD,
   }),
   v.object({
     ...NOTICE_HEAD,
@@ -398,14 +448,52 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     point: LON_LAT,
   }),
-  /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
-   *  else on the board says it, and it is the difference between a defeat and a supply fault. */
+  /** **Une livraison** (ADR 0028 §4) : ce que le dépôt a pris, et ce qui reste à bord faute de
+   *  place. Le transport rentre seul. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('supplyDelivered'),
+    hostCountry: v.string(),
+    point: v.optional(LON_LAT),
+    delivered: SUPPLY_LOAD,
+    kept: SUPPLY_LOAD,
+  }),
+  /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
+   *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('tourWaiting'),
+    role: UNIT_ROLE,
+    ...TOUR_WAIT.fields,
+  }),
+  /** **Une tournée qui finit** : rappelée, ou coupée — chargement ou dépôts perdus, route refusée. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('tourEnded'),
+    role: UNIT_ROLE,
+    why: TOUR_END,
+  }),
+  /** **Un largage** (ADR 0028 §4) : le paquet descendu, ce qu'il a rendu et ce qui reste à bord.
+   *  `squad` dit si une escouade l'a reçu ; absente, c'est un dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('airdropped'),
+    hostCountry: v.string(),
+    point: v.optional(LON_LAT),
+    delivered: SUPPLY_LOAD,
+    kept: SUPPLY_LOAD,
+    squad: v.optional(v.boolean()),
+  }),
+  /** **Des troupes à sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. Rien
+   *  d'autre ne le dit, et c'est la différence entre une défaite et une faute de ravitaillement. */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('firedDry'),
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
+    /** Combien n'ont pas tiré ; absent sur les lignes d'avant les coups (18/10). */
+    troops: v.optional(v.number()),
   }),
   /**
    * **Legacy — plus jamais écrites.** Les trois dépêches du leurre, retiré du jeu le 29/08/2026.
@@ -546,7 +634,20 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
   }),
   /** **Les Sept sont posés** (P11) : la une du jour 0, chez toute la table. */
-  v.object({ ...NOTICE_HEAD, kind: v.literal('pointsDrawn') }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('pointsDrawn'),
+    /** Absent sur les notices d'avant le tirage : les sept du premier vivier. */
+    keys: v.optional(v.array(STRATEGIC_POINT_KEY)),
+  }),
+  /** **Dakar brûle le dépôt** (P11) : un avant-poste pris à son teneur ne livre pas son dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('depotBurned'),
+    side: v.union(v.literal('capturer'), v.literal('holder')),
+    country: v.string(),
+    lost: SUPPLY_LOAD,
+  }),
   /** **Lu à Istanbul** (P11) : au teneur, le télégramme ; aux deux correspondants, le fait. */
   v.object({
     ...NOTICE_HEAD,
@@ -601,7 +702,7 @@ export const NOTICE = v.union(
     kind: v.literal('expeditionFoundNothing'),
     building: BUILDING_KEY,
     regionId: v.string(),
-    reason: v.union(v.literal('gone'), v.literal('disabled')),
+    reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('sealed')),
   }),
   /**
    * **Un objectif neutre, annoncé à tout le monde au lancement** (objectifs neutres, 17/09/2026).

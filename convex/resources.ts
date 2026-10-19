@@ -11,22 +11,26 @@ import {
   isLinked,
   produces,
   settleStocks,
+  shortfallOf,
   type ChainReport,
   type Conversion,
 } from '../src/domain/economy';
-import { playerBuildings, totalLevelOf } from './buildingReads';
+import { activeBuildings, playerBuildings, totalLevelOf } from './buildingReads';
 import {
   BASE_CAP,
-  CHAINS,
+  COMMANDED_CHAINS,
+  DEFAULT_LINE,
+  FACTORY_LINES,
   EXTRACTION_PER_HOUR,
   STORAGE_CAP_PER_LEVEL,
   isCommanded,
-  type ChainKey,
+  type LineKey,
   type Costs,
 } from './constants';
 import { fail } from './errors';
 import { linkingOver } from './holding';
-import { regionFacts } from './regions';
+import { pointOfBuilding, regionFacts } from './regions';
+import { depositAt } from '../src/domain/world';
 import { upkeepOf, type Upkeep } from './upkeep';
 import type { ResourceAmounts } from '../src/domain/loot';
 
@@ -74,7 +78,8 @@ export function extractionSites(
   return buildings
     .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
     .map((building) => {
-      const deposit = regionFacts(building.regionId)?.deposit ?? null;
+      /** Ce que le point du bâtiment tient (ADR 0029 §3), jamais sa région. */
+      const deposit = depositAt(pointOfBuilding(building))?.deposit ?? null;
       const yielding = deposit !== null && exploits(building.key, deposit);
       const linked = isLinked(building, held, ownerId);
       return {
@@ -121,6 +126,7 @@ export function storageCaps(
 /** A lot as the settlement reads it, whether it comes from the table or from a settled copy. */
 export type OrderState = {
   readonly chain: BuildingKey;
+  readonly line?: LineKey | undefined;
   readonly ordered: number;
   readonly produced: number;
 };
@@ -147,14 +153,17 @@ export function chainsOf(
    */
   const linked = buildings.filter((building) => isLinked(building, held, ownerId));
 
-  return (Object.keys(CHAINS) as ReadonlyArray<ChainKey>).map((key) => {
-    const { output, inputs, perHourPerLevel } = CHAINS[key];
+  return COMMANDED_CHAINS.map((key) => {
     const lot = orders.find((order) => order.chain === key);
+    /** **The line is the lot's**: a chain with no lot runs the default one, silent at a quota of
+     *  zero, so the industry window can still print it. */
+    const { output, inputs, perHourPerLevel } = FACTORY_LINES[lot?.line ?? DEFAULT_LINE];
     const standing = totalLevelOf(buildings, key);
     return {
       by: key,
       output,
       inputs,
+      level: totalLevelOf(linked, key),
       perHour: perHourPerLevel * totalLevelOf(linked, key),
       quota: isCommanded(key) ? Math.max(0, (lot?.ordered ?? 0) - (lot?.produced ?? 0)) : null,
       /** Bâtie et entièrement coupée : c'est ça, `unlinked`. Rien de bâti reste `off` — il n'y a
@@ -196,6 +205,12 @@ export type Economy = {
    */
   readonly starving: boolean;
   /**
+   * **The listening posts have no coal left to burn** (ADR 0028 §1): empty **and** still burning,
+   * the same reading as `starving`. A silent post files no sighting and no survey until the coal
+   * comes back, and the piece itself says so.
+   */
+  readonly listeningSilent: boolean;
+  /**
    * **Ce que la production reliée a coupé** (ADR 0020 §6) : les bâtiments qui produisent — les
    * quatre extracteurs et les trois chaînes — dont la région ne porte plus la couleur de leur
    * propriétaire. Ni le stockage, ni la projection, ni le quartier général : ils ne font rien
@@ -233,10 +248,8 @@ export async function economyOf(
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
-  const activeBuildings = buildings.filter(
-    (building) => building.disabledUntil === undefined || building.disabledUntil < now,
-  );
-  const held = await heldFor(ctx, playerId, activeBuildings, now);
+  const active = activeBuildings(buildings, now);
+  const held = await heldFor(ctx, playerId, active, now);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -260,19 +273,18 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
-  const ratePerHour = extractionRates(activeBuildings, held, playerId);
-  /** **L'armée seule mange** : un avant-poste debout ne consomme plus rien (révision du 15/09
-   *  de l'ADR 0020 §10). Le frein d'expansion est passé de l'entretien au prix — fondation puis
-   *  élévations —, parce qu'un débit continu que rien n'explique à l'écran se lit comme une
-   *  fuite et non comme une règle. */
-  ratePerHour.food -= upkeep.foodPerHour;
-  const cap = storageCaps(activeBuildings);
+  const ratePerHour = extractionRates(active, held, playerId);
+  /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
+   *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
+  ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
+  ratePerHour.coal -= upkeep.listeningCoalPerHour;
+  const cap = storageCaps(active);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({
     stocks: stored,
     ratePerHour,
     cap,
-    conversions: chainsOf(activeBuildings, orderRows, held, playerId),
+    conversions: chainsOf(active, orderRows, held, playerId),
     hours: (now - updatedAt) / 3_600_000,
   });
 
@@ -285,6 +297,7 @@ export async function economyOf(
   const orders = orderRows.map((row) => ({
     row,
     chain: row.chain,
+    line: row.line,
     ordered: row.ordered,
     produced: Math.min(row.ordered, row.produced + (madeBy.get(row.chain) ?? 0)),
   }));
@@ -297,7 +310,7 @@ export async function economyOf(
     stocks: settled.stocks,
     ratePerHour,
     cap,
-    conversions: chainsOf(activeBuildings, orders, held, playerId),
+    conversions: chainsOf(active, orders, held, playerId),
     hours: OUTLOOK_HOURS,
   });
 
@@ -325,10 +338,12 @@ export async function economyOf(
     /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
      *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
     starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
-    unlinked: activeBuildings.filter(
+    listeningSilent:
+      upkeep.listeningCoalPerHour > 0 && settled.stocks.coal <= 0 && ratePerHour.coal < 0,
+    unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(activeBuildings, held, playerId),
+    extraction: extractionSites(active, held, playerId),
   };
 }
 
@@ -377,10 +392,8 @@ export async function ordersOf(
  * has. It reads the stocks settled to `now`, not the outlook: a player orders against what he
  * holds, not against what he will hold in an hour.
  */
-export function maxOrderOf(economy: Economy, chain: BuildingKey): number {
-  const report = economy.chains.find((candidate) => candidate.conversion.by === chain);
-  if (report === undefined) return 0;
-  const limit = report.conversion.inputs.reduce(
+export function maxOrderOf(economy: Economy, line: LineKey): number {
+  const limit = FACTORY_LINES[line].inputs.reduce(
     (least, [key, quantity]) => Math.min(least, Math.floor(economy.stocks[key] / quantity)),
     Number.POSITIVE_INFINITY,
   );
@@ -449,6 +462,28 @@ async function writeStocks(
   if (economy.starving && owner !== undefined) {
     await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId: owner });
   }
+
+  /**
+   * **The ears follow the coal.** Sightings are only re-read by mutations, so a post going silent
+   * (or hearing again) needs one: now when the state before or after the write is silent. The
+   * instant the coal runs dry is scheduled by the detection itself (`detectionBoard`).
+   */
+  if (owner !== undefined && economy.upkeep.listeningCoalPerHour > 0) {
+    const coal = stocks.coal;
+    const rate = economy.ratePerHour.coal;
+    if (economy.listeningSilent || (coal <= 0 && rate < 0)) {
+      await ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId: owner });
+    }
+  }
+}
+
+/** Whether this player's listening posts are silent for want of coal right now. */
+export async function listeningSilentOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<boolean> {
+  return (await economyOf(ctx, playerId, now)).listeningSilent;
 }
 
 /** Bring a player up to `now` and write it down, spending nothing. What every mutation that
@@ -506,15 +541,15 @@ export async function debit(
   const economy = await economyOf(ctx, playerId, now);
   const remaining = { ...economy.stocks };
 
+  const short = shortfallOf(costs, (key) => economy.stocks[key]);
+  if (short !== null) {
+    fail('INSUFFICIENT_RESOURCE', {
+      resource: short.resource,
+      needed: costs[short.resource],
+      available: Math.floor(economy.stocks[short.resource]),
+    });
+  }
   for (const [key, cost] of Object.entries(costs) as ReadonlyArray<[ResourceKey, number]>) {
-    // A negation, so that a stock which is not a number covers nothing instead of everything.
-    if (!(economy.stocks[key] >= cost)) {
-      fail('INSUFFICIENT_RESOURCE', {
-        resource: key,
-        needed: cost,
-        available: Math.floor(economy.stocks[key]),
-      });
-    }
     remaining[key] -= cost;
   }
 

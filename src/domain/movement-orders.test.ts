@@ -14,6 +14,8 @@ import {
   lootCollectionRefusalOf,
   ORDERABLE_TYPES,
   plunderRefusalOf,
+  captureOrderRefusalOf,
+  plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
   routeModeOf,
@@ -108,6 +110,26 @@ describe('what an attack may be aimed at', () => {
   it('refuses to march at a camp, and to raid it', () => {
     expect(refusalOf('march', camp, column(['infantry']))).toBe('POINT_TARGET_ONLY');
     expect(refusalOf('raid', camp, column(['infantry']))).toBe('OUTPOST_TARGET_ONLY');
+  });
+
+  /** ADR 0028 §1 : sans coups, ni attaque ni riposte — la marche reste offerte. */
+  it('refuses the attack and the raid to a column out of rounds', () => {
+    const dry = column(['infantry'], { outOfRounds: true });
+    expect(refusalOf('attack', camp, dry)).toBe('NO_ROUNDS');
+    expect(refusalOf('raid', outpost, dry)).toBe('NO_ROUNDS');
+    expect(captureOrderRefusalOf(outpost, dry, false)).toBe('NO_ROUNDS');
+    expect(
+      plunderOrderRefusalOf({ kind: 'building', buildingId: 'w', key: 'warehouse' }, dry, false),
+    ).toBe('NO_ROUNDS');
+  });
+
+  /** Dakar : le teneur est public, donc le refus se dit avant le geste. */
+  it('refuses to plunder the warehouse of the holder of Dakar', () => {
+    const aim = { kind: 'building' as const, buildingId: 'w', key: 'warehouse' as const };
+    expect(plunderOrderRefusalOf({ ...aim, sealed: true }, column(['infantry']), false)).toBe(
+      'SEALED',
+    );
+    expect(plunderOrderRefusalOf(aim, column(['infantry']), false)).toBeNull();
   });
 });
 
@@ -935,6 +957,8 @@ describe('a Blitz order (lot 5)', () => {
   it('leaves the artillery its bombardment, never a charge', () => {
     expect(refusalOf('attack', enemyCamp, blitz(['artillery']))).toBe('INDIRECT_FIRE_ONLY');
     expect(refusalOf('march', paris, blitz(['artillery']))).toBeNull();
+    expect(refusalOf('attack', enemyCamp, column(['artillery']))).toBe('INDIRECT_FIRE_ONLY');
+    expect(refusalOf('attack', enemyCamp, column(['artillery', 'infantry']))).toBeNull();
   });
 
   it('chases a column only in a Blitz', () => {

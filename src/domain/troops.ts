@@ -1,5 +1,16 @@
+import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
+import { shortfallOf } from './economy';
+import { roleLockOf } from './research';
 import { distanceKm, type LonLat } from './geo';
-import { BUILDINGS, type BuildingKey, type Medium, type UnitRole, type UnitTier } from './ids';
+import {
+  BUILDINGS,
+  type BuildingKey,
+  type Medium,
+  type ResearchCard,
+  type ResourceKey,
+  type UnitRole,
+  type UnitTier,
+} from './ids';
 import type {
   ArcView,
   CombatReport,
@@ -38,6 +49,66 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
 
+export type RecruitRefusal =
+  | {
+      readonly code: 'WRONG_PROJECTION_BUILDING';
+      readonly expected: BuildingKey;
+      readonly found: BuildingKey;
+    }
+  | { readonly code: 'RESEARCH_REQUIRED'; readonly card: ResearchCard }
+  | { readonly code: 'TROOP_BOUND_REACHED' }
+  | { readonly code: 'QUEUE_FULL' }
+  | {
+      readonly code: 'INSUFFICIENT_RESOURCE';
+      readonly resource: ResourceKey;
+      readonly needed: number;
+      readonly available: number;
+    };
+
+/** What a recruitment is read against, beside the site: the nation as it stands. */
+export type RecruitSituation = {
+  /** Les cartes de recherche acquises : un rôle à un palier qu'aucune n'ouvre attend la sienne. */
+  readonly researched: ReadonlyArray<ResearchCard>;
+  /** Troops standing and queued, all sites together: what the invisible bound counts. */
+  readonly army: number;
+  /** Batches already waiting at this site. */
+  readonly siteQueue: number;
+  readonly costs: Readonly<Partial<Record<ResourceKey, number>>>;
+  readonly stocks: Readonly<Record<ResourceKey, number>>;
+};
+
+/**
+ * **Ce qu'un site de projection refuse de former**, en Mondiale : le bon bâtiment pour le
+ * domaine du rôle, la carte de recherche qui l'ouvre à ce palier, la borne invisible, la file du
+ * site, enfin le prix. La pièce lâchée sur un mât le dit avant le relâché, et `troops.recruit`
+ * refuse avec la même lecture ; chaque refus porte ce que sa phrase nomme.
+ */
+export function recruitRefusalOf(
+  role: UnitRole,
+  tier: UnitTier,
+  site: { readonly key: BuildingKey },
+  situation: RecruitSituation,
+): RecruitRefusal | null {
+  const expected = projectionKeyOf(role);
+  if (site.key !== expected)
+    return { code: 'WRONG_PROJECTION_BUILDING', expected, found: site.key };
+  const card = roleLockOf(role, tier, situation.researched);
+  if (card !== null) return { code: 'RESEARCH_REQUIRED', card };
+  if (situation.army >= MONDIALE_TROOP_BOUND) return { code: 'TROOP_BOUND_REACHED' };
+  if (situation.siteQueue >= MAX_QUEUED_BATCHES) return { code: 'QUEUE_FULL' };
+  const short = shortfallOf(situation.costs, (resource) => situation.stocks[resource]);
+  if (short !== null) {
+    const available = situation.stocks[short.resource];
+    return {
+      code: 'INSUFFICIENT_RESOURCE',
+      resource: short.resource,
+      needed: available + short.missing,
+      available,
+    };
+  }
+  return null;
+}
+
 /**
  * **Which buildings a role may enter as a garrison** (decision 70b, 01/09). The infantry enters
  * every building of its owner — the rule « seule l'infanterie pille, capture, fonde », extended
@@ -54,7 +125,8 @@ export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<Buil
   /** Le port et l'aérodrome s'y ajoutent (ADR 0025 §5) : une coque chargée de chars rentre à
    *  quai, un avion débarque ses passagers sur son terrain. */
   armor: ['barracks', 'hq', 'port', 'airfield'],
-  landTransport: ['barracks', 'hq', 'port', 'airfield'],
+  /** L'entrepôt aussi : un camion s'y charge (ADR 0028 §4). */
+  landTransport: ['barracks', 'hq', 'port', 'airfield', 'warehouse'],
   artillery: ['barracks', 'hq', 'port', 'airfield'],
   fighter: ['airfield'],
   bomber: ['airfield'],

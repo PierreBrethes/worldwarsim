@@ -3,25 +3,28 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/domain/troops';
+import {
+  PROJECTION_BY_DOMAIN,
+  TIERS_BY_ROLE,
+  projectionKeyOf,
+  recruitRefusalOf,
+} from '../src/domain/troops';
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings } from './buildingReads';
-import { blitzOnly, blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
+import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
 import { fundsOf, isBlitz, occupiedBuildingIds, spendFunds } from './blitz';
 import {
   BLITZ,
   COST_BY_ROLE,
+  type Costs,
   MAX_QUEUED_BATCHES,
-  TIER_2_HQ_LEVEL,
-  chainSpeed,
   nominalStrength,
   recruitmentCost,
-  roleHqLevel,
-  roleSiteLevel,
-  MONDIALE_TROOP_BOUND,
 } from './constants';
+import { roleLockOf } from '../src/domain/research';
+import type { ResearchCard } from '../src/domain/ids';
 import { fail } from './errors';
 import { pointOfBuilding, regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf, settle } from './resources';
@@ -60,6 +63,8 @@ export const workshop = query({
     const economy = await economyOf(ctx, player._id, now);
 
     const blitz = modeOf(season.mode) === 'blitz';
+    /** La Blitz garde son catalogue : une marque par rôle, rien derrière une carte. */
+    const researched = blitz ? null : (player.researched ?? []);
     const facilities = buildings
       .filter(
         (building) => DOMAIN_OF_PROJECTION.has(building.key) || (blitz && building.key === 'hq'),
@@ -73,7 +78,8 @@ export const workshop = query({
         regionName: regionFacts(building.regionId)?.name ?? building.regionId,
         queue: dateQueue(
           waiting.filter((batch) => batch.buildingId === building._id).sort(byRank),
-          blitz ? null : hqLevel,
+          blitz,
+          lanesOf(building, blitz),
           now,
         ),
       }));
@@ -87,37 +93,19 @@ export const workshop = query({
       blitz,
       nation: player.nation ?? '?',
       hqLevel,
-      speed: chainSpeed(hqLevel),
-      // Served rather than left to the client: the case the screen greys out and the
-      // recruitment the server refuses read the same number (ADR 0017).
-      tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
-      requiredHqLevel: TIER_2_HQ_LEVEL,
       maxQueue: MAX_QUEUED_BATCHES,
       troopsInService: troops.length,
       troopsQueued: waiting.length,
       steel: snapshotOf(economy, 'steel'),
       facilities,
       roster: roster(troops),
-      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>)
-        .filter((role) => blitz || !blitzOnly(role))
-        .map((role) => ({
-          role,
-          tiers: TIERS_BY_ROLE[role],
-          producedBy: projectionKeyOf(role),
-          /**
-           * What the headquarters must reach before this role is recruitable at all — zero for
-           * the roles their projection building already carries. Served, like the mark-2
-           * threshold above, so the line the screen greys and the recruitment the server refuses
-           * are the same number.
-           */
-          unlockedAtHqLevel: roleHqLevel(role),
-          /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
-           *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
-           *  et la modale de site le compare au niveau de *son* bâtiment. */
-          unlockedAtSiteLevel: roleSiteLevel(role),
-          unit: priced(role, 1, hqLevel),
-          unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
-        })),
+      grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
+        role,
+        tiers: TIERS_BY_ROLE[role],
+        producedBy: projectionKeyOf(role),
+        unit: priced(role, 1, researched),
+        unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, researched) : null,
+      })),
     };
   },
 });
@@ -137,39 +125,31 @@ export const recruit = mutation({
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     if (modeOf(season.mode) === 'blitz') return recruitInBlitz(ctx, player, building, role);
-    if (blitzOnly(role)) fail('BLITZ_ONLY');
-    const expected = projectionKeyOf(role);
-    if (building.key !== expected)
-      fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
-
-    const buildings = await playerBuildings(ctx, player._id);
-    const hqLevel = levelOf(buildings, 'hq');
-    if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
-      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
-    }
-    // The tank waits for the level that arms its counter, whatever tier is asked for.
-    const roleLevel = roleHqLevel(role);
-    if (hqLevel < roleLevel) fail('ROLE_LOCKED', { role, requiredLevel: roleLevel });
-    // And the local one: the site itself has to have been raised to the role (67b).
-    const siteLevel = roleSiteLevel(role);
-    if (building.level < siteLevel)
-      fail('SITE_LEVEL_LOCKED', { building: building.key, requiredLevel: siteLevel });
 
     /**
      * The queue counts against the bound, or it would be where a nation stores the army the
-     * server cannot follow. Nothing serves the number: only this refusal says it.
+     * server cannot follow. Nothing serves the number: only the refusal says it.
      */
-    const standing = (await troopsOf(ctx, player._id)).length;
-    const queued = (await recruitmentsOf(ctx, player._id)).length;
-    if (standing + queued >= MONDIALE_TROOP_BOUND) fail('TROOP_BOUND_REACHED');
-
+    const army =
+      (await troopsOf(ctx, player._id)).length + (await recruitmentsOf(ctx, player._id)).length;
     const queue = await queueOf(ctx, buildingId);
-    if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL');
-
     const now = Date.now();
-    const cost = recruitmentCost(role, tier, hqLevel);
-    await debit(ctx, player._id, { steel: cost.steel }, now);
+    const cost = recruitmentCost(role, tier);
+    const { stocks } = await economyOf(ctx, player._id, now);
+    const refusal = recruitRefusalOf(role, tier, building, {
+      researched: player.researched ?? [],
+      army,
+      siteQueue: queue.length,
+      costs: cost.costs,
+      stocks,
+    });
+    if (refusal !== null) {
+      const { code, ...details } = refusal;
+      fail(code, details);
+    }
+
+    await debit(ctx, player._id, cost.costs, now);
 
     const last = queue[queue.length - 1];
     const rank = last ? last.rank + 1 : 0;
@@ -182,11 +162,11 @@ export const recruit = mutation({
       finishesAt: null,
     });
     /**
-     * Unconditional, because `startHead` is idempotent on a queue already running: what it also
+     * Unconditional, because `startLanes` is idempotent on a queue already running: what it also
      * picks up is a head a famine left undated (D3). A player who orders again after feeding his
      * nation should not have to wait for a second event to restart the line.
      */
-    await startHead(ctx, buildingId, now);
+    await startLanes(ctx, buildingId, now);
     return { cost, rank, recruitmentId };
   },
 });
@@ -222,8 +202,8 @@ async function recruitInBlitz(
     rank: 0,
     finishesAt: null,
   });
-  await startHead(ctx, building._id, now);
-  return { cost: { steel: 0, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
+  await startLanes(ctx, building._id, now);
+  return { cost: { costs: {} as Costs, minutes: BLITZ.recruitMinutes }, rank: 0, recruitmentId };
 }
 
 /**
@@ -239,9 +219,8 @@ export const cancel = mutation({
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
-    const hqLevel = await hqLevelOf(ctx, player._id);
-    const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
-    await credit(ctx, player._id, { steel: cost.steel }, Date.now());
+    const cost = recruitmentCost(batch.role, batch.tier);
+    await credit(ctx, player._id, cost.costs, Date.now());
     await ctx.db.delete(recruitmentId);
     return { refunded: cost };
   },
@@ -294,7 +273,7 @@ export const deliver = internalMutation({
     });
     await ctx.db.delete(recruitmentId);
     await reassessDetection(ctx, season._id);
-    await startHead(ctx, batch.buildingId, Date.now());
+    await startLanes(ctx, batch.buildingId, Date.now());
   },
 });
 
@@ -304,7 +283,7 @@ export const deliver = internalMutation({
  * a lot refunded, an army that shrank. It re-reads the economy rather than trusting the caller,
  * so a wake-up that finds the player still hungry does nothing and says nothing.
  *
- * One pass over the buildings that hold an undated head — `startHead` is idempotent, so a queue
+ * One pass over the buildings that hold an undated head — `startLanes` is idempotent, so a queue
  * already running is left exactly as it is.
  */
 export const resumeQueues = internalMutation({
@@ -315,7 +294,7 @@ export const resumeQueues = internalMutation({
     if ((await economyOf(ctx, playerId, now)).starving) return;
     const waiting = await recruitmentsOf(ctx, playerId);
     for (const buildingId of new Set(waiting.map((batch) => batch.buildingId))) {
-      await startHead(ctx, buildingId, now);
+      await startLanes(ctx, buildingId, now);
     }
   },
 });
@@ -337,15 +316,21 @@ export async function troopsOf(
  * One queue per building, so a delivery only ever wakes its own line — two barracks never
  * wait on each other.
  */
-async function startHead(
+export async function startLanes(
   ctx: MutationCtx,
   buildingId: Id<'buildings'>,
   now: number,
 ): Promise<void> {
   const queue = await queueOf(ctx, buildingId);
   const head = queue[0];
-  if (!head || head.finishesAt !== null) return;
+  if (!head) return;
 
+  const player = await ctx.db.get(head.playerId);
+  const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
+  const building = await ctx.db.get(buildingId);
+  const lanes = building === null ? 1 : lanesOf(building, blitz);
+  const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
+  if (idle.length === 0) return;
   /**
    * **A hungry nation forms nothing** (`consommation-continue.md` D3). The queue *stops*, it is
    * never cancelled: the batch keeps its rank and its matter, it simply is not dated, and
@@ -358,16 +343,20 @@ async function startHead(
    */
   if ((await economyOf(ctx, head.playerId, now)).starving) return;
 
-  const player = await ctx.db.get(head.playerId);
-  const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
-
-  const minutes = blitz
-    ? BLITZ.recruitMinutes
-    : recruitmentCost(head.role, head.tier, await hqLevelOf(ctx, head.playerId)).minutes;
-  const finishesAt = now + minutes * 60_000;
-  await ctx.db.patch(head._id, { finishesAt });
-  await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: head._id });
+  for (const batch of idle) {
+    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    const finishesAt = now + minutes * 60_000;
+    await ctx.db.patch(batch._id, { finishesAt });
+    await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: batch._id });
+  }
 }
+
+/**
+ * **Un niveau rend** (ADR 0028 §5) : un site de projection de niveau N forme N troupes à la fois,
+ * chacune à sa durée. La Blitz forme une unité par bâtiment.
+ */
+const lanesOf = (building: Doc<'buildings'>, blitz: boolean): number =>
+  blitz ? 1 : Math.max(1, building.level);
 
 async function queueOf(
   ctx: QueryCtx,
@@ -390,14 +379,14 @@ export async function recruitmentsOf(
     .collect();
 }
 
-const hqLevelOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<number> =>
-  levelOf(await playerBuildings(ctx, playerId), 'hq');
-
 const byRank = (a: Doc<'recruitments'>, b: Doc<'recruitments'>): number => a.rank - b.rank;
 
-const priced = (role: UnitRole, tier: 1 | 2, hqLevel: number) => ({
-  ...recruitmentCost(role, tier, hqLevel),
+/** `researched: null` en Blitz : rien n'y est tenu par une carte. */
+const priced = (role: UnitRole, tier: 1 | 2, researched: ReadonlyArray<ResearchCard> | null) => ({
+  ...recruitmentCost(role, tier),
   strength: nominalStrength(role, tier),
+  /** La carte qui manque pour le former, servie : la pièce la dit, le serveur la refuse. */
+  lockedBy: researched === null ? null : roleLockOf(role, tier, researched),
 });
 
 /**
@@ -407,19 +396,18 @@ const priced = (role: UnitRole, tier: 1 | 2, hqLevel: number) => ({
  */
 function dateQueue(
   queue: ReadonlyArray<Doc<'recruitments'>>,
-  /** `null` en Blitz : une recrue y sort en `BLITZ.recruitMinutes`, sans QG ni marque. */
-  hqLevel: number | null,
+  /** En Blitz une recrue sort en `BLITZ.recruitMinutes`, sans marque. */
+  blitz: boolean,
+  /** Ce que le site forme à la fois (`lanesOf`) : chaque lot prend le premier banc libre. */
+  lanes: number,
   now: number,
 ) {
-  let cursor = now;
+  const free = Array.from({ length: lanes }, () => now);
   return queue.map((batch) => {
-    const minutes =
-      hqLevel === null
-        ? BLITZ.recruitMinutes
-        : recruitmentCost(batch.role, batch.tier, hqLevel).minutes;
-    const duration = batch.finishesAt === null ? minutes * 60_000 : 0;
-    const finishesAt = batch.finishesAt ?? cursor + duration;
-    cursor = finishesAt;
+    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    const bench = free.indexOf(Math.min(...free));
+    const finishesAt = batch.finishesAt ?? (free[bench] ?? now) + minutes * 60_000;
+    free[bench] = finishesAt;
     return {
       id: batch._id,
       role: batch.role,

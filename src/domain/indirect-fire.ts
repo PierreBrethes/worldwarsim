@@ -1,8 +1,16 @@
-import { BLITZ_SHARE, INDIRECT_FIRE } from '../../convex/constants';
+import {
+  BLITZ_SHARE,
+  DAMAGE_TABLE,
+  INDIRECT_FIRE,
+  MONDIALE_FIRE_REACH,
+} from '../../convex/constants';
 import { withinTheatre } from './blitz';
+import { profileOf } from './combat';
 import { distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
+import type { SeasonMode } from './season-mode';
 import { theatreKm, type Theatre } from './theatres';
+import { DOMAIN_BY_ROLE, ROLE_ORDER, type UnitDomain } from './troops';
 
 /**
  * **Le tir indirect** (B20, lot 6b) : l'artillerie frappe de loin une unité en vue, sans riposte
@@ -11,26 +19,47 @@ import { theatreKm, type Theatre } from './theatres';
  */
 export const firesIndirect = (role: UnitRole): boolean => role === 'artillery';
 
-/** Où la pièce tire, en km de son théâtre (A2) : la règle, l'aperçu et les cercles le lisent. */
-export const fireReachOf = (theatre: Theatre) => ({
-  rangeKm: theatreKm(theatre, BLITZ_SHARE.fireRange),
-  deadZoneKm: theatreKm(theatre, BLITZ_SHARE.deadZone),
-});
+/**
+ * **Bombarder ou attaquer** (4.10) : en Blitz, une unité qui porte l'artillerie bombarde ; en
+ * Mondiale, seules des pièces levées sans autre troupe bombardent, et une escouade mêlée attaque.
+ * La rose y choisit sa branche, `refusalOf` y refuse une charge d'artillerie.
+ */
+export const bombardsWith = (roles: ReadonlyArray<UnitRole>, mode: SeasonMode): boolean =>
+  mode === 'blitz' ? roles.some(firesIndirect) : roles.length > 0 && roles.every(firesIndirect);
+
+/** **Ce que l'artillerie touche d'un milieu**, lu dans `DAMAGE_TABLE` : rien dans les airs. */
+export const gunsReach = (medium: UnitDomain): boolean =>
+  ROLE_ORDER.some(
+    (role) =>
+      DOMAIN_BY_ROLE[role] === medium && DAMAGE_TABLE.artillery[profileOf(role, 1)] !== undefined,
+  );
+
+/** Où la pièce tire, en km de son théâtre (A2), en km tout court en Mondiale (`null`) : la
+ *  règle, l'aperçu et les cercles le lisent. */
+export const fireReachOf = (theatre: Theatre | null) =>
+  theatre === null
+    ? MONDIALE_FIRE_REACH
+    : {
+        rangeKm: theatreKm(theatre, BLITZ_SHARE.fireRange),
+        deadZoneKm: theatreKm(theatre, BLITZ_SHARE.deadZone),
+      };
 
 /** L'instant où une pièce posée à `settledAt` est en batterie. */
 export const emplacedAt = (settledAt: number): number =>
   settledAt + INDIRECT_FIRE.emplaceSeconds * 1000;
 
 export type BombardRefusal =
-  | 'BLITZ_ONLY'
   | 'ONE_UNIT_ONLY'
+  | 'ONE_GUN_ONLY'
   | 'ARTILLERY_ONLY'
   | 'ON_THE_MOVE'
   | 'ABOARD'
   | 'NOTHING_TO_ATTACK'
+  | 'OUT_OF_GUNS_REACH'
   | 'OUTSIDE_THEATRE'
   | 'NOT_EMPLACED'
   | 'RELOADING'
+  | 'NO_ROUNDS'
   | 'TOO_CLOSE'
   | 'OUT_OF_RANGE';
 
@@ -38,10 +67,12 @@ export type Bombardment = {
   readonly roles: ReadonlyArray<UnitRole>;
   readonly from: LonLat;
   readonly to: LonLat;
-  /** `null` hors Blitz : la Mondiale n'a pas encore d'artillerie. */
+  /** `null` en Mondiale : ni théâtre à tenir, ni distance en parts. */
   readonly theatre: Theatre | null;
   /** La cible est dans les relevés du joueur à l'instant — on ne tire pas sur un souvenir. */
   readonly seen: boolean;
+  /** La cible porte de quoi être touchée (`gunsReach`, `salvoOf`) : sinon la salve est perdue. */
+  readonly reachable: boolean;
   /** L'instant où la pièce est en batterie (`emplacedAt`). */
   readonly emplacedAt: number;
   readonly reloadUntil: number | null;
@@ -49,20 +80,24 @@ export type Bombardment = {
   readonly moving: boolean;
   /** Au large, ou à bord d'un transport : une pièce transportée n'agit pas. */
   readonly aboard: boolean;
+  /** **Elle paie ses salves en crans** (ADR 0028 §3), lus après la recharge à l'ancre ; la Blitz
+   *  ne compte pas. */
+  readonly outOfRounds?: boolean;
   readonly now: number;
 };
 
 export function bombardRefusalOf(order: Bombardment): BombardRefusal | null {
   const { roles, theatre, now } = order;
-  if (theatre === null) return 'BLITZ_ONLY';
-  if (roles.length > 1) return 'ONE_UNIT_ONLY';
-  if (roles[0] === undefined || !firesIndirect(roles[0])) return 'ARTILLERY_ONLY';
+  if (roles.length === 0 || !roles.every(firesIndirect)) return 'ARTILLERY_ONLY';
+  if (roles.length > 1) return theatre === null ? 'ONE_GUN_ONLY' : 'ONE_UNIT_ONLY';
   if (order.moving) return 'ON_THE_MOVE';
   if (order.aboard) return 'ABOARD';
   if (!order.seen) return 'NOTHING_TO_ATTACK';
-  if (!withinTheatre(theatre, order.to)) return 'OUTSIDE_THEATRE';
+  if (!order.reachable) return 'OUT_OF_GUNS_REACH';
+  if (theatre !== null && !withinTheatre(theatre, order.to)) return 'OUTSIDE_THEATRE';
   if (now < order.emplacedAt) return 'NOT_EMPLACED';
   if (order.reloadUntil !== null && now < order.reloadUntil) return 'RELOADING';
+  if (order.outOfRounds === true) return 'NO_ROUNDS';
   const km = distanceKm(order.from, order.to);
   const { rangeKm, deadZoneKm } = fireReachOf(theatre);
   if (km < deadZoneKm) return 'TOO_CLOSE';
@@ -71,11 +106,11 @@ export function bombardRefusalOf(order: Bombardment): BombardRefusal | null {
 
 /** Ce que la phrase du refus nomme — distance, bornes, attente —, la même des deux côtés. */
 export const bombardRefusalDetails = (order: Bombardment) => {
-  const reach = order.theatre === null ? null : fireReachOf(order.theatre);
+  const reach = fireReachOf(order.theatre);
   return {
     km: Math.round(distanceKm(order.from, order.to)),
-    minimum: reach?.deadZoneKm ?? 0,
-    maximum: reach?.rangeKm ?? 0,
+    minimum: reach.deadZoneKm,
+    maximum: reach.rangeKm,
     seconds: Math.max(0, Math.ceil((order.emplacedAt - order.now) / 1000)),
   };
 };

@@ -34,36 +34,88 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       régénérés sur quatre types, trois sur quatre chez soi : Norilsk et Vorkouta sortent, Nagasaki
       entre au Japon, pour tenir la bande. « Sur 12 » retiré de la fiche de caserne. Le schéma
       change : `npx convex run dev:reset` avant de pousser.
-   2. **Ce que ça coûte** : barèmes mêlés par famille, entretien par paliers, entretien
-      d'avant-poste, écoute au charbon. *Se voit* : prix à deux ressources, palier d'entretien lisible.
-   3. **Coups et plein** : en crans portés par la troupe, repris à l'ancre (10 par cran), départ
-      refusé sans plein, à sec ni attaque ni riposte. *Se voit* : cartouche et jerrican sous la
-      figurine, dans la fiche au survol, l'abaque et la formation ; refus dits.
+   2. ~~**Ce que ça coûte**~~ : faite le 18/10. Chaque troupe et chaque bâtiment coûte de l'acier
+      plus la ressource de sa famille (`FAMILY_RESOURCE_OF_ROLE`, `BUILDING_SPEC`) ; l'avant-poste
+      coûte des vivres. L'armée mange par paliers (`UPKEEP_STEPS`, `src/domain/upkeep.ts`), un
+      avant-poste debout mange des vivres selon son niveau, une écoute brûle du charbon. Prix en
+      deux pictos partout (`Price`, rose, `CostLine`), palier lisible dans la fenêtre Économie et
+      sur la ligne de chaque troupe. L'écoute sans charbon se tait (ni relevé ni sondage) et le dit sur la pièce ; la dotation de départ couvre la première projection dans toutes ses ressources (charbon 140).
+   3. ~~**Coups et plein**~~ : fait le 18/10. Crans portés par la troupe (`SUPPLY_BY_ROLE`),
+      repris à l'ancre sur le plateau personnel au départ, au combat et à l'arrivée (y compris
+      dans le rayon d'un avant-poste, en attendant son dépôt, 4.7) ; plein payé au départ,
+      `NOT_ENOUGH_FUEL` dit avant le clic ; à sec ni frappe ni riposte (`NO_ROUNDS`, dépêche et
+      rejeu « à sec ») ; cartouche et jerrican sous la pile, à l'affiche, dans la garnison,
+      l'abaque et la formation. Le débit national et `DRY_AMMUNITION_FACTOR` sont retirés.
    4. **Prototype du plateau personnel** (`WWS/prototypes/plateau-personnel/`) : fait le 18/10,
       trois versions ; il sert de référence aux features 5 à 8.
-   5. **Placement libre et gisements ponctuels** (ADR 0029) : un point par bâtiment, espacement,
-      gisements cuits en points, `placementRefusal` refaite. *Se voit* : tuile fantôme à l'endroit
-      visé, gisements sur la carte, refus d'espacement.
-   6. **Le plateau personnel** : nombres et barres par ressource, récolte animée, tuiles, réserve
-      de pièces ; remplace la fenêtre Économie. *Se voit* : barres, pastilles qui volent, tuile qui
-      se pose.
-   7. **Livrer et tournées** : dépôt d'avant-poste, charge unique, charger au QG, à l'entrepôt, au
-      port ou à l'aérodrome, aller-retour, tournée en boucle depuis le point de chargement qui saute
-      un dépôt plein et garde son slot, interception, caisse ; ce que le niveau d'un point rend.
-      *Se voit* : barre de charge par couleur, boucle tracée à l'encre, transport qui attend,
-      navire qui accoste le long du quai.
-   8. **Larguer** : sur un point ou une escouade isolée. *Se voit* : avion qui décolle de la piste
-      et y atterrit, paquet sous parachute.
-   9. **La recherche** : l'arbre de l'[artefact](https://claude.ai/artifact/MUm2rQF8mY82rLtdz3VTpx),
-      verrous de niveau et `chainSpeed` retirés, invariant du contre. *Se voit* : cartes de
-      recherche, pose sur le QG, carte qui avance.
-   10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
-       serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
+   5. ~~**Placement libre et gisements ponctuels**~~ : fait le 18/10. `buildings.point` obligatoire,
+      `start` prend le point visé et sa région ; `placementRefusal` lit le point (portée, gisement
+      libre, côte, espacement `BUILDING_SPACING_KM`) et `REGION_TAKEN` est retiré ;
+      `deposits.json` devient une liste de points (un par région tirée, au point de l'index) et
+      la production lit le gisement sous le point. On choisit la clé, puis un fantôme vise un lieu,
+      s'aimante sur un gisement libre ou un quai et dit le refus du serveur avant le clic ; les
+      gisements se tiennent à leur point, les sites relevés aussi. Le schéma change : wipe.
+   6. ~~**Le plateau personnel**~~ : fait le 19/10. « ÉCON. » l'ouvre (`PersonalBoard.tsx`) : cinq
+      bacs en nombre et en barre jusqu'au plafond, la récolte depuis la dernière ouverture
+      (`readMarks.boardReadAt`, `harvestOf`) en pastilles qui volent selon le réglage ; une tuile
+      glissée sur la carte arme le fantôme de la pose et se pose, ou élève sa pareille ; une pièce
+      lâchée sur une caserne, un port ou un aérodrome y est formée (`recruitRefusalOf`), son refus
+      dit en rouge et elle rentre. Chantiers, entretien par paliers et pénuries avec leur remède
+      au pied, le lot de l'arsenal dessous ; la fenêtre Économie est retirée. Démo :
+      `npm run demo:mondiale -- --recolte`. Le schéma change : `readMarks` gagne deux champs.
+   7. ~~**Livrer et tournées**~~ : faite le 19/10. A : dépôt d'avant-poste qui recharge les
+      troupes ancrées dans son rayon, charger en glissant des jetons sur l'étiquette d'un
+      transport, livrer en le lâchant sur un de ses avant-postes, escale aérienne au niveau 2,
+      barre de charge par couleur, coques le long du quai. B : tournée tracée de dépôt en dépôt
+      depuis le point de chargement (`tours.start`, quatre arrêts), qui recharge sa consigne,
+      saute un dépôt plein (encre pointillée), attend en le disant sur l'étiquette et garde son
+      slot, rappelée quand on veut ; un ravitaillement se relève et s'intercepte comme un
+      mouvement, un transport détruit laisse sa charge en caisse, une déroute finit la tournée.
+      Démo : `npm run demo:mondiale -- --livraison` ou `--tournee`.
+   8. ~~**Larguer**~~ : faite le 19/10. L'avion chargé, lâché sur un de ses avant-postes (escale
+      ou non) ou sur une de ses escouades isolées (`logistics.airdrop`, `dropRefusalOf`), paie le
+      plein de l'aller-retour, lâche un paquet sous parachute sans se poser et rentre seul ; une
+      escouade reprend coups et plein dans la limite de ce que chaque troupe porte, le reste
+      reste à bord. Un largage se relève et s'intercepte comme un ravitaillement. Le fil monte
+      de la piste, reste en l'air sur la cible et se pose au retour ; tampon « largué » et
+      dépêche. Démo : `npm run demo:mondiale -- --largage`.
+   9. ~~**La recherche**~~ : faite le 19/10. Onze cartes en quatre branches (`RESEARCH_TREE`,
+      `RESEARCH_SPEC` à l'échelle ×10 de l'artefact) sur le plateau personnel ; une carte lâchée sur
+      le QG (`research.start`, `researchRefusalOf`) se paie, court en heures de jeu, attend un QG
+      tombé sans rien perdre, et débloque à la fin avec sa dépêche. Toute pièce et toute tuile hors
+      du départ attend sa carte (`RESEARCH_REQUIRED`), visible ; artillerie et pétrole synthétique
+      étaient « à venir » (faits en 4.10 et 4.11). `UNLOCKED_AT`, `TIER_2_HQ_LEVEL`, `ROLE_SITE_LEVEL` et `chainSpeed`
+      retirés ; un site de projection de niveau N forme N troupes à la fois ; invariant du contre
+      testé. Barre sur l'affiche du QG, sur la carte et dans « en cours ». Démo :
+      `npm run demo:mondiale -- --recherche`. Le schéma change : `players.researched`,
+      `players.research`.
+   10. ~~**Artillerie et grosses escouades**~~ : faite le 19/10. La carte « Artillerie » est réelle :
+       la pièce se forme en Mondiale et bombarde de sa batterie (`fireReachOf(null)`, portée et zone
+       morte en km), sans riposte, une salve par cran ; la salve touche jusqu'à quatre troupes de
+       l'escouade visée (`salvoOf`), le reste n'entre pas dans la passe, un dérouté rentre seul, et
+       la dépêche du bombardé dit combien de troupes une salve « venue d'on ne sait où » a touchées.
+       Au-delà de douze troupes, une figurine par rôle et le compte sur le fanion. La borne serveur
+       se dit à la réserve de pièces avant le lâcher et à la formation après (inchangée). Démo :
+       `npm run demo:mondiale -- --artillerie`.
+   11. ~~**La ligne d'usine du pétrole synthétique**~~ : faite le 19/10. L'arsenal a deux lignes
+       (`FACTORY_LINES` : munitions, pétrole à 3 charbon pour 1, `@a-mesurer`) ; le lot porte la
+       sienne (`orders.line`), se réaffecte gratuitement (annuler puis relancer) et la carte la
+       verrouille (`lineLockOf`, `RESEARCH_REQUIRED` dit avant le geste). Ligne active, débit et
+       choix sur la fenêtre du lot ; à sec de charbon, la ligne le dit. `comingSoon` et
+       `RESEARCH_COMING` retirés. Démo : `npm run demo:mondiale -- --petrole`. Le schéma change :
+       `orders.line`. Pas encore vu à l'écran (captures non faites).
 
-   Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7 ; Rangoun (« aucun envoi
-   vers lui ») attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la
-   une, et le vivier s'élargit avec eux pour que le tirage du 14/10 tienne ses contraintes.
-5. **Le tutoriel de manipulation** (ADR 0027 §2).
+   Bakou, Dakar et Singapour sont faits le 19/10 : le vivier compte dix lieux, sept tirés par la
+   graine de la saison (`drawPoints`, diversité et distance minimale ; l'équité de route et
+   l'exclusion du sol national du 14/10 ne sont pas lues). Rangoun (« aucun envoi vers lui »)
+   attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la une.
+5. ~~**Le tutoriel de manipulation** (ADR 0027 §2)~~ : fait le 19/10. Les **premiers pas** de la
+   Mondiale, dans la vraie partie : cinq gestes (QG, mouvement, formation, recherche, livraison)
+   lus dans la vue (`stepsDoneIn`, `src/domain/first-steps.ts`) et retenus par la place
+   (`readMarks.firstSteps`), en tête de « à faire » ; une bulle sur « Écon. », l'étagère du
+   plateau personnel ou la pièce à lever ; repliés ou passés, l'aide (« ? », dossier du
+   téléphone) les reprend. La feuille d'entrée ne s'ouvre plus d'elle-même qu'en Blitz. Démo :
+   `npm run demo:mondiale -- --tutoriel`. Le schéma change : `readMarks.firstSteps`.
 6. ~~**Le script de rapport de saison** sur le journal d'événements (ADR 0027 §7)~~ : fait le 18/10,
    `npm run rapport [-- --saison=CODE]` (`scripts/rapport-de-saison.mjs`, calcul dans
    `src/domain/season-report.ts`). Séries dans le temps : boule de neige (éditions) et avant-postes

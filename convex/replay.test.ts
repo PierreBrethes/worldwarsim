@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { attacking, foundSeat, joinSeat, seatIn } from './seats.fixture';
@@ -66,6 +66,7 @@ async function fight(t: Bench, attacker: Seat, defender: Seat) {
       playerId: player._id,
       key: 'barracks' as const,
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
       level: 1,
     });
   });
@@ -103,12 +104,13 @@ async function fight(t: Bench, attacker: Seat, defender: Seat) {
   return engagement!._id;
 }
 
-type Detail = { troops: number; lost: number; routed: number; destroyed: number };
+type Detail = { troops: number; lost: number; routed: number; destroyed: number; dry?: number };
 const sum = (rows: ReadonlyArray<Detail>) => ({
   troops: rows.reduce((total, row) => total + row.troops, 0),
   lost: rows.reduce((total, row) => total + row.lost, 0),
   routed: rows.reduce((total, row) => total + row.routed, 0),
   destroyed: rows.reduce((total, row) => total + row.destroyed, 0),
+  dry: rows.reduce((total, row) => total + (row.dry ?? 0), 0),
 });
 
 describe('replayOf', () => {

@@ -40,7 +40,7 @@ import { playerBuildings } from './buildingReads';
 import { BLITZ, nominalStrength } from './constants';
 import { fail } from './errors';
 import { endowIrregular, irregularSeat } from './objectives';
-import { allRegions, pointOfBuilding, regionFacts } from './regions';
+import { allRegions, pointOfBuilding, pointOfRegion, regionFacts } from './regions';
 import { coastPointNear, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
 import { concludeSeason } from './seasons';
@@ -274,7 +274,7 @@ export const commit = internalMutation({
         regionId: site.regionId,
         level: 1,
         outpostId: null,
-        ...(site.point === null ? {} : { point: site.point }),
+        point: site.point ?? pointOfRegion(site.regionId),
         /** **En Blitz rien n'est bâti** : ce que tient un joueur colore sa région comme une
          *  capture (`occupationsOf`), le QG de départ compris. Un neutre ne colore rien. */
         ...(site.owner === null ? { startedNeutral: true as const } : { capturedAt: now }),
@@ -296,8 +296,12 @@ export const commit = internalMutation({
         });
       }
       if (site.key !== 'hq') continue;
-      const point = pointOfBuilding({ regionId: site.regionId });
-      if (point !== null) await surveyFromPoint(ctx, site.owner, point, now);
+      await surveyFromPoint(
+        ctx,
+        site.owner,
+        pointOfBuilding({ point: pointOfRegion(site.regionId) }),
+        now,
+      );
     }
     await ctx.scheduler.runAfter(BLITZ.mend.stepMinutes * 60_000, internal.blitz.mend, {
       seasonId,

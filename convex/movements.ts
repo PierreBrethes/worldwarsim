@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
@@ -66,7 +67,12 @@ import {
   plunderAimOf,
   surveyedPlunderTarget,
   troopsAmong,
+  fuelBill,
 } from './movement/orders';
+import { resupply, toppedUp } from './supplies';
+import { holdsPoint } from './strategicPoints';
+import { arriveToDeliver, arriveToAirdrop } from './logistics';
+import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -597,14 +603,23 @@ export const preview = query({
     troopIds: v.array(v.id('troops')),
     target: ATTACK_TARGET,
     type: MOVEMENT_TYPE,
+    /** **Un largage** (ADR 0028 §4) : le plein de l'aller-retour, dit avant le lâcher. */
+    roundTrip: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target, type }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip }) => {
     const { player } = await playerOf(ctx, token, seasonId);
     if (type === 'decoy' || namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
-    const troops = await troopsAmong(ctx, player._id, troopIds);
+    const now = Date.now();
+    /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
+    const { troops, viaBaku } = await toppedUp(
+      ctx,
+      player._id,
+      await troopsAmong(ctx, player._id, troopIds),
+      now,
+    );
     const column = await columnOf(ctx, player._id, troops, departure);
     const pace = column.roles;
 
@@ -613,7 +628,6 @@ export const preview = query({
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 
-    const now = Date.now();
     const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     return {
@@ -629,6 +643,8 @@ export const preview = query({
       destinationName: name,
       originName: departure.name,
       route: routeFacts(route),
+      /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, viaBaku),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -674,12 +690,37 @@ const previewTroopsAt = async (
   const marching = new Set(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  return troops.length === troopIds.length &&
-    troops.every(
+  if (
+    troops.length !== troopIds.length ||
+    !troops.every(
       (troop) => sameStation(troop.stationedAt, departure.stationId) && !marching.has(troop._id),
     )
-    ? troops
-    : null;
+  )
+    return null;
+  /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
+  return toppedUp(ctx, playerId, troops, Date.now());
+};
+
+/** **Le plein que la route coûte** (ADR 0028 §3), et son refus avant le clic s'il manque. */
+const fuelFacts = async (
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  troops: ReadonlyArray<Doc<'troops'>>,
+  route: ComputedRoute,
+  column: { readonly blitz?: unknown },
+  roundTrip: boolean,
+  viaBaku: number,
+) => {
+  const { steps, short, km, freed } = fuelBill(
+    troops,
+    route.distanceUnits,
+    column.blitz !== undefined,
+    roundTrip,
+    await holdsPoint(ctx, player, 'singapore'),
+  );
+  /** **Bakou** et **Singapour** se disent à la carte : le plein repris sur le plateau personnel,
+   *  les camions et cargos qui roulent sans. */
+  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku > 0 };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -696,13 +737,14 @@ export const previewPlunder = query({
     const { player } = await playerOf(ctx, token, seasonId);
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
       plunderRefusalOf(
-        { kind: 'building', buildingId: target._id, key: target.key },
+        { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
         column.roles,
         false,
       ) !== null
@@ -729,6 +771,7 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -754,8 +797,9 @@ export const previewCapture = query({
     const { player, season } = await playerOf(ctx, token, seasonId);
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await captureAimOf(ctx, player, target);
     const route = routeBetween(
@@ -775,6 +819,7 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -814,8 +859,9 @@ export const previewLootCollection = query({
     }
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
-    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
-    if (troops === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const { troops, viaBaku } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await aimOf(ctx, player._id, { kind: 'point', point: sighting.point });
     if (refusalOf('march', aimed.aim, column) !== null) return null;
@@ -838,6 +884,7 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,
@@ -914,6 +961,28 @@ export const arrive = internalMutation({
      */
     await surveyAlongRoute(ctx, movement, now);
 
+    /** **Un pas de tournée** (ADR 0028) : il décharge et file au suivant, ou recharge et repart. */
+    if (movement.tourLeg !== undefined) {
+      if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
+      else await arriveAtBase(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    /** **Un largage lâche son paquet et rentre sans se poser** (ADR 0028 §4). */
+    if (movement.airdrop?.leg === 'out') {
+      await arriveToAirdrop(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    /** **Une livraison décharge et rentre** (ADR 0028 §4) ; sur un point perdu ou tombé entre-temps,
+     *  elle arrive comme une marche. */
+    if (movement.delivery !== undefined && (await arriveToDeliver(ctx, movement, now))) {
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
     /** A march that came to garrison a building enters it if it still stands and is still the
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
      *  journal says so in the plain words of an arrival. */
@@ -979,6 +1048,10 @@ export const arrive = internalMutation({
     }
 
     await forgetMovement(ctx, movementId);
+    /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
+     *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
+    const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
+    await resupply(ctx, movement.playerId, landed, now);
     await reassessDetection(ctx, movement.seasonId, now);
   },
 });

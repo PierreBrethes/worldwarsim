@@ -102,11 +102,11 @@ function SolidGlyph({
 
 type SolidGlyphProps = { size?: number; label: string };
 
-/** Un lingot, jamais la pile de trois du rail : la fiche dit un prix, pas un stock. */
-export function IngotGlyph({ size = 15, label }: SolidGlyphProps) {
+/** A plain coin: the price line says its own resources, so its mark must name none of them. */
+export function CoinGlyph({ size = 15, label }: SolidGlyphProps) {
   return (
     <SolidGlyph size={size} label={label}>
-      <path d="M3.4 17.4 L7.9 8.2 H16.1 L20.6 17.4 Z" />
+      <circle cx="12" cy="12" r="7.6" />
     </SolidGlyph>
   );
 }

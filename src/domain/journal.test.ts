@@ -77,6 +77,10 @@ describe('the journal', () => {
     expect(fired!.text).toMatch(/^bombardement .* notre tir en abat 30, sans riposte possible$/);
     expect(taken!.text).toMatch(/^bombardés .* leur tir en abat 30, aucune riposte possible$/);
     expect(taken!.kind).toBe('attacked');
+    const salvo = { ...struck, mine: { troops: 4, lost: 120, routed: 0, destroyed: 1 } };
+    expect(journalDispatches([salvo], null, [])[0]!.text).toMatch(
+      /^bombardés .* une salve venue d’on ne sait où touche 4 de nos troupes et en abat 120, aucune riposte possible · 1 détruite$/,
+    );
   });
 
   it('names the nation and the roles faced at the fire, on both sides (F1)', () => {
@@ -255,6 +259,27 @@ describe('the journal', () => {
     expect(transferred!.severity).toBe('routine');
   });
 
+  /** Une notice écrite avant le tirage n'a pas de `keys` : elle nomme les sept d'alors. */
+  it('names the first seven when the drawn notice carries no keys, and the drawn ones otherwise', () => {
+    const [old] = journalDispatches([], null, [{ kind: 'pointsDrawn', at: NOON }]);
+    expect(old!.text).toContain('Tanger');
+    const [drawn] = journalDispatches([], null, [
+      { kind: 'pointsDrawn', at: NOON, keys: ['baku', 'dakar'] },
+    ]);
+    expect(drawn!.text).toContain('Bakou et Dakar');
+  });
+
+  it('tells both sides of a depot burnt at Dakar', () => {
+    const lost = { ammunition: 40, oil: 0, coal: 0 };
+    const [mine, theirs] = journalDispatches([], null, [
+      { kind: 'depotBurned', at: NOON, side: 'holder', country: 'BEL', lost },
+      { kind: 'depotBurned', at: NOON, side: 'capturer', country: 'BEL', lost },
+    ]);
+    expect(mine!.kind).toBe('depotBurned');
+    expect(mine!.text).toContain('brûlé plutôt que de passer');
+    expect(theirs!.text).toContain('Dakar le garde');
+  });
+
   /** **La course se lit par toute la table** (P2) : qui prend quel point, là où il est. */
   it('says who takes which strategic point, where it stands', () => {
     const [taken] = journalDispatches([], null, [
@@ -385,5 +410,14 @@ describe('the combats a map toast announces', () => {
 
   it('starts from nothing on an empty journal', () => {
     expect(latestDispatchAt([])).toBe(0);
+  });
+});
+
+describe('a research card at its end', () => {
+  it('is a notable dispatch that names the card and what it opens', () => {
+    const [done] = journalDispatches([], null, [{ kind: 'researchDone', at: 1, card: 'armor' }]);
+    expect(done).toMatchObject({ kind: 'research', severity: 'notable' });
+    expect(done?.text).toContain('« Blindé »');
+    expect(done?.text).toContain('le blindé MK1');
   });
 });

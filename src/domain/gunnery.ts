@@ -1,7 +1,5 @@
 import { COMBAT_PROFILES, profileOf, type CombatProfile, type DamageTable } from './combat';
 import type { UnitRole, UnitTier } from './ids';
-import { blitzOnly } from './blitz';
-import type { SeasonMode } from './season-mode';
 import { landCostOf, motorized, routeModeOf } from './movement-orders';
 import { COST_BY_MEDIUM, type LandPace, type RouteMode } from './routing';
 import { ROLE_ORDER, TIERS_BY_ROLE } from './troops';
@@ -112,20 +110,13 @@ export type GunneryRow =
  * comme cibles, ce qu'ils sont par conception (`TRANSPORT_PROFILES`), et comme lignes, parce
  * qu'on les recrute et qu'un joueur venu chercher son cargo doit le trouver.
  */
-/** **Les profils qu'un mode connaît** : l'artillerie n'existe qu'en Blitz (lot 6b). */
-export const profilesFor = (mode: SeasonMode): ReadonlyArray<CombatProfile> =>
-  COMBAT_PROFILES.filter((profile) => mode === 'blitz' || !blitzOnly(PROFILE_UNITS[profile].role));
-
-export function gunneryRows(
-  table: DamageTable,
-  profiles: ReadonlyArray<CombatProfile> = COMBAT_PROFILES,
-): ReadonlyArray<GunneryRow> {
-  return profiles.map((attacker) => {
+export function gunneryRows(table: DamageTable): ReadonlyArray<GunneryRow> {
+  return COMBAT_PROFILES.map((attacker) => {
     if (Object.keys(table[attacker]).length === 0) return { attacker, fires: false };
     return {
       attacker,
       fires: true,
-      shots: profiles.map((defender) => {
+      shots: COMBAT_PROFILES.map((defender) => {
         const share = table[attacker][defender];
         return share === undefined
           ? { defender, reach: 'none' as const }

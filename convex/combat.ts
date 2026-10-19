@@ -17,7 +17,10 @@ import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
 import { push, journalUrl, reportUrl } from '../src/domain/push';
-import { debit, economyOf } from './resources';
+import { resupply } from './supplies';
+import { dropTransportCrate } from './crateStock';
+import { stopTour } from './tours';
+import { suppliesOf } from '../src/domain/supplies';
 import {
   combatCargoSnapshot,
   recoverDestroyedCombatCargo,
@@ -51,7 +54,7 @@ export type Resolution = {
  * A troop's hit points **are** its strength (ADR 0014), so the account is written in the same
  * unit the screen reads: 32 of 50 soldiers left.
  */
-const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
+export const combatantOf = (troop: Doc<'troops'>, sheltered = false): Combatant => ({
   id: troop._id,
   role: troop.role,
   tier: troop.tier,
@@ -120,54 +123,51 @@ export async function resolveContact(
     aboard?: ReadonlyArray<Doc<'troops'>>;
   },
 ): Promise<Resolution> {
-  /**
-   * **The magazine is read before the pass and paid after it** (question 18, settled 25/08).
-   * Ammunition is billed here and nowhere else — a troop costs nothing in rounds to raise, it
-   * costs rounds every time it fires — so this is the only place a stock and a strike meet.
-   *
-   * The debit cannot refuse: `resolveEngagement` has already clamped it to what the nation
-   * holds, and a camp that could not pay has already fired at `DRY_AMMUNITION_FACTOR`. An
-   * engagement is never declined for want of matter.
-   */
   const sheltered = await shelteredOf(ctx, defender, at);
-  /** **La Blitz ne tient pas de magasin** : sa seule ressource est les fonds, et l'on y tire
-   *  sans compter les coups. */
+  /**
+   * **Chaque troupe tire sur ses coups** (ADR 0028 §3) : celles qui se tiennent à l'ancre se
+   * rechargent d'abord sur le plateau personnel, puis chacune qui tire laisse un cran. À sec,
+   * ni frappe ni riposte. **La Blitz ne compte pas** : sa seule ressource est les fonds.
+   */
   const blitz = await isBlitz(ctx, seasonId);
-  const magazineOf = async (playerId: Id<'players'>) =>
-    blitz ? Infinity : (await economyOf(ctx, playerId, at)).stocks.ammunition;
+  attacker = { ...attacker, troops: await resupply(ctx, attacker.playerId, attacker.troops, at) };
+  defender = { ...defender, troops: await resupply(ctx, defender.playerId, defender.troops, at) };
+  const armed = (troop: Doc<'troops'>, shelter = false): Combatant => ({
+    ...combatantOf(troop, shelter),
+    ...(blitz ? {} : { rounds: suppliesOf(troop).rounds }),
+  });
   const engagement = resolveEngagement({
-    attackers: attacker.troops.map((troop) => combatantOf(troop)),
-    defenders: defender.troops.map((troop) => combatantOf(troop, sheltered(troop))),
-    ammunition: {
-      attacker: await magazineOf(attacker.playerId),
-      defender: await magazineOf(defender.playerId),
-    },
+    attackers: attacker.troops.map((troop) => armed(troop)),
+    defenders: defender.troops.map((troop) => armed(troop, sheltered(troop))),
     /** **Une Blitz ne déroute personne** (B15) : un pion seul tient ou tombe, quel que soit
      *  l'ordre qui l'a mis au feu — poursuite, capture ou objectif. */
     rules: blitz ? { ...COMBAT_RULES, routThreshold: 0 } : COMBAT_RULES,
     mode,
   });
+  const fired = new Set(blitz ? [] : engagement.fired);
+  const dry = new Set(engagement.dry);
 
-  for (const side of ['attacker', 'defender'] as const) {
-    const { spent, dry } = engagement.magazine[side];
-    const who = side === 'attacker' ? attacker.playerId : defender.playerId;
-    if (spent > 0 && !blitz) await debit(ctx, who, { ammunition: spent }, at);
-    /**
-     * **A side that could not pay struck at `DRY_AMMUNITION_FACTOR`**, and nothing else on the
-     * board says it: the account of the pass shows losses, never the reason for them, so a
-     * supply fault reads as a defeat. Dryness belongs to the side and not to a troop (design
-     * sheet 09), so it is one line for the whole pass.
-     */
-    if (dry) {
-      await ctx.db.insert('notices', {
-        playerId: who,
-        at,
-        kind: 'firedDry',
-        hostCountry,
-        point,
-      });
-      await notifyPlayer(ctx, who, { type: 'dryFire', phrase: push.dryFire, url: journalUrl, at });
-    }
+  /**
+   * **Une troupe à sec se dit à son propriétaire** : le compte de la passe montre des pertes,
+   * jamais leur raison, et une faute de ravitaillement se lirait comme une défaite.
+   */
+  for (const side of [attacker, defender]) {
+    const count = side.troops.filter((troop) => dry.has(troop._id)).length;
+    if (count === 0) continue;
+    await ctx.db.insert('notices', {
+      playerId: side.playerId,
+      at,
+      kind: 'firedDry',
+      hostCountry,
+      point,
+      troops: count,
+    });
+    await notifyPlayer(ctx, side.playerId, {
+      type: 'dryFire',
+      phrase: push.dryFire,
+      url: journalUrl,
+      at,
+    });
   }
 
   const byId = new Map<string, Doc<'troops'>>(
@@ -179,7 +179,11 @@ export async function resolveContact(
     const troop = byId.get(outcome.id);
     if (!troop) continue;
     if (outcome.state === 'destroyed') await ctx.db.delete(troop._id);
-    else await ctx.db.patch(troop._id, { currentStrength: outcome.strengthAfter });
+    else
+      await ctx.db.patch(troop._id, {
+        currentStrength: outcome.strengthAfter,
+        ...(fired.has(troop._id) ? { rounds: suppliesOf(troop).rounds - 1 } : {}),
+      });
   }
 
   /**
@@ -241,6 +245,7 @@ export async function resolveContact(
         strengthBefore: outcome.strengthBefore,
         strengthAfter: outcome.strengthAfter,
         state: outcome.state,
+        ...(dry.has(troop._id) ? { dry: true as const } : {}),
       };
     }),
   });
@@ -274,6 +279,30 @@ export async function resolveContact(
     at,
   });
   const routedCargo = cargoSettlement.homeward;
+
+  /**
+   * **Un ravitaillement s'intercepte** (ADR 0028 §4) : un transport détruit laisse sa charge en
+   * caisse au point de la passe, et une tournée dont le transport se replie finit — il rentre
+   * en déroute, pas au chargement.
+   */
+  // A crate rests on land only: at sea the deep takes the load, a truck's sunk aboard its cargo too.
+  const ashore = landAtPoint([point.lon, point.lat]);
+  for (const outcome of outcomes) {
+    const troop = byId.get(outcome.id)!;
+    const finderId = troop.playerId === attacker.playerId ? defender.playerId : attacker.playerId;
+    if (ashore && outcome.state === 'destroyed' && troop.load !== undefined)
+      await dropTransportCrate(ctx, {
+        seasonId,
+        engagementId,
+        ownerId: troop.playerId,
+        finderId,
+        load: troop.load,
+        point,
+        at,
+      });
+    if (outcome.state === 'routed' && troop.tour !== undefined)
+      await stopTour(ctx, troop, at, 'cut');
+  }
 
   /**
    * **The blow-by-blow hangs from the account, it is not part of it.** The report is read on

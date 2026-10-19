@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { RACE_HOLD_HOURS, clockVerdictOf, powerReady, raceLeaderOf } from './strategic-points';
+import {
+  DRAW_RULES,
+  POINTS_DRAWN,
+  POINT_TRAITS,
+  RACE_HOLD_HOURS,
+  RACE_TO_WIN,
+  STRATEGIC_POINT_KEYS,
+  clockVerdictOf,
+  drawHolds,
+  drawPoints,
+  powerReady,
+  raceLeaderOf,
+} from './strategic-points';
 
 /**
  * **La victoire de la Mondiale** (M1, M12, ADR 0027 §4) : quatre points sur sept tenus vingt-quatre
@@ -80,5 +92,51 @@ describe('a point power', () => {
     expect(powerReady(LAUNCH + 23 * HOUR, LAUNCH, 24, LAUNCH + 24 * HOUR)).toBe(true);
     expect(powerReady(LAUNCH + 1 * HOUR, LAUNCH, 3, LAUNCH + 2.9 * HOUR)).toBe(false);
     expect(powerReady(LAUNCH + 1 * HOUR, LAUNCH, 3, LAUNCH + 3 * HOUR)).toBe(true);
+  });
+});
+
+/** **Le tirage des points** : dix lieux au vivier, sept par saison, les contraintes tenues. */
+describe('the draw of the Seven', () => {
+  it('draws seven of the ten, whatever the seed, and every draw holds the constraints', () => {
+    expect(STRATEGIC_POINT_KEYS).toHaveLength(10);
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 5_000; seed += 1) {
+      const keys = drawPoints(seed);
+      expect(keys).toHaveLength(POINTS_DRAWN);
+      expect(drawHolds(keys)).toBe(true);
+      seen.add([...keys].sort().join());
+    }
+    // Several seeds, several tables: the draw is a draw.
+    expect(seen.size).toBeGreaterThan(10);
+  });
+
+  it('is the same for the same seed', () => {
+    expect(drawPoints(1234)).toEqual(drawPoints(1234));
+  });
+
+  it('keeps one leader at a time: two could hold four points each only among eight or more', () => {
+    expect(2 * RACE_TO_WIN).toBeGreaterThan(POINTS_DRAWN);
+  });
+
+  it('never leaves out the diversity: families, three stars at most, one star at least', () => {
+    for (let seed = 0; seed < 500; seed += 1) {
+      const traits = drawPoints(seed).map((key) => POINT_TRAITS[key]);
+      expect(new Set(traits.map((one) => one.family)).size).toBeGreaterThanOrEqual(
+        DRAW_RULES.minFamilies,
+      );
+      expect(traits.filter((one) => one.stars === 3).length).toBeLessThanOrEqual(
+        DRAW_RULES.maxThreeStars,
+      );
+      expect(traits.filter((one) => one.stars === 1).length).toBeGreaterThanOrEqual(
+        DRAW_RULES.minOneStar,
+      );
+    }
+  });
+
+  it('never draws Lisbon and Tangier together, which sit five hundred kilometres apart', () => {
+    for (let seed = 0; seed < 500; seed += 1) {
+      const keys = drawPoints(seed);
+      expect(keys.includes('lisbon') && keys.includes('tangier')).toBe(false);
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
-import { compassOf, type CompassTarget } from './compass-rose';
+import { compassOf, traceCompass, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
@@ -59,7 +59,7 @@ const view = {
     ),
   },
   buildCatalog: Object.fromEntries(
-    BUILDINGS.map((key) => [key, { cost: { steel: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
+    BUILDINGS.map((key) => [key, { cost: { steel: 10 }, minutes: 20, lockedBy: null }]),
   ) as Record<BuildingKey, BuildSpec>,
   outpostFoundation: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   arcs: [],
@@ -152,8 +152,11 @@ describe('radial menu', () => {
     expect(labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'ITA' })).toBeNull();
   });
 
-  it('withdraws the crane where a building already stands — nothing can go up there', () => {
-    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toBeNull();
+  /** **Une région ne compte plus rien** (ADR 0029) : un bâtiment debout n'y retire pas la grue. */
+  it('keeps the crane where a building already stands — the place is aimed at, not the region', () => {
+    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toEqual([
+      'Bâtir ici',
+    ]);
   });
 
   /** **Un point adverse ne se fait rien au repos** (décision du 31/08, inchangée le 16/09) : il
@@ -403,6 +406,207 @@ describe('in aim', () => {
       aim: { kind: 'outpost', outpostId: 'AP-01' },
     });
     expect(outpost?.refusal).toBeNull();
+  });
+
+  /** **Livrer** (ADR 0028 §4) : un transport chargé lâché sur son point y livre d'abord ; Tab
+   *  rend la garnison. Un dépôt plein le dit, et ne laisse pas entrer. */
+  describe('a loaded transport over its outpost', () => {
+    const trucking = { ...column, roles: ['landTransport' as const] };
+    const withTruck = (depot: number) =>
+      ({
+        ...view,
+        me: {
+          ...view.me,
+          troops: [
+            {
+              id: 'T1',
+              role: 'landTransport',
+              tier: 1,
+              load: { ammunition: 60, oil: 0, coal: 0 },
+              stationedAt: { kind: 'building', buildingId: 'HQ' },
+            },
+          ],
+          outposts: view.me.outposts.map((outpost) => ({
+            ...outpost,
+            depot: { ammunition: depot, oil: 0, coal: 0 },
+            depotCapacity: 400,
+          })),
+        },
+      }) as unknown as PlayerView;
+    const target = {
+      kind: 'outpost',
+      id: 'AP-01',
+      hostCountry: 'NOR',
+      name: 'relais',
+      coastal: false,
+    } as const;
+
+    it('offers to deliver before the garrison', () => {
+      const compass = compassOf(target, withTruck(0), trucking, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).toEqual(['deliver', 'aim']);
+    });
+
+    it('says a full depot instead', () => {
+      const compass = compassOf(target, withTruck(400), trucking, null, 0, ['T1']);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe('le dépôt est plein : 400 au total');
+    });
+
+    /** **La tournée part d'un point de chargement** : au QG, elle s'ajoute à « livrer ». */
+    const atHq = (depot: number) => {
+      const base = withTruck(depot);
+      return {
+        ...base,
+        me: { ...base.me, buildings: [{ id: 'HQ', key: 'hq', regionId: 'FRA-5333', level: 1 }] },
+      } as unknown as PlayerView;
+    };
+
+    it('offers to trace a tour from a loading point, even past a full depot', () => {
+      expect(
+        compassOf(target, atHq(0), trucking, null, 0, ['T1'])?.actions.map((action) => action.key),
+      ).toEqual(['deliver', 'tour', 'aim']);
+      expect(
+        compassOf(target, atHq(400), trucking, null, 0, ['T1'])?.actions.map(
+          (action) => action.key,
+        ),
+      ).toEqual(['tour']);
+    });
+
+    it('says a transport on tour takes no other order', () => {
+      const base = atHq(0);
+      const touring = {
+        ...base,
+        me: {
+          ...base.me,
+          troops: base.me.troops.map((troop) => ({
+            ...troop,
+            tour: { baseId: 'HQ', stops: ['AP-01'], waiting: null, recalled: false, skipped: [] },
+          })),
+        },
+      } as unknown as PlayerView;
+      const compass = compassOf(target, touring, trucking, null, 0, ['T1']);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe('ce transport est en tournée : rappelez-le d’abord');
+    });
+
+    it('adds stops while tracing, never the same twice', () => {
+      const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
+      expect(traced.actions).toEqual([]);
+      expect(traced.refusal).toBe('ce dépôt est déjà un arrêt de la tournée');
+    });
+  });
+
+  /** **Larguer** (ADR 0028 §4) : un avion chargé ne se pose qu'à une escale, mais il largue sur
+   *  n'importe lequel de ses avant-postes, et sur une escouade isolée. */
+  describe('a loaded plane', () => {
+    const flying = {
+      ...column,
+      roles: ['airTransport' as const],
+      departureBuildings: new Set<BuildingKey>(['airfield']),
+    };
+    const plane = {
+      id: 'P1',
+      role: 'airTransport',
+      tier: 1,
+      load: { ammunition: 60, oil: 0, coal: 0 },
+      stationedAt: { kind: 'building', buildingId: 'AF' },
+    };
+    const lone = (anchored: boolean, rounds = 0) => ({
+      id: 'S1',
+      role: 'infantry',
+      tier: 1,
+      supplies: { rounds, fuel: 0 },
+      stationedAt: {
+        kind: 'point' as const,
+        lonLat: [9, 52] as const,
+        country: 'DEU',
+        afloat: false,
+        coastal: false,
+      },
+      ...(anchored ? { anchored: true } : {}),
+    });
+    const withTroops = (depotLevel: number, ...others: object[]) =>
+      ({
+        ...view,
+        me: {
+          ...view.me,
+          troops: [plane, ...others],
+          outposts: view.me.outposts.map((outpost) => ({
+            ...outpost,
+            level: depotLevel,
+            depot: { ammunition: 0, oil: 0, coal: 0 },
+            depotCapacity: 400,
+          })),
+        },
+      }) as unknown as PlayerView;
+    const outpost = {
+      kind: 'outpost',
+      id: 'AP-01',
+      hostCountry: 'NOR',
+      name: 'relais',
+      coastal: false,
+    } as const;
+    const squad = {
+      kind: 'force',
+      id: 'S1-stack',
+      onLand: true,
+      country: 'DEU',
+      name: 'escouade',
+      headcount: 1,
+      station: lone(false).stationedAt,
+      regionId: null,
+    } as const;
+
+    it('drops on an outpost with no airstrip, and delivers only on an air stop', () => {
+      expect(
+        compassOf(outpost, withTroops(1), flying, null, 0, ['P1'])?.actions.map(
+          (action) => action.key,
+        ),
+      ).toEqual(['airdrop']);
+      expect(
+        compassOf(outpost, withTroops(2), flying, null, 0, ['P1'])?.actions.map(
+          (action) => action.key,
+        ),
+      ).toEqual(['deliver', 'airdrop', 'aim']);
+    });
+
+    it('offers nothing when the march itself is illegal, nor in a Blitz, and says why on a mixed column', () => {
+      const keys = (compass: ReturnType<typeof compassOf>) => compass?.actions.map((a) => a.key);
+      const grounded = { ...flying, departureBuildings: new Set<BuildingKey>(['barracks']) };
+      expect(keys(compassOf(outpost, withTroops(1), grounded, null, 0, ['P1']))).not.toContain(
+        'airdrop',
+      );
+      // a Blitz serves no load: the plane carries nothing to drop
+      const unloaded = { ...plane, load: undefined };
+      const blitz = withTroops(1);
+      (blitz.me.troops as unknown as object[])[0] = unloaded;
+      expect(keys(compassOf(outpost, blitz, flying, null, 0, ['P1']))).not.toContain('airdrop');
+      const truck = { id: 'T1', role: 'landTransport', tier: 1, stationedAt: plane.stationedAt };
+      const mixed = withTroops(1, truck);
+      expect(
+        keys(
+          compassOf(
+            outpost,
+            mixed,
+            { ...flying, roles: ['airTransport', 'landTransport'] },
+            null,
+            0,
+            ['P1', 'T1'],
+          ),
+        ),
+      ).not.toContain('airdrop');
+    });
+
+    it('drops on a lone squad that lacks rounds, and says why not on an anchored or a full one', () => {
+      const far = { kind: 'building', buildingId: 'AF' } as const;
+      const at = (...troops: object[]) =>
+        compassOf(squad, withTroops(1, ...troops), flying, far, 0, ['P1']);
+      expect(at(lone(false))?.actions.map((action) => action.key)).toContain('airdrop');
+      expect(at(lone(true))?.refusal).toBe(
+        'cette escouade est ancrée : elle se recharge seule, sans paquet',
+      );
+      expect(at(lone(false, 3))?.refusal).toContain('rien à reprendre');
+    });
   });
 
   /** **Un point adverse ne bouge pas** : la plate de visée d'aujourd'hui, assaut et raid, et pas
@@ -1048,6 +1252,7 @@ describe('raising a level from the map', () => {
     key: 'mine' as BuildingKey,
     name: 'Mine',
     regionId: 'FRA-9999',
+    point: [3, 50] as const,
     level: 1,
     nextLevelCost: { steel: 54 } as Cost,
     nextLevelMinutes: 54,
@@ -1072,13 +1277,13 @@ describe('raising a level from the map', () => {
     const compass = compassOf(mast, standing({}));
     expect(compass?.kicker).toBe('bâtiment · niveau 1');
     expect(compass?.name).toBe('Mine');
-    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'build', 'demolish']);
     expect(compass?.actions[0]).toMatchObject({
       pictogram: 'chevron',
       label: 'améliorer',
       buildingKey: 'mine',
       regionId: 'FRA-9999',
-      figure: '54',
+      figure: { steel: 54 },
       bill: [{ text: 'acier 54 / 1000', lacking: false }],
       duration: '00:54:00',
       consequence: 'passer Mine au niveau 2',
@@ -1112,19 +1317,27 @@ describe('raising a level from the map', () => {
       mast,
       standing(
         {},
-        { construction: { regionId: 'FRA-9999', key: 'mine', outpostId: null, minutesLeft: 10 } },
+        {
+          construction: {
+            regionId: 'FRA-9999',
+            key: 'mine',
+            outpostId: null,
+            point: [3, 50],
+            minutesLeft: 10,
+          },
+        },
       ),
     );
     /** Raser ne dépend d'aucune file : ce qu'on efface n'attend pas son tour. */
-    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
     expect(compass?.refusal).toBe(
-      'un chantier vise déjà cette région — annulez-le ou attendez son tour',
+      'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
     );
   });
 
   it('withdraws it under the headquarters ceiling, with the ceiling’s own sentence', () => {
     const compass = compassOf(mast, standing({ cappedByHq: true }));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
     expect(compass?.refusal).toBe('plafonné par le QG — montez le quartier général d’abord');
   });
 
@@ -1161,7 +1374,7 @@ describe('raising a level from the map', () => {
     /** L'ordre est celui de `RESOURCES`, comme la ligne d'élévation des fenêtres facture déjà
      *  (`CostLine`) : le même prix lu à deux endroits ne doit pas s'écrire dans deux ordres. */
     expect(compass?.actions[0]).toMatchObject({
-      figure: '108 · 72',
+      figure: { steel: 108, coal: 72 },
       bill: [
         { text: 'acier 108 / 1000', lacking: false },
         { text: 'charbon 72 / 20', lacking: true },
@@ -1365,6 +1578,18 @@ describe('the bombardment on the rose', () => {
     } as unknown as PlayerView;
     expect(compassOf(camp(ROUEN), aboard, rule, afloat as never, 0, ['G-1'], NOW)?.refusal).toBe(
       fr.errors.ABOARD(),
+    );
+  });
+  /** **En Mondiale** (4.10) : des kilomètres, des salves en crans, et l'escouade mêlée attaque. */
+  it('fires in a Mondiale, out of rounds says so, and a mixed squad attacks instead', () => {
+    const mondiale = { ...gunner(), mode: 'mondiale', theatre: null } as unknown as PlayerView;
+    const open = { ...rule, blitz: undefined };
+    const at = (column: object) =>
+      compassOf(camp(ROUEN), mondiale, column as never, battery as never, 0, ['G-1'], NOW);
+    expect(at(open)?.actions.map((action) => action.key)).toEqual(['bombard']);
+    expect(at({ ...open, outOfRounds: true })?.refusal).toBe(fr.errors.NO_ROUNDS());
+    expect(at({ ...open, roles: ['artillery', 'infantry'] })?.actions ?? []).not.toContainEqual(
+      expect.objectContaining({ key: 'bombard' }),
     );
   });
 });

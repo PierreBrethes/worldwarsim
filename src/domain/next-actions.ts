@@ -11,6 +11,7 @@ import { distanceKm, type LonLat } from './geo';
 import { type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
+import { shownStepOf } from './first-steps';
 
 /**
  * **Ce qui a une position ne vit pas dans un panneau** (décision Pierre, 30/08). Le widget de
@@ -37,7 +38,7 @@ export type NextActionKind =
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
-export type NextActionSurface = 'economy';
+export type NextActionSurface = 'personalBoard';
 
 /**
  * Où la ligne mène. `unfold` est la fondation et elle seule : elle ne mène nulle part parce que
@@ -203,7 +204,7 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'idleSite',
           kind: 'idleSite',
           label: fr.nextActions.idleSite,
-          targets: [{ kind: 'surface', surface: 'economy' }],
+          targets: [{ kind: 'surface', surface: 'personalBoard' }],
         },
       ];
 
@@ -375,3 +376,8 @@ function pointOfStation(view: PlayerView, station: TroopStation): LonLat {
   }
   return view.me.homePosition;
 }
+
+/** **Ce que compte « à faire »** — les attentes, et le pas des premiers pas qui est à l'affiche :
+ *  le carré du bureau et le coin du téléphone lisent ce seul compte. */
+export const todoCountOf = (view: PlayerView): number =>
+  nextActionsOf(view).length + (shownStepOf(view) === null ? 0 : 1);

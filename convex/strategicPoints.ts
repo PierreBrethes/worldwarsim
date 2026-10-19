@@ -7,13 +7,14 @@ import {
   ISTANBUL_PERIOD_HOURS,
   RACE_HOLD_HOURS,
   STRATEGIC_POINTS,
-  STRATEGIC_POINT_KEYS,
+  drawPoints,
   TANGIER_LOT,
   TANGIER_PERIOD_HOURS,
   powerReady,
   raceLeaderOf,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
+import { canonicalBuildingKey } from '../src/domain/ids';
 import { fail } from './errors';
 import { emptyStocks } from '../src/domain/economy';
 import { creditToStorage, debit, economyOf } from './resources';
@@ -22,27 +23,72 @@ import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
 
 /**
- * **Les sept, posés neutres au lancement d'une Mondiale** (P11), et annoncés à toute la table —
- * la une des Sept au jour 0. Chacun sur la région de son lieu, lue sur la même grille que la
- * route : c'est elle que la prise colore.
+ * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
+ * (P11), et annoncés à toute la table — la une des Sept au jour 0. Chacun sur la région de son
+ * lieu, lue sur la même grille que la route : c'est elle que la prise colore.
  */
 export async function layOut(ctx: MutationCtx, seasonId: Id<'seasons'>, at: number): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  const drawn = drawPoints(season?.seed ?? 0);
   for (const seat of await seatsOf(ctx, seasonId)) {
-    await ctx.db.insert('notices', { playerId: seat._id, at, kind: 'pointsDrawn' });
-  }
-  for (const key of STRATEGIC_POINT_KEYS) {
-    const [lon, lat] = STRATEGIC_POINTS[key];
-    const regionId = regionAtRoutePoint([lon, lat]);
-    if (regionId === null) continue;
-    await ctx.db.insert('strategicPoints', {
-      seasonId,
-      key,
-      regionId,
-      point: { lon, lat },
-      holderId: null,
-      heldSince: null,
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at,
+      kind: 'pointsDrawn',
+      keys: [...drawn],
     });
   }
+  for (const key of drawn) await layPoint(ctx, seasonId, key);
+}
+
+/**
+ * **Un point posé neutre sur la région de son lieu**, s'il ne l'est pas déjà : la région est lue
+ * sur la même grille que la route, c'est elle que la prise colore. Les scènes de démo et les
+ * suites de règles posent ainsi un point que le tirage n'a pas désigné.
+ */
+export async function layPoint(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  key: StrategicPointKey,
+): Promise<Doc<'strategicPoints'> | null> {
+  const existing = (await seasonPoints(ctx, seasonId)).find((point) => point.key === key);
+  if (existing !== undefined) return existing;
+  const [lon, lat] = STRATEGIC_POINTS[key];
+  const regionId = regionAtRoutePoint([lon, lat]);
+  if (regionId === null) return null;
+  const id = await ctx.db.insert('strategicPoints', {
+    seasonId,
+    key,
+    regionId,
+    point: { lon, lat },
+    holderId: null,
+    heldSince: null,
+  });
+  return ctx.db.get(id);
+}
+
+/**
+ * **Qui tient un point, lu au moment de s'en servir** : la règle d'un point s'applique dès la prise
+ * et s'éteint à la perte, donc personne ne la garde en mémoire — chaque règle relit son teneur.
+ */
+export async function holdsPoint(
+  ctx: QueryCtx,
+  player: Pick<Doc<'players'>, '_id' | 'seasonId'>,
+  key: StrategicPointKey,
+): Promise<boolean> {
+  return (await seasonPoints(ctx, player.seasonId)).some(
+    (point) => point.key === key && point.holderId === player._id,
+  );
+}
+
+/** **Dakar** : un entrepôt du teneur du point, dont les réserves ne se pillent pas. */
+export async function sealedByDakar(
+  ctx: QueryCtx,
+  building: Pick<Doc<'buildings'>, 'key' | 'playerId'>,
+): Promise<boolean> {
+  if (canonicalBuildingKey(building.key) !== 'warehouse') return false;
+  const owner = await ctx.db.get(building.playerId);
+  return owner !== null && (await holdsPoint(ctx, owner, 'dakar'));
 }
 
 export const seasonPoints = (

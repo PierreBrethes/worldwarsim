@@ -1,7 +1,11 @@
+import type { LineKey } from '../../convex/constants';
+import type { SupplyLoad } from './logistics';
+import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { RunningResearch } from './research';
 import type { StrategicPointKey } from './strategic-points';
 import type {
   BuildCostKey,
@@ -9,12 +13,15 @@ import type {
   DepositKey,
   Detector,
   MovementType,
+  ResearchCard,
   ResourceKey,
   Specialization,
   UnitRole,
   UnitTier,
 } from './ids';
 import type { ChainState } from './economy';
+import type { BoardRead } from './harvest';
+import type { FirstSteps } from './first-steps';
 import type { ComputedRoute } from './routing';
 import type { ResourceAmounts } from './loot';
 
@@ -89,7 +96,12 @@ export type ArcView =
       readonly troopIds: ReadonlyArray<string>;
       /** Exact cargo and mission data exist only on the owner's branch of the arc union. */
       readonly cargo?: CargoView;
+      /** **Une livraison** (ADR 0028 §4) : la marche d'un transport vers un de mes dépôts. */
+      readonly delivery?: true;
       readonly mission?: OwnMovementMission;
+      /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
+       *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
+      readonly airdrop?: 'out' | 'back';
       readonly minutesLeft: number;
       /**
        * An arrival falling inside the target's rest window stalls the movement at the
@@ -269,14 +281,37 @@ export type TroopView = {
   /**
    * **Whether it is fed at the plain rate** (ADR 0019 §4): on national soil, or inside the reach
    * of one of its owner's standing outposts. `false` is a troop eating
-   * `UPKEEP_UNSUPPLIED_MULTIPLIER` times the flat rate, and it travels per troop because that is
+   * `UPKEEP_UNSUPPLIED_MULTIPLIER` times the plain rate, and it travels per troop because that is
    * where the player looks — a surcharge only visible on an accounting screen is the invisible
    * punishment D3 refused for attrition.
    */
   readonly supplied: boolean;
+  /** **Le dépôt où elle se recharge** (ADR 0028 §3) : l'avant-poste dont elle se tient dans le
+   *  rayon, hors du sol national ; absent, le plateau personnel (ou nulle part si non ancrée). */
+  readonly depotId?: string;
+  /** **Ses coups et son plein, en crans** (ADR 0028 §3) : absents en Blitz, où rien ne se
+   *  compte. Repris à l'ancre ; ailleurs, elle vit sur ce qu'elle porte. */
+  readonly supplies?: Supplies;
+  /** **Son plein est gratuit** (Singapour) : un camion ou un cargo de celui qui tient le point ;
+   *  la pièce ne montre alors pas de jerrican. */
+  readonly fuelFree?: true;
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
+  /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
+  readonly load?: SupplyLoad;
+  /** **Ancrée** (ADR 0028 §3) : elle se recharge à l'ancre. Absent en Mondiale, c'est une
+   *  escouade isolée, que seul un largage ravitaille ; la Blitz ne compte rien. */
+  readonly anchored?: true;
+  /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, pourquoi elle
+   *  attend au chargement, si elle finit, rappelée, et les dépôts pleins que ce tour saute. */
+  readonly tour?: {
+    readonly baseId: string;
+    readonly stops: ReadonlyArray<string>;
+    readonly waiting: TourWait | null;
+    readonly recalled: boolean;
+    readonly skipped: ReadonlyArray<string>;
+  };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
   /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
@@ -284,6 +319,17 @@ export type TroopView = {
   /** **Il se soigne** (Blitz) : entamé, sur un bâtiment à soi, et les fonds paient le pas. */
   readonly mending: boolean;
 };
+
+/** **Pourquoi une tournée attend** au chargement : le plateau personnel manque de `resource`,
+ *  tous ses dépôts sont pleins, ou sa route est refusée. */
+export type TourWait = {
+  readonly why: 'stock' | 'full' | 'road';
+  readonly resource?: ResourceKey;
+};
+
+/** **Pourquoi une tournée finit** : rappelée, coupée (chargement ou dépôts perdus, déroute,
+ *  chute), ou sa route refusée trop longtemps. */
+export type TourEnd = 'recalled' | 'cut' | 'road';
 
 export type OutpostView = {
   readonly id: string;
@@ -327,6 +373,12 @@ export type OutpostView = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly atMaxLevel: boolean;
+  /** **Son dépôt** (ADR 0028 §4) : munitions, pétrole et charbon, et la charge maximale qu'ils
+   *  se partagent (`depotCapacity`). Le point est à moi : le brouillard ne sert rien d'autre. */
+  readonly depot: SupplyLoad;
+  readonly depotCapacity: number;
+  /** **Un point sur la côte** (grille de routage du serveur) : un cargo en repart. */
+  readonly coastal: boolean;
 };
 
 /**
@@ -383,6 +435,8 @@ export type CombatTally = {
   readonly lost: number;
   readonly routed: number;
   readonly destroyed: number;
+  /** **À sec** (ADR 0028 §1) : elles auraient tiré, et n'avaient plus de coups. */
+  readonly dry?: number;
 };
 
 /** One kind of troop engaged — role and mark — and what it brought (`strength`, men and
@@ -433,10 +487,15 @@ type UpkeepView = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, at the raised rate. */
   readonly unsupplied: number;
+  /** Food an hour the army takes, by steps (ADR 0028 §2), the raised rate already applied. */
   readonly foodPerHour: number;
-  /** Combien de points l'empire tient. **Il n'en coûte plus rien** : l'entretien d'avant-poste a
-   *  été retiré le 15/09 (révision de l'ADR 0020 §10), le frein est le prix à la fondation puis
-   *  à chaque élévation. Le compte reste servi parce qu'il se lit, pas parce qu'il se paie. */
+  /** Food an hour the standing outposts take, by level. */
+  readonly outpostFoodPerHour: number;
+  /** Coal an hour the listening posts burn. */
+  readonly listeningCoalPerHour: number;
+  /** The listening posts have no coal left: they file nothing until it comes back. */
+  readonly listeningSilent: boolean;
+  /** How many outposts stand. */
   readonly outposts: number;
 };
 
@@ -462,12 +521,8 @@ export type Building = {
   readonly key: BuildingKey;
   readonly name: string;
   readonly regionId: string;
-  /**
-   * **Its own ground, when its region's is not where it stands** — the port and nothing else
-   * (ADR 0013, revision of 04/09): the coast point the player picked, served by the server and
-   * never recomputed here. `null` hangs the mast on the region, exactly as before.
-   */
-  readonly point: LonLat | null;
+  /** **Where it stands** (ADR 0029 §1): the point aimed at its placement, never moved since. */
+  readonly point: LonLat;
   readonly level: number;
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
@@ -497,8 +552,16 @@ export type ChainView = {
   /** The standing lot — `null` when none was ever placed. `produced === ordered` is a lot
    *  delivered, kept so the surface can say so rather than falling silent. */
   readonly order: { readonly ordered: number; readonly produced: number } | null;
-  /** The largest lot the input reserve allows right now, in units of output. */
-  readonly maxOrder: number;
+  /** Every line the chain can run, by what it makes. `lockedBy` is the card still missing: the
+   *  surface says it before the gesture, the server refuses with the same one. `maxOrder` is the
+   *  largest lot the input reserve allows right now, in units of output. */
+  readonly lines: ReadonlyArray<{
+    readonly output: LineKey;
+    readonly inputs: ReadonlyArray<{ readonly resource: ResourceKey; readonly quantity: number }>;
+    readonly nominalPerHour: number;
+    readonly lockedBy: ResearchCard | null;
+    readonly maxOrder: number;
+  }>;
 };
 
 /** One exploitation and its yield. `deposit` is what the region holds — a building over a
@@ -516,14 +579,13 @@ type ExtractionSiteView = {
 
 /**
  * What a first level of a building costs and takes, per key: the construction panel's price
- * list. `unlockedAtHqLevel` travels with the price because it decides the same thing — whether
- * a line exists at all — and a client-side copy of the tier table is how the panel and the
- * server stop refusing the same things.
+ * list. `lockedBy` travels with the price because it decides the same thing — whether a tile goes
+ * down at all — and it is the very card the server refuses with (`buildingLockOf`).
  */
 export type BuildSpec = {
   readonly cost: Cost;
   readonly minutes: number;
-  readonly unlockedAtHqLevel: number;
+  readonly lockedBy: ResearchCard | null;
 };
 
 /**
@@ -534,7 +596,6 @@ export type BuildSpec = {
 export type RegionView = {
   readonly id: string;
   readonly name: string;
-  readonly deposit: DepositKey | null;
   readonly coastal: boolean;
   /** Where the region stands, as every rule of the game measures it (`regionFacts`) — never the
    *  centroid the map draws its polygon around, which is a different point. */
@@ -568,8 +629,8 @@ type RunningWork = {
   readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
-  /** The quay a port was ordered on — the crane stands there from the queue, not from the
-   *  moment it is finished. `null` for everything that hangs from its region. */
+  /** The point a building is ordered on — the crane stands there from the queue, not from the
+   *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
 };
@@ -581,6 +642,8 @@ export type QueuedWork = {
   readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
+  /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
+  readonly point: LonLat | null;
   readonly level: number;
 };
 
@@ -597,6 +660,7 @@ export type DispatchSeverity = 'critical' | 'notable' | 'routine';
 export type DispatchKind =
   | 'seasonConcluded'
   | 'pointTaken'
+  | 'depotBurned'
   /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
   | 'assault'
   | 'attacked'
@@ -622,6 +686,12 @@ export type DispatchKind =
    *  la marge dise lequel des deux on lit. */
   | 'campSighted'
   | 'firedDry'
+  /** **La logistique** (ADR 0028 §4) : une livraison posée, une tournée qui attend. */
+  | 'supply'
+  /** **Un largage** (ADR 0028 §4) : le paquet est descendu. */
+  | 'airdrop'
+  /** **Une carte de recherche achevée** (ADR 0028 §5). */
+  | 'research'
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
@@ -670,6 +740,7 @@ type NoticeBody =
       readonly at: number;
       readonly building: BuildCostKey;
       readonly regionName: string;
+      readonly reason?: 'depositTaken' | 'tooClose';
     }
   | {
       readonly kind: 'constructionFinished';
@@ -687,6 +758,7 @@ type NoticeBody =
       readonly regionName: string;
       readonly level: number;
     }
+  | { readonly kind: 'researchDone'; readonly at: number; readonly card: ResearchCard }
   | {
       readonly kind: 'recruitmentDelivered';
       readonly at: number;
@@ -812,7 +884,38 @@ type NoticeBody =
       readonly detector: Detector;
       readonly detectorRegion: string | null;
     }
-  | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  | {
+      readonly kind: 'firedDry';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly troops?: number;
+    }
+  | ({
+      readonly kind: 'tourWaiting';
+      readonly at: number;
+      readonly role: UnitRole;
+    } & TourWait)
+  | {
+      readonly kind: 'tourEnded';
+      readonly at: number;
+      readonly role: UnitRole;
+      readonly why: TourEnd;
+    }
+  | {
+      readonly kind: 'supplyDelivered';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
+      readonly kept: SupplyLoad;
+    }
+  | {
+      readonly kind: 'airdropped';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
+      readonly kept: SupplyLoad;
+      readonly squad?: boolean;
+    }
   /** Blitz : la cible poursuivie est sortie de notre vue (B18). */
   | { readonly kind: 'pursuitLost'; readonly at: number; readonly hostCountry: string }
   /**
@@ -854,7 +957,19 @@ type NoticeBody =
       readonly key: StrategicPointKey;
       readonly nation: string;
     }
-  | { readonly kind: 'pointsDrawn'; readonly at: number }
+  | {
+      readonly kind: 'pointsDrawn';
+      readonly at: number;
+      readonly keys?: ReadonlyArray<StrategicPointKey>;
+    }
+  /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
+  | {
+      readonly kind: 'depotBurned';
+      readonly at: number;
+      readonly side: 'capturer' | 'holder';
+      readonly country: string;
+      readonly lost: SupplyLoad;
+    }
   /** Istanbul (P11) : au teneur, le télégramme lu ; aux correspondants, le fait sans le texte. */
   | {
       readonly kind: 'readAtIstanbul';
@@ -894,7 +1009,7 @@ type NoticeBody =
       readonly at: number;
       readonly building: BuildingKey;
       readonly regionName: string;
-      readonly reason: 'gone' | 'disabled';
+      readonly reason: 'gone' | 'disabled' | 'sealed';
     }
   | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
   | {
@@ -1128,8 +1243,15 @@ export type PlayerView = {
     readonly slots: { readonly total: number; readonly used: number };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
-    /** The headquarters level that opens mark 2 in this format — served, never derived here. */
-    readonly tier2HqLevel: number;
+    /**
+     * **Ma recherche** (ADR 0028 §5) : les cartes acquises, et celle que mon QG porte — elle
+     * attend (`since: null`) quand le QG manque. Jamais servie qu'à moi : l'adversaire ne la
+     * devine qu'en relevant mes pièces.
+     */
+    readonly research: {
+      readonly researched: ReadonlyArray<ResearchCard>;
+      readonly running: RunningResearch | null;
+    };
     /**
      * The buildings the season still owes, in placement order — placed for nothing and at
      * once, wherever the player decides. Empty once the foundation stands.
@@ -1196,7 +1318,7 @@ export type PlayerView = {
   readonly outpostFoundation: { readonly cost: Cost; readonly minutes: number };
   /**
    * **Ce qu'un niveau d'entrepôt ajoute aux huit plafonds** (stockage unifié, 09/09). Servi
-   * plutôt que recopié pour la raison de `tier2HqLevel` juste au-dessus : la popin qui annonce
+   * plutôt que recopié : la popin qui annonce
    * l'écrêtage d'un entrepôt rasé et le serveur qui l'applique doivent soustraire le **même**
    * nombre, et une copie cliente est exactement la façon dont ils cessent d'être un seul.
    */
@@ -1206,6 +1328,10 @@ export type PlayerView = {
     readonly id: string;
     readonly key: Exclude<BuildingKey, 'depot'>;
     readonly regionId: string;
+    /** Where it stood when seen (ADR 0029): its mast, and the point a capture marches at. */
+    readonly point: LonLat;
+    /** Un entrepôt du teneur de Dakar : ses réserves ne se pillent pas (`SEALED`). */
+    readonly sealed?: true;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{
@@ -1244,6 +1370,10 @@ export type PlayerView = {
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;
   readonly journal: ReadonlyArray<JournalDispatch>;
+  /** The last opening of the personal board, `null` before the first: what its harvest reads. */
+  readonly boardRead: BoardRead | null;
+  /** **Mes premiers pas** (ADR 0027 §2), gardés par ma place. */
+  readonly firstSteps: FirstSteps;
   readonly opponents: ReadonlyArray<Opponent>;
   readonly coverage: { readonly visible: number; readonly total: number };
   readonly loadedAt: number;

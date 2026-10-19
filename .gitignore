@@ -27,3 +27,6 @@ ds-bundle/
 
 # Cache de compilation TypeScript, jamais une source.
 *.tsbuildinfo
+
+# Comptes de démo locaux (mot de passe en clair) : scripts/demo-mondiale.mjs.
+scripts/demo-mondiale.accounts.json

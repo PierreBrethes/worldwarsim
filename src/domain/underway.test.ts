@@ -11,9 +11,12 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
     loadedAt: LOADED,
     me: {
       construction: null,
-      buildings: [{ id: 'B-1', key: 'mine', name: 'Mine', regionId: 'FRA-1', level: 3 }],
+      buildings: [
+        { id: 'B-1', key: 'mine', name: 'Mine', regionId: 'FRA-1', point: [3, 50], level: 3 },
+      ],
       outposts: [],
       chains: [],
+      research: { researched: [], running: null },
       ...over,
     },
   }) as unknown as PlayerView;
@@ -33,6 +36,27 @@ const march = (id: string, minutesLeft: number, over: Partial<ArcView> = {}): Ar
 const minutes = (count: number) => LOADED + count * 60_000;
 
 describe('what runs, nearest first', () => {
+  it('dates the card the headquarters carries, and leaves one waiting for it undated', () => {
+    const hq = { id: 'B-0', key: 'hq', name: 'QG', regionId: 'FRA-1', point: [2, 48], level: 1 };
+    const running = { card: 'armor', remainingMs: 60 * 60_000, since: LOADED } as const;
+    const lines = underwayOf(
+      board({ buildings: [hq], research: { researched: [], running } } as never),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.endsAt])).toEqual([
+      ['research', LOADED + 60 * 60_000],
+    ]);
+    expect(
+      underwayOf(
+        board({
+          buildings: [hq],
+          research: { researched: [], running: { ...running, since: null } },
+        } as never),
+        [],
+      ),
+    ).toEqual([]);
+  });
+
   it('says nothing when nothing runs', () => {
     expect(underwayOf(board(), [])).toEqual([]);
   });
@@ -47,6 +71,17 @@ describe('what runs, nearest first', () => {
       place: { kind: 'movement', arcId: 'M-1' },
       moving: true,
     });
+  });
+
+  it('calls a plane flying out to drop a packet a drop, and its way home a return', () => {
+    const lines = underwayOf(
+      board({}, [
+        march('M-1', 14, { airdrop: 'out' }),
+        march('M-2', 20, { type: 'return', airdrop: 'back' }),
+      ]),
+      [],
+    );
+    expect(lines.map((line) => line.label)).toEqual(['largage → Somme', 'retour → Somme']);
   });
 
   it('dates a column held at a border at its resolution, not at its arrival', () => {
@@ -66,11 +101,17 @@ describe('what runs, nearest first', () => {
       name: 'Mine',
       outpostId: null,
       regionId: 'FRA-1',
+      point: [3, 50],
       minutesLeft: 89,
     };
     const [line] = underwayOf(board({ construction: work }), []);
     expect(line?.label).toBe('Mine → niveau 4');
-    expect(line?.place).toEqual({ kind: 'building', regionId: 'FRA-1', key: 'mine' });
+    expect(line?.place).toEqual({
+      kind: 'building',
+      regionId: 'FRA-1',
+      key: 'mine',
+      point: [3, 50],
+    });
   });
 
   it('dates a foundation at the hour its outpost stands', () => {

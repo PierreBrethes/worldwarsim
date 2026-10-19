@@ -125,6 +125,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
   ailleurs, le dépôt de l'avant-poste. Une seule lecture sert l'entretien et le ravitaillement.
 - **Le plein se paie au départ.** Le mouvement débite sa route du plein de chaque moteur. Une route
   plus longue que le plus petit plein de l'escouade est refusée, et le refus le dit (ADR 0015).
+  Le retour automatique d'une colonne qui a combattu reste gratuit (précision du 18/10, à la
+  revue de la 4.3) : il n'est l'ordre de personne, et le payer coincerait loin de chez soi une
+  troupe qui n'a pas choisi d'y rester.
 - **Le dépôt d'avant-poste** porte des munitions, du pétrole et du charbon : 400 par niveau du
   point, **au total**, partagés librement (Q27, Q28). Réarmer une escouade de dix troupes coûte
   environ 200. Les vivres et l'acier restent au plateau personnel.
@@ -160,7 +163,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
 - **Le génie** (des sapeurs qui bâtiraient et ravitailleraient seuls) est écarté pour l'instant
   (`QUESTIONS.md`) : la tournée couvre le besoin sans nouvelle pièce.
 - **Un ravitaillement se relève et s'intercepte** comme tout mouvement (R8). Un transport détruit
-  laisse une caisse. L'atout américain devient « vos ravitaillements ne sont jamais relevés ».
+  laisse une caisse, à terre seulement : en mer, le large prend sa charge, et celle d'un camion
+  à bord d'un cargo coulé avec lui. L'atout américain devient « vos ravitaillements ne sont
+  jamais relevés ».
 - **Se défendre chez soi ne coûte aucune logistique** : le pays ravitaille. L'attaquant paie le
   chemin.
 
@@ -176,7 +181,9 @@ et dans la réserve de pièces au moment de former (Pierre, 18/10).
 - **L'artillerie répond à l'escouade monstre, par une salve bornée** : une salve touche jusqu'à
   quatre troupes de l'escouade visée, jamais ses voisines. Un pion seul prend un coup, une grosse
   escouade en prend quatre. Le tir direct frappe une troupe. La Blitz, sans escouade, n'y voit
-  aucune différence.
+  aucune différence. **Après une salve, la pièce recharge aussi en Mondiale** (19/10, lot 4.10),
+  aux valeurs de la Blitz, à mesurer : ses deux crans bornent sa journée, le rechargement
+  empêche de les vider d'un geste.
 - **L'adversaire n'en relève qu'une taille** : petite, moyenne ou grande force (N4), jamais la
   composition.
 - **Au-delà de douze troupes**, l'escouade se dessine en une figurine par rôle, et son fanion porte
@@ -237,7 +244,7 @@ personnel » : « le plateau » seul désigne la table.
 |---|---|---|
 | Bakou | vos motorisés font le plein partout | ils reprennent leur pétrole sur le plateau personnel, ancrés ou non ; la règle prend tout son poids (★★ → ★★★) |
 | Narvik | vos exploitations produisent même hors réseau | règle inchangée ; elle vaut plus, puisque le pétrole et le fer d'ailleurs se tiennent par avant-poste |
-| Dakar | vos réserves ne se pillent pas | elle s'étend aux dépôts : un dépôt du teneur, capturé, brûle au lieu de passer |
+| Dakar | vos réserves ne se pillent pas | elle s'étend aux dépôts : un dépôt du teneur, capturé, brûle au lieu de passer ; le pillage d'un entrepôt du teneur est refusé avant le départ (`SEALED`) ; la saisie du stock à la chute du QG n'est pas un pillage, Dakar ne la bloque pas |
 | Singapour | vos blindés et camions se forment sans pétrole → **vos camions et vos cargos roulent sans plein** | l'ancienne règle s'affaiblit avec le plein (un blindé formé sans pétrole reste à sec) ; la nouvelle rend la logistique du teneur gratuite en carburant |
 
 ## 10. Le code que ça rend mort
@@ -315,3 +322,15 @@ transport et par dépôt ; un camion qui se charge au QG ou à l'entrepôt, une 
 depuis le point de chargement ; le placement libre des bâtiments et les gisements ponctuels
 (ADR 0029). Pierre veut aussi un avion qui atterrit sur la piste et un navire qui accoste le long
 du quai.
+
+Précisions de la 4.9 (la recherche, 19/10) :
+- « N troupes à la fois » vaut pour tous les sites de projection : caserne, port et aérodrome de
+  niveau N forment chacun N troupes en même temps.
+- Une carte posée sur le QG ne s'annule pas, et il n'y a pas de plan : on pose une carte, puis la
+  suivante quand elle a abouti.
+- Ce qui est payé n'est pas remboursé quand le QG tombe : la carte attend un QG debout et reprend
+  là où elle en était.
+- Le soin n'existe pas en Mondiale : « une caserne N soigne N troupes » n'a rien à coder.
+- Le contre se lit dans `DAMAGE_TABLE` (X contre Y quand X fait à Y plus de dégâts qu'il n'en
+  reçoit) ; l'invariant porte sur chaque carte qui en demande une autre : son contre est au départ,
+  ou coûte et dure moins qu'elle.

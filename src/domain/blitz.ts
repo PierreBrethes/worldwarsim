@@ -31,9 +31,6 @@ const FORMED_BY: Readonly<Partial<Record<BuildingKey, ReadonlyArray<UnitRole>>>>
   port: ['escort', 'cargo', 'carrier'],
 };
 
-/** **L'artillerie n'existe qu'en Blitz pour l'instant** (lot 6b) : la Mondiale ne la forme pas. */
-export const blitzOnly = (role: UnitRole): boolean => role === 'artillery';
-
 export const rolesFormedBy = (key: BuildingKey): ReadonlyArray<UnitRole> => FORMED_BY[key] ?? [];
 
 /** Les bâtiments qui forment ce rôle, pour le dire en toutes lettres à l'abaque. */

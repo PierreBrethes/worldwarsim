@@ -6,10 +6,19 @@ import { heldOver } from './holding';
 import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
-import { STRATEGIC_POINT_KEYS } from '../src/domain/strategic-points';
+import { drawPoints } from '../src/domain/strategic-points';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp } from './seats.fixture';
+import {
+  foundSeat,
+  holdPoint,
+  joinSeat,
+  placeHq,
+  neutralPoint,
+  seatIn,
+  surveyCamp,
+  TEST_SEASON_SEED,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -48,8 +57,8 @@ async function launched(t: Bench, mode: 'mondiale' | 'blitz' = 'mondiale') {
 
 const pointsOf = (t: Bench) => t.run((ctx) => ctx.db.query('strategicPoints').collect());
 const playerOf = (t: Bench, seat: Seat) => t.run((ctx) => seatIn(ctx, seat));
-const pointCalled = async (t: Bench, key: Doc<'strategicPoints'>['key']) =>
-  (await pointsOf(t)).find((point) => point.key === key)!;
+const pointCalled = (t: Bench, key: Doc<'strategicPoints'>['key']) =>
+  t.run(async (ctx) => neutralPoint(ctx, (await ctx.db.query('seasons').first())!._id, key));
 
 /** Une infanterie posée sur le point même, prête à le prendre : la marche est celle de tout
  *  ordre, ce qui se prouve ici est ce que la prise fait du point. */
@@ -102,7 +111,8 @@ describe('the seven points of a Mondiale', () => {
     const { seat, guest } = await launched(t);
 
     const points = await pointsOf(t);
-    expect(points.map((point) => point.key).sort()).toEqual([...STRATEGIC_POINT_KEYS].sort());
+    const drawn = drawPoints(TEST_SEASON_SEED);
+    expect(points.map((point) => point.key).sort()).toEqual([...drawn].sort());
     expect(points.every((point) => point.holderId === null)).toBe(true);
     for (const who of [seat, guest]) {
       const served = await t.query(api.view.playerView, who);
@@ -230,8 +240,8 @@ describe('winning the race', () => {
   const give = (t: Bench, seat: Seat, keys: ReadonlyArray<Doc<'strategicPoints'>['key']>) =>
     t.run(async (ctx) => {
       const player = await seatIn(ctx, seat);
-      for (const point of await ctx.db.query('strategicPoints').collect()) {
-        if (keys.includes(point.key)) await handOver(ctx, point, player._id, Date.now());
+      for (const key of keys) {
+        await handOver(ctx, await neutralPoint(ctx, seat.seasonId, key), player._id, Date.now());
       }
     });
   const seasonOf = (t: Bench) => t.run(async (ctx) => (await ctx.db.query('seasons').first())!);
@@ -369,7 +379,8 @@ describe('winning the race', () => {
       nation: 'ussr',
       heldMs: endsAt - 2 * HOUR - (MIDDAY + 10 * HOUR),
     });
-    expect(longest.get('tangier')).toBeNull();
+    const never = drawPoints(TEST_SEASON_SEED).find((key) => key !== 'narvik' && key !== 'lisbon')!;
+    expect(longest.get(never)).toBeNull();
   });
 
   it('counts at the clock the hours of points held and lost', async () => {
@@ -413,13 +424,13 @@ describe('the rules the points break', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  const holdPoint = (t: Bench, seat: Seat, key: Doc<'strategicPoints'>['key']) =>
-    t.run(async (ctx) => {
-      const player = await seatIn(ctx, seat);
-      const point = (await ctx.db.query('strategicPoints').collect()).find((p) => p.key === key)!;
-      await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
-    });
-  const posted = async (t: Bench, seat: Seat, role: 'escort' | 'infantry', at: LonLat) => {
+  const posted = async (
+    t: Bench,
+    seat: Seat,
+    role: 'escort' | 'infantry' | 'armor' | 'landTransport',
+    at: LonLat,
+    fuel?: number,
+  ) => {
     const player = await playerOf(t, seat);
     return t.run((ctx) =>
       ctx.db.insert('troops', {
@@ -430,6 +441,7 @@ describe('the rules the points break', () => {
         nominalStrength: 50,
         currentStrength: 50,
         stationedAt: { lon: at[0], lat: at[1] },
+        ...(fuel === undefined ? {} : { fuel }),
       }),
     );
   };
@@ -473,6 +485,64 @@ describe('the rules the points break', () => {
     await holdPoint(t, seat, 'halifax');
     await sail(t, seat, fleet, ATLANTIC, FURTHER);
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(total);
+  });
+
+  const FIELD: LonLat = [24, 50];
+  const NEXT: LonLat = [25, 50];
+  const fuelOf = async (t: Bench, troopId: Id<'troops'>) =>
+    t.run(async (ctx) => (await ctx.db.get(troopId))!.fuel);
+
+  /** Bakou : où qu'elles soient, vos troupes à l'arrêt reprennent leur plein sur le plateau. */
+  it('lets the holder of Baku refuel a stopped troop anywhere, from the personal board, and says so', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const tank = await posted(t, seat, 'armor', FIELD, 0);
+    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+
+    await holdPoint(t, seat, 'baku');
+    const asked = {
+      ...seat,
+      origin: { kind: 'point' as const, point: { lon: FIELD[0], lat: FIELD[1] } },
+      troopIds: [tank],
+      target: { kind: 'point' as const, point: { lon: NEXT[0], lat: NEXT[1] } },
+      type: 'march' as const,
+    };
+    expect((await t.query(api.movements.preview, asked))!.fuel).toMatchObject({
+      viaBaku: true,
+      short: null,
+    });
+    const before = (await t.query(api.view.playerView, seat)).me.resources.oil!.stock;
+    await sail(t, seat, tank, FIELD, NEXT);
+    // Refilled to the full three notches, then one paid for the road.
+    expect(await fuelOf(t, tank)).toBe(2);
+    expect((await t.query(api.view.playerView, seat)).me.resources.oil!.stock).toBeLessThan(before);
+  });
+
+  it('stops refuelling the moment Baku is lost', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const tank = await posted(t, seat, 'armor', FIELD, 0);
+    await holdPoint(t, seat, 'baku');
+    await holdPoint(t, seat, 'baku', guest);
+    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+  });
+
+  /** Singapour : vos camions et vos cargos roulent sans plein. */
+  it('lets the holder of Singapore drive a truck on an empty tank, and shows it no jerrican', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const truck = await posted(t, seat, 'landTransport', FIELD, 0);
+    const tank = await posted(t, seat, 'armor', FIELD, 0);
+    await expect(sail(t, seat, truck, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+
+    await holdPoint(t, seat, 'singapore');
+    const served = (await t.query(api.view.playerView, seat)).me.troops;
+    expect(served.find((one) => one.id === truck)).toMatchObject({ fuelFree: true });
+    expect(served.find((one) => one.id === tank)).not.toHaveProperty('fuelFree');
+    await sail(t, seat, truck, FIELD, NEXT);
+    expect(await fuelOf(t, truck)).toBe(0);
+    // The rule is for trucks and cargos: a tank still pays its road.
+    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
   });
 
   /** Istanbul : une fois par jour, le dernier télégramme privé entre deux joueurs. */
@@ -537,7 +607,7 @@ describe('the rules the points break', () => {
       ).find((one) => one.key === 'ammunition')!;
       await ctx.db.patch(row._id, { stock: 400 });
     });
-    // Full magazines: the counter takes nothing, and the rule is not spent.
+    // Full stocks: the counter takes nothing, and the rule is not spent.
     await expect(trade()).rejects.toThrow('STORAGE_FULL');
     await t.run(async (ctx) => {
       const row = (

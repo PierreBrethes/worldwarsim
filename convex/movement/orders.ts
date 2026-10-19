@@ -23,11 +23,12 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
-import { seasonPoints } from '../strategicPoints';
+import { holdsPoint, sealedByDakar } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { buildingLevel } from '../buildingReads';
 import { MAX_HQ_LEVEL } from '../constants';
+import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -50,7 +51,17 @@ import {
   standingPile,
   type TroopAddress,
 } from './forces';
-import { carrierIn, cargoOf, seatLoose } from '../../src/domain/troops';
+import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
+import {
+  fuelRefusalOf,
+  fuelStepsFor,
+  fullSupplies,
+  isFuelFree,
+  outOfRounds,
+  suppliesOf,
+} from '../../src/domain/supplies';
+import { KM_PER_UNIT } from '../../src/domain/routing';
+import { resupply } from '../supplies';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
@@ -81,10 +92,13 @@ type Departure = {
   /**
    * **La plage d'où une coque repart** (ADR 0019 §2, révision du 04/09). Une colonne débarquée
    * se tient sur un point de côte : elle y est arrivée par la mer, et lui réclamer un quai
-   * l'échouerait là pour la saison. Un bâtiment porte déjà sa porte, un avant-poste n'embarque
-   * pas — `false` pour les deux, et ce n'est pas un trou.
+   * l'échouerait là pour la saison. Un bâtiment porte déjà sa porte (`false`) ; un avant-poste
+   * côtier est une côte, d'où le cargo qui s'y est chargé repart (ADR 0028 §4).
    */
   readonly coastal: boolean;
+  /** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de niveau 2 est un aérodrome pour
+   *  l'avion qui en repart. */
+  readonly airStop?: boolean;
 };
 
 export async function departureOf(
@@ -104,7 +118,9 @@ export async function departureOf(
       stationId: outpost._id,
       fromBuildingId: null,
       afloat: false,
-      coastal: false,
+      /** **Un point côtier est une côte** : un cargo qui s'y est chargé en repart (ADR 0028 §4). */
+      coastal: coastAtPoint(pointOf(outpost.point)),
+      airStop: isAirStop(outpost.level),
     };
   }
   if (origin.kind === 'point') {
@@ -164,7 +180,9 @@ export type SurveyedPlunderTarget = {
   readonly _id: Id<'buildings'>;
   readonly key: Doc<'buildings'>['key'];
   readonly regionId: string;
-  readonly point: LonLat | null;
+  readonly point: LonLat;
+  /** Dakar : l'entrepôt est celui de son teneur, refusé avant le départ (`SEALED`). */
+  readonly sealed: boolean;
 };
 
 /**
@@ -221,8 +239,8 @@ export async function surveyedTarget(
     _id: buildingId,
     key: seen.key,
     regionId: seen.regionId,
-    point:
-      building === null ? (regionFacts(seen.regionId)?.point ?? null) : pointOfBuilding(building),
+    point: pointOfBuilding(building ?? seen),
+    sealed: building !== null && (await sealedByDakar(ctx, building)),
   };
 }
 
@@ -231,7 +249,7 @@ export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
   const region = regionFacts(target.regionId);
   if (region === null || target.point === null) fail('UNKNOWN_BUILDING');
   return {
-    aim: { kind: 'building', buildingId: target._id, key: target.key },
+    aim: { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
     target: { kind: 'building', buildingId: target._id },
     point: target.point,
     name: region.name,
@@ -257,6 +275,7 @@ export async function captureAimOf(
         key: neutral.key,
         regionId: neutral.regionId,
         point: pointOfBuilding(neutral),
+        sealed: false,
       });
     }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));
@@ -595,13 +614,15 @@ export async function columnOf(
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
-    departureBuildings: new Set(
-      buildings
+    departureBuildings: new Set([
+      ...buildings
         .filter((building) => building.regionId === departure.regionId)
         .map((building) => building.key),
-    ),
+      ...(departure.airStop === true ? [PROJECTION_BY_DOMAIN.air] : []),
+    ]),
     afloat: departure.afloat,
     coastal: departure.coastal,
+    ...(theatre === null && outOfRounds(troops) ? { outOfRounds: true } : {}),
   };
 }
 
@@ -629,28 +650,38 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
 }
 
 /**
- * **Les mouvements qui tiennent un slot** : tous, sauf un retour — et, au teneur de **Halifax**,
- * sauf un mouvement maritime (P11). Le même compte pour la porte (`claimSlot`) et pour la
+ * **Les slots tenus** : chaque mouvement, sauf un retour — et, au teneur de **Halifax**, sauf un
+ * mouvement maritime (P11) —, plus chaque **tournée à l'arrêt** au chargement : elle garde son
+ * slot tant qu'elle tourne (ADR 0028). Le même compte pour la porte (`claimSlot`) et pour la
  * bannière de la vue : une règle, une fonction.
  */
-export async function slotHolders(
+export async function slotsTaken(
   ctx: QueryCtx,
   player: Doc<'players'>,
   movements: ReadonlyArray<Doc<'movements'>>,
-): Promise<ReadonlyArray<Doc<'movements'>>> {
+  /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
+  troops?: ReadonlyArray<Doc<'troops'>>,
+): Promise<number> {
   const flying = movements.filter((movement) => movement.type !== 'return');
-  if (!(await holdsHalifax(ctx, player))) return flying;
-  const kept: Array<Doc<'movements'>> = [];
-  for (const movement of flying) {
-    if (!isMaritime(await crewOf(ctx, movement.troopIds))) kept.push(movement);
+  const marching = new Set(movements.flatMap((movement) => movement.troopIds));
+  const resting = (
+    troops ??
+    (await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect())
+  ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id));
+  const holders = [
+    ...flying.map((movement) => movement.troopIds),
+    ...resting.map((troop) => [troop._id]),
+  ];
+  if (!(await holdsPoint(ctx, player, 'halifax'))) return holders.length;
+  let kept = 0;
+  for (const troopIds of holders) {
+    if (!isMaritime(await crewOf(ctx, troopIds))) kept += 1;
   }
   return kept;
 }
-
-const holdsHalifax = async (ctx: QueryCtx, player: Doc<'players'>) =>
-  (await seasonPoints(ctx, player.seasonId)).some(
-    (point) => point.key === 'halifax' && point.holderId === player._id,
-  );
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
   const crew = [];
@@ -670,13 +701,49 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
-  if ((await holdsHalifax(ctx, player)) && isMaritime(await crewOf(ctx, troopIds))) return;
+  if ((await holdsPoint(ctx, player, 'halifax')) && isMaritime(await crewOf(ctx, troopIds))) return;
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
-  const flying = await slotHolders(ctx, player, await movementsOf(ctx, playerId));
-  if (flying.length >= maximum) {
+  if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
     fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
   }
+}
+
+/**
+ * **Ce que la route coûte en plein, et qui la paie** : les moteurs qui partent par eux-mêmes —
+ * un passager ne consomme pas, son transport le porte. La mutation et l'aperçu lisent la même.
+ */
+export function fuelBill(
+  troops: ReadonlyArray<Doc<'troops'>>,
+  distanceUnits: number,
+  blitz: boolean,
+  /** **Un largage paie l'aller-retour** (ADR 0028 §4) : la route compte deux fois. */
+  roundTrip = false,
+  /** **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. */
+  holdsSingapore = false,
+) {
+  const column = troops.map(seatedOf);
+  const seated = seatLoose(column);
+  /** À bord, c'est le transport de la colonne qui le porte — un `carriedBy` resté d'un
+   *  transport parti ailleurs ne fait rouler personne gratis (`carrierIn`). */
+  const engines = blitz
+    ? []
+    : troops.filter(
+        (troop) =>
+          fullSupplies(troop.role).fuel > 0 &&
+          carrierIn(seatedOf(troop), column) === null &&
+          !seated.has(troop._id),
+      );
+  const drivers = engines.filter((troop) => !isFuelFree(troop.role, holdsSingapore));
+  const km = Math.round(distanceUnits * (roundTrip ? 2 : 1) * KM_PER_UNIT);
+  return {
+    drivers,
+    /** Singapour a dispensé au moins un moteur de cette colonne : la carte le dit. */
+    freed: engines.length > drivers.length,
+    km,
+    steps: drivers.length === 0 ? 0 : fuelStepsFor(km),
+    short: fuelRefusalOf(drivers, km),
+  };
 }
 
 export async function march(
@@ -692,6 +759,9 @@ export async function march(
     capture,
     pursuit,
     boardsOn,
+    delivery,
+    airdrop,
+    keepsSlot = false,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -710,10 +780,18 @@ export async function march(
     pursuit?: { readonly troopId: Id<'troops'> };
     /** **Le transport où elle monte en arrivant** (15/10). */
     boardsOn?: Id<'troops'> | undefined;
+    /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
+    delivery?: NonNullable<Doc<'movements'>['delivery']>;
+    /** **Un largage** (ADR 0028 §4) : l'avion lâche son paquet à l'arrivée, sans se poser, et
+     *  paie le plein de l'aller-retour. */
+    airdrop?:
+      { readonly outpostId: Id<'outposts'> } | { readonly point: { lon: number; lat: number } };
+    /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
+    keepsSlot?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
-  await claimSlot(ctx, playerId, troopIds);
+  if (!keepsSlot) await claimSlot(ctx, playerId, troopIds);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the
    *  address the troops hang from, so a garrison abroad is not ordered out of a barracks. */
@@ -735,6 +813,8 @@ export async function march(
     }
     troops.push(troop);
   }
+  const touring = keepsSlot ? null : onTourRefusalOf(troops);
+  if (touring !== null) fail(touring.code);
   /** **Les passagers suivent leur transport** (15/10) : un transport part avec sa cargaison, et
    *  un passager ne part pas sans lui — on le débarque d'abord. */
   const pile = (await standingPile(ctx, playerId, departure.stationId)).map(seatedOf);
@@ -746,6 +826,11 @@ export async function march(
       if (!troops.some((one) => one._id === rider.id))
         troops.push((await ctx.db.get(rider.id as Id<'troops'>))!);
   }
+
+  /** **Ancrée, elle se recharge au départ** (ADR 0028 §3) : les coups et le plein se reprennent
+   *  sur le plateau personnel avant que l'ordre ne les lise. */
+  const supplied = await resupply(ctx, playerId, troops, Date.now());
+  troops.splice(0, troops.length, ...supplied);
 
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
@@ -773,6 +858,23 @@ export async function march(
     landCostOf(column.roles),
   );
   if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
+
+  /**
+   * **Le plein se paie au départ** (ADR 0028 §3) : chaque moteur qui roule, vogue ou vole débite
+   * sa route, et une route plus longue que le plus petit plein est refusée. Un passager ne
+   * consomme pas : son transport le porte.
+   */
+  const fuel = fuelBill(
+    troops,
+    route.distanceUnits,
+    column.blitz !== undefined,
+    airdrop !== undefined,
+    await holdsPoint(ctx, { _id: playerId, seasonId: season._id }, 'singapore'),
+  );
+  if (fuel.short !== null)
+    fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });
+  for (const troop of fuel.drivers)
+    await ctx.db.patch(troop._id, { fuel: suppliesOf(troop).fuel - fuel.steps });
 
   const now = Date.now();
   const minutes = await pacedMinutes(ctx, playerId, route, now);
@@ -817,6 +919,8 @@ export async function march(
     ...(capture === undefined ? {} : { capture }),
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...(boardsOn === undefined ? {} : { boardsOn }),
+    ...(delivery === undefined ? {} : { delivery }),
+    ...(airdrop === undefined ? {} : { airdrop: { leg: 'out' as const, ...airdrop } }),
     ...movementCargoFields(cargo),
   });
   /** **Une colonne mixte embarque au départ** (15/10) : ce qui part à pied avec un transport monte

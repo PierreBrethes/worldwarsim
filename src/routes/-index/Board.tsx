@@ -400,8 +400,9 @@ function frontRose(place: string | null): Compass {
         point: VERDUN,
         regionId: null,
         troopIds: [],
-        figure: due.map((resource) => String(cost[resource])).join(' · '),
+        figure: cost,
         bill: due.map((resource) => ({
+          resource,
           text: `${fr.resources[resource]} ${cost[resource]}`,
           lacking: false,
         })),

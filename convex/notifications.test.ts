@@ -7,7 +7,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { journalUrl, push, reportUrl, telegraphUrl, type PushType } from '../src/domain/push';
 import { DETECTION_RANGE_KM, nominalStrength } from './constants';
 import { notifyPlayer } from './notifications';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -130,7 +130,14 @@ async function raise(t: Bench, seat: Seat, key: BuildingKey, regionId: string) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
   });
 }
 
@@ -154,6 +161,7 @@ async function form(t: Bench, seat: Seat, role: UnitRole, stationedAt: Id<'build
 async function post(t: Bench, seat: Seat, point: LonLat) {
   const troopId = await form(t, seat, 'infantry', null);
   await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(point) }));
+  return troopId;
 }
 
 const types = async (t: Bench, seat: Seat) => (await queued(t, seat)).map((row) => row.type);
@@ -321,23 +329,16 @@ describe('ce qui entre dans la file', () => {
     expect(await types(t, seat)).toEqual([]);
   });
 
-  it('attaque : le défenseur, pas l’attaquant — et tir à sec chez qui n’avait plus de munitions', async () => {
+  it('attaque : le défenseur, pas l’attaquant — et tir à sec chez qui n’avait plus de coups', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const dry = await playerOf(t, seat);
     await t.run(async (ctx) => {
       for (const row of await ctx.db.query('pushQueue').collect()) await ctx.db.delete(row._id);
-      const magazine = (
-        await ctx.db
-          .query('resources')
-          .withIndex('byPlayer', (q) => q.eq('playerId', dry))
-          .collect()
-      ).find((row) => row.key === 'ammunition')!;
-      await ctx.db.patch(magazine._id, { stock: 0, updatedAt: Date.now() });
     });
 
     const point = pointOf(PRAHOVA);
-    await post(t, guest, point);
+    const posted = await post(t, guest, point);
+    await t.run(async (ctx) => ctx.db.patch(posted, { rounds: 0 }));
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await attacking(t, {
       ...seat,
@@ -348,8 +349,8 @@ describe('ce qui entre dans la file', () => {
     vi.advanceTimersByTime(sent.minutes * MINUTE);
     await t.finishInProgressScheduledFunctions();
 
-    expect(await types(t, guest)).toContain('attack');
-    expect(await types(t, seat)).toEqual(['dryFire']);
+    expect(await types(t, guest)).toEqual(expect.arrayContaining(['attack', 'dryFire']));
+    expect(await types(t, seat)).toEqual([]);
   });
 
   it('attaque seule : l’adresse ouvre sa dépêche, et l’écran verrouillé n’en dit pas plus', async () => {

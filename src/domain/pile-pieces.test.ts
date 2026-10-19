@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole, UnitTier } from './ids';
 import type { ArcView } from './player-view';
-import { movementWear, pilePieces, pileSheet, unitPieces } from './pile-pieces';
+import { movementWear, pilePieces, pileSheet, SQUAD_DRAWN_WHOLE, unitPieces } from './pile-pieces';
 
 let serial = 0;
 const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStrength = 100) => ({
@@ -112,6 +112,42 @@ describe('pilePieces', () => {
     const [group] = pilePieces([troop('armor', 1, 0, 0)]).groups;
     expect(group?.wear).toBe('whole');
     expect(pileSheet([troop('armor', 1, 0, 0)])[0]?.health).toBe(100);
+  });
+});
+
+/** **Au-delà de douze troupes, une figurine par rôle** (ADR 0028 §6) : le fanion porte le compte. */
+describe('a big squad', () => {
+  it('draws twelve troops one by one, and carries no count', () => {
+    const pieces = pilePieces(Array.from({ length: SQUAD_DRAWN_WHOLE }, () => troop('infantry')));
+    expect(pieces.groups).toHaveLength(SQUAD_DRAWN_WHOLE);
+    expect(pieces.count).toBeUndefined();
+  });
+
+  it('draws one figurine per role beyond twelve, each lifting its role, and counts them all', () => {
+    const rifles = Array.from({ length: 10 }, () => troop('infantry', 1, 40));
+    const tanks = Array.from({ length: 3 }, () => troop('armor'));
+    const truck = troop('landTransport');
+    const rider = { ...troop('infantry'), carriedBy: truck.id };
+    const pieces = pilePieces([...rifles, ...tanks, truck, rider]);
+    expect(pieces.groups.map((group) => [group.role, group.troops])).toEqual([
+      ['infantry', 10],
+      ['armor', 3],
+      ['landTransport', 1],
+    ]);
+    expect(pieces.groups[0]!.troopIds).toEqual(rifles.map((one) => one.id));
+    expect(pieces.groups[0]!.figures).toHaveLength(2);
+    expect(pieces.groups[2]).toMatchObject({ troopIds: [truck.id, rider.id], aboard: 1 });
+    expect(pieces.count).toBe(15);
+    expect(pieces.squad).toBe(true);
+  });
+
+  it('counts the riders at the threshold as on the pennant', () => {
+    const truck = troop('landTransport');
+    const riders = [1, 2].map(() => ({ ...troop('infantry'), carriedBy: truck.id }));
+    const walkers = Array.from({ length: 10 }, () => troop('infantry'));
+    const pieces = pilePieces([...walkers, truck, ...riders]);
+    expect(pieces.groups.map((group) => group.role)).toEqual(['infantry', 'landTransport']);
+    expect(pieces.count).toBe(13);
   });
 });
 

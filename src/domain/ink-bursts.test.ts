@@ -34,6 +34,16 @@ describe('inkBursts', () => {
     ]);
   });
 
+  it('stamps « largué » where a packet came down, and nothing for a delivery', () => {
+    const at = (kind: JournalDispatch['kind']) => ({
+      ...dispatch(20, kind),
+      place: { lon: 9, lat: 52 },
+    });
+    expect(inkBursts([at('airdrop'), at('supply')], 10, [])).toEqual([
+      { kind: 'airdropped', at: [9, 52], words: { word: 'largué', hour: hour(20) } },
+    ]);
+  });
+
   it('stamps a combat at its pass, once it is newer than what the map has seen', () => {
     const journal = [dispatch(20, 'assault', combat), dispatch(5, 'attacked', combat)];
     expect(inkBursts(journal, 10, [])).toEqual([

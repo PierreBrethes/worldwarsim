@@ -21,6 +21,7 @@ const viewOf = (lons: ReadonlyArray<number>): PlayerView =>
     loadedAt: 0,
     season: { outcome: { concludedAt: null } },
     captures: [],
+    firstSteps: { done: [], shown: 'skipped' },
     me: {
       homePosition: [2, 47],
       hqLevel: 1,

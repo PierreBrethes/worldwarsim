@@ -2,6 +2,7 @@
 // elle dit qui est à bord et ce qui reste de place, et c'est d'elle qu'on tire un passager
 // pour le faire descendre. Remplace le jeton « N à bord ».
 import type { UnitRole, UnitTier } from './ids';
+import { emptyLoad, loadCapacityOf, type SupplyLoad } from './logistics';
 import {
   boardingRefusalOf,
   disembarkRefusalOf,
@@ -9,8 +10,27 @@ import {
   type DisembarkRefusal,
 } from './movement-orders';
 import { carrierIn, fareOf, seatsLeft, seatsOf, type Seated } from './troops';
+import type { TourWait, TroopView } from './player-view';
 
-type Aboard = Seated & { readonly tier: UnitTier };
+type Aboard = Seated & {
+  readonly tier: UnitTier;
+  readonly load?: SupplyLoad;
+  readonly tour?: Pick<NonNullable<TroopView['tour']>, 'stops' | 'waiting' | 'recalled'>;
+};
+
+/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente et
+ *  pourquoi, rappelée. */
+export type TagTour = {
+  readonly state: 'tracing' | 'running' | 'waiting' | 'recalled';
+  readonly stops: number;
+  readonly waiting: TourWait | null;
+};
+
+/** **La tournée que la main trace** : son transport et ses dépôts dans l'ordre. */
+export type TourTrace = { readonly carrierId: string; readonly stops: ReadonlyArray<string> };
+
+/** **Ce que l'étiquette fait de la tournée** : lancer celle qu'on trace, l'effacer, la rappeler. */
+export type TourAct = 'launch' | 'clear' | 'recall';
 
 export type CargoTag = {
   readonly carrierId: string;
@@ -28,13 +48,22 @@ export type CargoTag = {
   /** Pourquoi personne ne peut descendre ici, `null` quand on le peut : la règle même de
    *  `movements.disembark` (`disembarkRefusalOf`). */
   readonly refusal: DisembarkRefusal | null;
+  /** **Sa charge** (ADR 0028 §4), dans sa seule capacité : munitions, pétrole, charbon. */
+  readonly load: SupplyLoad;
+  readonly loadCapacity: number;
+  readonly tour: TagTour | null;
 };
 
 /** A tag per transport of the pile, in the pile's order — an empty one too: the hand reads its free
  *  seats on it (POC, `avail`). When it shows is the map's business. */
 export function cargoTagsOf<T extends Aboard>(
   pile: ReadonlyArray<T>,
-  where: { readonly afloat: boolean; readonly atAirfield: boolean },
+  where: {
+    readonly afloat: boolean;
+    readonly atAirfield: boolean;
+    /** La tournée que la main trace, s'il y en a une : son transport le dit sur son étiquette. */
+    readonly trace?: TourTrace | null;
+  },
 ): ReadonlyArray<CargoTag> {
   return pile.flatMap((carrier) => {
     if (seatsOf(carrier.role) === 0) return [];
@@ -55,6 +84,26 @@ export function cargoTagsOf<T extends Aboard>(
           carrier: riders.length === 0 ? null : carrier.role,
           ...where,
         }),
+        load: carrier.load ?? emptyLoad(),
+        loadCapacity: loadCapacityOf(carrier.role),
+        tour:
+          where.trace?.carrierId === carrier.id
+            ? {
+                state: 'tracing' as const,
+                stops: where.trace.stops.length,
+                waiting: null,
+              }
+            : carrier.tour === undefined
+              ? null
+              : {
+                  state: carrier.tour.recalled
+                    ? ('recalled' as const)
+                    : carrier.tour.waiting !== null
+                      ? ('waiting' as const)
+                      : ('running' as const),
+                  stops: carrier.tour.stops.length,
+                  waiting: carrier.tour.waiting,
+                },
       },
     ];
   });

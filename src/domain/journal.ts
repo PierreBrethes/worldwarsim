@@ -4,8 +4,10 @@ import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
+import { FIRST_SEVEN } from './strategic-points';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
+import { SUPPLY_KEYS, type SupplyLoad } from './logistics';
 import type {
   CombatReport,
   DispatchKind,
@@ -135,6 +137,7 @@ function written(notice: Notice): Written {
         text: fr.journal.constructionCancelled(
           isOutpostWork(notice.building) ? fr.garrison.raiseWork : fr.buildings[notice.building],
           notice.regionName,
+          notice.reason,
         ),
       };
     case 'constructionFinished':
@@ -393,12 +396,60 @@ function written(notice: Notice): Written {
         kind: 'foundNothing',
         text: said.pursuitLost(countryLabel(notice.hostCountry)),
       };
+    case 'tourWaiting':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.tourWaiting(
+          fr.roles[notice.role].one,
+          notice.why,
+          notice.resource === undefined ? '' : fr.resources[notice.resource],
+        ),
+      };
+    case 'tourEnded':
+      return {
+        at: notice.at,
+        severity: notice.why === 'recalled' ? 'notable' : 'critical',
+        kind: 'supply',
+        text: said.tourEnded(fr.roles[notice.role].one, notice.why),
+      };
+    case 'supplyDelivered':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.supplyDelivered(
+          countryLabel(notice.hostCountry),
+          supplyWords(notice.delivered),
+          supplyWords(notice.kept),
+        ),
+      };
+    case 'researchDone':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'research',
+        text: said.researchDone(notice.card),
+      };
+    case 'airdropped':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'airdrop',
+        text: said.airdropped(
+          countryLabel(notice.hostCountry),
+          supplyWords(notice.delivered),
+          supplyWords(notice.kept),
+          notice.squad === true,
+        ),
+      };
     case 'firedDry':
       return {
         at: notice.at,
         severity: 'critical',
         kind: 'firedDry',
-        text: said.firedDry(countryLabel(notice.hostCountry)),
+        text: said.firedDry(countryLabel(notice.hostCountry), notice.troops ?? 1),
       };
     /**
      * **La seule passe qui n'en est pas une** : une colonne qui marche sur un sol vide ne dépose
@@ -472,7 +523,23 @@ function written(notice: Notice): Written {
         text: fr.points.taken(nationName(notice.nation), notice.key),
       };
     case 'pointsDrawn':
-      return { at: notice.at, severity: 'notable', kind: 'pointTaken', text: fr.points.drawn() };
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.drawn(notice.keys ?? FIRST_SEVEN),
+      };
+    case 'depotBurned':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'depotBurned',
+        text: fr.points.depotBurned(
+          notice.side,
+          countryLabel(notice.country),
+          supplyWords(notice.lost) || fr.points.nothing,
+        ),
+      };
     case 'readAtIstanbul':
       return {
         at: notice.at,
@@ -617,6 +684,12 @@ export const lootWords = (loot: ResourceAmounts): string => {
   );
   return entries.length === 0 ? 'rien' : entries.join(' · ');
 };
+
+/** Une charge de munitions, pétrole et charbon en toutes lettres ; vide, rien. */
+const supplyWords = (load: SupplyLoad): string =>
+  SUPPLY_KEYS.filter((key) => load[key] > 0)
+    .map((key) => `${load[key]} ${fr.resources[key]}`)
+    .join(', ');
 
 const fromCombat = (report: CombatReport): Written => ({
   at: report.at,

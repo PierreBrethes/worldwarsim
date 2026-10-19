@@ -3,6 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
   useEffect,
@@ -45,6 +46,8 @@ import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
+import { Price } from '@/shell/Price';
+import type { Cost } from '@/domain/player-view';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
@@ -59,6 +62,11 @@ import {
   type PieceFrom,
 } from './DropHint';
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
+import type { TakeDepot } from './MapLabels';
+import type { TourLoop } from './engine/tour-ink';
+export type { TourLoop };
+
+const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {
   DETACH_MS,
   MapEngine,
@@ -67,6 +75,8 @@ import {
   type HeldClaim,
   type PieceClick,
   type PieceHold,
+  type PlacingMagnet,
+  type PlacingSpot,
   type SearchArea,
   type StandingMaquette,
   type StandingPile,
@@ -192,22 +202,16 @@ type Props = {
   /** The board wears the trowel while a construction panel is open. */
   building?: boolean;
   /**
-   * **A building held over one region, waiting for the point it goes down on** (ADR 0013,
-   * revision of 04/09) — the port and nothing else so far. The ghost snaps onto the coast cells
-   * of that region; the click hands back the one it landed on, and everything else about the
-   * mode — what it costs, what it is called, when it ends — stays on the board.
+   * **A building held over the board, waiting for the point it goes down on** (ADR 0029). The
+   * ghost follows the pointer and leaps onto what its magnet picks; the board hears every point
+   * it moves onto, and the click hands back the one it holds. What it costs, what it is called,
+   * what refuses it and when it ends stay on the board.
    */
   placing?: PlacingBuilding | null;
-  onPlacePoint?: (point: LonLat) => void;
+  onPlacePoint?: (spot: PlacingSpot) => void;
+  onPlacingAim?: (spot: PlacingSpot | null) => void;
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
-  /**
-   * The regions an armed mobilisation key accepts, and the click that names one. The map holds
-   * no rule of its own here: the list arrives computed (`placementOf`), and the click hands
-   * back a region id — what happens to it is the board's business.
-   */
-  designatedRegions?: ReadonlyArray<string>;
-  onDesignateRegion?: (regionId: string | null) => void;
   /**
    * What the camera is asked to fly to: label ids, plus the plain places that carry no marker —
    * a column left on open ground is one. The nonce is what makes a second request on the same
@@ -242,6 +246,16 @@ type Props = {
   onCarryEnd?: () => void;
   /** Passengers stepping off from a transport's tag (POC du 16/10). */
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
+  carriersShown?: boolean;
+  /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
+  onTakeDepot?: TakeDepot | undefined;
+  /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** La bulle des premiers pas, sur la pièce à lever. */
+  cue?: { readonly labelId: string; readonly text: string } | null;
+  /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
+  tourLoops?: ReadonlyArray<TourLoop>;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -274,15 +288,20 @@ type Props = {
 };
 
 /**
- * What the board is holding: the region the ghost may land in, its plate, and the card that
- * follows the pointer while it looks for a shore. The card's lines arrive written (ADR 0016):
- * the map prices nothing and names nothing.
+ * What the board is holding: its plate, its magnet, and the card that follows the pointer. The
+ * card's lines arrive written (ADR 0016): the map prices nothing, names nothing and refuses
+ * nothing — `refusal` is the placement rule's sentence for the point the ghost holds.
  */
 export type PlacingBuilding = {
-  readonly regionId: string;
   readonly sprite: string | null;
+  readonly magnet: PlacingMagnet;
   readonly title: string;
-  readonly figures: string;
+  readonly name: string;
+  readonly cost: Cost;
+  /** Owed by the foundation on the point aimed at: the price line says so instead. */
+  readonly free: boolean;
+  readonly duration: string;
+  readonly refusal: string | null;
 };
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
@@ -342,9 +361,8 @@ export function WorldMap({
   building = false,
   placing = null,
   onPlacePoint,
+  onPlacingAim,
   aiming = false,
-  designatedRegions = NO_REGIONS,
-  onDesignateRegion,
   focus = null,
   searchArea = null,
   fingerRose = null,
@@ -354,6 +372,11 @@ export function WorldMap({
   availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
+  carriersShown = false,
+  onTakeDepot,
+  onTour,
+  cue = null,
+  tourLoops = NO_LOOPS,
   covered = false,
   reveal = null,
   replay = null,
@@ -966,29 +989,30 @@ export function WorldMap({
     readyEngine?.setAiming(aiming);
   }, [readyEngine, aiming]);
 
+  /** Re-armed only when what is held changes, never when its card is rewritten: the ghost keeps
+   *  its point while the board re-reads the refusal under it. */
+  const heldSprite = placing?.sprite ?? null;
+  const heldMagnet = placing?.magnet ?? null;
+  const heldPlacing = useMemo(
+    () => (heldMagnet === null ? null : { sprite: heldSprite, magnet: heldMagnet }),
+    [heldSprite, heldMagnet],
+  );
   useEffect(() => {
-    readyEngine?.setPlacing(placing?.regionId ?? null, placing?.sprite ?? null);
-  }, [readyEngine, placing]);
+    readyEngine?.setPlacing(heldPlacing);
+  }, [readyEngine, heldPlacing]);
+
+  const refused = placing?.refusal != null;
+  useEffect(() => {
+    readyEngine?.setPlacingRefused(refused);
+  }, [readyEngine, refused]);
 
   useEffect(() => {
     if (engine.current) engine.current.onPlacePoint = onPlacePoint ?? (() => {});
   }, [onPlacePoint]);
 
-  // A key with no ground to go down on designates nothing: the trowel only comes out when a
-  // click can actually land, so the mode is the list and not a separate flag to keep in step.
-  const designating = onDesignateRegion !== undefined && designatedRegions.length > 0;
-
   useEffect(() => {
-    readyEngine?.setDesignating(designating);
-  }, [readyEngine, designating]);
-
-  useEffect(() => {
-    readyEngine?.showDesignatedRegions(designatedRegions);
-  }, [readyEngine, designatedRegions]);
-
-  useEffect(() => {
-    if (engine.current) engine.current.onRegionClick = onDesignateRegion ?? (() => {});
-  }, [onDesignateRegion]);
+    if (engine.current) engine.current.onPlacingAim = onPlacingAim ?? (() => {});
+  }, [onPlacingAim]);
 
   /**
    * **Sous le doigt, un voyage referme la rose** : le toucher qui l'a ouverte a aussi ouvert une
@@ -1093,6 +1117,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setAimRoute(aimRoute);
   }, [readyEngine, aimRoute]);
+
+  useEffect(() => {
+    readyEngine?.showTours(tourLoops);
+  }, [readyEngine, tourLoops]);
 
   useEffect(() => {
     readyEngine?.setAvailable(availablePiles);
@@ -1211,6 +1239,10 @@ export function WorldMap({
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}
+        carriersShown={carriersShown}
+        onTakeDepot={onTakeDepot}
+        onTour={onTour}
+        cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
       />
@@ -1373,14 +1405,21 @@ function PlacingCard({
   placing: PlacingBuilding;
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [at, setAt] = useState<{ x: number; y: number; flipX: boolean; flipY: boolean } | null>(
+    null,
+  );
 
+  /** **Le carton ne sort pas de l'écran** : sur la moitié droite ou basse il passe de l'autre côté
+   *  du pointeur, sinon un refus lu à la frontière se lirait hors champ. */
   useEffect(() => {
     const element = container.current;
     if (element === null) return;
     const follow = (event: PointerEvent) => {
       const rect = element.getBoundingClientRect();
-      setAt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      // Au-dessus du pointeur dès le tiers haut passé : au téléphone, la feuille couvre le bas.
+      setAt({ x, y, flipX: x > rect.width * 0.6, flipY: y > rect.height * 0.35 });
     };
     element.addEventListener('pointermove', follow);
     const forget = () => setAt(null);
@@ -1392,16 +1431,38 @@ function PlacingCard({
   }, [container]);
 
   if (at === null) return null;
+  /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. */
   return (
     <div
-      className="hud paper-grain pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)] float"
-      style={{ left: at.x + PLACING_CARD_GAP, top: at.y + PLACING_CARD_GAP }}
+      className="pointer-events-none absolute z-[var(--z-band)]"
+      style={{
+        left: at.x + (at.flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        top: at.y + (at.flipY ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        transform: `translate(${at.flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
+      }}
     >
+      <PlacingLines placing={placing} />
+    </div>
+  );
+}
+
+function PlacingLines({ placing }: { placing: PlacingBuilding }) {
+  return (
+    <div className="hud paper-grain float max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)]">
       <span className="block font-semibold">{placing.title}</span>
-      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {placing.figures}
+      <span className="block text-[11.5px] text-[var(--ink-soft)]">{placing.name}</span>
+      {/* Le prix sur sa propre ligne : ses pictos ne chevauchent rien, à 1440 comme à 390. */}
+      <span className="mt-[2px] flex items-center gap-[6px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+        {placing.free ? fr.construction.free : <Price costs={placing.cost} size={11} />}
+        <span>· {placing.duration}</span>
       </span>
-      <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
+      {placing.refusal === null ? (
+        <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
+      ) : (
+        <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
+          {placing.refusal}
+        </span>
+      )}
     </div>
   );
 }

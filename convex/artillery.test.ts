@@ -253,20 +253,103 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     expect((await row(t, gun))!.settledAt).toBe(movement.arrivesAt);
   });
 
-  it('is neither formed nor fired in a Mondiale', async () => {
+  it('is formed in a Mondiale', async () => {
+    const t = boot();
+    const { seat } = await season(t, 'mondiale');
+    const workshop = await t.query(api.troops.workshop, seat);
+    expect(workshop.grid.map((entry) => entry.role)).toContain('artillery');
+  });
+
+  it('strikes up to four troops of the squad in a Mondiale, for one round, unseen', async () => {
     const t = boot();
     const { seat, guest } = await season(t, 'mondiale');
     const gun = await troop(t, seat, PARIS, 'artillery');
-    await troop(t, guest, ROUEN);
+    const squad = await Promise.all(Array.from({ length: 6 }, () => troop(t, guest, ROUEN)));
+    const campId = await surveyCamp(t, seat, ROUEN);
+    emplaced();
+
+    await t.mutation(api.movements.bombard, {
+      ...seat,
+      troopId: gun,
+      target: { kind: 'camp', campId },
+    });
+
+    const strengths = await Promise.all(
+      squad.map(async (id) => (await row(t, id))!.currentStrength),
+    );
+    expect(strengths.filter((strength) => strength === 20)).toHaveLength(4);
+    expect(strengths.filter((strength) => strength === 50)).toHaveLength(2);
+    expect((await row(t, gun))!.rounds).toBe(1);
+    const [engagement] = await t.run((ctx) => ctx.db.query('engagements').collect());
+    expect(engagement!.troops.filter((one) => one.side === 'defender')).toHaveLength(4);
+    const report = (await t.query(api.view.playerView, guest)).reports.find(
+      (account) => account.id === engagement!._id,
+    )!;
+    expect(report).not.toHaveProperty('faced');
+    const target = await t.query(api.replay.replayOf, { ...guest, combatId: engagement!._id });
+    expect(JSON.stringify(target)).not.toContain(String(PARIS.lon));
+  });
+
+  it('leaves the troops that marched off the point out of the salvo', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    const squad = [];
+    for (let k = 0; k < 6; k++) squad.push(await troop(t, guest, ROUEN));
+    const { movementId } = await t.mutation(api.movements.marchTo, {
+      ...guest,
+      origin: { kind: 'point', point: ROUEN },
+      troopIds: squad.slice(0, 2),
+      point: LILLE,
+    });
+    const campId = await surveyCamp(t, seat, ROUEN);
+    emplaced();
+
+    await t.mutation(api.movements.bombard, {
+      ...seat,
+      troopId: gun,
+      target: { kind: 'camp', campId },
+    });
+
+    const strengths = await Promise.all(
+      squad.map(async (id) => (await row(t, id))!.currentStrength),
+    );
+    expect(strengths).toEqual([50, 50, 20, 20, 20, 20]);
+    expect((await t.run((ctx) => ctx.db.get(movementId)))!.troopIds).toEqual(squad.slice(0, 2));
+  });
+
+  it('wastes no round nor reload on a pile it cannot touch', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    await troop(t, guest, ROUEN, 'fighter');
+    const campId = await surveyCamp(t, seat, ROUEN);
     emplaced();
     await expect(
       t.mutation(api.movements.bombard, {
         ...seat,
         troopId: gun,
-        target: { kind: 'camp', campId: await surveyCamp(t, seat, ROUEN) },
+        target: { kind: 'camp', campId },
       }),
-    ).rejects.toThrow(/BLITZ_ONLY/);
-    const workshop = await t.query(api.troops.workshop, seat);
-    expect(workshop.grid.map((entry) => entry.role)).not.toContain('artillery');
+    ).rejects.toThrow(/OUT_OF_GUNS_REACH/);
+    const battery = (await row(t, gun))!;
+    expect(battery.reloadUntil).toBeUndefined();
+    expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(0);
+  });
+
+  it('refuses a target in its dead zone in a Mondiale', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    await troop(t, guest, VERSAILLES);
+    const campId = await surveyCamp(t, seat, VERSAILLES);
+    emplaced();
+    await expect(
+      t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId: gun,
+        target: { kind: 'camp', campId },
+      }),
+    ).rejects.toThrow(/TOO_CLOSE/);
   });
 });

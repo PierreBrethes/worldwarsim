@@ -8,7 +8,14 @@ import { useCoarsePointer } from '@/shell/viewport';
  * nothing is stored — a player who opens it seeks an answer, not a controller. It opens on
  * `?` and via the `?` button of the board's corner.
  */
-export function ControlsCard({ onClose }: { onClose: () => void }) {
+export function ControlsCard({
+  onClose,
+  onResumeSteps = null,
+}: {
+  onClose: () => void;
+  /** Les premiers pas repliés ou passés : l'aide les reprend (ADR 0027 §2). */
+  onResumeSteps?: (() => void) | null;
+}) {
   // Elle lit le mappage, elle ne le règle pas : les six gestes sont ceux de ce joueur-là.
   const mapping = useMouseMapping();
   // Sur un écran au doigt, la notice est celle du doigt : un tableau de boutons n'y répond à rien.
@@ -25,6 +32,15 @@ export function ControlsCard({ onClose }: { onClose: () => void }) {
           </div>
         ))}
       </dl>
+      {onResumeSteps !== null && (
+        <button
+          type="button"
+          onClick={onResumeSteps}
+          className="w-full cursor-pointer border-t border-[var(--ink)] px-4 py-[9px] text-left text-[12px] font-semibold hover:bg-(--ink)/7"
+        >
+          {fr.firstSteps.resume} ›
+        </button>
+      )}
     </CornerCard>
   );
 }

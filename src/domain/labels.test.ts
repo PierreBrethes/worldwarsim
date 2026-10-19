@@ -369,9 +369,9 @@ describe('buildLabels', () => {
     expect(label?.station).toEqual({ kind: 'outpost', outpostId: 'ap-1' });
   });
 
-  it('hangs a deposit on its region, without ink, words, or the right to push anything aside', () => {
+  it('hangs a deposit on its point, without ink, words, or the right to push anything aside', () => {
     const [deposit, building] = buildLabels(viewWith([]), [
-      { kind: 'deposit', id: 'deposit-FR-60', regionId: 'FR-60', deposit: 'coal' },
+      { kind: 'deposit', id: 'deposit-FR-60', lonLat: [2.4, 49.4], deposit: 'coal' },
       {
         kind: 'building',
         id: 'building-FR-60-mine',
@@ -389,7 +389,7 @@ describe('buildLabels', () => {
         ink: '#2f4f78',
       },
     ]);
-    expect(deposit?.anchor).toEqual({ kind: 'region', regionId: 'FR-60' });
+    expect(deposit?.anchor).toEqual({ kind: 'ground', lonLat: [2.4, 49.4] });
     expect(deposit?.deposit).toBe('coal');
     expect(deposit?.ink).toBeNull();
     expect(deposit?.lines).toEqual([]);

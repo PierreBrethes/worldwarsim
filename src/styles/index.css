@@ -358,18 +358,6 @@ body {
   zoom: var(--hud-scale);
 }
 
-/* Un maillon en chantier : la hachure du plan d'architecte. Elle n'est ni le plein du bâti ni
-   le pointillé du manquant — trois états, trois peaux, et la légende en tête de la filière les
-   nomme (fenêtre Économie). */
-.chart-underway {
-  background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--ink) 20%, transparent) 0 3px,
-    transparent 3px 7px
-  );
-}
-
 /* Le surtitre des affiches (table d'état-major) : Archivo 600, majuscules espacées. */
 .eyebrow {
   font-size: 10px;
@@ -562,6 +550,50 @@ body {
   animation: none;
 }
 
+/* **La bulle des premiers pas** : elle bat doucement au-dessus de ce qu'elle désigne, et l'entrée
+   « Écon. » porte un anneau d'ocre. Réduites ou coupées, l'une et l'autre se tiennent. */
+.first-step-cue {
+  animation: first-step-bob 1.4s ease-in-out infinite alternate;
+}
+.first-step-cue::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  translate: -50% 0;
+  border: 6px solid transparent;
+  border-top-color: var(--ink);
+}
+.first-step-cue--up::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--ink);
+}
+.first-step-cue--corner::after {
+  left: auto;
+  right: 22px;
+  translate: none;
+}
+@keyframes first-step-bob {
+  to {
+    transform: translateY(-3px);
+  }
+}
+.first-step-ring {
+  outline: 2px solid var(--arc-mine);
+  outline-offset: 3px;
+  animation: first-step-ring 1.4s ease-in-out infinite alternate;
+}
+@keyframes first-step-ring {
+  to {
+    outline-offset: 6px;
+  }
+}
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.first-step-cue, .first-step-ring) {
+  animation: none;
+}
+
 /* **Ce qui s'ouvre se pose** : fenêtre, feuille et panneau arrivent en fondu, de quelques pixels
    plus bas, au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter.
    Réduites, le fondu reste sur place ; coupées, rien ne bouge. Pas de sortie : elle obligerait
@@ -642,4 +674,19 @@ body {
 
 :root[data-motion='full'] :is(.press, .os .btn):active:not(:disabled, [aria-disabled='true']) {
   scale: 0.96;
+}
+
+/* **Une pastille de la récolte** (plateau personnel, ADR 0028 §7) : un disque à la couleur de sa
+   ressource, qui ne vit que le temps de son vol (`PersonalBoard.tsx`). */
+.harvest-pastille {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pastille) 70%, var(--paper));
+  box-shadow:
+    inset 0 0 0 1.5px var(--pastille-rim),
+    0 1px 0 color-mix(in srgb, var(--ink) 50%, transparent);
 }

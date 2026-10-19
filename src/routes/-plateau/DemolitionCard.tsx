@@ -2,9 +2,9 @@ import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { Price } from '@/shell/Price';
 import { fr } from '@/i18n/fr';
 import { demolitionClipping, pledgedWork } from '@/domain/construction';
-import { RESOURCES } from '@/domain/ids';
 import type { Building, PlayerView } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
@@ -96,9 +96,13 @@ export function DemolitionCard({
             {queued !== undefined && (
               <li>
                 {fr.demolition.queueCancelled} —{' '}
-                {running
-                  ? fr.demolition.queueRunning
-                  : fr.demolition.queueRefund(priceOf(building.nextLevelCost))}
+                {running ? (
+                  fr.demolition.queueRunning
+                ) : (
+                  <>
+                    {fr.demolition.queueRefund} <Price costs={building.nextLevelCost} size={11} />
+                  </>
+                )}
               </li>
             )}
             {garrison > 0 && <li>{fr.demolition.garrison(garrison)}</li>}
@@ -154,10 +158,3 @@ export function DemolitionCard({
     </div>
   );
 }
-
-/** La facture d'une entrée de file, en une phrase — les mêmes chiffres que la branche
- *  « améliorer » de la rose annonçait. */
-const priceOf = (cost: Building['nextLevelCost']): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => `${cost[key]} ${fr.resources[key]}`)
-    .join(' · ');

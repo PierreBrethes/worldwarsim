@@ -1,13 +1,10 @@
 import { PRESS_EDITION_HOURS } from '../../convex/constants';
-import type { LonLat } from './geo';
+import { distanceKm, type LonLat } from './geo';
 
 /**
- * **Les points stratégiques de la saison test** (P11, ADR 0027 §4) : le premier vivier, moins
- * Bakou, Dakar et Singapour qui attendent l'économie de la Mondiale. Ils sont sept, donc **les
- * sept sont tirés à chaque saison**, sans les contraintes de tirage du 14/10 (décision de Pierre,
- * 18/10) : le tirage par la graine reviendra avec un vivier plus large.
- *
- * Chacun est un lieu réel de 1940, public, qui ne produit rien et casse une règle pour qui le tient.
+ * **Le vivier des points stratégiques** (P11, ADR 0027 §4) : dix lieux réels de 1940, publics, qui
+ * ne produisent rien et cassent une règle pour qui les tient. Chaque saison en tire sept
+ * (`drawPoints`), la course se joue à quatre sur sept.
  */
 export const STRATEGIC_POINTS = {
   tangier: [-5.81, 35.77],
@@ -17,6 +14,12 @@ export const STRATEGIC_POINTS = {
   halifax: [-63.57, 44.65],
   narvik: [17.43, 68.44],
   lisbon: [-9.14, 38.72],
+  baku: [49.87, 40.41],
+  /** Posés sur la terre ferme que la grille de route connaît : le cap de Dakar tombe dans la mer
+   *  de la maille (20 km), et l'île de Singapour n'y est pas du tout — sa rive de Johor, à 21 km,
+   *  est la plus proche cellule qu'une colonne peut atteindre à pied. */
+  dakar: [-17.25, 14.7],
+  singapore: [103.7, 1.4],
 } as const satisfies Record<string, LonLat>;
 
 export type StrategicPointKey = keyof typeof STRATEGIC_POINTS;
@@ -24,6 +27,76 @@ export type StrategicPointKey = keyof typeof STRATEGIC_POINTS;
 export const STRATEGIC_POINT_KEYS = Object.keys(
   STRATEGIC_POINTS,
 ) as ReadonlyArray<StrategicPointKey>;
+
+/** Ce que la règle d'un point touche : le tirage veut des familles variées. */
+export type PointFamily = 'economy' | 'supply' | 'intel' | 'sea' | 'diplomacy';
+
+/**
+ * **Ce que le tirage lit d'un lieu** : sa famille, et ses étoiles (★ utile, ★★ forte, ★★★ change
+ * la partie). Une donnée : ajuster un lieu se fait ici, jamais dans les contraintes du tirage.
+ *
+ * @a-mesurer familles et étoiles posées par jugement, aucune doc ne les fixait
+ */
+export const POINT_TRAITS = {
+  tangier: { family: 'economy', stars: 2 },
+  istanbul: { family: 'intel', stars: 2 },
+  rangoon: { family: 'diplomacy', stars: 1 },
+  hongKong: { family: 'intel', stars: 1 },
+  halifax: { family: 'sea', stars: 1 },
+  narvik: { family: 'economy', stars: 2 },
+  lisbon: { family: 'intel', stars: 2 },
+  baku: { family: 'supply', stars: 3 },
+  dakar: { family: 'economy', stars: 2 },
+  singapore: { family: 'supply', stars: 1 },
+} as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 | 2 | 3 }>;
+
+/** Les sept du premier vivier, posés tous à chaque saison avant le tirage : ce que dit une notice
+ *  `pointsDrawn` écrite sans `keys`. */
+export const FIRST_SEVEN: ReadonlyArray<StrategicPointKey> = [
+  'tangier',
+  'istanbul',
+  'rangoon',
+  'hongKong',
+  'halifax',
+  'narvik',
+  'lisbon',
+];
+
+/** Les lieux tirés à chaque saison. */
+export const POINTS_DRAWN = 7;
+
+/** Contraintes de diversité du tirage (`gameplay-deux-modes` §Les points stratégiques). */
+export const DRAW_RULES = { minFamilies: 4, maxThreeStars: 2, minOneStar: 2, minApartKm: 1500 };
+
+/** Un tirage tient les contraintes de diversité, et deux points ne sont jamais voisins. */
+export function drawHolds(keys: ReadonlyArray<StrategicPointKey>): boolean {
+  const stars = (count: number) => keys.filter((key) => POINT_TRAITS[key].stars === count).length;
+  if (new Set(keys.map((key) => POINT_TRAITS[key].family)).size < DRAW_RULES.minFamilies)
+    return false;
+  if (stars(3) > DRAW_RULES.maxThreeStars || stars(1) < DRAW_RULES.minOneStar) return false;
+  return keys.every((a, index) =>
+    keys
+      .slice(index + 1)
+      .every((b) => distanceKm(STRATEGIC_POINTS[a], STRATEGIC_POINTS[b]) >= DRAW_RULES.minApartKm),
+  );
+}
+
+/**
+ * **Le tirage de la saison, par sa graine** : parmi les sept-sur-dix qui tiennent les contraintes,
+ * celui que la graine désigne. Sept et non dix, parce que la course se joue à quatre : sur dix,
+ * deux joueurs en tiendraient quatre chacun, alors que sur sept le meneur est unique (4 + 4 > 7).
+ *
+ * L'équité de route depuis la capitale et l'exclusion du sol national du 14/10 ne sont pas lues :
+ * elles demandent les nations et la grille de route.
+ */
+export function drawPoints(seed: number): ReadonlyArray<StrategicPointKey> {
+  const fitting: Array<ReadonlyArray<StrategicPointKey>> = [];
+  for (let mask = 0; mask < 1 << STRATEGIC_POINT_KEYS.length; mask += 1) {
+    const keys = STRATEGIC_POINT_KEYS.filter((_, index) => mask & (1 << index));
+    if (keys.length === POINTS_DRAWN && drawHolds(keys)) fitting.push(keys);
+  }
+  return fitting[Math.abs(Math.floor(seed)) % fitting.length]!;
+}
 
 /** Points held at once to win, and for how long (M1, ADR 0027 §4: fixed whatever the length). */
 export const RACE_TO_WIN = 4;

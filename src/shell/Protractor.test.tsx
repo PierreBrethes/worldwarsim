@@ -36,6 +36,8 @@ const view = {
   season: { outcome: { concludedAt: null } },
   journal: [{ unread: true }, { unread: false }],
   press: { mine: { rank: 2 } },
+  /** Les premiers pas passés : le compte n'est que celui des attentes. */
+  firstSteps: { done: [], shown: 'skipped' },
   me: {
     homePosition: [2, 47],
     hqLevel: 1,
@@ -52,14 +54,14 @@ const view = {
   },
 } as unknown as PlayerView;
 
-async function mount(): Promise<AnyRouter> {
+async function mount(shown: PlayerView = view): Promise<AnyRouter> {
   const root = createRootRoute();
   const board = createRoute({
     getParentRoute: () => root,
     path: '/plateau',
     component: () => (
       <SoleSurfaceProvider>
-        <Protractor view={view} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
+        <Protractor view={shown} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
       </SoleSurfaceProvider>
     ),
   });
@@ -87,6 +89,11 @@ describe('the protractor', () => {
     expect(rounds()).toEqual(['1à faire', 'chant.', 'journal1', 'presse2ᵉ', 'télég.3', 'régl.']);
   });
 
+  it('counts the first step on show with the waits, on a new place', async () => {
+    await mount({ ...view, firstSteps: { done: [], shown: 'open' } } as PlayerView);
+    expect(hub().textContent).toContain('2');
+  });
+
   it('keeps its rounds out of reach until the corner opens them, and hands focus back', async () => {
     await mount();
     expect(screen.queryByRole('link', { name: /chantiers/ })).toBeNull();
@@ -106,7 +113,7 @@ describe('the protractor', () => {
     act(() => hub().click());
 
     await act(async () => screen.getByRole('link', { name: /chantiers/ }).click());
-    expect(router.state.location.search).toEqual({ windows: ['economy'] });
+    expect(router.state.location.search).toEqual({ windows: ['personalBoard'] });
     expect(hub()).toBeTruthy();
   });
 

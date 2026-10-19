@@ -2,6 +2,7 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
+import type { SupplyLoad } from '../src/domain/logistics';
 import { trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
 import { LOOT_CRATE_HOURS } from './constants';
 import { reassessLootCrateDetection, reassessLootCrateSightings } from './movement/detection';
@@ -120,4 +121,45 @@ export async function takeLootFromCrate(
   if (hasLoot(remaining)) await reassessLootCrateSightings(ctx, crate.seasonId, at);
   else await reassessLootCrateDetection(ctx, crate.seasonId, at);
   return { recoveryId: crate.recoveryId, loot: taken };
+}
+
+/**
+ * **Un transport détruit laisse une caisse** (ADR 0028 §4) : sa charge tombe au point de la
+ * passe, sous la forme de tout butin abandonné — un fait de reprise sans rien de repris, et le
+ * reste qui devient caisse, sa rumeur et ses relevés. Son propriétaire apprend la perte.
+ */
+export async function dropTransportCrate(
+  ctx: MutationCtx,
+  {
+    seasonId,
+    engagementId,
+    ownerId,
+    finderId,
+    load,
+    point,
+    at,
+  }: {
+    seasonId: Id<'seasons'>;
+    engagementId: Id<'engagements'>;
+    ownerId: Id<'players'>;
+    finderId: Id<'players'>;
+    load: SupplyLoad;
+    point: { lon: number; lat: number };
+    at: number;
+  },
+): Promise<void> {
+  const remainder = { ...emptyAmounts(), ...load };
+  if (!hasLoot(remainder)) return;
+  const recoveryId = await ctx.db.insert('lootRecoveries', {
+    seasonId,
+    engagementId,
+    dispossessedPlayerId: ownerId,
+    recoveringPlayerId: finderId,
+    point,
+    at,
+    recovered: emptyAmounts(),
+    remainder,
+  });
+  await materializeRecoveryRemainder(ctx, recoveryId, at);
+  await ctx.db.insert('notices', { playerId: ownerId, at, kind: 'lootLost', loot: remainder });
 }

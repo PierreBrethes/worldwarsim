@@ -1,3 +1,4 @@
+import { pointOfRegion } from './regions';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
@@ -265,6 +266,7 @@ describe('a Blitz unit and its orders (lot 5)', () => {
         playerId: player._id,
         key: 'barracks',
         regionId: 'FRA-5323',
+        point: pointOfRegion('FRA-5323'),
         level: 1,
         outpostId: null,
       });
@@ -300,6 +302,7 @@ describe('a Blitz unit and its orders (lot 5)', () => {
         playerId: player._id,
         key: 'barracks',
         regionId: 'MAR-3457',
+        point: pointOfRegion('MAR-3457'),
         level: 1,
         outpostId: null,
       });

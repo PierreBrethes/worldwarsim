@@ -40,6 +40,37 @@ export function MarchGauge({ since, dueAt }: { since: number; dueAt: number }) {
 }
 
 /**
+ * **La carte que porte mon QG** (ADR 0028 §5) : son nom, et sa barre qui court jusqu'à la fin ;
+ * figée quand le QG manque. Sa propre horloge, comme la marche.
+ */
+export function ResearchLine({
+  text,
+  since,
+  dueAt,
+  share,
+}: {
+  text: string;
+  since: number;
+  dueAt: number | null;
+  share: number;
+}) {
+  const now = useClock();
+  const shown =
+    dueAt === null || dueAt <= since
+      ? share
+      : Math.min(1, Math.max(0, (now - since) / (dueAt - since)));
+  return (
+    <div className="label-line label-line--research">
+      <span className="block">{text}</span>
+      <span className="loading-gauge loading-gauge--march" data-testid="research-gauge">
+        <b style={{ width: `${100 * shown}%` }} />
+      </span>
+      {dueAt === null && <span className="block">{fr.research.waiting}</span>}
+    </div>
+  );
+}
+
+/**
  * **L'anneau d'une capture** (14/10) : il se remplit à l'horloge que le serveur a servie
  * (`progressAt`, la règle même qui date l'échéance) avec le tampon « capture » ; l'heure de fin —
  * de victoire chez le capteur, de perte chez le défenseur, à l'encre d'alerte — se lit à l'affiche, et sur

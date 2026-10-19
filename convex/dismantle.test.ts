@@ -4,7 +4,7 @@ import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { buildCost, outpostReachKm } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -79,6 +79,7 @@ async function anchor(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level,
       outpostId,
     });
@@ -222,6 +223,7 @@ describe('démanteler un avant-poste', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: point });
 

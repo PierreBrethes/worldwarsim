@@ -8,10 +8,10 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
-import { foundationOwedBy, regionFacts } from './regions';
+import { foundationOwedBy, regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -52,6 +52,7 @@ async function building(t: Bench, seat: Seat, regionId: string, level = 2) {
       playerId: player._id,
       key: 'barracks',
       regionId,
+      point: pointOfRegion(regionId),
       level,
       outpostId: null,
     }),
@@ -78,11 +79,6 @@ async function troop(
     }),
   );
 }
-
-const pointOfRegion = (regionId: string) => {
-  const [lon, lat] = regionFacts(regionId)!.point;
-  return { lon, lat };
-};
 
 async function captureArrival(
   t: Bench,
@@ -406,6 +402,7 @@ describe('capturing an outpost', () => {
         playerId: owner._id,
         key: 'mine',
         regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
         level: 1,
         outpostId,
       }),
@@ -422,6 +419,65 @@ describe('capturing an outpost', () => {
     });
     expect((await t.run((ctx) => ctx.db.get(anchored)))!.playerId).toBe(me._id);
     expect((await t.run((ctx) => ctx.db.get(infantry)))!.stationedAt).toBe(outpostId);
+  });
+});
+
+/** **Dakar** (P11) : un dépôt d'avant-poste pris au teneur brûle, et les deux camps l'apprennent. */
+describe('capturing an outpost with a depot', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function takeDepot(withDakar: boolean) {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, guest);
+    const point = pointOfRegion(PRAHOVA);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point,
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 2,
+        specialization: 'relay',
+        foundedAt: MIDDAY - 10 * HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot: { ammunition: 40, oil: 20, coal: 0 },
+      }),
+    );
+    if (withDakar) await holdPoint(t, seat, 'dakar', guest);
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(t, seat, { kind: 'outpost', outpostId }, point, 'ROU', [infantry]);
+    await finish(t);
+    return { t, seat, guest, outpostId };
+  }
+
+  it('passes to the capturer with the outpost when nobody holds Dakar', async () => {
+    const { t, outpostId, guest } = await takeDepot(false);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.depot).toEqual({
+      ammunition: 40,
+      oil: 20,
+      coal: 0,
+    });
+    expect(await noticesOf(t, guest, 'depotBurned')).toEqual([]);
+  });
+
+  it('burns while the holder of Dakar loses it, and tells both sides', async () => {
+    const { t, seat, guest, outpostId } = await takeDepot(true);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.depot).toEqual({
+      ammunition: 0,
+      oil: 0,
+      coal: 0,
+    });
+    expect(await noticesOf(t, seat, 'depotBurned')).toMatchObject([
+      { side: 'capturer', lost: { ammunition: 40, oil: 20, coal: 0 } },
+    ]);
+    expect(await noticesOf(t, guest, 'depotBurned')).toMatchObject([{ side: 'holder' }]);
   });
 });
 
@@ -457,7 +513,9 @@ describe('taking a site back', () => {
             .unique()
         )?.installations,
     );
-    expect(surveyed).toEqual([{ buildingId: barracks, key: 'barracks' }]);
+    expect(surveyed).toEqual([
+      { buildingId: barracks, key: 'barracks', point: pointOfRegion(PSKOV) },
+    ]);
 
     const home = await building(t, guest, 'RUS-2336', 1);
     const mine = await troop(t, guest, 'infantry', home);
@@ -569,7 +627,9 @@ describe('the foundation and a captured building', () => {
     const owed = foundationOwedBy({ nation: 'france' }, []);
     const first = owed[0]!;
     expect(
-      foundationOwedBy({ nation: 'france' }, [{ key: first.key, regionId: MARNE, capturedAt: 1 }]),
+      foundationOwedBy({ nation: 'france' }, [
+        { key: first.key, point: pointOfRegion(MARNE), capturedAt: 1 },
+      ]),
     ).toEqual(owed);
   });
 });
@@ -852,6 +912,44 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **La carte de recherche attend son QG** (ADR 0028 §5) : la chute l'arrête sans rien
+   *  perdre, et un QG rebâti la relance là où elle en était. */
+  it('stops his research card at the fall, and lets a rebuilt headquarters run it on', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const loser = await playerOf(t, guest);
+    await t.run((ctx) =>
+      ctx.db.patch(loser._id, {
+        research: { card: 'carrier', remainingMs: 36 * HOUR, since: MIDDAY },
+      }),
+    );
+
+    await take(t, seat, hq);
+    await finish(t);
+    const paused = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
+    expect(paused).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: null });
+
+    const constructionId = await t.run((ctx) =>
+      ctx.db.insert('constructions', {
+        playerId: loser._id,
+        building: 'hq',
+        regionId: PSKOV,
+        point: pointOfRegion(PSKOV),
+        level: 1,
+        rank: 0,
+        finishesAt: Date.now(),
+      }),
+    );
+    await t.mutation(internal.constructions.finish, { constructionId });
+    const resumed = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
+    expect(resumed).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: Date.now() });
+
+    vi.advanceTimersByTime(24 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    expect((await t.run((ctx) => ctx.db.get(loser._id)))!.researched).toEqual(['carrier']);
+  });
+
   /** Rien de lui ne lui survit : son chantier tombe, son sol perd sa couleur, et le siège
    *  qu'un tiers menait contre lui ne dort plus à ses heures. */
   it('leaves him no site under way, no ground, and no sleep to the sieges that outlive him', async () => {
@@ -911,7 +1009,12 @@ describe('a Mondiale headquarters', () => {
     await t.mutation(api.messages.post, { ...guest, text: 'je vous avais prévenus' });
     expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).not.toBeNull();
     await expect(
-      t.mutation(api.constructions.start, { ...guest, building: 'barracks', regionId: MARNE }),
+      t.mutation(api.constructions.start, {
+        ...guest,
+        building: 'barracks',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+      }),
     ).rejects.toThrow('PLAYER_DEFEATED');
   });
 

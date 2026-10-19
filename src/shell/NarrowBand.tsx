@@ -31,11 +31,14 @@ import { useSoleSurface } from './sole-surface';
 export function NarrowBand({
   view,
   onShowBriefing,
+  onResumeSteps = null,
   ref,
 }: {
   view: PlayerView;
   /** L'aide-mémoire est un état du plateau, qui le sert aussi à la première arrivée. */
   onShowBriefing: () => void;
+  /** Les premiers pas repliés ou passés : le dossier les reprend. */
+  onResumeSteps?: (() => void) | null;
   ref?: Ref<HTMLElement>;
 }) {
   const now = useClock();
@@ -144,6 +147,14 @@ export function NarrowBand({
             setSurface(null);
             onShowBriefing();
           }}
+          onResumeSteps={
+            onResumeSteps === null
+              ? null
+              : () => {
+                  setSurface(null);
+                  onResumeSteps();
+                }
+          }
           onClose={() => setSurface(null)}
         />
       )}
@@ -168,11 +179,13 @@ function NationDossier({
   view,
   onLayers,
   onBriefing,
+  onResumeSteps,
   onClose,
 }: {
   view: PlayerView;
   onLayers: () => void;
   onBriefing: () => void;
+  onResumeSteps: (() => void) | null;
   onClose: () => void;
 }) {
   useSoleSurface(onClose);
@@ -245,6 +258,15 @@ function NationDossier({
           <SettingsGlyph size={24} />,
           fr.dossier.settings,
           fr.dossier.settingsNote,
+        )}
+        {onResumeSteps !== null && (
+          <button type="button" onClick={onResumeSteps} className={ROW}>
+            <DossierLine
+              icon={<Pictogram pictogram="journal" weight={40} size={24} />}
+              title={fr.firstSteps.resume}
+              note={fr.firstSteps.resumeNote}
+            />
+          </button>
         )}
         <button type="button" onClick={onBriefing} className={`${ROW} border-b-0`}>
           <DossierLine

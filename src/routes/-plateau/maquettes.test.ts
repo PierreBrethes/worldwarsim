@@ -1,3 +1,4 @@
+import { DEPOSIT_POINTS } from '@/domain/world';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from '@/domain/labels';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
@@ -25,12 +26,13 @@ const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}):
 });
 
 describe('maquettesOf', () => {
-  it('stands a building on its region, a port on its quay, and a mine by its ground', () => {
+  it('stands a building at its point, and a mine by the deposit under it', () => {
+    const coal = DEPOSIT_POINTS.find((deposit) => deposit.regionId === 'FRA-5328')!.lonLat;
     const port = building({ id: 'p', key: 'port', lonLat: [2, 51], regionId: 'FRA-5262' });
-    expect(maquettesOf([building(), port], () => undefined)).toEqual([
+    expect(maquettesOf([building({ lonLat: coal }), port], () => undefined)).toEqual([
       {
         id: 'building-FRA-5328-mine',
-        at: { regionId: 'FRA-5328' },
+        at: { lonLat: coal },
         url: buildingMaquette('mine', 'coal'),
         washed: false,
       },
@@ -55,6 +57,7 @@ describe('maquettesOf', () => {
       key: 'mine',
       regionId: 'FRA-5328',
       regionName: 'Nord',
+      point: null,
       level,
       rank: 0,
       finishesAt,
@@ -97,6 +100,7 @@ describe('maquettesOf', () => {
       buildingId: 'x',
       key: 'farm',
       regionId: 'DEU-DE21',
+      lonLat: [11.5, 48.1],
       name: 'Ferme',
       plate: 'farm.webp',
       washed: true,
@@ -113,13 +117,13 @@ describe('maquettesOf', () => {
       depot: '',
       emptied: true,
     };
-    const deposit: MapMarker = { kind: 'deposit', id: 'd', regionId: 'FRA-5328', deposit: 'coal' };
+    const deposit: MapMarker = { kind: 'deposit', id: 'd', lonLat: [6.6, 49], deposit: 'coal' };
     expect(
       maquettesOf([survey, objective, deposit], (id) => (id === 'o' ? 'fuelDump' : undefined)),
     ).toEqual([
       {
         id: 'installation-x',
-        at: { regionId: 'DEU-DE21' },
+        at: { lonLat: [11.5, 48.1] },
         url: buildingMaquette('farm', null),
         washed: true,
       },

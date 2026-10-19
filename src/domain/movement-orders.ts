@@ -2,7 +2,7 @@ import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
-import { firesIndirect } from './indirect-fire';
+import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
@@ -137,7 +137,12 @@ export type MovementAim =
    * building (`aimOf`), so nothing here has to ask. The key travels because the rule reads it
    * (`GARRISON_KEYS_BY_ROLE`), and the client holds it off the mast it clicked.
    */
-  | { readonly kind: 'building'; readonly buildingId: string; readonly key: BuildingKey }
+  | {
+      readonly kind: 'building';
+      readonly buildingId: string;
+      readonly key: BuildingKey;
+      readonly sealed?: boolean;
+    }
   /**
    * **Une colonne adverse en vue**, visée en Blitz seulement (B18) : l'attaquant la poursuit et
    * frappe au contact. Le relevé du fil répond — sa position à l'instant de l'ordre —, jamais la
@@ -193,6 +198,11 @@ export type Column = {
    * infanterie. Absent, la pleine force — ce que la rose annonçait avant d'avoir les troupes.
    */
   readonly captureRate?: number;
+  /**
+   * **Plus un coup dans la colonne** (ADR 0028 §3, `outOfRounds`), lu après la recharge à
+   * l'ancre : elle marche, elle n'attaque pas. Absent, elle en a (et la Blitz ne compte pas).
+   */
+  readonly outOfRounds?: boolean;
   /** **Une Blitz** (lot 5) : absent, la Mondiale, où rien de ceci ne se lit. */
   readonly blitz?: {
     readonly theatre: Theatre;
@@ -239,16 +249,25 @@ export type OrderRefusal =
   | 'UNIT_TARGET_ONLY'
   | 'RELOADING'
   | 'BUILDING_OCCUPIED'
-  | 'INDIRECT_FIRE_ONLY';
+  | 'INDIRECT_FIRE_ONLY'
+  /** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : la colonne marche, elle n'attaque pas. */
+  | 'NO_ROUNDS';
 
 export type PlunderAim = {
   readonly kind: 'building';
   readonly buildingId: string;
   readonly key: BuildingKey;
+  /** L'entrepôt est celui du teneur de Dakar : public, donc servi avec la visée comme `coastal`. */
+  readonly sealed?: boolean;
 };
 
 export type PlunderRefusal =
-  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
+  | 'EMPTY_MOVEMENT'
+  | 'FRIENDLY_TARGET'
+  | 'INFANTRY_REQUIRED'
+  | 'WAREHOUSE_TARGET_ONLY'
+  /** **Dakar** : les réserves de son teneur ne se pillent pas. */
+  | 'SEALED';
 
 export type LootCollectionRefusal = 'NO_CARGO_CAPACITY';
 
@@ -264,6 +283,7 @@ export function plunderRefusalOf(
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
+  if (aim.sealed === true) return 'SEALED';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
 }
 
@@ -277,7 +297,7 @@ export function captureOrderRefusalOf(
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
   const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
-  return captureRefusalOf(column.roles, isMine, mode) ?? closedGate(aim, column);
+  return captureRefusalOf(column.roles, isMine, mode) ?? dry(column) ?? closedGate(aim, column);
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */
@@ -297,8 +317,12 @@ export function plunderOrderRefusalOf(
   column: Column,
   isMine: boolean,
 ): PlunderRefusal | OrderRefusal | null {
-  return plunderRefusalOf(aim, column.roles, isMine) ?? closedGate(aim, column);
+  return plunderRefusalOf(aim, column.roles, isMine) ?? dry(column) ?? closedGate(aim, column);
 }
+
+/** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : capturer et piller, c'est aller au feu. */
+const dry = (column: Column): 'NO_ROUNDS' | null =>
+  column.outOfRounds === true ? 'NO_ROUNDS' : null;
 
 /** A collection walks like a march and must retain positive capacity after existing cargo. */
 export function lootCollectionOrderRefusalOf(
@@ -405,10 +429,12 @@ export function refusalOf(
       if (column.blitz !== undefined) {
         if (aim.kind !== 'camp' && aim.kind !== 'track') return 'UNIT_TARGET_ONLY';
         /** **L'artillerie ne charge pas** (B20) : elle se tait au contact, et bombarde. */
-        if (column.roles.some(firesIndirect)) return 'INDIRECT_FIRE_ONLY';
+        if (bombardsWith(column.roles, 'blitz')) return 'INDIRECT_FIRE_ONLY';
         if (column.blitz.reloading) return 'RELOADING';
         return closedGate(aim, column);
       }
+      if (bombardsWith(column.roles, 'mondiale')) return 'INDIRECT_FIRE_ONLY';
+      if (column.outOfRounds === true) return 'NO_ROUNDS';
       if (aim.kind === 'objective' && !column.roles.includes('infantry'))
         return 'INFANTRY_REQUIRED';
       return nothingToAttack(aim) ?? closedGate(aim, column);
@@ -416,7 +442,8 @@ export function refusalOf(
      *  service, and a region has no point to disable. */
     case 'raid':
       if (aim.kind !== 'outpost') return 'OUTPOST_TARGET_ONLY';
-      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(aim, column);
+      if (mine(aim, column)) return 'FRIENDLY_TARGET';
+      return column.outOfRounds === true ? 'NO_ROUNDS' : closedGate(aim, column);
     default:
       return 'NOT_ORDERABLE';
   }

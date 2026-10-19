@@ -37,7 +37,13 @@ export type PilePieces = {
   /** **Une escouade** (POC « Manipuler les pions », 16/10) : deux pièces ou plus, détourées et
    *  sous un fanion. Jamais en Blitz, où chaque pièce est une unité. */
   readonly squad: boolean;
+  /** **Le compte du fanion** (ADR 0028 §6) : toutes les troupes d'une escouade dessinée en une
+   *  figurine par rôle. Absent quand chaque troupe a sa pièce. */
+  readonly count?: number;
 };
+
+/** Jusque-là, une pièce par troupe ; au-delà, une par rôle (ADR 0028 §6). */
+export const SQUAD_DRAWN_WHOLE = 12;
 
 export type SheetLine = {
   readonly role: UnitRole;
@@ -97,21 +103,31 @@ function figuresOf({ role, troops, ratio }: Bucket): UnitTier[] {
  */
 export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
   const standing = troops.filter((troop) => carrierIn(troop, troops) === null);
+  const piece = (bucket: Bucket): PieceGroup => {
+    const riders = bucket.troops.flatMap((troop) => cargoOf(troop, troops));
+    return {
+      role: bucket.role,
+      troops: bucket.troops.length,
+      troopIds: [...bucket.troops, ...riders].map((t) => t.id),
+      figures: figuresOf(bucket),
+      wear: wearOf(bucket.ratio),
+      ...(riders.length === 0 ? {} : { aboard: riders.length }),
+    };
+  };
+  const ids = troops.map((t) => t.id);
+  /** **Au-delà de douze troupes, une figurine par rôle** (ADR 0028 §6) : les passagers comptent,
+   *  au seuil comme au fanion, et ce qu'on lève est le rôle. */
+  if (ids.length > SQUAD_DRAWN_WHOLE)
+    return {
+      groups: bucketsOf(standing).map(piece),
+      troopIds: ids,
+      squad: true,
+      count: ids.length,
+    };
   const groups = bucketsOf(standing).flatMap(({ troops: members }) =>
-    members.map((troop): PieceGroup => {
-      const [alone] = bucketsOf([troop]) as [Bucket];
-      const riders = cargoOf(troop, troops);
-      return {
-        role: troop.role,
-        troops: 1,
-        troopIds: [troop, ...riders].map((t) => t.id),
-        figures: figuresOf(alone),
-        wear: wearOf(alone.ratio),
-        ...(riders.length === 0 ? {} : { aboard: riders.length }),
-      };
-    }),
+    members.map((troop) => piece(bucketsOf([troop])[0]!)),
   );
-  return { groups, troopIds: troops.map((t) => t.id), squad: groups.length > 1 };
+  return { groups, troopIds: ids, squad: groups.length > 1 };
 }
 
 /**

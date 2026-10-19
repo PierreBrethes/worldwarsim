@@ -58,16 +58,10 @@ const OUTLINE_PX = 2;
  *  et c'est la possession réelle qui doit se lire par-dessus le souvenir. */
 const SUSPENDED_LIFT = 0.00025;
 const BUILT_LIFT = 0.001;
-/** Just above the built fill: a designated region is an answer to a gesture, and it has to
- *  read over the ink of what already stands there. */
-const DESIGNATED_LIFT = 0.002;
 const HOVER_LIFT = 0.0035;
 const ANCHOR_LIFT = 0.001;
 /** Over the fills, under the hover contour that frames them. */
 const SKETCH_LIFT = 0.003;
-
-/** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
-const DESIGNATED_OPACITY = 0.62;
 
 /**
  * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
@@ -220,13 +214,10 @@ export class RegionLayer {
    *  lit dans un débogueur plutôt qu'un attribut de géométrie. */
   readonly held = new Group();
   readonly built: Mesh;
-  /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
-  readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
   readonly terrain = new TerrainSketches();
   private readonly lineMaterial: LineDashedMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
-  private readonly designatedMaterial: MeshStandardMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
@@ -245,7 +236,6 @@ export class RegionLayer {
    *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
   private readonly strandsCache = new Map<string, PenStrands>();
   private builtIds: ReadonlySet<string> = new Set();
-  private designatedIds: ReadonlySet<string> = new Set();
   private share = 0;
 
   constructor(
@@ -276,24 +266,6 @@ export class RegionLayer {
     this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
     this.built.receiveShadow = true;
     this.built.visible = false;
-
-    /**
-     * The rail's amber — the ink of "you are here" (`FOCUS_MARK`) — and never the critical
-     * ink: a region that accepts a placement is an invitation, not an alarm.
-     */
-    this.designatedMaterial = onLand(
-      new MeshStandardMaterial({
-        color: PALETTE.designated,
-        roughness: 0.97,
-        metalness: 0,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      }),
-    );
-    this.designated = new Mesh(new BufferGeometry(), this.designatedMaterial);
-    this.designated.receiveShadow = true;
-    this.designated.visible = false;
 
     this.hoverMaterial = onLand(
       new LineBasicMaterial({
@@ -390,23 +362,11 @@ export class RegionLayer {
     this.fill(this.built, this.builtIds, BUILT_LIFT);
   }
 
-  /**
-   * The regions a designated key accepts. It is **only ever a set of ids**: the rule that
-   * produced them lives in the domain (`placementOf`), and the map draws what it is handed —
-   * a second reading here would highlight ground the server refuses.
-   */
-  showDesignated(regionIds: ReadonlySet<string>): void {
-    if (sameIds(regionIds, this.designatedIds)) return;
-    this.designatedIds = regionIds;
-    this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
-  }
-
   /** The fills and the pen's strands follow the data: new regions, everything redone. */
   rebuild(): void {
     this.forgetSketches();
     this.rebuildHeld();
     this.fill(this.built, this.builtIds, BUILT_LIFT);
-    this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
   }
 
   /** The pen's ground is the painted one: when it changes, the drawing on screen and the cached
@@ -563,26 +523,6 @@ export class RegionLayer {
     return this.frame.toWorld(x, y, COUNTRY_THICKNESS + ANCHOR_LIFT);
   }
 
-  /**
-   * **A region's outline, for whoever has to sift points against it.** The box narrows the
-   * search, the test settles it — the two travel together because a caller that had only the
-   * second would walk the whole world to find its own coast (`MapEngine.setPlacing`).
-   *
-   * It is the layer that answers and not `regions.json` read a second time: the polygons are
-   * already here, prepared and projected, and a second reading would be a second truth.
-   */
-  outlineOf(regionId: string): {
-    readonly box: readonly [number, number, number, number];
-    readonly covers: (x: number, y: number) => boolean;
-  } | null {
-    const prepared = this.prepared.find(({ region }) => region.id === regionId);
-    if (prepared === undefined) return null;
-    return {
-      box: prepared.box,
-      covers: (x, y) => contains(prepared, x, y),
-    };
-  }
-
   /** The point is in projected coordinates (those of `world.json`), not world coordinates. */
   regionAt(projectedX: number, projectedY: number): DisplayedRegion | null {
     return this.pick(projectedX, projectedY)?.region ?? null;
@@ -626,8 +566,6 @@ export class RegionLayer {
     this.lines.visible = this.share > 0.01;
     this.builtMaterial.opacity = this.share;
     this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
-    this.designatedMaterial.opacity = this.share * DESIGNATED_OPACITY;
-    this.designated.visible = this.share > VISIBLE_SHARE && this.designatedIds.size > 0;
     this.hoverMaterial.opacity = zoomFade(this.share) * PEN_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
@@ -644,16 +582,13 @@ export class RegionLayer {
     this.held.removeFromParent();
     this.lines.geometry.dispose();
     this.built.geometry.dispose();
-    this.designated.geometry.dispose();
     this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
     this.builtMaterial.dispose();
-    this.designatedMaterial.dispose();
     this.hoverMaterial.dispose();
     this.terrain.dispose();
     this.lines.removeFromParent();
     this.built.removeFromParent();
-    this.designated.removeFromParent();
     this.hoverOutline.removeFromParent();
   }
 

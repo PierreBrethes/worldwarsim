@@ -1,3 +1,8 @@
+import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
+import type { TourAct, TourTrace } from '@/domain/cargo-tag';
+import { emptyLoad, isAirStop } from '@/domain/logistics';
+import { useTokenDrag } from '@/map/TokenDrag';
+import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import {
   Link,
   Navigate,
@@ -27,11 +32,12 @@ import {
   detectionRangeOf,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
-import { fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
+import { researchMs, researchProgressOf } from '@/domain/research';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
-import type { PieceClick, StandingPile } from '@/map/engine';
+import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
+import type { PieceClick, PlacingMagnet, PlacingSpot, StandingPile } from '@/map/engine';
 import {
   readWindows,
   toggleWindow,
@@ -54,12 +60,13 @@ import { captureRate } from '@/domain/capture';
 import {
   buildLabels,
   ownerFlags,
+  type LabelLine,
   type MapLabel,
   type MapMarker,
   type Reach,
 } from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
-import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -74,15 +81,23 @@ import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
-import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
+import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
+  traceCompass,
   type Compass,
   type CompassAction,
   type CompassTarget,
   type OrderAction,
 } from '@/domain/compass-rose';
-import { placementOf, workSitesOf } from '@/domain/construction';
+import {
+  aimVerdict,
+  freeDeposits,
+  placementOf,
+  reachesOf,
+  workSitesOf,
+} from '@/domain/construction';
+import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
@@ -94,7 +109,6 @@ import {
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
-  type Cost,
   type PlayerView,
   type Stack,
   type TroopStation,
@@ -156,6 +170,8 @@ import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
+import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
+import { shownStepOf } from '@/domain/first-steps';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -176,9 +192,17 @@ type Demolition = { buildingId: string; x: number; y: number };
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
 
-/** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
- *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
-type HeldBuilding = PlacingBuilding & { readonly key: BuildingKey };
+/**
+ * **Un bâtiment tenu en main** (ADR 0029) : la clé choisie, et la dette du socle qu'il vient
+ * acquitter s'il a été pris dans l'ordre de mobilisation — c'est elle qui dit sur quel gisement
+ * il s'aimante. Le lieu, c'est la carte qui le donne.
+ */
+type HeldBuilding = {
+  readonly key: BuildingKey;
+  readonly debt: FoundationDebt | null;
+  /** Ce que la carte dit avant que le fantôme ait trouvé un point : la région du panneau. */
+  readonly title: string;
+};
 
 /** The garrison panel's subject and the point it is anchored to. */
 type OpenGarrison = {
@@ -226,8 +250,8 @@ const JournalWindow = lazy(() =>
 const SiteModal = lazy(() =>
   import('./-plateau/SiteModal').then((module) => ({ default: module.SiteModal })),
 );
-const EconomyWindow = lazy(() =>
-  import('./-plateau/EconomyWindow').then((module) => ({ default: module.EconomyWindow })),
+const PersonalBoard = lazy(() =>
+  import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
 );
 const NationWindow = lazy(() =>
   import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
@@ -252,14 +276,14 @@ const PressWindow = lazy(() =>
  * the compilation, never produce a dead click.
  */
 const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
-  hq: 'economy',
-  farm: 'economy',
-  mine: 'economy',
-  oilWell: 'economy',
-  arsenal: 'economy',
-  warehouse: 'economy',
-  depot: 'economy',
-  listening: 'economy',
+  hq: 'personalBoard',
+  farm: 'personalBoard',
+  mine: 'personalBoard',
+  oilWell: 'personalBoard',
+  arsenal: 'personalBoard',
+  warehouse: 'personalBoard',
+  depot: 'personalBoard',
+  listening: 'personalBoard',
   barracks: 'site',
   airfield: 'site',
   port: 'site',
@@ -393,12 +417,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   /**
-   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
-   * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
-   * Échap le lâche, aucune rose ne s'ouvre pendant — et il vit ici parce que c'est un geste de
-   * carte, comme la visée et l'ordre de mobilisation.
+   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0029) : toute clé,
+   * choisie au panneau de construction ou dans l'ordre de mobilisation. C'est le cousin de la
+   * visée — même priorité sur les clics, Échap le lâche, aucune rose ne s'ouvre pendant — et il
+   * vit ici parce que c'est un geste de carte.
    */
   const [placing, setPlacing] = useState<HeldBuilding | null>(null);
+  /** Le point que le fantôme tient, et ce que la carte en sait : ce que le refus lit. */
+  const [placingAim, setPlacingAim] = useState<PlacingSpot | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
   // the frame after the pointer slides from one to the other, and a single variable would let
@@ -498,9 +524,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * other two map gestures — a construction site and an aim — because it is one of them: a
    * click on the map that means something because of what is armed.
    */
-  /** La dette armée dans l'ordre de mobilisation, par son couple (`debtKey`) : le quartier
-   *  général n'a pas de gisement, et deux mines dues ne se distinguent que par le leur. */
-  const [mobilized, setMobilized] = useState<string | null>(null);
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
@@ -829,18 +852,23 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return Math.max(0, capacity - carried);
   }, [column, view.me.troops, view.me.stationedCargo]);
 
+  /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
+   *  l'étiquette du transport la lance ou l'efface. */
+  const [trace, setTrace] = useState<TourTrace | null>(null);
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      compassOf(
-        target,
-        view,
-        column?.rule ?? null,
-        column?.station ?? null,
-        freeCapacity,
-        column?.troopIds ?? null,
-        Date.now(),
-      ),
-    [view, column, freeCapacity],
+      trace !== null && column?.troopIds.includes(trace.carrierId) === true
+        ? traceCompass(target, view, trace)
+        : compassOf(
+            target,
+            view,
+            column?.rule ?? null,
+            column?.station ?? null,
+            freeCapacity,
+            column?.troopIds ?? null,
+            Date.now(),
+          ),
+    [view, column, freeCapacity, trace],
   );
 
   const foundHere = useMutation(api.movements.foundOutpostHere);
@@ -850,6 +878,81 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const boardTransport = useMutation(api.movements.board);
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
+  const deliver = useMutation(api.logistics.deliver);
+  const airdrop = useMutation(api.logistics.airdrop);
+  const loadTransport = useMutation(api.logistics.load);
+  /** **Charger** (ADR 0028 §4) : des jetons du plateau personnel ou d'un dépôt, glissés sur un
+   *  transport ; la main montre alors toutes les étiquettes de transport. */
+  const [carryingTokens, setCarryingTokens] = useState(false);
+  const tokens = useTokenDrag<TokenSource>({
+    read: (from, carrierId, resource, grabbed) =>
+      loadReadingOf(view, carrierId, from, resource, grabbed, Date.now()),
+    drop: (_from, carrierId, resource, amount) => {
+      setOrderError(null);
+      loadTransport({ ...seat, troopId: carrierId as Id<'troops'>, resource, amount }).then(
+        () => notify(fr.logistics.loaded(amount, fr.resources[resource]), 'info'),
+        (problem: unknown) => handleError(problem, setOrderError),
+      );
+    },
+    onHold: setCarryingTokens,
+  });
+  const startTour = useMutation(api.tours.start);
+  const recallTour = useMutation(api.tours.recall);
+  /** **La tournée depuis l'étiquette** : lancer celle qu'on a tracée, l'effacer, la rappeler. */
+  const onTour = useCallback(
+    (carrierId: string, act: TourAct) => {
+      setOrderError(null);
+      const refused = (problem: unknown) => handleError(problem, setOrderError);
+      if (act === 'recall') {
+        recallTour({ ...seat, troopId: carrierId as Id<'troops'> }).catch(refused);
+        return;
+      }
+      const traced = trace;
+      setTrace(null);
+      if (act === 'clear' || traced === null || traced.carrierId !== carrierId) return;
+      startTour({
+        ...seat,
+        troopId: carrierId as Id<'troops'>,
+        stops: traced.stops.map((stop) => stop as Id<'outposts'>),
+      }).then(() => notify(fr.logistics.tourStarted, 'info'), refused);
+    },
+    [recallTour, startTour, seat, trace],
+  );
+  /** **Les boucles à l'encre** : chaque tournée, et celle qu'on trace, du chargement au
+   *  chargement par ses dépôts ; un dépôt que ce tour saute, plein, en pointillé. */
+  const tourLoops = useMemo((): ReadonlyArray<TourLoop> => {
+    const pointOfStation = (id: string) =>
+      view.me.buildings.find((building) => building.id === id)?.point ??
+      view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
+    const loopOf = (
+      baseId: string,
+      stops: ReadonlyArray<string>,
+      skipped: ReadonlyArray<string>,
+      tracing: boolean,
+    ): ReadonlyArray<TourLoop> => {
+      const base = pointOfStation(baseId);
+      const points = stops.flatMap((stop) => {
+        const at = pointOfStation(stop);
+        return at === undefined ? [] : [{ at, skipped: skipped.includes(stop) }];
+      });
+      return base === undefined ? [] : [{ base, stops: points, tracing }];
+    };
+    const tracedFrom = view.me.troops.find((troop) => troop.id === trace?.carrierId)?.stationedAt;
+    return [
+      ...view.me.troops.flatMap((troop) =>
+        troop.tour === undefined
+          ? []
+          : loopOf(troop.tour.baseId, troop.tour.stops, troop.tour.skipped, false),
+      ),
+      ...(trace === null || tracedFrom === undefined
+        ? []
+        : tracedFrom.kind === 'building'
+          ? loopOf(tracedFrom.buildingId, trace.stops, [], true)
+          : tracedFrom.kind === 'outpost'
+            ? loopOf(tracedFrom.outpostId, trace.stops, [], true)
+            : []),
+    ];
+  }, [view.me.troops, view.me.buildings, view.me.outposts, trace]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -907,6 +1010,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             ...seat,
             building: action.buildingKey,
             regionId: action.regionId,
+            point: { lon: action.point[0], lat: action.point[1] },
           }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         /**
@@ -963,6 +1067,56 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
             carrierId: action.carrierId as Id<'troops'>,
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          return;
+        /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. **Larguer** :
+         *  l'avion part de même, paie l'aller-retour et rentre seul. */
+        case 'deliver':
+        case 'airdrop': {
+          if (column === null || inFlight.current) return;
+          inFlight.current = true;
+          setOrderError(null);
+          const order = {
+            ...seat,
+            origin: wireOrigin(column.station),
+            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+          };
+          (action.key === 'deliver'
+            ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
+            : airdrop({
+                ...order,
+                target:
+                  action.target.kind === 'outpost'
+                    ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
+                    : {
+                        kind: 'squad',
+                        point: { lon: action.target.point[0], lat: action.target.point[1] },
+                      },
+              })
+          ).then(
+            (filed) => {
+              settle();
+              afterSent({ ...filed, destination: action.destination }, action.label);
+            },
+            (problem: unknown) => {
+              settle();
+              handleError(problem, setOrderError);
+              dropHand();
+            },
+          );
+          return;
+        }
+        /** **Tracer une tournée** (ADR 0028) : le premier dépôt, puis les suivants ; rien ne part
+         *  avant que l'étiquette du transport la lance. */
+        case 'tour':
+          setOrderError(null);
+          setTrace({ carrierId: action.carrierId, stops: [action.outpostId] });
+          dropHand();
+          return;
+        case 'tourStop':
+          setTrace((was) =>
+            was === null ? was : { ...was, stops: [...was.stops, action.outpostId] },
+          );
+          dropHand();
           return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
          *  la pièce reste posée et la main se repose. */
@@ -1036,6 +1190,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       respecialize,
       boardTransport,
       bombard,
+      deliver,
+      airdrop,
       dropHand,
       column,
       seat,
@@ -1119,99 +1275,149 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', drop);
   }, [placing]);
 
+  /** Ce que le fantôme lit : les gisements que personne n'exploite à sa connaissance, et la
+   *  portée de ses avant-postes debout. */
+  /** **Keyed on the free deposits themselves, not on the view**: every Convex update brings a
+   *  new view, and a new list would re-arm the ghost under the pointer (`WorldMap`). */
+  const freeIds = freeDeposits(view)
+    .map((deposit) => deposit.id)
+    .join(',');
+  const freeDepositPoints = useMemo(() => {
+    const free = new Set(freeIds.split(','));
+    return DEPOSIT_POINTS.filter((deposit) => free.has(deposit.id));
+  }, [freeIds]);
+  const reaches = useMemo(() => reachesOf(view, outpostReachKm), [view]);
+
   /**
-   * **Le clic sur le rivage commande le chantier**, par la mutation qui commande tous les
-   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
-   * qu'un point soit nommé. Le refus se lit au bandeau du plateau, comme une fondation refusée.
+   * **L'aimant de la clé tenue** : un extracteur saute sur un gisement libre de son espèce — celui
+   * que sa dette nomme, s'il en acquitte une —, un port sur un quai, le reste se pose sous le
+   * pointeur. Mémoïsé sur la clé et la liste : la carte ne réarme le fantôme qu'à leur changement.
    */
-  const placePort = useCallback(
-    (point: LonLat) => {
-      if (placing === null) return;
+  const magnet = useMemo<PlacingMagnet | null>(() => {
+    if (placing === null) return null;
+    const kinds =
+      placing.debt?.deposit != null ? [placing.debt.deposit] : EXPLOITED_DEPOSITS[placing.key];
+    if (kinds !== undefined) {
+      return {
+        kind: 'points',
+        points: freeDepositPoints
+          .filter((deposit) => kinds.includes(deposit.deposit))
+          .map((deposit) => deposit.lonLat),
+      };
+    }
+    return placing.key === 'port' ? { kind: 'coast' } : { kind: 'free' };
+  }, [placing, freeDepositPoints]);
+
+  const verdict =
+    placing === null || placingAim === null
+      ? null
+      : aimVerdict(view, placing.key, placingAim, reaches);
+
+  /** La carte du fantôme, écrite ici (ADR 0016) : le nom, la facture, et le refus du point visé
+   *  dans les mots du serveur (`aimRefusalText`). */
+  const placingCard = useMemo<PlacingBuilding | null>(() => {
+    if (placing === null || magnet === null) return null;
+    const spec = view.buildCatalog[placing.key];
+    const free = verdict?.free ?? false;
+    const widest = reaches.map((reach) => reach.reachKm);
+    return {
+      sprite: buildingSprite(placing.key),
+      magnet,
+      title: placingAim?.region?.name ?? placing.title,
+      name: fr.buildings[placing.key],
+      cost: spec.cost,
+      free,
+      duration: free ? fr.construction.immediate : asDuration(spec.minutes),
+      refusal:
+        verdict?.refusal == null
+          ? null
+          : aimRefusalText(
+              verdict.refusal,
+              placing.key,
+              {
+                widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
+                hasOutposts: widest.length > 0,
+              },
+              spec.lockedBy,
+              placing.debt?.deposit != null
+                ? [placing.debt.deposit]
+                : (EXPLOITED_DEPOSITS[placing.key] ?? []),
+            ),
+    };
+  }, [placing, magnet, placingAim, verdict, reaches, view]);
+
+  const hold = useCallback((held: HeldBuilding | null) => {
+    setPlacingAim(null);
+    setPlacing(held);
+  }, []);
+
+  /**
+   * **Le clic sur la carte commande le chantier**, par la mutation qui commande tous les
+   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
+   * qu'un point soit nommé. **Un point refusé ne part pas** : la carte du fantôme dit déjà
+   * pourquoi, et la main reste pleine pour viser ailleurs.
+   */
+  const placeAt = useCallback(
+    (spot: PlacingSpot) => {
+      if (placing === null || spot.region === null) return;
+      if (aimVerdict(view, placing.key, spot, reaches).refusal !== null) return;
       const ordered = placing;
-      setPlacing(null);
+      const free = aimVerdict(view, placing.key, spot, reaches).free;
+      hold(null);
       setOrderError(null);
+      setMobilizeError(null);
       startConstruction({
         ...seat,
         building: ordered.key,
-        regionId: ordered.regionId,
-        point: { lon: point[0], lat: point[1] },
+        regionId: spot.region.id,
+        point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
       }).then(
-        () => notify(fr.construction.queued(fr.buildings[ordered.key]), 'info'),
-        (problem: unknown) => handleError(problem, setOrderError),
+        () => {
+          if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
+        },
+        (problem: unknown) =>
+          handleError(problem, ordered.debt === null ? setOrderError : setMobilizeError),
       );
     },
-    [placing, startConstruction, seat],
+    [placing, startConstruction, seat, view, reaches, hold],
   );
 
+  /** **La tuile prise sur le plateau personnel** arme le même fantôme qu'une clé choisie : la
+   *  pose ne connaît qu'une main. */
+  const holdTile = useCallback(
+    (key: BuildingKey | null) =>
+      hold(key === null ? null : { key, debt: null, title: fr.buildings[key] }),
+    [hold],
+  );
+
+  /** La tuile lâchée sur la carte se pose où le fantôme se tient, s'il y est accepté. */
+  const placeTile = useCallback((): boolean => {
+    if (placing === null || placingAim === null || placingAim.region === null) return false;
+    if (aimVerdict(view, placing.key, placingAim, reaches).refusal !== null) return false;
+    placeAt(placingAim);
+    return true;
+  }, [placing, placingAim, view, reaches, placeAt]);
+
   /**
-   * **The keys the season still owes, and the ground each one accepts.** The eligibility is
-   * `placementOf` — the placement refusal the server itself raises, read over the player's own
-   * regions. Nothing is re-decided here, which is the whole point: the order can only ever
-   * highlight ground `constructions.start` would take.
+   * **The keys the season still owes, and whether any point takes them.** The condition is
+   * `placementOf` — what no point at all can take yet; where exactly, the ghost says.
    */
   const foundation = useMemo(
     () =>
-      view.me.foundation.map((due) => {
-        const placement = placementOf(view, due.key);
-        /** **Une dette ne s'acquitte que sur son gisement** (`owedFreely`) : allumer tout le sol
-         *  que la clé accepte ferait poser la mine du fer sur du charbon, et le serveur la
-         *  facturerait plein tarif sans que rien ne l'ait dit. La dette du quartier général ne
-         *  nomme aucun gisement : tout le sol qu'elle accepte l'acquitte (`settlesDebt`). */
-        const regionIds =
-          due.deposit === null
-            ? placement.regionIds
-            : placement.regionIds.filter((regionId) => depositOfRegion(regionId) === due.deposit);
-        return {
-          ...placement,
-          deposit: due.deposit,
-          regionIds,
-          condition:
-            regionIds.length === 0 && placement.condition === null
-              ? ({ kind: 'regionsTaken' } as const)
-              : placement.condition,
-        };
-      }),
+      view.me.foundation.map((due) => ({
+        ...placementOf(view, due.key, due.deposit === null ? undefined : [due.deposit]),
+        deposit: due.deposit,
+      })),
     [view],
-  );
-
-  const designated = useMemo(
-    () => foundation.find((placement) => debtKey(placement) === mobilized)?.regionIds ?? [],
-    [foundation, mobilized],
   );
 
   // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
   // so a couple that has left it has no line left to be armed on.
   const armed =
-    mobilized !== null && view.me.foundation.some((due) => debtKey(due) === mobilized)
-      ? mobilized
+    placing?.debt != null &&
+    view.me.foundation.some((due) => debtKey(due) === debtKey(placing.debt!))
+      ? debtKey(placing.debt)
       : null;
-
-  const place = useMutation(api.constructions.start);
-
-  /**
-   * **The foundation goes down where it is clicked, through the one mutation that places.**
-   * There is no second door: `constructions.start` reads the free placement off `foundationOwed`
-   * and stands the building at once — the order only chooses the region, which is the single
-   * gesture of the opening that is a decision.
-   */
-  const placeFoundation = useCallback(
-    (regionId: string | null) => {
-      const due =
-        armed === null ? undefined : view.me.foundation.find((debt) => debtKey(debt) === armed);
-      if (due === undefined || regionId === null) return;
-      if (!designated.includes(regionId)) return;
-      setMobilizeError(null);
-      /**
-       * **The key stays armed.** A skirmish owes two mines, and disarming after the first would
-       * make the second placement a fresh hunt through the card. It disarms on its own when the
-       * debt is paid: `armed` is read off `me.foundation`, which the placement empties.
-       */
-      place({ ...seat, building: due.key, regionId }).catch((problem: unknown) =>
-        handleError(problem, setMobilizeError),
-      );
-    },
-    [armed, designated, place, seat, view.me.foundation],
-  );
 
   const inkByCountry = useMemo(
     () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
@@ -1325,10 +1531,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.me.buildings, view.me.ink],
   );
 
-  // Buildings hang from a region id and the map layer resolves it — **sauf le port**, qui porte
-  // le point de côte choisi à la pose (ADR 0013, révision du 04/09) ; un outpost carries its own
-  // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
-  // wait for 4.7 to serve positions — see `MapMarker`.
+  // Every building stands at the point written at its placement (ADR 0029), and so does the
+  // work that will raise it; an outpost carries its own point, because it *is* a point and
+  // colours no ground (fiche 03).
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
     const loot: ReadonlyArray<MapMarker> = view.lootSightings
       .filter((sighting) => sighting.present)
@@ -1345,18 +1550,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * mouvements, tenants — et le sol n'est ni l'un ni l'autre. Un gisement est fixe, identique
      * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
      * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
-     * (`DEPOSIT_REGIONS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
+     * (`DEPOSIT_POINTS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
      * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
      * au dézoom, rien ne pleut sur la carte.
      */
     /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
     const deposits: ReadonlyArray<MapMarker> =
       toggles.deposits && view.mode !== 'blitz'
-        ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+        ? DEPOSIT_POINTS.map((point) => ({
             kind: 'deposit' as const,
-            id: `deposit-${regionId}`,
-            regionId,
-            deposit,
+            id: `deposit-${point.id}`,
+            lonLat: point.lonLat,
+            deposit: point.deposit,
           }))
         : [];
 
@@ -1394,6 +1599,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             }
           : null,
       ink: view.me.ink,
+      ...(view.mode === 'blitz' || outpost.standsAt !== null
+        ? {}
+        : { depot: { load: outpost.depot, capacity: outpost.depotCapacity } }),
+      /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
+      cargo: cargoTagsOf(
+        troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
+        { afloat: false, atAirfield: false, trace },
+      ),
     }));
 
     /**
@@ -1408,9 +1621,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     /**
      * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
      * n'avait aucune poignée — un ordre existait côté serveur que rien à l'écran ne pouvait
-     * nommer. Le point exact d'un site adverse n'est pas servi : le relevé porte la région, et
-     * le mât se pose à son centroïde, comme un gisement. Il suit le même interrupteur que les
-     * mâts à soi, parce que c'est le même encombrement.
+     * nommer. Le relevé porte le point où le site se tenait (ADR 0029), et le mât s'y pose : c'est
+     * le point que la capture et la frappe visent. Il suit le même interrupteur que les mâts à
+     * soi, parce que c'est le même encombrement.
      */
     /**
      * **Un camp adverse relevé se tient sur la carte** (ADR 0024 §1) : sans mât, le §3 serait
@@ -1486,6 +1699,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         buildingId: installation.id,
         key: installation.key,
         regionId: installation.regionId,
+        lonLat: installation.point,
         name: fr.buildings[installation.key],
         plate: buildingSprite(installation.key),
         washed: knownRegionById.get(installation.regionId)?.state !== 'current',
@@ -1499,6 +1713,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       buildingId: site.id,
       key: site.key,
       regionId: site.regionId,
+      lonLat: site.point,
       name: fr.buildings[site.key],
       plate: buildingSprite(site.key),
       washed: false,
@@ -1509,8 +1724,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
-    const worksOn = (regionId: string, key: string) =>
-      works.find((site) => site.regionId === regionId && site.key === key) ?? null;
+    const worksOn = (point: LonLat, key: string) =>
+      works.find(
+        (site) =>
+          site.point !== null &&
+          site.point[0] === point[0] &&
+          site.point[1] === point[1] &&
+          site.key === key,
+      ) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât,
@@ -1527,6 +1748,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         cargo: cargoTagsOf(held, {
           afloat: false,
           atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
+          trace,
         }),
       };
     };
@@ -1543,21 +1765,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       level: building.level,
       plate: buildingSprite(building.key),
       // An upgrade is work on a building that already stands: its own mast wears the pennant.
-      works: worksOn(building.regionId, building.key),
+      works: worksOn(building.point, building.key),
       /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
        *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
+      ...(building.key === 'hq' ? researchOnHq(view.me) : {}),
       ink: view.me.ink,
     }));
 
-    // A first level has no building to hang its works on: the site gets its own mast, from
-    // the queue on — a region paid for reads as such before anything stands. **Une élévation
-    // d'avant-poste ne plante rien** : le point a déjà son mât (précision du 15/09), et
-    // `workSitesOf` laisse ses travaux au panneau du point.
-    const head = view.me.construction;
+    // A first level has no building to hang its works on: the site gets its own mast at its
+    // point, from the queue on. **Une élévation d'avant-poste ne plante rien** : le point a déjà
+    // son mât (précision du 15/09), et `workSitesOf` laisse ses travaux au panneau du point.
     const raising = works
       .filter((site) => site.phase !== 'raising')
       .map((site) => ({
@@ -1568,8 +1789,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         key: site.key,
         regionId: site.regionId,
         regionName: site.regionName,
-        // Only the head is served its quay; a queued port hangs from its region.
-        lonLat: site.phase === 'rising' ? (head?.point ?? null) : null,
+        lonLat: site.point,
         hostCountry: host,
         name: fr.buildings[site.key],
         level: null,
@@ -1594,6 +1814,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     ];
   }, [
     marching,
+    trace,
     regionAt,
     view.me,
     view.loadedAt,
@@ -1886,7 +2107,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
        *  une seule règle, celle que l'arrivée lit pour trouver qui se tient là. */
       contactKm: firing ? null : contactKm(blitzTheatre),
-      ...(firing && blitzTheatre !== null ? { fire: fireReachOf(blitzTheatre) } : {}),
+      ...(firing ? { fire: fireReachOf(blitzTheatre) } : {}),
     };
   }, [column, view.me, blitzTheatre]);
   const movementReach = useMemo<Reach | null>(() => {
@@ -1992,7 +2213,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /**
-   * The command sheet, served on a player's very first board and by the settings line after
+   * The command sheet, served on a player's very first Blitz board and by the settings line after
    * that. The flag is read once at mount: marking it seen inside the season must not make the
    * sheet vanish under a re-render, only stop the *next* arrival from serving it.
    */
@@ -2000,7 +2221,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  et le tic-tac sonne quand on regarde ailleurs (`telegraph.ts`). */
   const telegraph = useTelegraph(seat);
 
-  const [briefing, setBriefing] = useState(() => !briefingSeen());
+  /** **En Mondiale, les premiers pas tiennent l'entrée** (ADR 0027 §2) : la feuille ne s'ouvre
+   *  plus d'elle-même, elle se relit depuis les Réglages. La Blitz garde la sienne. */
+  const [briefing, setBriefing] = useState(() => blitz && !briefingSeen());
+  const firstSteps = useFirstSteps(view, seat);
+  const boardOpen = windows.includes('personalBoard');
+  const stepCue = firstSteps?.cue ?? null;
+  const stepText = stepCue === null ? null : fr.firstSteps.cue[stepCue.say];
+  /** Repliés ou passés, les premiers pas se reprennent depuis l'aide ; finis, il n'y a rien à reprendre. */
+  const resumeSteps =
+    firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'open'
+      ? null
+      : () => firstSteps.show('open');
+  const cuedLabel = stepCue?.kind === 'piece' ? markerOfStation(view, stepCue.station) : null;
+  const mapCue =
+    cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText };
 
   /**
    * The morning edition: with **unread** critical news, the journal is already on the desk on
@@ -2170,7 +2405,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     api.movements.preview,
     dispatch === null || aimed === null || mission?.kind !== 'march'
       ? 'skip'
-      : { ...dispatch, target: wireTarget(aimed.aim), type: aimed.type },
+      : {
+          ...dispatch,
+          target: wireTarget(aimed.aim),
+          type: aimed.type,
+          ...(mission.roundTrip === true ? { roundTrip: true } : {}),
+        },
   );
   const plunderPreview = useQuery(
     api.movements.previewPlunder,
@@ -2214,6 +2454,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               ...(preview.holdUntil === null
                 ? []
                 : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+              ...fuelNotes(preview),
             ],
     [resting, preview],
   );
@@ -2254,15 +2495,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
-        const head = facility.queue[0];
-        if (head === undefined || !head.started) return [];
+        /** Un site de niveau N forme N troupes à la fois : la ligne tombe à la plus proche. */
+        const started = facility.queue.filter((batch) => batch.started);
+        if (started.length === 0) return [];
+        const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
         return [
           {
             buildingId: facility.id,
             key: facility.key,
             regionId: facility.regionId,
             regionName: facility.regionName,
-            endsAt: workshop!.loadedAt + head.minutesLeft * 60_000,
+            endsAt: workshop!.loadedAt + minutesLeft * 60_000,
           },
         ];
       }),
@@ -2276,14 +2519,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
   const focusBuilding = useCallback(
-    (regionId: string, key: string, distance?: number) => {
-      const point = view.me.regions.find((region) => region.id === regionId)?.point;
+    (building: { key: string; point: LonLat | null }, distance?: number) => {
       const at = distance === undefined ? {} : { distance };
-      if (!toggles.buildings && point !== undefined)
-        setFocus({ ids: [], places: [point], ...at, nonce: Date.now() });
-      else setFocus({ ids: [buildingLabelId({ regionId, key })], ...at, nonce: Date.now() });
+      if (!toggles.buildings && building.point !== null)
+        setFocus({ ids: [], places: [building.point], ...at, nonce: Date.now() });
+      else setFocus({ ids: [buildingLabelId(building)], ...at, nonce: Date.now() });
     },
-    [view.me.regions, toggles.buildings],
+    [toggles.buildings],
   );
 
   const locateUnderway = useCallback(
@@ -2292,7 +2534,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
       else if (place.kind === 'outpost')
         setFocus({ ids: [`outpost-${place.outpostId}`], nonce: Date.now() });
-      else focusBuilding(place.regionId, place.key);
+      else focusBuilding(place);
     },
     [focusBuilding],
   );
@@ -2302,7 +2544,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    *  pour y lire ses pièces, pas pour revoir le monde autour. */
   const recenterOnHome = useCallback(() => {
     const hq = view.me.buildings.find((building) => building.key === 'hq');
-    if (hq !== undefined) focusBuilding(hq.regionId, 'hq', DISPATCH_VIEW_DISTANCE);
+    if (hq !== undefined) focusBuilding(hq, DISPATCH_VIEW_DISTANCE);
     else if (view.me.capitalPoint !== null)
       setFocus({
         ids: [],
@@ -2329,12 +2571,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       error={mobilizeError}
       onArm={(debt) => {
         setMobilizeError(null);
-        setMobilized(debt);
+        const due = view.me.foundation.find((candidate) => debtKey(candidate) === debt);
+        hold(due === undefined ? null : { key: due.key, debt: due, title: fr.buildings[due.key] });
       }}
       onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
+      shut={boardOpen}
+      firstSteps={
+        firstSteps === null || shownStepOf(view) === null ? null : (
+          <FirstStepsList
+            steps={firstSteps}
+            onLead={() => {
+              if (stepCue?.kind === 'piece') locateStation(stepCue.station);
+              else openWindow('personalBoard');
+            }}
+          />
+        )
+      }
     />
   );
 
@@ -2344,6 +2599,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       telegraphUnread={telegraph.unread}
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
+      economyCue={stepCue?.kind === 'rack' && !boardOpen ? fr.firstSteps.cue.economy : null}
+      onResumeSteps={resumeSteps}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <ReplayLaunch.Provider value={launchReplay}>
@@ -2356,6 +2613,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 {fr.lobby.preparingMap}
               </div>
             )}
+            {tokens.chip}
             <WorldMap
               blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
               world={world}
@@ -2417,16 +2675,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               availablePiles={availablePiles}
               onCarryEnd={carryEnded}
               onDisembark={view.me.defeated ? undefined : disembarkFromTag}
+              carriersShown={carryingTokens}
+              onTour={view.me.defeated ? undefined : onTour}
+              tourLoops={tourLoops}
+              cue={mapCue}
+              onTakeDepot={
+                view.me.defeated
+                  ? undefined
+                  : (outpostId, resource, event) => tokens.start({ outpostId }, resource, event)
+              }
               building={buildingSite !== null}
-              placing={placing}
-              onPlacePoint={placePort}
+              placing={placingCard}
+              onPlacePoint={placeAt}
+              onPlacingAim={setPlacingAim}
               aiming={column !== null}
-              designatedRegions={designated}
-              onDesignateRegion={placeFoundation}
               focus={focus}
               searchArea={searchArea}
               fingerRose={fingerRose}
-              covered={narrow && windows.length > 0}
+              covered={narrow && windows.some((name) => name !== 'personalBoard')}
               reveal={reveal}
               replay={replay}
               onReplayStep={replayStep}
@@ -2473,21 +2739,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <ConstructionPanel
                 key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
                 view={view}
-                seat={seat}
                 regionId={buildingSite.regionId}
                 at={buildingSite}
                 onClose={() => setBuildingSite(null)}
                 onPlace={(option) =>
-                  setPlacing({
-                    regionId: buildingSite.regionId,
+                  hold({
                     key: option.key,
-                    sprite: buildingSprite(option.key),
+                    debt: null,
                     title: regionName(view, buildingSite.regionId),
-                    figures: fr.placing.figures(
-                      fr.buildings[option.key],
-                      priceOf(option.cost),
-                      asDuration(option.minutes),
-                    ),
                   })
                 }
               />
@@ -2666,7 +2925,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               )}
               {!narrow && (
                 <div className="pointer-events-none flex flex-col items-end gap-(--table-gap) [&>*]:pointer-events-auto">
-                  {corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
+                  {corner === 'controls' && (
+                    <ControlsCard
+                      onClose={() => setCorner(null)}
+                      onResumeSteps={
+                        resumeSteps === null
+                          ? null
+                          : () => {
+                              setCorner(null);
+                              resumeSteps();
+                            }
+                      }
+                    />
+                  )}
                   {corner === 'layers' && (
                     <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
                       <LayersGrid />
@@ -2773,14 +3044,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       {...windowProps}
                     />
                   );
-                case 'economy':
+                case 'personalBoard':
                   return (
-                    <EconomyWindow
+                    <PersonalBoard
                       key={name}
                       view={view}
                       seat={seat}
                       focused={focused ?? null}
-                      {...windowProps}
+                      onClose={windowProps.onClose}
+                      onHoldTile={holdTile}
+                      onPlaceTile={placeTile}
+                      onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
+                      cue={
+                        stepCue?.kind === 'rack' && stepText !== null
+                          ? { rack: stepCue.rack, text: stepText }
+                          : null
+                      }
                     />
                   );
                 case 'nation':
@@ -3004,6 +3283,17 @@ function choiceOf(action: OrderAction): OrderChoice {
             ? { kind: 'march' }
             : { kind: 'march', boardsOn: action.boardsOn },
       };
+    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
+     *  paie l'aller-retour, et l'aperçu le dit. */
+    case 'deliver':
+    case 'tour':
+    case 'airdrop':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: action.key === 'airdrop' ? { kind: 'march', roundTrip: true } : { kind: 'march' },
+      };
     case 'plunder':
       return {
         ...said,
@@ -3035,6 +3325,34 @@ function choiceOf(action: OrderAction): OrderChoice {
   }
 }
 
+/** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
+function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
+  if (fuel.short !== null)
+    return [
+      {
+        text: fr.errors.NOT_ENOUGH_FUEL({
+          ...fuel.short,
+          km: fuel.km,
+          roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
+        }),
+        alarm: true,
+      },
+    ];
+  return [
+    ...(fuel.steps > 0
+      ? [
+          {
+            text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip),
+            alarm: false,
+          },
+        ]
+      : []),
+    /** Les deux points qui jouent sur le plein se disent là où l'on paie la route. */
+    ...(fuel.viaBaku ? [{ text: fr.supplies.viaBaku, alarm: false }] : []),
+    ...(fuel.freed ? [{ text: fr.supplies.freedBySingapore, alarm: false }] : []),
+  ];
+}
+
 function armedColumn(
   view: PlayerView,
   station: MarchStation,
@@ -3049,6 +3367,10 @@ function armedColumn(
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
       : undefined;
+  const outpost =
+    station.kind === 'outpost'
+      ? view.me.outposts.find((candidate) => candidate.id === station.outpostId)
+      : undefined;
   return {
     station,
     troopIds,
@@ -3058,13 +3380,15 @@ function armedColumn(
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
       /** An outpost and a plain point carry no region, so a column standing on one finds no gate
        *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
-      departureBuildings: new Set(
-        departure === undefined
+      departureBuildings: new Set([
+        ...(departure === undefined
           ? []
           : view.me.buildings
               .filter((building) => building.regionId === departure.regionId)
-              .map((building) => building.key),
-      ),
+              .map((building) => building.key)),
+        /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
+        ...(outpost !== undefined && isAirStop(outpost.level) ? [PROJECTION_BY_DOMAIN.air] : []),
+      ]),
       /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
        *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
        *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté
@@ -3072,11 +3396,45 @@ function armedColumn(
       afloat: station.kind === 'point' && station.afloat,
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
-      coastal: station.kind === 'point' && station.coastal,
+      coastal: station.kind === 'point' ? station.coastal : (outpost?.coastal ?? false),
       captureRate: captureRate(troops),
+      ...roundsOf(view, troops),
       ...blitzOf(view, troops),
     },
   };
+}
+
+/** **La même lecture que `columnOf` après la recharge du départ** (ADR 0028 §3) : une troupe
+ *  ancrée reprend ses coups à son ancre — le plateau personnel, ou le dépôt de l'avant-poste —
+ *  avant que l'ordre ne les lise. */
+function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
+  if (view.mode === 'blitz') return {};
+  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
+  const stock = (key: keyof SupplyStocks) => view.me.resources[key]?.stock ?? 0;
+  const board = { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') };
+  const stores = new Set(troops.map((troop) => troop.depotId));
+  const supplies = new Map(
+    [...stores].flatMap((store) => [
+      ...topUp(
+        troops
+          .filter((troop) => troop.depotId === store)
+          .map((troop) => ({
+            ...troop.supplies,
+            id: troop.id,
+            role: troop.role,
+            anchored: troop.supplied && !marching.has(troop.id),
+          })),
+        store === undefined
+          ? board
+          : (view.me.outposts.find((outpost) => outpost.id === store)?.depot ?? emptyLoad()),
+      ).supplies,
+    ]),
+  );
+  const after = troops.map((troop) => ({
+    role: troop.role,
+    ...(supplies.get(troop.id) ?? troop.supplies),
+  }));
+  return outOfRounds(after) ? { outOfRounds: true } : {};
 }
 
 /** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
@@ -3145,10 +3503,29 @@ function postedStacks(
       pieces: pilePieces(held),
       cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,
+      supplies: pileSupplies(held),
       ...reloadOf(held),
       ...emplacementOf(held),
     };
   });
+}
+
+/** **La carte que porte mon QG** (ADR 0028 §5) : son nom et sa barre sur le mât. */
+function researchOnHq(me: PlayerView['me']): {
+  research?: Extract<LabelLine, { role: 'research' }>;
+} {
+  const running = me.research.running;
+  if (running === null) return {};
+  const { share, finishesAt } = researchProgressOf(running, Date.now());
+  return {
+    research: {
+      role: 'research',
+      text: fr.research.onHq(cardName(running.card)),
+      since: (finishesAt ?? Date.now()) - researchMs(running.card),
+      dueAt: finishesAt,
+      share,
+    },
+  };
 }
 
 /** **L'artillerie** (B20) : la pile est en batterie quand sa dernière pièce posée l'est. */
@@ -3178,7 +3555,16 @@ function garrisonPiles(
     const troops = troopsAt(me, id, marching);
     return troops.length === 0
       ? []
-      : [{ id, at: { beside: buildingLabelId(building) }, pieces: pilePieces(troops) }];
+      : [
+          {
+            id,
+            at:
+              building.key === PROJECTION_BY_DOMAIN.sea
+                ? { beside: buildingLabelId(building), quay: building.point }
+                : { beside: buildingLabelId(building) },
+            pieces: pilePieces(troops),
+          },
+        ];
   });
 }
 
@@ -3187,9 +3573,10 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
   return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
 }
 
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché. */
-const buildingLabelId = ({ regionId, key }: { regionId: string; key: string }): string =>
-  `building-${regionId}-${key}`;
+/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
+ *  deux mines d'une même région sont deux mâts. */
+const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
+  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
 
 const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(
@@ -3214,13 +3601,6 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
  *  le panneau qui portait ce nom en titre. */
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
-
-/** La facture d'une ligne du panneau, en une phrase — la carte de pose n'a pas la place des
- *  planches illustrées, et elle nomme les mêmes chiffres que la ligne qu'on vient de cliquer. */
-const priceOf = (cost: Cost): string =>
-  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
-    .map((key) => `${cost[key]} ${fr.resources[key]}`)
-    .join(' · ');
 
 /** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
  *  other one covers nothing, and a region the view does not carry has no point to draw around. */

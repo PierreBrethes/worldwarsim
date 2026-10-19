@@ -23,7 +23,7 @@ const upgrade = {
   consequence: 'le rayon suivant',
   buildingKey: 'mine',
   regionId: 'FRA-5333',
-  figure: '40 acier',
+  figure: { steel: 40 },
   bill: [{ text: '40 acier · 120 en stock', lacking: false }],
   duration: '00:30:00',
   hold: null,

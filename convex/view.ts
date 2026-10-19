@@ -1,13 +1,14 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { pointsView, seasonPoints } from './strategicPoints';
-import { slotHolders } from './movement/orders';
+import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
+import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
+import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
@@ -19,6 +20,7 @@ import {
   RESOURCES,
   type BuildCostKey,
   type BuildingKey,
+  type ResearchCard,
 } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
@@ -42,16 +44,17 @@ import {
   MAX_PLAYERS,
   PRESS_EDITION_HOURS,
   STORAGE_CAP_PER_LEVEL,
-  TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
   OUTPOST_MAX_LEVEL,
+  depotCapacity,
   outpostReachKm,
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
   isCommanded,
-  unlockLevel,
   type Costs,
+  FACTORY_LINES,
+  LINE_KEYS,
 } from './constants';
 import { engagementsOf } from './combat';
 import { queueOf } from './constructions';
@@ -72,11 +75,13 @@ import {
   regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
+import { isFuelFree, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
+import { buildingLockOf, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -97,6 +102,7 @@ export const tallyOf = (rows: Doc<'engagements'>['troops']): CombatTally => ({
   lost: rows.reduce((sum, troop) => sum + (troop.strengthBefore - troop.strengthAfter), 0),
   routed: rows.filter((troop) => troop.state === 'routed').length,
   destroyed: rows.filter((troop) => troop.state === 'destroyed').length,
+  dry: rows.filter((troop) => troop.dry === true).length,
 });
 
 /** A side by role and mark, in the order the replay stands them. */
@@ -237,7 +243,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     specializationLocked: locked.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyedInstallations = (
+  const surveyed = (
     await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerHasInstallations', (q) =>
@@ -249,7 +255,20 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       id: installation.buildingId,
       key: canonicalBuildingKey(installation.key),
       regionId: survey.regionId,
+      point: pointOfBuilding(installation),
     })),
+  );
+  /** Dakar : les entrepôts de son teneur, que l'ordre refusera de piller. */
+  const surveyedInstallations = await Promise.all(
+    surveyed.map(async (installation) => {
+      const row =
+        installation.key === 'warehouse'
+          ? await ctx.db.get(installation.id as Id<'buildings'>)
+          : null;
+      return row !== null && (await sealedByDakar(ctx, row))
+        ? { ...installation, sealed: true as const }
+        : installation;
+    }),
   );
   const lootSightings = await ctx.db
     .query('lootCrateSightings')
@@ -258,6 +277,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
+  /** **Singapour** : ses camions et ses cargos roulent sans plein (`fuelBill`). */
+  const singapore = !blitz && (await holdsPoint(ctx, player, 'singapore'));
+  const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
+    const store = economy.upkeep.storeOf[troopId];
+    return store === undefined || store === 'board' ? null : store;
+  };
   const funds = blitz ? await fundsServed(ctx, player, season.concludedAt ?? null, now) : null;
   const headquarters = buildings.find((building) => building.key === 'hq');
   const hqPoint = headquarters === undefined ? null : pointOfBuilding(headquarters);
@@ -339,11 +364,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       {
         cost: buildCost(key, 1),
         minutes: buildMinutes(key, 1),
-        // The tier travels with the price so the panel offers exactly what the server takes.
-        unlockedAtHqLevel: unlockLevel(key),
+        // The card travels with the price so the panel offers exactly what the server takes.
+        // La Blitz garde son catalogue : rien n'y est tenu par une carte.
+        lockedBy: blitz ? null : buildingLockOf(key, player.researched ?? []),
       },
     ]),
-  ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
+  ) as Record<BuildingKey, { cost: Costs; minutes: number; lockedBy: ResearchCard | null }>;
 
   const seats = await seatsOf(ctx, season._id);
   /** The belligerents, never the seats: somebody who joined a running season and is still
@@ -384,6 +410,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     : null;
   const winner = belligerents.find((seat) => seat._id === season.winnerId) ?? null;
 
+  const marks = await readMarksOf(ctx, player);
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
   // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
@@ -461,6 +488,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        */
       chains: economy.chains.map(({ conversion, state, missing, made }) => {
         const lot = economy.orders.find((order) => order.chain === conversion.by) ?? null;
+        // The linked level the settlement ran on, read back from its own rate.
+        const linkedLevel = conversion.level ?? 0;
         return {
           by: conversion.by,
           output: conversion.output,
@@ -478,7 +507,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           missing,
           commanded: isCommanded(conversion.by),
           order: lot === null ? null : { ordered: lot.ordered, produced: Math.floor(lot.produced) },
-          maxOrder: maxOrderOf(economy, conversion.by),
+          /** **Every line the chain could run**, with what it asks and the card that still
+           *  holds it: the choice of line is read off this, refusal included. */
+          lines: LINE_KEYS.map((line) => ({
+            output: line,
+            inputs: FACTORY_LINES[line].inputs.map(([resource, quantity]) => ({
+              resource,
+              quantity,
+            })),
+            nominalPerHour: FACTORY_LINES[line].perHourPerLevel * linkedLevel,
+            lockedBy: blitz ? null : lineLockOf(line, player.researched ?? []),
+            maxOrder: maxOrderOf(economy, line),
+          })),
         };
       }),
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
@@ -489,8 +529,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // make, even with its capital flattened.
       slots: {
         total: movementSlots(hqLevel),
-        // A return holds nothing, nor a fleet of the holder of Halifax (`slotHolders`).
-        used: (await slotHolders(ctx, player, movements)).length,
+        // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
+        // (`slotsTaken`).
+        used: await slotsTaken(ctx, player, movements, troops),
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
@@ -510,13 +551,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        *  Blitz, le QG que la carte de départ a posé. */
       openingPoint:
         (hqPoint !== null && blitz ? hqPoint : null) ?? openingPointOf(season, player.nation),
-      /**
-       * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
-       * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the
-       * recruitment that refuses tier 2 have to be the same number, and a client-side copy of
-       * the rule is how they stop being one.
-       */
-      tier2HqLevel: TIER_2_HQ_LEVEL,
+      /** Ma recherche, et à moi seul (ADR 0028 §5) : l'adversaire relève des pièces, rien d'autre. */
+      research: {
+        researched: player.researched ?? [],
+        running: player.research ?? null,
+      },
       /**
        * What the season still owes, in placement order — free and immediate wherever the
        * player decides to put it. Served rather than derived on the client: the debt is read
@@ -530,17 +569,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         id: building._id,
         key: canonicalBuildingKey(building.key),
         regionId: building.regionId,
-        /**
-         * **Where it stands, when it does not stand at its region's point** — the port and
-         * nothing else so far (ADR 0013, revision of 04/09). `null` leaves the mast hanging
-         * from the region, which is where the map layer has always planted it: serving the
-         * resolved point for every building would move fifteen masts off the ground they
-         * are drawn on, for one that needed moving.
-         */
-        point:
-          building.point === undefined
-            ? null
-            : ([building.point.lon, building.point.lat] as [number, number]),
+        /** **Where it stands** (ADR 0029 §1): the point written at its placement. */
+        point: pointOfBuilding(building),
         level: building.level,
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
         nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
@@ -549,7 +579,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,
         name: facts.name,
-        deposit: facts.deposit,
         coastal: facts.coastal,
         /** **The point every rule measures from**, and now the one the map draws from too: a
          *  listening station's reach is a circle around it, and drawing that circle around
@@ -589,7 +618,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               outpostId: construction.outpostId ?? null,
               regionId: construction.regionId,
               regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
-              /** The crane stands on the quay from the moment the port is enqueued: the point
+              /** The crane stands on its point from the moment the work is enqueued: the point
                *  was chosen at the order, and the mast has no reason to wait for `finish`. */
               point:
                 construction.point === undefined
@@ -611,6 +640,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
+        point:
+          entry.point === undefined
+            ? null
+            : ([entry.point.lon, entry.point.lat] as [number, number]),
         level: entry.level,
       })),
       armyPresent,
@@ -623,8 +656,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         troops: economy.upkeep.troops,
         unsupplied: economy.upkeep.unsupplied,
         foodPerHour: economy.upkeep.foodPerHour,
-        /** The other half of the drain since ADR 0020 §10: the empire, priced by level. It
-         *  is served split from the army's because the two are repaired by opposite moves. */
+        /** The empire eats too (ADR 0028 §2), by level; served split from the army's because
+         *  the two are repaired by opposite moves. */
+        outpostFoodPerHour: economy.upkeep.outpostFoodPerHour,
+        listeningCoalPerHour: economy.upkeep.listeningCoalPerHour,
+        listeningSilent: economy.listeningSilent,
         outposts: economy.upkeep.outposts,
       },
       starving: economy.starving,
@@ -645,7 +681,36 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
+        ...(depotOf(troop._id) === null ? {} : { depotId: depotOf(troop._id)! }),
+        /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
+        ...(blitz ? {} : { supplies: suppliesOf(troop) }),
+        ...(isFuelFree(troop.role, singapore) ? { fuelFree: true as const } : {}),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
+        /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
+         *  isolée, que seul un largage ravitaille. */
+        ...(blitz || economy.upkeep.storeOf[troop._id] === undefined
+          ? {}
+          : { anchored: true as const }),
+        ...(troop.load === undefined ? {} : { load: troop.load }),
+        ...(troop.tour === undefined
+          ? {}
+          : {
+              tour: {
+                baseId: troop.tour.base,
+                stops: troop.tour.stops,
+                waiting:
+                  troop.tour.waiting === undefined
+                    ? null
+                    : {
+                        why: troop.tour.waiting.why,
+                        ...(troop.tour.waiting.resource === undefined
+                          ? {}
+                          : { resource: troop.tour.waiting.resource }),
+                      },
+                recalled: troop.tour.recalled === true,
+                skipped: troop.tour.skipped ?? [],
+              },
+            }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now
@@ -706,6 +771,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes:
           outpost.level >= OUTPOST_MAX_LEVEL ? 0 : buildMinutes('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
+        depot: outpost.depot ?? emptyLoad(),
+        depotCapacity: depotCapacity(outpost.level),
+        coastal: coastAtPoint([outpost.point.lon, outpost.point.lat]),
       })),
     },
     /**
@@ -767,7 +835,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
      *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
     outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
-    /** Servi comme `tier2HqLevel` : l'écrêtage annoncé avant de raser un entrepôt et celui que
+    /** Servi plutôt que recopié : l'écrêtage annoncé avant de raser un entrepôt et celui que
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,
@@ -863,6 +931,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           troopIds: movement.troopIds,
           cargo: cargoView(movementCargoLoads(movement), capacityOf(carriers)),
           mission,
+          /** **Une livraison** (ADR 0028 §4), dite au seul propriétaire de la marche. */
+          delivery: movement.delivery !== undefined,
+          /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
+          ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {
             const troop = troops.find((candidate) => candidate._id === troopId);
             return troop ? [troop.role] : [];
@@ -1013,7 +1085,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       .map(placed),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
-    journalReadAt: (await readMarksOf(ctx, player)).journalReadAt,
+    journalReadAt: marks.journalReadAt,
+    /** The last opening of the personal board and the stocks it showed: the harvest of the
+     *  next one is read against them. */
+    boardRead: marks.boardRead,
+    firstSteps: marks.firstSteps,
     journal: [],
     loadedAt: now,
     opponents: others.map((other) => ({

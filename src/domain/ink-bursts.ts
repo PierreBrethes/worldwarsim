@@ -13,7 +13,7 @@ export type StampWords = { readonly word: string; readonly hour: string };
  * stamp waits for the first to lift.
  */
 export type InkBurst = {
-  readonly kind: 'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured';
+  readonly kind: 'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured' | 'airdropped';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
@@ -106,5 +106,18 @@ export function inkBursts(
         ]
       : [],
   );
-  return [...combats, ...arrivals, ...captures];
+  /** **Un paquet est descendu** (ADR 0028 §4) : le parachute et le tampon, à la place que la
+   *  dépêche du largage porte. */
+  const airdrops = fresh.flatMap((dispatch): InkBurst[] =>
+    dispatch.kind === 'airdrop' && dispatch.place !== null
+      ? [
+          {
+            kind: 'airdropped',
+            at: [dispatch.place.lon, dispatch.place.lat],
+            words: stamped(fr.stamps.airdropped, dispatch.at),
+          },
+        ]
+      : [],
+  );
+  return [...combats, ...arrivals, ...captures, ...airdrops];
 }

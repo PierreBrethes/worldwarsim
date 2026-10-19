@@ -15,7 +15,7 @@ import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { firesIndirect } from '../../src/domain/indirect-fire';
-import { buildingAt, playerBuildings } from '../buildingReads';
+import { playerBuildings } from '../buildingReads';
 import {
   cargoTotal,
   movementCargoFields,
@@ -495,7 +495,12 @@ export async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Pr
     movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
   const barracks =
     movement.target.kind === 'region'
-      ? buildingAt(buildings, 'barracks', movement.target.regionId)
+      ? buildings.find(
+          (building) =>
+            building.key === 'barracks' &&
+            movement.target.kind === 'region' &&
+            building.regionId === movement.target.regionId,
+        )
       : undefined;
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
@@ -705,6 +710,8 @@ export async function walkHome(
     await surveyFromPoint(ctx, playerId, from, now, roles);
   }
 
+  // Pas de plein débité ici (ADR 0028 §3) : ce retour n'est l'ordre de personne, et le payer
+  // coincerait au loin une troupe qui n'a pas choisi d'y rester.
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
   const staying = new Map<string, { address: TroopAddress; group: Array<Doc<'troops'>> }>();
   const filed: Array<Id<'movements'>> = [];

@@ -3,7 +3,13 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { TourAct } from '@/domain/cargo-tag';
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { ChargeBar } from '@/shell/ChargeBar';
+import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
+import { ResourcePlate } from '@/emblems/Plate';
 import { CargoTags, type CargoAim } from './CargoTags';
+import { CueBubble } from '@/shell/CueBubble';
 import {
   Fragment,
   useCallback,
@@ -12,6 +18,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -19,7 +26,7 @@ import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
-import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge, ResearchLine } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
   NEUTRAL_FLAG,
@@ -50,6 +57,13 @@ import { YIELD_OF } from '@/domain/economy';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
+
+/** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
+export type TakeDepot = (
+  outpostId: string,
+  resource: keyof SupplyLoad,
+  event: ReactPointerEvent<HTMLElement>,
+) => void;
 
 /**
  * The board's label layer. One DOM node per label, moved by `transform` from the engine's
@@ -107,7 +121,20 @@ export function MapLabels({
   onDisembark,
   cargoAim = null,
   availableLabels = NO_LABELS,
+  carriersShown = false,
+  onTakeDepot,
+  onTour,
+  cue = null,
 }: {
+  /** **La bulle des premiers pas** sur la pièce à lever (ADR 0027 §2), sous son point : le
+   *  cartouche tient le dessus. */
+  cue?: { readonly labelId: string; readonly text: string } | null;
+  /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
+  carriersShown?: boolean;
+  /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
+  onTakeDepot?: TakeDepot | undefined;
   labels: ReadonlyArray<MapLabel>;
   /** **The transport under the hand**: its tag opens on the seats the drop would take. */
   cargoAim?: CargoAim | null;
@@ -783,7 +810,10 @@ export function MapLabels({
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
-    <div ref={layer} className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
+    <div
+      ref={layer}
+      className={`map-labels${muted ? ' pointer-events-none' : ''}${carriersShown ? ' map-labels--loading' : ''}`}
+    >
       {labels.map((label) => (
         <div
           key={label.id}
@@ -793,6 +823,12 @@ export function MapLabels({
           }}
           style={{ display: 'none' }}
         >
+          {cue?.labelId === label.id && (
+            <CueBubble
+              text={cue.text}
+              place="first-step-cue--up absolute top-[18px] left-0 -translate-x-1/2"
+            />
+          )}
           <span
             aria-hidden
             className="label-tether"
@@ -826,6 +862,7 @@ export function MapLabels({
               hover(true);
             }}
             data-label-id={label.id}
+            data-building-id={label.building?.id}
             onClick={(event) => {
               // A drag that carried a pile ends here too: it was not a click.
               if (engine?.consumeCarry() === true) return;
@@ -975,8 +1012,41 @@ export function MapLabels({
                         <MarchGauge since={line.since} dueAt={line.dueAt} />
                       )}
                     </Fragment>
+                  ) : line.role === 'research' ? (
+                    <ResearchLine
+                      key={rank}
+                      text={line.text}
+                      since={line.since}
+                      dueAt={line.dueAt}
+                      share={line.share}
+                    />
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
+                  ) : line.role === 'supplies' ? (
+                    <div key={rank} className="label-line label-line--figures">
+                      <SupplyPictos supplies={line.supplies} />
+                    </div>
+                  ) : line.role === 'charge' ? (
+                    <div key={rank} className="label-line label-line--figures label-line--depot">
+                      <ChargeBar load={line.load} capacity={line.capacity} />
+                      {onTakeDepot !== undefined &&
+                        label.station?.kind === 'outpost' &&
+                        SUPPLY_KEYS.filter((key) => line.load[key] > 0).map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            title={fr.logistics.grab}
+                            className="depot-token"
+                            onPointerDown={(event) => {
+                              if (label.station?.kind === 'outpost')
+                                onTakeDepot(label.station.outpostId, key, event);
+                            }}
+                          >
+                            <ResourcePlate resource={key} height={14} />
+                            {line.load[key]}
+                          </button>
+                        ))}
+                    </div>
                   ) : line.role === 'capture' ? (
                     <CaptureGauge
                       key={rank}
@@ -1002,7 +1072,8 @@ export function MapLabels({
                   nation={nation}
                   onDisembark={onDisembark}
                   aim={cargoAim?.labelId === label.id ? cargoAim : null}
-                  available={availableLabels.has(label.id)}
+                  available={carriersShown || availableLabels.has(label.id)}
+                  onTour={onTour}
                 />
               )}
           </div>
@@ -1029,9 +1100,15 @@ export function MapLabels({
               register(groupAnchors.current, group.id, node);
             }}
           >
+            {/* Les mâts d'un groupe, pour ce qu'une main y lâche (plateau personnel). */}
             <div
               className={`label label--expanded label--group label--${group.kind}-group label--clickable`}
               style={ink === null ? undefined : ({ '--label-ink': ink } as CSSProperties)}
+              data-building-id={
+                members
+                  .flatMap((member) => (member.building === null ? [] : [member.building.id]))
+                  .join(',') || undefined
+              }
             >
               <button
                 type="button"

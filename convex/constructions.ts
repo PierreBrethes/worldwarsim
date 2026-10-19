@@ -1,30 +1,48 @@
 import { v } from 'convex/values';
-import { canonicalBuildingKey, isOutpostWork, type BuildingKey } from '../src/domain/ids';
+import {
+  canonicalBuildingKey,
+  isOutpostWork,
+  type BuildingKey,
+  type ResearchCard,
+} from '../src/domain/ids';
+import { buildingLockOf } from '../src/domain/research';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
-import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
+import {
+  BUILDING_SPACING_KM,
+  EXPLOITED_DEPOSITS,
+  nearestBuilding,
+  placementRefusal,
+  siteOfPoint,
+} from '../src/domain/economy';
 import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
-import { depositOfRegion } from '../src/domain/world';
-import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildingReads';
+import { depositAt, type DepositPoint } from '../src/domain/world';
+import {
+  buildingAt,
+  buildingCostKey,
+  cappedByHq,
+  playerBuildings,
+  samePoint,
+  seasonBuildings,
+} from './buildingReads';
 import {
   HQ_LEVEL_AT_LAUNCH,
   LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
-  unlockLevel,
   buildCost,
   buildMinutes,
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { coastAtPoint, hostAtPoint } from './routes';
+import { coastAtPoint, pointInRegion } from './routes';
 import { fail, type ErrorCode } from './errors';
-import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
-import { anchorAt, anchored, sitesOf } from './sites';
+import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
+import { anchorAt, anchored, reachesOf, sitesOf } from './sites';
 import { credit, debit, economyOf, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
@@ -33,10 +51,15 @@ import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
+import { resumeResearch } from './research';
+import { startLanes } from './troops';
+import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
 type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unknown> };
+
+type Point = { readonly lon: number; readonly lat: number };
 
 /**
  * **Is this placement one the season still owes?** Asked in two places that must agree — the
@@ -45,64 +68,33 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
  *
  * A first level only: raising a building is never a debt the season owes.
  *
- * **La dette se lit sur le gisement de la région visée**, pas sur la seule clé : une seconde
- * mine posée sur du charbon se paie, et celle du fer reste offerte. Le quartier général est la
- * dette que le sol ne nomme pas (`settlesDebt`) : il s'acquitte où le joueur le pose.
+ * **La dette se lit sur le gisement du point visé** (ADR 0029), pas sur la seule clé : une
+ * seconde mine posée sur du charbon se paie, et celle du fer reste offerte. Le quartier général
+ * est la dette que le sol ne nomme pas (`settlesDebt`) : il s'acquitte où le joueur le pose.
  */
 const owedFreely = (
   player: Doc<'players'>,
   buildings: ReadonlyArray<Doc<'buildings'>>,
   building: BuildingKey,
-  regionId: string,
+  point: Point,
 ): boolean =>
-  (buildingAt(buildings, building, regionId)?.level ?? 0) === 0 &&
+  buildingAt(buildings, building, point) === undefined &&
   foundationOwedBy(player, buildings).some((due) =>
-    settlesDebt(due, { key: building, deposit: depositOfRegion(regionId) }),
+    settlesDebt(due, {
+      key: building,
+      deposit: depositAt(pointOfBuilding({ point }))?.deposit ?? null,
+    }),
   );
-
-/**
- * **A point belongs to the port, and to its placement, and to nothing else** (ADR 0013,
- * revision of 04/09).
- *
- * Three refusals, and the third is the only one a legitimate client can meet: it is the race
- * between the ghost and the ground it snapped onto. The first two answer a client that made up
- * its own gesture — a mine with a coordinate, a port without one.
- *
- * **What is never checked here is that the point falls inside the region**, and it cannot be:
- * the server holds no admin-1 polygon (`regions.ts` — 2.5 MB drawn for the screen). The client
- * guarantees it, and the consequence of a twisted one is bounded: it files its port in the
- * wrong region, it does not gain a second one — `regionId` is what holds "one building per
- * region", and the placement and the coastal rule are both read off it.
- */
-function pointRefusal(
-  building: BuildingKey,
-  regionId: string,
-  raising: boolean,
-  point: { readonly lon: number; readonly lat: number } | undefined,
-): Refusal | null {
-  /** A raise never moves what stands: the port keeps the quay it was founded on. */
-  if (building !== 'port' || raising) {
-    return point === undefined ? null : { code: 'POINT_FOR_PORT_ONLY', details: { building } };
-  }
-  if (point === undefined) return { code: 'PORT_NEEDS_A_COAST_POINT', details: { regionId } };
-  const lonLat: LonLat = [point.lon, point.lat];
-  if (!coastAtPoint(lonLat)) return { code: 'PORT_NEEDS_A_COAST_POINT', details: { regionId } };
-  const region = regionFacts(regionId);
-  const host = hostAtPoint(lonLat);
-  if (region !== null && host !== region.country) {
-    return { code: 'POINT_OUTSIDE_REGION', details: { regionId, host } };
-  }
-  return null;
-}
 
 export const start = mutation({
   args: {
     token: v.string(),
     seasonId: v.id('seasons'),
     building: BUILDING_KEY,
+    /** The region the point lies in, as the board's polygons read it: it carries the colour. */
     regionId: v.string(),
-    /** **The port's own coast point, and nobody else's** (ADR 0013, revision of 04/09). */
-    point: v.optional(LON_LAT),
+    /** **Where the building goes down** (ADR 0029 §1) — or, for a raise, where it stands. */
+    point: LON_LAT,
   },
   handler: async (ctx, { token, seasonId, building, regionId, point }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
@@ -120,13 +112,11 @@ export const start = mutation({
      * allowed to have.
      */
     const queue = await queueOf(ctx, player._id);
-    const refusal = await refusalFor(ctx, player, building, regionId, queue);
+    const refusal = await refusalFor(ctx, player, building, regionId, point, queue);
     if (refusal) fail(refusal.code, refusal.details);
 
     const buildings = await playerBuildings(ctx, player._id);
-    const standing = buildingAt(buildings, building, regionId);
-    const misplaced = pointRefusal(building, regionId, standing !== undefined, point);
-    if (misplaced) fail(misplaced.code, misplaced.details);
+    const standing = buildingAt(buildings, building, point);
     const level = (standing?.level ?? 0) + 1;
     const now = Date.now();
 
@@ -135,13 +125,29 @@ export const start = mutation({
      * the opening that is a decision; the price and the wait on what is not one are what the
      * season takes back. So as long as a key of the foundation is still owed, its first
      * placement costs nothing and stands at once — every other rule above having already had
-     * its say: deposit, one building per region, home country.
+     * its say: reach, deposit, spacing.
      *
      * It never enters the queue: there is nothing to wait for and nothing to bill, so it has
      * no rank, no refund and no turn — a playtest lost three free placements behind a paid
      * mill the day it did (19/08).
      */
-    if (owedFreely(player, buildings, building, regionId)) {
+    if (owedFreely(player, buildings, building, point)) {
+      /** **Une pose offerte se tient à l'instant** : c'est sa fin de chantier, et la course sur le
+       *  gisement s'y tranche comme à `finish` — rien n'est posé, rien n'était dû, le tenant est
+       *  relevé et la dépêche le dit. */
+      const lost = await lostAtFinish(ctx, season._id, building, point, buildings);
+      if (lost !== null) {
+        await ctx.db.insert('notices', {
+          playerId: player._id,
+          at: now,
+          kind: 'constructionCancelled',
+          building,
+          regionId,
+          reason: lost.kind,
+        });
+        await surveyHolder(ctx, player._id, lost, point, now);
+        return { finishesAt: null, cost: {}, level: 0, rank: null };
+      }
       /** **Le QG se pose au niveau du lancement**, les extracteurs au premier — la seule
        *  différence entre les dettes du socle, et elle vient de l'ADR 0017 §2 : ce que le
        *  quartier général ouvre (les paliers, les slots) n'a jamais été une
@@ -152,12 +158,16 @@ export const start = mutation({
         playerId: player._id,
         key: building,
         regionId,
+        point,
         level: placed,
-        ...anchored(await anchorAt(ctx, player, regionId)),
+        ...anchored(await anchorAt(ctx, player, regionId, point)),
         /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
-      if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
+      if (building === 'hq') {
+        await garrisonTheGift(ctx, player, season._id, standingId);
+        await resumeResearch(ctx, player._id, now);
+      }
       return { finishesAt: now, cost: {}, level: placed, rank: null };
     }
 
@@ -174,7 +184,7 @@ export const start = mutation({
       level,
       rank,
       finishesAt: null,
-      ...(point === undefined ? {} : { point }),
+      point,
     });
     await startHead(ctx, player._id, now);
 
@@ -191,8 +201,8 @@ export const start = mutation({
  *
  * Une entrée dans la **même file**, sous le même `rank` et le même `finishesAt` : ce n'est pas
  * une seconde file de chantiers, c'est un chantier. Ce qui la distingue d'un bâtiment est
- * `outpostId`, et rien d'autre — elle ne prend aucune région, aucun emplacement, et la règle
- * « une entrée par région » ne la voit pas.
+ * `outpostId`, et rien d'autre — elle ne pose rien, et ni l'espacement ni la règle « une entrée
+ * par point » ne la voient.
  *
  * Rien n'est exigé de la garnison ni du quartier général : l'avant-poste est déjà debout. Ce
  * qu'un raid interdit, c'est de **rénover sous le feu** (`OUTPOST_DISABLED`).
@@ -327,14 +337,36 @@ export const finish = internalMutation({
      *  the whole build time. */
     await settle(ctx, construction.playerId, Date.now());
     const buildings = await playerBuildings(ctx, construction.playerId);
-    const standing = buildingAt(
-      buildings,
-      canonicalBuildingKey(construction.building),
-      construction.regionId,
-    );
+    const point = construction.point;
+    const standing =
+      point === undefined
+        ? undefined
+        : buildingAt(buildings, canonicalBuildingKey(construction.building), point);
     if (standing) {
       await ctx.db.patch(standing._id, { level: construction.level });
-    } else {
+      /** **Un niveau rend** (ADR 0028 §5) : le banc neuf prend tout de suite le lot qui attendait. */
+      if (PROJECTION_KEYS.has(standing.key)) await startLanes(ctx, standing._id, Date.now());
+    } else if (point !== undefined) {
+      /**
+       * **La course se tranche ici** (ADR 0029) : la commande n'a lu que ce que le joueur savait
+       * (`spotAt`), et un autre a pu poser sur le gisement, ou un bâtiment pris venir trop près.
+       * Perdu, le chantier est annulé et remboursé comme `cancel` ; un gisement découvert pris
+       * devient un relevé de son tenant.
+       */
+      const lost = await lostAtFinish(
+        ctx,
+        season._id,
+        canonicalBuildingKey(construction.building),
+        point,
+        buildings,
+      );
+      if (lost !== null) {
+        const at = Date.now();
+        await refundHead(ctx, construction.playerId, construction, at, lost);
+        await surveyHolder(ctx, construction.playerId, lost, point, at);
+        await startHead(ctx, construction.playerId, at);
+        return;
+      }
       /** The anchor is decided **here**, at the placement, and never read again: whatever is
        *  founded later leaves this building on the site that carried it (`schema.ts`). */
       const player = await ctx.db.get(construction.playerId);
@@ -346,26 +378,28 @@ export const finish = internalMutation({
         regionId: construction.regionId,
         level: construction.level,
         /** The point chosen at the order, carried whole: `finish` decides nothing about where
-         *  a port stands — the player did, hours earlier, and a second choice here could
+         *  a building stands — the player did, hours earlier, and a second choice here could
          *  disagree with the mast the queue has been drawing since. */
-        ...(construction.point === undefined ? {} : { point: construction.point }),
-        ...(player === null ? {} : anchored(await anchorAt(ctx, player, construction.regionId))),
+        point,
+        ...(player === null
+          ? {}
+          : anchored(await anchorAt(ctx, player, construction.regionId, point))),
       });
     }
     await ctx.db.delete(constructionId);
+    /** **Un QG de nouveau debout relance la carte qui l'attendait** (ADR 0028 §5). */
+    if (standing === undefined && canonicalBuildingKey(construction.building) === 'hq')
+      await resumeResearch(ctx, construction.playerId, Date.now());
     /** **Une station qui vient d'ouvrir relève le sol qu'elle écoute** (ADR 0020 §5) : c'est une
      *  portée de plus, et une portée neuve n'a rien relevé tant qu'un événement ne le lui a pas
      *  demandé — il n'y a pas d'horloge pour le faire à sa place. */
-    if (construction.building === 'listening') {
-      const facts = regionFacts(construction.regionId);
-      if (facts !== null) {
-        await fileSurvey(
-          ctx,
-          construction.playerId,
-          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM }],
-          Date.now(),
-        );
-      }
+    if (construction.building === 'listening' && point !== undefined) {
+      await fileSurvey(
+        ctx,
+        construction.playerId,
+        [{ point: pointOfBuilding({ point }), radiusKm: LISTENING_STATION_RADIUS_KM }],
+        Date.now(),
+      );
       await reassessDetection(ctx, season._id);
     }
     /** The one channel that says a site is standing: nothing else on the board announces it,
@@ -437,7 +471,7 @@ async function finishRaise(
  * that came down, a tier that closed. Nothing then starts on a right that no longer exists:
  * the entry is cancelled, refunded whole, and the player is told in the journal.
  *
- * Idempotent on a queue already running, like `troops.startHead`, so every caller may call it
+ * Idempotent on a queue already running, like `troops.startLanes`, so every caller may call it
  * unconditionally. It re-reads the state itself rather than trusting whoever woke it.
  */
 async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {
@@ -478,13 +512,17 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 
     // The head is measured against what stands, and against nothing queued: everything else in
     // the queue is behind it and has not happened.
-    const refusal = await refusalFor(
-      ctx,
-      player,
-      canonicalBuildingKey(head.building),
-      head.regionId,
-      [],
-    );
+    const refusal =
+      head.point === undefined
+        ? { code: 'UNKNOWN_REGION' as const }
+        : await refusalFor(
+            ctx,
+            player,
+            canonicalBuildingKey(head.building),
+            head.regionId,
+            head.point,
+            [],
+          );
     if (refusal) {
       await refundHead(ctx, playerId, head, now);
       continue;
@@ -512,6 +550,7 @@ async function refundHead(
   playerId: Id<'players'>,
   head: Doc<'constructions'>,
   now: number,
+  reason?: LostAtFinish,
 ): Promise<void> {
   await credit(ctx, playerId, buildCost(head.building, head.level), now);
   await ctx.db.insert('notices', {
@@ -520,6 +559,7 @@ async function refundHead(
     kind: 'constructionCancelled',
     building: head.building,
     regionId: head.regionId,
+    ...(reason === undefined ? {} : { reason: reason.kind }),
   });
   await ctx.db.delete(head._id);
 }
@@ -539,109 +579,267 @@ export const resume = internalMutation({
  * right to exist. Two copies would drift, and the drift would be a site rising on a right the
  * player lost.
  *
- * `pledged` is what the queue adds to the state for this reading: the whole queue at the
+ * `queued` is what the queue adds to the state for this reading: the whole queue at the
  * enqueue, nothing at all for a head.
+ *
+ * **A point, never a region** (ADR 0029): a building of the same key standing at this very point
+ * is a raise, and anything else is a placement measured against the ground under the point and
+ * the player's buildings around it — the region only carries the colour.
  */
 async function refusalFor(
   ctx: QueryCtx,
   player: Doc<'players'>,
   building: BuildingKey,
   regionId: string,
+  point: Point,
   queued: ReadonlyArray<Doc<'constructions'>>,
 ): Promise<Refusal | null> {
   /** **Une élévation d'avant-poste ne réserve aucun sol** (précision du 15/09) : elle n'est pas
-   *  une pose, donc ni la règle « une entrée par région » ni le compte des emplacements ne la
-   *  voient — le client la retire de la même façon (`pledgedBuildings`). */
+   *  une pose, donc ni l'espacement ni la règle « une entrée par point » ne la voient — le
+   *  client la retire de la même façon (`pledgedBuildings`). */
   const pledged = queued.filter((entry) => entry.outpostId === undefined);
   const region = regionFacts(regionId);
   if (!region) return { code: 'UNKNOWN_REGION', details: { regionId } };
 
   const sites = await sitesOf(ctx, player);
+  const { buildings, hqLevel } = sites;
+  const lonLat = pointOfBuilding({ point });
+  const standing = buildingAt(buildings, building, point);
 
   /**
-   * **Home, or within reach of one of the player's outposts** (ADR 0015). The reach is a
-   * radius in kilometres, never a count of regions — Natural Earth cuts the United Kingdom
-   * into 232 districts and Germany into 16, so a radius counted in regions would let a
-   * cartography vendor balance the season. How many regions it covers therefore varies by
-   * country: that is the geography speaking.
-   *
-   * The very same radius names the **site** the placement will hang from (`siteFor`): where
-   * one may build and whose placements one spends are one question, asked once.
+   * **The point lies in the region named with it** (`pointInRegion`): the region carries the
+   * colour and the surveys, so a twisted client must not pick it. A raise is not asked: its
+   * point was checked once.
    */
-  const site = sites.siteAt(regionId);
-  if (site === null) {
-    /**
-     * **Le refus ne chiffre plus une distance**, depuis que la règle est le disque (révision du
-     * 17/09 de l'ADR 0020 §1) : ce qui décide est *le cercle touche-t-il cette région*, et sortir
-     * ici la distance au pôle d'inaccessibilité annoncerait « 512 km » d'une frontière qui court à
-     * soixante. Le rayon nommé est le plus large des siens — c'est celui qu'il faudrait amener —
-     * ou celui d'un premier point quand il n'en a aucun.
-     */
-    const widest = sites.outposts.map((outpost) => outpostReachKm(outpost.level));
-    return {
-      code: 'OUT_OF_OUTPOST_REACH',
-      details: {
-        regionId,
-        reachKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
-        hasOutposts: widest.length > 0,
-      },
-    };
+  if (standing === undefined && !pointInRegion(lonLat, region)) {
+    return { code: 'POINT_OUTSIDE_REGION', details: { regionId } };
   }
 
-  const { buildings, hqLevel } = sites;
-  if (
-    building === 'hq' &&
-    buildings.some((held) => held.key === 'hq' && held.regionId !== regionId)
-  ) {
+  /**
+   * **Home, or within reach of one of the player's outposts** (ADR 0015, ADR 0029). The reach is
+   * a radius in kilometres from the outpost to the point, never a count of regions.
+   */
+  const reached =
+    siteOfPoint(lonLat, region.country === sites.homeCountry, reachesOf(sites.outposts)) !== null;
+  /** A raise reads no placement rule, but ground no living site reaches carries nothing more. */
+  if (standing !== undefined && !reached) {
+    return { code: 'OUT_OF_OUTPOST_REACH', details: outOfReachDetails(sites.outposts) };
+  }
+
+  if (building === 'hq' && buildings.some((held) => held.key === 'hq' && held !== standing)) {
     return { code: 'HQ_ALREADY_BUILT' };
   }
 
-  /**
-   * **Le quartier général d'abord** (décision 1b du 13/09). Ce n'est pas une seconde garde : à
-   * niveau 0 `placementRefusal` refuse déjà toute autre clé, puisque `UNLOCKED_AT` les demande
-   * toutes à 1. Ce qu'il en sortait était `BUILDING_LOCKED` — « la mine demande un quartier
-   * général de niveau 1 » —, une phrase qui nomme un palier là où il n'y a qu'un ordre de pose.
-   * Le refus est donc renommé ici, là où la cause est lisible, et pas ajouté.
-   */
+  /** **Le quartier général d'abord** (décision 1b du 13/09) : une élévation aussi l'attend. */
   if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
 
   /**
-   * **One entry per region, standing or queued.** The ground under a pledge is taken though
-   * nothing rises on it yet: two entries aiming at the same region would leave two buildings
-   * on it once the second `finish` lands, and a raise queued twice would bill a level nobody
-   * can reach. It is also what keeps the level of an entry knowable at the enqueue.
+   * **One entry per point, standing or queued.** A raise queued twice would bill a level nobody
+   * can reach; a placement queued on a point already pledged is refused by the spacing below.
    */
-  const claimed = pledged.find((entry) => entry.regionId === regionId);
-  if (claimed) {
-    return { code: 'REGION_TAKEN', details: { regionId, standing: claimed.building } };
+  if (pledged.some((entry) => entry.point !== undefined && samePoint(entry.point, point))) {
+    return { code: 'ALREADY_QUEUED_HERE' };
   }
 
-  const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
-  const requiredLevel = unlockLevel(building);
-
-  const refusal = placementRefusal(building, region, { onRegion, hqLevel }, requiredLevel);
-  if (refusal === 'UNKNOWN_BUILDING') return { code: refusal };
-  if (refusal === 'REGION_TAKEN')
-    return { code: refusal, details: { regionId, standing: onRegion } };
-  // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
-  // a wall — and the tier is the one refusal a player can always act on.
-  if (refusal === 'BUILDING_LOCKED') {
-    return { code: refusal, details: { building, requiredLevel, hqLevel } };
+  if (standing === undefined) {
+    const lockedBy = buildingLockOf(building, player.researched ?? []);
+    const refusal = placementRefusal(
+      building,
+      await spotAt(ctx, player, lonLat, reached, buildings, pledged),
+      hqLevel,
+      lockedBy,
+    );
+    if (refusal !== null)
+      return placementRefusalOf(refusal, {
+        building,
+        lockedBy,
+        lonLat,
+        buildings,
+        pledged,
+        outposts: sites.outposts,
+      });
   }
-  if (refusal === 'DEPOSIT_REQUIRED') {
-    return {
-      code: refusal,
-      details: { building, expected: EXPLOITED_DEPOSITS[building], found: region.deposit },
-    };
-  }
-  if (refusal === 'NOT_COASTAL') return { code: refusal, details: { regionId } };
 
   const maximum = MAX_HQ_LEVEL;
-  const level = (buildingAt(buildings, building, regionId)?.level ?? 0) + 1;
+  const level = (standing?.level ?? 0) + 1;
   if (building === 'hq' && level > maximum)
     return { code: 'MAX_LEVEL_REACHED', details: { maximum } };
   if (cappedByHq(building, level - 1, hqLevel)) return { code: 'CAPPED_BY_HQ' };
   return null;
+}
+
+const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
+
+/** The player's buildings and pledges as the spacing reads them: a key and a point. */
+const aroundOf = (
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  pledged: ReadonlyArray<Doc<'constructions'>>,
+) => [
+  ...buildings.map((held) => ({ key: held.key, lonLat: pointOfBuilding(held) })),
+  ...pledged.flatMap((entry) =>
+    entry.point === undefined || isOutpostWork(entry.building)
+      ? []
+      : [
+          {
+            key: canonicalBuildingKey(entry.building),
+            lonLat: pointOfBuilding({ point: entry.point }),
+          },
+        ],
+  ),
+];
+
+/** The widest reach the player has — the one he would have to bring — or a first point's. */
+const outOfReachDetails = (outposts: ReadonlyArray<Doc<'outposts'>>) => {
+  const widest = outposts.map((outpost) => outpostReachKm(outpost.level));
+  return {
+    reachKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
+    hasOutposts: widest.length > 0,
+  };
+};
+
+/** **Seule une exploitation tient un gisement** (ADR 0029 §3) : un QG ou une caserne posés sur
+ *  son point ne l'empêchent pas d'être exploité. */
+const exploitsAt = (key: BuildingKey, at: LonLat, deposit: DepositPoint): boolean =>
+  EXPLOITED_DEPOSITS[key] !== undefined && depositAt(at) === deposit;
+
+/**
+ * **The point as the rule reads it, from the server's side, with what the player knows**: his
+ * own exploitations and orders, and the ones he has surveyed — the same entry as
+ * `freeDeposits(view)`. Anything else on the deposit is the fog's: the race is settled at
+ * `finish`, and a refusal here would be a free survey of the whole map.
+ */
+async function spotAt(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  lonLat: LonLat,
+  reached: boolean,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  pledged: ReadonlyArray<Doc<'constructions'>>,
+) {
+  const deposit = depositAt(lonLat);
+  const surveyed =
+    deposit === null
+      ? []
+      : (
+          await ctx.db
+            .query('regionSightings')
+            .withIndex('byPlayerHasInstallations', (q) =>
+              q.eq('playerId', player._id).eq('hasInstallations', true),
+            )
+            .collect()
+        ).flatMap((survey) => survey.installations ?? []);
+  const known = [
+    ...aroundOf(buildings, pledged),
+    ...surveyed.map((seen) => ({ key: seen.key, lonLat: pointOfBuilding(seen) })),
+  ];
+  return {
+    reached,
+    deposit:
+      deposit === null
+        ? null
+        : {
+            key: deposit.deposit,
+            taken: known.some((held) => exploitsAt(held.key, held.lonLat, deposit)),
+          },
+    coastal: coastAtPoint(lonLat),
+    nearest: nearestBuilding(lonLat, aroundOf(buildings, pledged)),
+  };
+}
+
+/** **Un gisement découvert pris devient une découverte** : le relevé du tenant, écrit comme tous
+ *  les relevés (`fileSurvey`), sur la seule région où il se tient. */
+async function surveyHolder(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  lost: LostAtFinish,
+  point: Point,
+  at: number,
+): Promise<void> {
+  if (lost.kind !== 'depositTaken') return;
+  const region = regionFacts(lost.regionId);
+  if (region === null) return;
+  await fileSurvey(
+    ctx,
+    playerId,
+    [{ point: pointOfBuilding({ point }), radiusKm: BUILDING_SPACING_KM }],
+    at,
+    [region],
+  );
+}
+
+type LostAtFinish =
+  { readonly kind: 'depositTaken'; readonly regionId: string } | { readonly kind: 'tooClose' };
+
+/**
+ * **Ce que la fin d'un chantier revérifie** : le gisement, sur la vérité de la saison cette
+ * fois, et l'espacement aux bâtiments du joueur — un bâtiment capturé a pu venir trop près.
+ */
+async function lostAtFinish(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+  building: BuildingKey,
+  point: Point,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+): Promise<LostAtFinish | null> {
+  const lonLat = pointOfBuilding({ point });
+  const key = canonicalBuildingKey(building);
+  const deposit = depositAt(lonLat);
+  if (deposit !== null && EXPLOITED_DEPOSITS[key] !== undefined) {
+    const holder = (await seasonBuildings(ctx, seasonId)).find((held) =>
+      exploitsAt(held.key, pointOfBuilding(held), deposit),
+    );
+    if (holder !== undefined) return { kind: 'depositTaken', regionId: holder.regionId };
+  }
+  const nearest = nearestBuilding(lonLat, aroundOf(buildings, []));
+  if (nearest !== null && nearest.km < BUILDING_SPACING_KM) return { kind: 'tooClose' };
+  return null;
+}
+
+/** The refusal with what its sentence needs: the threshold of a tier, the deposit a key wants,
+ *  the neighbour too close and the distance to keep. */
+function placementRefusalOf(
+  refusal: NonNullable<ReturnType<typeof placementRefusal>>,
+  {
+    building,
+    lockedBy,
+    lonLat,
+    buildings,
+    pledged,
+    outposts,
+  }: {
+    readonly building: BuildingKey;
+    readonly lockedBy: ResearchCard | null;
+    readonly lonLat: LonLat;
+    readonly buildings: ReadonlyArray<Doc<'buildings'>>;
+    readonly pledged: ReadonlyArray<Doc<'constructions'>>;
+    readonly outposts: ReadonlyArray<Doc<'outposts'>>;
+  },
+): Refusal {
+  switch (refusal) {
+    case 'UNKNOWN_BUILDING':
+    case 'NOT_COASTAL':
+    case 'DEPOSIT_TAKEN':
+      return { code: refusal };
+    case 'HQ_FIRST':
+      return { code: refusal };
+    // The refusal names its card: « demande la recherche Aviation » is a plan, « impossible » a wall.
+    case 'RESEARCH_REQUIRED':
+      return { code: refusal, details: { card: lockedBy } };
+    case 'DEPOSIT_REQUIRED':
+      return { code: refusal, details: { building, expected: EXPLOITED_DEPOSITS[building] } };
+    /** **Le rayon nommé est le plus large des siens** — celui qu'il faudrait amener —, ou celui
+     *  d'un premier point quand il n'en a aucun. */
+    case 'OUT_OF_REACH':
+      return { code: 'OUT_OF_OUTPOST_REACH', details: outOfReachDetails(outposts) };
+    case 'TOO_CLOSE':
+      return {
+        code: 'BUILDING_TOO_CLOSE',
+        details: {
+          near: nearestBuilding(lonLat, aroundOf(buildings, pledged))?.key,
+          km: BUILDING_SPACING_KM,
+        },
+      };
+  }
 }
 
 /** Everything a player has pledged to build, head first. */

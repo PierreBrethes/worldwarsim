@@ -5,7 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { DETECTION_RANGE_KM, REST_WINDOW_MINUTES, nominalStrength } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -78,7 +78,14 @@ async function raise(
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
   });
 }
 
@@ -459,21 +466,14 @@ describe('what the jobs file for the journal', () => {
    * **Une passe tirée à sec.** Le compte rendu montre les pertes, jamais leur raison : sans
    * cette ligne un défaut de ravitaillement se lit comme une défaite.
    */
-  it('files a dry pass for the side whose magazine could not cover it', async () => {
+  it('files a dry pass for the side whose troops had no rounds left', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const dry = await playerOf(t, seat);
-    await t.run(async (ctx) => {
-      const held = await ctx.db
-        .query('resources')
-        .withIndex('byPlayer', (q) => q.eq('playerId', dry))
-        .collect();
-      const magazine = held.find((row) => row.key === 'ammunition')!;
-      await ctx.db.patch(magazine._id, { stock: 0, updatedAt: Date.now() });
-    });
 
     const point = pointOf(PRAHOVA);
-    await post(t, guest, point);
+    const posted = await post(t, guest, point);
+    // Abroad, nothing rearms it: it lives on what it carries (ADR 0028 §3).
+    await t.run(async (ctx) => ctx.db.patch(posted, { rounds: 0 }));
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await attacking(t, {
       ...seat,
@@ -484,8 +484,10 @@ describe('what the jobs file for the journal', () => {
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect(await noticesOf(t, seat, 'firedDry')).toMatchObject([{ hostCountry: 'ROU' }]);
-    expect(await noticesOf(t, guest, 'firedDry')).toEqual([]);
+    expect(await noticesOf(t, guest, 'firedDry')).toMatchObject([
+      { hostCountry: 'ROU', troops: 1 },
+    ]);
+    expect(await noticesOf(t, seat, 'firedDry')).toEqual([]);
   });
 });
 

@@ -1,3 +1,4 @@
+import { DEPOSIT_POINTS } from '../src/domain/world';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
@@ -10,16 +11,25 @@ import {
   type BuildingKey,
   type DepositKey,
   type Nation,
+  type ResearchCard,
   type ResourceKey,
 } from '../src/domain/ids';
+import { buildingLockOf } from '../src/domain/research';
 import { ADM0_BY_NATION } from '../src/domain/nations';
-import { EXPLOITED_DEPOSITS, PRODUCER_OF, YIELD_OF, placementRefusal } from '../src/domain/economy';
+import {
+  BUILDING_SPACING_KM,
+  EXPLOITED_DEPOSITS,
+  keyRefusal,
+  PRODUCER_OF,
+  YIELD_OF,
+} from '../src/domain/economy';
 import {
   BASE_CAP,
-  CHAINS,
+  FACTORY_LINES,
   EXTRACTION_PER_HOUR,
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
+  OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   STARTING_KIT,
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
@@ -27,14 +37,13 @@ import {
   buildCost,
   buildMinutes,
   nominalStrength,
-  unlockLevel,
 } from './constants';
 import {
   capitalRegionOf,
   foundationOwed,
   homeDepositsOf,
-  pointOfBuilding,
   regionFacts,
+  pointOfRegion,
 } from './regions';
 import { clipToStorage, settle } from './resources';
 import schema from './schema';
@@ -53,7 +62,6 @@ const MEURTHE = 'FRA-5325'; // iron
 const PAS_DE_CALAIS = 'FRA-5334'; // coal, coastal
 const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
-const PARIS = 'FRA-5333'; // the capital, where the headquarters already stands
 const RUHR = 'DEU-1572'; // German
 
 /** A shore cell of the Pas-de-Calais, as `isCoastCell` reads the routing grid — land with the
@@ -131,6 +139,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level,
     });
   });
@@ -154,6 +163,18 @@ async function fill(t: ReturnType<typeof boot>, seat: Seat, key: ResourceKey, st
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */
+/** Hands the player research cards, as if they had come to their end. */
+async function research(
+  t: ReturnType<typeof boot>,
+  seat: Seat,
+  cards: ReadonlyArray<ResearchCard>,
+) {
+  await t.run(async (ctx) => {
+    const player = await seatIn(ctx, seat);
+    await ctx.db.patch(player._id, { researched: [...cards] });
+  });
+}
+
 async function promoteHq(t: ReturnType<typeof boot>, seat: Seat, level: number) {
   await t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
@@ -253,7 +274,7 @@ describe('what the industry window reads', () => {
     vi.advanceTimersByTime(3_600_000);
 
     const view = await t.query(api.view.playerView, seat);
-    const cast = CHAINS.arsenal.perHourPerLevel;
+    const cast = FACTORY_LINES.ammunition.perHourPerLevel;
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'running' });
     // Ce que l'arsenal sort, et ce qu'il prélève : un charbon et un acier par munition.
     expect(view.me.resources.ammunition.ratePerHour).toBe(cast);
@@ -325,11 +346,16 @@ describe('what the industry window reads', () => {
     await raise(t, seat, 'arsenal', MOSELLE);
     await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.coal });
     await fill(t, seat, 'coal', 2);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     vi.advanceTimersByTime(20 * 3_600_000);
     // The barracks, not the farm: the farm belongs to the foundation, and a free placement
     // spends nothing — so it would reset no window.
-    await t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: MARNE,
+      point: pointOfRegion(MARNE),
+    });
 
     const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'starved', missing: 'coal' });
@@ -463,83 +489,47 @@ describe('placement', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      }),
     ).rejects.toThrow('DEPOSIT_REQUIRED');
   });
 
-  it('refuses a port away from the coast and takes it on the shore', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('port'));
-    await expect(
-      t.mutation(api.constructions.start, {
-        ...seat,
-        building: 'port',
-        regionId: MOSELLE,
-        point: CALAIS_SHORE,
-      }),
-    ).rejects.toThrow('NOT_COASTAL');
-    await t.mutation(api.constructions.start, {
-      ...seat,
-      building: 'port',
-      regionId: PAS_DE_CALAIS,
-      point: CALAIS_SHORE,
-    });
-  });
-
   /**
-   * **Le port se pose à un point, et lui seul** (ADR 0013, révision du 04/09). Two of the three
-   * refusals answer a client that made up its own gesture; the third is the one a legitimate
-   * ghost can meet, when the ground it snapped onto is not the region's.
+   * **A point, never a region** (ADR 0029). Everything below is read off the point aimed at: the
+   * coast of a port, the deposit of a mine, the spacing to the player's other buildings.
    */
-  describe('the coast point of a port', () => {
+  describe('the point aimed at', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it('is refused on anything that is not a port', async () => {
+    it('refuses a port inland and takes it on the shore', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
-          building: 'mine',
+          building: 'port',
           regionId: MOSELLE,
-          point: CALAIS_SHORE,
-        }),
-      ).rejects.toThrow('POINT_FOR_PORT_ONLY');
-    });
-
-    it('is required of a port', async () => {
-      const t = boot();
-      const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
-      await expect(
-        t.mutation(api.constructions.start, {
-          ...seat,
-          building: 'port',
-          regionId: PAS_DE_CALAIS,
-        }),
-      ).rejects.toThrow('PORT_NEEDS_A_COAST_POINT');
-    });
-
-    it('is refused inland, where no ship could reach it', async () => {
-      const t = boot();
-      const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
-      await expect(
-        t.mutation(api.constructions.start, {
-          ...seat,
-          building: 'port',
-          regionId: PAS_DE_CALAIS,
           point: { lon: MOSELLE_POINT[0], lat: MOSELLE_POINT[1] },
         }),
-      ).rejects.toThrow('PORT_NEEDS_A_COAST_POINT');
+      ).rejects.toThrow('NOT_COASTAL');
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'port',
+        regionId: PAS_DE_CALAIS,
+        point: CALAIS_SHORE,
+      });
     });
 
-    it('is refused on the shore of another country', async () => {
+    it('refuses a point that does not lie in the country of its region', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
+      await promoteHq(t, seat, 2);
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
@@ -550,12 +540,27 @@ describe('placement', () => {
       ).rejects.toThrow('POINT_OUTSIDE_REGION');
     });
 
+    /** Une région revendiquée loin du point ne prend pas sa couleur (ADR 0029). */
+    it('refuses a region claimed far from the point aimed at', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'barracks',
+          regionId: MARNE,
+          point: pointOfRegion(MOSELLE),
+        }),
+      ).rejects.toThrow('POINT_OUTSIDE_REGION');
+    });
+
     /** The queue carries it, the finished building keeps it, and the view serves it: the mast
-     *  stands on the quay from the order to the end of the season. */
+     *  stands on its point from the order to the end of the season. */
     it('travels from the queue to the standing building and out to the board', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await promoteHq(t, seat, unlockLevel('port'));
+      await promoteHq(t, seat, 2);
       for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
       await t.mutation(api.constructions.start, {
         ...seat,
@@ -573,39 +578,175 @@ describe('placement', () => {
       expect(port?.point).toEqual([CALAIS_SHORE.lon, CALAIS_SHORE.lat]);
     });
 
-    /** A raise does not move a quay, so it does not ask for one either — nor does it take one. */
-    it('is neither asked for nor accepted when the port is only being raised', async () => {
+    /** A raise names the building by its point, and moves nothing. */
+    it('raises a building at its own point, and leaves it there', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
       await promoteHq(t, seat, MAX_HQ_LEVEL);
-      await raise(t, seat, 'port', PAS_DE_CALAIS);
+      await raise(t, seat, 'barracks', ARDENNES);
       for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
+      const started = await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      });
+      expect(started.level).toBe(2);
       await expect(
         t.mutation(api.constructions.start, {
           ...seat,
-          building: 'port',
-          regionId: PAS_DE_CALAIS,
-          point: CALAIS_SHORE,
+          building: 'barracks',
+          regionId: ARDENNES,
+          point: pointOfRegion(ARDENNES),
         }),
-      ).rejects.toThrow('POINT_FOR_PORT_ONLY');
+      ).rejects.toThrow('ALREADY_QUEUED_HERE');
+    });
+
+    /** « Trop près de l'usine : 30 km au moins » — and a region counts nothing: far enough
+     *  apart, two buildings stand in the same one. */
+    it(`keeps ${BUILDING_SPACING_KM} km between two buildings of the player, in any region`, async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
+      const [lon, lat] = regionFacts(MARNE)!.point;
+      await raise(t, seat, 'barracks', MARNE);
+      const refused: Record<string, unknown> = await t
+        .mutation(api.constructions.start, {
+          ...seat,
+          building: 'warehouse',
+          regionId: MARNE,
+          point: { lon: lon + 0.1, lat },
+        })
+        .then(() => ({}))
+        .catch((error: { data: Record<string, unknown> }) => error.data);
+      expect(refused).toMatchObject({
+        code: 'BUILDING_TOO_CLOSE',
+        near: 'barracks',
+        km: BUILDING_SPACING_KM,
+      });
       await t.mutation(api.constructions.start, {
         ...seat,
-        building: 'port',
-        regionId: PAS_DE_CALAIS,
+        building: 'warehouse',
+        regionId: MARNE,
+        point: { lon: lon + 0.5, lat },
       });
     });
 
-    /** A port from before the field existed reads where it always read — its region's point,
-     *  and no backfill anywhere (`pointOfBuilding`). */
-    it('leaves a port written before the field standing at its centroid', async () => {
+    /** Puts another player's building on a point — what the fog hides from the player. */
+    const standOther = (t: ReturnType<typeof boot>, key: BuildingKey, regionId: string) =>
+      t.run(async (ctx) => {
+        const other = (await ctx.db.query('players').collect()).find(
+          (player) => player.nation !== 'france',
+        )!;
+        await ctx.db.insert('buildings', {
+          seasonId: other.seasonId,
+          playerId: other._id,
+          key,
+          regionId,
+          point: pointOfRegion(regionId),
+          level: 1,
+        });
+      });
+
+    const myNotices = (t: ReturnType<typeof boot>, seat: Seat) =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        return ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+      });
+
+    const surveyedKeys = (t: ReturnType<typeof boot>, seat: Seat, regionId: string) =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        const row = await ctx.db
+          .query('regionSightings')
+          .withIndex('byPlayerRegion', (q) => q.eq('playerId', player._id).eq('regionId', regionId))
+          .unique();
+        return (row?.installations ?? []).map((seen) => seen.key);
+      });
+
+    /**
+     * **Un gisement porte une seule exploitation** (ADR 0029 §3), et le brouillard ne se lève pas
+     * à la commande : l'ordre passe, la course se tranche quand le bâtiment se tiendrait, et le
+     * tenant devient un relevé. Ce qu'on a relevé, ensuite, se refuse avant le clic.
+     */
+    it('settles a deposit somebody already works when it would stand, and surveys the holder', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
-      await raise(t, seat, 'port', PAS_DE_CALAIS);
+      await standOther(t, 'mine', MOSELLE);
+
+      const placed = await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      expect(placed).toMatchObject({ cost: {}, level: 0 });
       const view = await t.query(api.view.playerView, seat);
-      expect(view.me.buildings.find((building) => building.key === 'port')?.point).toBeNull();
-      expect(pointOfBuilding({ regionId: PAS_DE_CALAIS })).toEqual(
-        regionFacts(PAS_DE_CALAIS)!.point,
+      expect(view.me.buildings.some((building) => building.key === 'mine')).toBe(false);
+      expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'coal' });
+      expect(await myNotices(t, seat)).toContainEqual(
+        expect.objectContaining({ kind: 'constructionCancelled', reason: 'depositTaken' }),
       );
+      expect(await surveyedKeys(t, seat, MOSELLE)).toEqual(['mine']);
+
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'mine',
+          regionId: MOSELLE,
+          point: pointOfRegion(MOSELLE),
+        }),
+      ).rejects.toThrow('DEPOSIT_TAKEN');
+    });
+
+    it('refunds a paid exploitation that loses the race at the end of its works', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
+      // The coal the season owed goes down on Calais: the next coal mine is paid for.
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: PAS_DE_CALAIS,
+        point: pointOfRegion(PAS_DE_CALAIS),
+      });
+      const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      await standOther(t, 'mine', MOSELLE);
+
+      await vi.advanceTimersByTimeAsync(buildMinutes('mine', 1) * 60_000 + 1000);
+      const view = await t.query(api.view.playerView, seat);
+      expect(view.me.buildings.filter((building) => building.key === 'mine')).toHaveLength(1);
+      expect(view.me.resources.steel.stock).toBeGreaterThanOrEqual(before);
+      expect(await myNotices(t, seat)).toContainEqual(
+        expect.objectContaining({ kind: 'constructionCancelled', reason: 'depositTaken' }),
+      );
+      expect(await surveyedKeys(t, seat, MOSELLE)).toEqual(['mine']);
+    });
+
+    /** **Seule une exploitation tient un gisement** : une caserne adverse sur le point n'y fait rien. */
+    it('lets a mine go down where another key stands on the deposit', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await standOther(t, 'barracks', MOSELLE);
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      });
+      const view = await t.query(api.view.playerView, seat);
+      expect(view.me.buildings.some((building) => building.key === 'mine')).toBe(true);
     });
   });
 
@@ -614,41 +755,42 @@ describe('placement', () => {
    * progression, so the refusal has to name the step that opens the line — a locked key that
    * says nothing is a key the player believes is broken.
    */
-  it('refuses a key above the headquarters tier, and names the level it wants', async () => {
+  it('refuses a tile a research card holds, and names the card', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: ARDENNES })
+      .mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
-    expect(refused).toMatchObject({
-      code: 'BUILDING_LOCKED',
-      building: 'airfield',
-      requiredLevel: unlockLevel('airfield'),
-      hqLevel: HQ_LEVEL_AT_LAUNCH,
-    });
+    expect(refused).toMatchObject({ code: 'RESEARCH_REQUIRED', card: 'aviation' });
 
-    await promoteHq(t, seat, unlockLevel('airfield'));
+    await research(t, seat, ['aviation']);
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'airfield',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
-  /** The refusal above, taken back: the very key the tier locked is placed the minute the
-   *  headquarters reaches it, and nothing else changes. */
-  it('opens a tier as soon as the headquarters reaches it', async () => {
+  /** The refusal above, taken back: the very key the card held is placed the minute the card
+   *  comes to its end, at the headquarters the season plants. */
+  it('opens a tile as soon as its card is researched', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    expect(unlockLevel('listening')).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
-    await promoteHq(t, seat, unlockLevel('listening'));
+    await research(t, seat, ['listening']);
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -662,18 +804,18 @@ describe('placement', () => {
   it('never owes a foundation key above the headquarters it plants', () => {
     for (const nation of NATIONS) {
       for (const { key } of foundationOwed(nation, [])) {
-        expect(unlockLevel(key)).toBeLessThanOrEqual(HQ_LEVEL_AT_LAUNCH);
+        expect(buildingLockOf(key, [])).toBeNull();
       }
     }
   });
 
   /** The panel prices its lines off the served catalogue; it must lock them off the same one. */
-  it('serves the tier of every key beside its price', async () => {
+  it('serves the card of every key beside its price', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const view = await t.query(api.view.playerView, seat);
     for (const key of BUILDINGS) {
-      expect(view.buildCatalog[key].unlockedAtHqLevel).toBe(unlockLevel(key));
+      expect(view.buildCatalog[key].lockedBy).toBe(buildingLockOf(key, []));
     }
   });
 
@@ -681,7 +823,12 @@ describe('placement', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'hq',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+      }),
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
 
@@ -692,7 +839,12 @@ describe('placement', () => {
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: RUHR }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
@@ -701,7 +853,12 @@ describe('placement', () => {
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: 'XXX-1' }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'farm',
+        regionId: 'XXX-1',
+        point: { lon: 0, lat: 0 },
+      }),
     ).rejects.toThrow('UNKNOWN_REGION');
   });
 });
@@ -857,7 +1014,6 @@ describe('the foundation the season owes', () => {
       me: {
         regions: ReadonlyArray<{
           id: string;
-          deposit: DepositKey | null;
           coastal: boolean;
           buildings: ReadonlyArray<unknown>;
         }>;
@@ -869,17 +1025,18 @@ describe('the foundation the season owes', () => {
      *  région libre acquitte. */
     deposit?: DepositKey | null,
   ): string | null =>
-    view.me.regions.find(
-      (region) =>
+    view.me.regions.find((region) => {
+      /** The deposit point that lies in the region, if any: the free spot is its own point. */
+      const under = DEPOSIT_POINTS.find((point) => point.regionId === region.id)?.deposit ?? null;
+      return (
         region.buildings.length === 0 &&
-        (deposit === undefined || deposit === null || region.deposit === deposit) &&
-        placementRefusal(
-          key,
-          region,
-          { onRegion: null, hqLevel: HQ_LEVEL_AT_LAUNCH },
-          unlockLevel(key),
-        ) === null,
-    )?.id ?? null;
+        keyRefusal(key, HQ_LEVEL_AT_LAUNCH, buildingLockOf(key, [])) === null &&
+        (deposit === undefined || deposit === null || under === deposit) &&
+        (EXPLOITED_DEPOSITS[key] === undefined
+          ? key !== 'port'
+          : under !== null && EXPLOITED_DEPOSITS[key]!.includes(under))
+      );
+    })?.id ?? null;
 
   /** What France is owed: iron, coal and bread — and no well, since the country has
    *  no oil. Every test of this file plays France, so this is the reading list. */
@@ -903,6 +1060,7 @@ describe('the foundation the season owes', () => {
         ...seat,
         building: due.key,
         regionId,
+        point: pointOfRegion(regionId),
       });
       bills.push(cost as Record<string, number>);
     }
@@ -944,6 +1102,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'mine',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
     expect(offered.cost).toEqual({});
     expect(offered.finishesAt).toBe(Date.now());
@@ -952,6 +1111,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'mine',
       regionId: PAS_DE_CALAIS,
+      point: pointOfRegion(PAS_DE_CALAIS),
     });
     expect(billed.cost).toEqual(buildCost('mine', 1));
     expect(billed.finishesAt).toBeGreaterThan(Date.now());
@@ -963,6 +1123,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'mine',
       regionId: MEURTHE,
+      point: pointOfRegion(MEURTHE),
     });
     expect(iron.cost).toEqual({});
   });
@@ -976,11 +1137,12 @@ describe('the foundation the season owes', () => {
   it('places what the season owes while a paid construction runs', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     const paid = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
     expect(paid.finishesAt).toBeGreaterThan(Date.now());
     const spent = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
@@ -989,6 +1151,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'farm',
       regionId: JURA,
+      point: pointOfRegion(JURA),
     });
     expect(placed.cost).toEqual({});
     expect(placed.finishesAt).toBe(Date.now());
@@ -1001,22 +1164,29 @@ describe('the foundation the season owes', () => {
   });
 
   /**
-   * The hole the global lock used to hide. Nothing reserves the ground under a running site —
-   * `placementRefusal` reads the buildings standing, never the constructions — so an offered
-   * placement aimed there would leave two buildings on one region once the `finish` lands.
+   * The hole the global lock used to hide. A running site stands nowhere yet, so the spacing
+   * reads the queue too: an offered placement beside it would stand two buildings at one place
+   * once the `finish` lands (ADR 0029).
    */
-  it('refuses an offered placement on the region a construction is rising on', async () => {
+  it('keeps an offered placement away from a construction that is rising', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
+    const [lon, lat] = regionFacts(ARDENNES)!.point;
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: ARDENNES }),
-    ).rejects.toThrow('REGION_TAKEN');
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'warehouse',
+        regionId: ARDENNES,
+        point: { lon: lon + 0.05, lat },
+      }),
+    ).rejects.toThrow('BUILDING_TOO_CLOSE');
   });
 
   /**
@@ -1026,18 +1196,25 @@ describe('the foundation the season owes', () => {
   it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
-    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointOfRegion(JURA),
+    });
 
     const placed = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'farm',
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
     });
     expect(placed).toMatchObject({ cost: {}, rank: null, finishesAt: Date.now() });
 
@@ -1066,7 +1243,12 @@ describe('the foundation the season owes', () => {
       // A bill the kit cannot cover is not a first move: the season refuses it before the
       // player can make it. Anything else the server refuses would be a hole, and fails here.
       const paid = await t
-        .mutation(api.constructions.start, { ...seat, building: first, regionId })
+        .mutation(api.constructions.start, {
+          ...seat,
+          building: first,
+          regionId,
+          point: pointOfRegion(regionId),
+        })
         .then(
           () => true,
           (refusal: { data?: { code?: string } }) => {
@@ -1093,7 +1275,7 @@ describe('the foundation the season owes', () => {
 
 /**
  * **Le quartier général se pose, il n'est plus planté** (décision 1b du 13/09, révision des ADR
- * 0015 et 0017 §2). Ce qui a rouvert la question : une bâtisse par région, donc un gisement sous
+ * 0015 et 0017 §2). Ce qui a rouvert la question : un gisement sous
  * le QG est un gisement perdu — c'est au joueur de choisir ce qu'il sacrifie.
  */
 describe('the headquarters the player puts up', () => {
@@ -1107,7 +1289,12 @@ describe('the headquarters the player puts up', () => {
     expect(view.me.foundation[0]).toEqual({ key: 'hq', deposit: null });
     // La mine est offerte elle aussi, et elle attend quand même : le QG d'abord.
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      }),
     ).rejects.toThrow('HQ_FIRST');
   });
 
@@ -1118,7 +1305,12 @@ describe('the headquarters the player puts up', () => {
     const seat = await launchedWithoutHq(t);
     const opening = await t.query(api.view.playerView, seat);
 
-    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'hq',
+      regionId: MARNE,
+      point: pointOfRegion(MARNE),
+    });
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.construction).toBeNull();
@@ -1141,22 +1333,37 @@ describe('the headquarters the player puts up', () => {
   it('is refused a second time, wherever it is aimed', async () => {
     const t = boot();
     const seat = await launchedWithoutHq(t);
-    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'hq',
+      regionId: MARNE,
+      point: pointOfRegion(MARNE),
+    });
 
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'hq',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      }),
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
 
   /**
-   * **Le sacrifice, exécutable.** Le QG prend la région où il se pose, gisement compris — et la
-   * mine que le socle y devait n'a plus de sol. C'est l'enjeu qui a rouvert la décision, et la
-   * dette du charbon reste due ailleurs plutôt que de disparaître avec la région.
+   * **Le sacrifice, exécutable.** Le QG posé sur un gisement ne l'exploite pas, mais l'espacement
+   * en écarte la mine que le socle y devait. La dette du charbon reste due ailleurs plutôt que de
+   * disparaître avec le gisement (ADR 0029).
    */
-  it('takes a deposit region if that is where the player wants it, and the mine loses it', async () => {
+  it('takes a deposit if that is where the player wants it, and the mine loses it', async () => {
     const t = boot();
     const seat = await launchedWithoutHq(t);
-    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MOSELLE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'hq',
+      regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
+    });
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings).toEqual([
@@ -1164,13 +1371,19 @@ describe('the headquarters the player puts up', () => {
     ]);
     expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'coal' });
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE }),
-    ).rejects.toThrow('REGION_TAKEN');
-    // Et le charbon se prend ailleurs : la dette suit le gisement, pas la région perdue.
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'mine',
+        regionId: MOSELLE,
+        point: pointOfRegion(MOSELLE),
+      }),
+    ).rejects.toThrow('BUILDING_TOO_CLOSE');
+    // Et le charbon se prend ailleurs : la dette suit l'espèce du gisement, pas le point perdu.
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'mine',
       regionId: PAS_DE_CALAIS,
+      point: pointOfRegion(PAS_DE_CALAIS),
     });
     expect((await t.query(api.view.playerView, seat)).me.foundation).not.toContainEqual({
       key: 'mine',
@@ -1182,7 +1395,12 @@ describe('the headquarters the player puts up', () => {
   it('lets a fresh player raise his first farm without building it first', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'farm',
+      regionId: MARNE,
+      point: pointOfRegion(MARNE),
+    });
   });
 
   it('gives every playable nation a capital that exists, at home', () => {
@@ -1219,9 +1437,9 @@ describe('the construction queue', () => {
   /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses.
    *  Two of them open one level above the launch, so every test here promotes first. */
   const SITES = [
-    { building: 'barracks' as const, regionId: ARDENNES },
-    { building: 'warehouse' as const, regionId: JURA },
-    { building: 'barracks' as const, regionId: MEURTHE },
+    { building: 'barracks' as const, regionId: ARDENNES, point: pointOfRegion(ARDENNES) },
+    { building: 'warehouse' as const, regionId: JURA, point: pointOfRegion(JURA) },
+    { building: 'barracks' as const, regionId: MEURTHE, point: pointOfRegion(MEURTHE) },
   ];
 
   const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
@@ -1240,7 +1458,12 @@ describe('the construction queue', () => {
     await raise(t, seat, 'farm', MARNE);
     await fill(t, seat, 'food', 0);
 
-    await t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'farm',
+      regionId: MARNE,
+      point: pointOfRegion(MARNE),
+    });
     const minutes = buildMinutes('farm', 2);
     vi.advanceTimersByTime(minutes * 60_000 + 1);
     await t.finishInProgressScheduledFunctions();
@@ -1298,9 +1521,9 @@ describe('the construction queue', () => {
     }
   });
 
-  /** One entry per region, standing or queued: two entries aiming at one region would leave two
-   *  buildings on it, and the door that refuses it is the enqueue — never the start. */
-  it('refuses a second entry on a region the queue already aims at', async () => {
+  /** One entry per point, and the spacing reads the queue: two entries aiming at one place would
+   *  leave two buildings on it, and the door that refuses it is the enqueue — never the start. */
+  it('refuses a second entry on a point the queue already aims at', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
@@ -1308,16 +1531,32 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
-    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointOfRegion(JURA),
+    });
 
     // Against the head, and against a follower alike.
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ARDENNES }),
-    ).rejects.toThrow('REGION_TAKEN');
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: ARDENNES,
+        point: pointOfRegion(ARDENNES),
+      }),
+    ).rejects.toThrow('ALREADY_QUEUED_HERE');
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: JURA }),
-    ).rejects.toThrow('REGION_TAKEN');
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: JURA,
+        point: pointOfRegion(JURA),
+      }),
+    ).rejects.toThrow('ALREADY_QUEUED_HERE');
   });
 
   /**
@@ -1337,8 +1576,14 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
-    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointOfRegion(JURA),
+    });
 
     // The follower's ground goes under the queue: the building below is put up without paying,
     // and what is under test is what the *start* of the follower does about it.
@@ -1376,8 +1621,14 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
-    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointOfRegion(JURA),
+    });
 
     const before = await t.query(api.view.playerView, seat);
     const head = before.me.construction!;
@@ -1450,6 +1701,7 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
+      point: pointOfRegion(ARDENNES),
     });
 
     const troops = await measure(
@@ -1468,7 +1720,13 @@ describe('the construction queue', () => {
       },
     );
     const sites = await measure(
-      () => t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA }),
+      () =>
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'warehouse',
+          regionId: JURA,
+          point: pointOfRegion(JURA),
+        }),
       async () => {
         const waiting = (await t.query(api.view.playerView, seat)).me.constructionQueue[0]!;
         await t.mutation(api.constructions.cancel, {
@@ -1486,28 +1744,33 @@ describe('the construction queue', () => {
   });
 });
 
-describe('one building per region', () => {
-  it('refuses a second building on a region that already carries one', async () => {
+describe('a region counts nothing (ADR 0029)', () => {
+  it('takes a second building in a region that already carries one, far enough apart', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
     await raise(t, seat, 'warehouse', MARNE);
-    await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE }),
-    ).rejects.toThrow('REGION_TAKEN');
-    // Including the capital: the headquarters holds its region like any other building.
-    await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: PARIS }),
-    ).rejects.toThrow('REGION_TAKEN');
+    const [lon, lat] = regionFacts(MARNE)!.point;
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: MARNE,
+      point: { lon: lon + 0.5, lat },
+    });
   });
 
-  /** Raising a level moves neither the number of buildings nor the number of regions held, so
-   *  neither rule has anything to say about it. */
+  /** Raising a level moves nothing, so neither the spacing nor the deposit has anything to say. */
   it('lets a building already there rise a level', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await promoteHq(t, seat, 2);
     await raise(t, seat, 'mine', MOSELLE);
-    await t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
+    });
   });
 });
 
@@ -1604,6 +1867,7 @@ describe('the ground a site reaches', () => {
       ...seat,
       building: 'warehouse',
       regionId: NEAR_EL_TARF,
+      point: pointOfRegion(NEAR_EL_TARF),
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -1612,16 +1876,21 @@ describe('the ground a site reaches', () => {
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.buildings.some((building) => building.regionId === NEAR_EL_TARF)).toBe(true);
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: ALSO_NEAR }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'warehouse',
+        regionId: ALSO_NEAR,
+        point: pointOfRegion(ALSO_NEAR),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
   /**
-   * **Le frein de l'expansion est le prix, plus l'entretien** (révision du 15/09 de l'ADR 0020
-   * §10). Un avant-poste debout, fût-il de niveau 3, ne touche aucun des huit taux : il est payé
-   * à la fondation puis à chaque élévation, et il ne coûte plus rien à tenir.
+   * **Le frein de l'expansion est le prix, puis l'entretien** (ADR 0028 §2, qui reprend ce que
+   * la révision du 15/09 de l'ADR 0020 avait retiré). Un avant-poste debout mange des vivres
+   * selon son niveau, et ne touche aucun autre taux.
    */
-  it('leaves every rate untouched by an outpost held, whatever its level', async () => {
+  it('eats food by its level and touches no other rate', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const before = await t.query(api.view.playerView, seat);
@@ -1630,8 +1899,13 @@ describe('the ground a site reaches', () => {
     await plantOutpost(t, seat, EL_TARF, 3);
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.upkeep.outposts).toBe(1);
+    /** The point eats food by its level (ADR 0028 §2), and touches no other rate. */
+    expect(after.me.upkeep.outpostFoodPerHour).toBe(3 * OUTPOST_FOOD_PER_HOUR_PER_LEVEL);
     for (const key of RESOURCES) {
-      expect(after.me.resources[key].ratePerHour).toBe(before.me.resources[key].ratePerHour);
+      const eaten = key === 'food' ? after.me.upkeep.outpostFoodPerHour : 0;
+      expect(after.me.resources[key].ratePerHour).toBe(
+        before.me.resources[key].ratePerHour - eaten,
+      );
     }
   });
 });
@@ -1733,7 +2007,49 @@ describe('the arsenal is commanded', () => {
 
     // The scarcer of the two inputs sets the ceiling: the kit holds less coal than steel.
     const view = await t.query(api.view.playerView, seat);
-    expect(chainOf(view, 'arsenal').maxOrder).toBe(KIT.coal);
+    expect(chainOf(view, 'arsenal').lines[0]?.maxOrder).toBe(KIT.coal);
+  });
+
+  it('refuses the oil line before its card, then runs it at three coal for one oil', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await fill(t, seat, 'coal', 100);
+
+    await expect(
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 }),
+    ).rejects.toThrow(/RESEARCH_REQUIRED/);
+    const locked = chainOf(await t.query(api.view.playerView, seat), 'arsenal');
+    expect(locked.lines.find((line) => line.output === 'oil')?.lockedBy).toBe('syntheticOil');
+
+    await research(t, seat, ['syntheticOil']);
+    const oilBefore = (await t.query(api.view.playerView, seat)).me.resources.oil.stock;
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 });
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, seat);
+    const rate = FACTORY_LINES.oil.perHourPerLevel;
+    expect(chainOf(view, 'arsenal')).toMatchObject({ output: 'oil', state: 'running' });
+    expect(view.me.resources.oil.stock).toBeGreaterThanOrEqual(oilBefore + rate);
+    expect(view.me.resources.coal.ratePerHour).toBe(-3 * rate);
+  });
+
+  it('stops the oil line dry of coal and says so', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await research(t, seat, ['syntheticOil']);
+    await fill(t, seat, 'coal', 30);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', line: 'oil', quantity: 10 });
+    await fill(t, seat, 'coal', 0);
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(chainOf(view, 'arsenal')).toMatchObject({
+      output: 'oil',
+      state: 'starved',
+      missing: 'coal',
+    });
   });
 
   it('refuses to command a building that is no chain', async () => {
@@ -1779,11 +2095,16 @@ describe('a stock that is not a number buys nothing', () => {
   it('refuses a construction that a NaN steel stock would have let through', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await promoteHq(t, seat, unlockLevel('barracks'));
+    await promoteHq(t, seat, 2);
     await fill(t, seat, 'steel', Number.NaN);
 
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: MARNE }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+      }),
     ).rejects.toThrow(/INSUFFICIENT_RESOURCE/);
   });
 });
@@ -1802,7 +2123,7 @@ describe('what produces what', () => {
       if (deposit !== undefined) {
         expect(EXPLOITED_DEPOSITS[building]).toContain(deposit);
       } else {
-        expect(CHAINS[building as keyof typeof CHAINS].output).toBe(resource);
+        expect(FACTORY_LINES.ammunition.output).toBe(resource);
       }
     }
   });
@@ -1824,6 +2145,7 @@ describe('legacy depot compatibility', () => {
         playerId: player._id,
         building: 'depot',
         regionId: JURA,
+        point: pointOfRegion(JURA),
         level,
         rank: 1,
         finishesAt,
@@ -1841,6 +2163,7 @@ describe('legacy depot compatibility', () => {
         ...seat,
         building: 'depot',
         regionId: JURA,
+        point: pointOfRegion(JURA),
       }),
     ).rejects.toThrow('UNKNOWN_BUILDING');
     const after = await t.query(api.view.playerView, seat);
@@ -1888,6 +2211,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
+      point: pointOfRegion(JURA),
     });
     expect(started).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
@@ -1903,6 +2227,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
     const { id, playerId } = await legacy(t, seat);
     const queued = await t.query(api.view.playerView, seat);
@@ -1944,6 +2269,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
+      point: pointOfRegion(JURA),
     });
     expect(raised).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
@@ -1978,6 +2304,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: MOSELLE,
+      point: pointOfRegion(MOSELLE),
     });
     const { id } = await legacy(t, seat);
     await raise(t, seat, 'farm', JURA);
@@ -2091,7 +2418,12 @@ describe('raising an outpost', () => {
 
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: PRAHOVA }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'oilWell',
+        regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -2152,7 +2484,12 @@ describe('raising an outpost', () => {
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
     // Un chantier de bâtiment prend la tête : derrière lui, l'élévation n'a pas commencé.
-    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointOfRegion(JURA),
+    });
     const opening = await steelOf(t, seat);
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
 

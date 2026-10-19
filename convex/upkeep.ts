@@ -1,12 +1,19 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
-import { withinReach, type OutpostReach } from '../src/domain/outposts';
 import {
-  FOOD_UPKEEP_PER_TROOP_PER_HOUR,
+  isStanding,
+  reachingOutpost,
+  withinReach,
+  type OutpostReach,
+} from '../src/domain/outposts';
+import { armyUpkeep } from '../src/domain/upkeep';
+import {
+  LISTENING_COAL_PER_HOUR,
+  OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   outpostReachKm,
-  UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
+import { activeBuildings, inService, playerBuildings } from './buildingReads';
 import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint, landAtPoint } from './routes';
 import { modeOf } from '../src/domain/season-mode';
@@ -14,8 +21,8 @@ import { modeOf } from '../src/domain/season-mode';
 /**
  * **What an army costs to hold, and why it costs more far from home** (ADR 0019 §4).
  *
- * `consommation-continue.md` settled the shape: one flat rate per troop, no table of nine, and
- * nothing dies when the reserve runs out. Read alone, that made a sentinel at the end of the
+ * `consommation-continue.md` settled the shape: one rate per troop, no table of nine (steps by rank
+ * since ADR 0028 §2), and nothing dies when the reserve runs out. Read alone, that made a sentinel at the end of the
  * world cost exactly what a garrison at home costs and never die of it — so ADR 0019 multiplies
  * the rate by where the troop stands. It is the only punishment the project's rule 3 allows: a
  * continuous cost, visible, and repaired by walking home or by founding a point.
@@ -58,11 +65,31 @@ export function isAnchored(
  * Le ravitaillement en mer par un port ami à portée reste ouvert (`QUESTIONS.md` 🟡) : il se
  * décidera, il ne se déduira pas d'un disque terrestre.
  */
-const isFed = (
+/**
+ * **Où une troupe ancrée se sert** (ADR 0028 §3) : sur le sol national, au plateau personnel ;
+ * dans le rayon d'un avant-poste, au dépôt du plus proche des points **debout** qui la couvrent.
+ * `fed` dit si elle mange au tarif simple — un chantier nourrit déjà — et `store` où elle se
+ * recharge : un chantier n'a pas encore de dépôt.
+ */
+function anchorAt(
   point: LonLat,
   homeCountry: string | null,
-  anchors: ReadonlyArray<OutpostReach>,
-): boolean => landAtPoint(point) && isAnchored(point, homeCountry, anchors);
+  anchors: ReadonlyArray<
+    OutpostReach & { readonly id: Id<'outposts'>; readonly standing: boolean }
+  >,
+): { readonly fed: boolean; readonly store: AnchorStore | null } {
+  if (!landAtPoint(point)) return { fed: false, store: null };
+  if (homeCountry !== null && hostAtPoint(point) === homeCountry)
+    return { fed: true, store: 'board' };
+  const depot = reachingOutpost(
+    point,
+    anchors.filter((anchor) => anchor.standing),
+  )?.nearest.id;
+  return { fed: depot !== undefined || withinReach(point, anchors), store: depot ?? null };
+}
+
+/** Le plateau personnel, ou le dépôt de cet avant-poste. */
+export type AnchorStore = 'board' | Id<'outposts'>;
 
 /** L'ancre telle que la portée la lit : chaque point porte son rayon, qui suit son niveau
  *  (`outpostReachKm`, 31/08) — un rayon commun dirait que tous couvrent la même chose. */
@@ -76,18 +103,18 @@ export type Upkeep = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, hence at the raised rate. */
   readonly unsupplied: number;
-  /** Food an hour the army takes, the multiplier already applied. */
+  /** Food an hour the army takes, the steps and the multiplier already applied. */
   readonly foodPerHour: number;
+  /** Food an hour the standing outposts take, by level (ADR 0028 §2). */
+  readonly outpostFoodPerHour: number;
+  /** Coal an hour the listening posts burn: stations, and outposts that listen. */
+  readonly listeningCoalPerHour: number;
   /** The troops that pay the raised rate, so the screen can mark them where the player looks. */
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
-  /**
-   * **Combien de points il tient, et rien d'autre** : un avant-poste debout ne consomme plus
-   * (révision du 15/09 de l'ADR 0020 §10). L'entretien par niveau et par heure a été retiré —
-   * un frein invisible qui vide le stock de vivres sans que le joueur sache pourquoi n'est pas
-   * un frein, c'est une fuite ; le frein est le prix, à la fondation puis à chaque élévation.
-   * Le compte reste servi : le bandeau dit combien de points l'empire tient.
-   */
+  /** How many outposts stand (a site under construction is not counted yet). */
   readonly outposts: number;
+  /** **Où chaque troupe ancrée se recharge** (`storeAt`) ; une troupe absente ne l'est pas. */
+  readonly storeOf: Readonly<Record<string, AnchorStore>>;
 };
 
 /**
@@ -117,7 +144,16 @@ export async function upkeepOf(
    *  personne. Sans cela chaque Blitz serait une famine dès le premier fantassin. */
   const blitz = player !== null && modeOf((await ctx.db.get(player.seasonId))?.mode) === 'blitz';
   if (player?.irregular === true || blitz) {
-    return { troops: 0, unsupplied: 0, foodPerHour: 0, unsuppliedTroopIds: [], outposts: 0 };
+    return {
+      troops: 0,
+      unsupplied: 0,
+      foodPerHour: 0,
+      outpostFoodPerHour: 0,
+      listeningCoalPerHour: 0,
+      unsuppliedTroopIds: [],
+      outposts: 0,
+      storeOf: {},
+    };
   }
   const home = homeCountryOf(player?.nation ?? null);
 
@@ -126,13 +162,16 @@ export async function upkeepOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
 
-  /** **Un chantier nourrit déjà** : ce que le lever ouvre est le sol — la couleur, les
-   *  emplacements, la portée, le relevé —, jamais la marmite. La colonne qui fonde campe sur
-   *  place, et la faire payer le tarif majoré pendant son propre chantier punirait l'ordre
-   *  qu'on vient de lui donner. */
+  /** **A site under construction already feeds**: what raising it opens is the ground (colour,
+   *  slots, reach, survey), never the cooking pot. The column that founds it camps in place, and
+   *  charging it the raised rate during its own works would punish the order just given. */
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
-    .map(anchorOf);
+    .map((outpost) => ({
+      ...anchorOf(outpost),
+      id: outpost._id,
+      standing: isStanding(outpost, now),
+    }));
 
   const troops = await ctx.db
     .query('troops')
@@ -143,6 +182,7 @@ export async function upkeepOf(
    *  troupe — ce calcul passe à chaque vue, à chaque règlement et à chaque débit. */
   const stationed = new Map<string, LonLat | null>();
   const unsuppliedTroopIds: Array<Id<'troops'>> = [];
+  const storeOf: Record<string, AnchorStore> = {};
   for (const troop of troops) {
     const address = troop.stationedAt;
     let point: LonLat | null;
@@ -156,19 +196,32 @@ export async function upkeepOf(
     }
     /** A troop the game cannot place is at home: `null` is national soil hanging from nothing
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
-    if (point === null) continue;
-    if (!isFed(point, home, supplying)) unsuppliedTroopIds.push(troop._id);
+    const { fed, store } =
+      point === null ? { fed: true, store: 'board' as const } : anchorAt(point, home, supplying);
+    if (!fed) unsuppliedTroopIds.push(troop._id);
+    if (store !== null) storeOf[troop._id] = store;
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;
+  const standing = outposts.filter((outpost) => isStanding(outpost, now));
+  /** A post out of service is silent, so it burns nothing. */
+  const listening =
+    activeBuildings(await playerBuildings(ctx, playerId), now).filter(
+      (building) => building.key === 'listening',
+    ).length +
+    standing.filter(
+      (outpost) => outpost.specialization === 'listening' && inService(outpost.disabledUntil, now),
+    ).length;
   return {
     troops: troops.length,
     unsupplied: unsuppliedTroopIds.length,
-    foodPerHour:
-      FOOD_UPKEEP_PER_TROOP_PER_HOUR *
-      (plain + unsuppliedTroopIds.length * UPKEEP_UNSUPPLIED_MULTIPLIER),
+    foodPerHour: armyUpkeep(plain, unsuppliedTroopIds.length),
+    outpostFoodPerHour:
+      OUTPOST_FOOD_PER_HOUR_PER_LEVEL * standing.reduce((sum, outpost) => sum + outpost.level, 0),
+    listeningCoalPerHour: LISTENING_COAL_PER_HOUR * listening,
     unsuppliedTroopIds,
-    outposts: outposts.length,
+    outposts: standing.length,
+    storeOf,
   };
 }
 

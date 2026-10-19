@@ -10,12 +10,12 @@ import {
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
 } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { attacking, foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -66,6 +66,7 @@ async function building(
       playerId: player._id,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level: 1,
     }),
   );
@@ -246,7 +247,7 @@ describe('surveyed plunder targets', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.surveyedInstallations).toEqual([
-      { id: warehouseId, key: 'warehouse', regionId: PRAHOVA },
+      { id: warehouseId, key: 'warehouse', regionId: PRAHOVA, point: regionFacts(PRAHOVA)!.point },
     ]);
     expect(JSON.stringify(view.surveyedInstallations)).not.toContain('stock');
     expect(JSON.stringify(view.surveyedInstallations)).not.toContain('garrison');
@@ -260,7 +261,7 @@ describe('surveyed plunder targets', () => {
     await observe(t, seat);
 
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toEqual([
-      { id: depotId, key: 'warehouse', regionId: PRAHOVA },
+      { id: depotId, key: 'warehouse', regionId: PRAHOVA, point: regionFacts(PRAHOVA)!.point },
     ]);
     await expect(resolve(t, seat, depotId)).resolves.toMatchObject({ _id: depotId });
   });
@@ -372,7 +373,7 @@ describe('what a column surveys where it lands', () => {
     await attackArrival(t, seat, [await troop(t, seat, 'infantry', barracks)], PSKOV, 'RUS');
 
     expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toEqual([
-      { id: mine, key: 'mine', regionId: PSKOV },
+      { id: mine, key: 'mine', regionId: PSKOV, point: regionFacts(PSKOV)!.point },
     ]);
   });
 
@@ -553,6 +554,25 @@ describe('plunder presence', () => {
     expect(theirs.notices.some((notice) => notice.kind === 'expeditionFoundNothing')).toBe(false);
   });
 
+  /** **Dakar** (P11) : les réserves de son teneur ne se pillent pas. */
+  it('finds the warehouse of the holder of Dakar sealed, and walks home empty', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await holdPoint(t, seat, 'dakar', guest);
+
+    await plunderArrival(t, seat, warehouseId, [infantry], barracks);
+
+    expect(await t.run((ctx) => ctx.db.query('plunderReports').collect())).toEqual([]);
+    expect((await t.run((ctx) => ctx.db.get(warehouseId)))!.disabledUntil).toBeUndefined();
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.notices.filter((notice) => notice.kind === 'expeditionFoundNothing')).toMatchObject(
+      [{ building: 'warehouse', reason: 'sealed' }],
+    );
+  });
+
   it('marches on a surveyed warehouse razed since, and reports it gone on arrival', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
@@ -580,6 +600,28 @@ describe('plunder presence', () => {
       [{ building: 'warehouse', reason: 'gone', regionName: regionFacts(PRAHOVA)!.name }],
     );
     expect((await t.run((ctx) => ctx.db.get(infantry)))?.stationedAt).toBe(barracks);
+  });
+
+  /** ADR 0028 §3 : le plein se dit avant l'ordre, ici comme sur une marche. */
+  it('says before the order that the escort lacks the fuel for the road', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const transport = await troop(t, seat, 'landTransport', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, seat);
+
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [infantry, transport],
+      buildingId: warehouseId,
+    };
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({
+      fuel: { short: { role: 'landTransport', held: 4 } },
+    });
+    await expect(t.mutation(api.movements.plunder, order)).rejects.toThrow('NOT_ENOUGH_FUEL');
   });
 
   it('returns the surviving escort empty when the infantry is lost during presence', async () => {
@@ -689,7 +731,7 @@ describe('plunder presence', () => {
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     expect(report?.taken.steel).toBeGreaterThan(0);
     await t.mutation(api.troops.cancel, { ...guest, recruitmentId: queued.recruitmentId });
-    expect((await stocksOf(t, guest)).steel).toBe(BASE_CAP + queued.cost.steel);
+    expect((await stocksOf(t, guest)).steel).toBe(BASE_CAP + queued.cost.costs.steel!);
   });
 
   it('lets only the first concurrent presence take and disable the target', async () => {

@@ -6,26 +6,36 @@ import {
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
   GARRISON_DAMAGE_TAKEN,
-  DRY_AMMUNITION_FACTOR,
   detectionRangeOf,
 } from '../../../convex/constants';
-import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
-import { TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
+import {
+  aBuilding,
+  fr,
+  profileAbbreviation,
+  profileLabel,
+  researchRequired,
+  roleLabel,
+} from '@/i18n/fr';
+import { pieceAt } from '@/domain/research';
+import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
   gunneryRows,
   movementSheetOf,
   PROFILE_UNITS,
-  profilesFor,
   type Band,
   type GunneryShot,
 } from '@/domain/gunnery';
 import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, tierLabel } from '@/domain/troops';
 import type { UnitTier } from '@/domain/troops';
-import type { UnitRole } from '@/domain/ids';
+import type { ResearchCard, UnitRole } from '@/domain/ids';
+import type { Cost } from '@/domain/player-view';
+import { Price } from '@/shell/Price';
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { fullSupplies, pileSupplies } from '@/domain/supplies';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
-import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
+import { ClockGlyph, EyeGlyph, HeartGlyph, CoinGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
@@ -57,8 +67,7 @@ export function GunneryWindow({
   ...windowProps
 }: WindowProps & { seat: Seat; theatre: Theatre | null }) {
   const workshop = useQuery(api.troops.workshop, seat);
-  const columns = profilesFor(workshop?.blitz === true ? 'blitz' : 'mondiale');
-  const rows = gunneryRows(DAMAGE_TABLE, columns);
+  const rows = gunneryRows(DAMAGE_TABLE);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (
@@ -78,7 +87,7 @@ export function GunneryWindow({
           <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.gunnery.lead}{' '}
             <HelpMark>
-              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, DRY_AMMUNITION_FACTOR)}{' '}
+              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, workshop?.blitz === true)}{' '}
               {fr.gunnery.contactRange(contactKm(theatre))}
             </HelpMark>
           </div>
@@ -96,7 +105,7 @@ export function GunneryWindow({
                 >
                   {fr.gunnery.piece}
                 </th>
-                {columns.map((defender) => (
+                {COMBAT_PROFILES.map((defender) => (
                   <th
                     key={defender}
                     scope="col"
@@ -138,7 +147,7 @@ export function GunneryWindow({
                            disparaître ou de s'aligner en onze tirets — les deux se liraient comme
                            une panne au lieu d'une règle. */
                         <td
-                          colSpan={columns.length}
+                          colSpan={COMBAT_PROFILES.length}
                           className="border-l border-(color:--ink)/14 px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
                         >
                           {fr.gunnery.firesNothing}
@@ -151,7 +160,7 @@ export function GunneryWindow({
                     {unfolded && (
                       <tr>
                         <td
-                          colSpan={columns.length + 2}
+                          colSpan={COMBAT_PROFILES.length + 2}
                           className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
                           <div className="hud-fold">
@@ -271,13 +280,12 @@ export function GunnerySheet({
                 key={mark}
                 mark={mark}
                 marked={marked}
-                cost={mark === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit}
+                cost={pieceAt(entry, mark)}
                 role={role}
                 roster={
                   workshop?.roster.find((row) => row.role === role && row.tier === mark)?.count ?? 0
                 }
-                locked={mark === 2 && !(workshop?.tier2Unlocked ?? false)}
-                requiredLevel={workshop?.requiredHqLevel ?? 0}
+                lockedBy={pieceAt(entry, mark).lockedBy}
                 first={rank === 0}
                 blitz={blitz}
               />
@@ -323,13 +331,13 @@ export function GunnerySheet({
             <span className="text-[13.5px] text-[var(--ink)]">
               {blitz
                 ? fr.blitz.formsIn(rolesFormingSites(role).map(aBuilding))
-                : fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+                : fr.production.formsIn(aBuilding(entry.producedBy))}
             </span>
-            {entry.unlockedAtHqLevel > 0 && !blitz && (
+            {entry.unit.lockedBy !== null && !blitz && (
               <>
                 <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
-                  {fr.production.tier2Locked(entry.unlockedAtHqLevel)}
+                  {researchRequired(entry.unit.lockedBy)}
                 </span>
               </>
             )}
@@ -355,18 +363,16 @@ function Mark({
   cost,
   role,
   roster,
-  locked,
-  requiredLevel,
+  lockedBy,
   first,
   blitz,
 }: {
   mark: UnitTier;
   marked: boolean;
-  cost: { steel: number; minutes: number; strength: number };
+  cost: { costs: Cost; minutes: number; strength: number };
   role: UnitRole;
   roster: number;
-  locked: boolean;
-  requiredLevel: number;
+  lockedBy: ResearchCard | null;
   first: boolean;
   blitz: boolean;
 }) {
@@ -390,9 +396,9 @@ function Mark({
         </span>
       ) : (
         <span className="flex items-center gap-[7px]">
-          <StatGlyph stat="steel" onHover={setHovered} />
-          <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
-            {cost.steel}
+          <StatGlyph stat="cost" onHover={setHovered} />
+          <span className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold text-[var(--ink)]">
+            <Price costs={cost.costs} size={16} />
           </span>
         </span>
       )}
@@ -408,6 +414,14 @@ function Mark({
           {cost.strength} {fr.strengthUnits[role]}
         </span>
       </span>
+      {!blitz && (
+        <span className="text-[12.5px] text-[var(--ink)]">
+          <SupplyPictos
+            supplies={pileSupplies([{ role, supplies: fullSupplies(role) }])}
+            size={14}
+          />
+        </span>
+      )}
       <span className="flex items-baseline gap-2 border-t border-(color:--ink)/22 pt-[5px]">
         <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.production.inService}
@@ -419,9 +433,9 @@ function Mark({
           {roster}
         </span>
       </span>
-      {locked && (
+      {lockedBy !== null && (
         <span className="max-w-[24ch] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
-          {fr.production.tier2Locked(requiredLevel)}
+          {researchRequired(lockedBy)}
         </span>
       )}
       {hovered !== null && (
@@ -451,8 +465,8 @@ type StatHover = {
  *  replier. Trois lignes pour la plus longue des trois, sans déborder de la fiche. */
 const STAT_POPIN_WIDTH = 232;
 
-const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
-  steel: IngotGlyph,
+const STAT_DRAWING: Readonly<Record<SheetStat, typeof CoinGlyph>> = {
+  cost: CoinGlyph,
   training: ClockGlyph,
   strength: HeartGlyph,
   range: EyeGlyph,

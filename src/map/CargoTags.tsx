@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import type { TourAct } from '@/domain/cargo-tag';
 import type { CargoTag } from '@/domain/cargo-tag';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { loadTotal } from '@/domain/logistics';
+import { ChargeBar } from '@/shell/ChargeBar';
 
 /** Past this many pixels a press on a passenger is a pull, not a click. */
 const PULL_PX = 6;
@@ -31,7 +34,11 @@ export function CargoTags({
   onDisembark,
   aim = null,
   available = false,
+  onTour,
 }: {
+  /** **La tournée depuis l'étiquette** (ADR 0028) : la lancer ou l'effacer une fois tracée, la
+   *  rappeler quand elle tourne. */
+  onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   tags: ReadonlyArray<CargoTag>;
   nation: string | null;
   onDisembark: (troopIds: ReadonlyArray<string>) => void;
@@ -99,10 +106,12 @@ export function CargoTags({
         const open = aim?.carrierId === tag.carrierId;
         const empty = Math.max(0, tag.seats - tag.used);
         const want = open ? aim.need : 0;
-        const shown = tag.riders.length > 0 || available || open;
+        const loaded = loadTotal(tag.load) > 0;
+        const shown = tag.riders.length > 0 || loaded || tag.tour !== null || available || open;
         return (
           <div
             key={tag.carrierId}
+            data-carrier-id={tag.carrierId}
             className={`cargo-tag${shown ? '' : ' cargo-tag--idle'}${open ? ' cargo-tag--open' : ''}`}
           >
             <div className="cargo-tag-body float paper-grain">
@@ -110,6 +119,56 @@ export function CargoTags({
                 <b>{roleLabel(tag.role, 1)}</b>
                 <span>{fr.cargo.seats(tag.used, tag.seats)}</span>
               </div>
+              {tag.loadCapacity > 0 && (
+                <div className="cargo-tag-charge">
+                  <ChargeBar load={tag.load} capacity={tag.loadCapacity} width={54} />
+                </div>
+              )}
+              {tag.tour !== null && (
+                <div className="cargo-tag-tour">
+                  <span
+                    className={tag.tour.state === 'waiting' ? 'cargo-tag-tour--waiting' : undefined}
+                  >
+                    {fr.logistics.tourLine(tag.tour)}
+                  </span>
+                  {onTour !== undefined &&
+                    (tag.tour.state === 'tracing' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="cargo-tag-out"
+                          onClick={(event) => {
+                            keep(event);
+                            onTour(tag.carrierId, 'launch');
+                          }}
+                        >
+                          {fr.logistics.launch}
+                        </button>
+                        <button
+                          type="button"
+                          className="cargo-tag-out"
+                          onClick={(event) => {
+                            keep(event);
+                            onTour(tag.carrierId, 'clear');
+                          }}
+                        >
+                          {fr.logistics.clear}
+                        </button>
+                      </>
+                    ) : tag.tour.state === 'recalled' ? null : (
+                      <button
+                        type="button"
+                        className="cargo-tag-out"
+                        onClick={(event) => {
+                          keep(event);
+                          onTour(tag.carrierId, 'recall');
+                        }}
+                      >
+                        {fr.logistics.recall}
+                      </button>
+                    ))}
+                </div>
+              )}
               <div className="cargo-tag-slots">
                 {tag.riders.map((rider) => (
                   <button

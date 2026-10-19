@@ -1,5 +1,7 @@
+import { pileSupplies, type PileSupplies } from './supplies';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
-import { fr, stackLabel } from '@/i18n/fr';
+import { cardName, fr, stackLabel } from '@/i18n/fr';
+import { researchProgressOf } from './research';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
@@ -45,6 +47,8 @@ export type Poster = {
      *  nothing is carried, as in Blitz. */
     readonly capacity?: number | null;
   } | null;
+  /** **Coups et plein** de ma pile (ADR 0028 §3), absents en Blitz et ailleurs. */
+  readonly supplies?: PileSupplies | null;
 };
 
 const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
@@ -94,6 +98,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         held.some((troop) => troop.strength < troop.nominalStrength),
       ),
       title: natureOf(label),
+      supplies: pileSupplies(held),
       lines: [
         ...waitingChips(held, now),
         ...(mending === 0
@@ -295,6 +300,22 @@ function buildingPoster(
       });
       bar = order.produced / order.ordered;
     }
+  }
+
+  /** **La carte que porte mon QG** (ADR 0028 §5) : son nom, ce qui lui reste, sa barre. */
+  const research = building.key === 'hq' ? view.me.research.running : null;
+  if (research !== null) {
+    const { share, finishesAt } = researchProgressOf(research, now);
+    lines.push({
+      kind: 'row',
+      label: fr.research.header,
+      value: `${cardName(research.card)} · ${
+        finishesAt === null
+          ? fr.research.waiting
+          : fr.research.left(asDuration((finishesAt - now) / 60_000))
+      }`,
+    });
+    bar = share;
   }
 
   const works = label.works;

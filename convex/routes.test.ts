@@ -7,7 +7,7 @@ import {
   STRATEGIC_POINT_KEYS,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
-import { coastAtPoint, hostAtPoint, routeBetween, routeToRegions } from './routes';
+import { coastAtPoint, hostAtPoint, pointInRegion, routeBetween, routeToRegions } from './routes';
 import { routeMinutes } from './constants';
 
 /**
@@ -113,25 +113,13 @@ describe('a port on the coast', () => {
 
   it('sends its column to sea with no land leg, where the centroid walked first', () => {
     const fromQuay = routeBetween(
-      pointOfBuilding({
-        regionId: HOKKAIDO,
-        point: { lon: HOKKAIDO_SHORE[0], lat: HOKKAIDO_SHORE[1] },
-      })!,
+      pointOfBuilding({ point: { lon: HOKKAIDO_SHORE[0], lat: HOKKAIDO_SHORE[1] } }),
       SEA_OF_JAPAN,
       'combined',
     );
-    const fromCentroid = routeBetween(
-      pointOfBuilding({ regionId: HOKKAIDO })!,
-      SEA_OF_JAPAN,
-      'combined',
-    );
+    const fromCentroid = routeBetween(regionFacts(HOKKAIDO)!.point, SEA_OF_JAPAN, 'combined');
     expect(fromQuay!.legs[0]!.medium).toBe('sea');
     expect(fromCentroid!.legs[0]!.medium).toBe('land');
-  });
-
-  /** A port from before the field reads where it always read: nothing is backfilled. */
-  it('falls back on its region when it carries no point of its own', () => {
-    expect(pointOfBuilding({ regionId: HOKKAIDO })).toEqual(regionFacts(HOKKAIDO)!.point);
   });
 });
 
@@ -239,11 +227,35 @@ describe('the strategic points of the test season', () => {
     halifax: 'CAN',
     narvik: 'NOR',
     lisbon: 'PRT',
+    baku: 'AZE',
+    dakar: 'SEN',
+    singapore: 'MYS',
   };
 
   it.each(STRATEGIC_POINT_KEYS)('sets %s on land, in a region of its own country', (key) => {
     const regionId = regionAtRoutePoint(STRATEGIC_POINTS[key]);
     expect(regionId).not.toBeNull();
     expect(regionFacts(regionId!)!.country).toBe(COUNTRY[key]);
+  });
+});
+
+/** **La région nommée par le client se vérifie** (ADR 0029) : à la maille près, et au point de
+ *  la région pour les trois que l'anneau manque. */
+describe('pointInRegion', () => {
+  const at = (id: string) => ({ id, point: regionFacts(id)!.point });
+
+  it('takes the point of every region, the three the ring misses included', () => {
+    for (const id of ['UGA-5616', 'IND-3262', 'PRT-735', 'FRA-5323', 'CAN-632']) {
+      expect({ id, inside: pointInRegion(regionFacts(id)!.point, at(id)) }).toEqual({
+        id,
+        inside: true,
+      });
+    }
+  });
+
+  it('refuses a region claimed 200 km away', () => {
+    const [lon, lat] = regionFacts('FRA-5323')!.point;
+    const away: LonLat = [lon + 2.75, lat];
+    expect(pointInRegion(away, at('FRA-5323'))).toBe(false);
   });
 });

@@ -11,8 +11,9 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
-import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
-import type { DispatchKind, Faced } from '../domain/player-view';
+import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
+import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
+import type { TagTour } from '../domain/cargo-tag';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
@@ -25,7 +26,6 @@ import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
 import type { LandPace } from '../domain/routing';
-import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
   DepositKey,
@@ -35,6 +35,7 @@ import type {
   Nation,
   PlayableRegion,
   RegionType,
+  ResearchCard,
   ResourceKey,
   Specialization,
   UnitRole,
@@ -63,6 +64,45 @@ const PLACE_OF: Readonly<Record<string, string>> = {
   Amériques: 'des Amériques',
 };
 const ofPlace = (theatre: string): string => PLACE_OF[theatre] ?? `de ${theatre}`;
+
+/** **Les cartes de recherche** (ADR 0028 §5), comme l'artefact les nomme. */
+const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
+  infantryMk2: 'Infanterie MK2',
+  armor: 'Blindé',
+  armorMk2: 'Blindé MK2',
+  artillery: 'Artillerie',
+  escort: 'Escorte',
+  carrier: 'Porte-avions',
+  aviation: 'Aviation',
+  bomber: 'Bombardier',
+  airlift: 'Transport aérien',
+  syntheticOil: 'Pétrole synthétique',
+  listening: 'Station d’écoute',
+};
+
+/** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
+const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
+  infantryMk2: 'le fantassin antichar',
+  armor: 'le blindé MK1',
+  armorMk2: 'le blindé lourd',
+  artillery: 'le tir indirect',
+  escort: 'le navire qui protège les cargos',
+  carrier: 'l’aviation en mer',
+  aviation: 'la tuile aérodrome et le chasseur',
+  bomber: 'la frappe de loin sur les bâtiments',
+  airlift: 'l’avion qui embarque et largue le ravitaillement',
+  syntheticOil: 'une ligne d’usine : 3 charbon pour 1 pétrole',
+  listening: 'la tuile du relevé à longue portée, qui brûle du charbon',
+};
+
+/** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
+ *  la pièce, l'abaque et le site. */
+export const researchRequired = (card: ResearchCard): string =>
+  `demande la recherche ${cardName(card)}`;
+
+/** `« Blindé »` — la carte nommée comme sur le plateau personnel. */
+export const cardName = (card: unknown): string =>
+  `« ${RESEARCH_NAMES[card as ResearchCard] ?? String(card)} »`;
 
 type RefusalContext = {
   readonly founder: string | null;
@@ -247,6 +287,10 @@ export const fr = {
     return: 'retour',
   } satisfies Record<MovementType, string>,
 
+  /** Le mouvement d'un avion qui largue (ADR 0028 §4) : une marche pour le serveur, un largage
+   *  pour le joueur. */
+  airdropMovement: 'largage',
+
   resources: {
     food: 'vivres',
     steel: 'acier',
@@ -303,7 +347,7 @@ export const fr = {
     farm: 'exploite des terres',
     mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
-    arsenal: 'charbon + acier → munitions, sur commande',
+    arsenal: 'charbon + acier → munitions, ou 3 charbon → 1 pétrole après recherche, sur commande',
     barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
@@ -467,6 +511,9 @@ export const fr = {
       halifax: 'Halifax',
       narvik: 'Narvik',
       lisbon: 'Lisbonne',
+      baku: 'Bakou',
+      dakar: 'Dakar',
+      singapore: 'Singapour',
     } satisfies Record<StrategicPointKey, string>,
     rules: {
       tangier:
@@ -478,6 +525,10 @@ export const fr = {
       halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
+      baku: 'Vos troupes à l’arrêt font le plein sur le plateau personnel, où qu’elles soient : comme si elles étaient ancrées.',
+      dakar:
+        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
+      singapore: 'Vos camions et vos cargos roulent sans plein.',
     } satisfies Record<StrategicPointKey, string | null>,
     ruleToCome: 'Règle à venir. Le point compte déjà pour la victoire.',
     kicker: 'point stratégique',
@@ -522,10 +573,16 @@ export const fr = {
       neverHeld: 'jamais tenu',
     },
     taken: (nation: string, key: StrategicPointKey) => `${nation} prend ${fr.points.names[key]}.`,
-    drawn: () => {
-      const names = Object.values(fr.points.names);
-      return `LES SEPT SONT DÉSIGNÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
+    drawn: (keys: ReadonlyArray<StrategicPointKey>) => {
+      const names = keys.map((key) => fr.points.names[key]);
+      return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
+    /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
+    depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
+      side === 'capturer'
+        ? `Le dépôt d’avant-poste de ${country} a brûlé à la capture, Dakar le garde : ${lost} perdu.`
+        : `Votre dépôt d’avant-poste de ${country} a brûlé plutôt que de passer à l’ennemi (Dakar) : ${lost} perdu.`,
+    nothing: 'rien',
   },
 
   objectives: {
@@ -650,39 +707,29 @@ export const fr = {
     UNKNOWN_REGION: () => 'région inconnue',
     UNKNOWN_CAPITAL_REGION: (d) =>
       `capitale introuvable pour ${nationName(d.nation)} — la partie ne peut pas se lancer`,
-    /** **Le rayon touche une région, il ne la centre pas** (révision du 17/09 de l'ADR 0020 §1) :
-     *  la phrase dit ce qu'il faut amener — un cercle jusqu'ici — et non une distance, qui se
-     *  mesurerait au centre de la région et annoncerait des centaines de kilomètres là où la
-     *  frontière court à soixante. */
+    /** **Hors de son sol et de ses rayons** (ADR 0029) : la phrase dit ce qu'il faut amener —
+     *  un cercle jusqu'au point visé —, et le plus large des siens pour mesurer l'écart. */
     OUT_OF_OUTPOST_REACH: (d) =>
       d.hasOutposts === true
-        ? `aucun de vos avant-postes n’atteint cette région — le plus large porte à ${num(d.reachKm)} km`
-        : `hors de chez soi, il faut un avant-poste dont le rayon (${num(d.reachKm)} km) touche cette région — vous n’en avez aucun`,
+        ? `hors de votre sol et du rayon de vos avant-postes — le plus large porte à ${num(d.reachKm)} km`
+        : `hors de votre sol, et aucun avant-poste n’y porte son rayon`,
     DEPOSIT_REQUIRED: (d) =>
-      `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
-    NOT_COASTAL: () => 'un port se pose sur une région côtière',
-    /**
-     * **Les trois refus du point de côte** (ADR 0013, révision du 04/09). Les deux premiers
-     * répondent à un client qui a inventé son geste — le joueur ne les voit jamais, et ils se
-     * lisent quand même en français : un code nu dans un bandeau n'apprend rien à personne.
-     * Le troisième est la course entre le fantôme et le sol, et lui se rejoue.
-     */
-    POINT_FOR_PORT_ONLY: (d) =>
-      `${buildingName(d.building)} se pose sur une région, pas sur un point`,
-    PORT_NEEDS_A_COAST_POINT: () => 'un port se pose sur un point de côte — cliquez le rivage',
-    POINT_OUTSIDE_REGION: () => 'ce rivage n’est pas celui de la région désignée',
-    REGION_TAKEN: (d) =>
-      `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
-    BUILDING_LOCKED: (d) =>
-      `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
-    ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
-    SITE_LEVEL_LOCKED: (d) =>
-      `ce rôle demande ${aBuildingName(d.building)} de niveau ${num(d.requiredLevel)}`,
+      `${buildingName(d.building)} se pose sur un gisement de ${depositNames(d.expected)} — visez son point`,
+    DEPOSIT_TAKEN: () => 'ce gisement porte déjà une exploitation',
+    NOT_COASTAL: () => 'un port se pose sur la côte',
+    POINT_OUTSIDE_REGION: () => 'ce point n’est pas dans la région visée',
+    /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
+    BUILDING_TOO_CLOSE: (d) => `trop près ${ofTheBuildingName(d.near)} : ${num(d.km)} km au moins`,
+    ALREADY_QUEUED_HERE: () => 'un chantier est déjà en file sur ce bâtiment',
+    RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
+    RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
+    RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
+    RESEARCH_BUSY: (d) => `le QG cherche déjà ${cardName(d.card)} — une carte à la fois`,
+    RESEARCH_NEEDS_HQ: () => 'posez d’abord votre quartier général — c’est lui qui cherche',
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
-     *  l'ordre plutôt qu'un palier — `BUILDING_LOCKED` nommait un niveau 1 que le joueur ne
-     *  pouvait atteindre que par cette pose-là. */
+     *  l'ordre plutôt qu'un palier. */
     HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
     NOT_YOURS: () => 'ce bâtiment n’est pas à vous',
@@ -692,7 +739,6 @@ export const fr = {
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
-    TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: () => 'la file de ce site est pleine',
     UNKNOWN_BATCH: () => 'lot inconnu',
     SPECIALIZATION_SEALED: () =>
@@ -714,6 +760,50 @@ export const fr = {
     MOVEMENT_IN_FLIGHT: (d) =>
       `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
+    NOT_ENOUGH_FUEL: (d) =>
+      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+    NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
+    LOAD_NOT_A_SUPPLY: () =>
+      'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
+    LOAD_AMOUNT_INVALID: () => 'on charge au moins un jeton, en nombre entier',
+    FIRST_STEPS_INVALID: () => 'premiers pas illisibles',
+    TRANSPORT_UNDERWAY: () => 'ce transport est en route : il se charge à l’arrêt',
+    TRANSPORT_ON_TOUR: () => 'ce transport est en tournée : rappelez-le d’abord',
+    LOAD_NOT_HERE: (d) =>
+      d.role === 'cargo'
+        ? 'un cargo se charge au port, ou au dépôt d’un avant-poste'
+        : d.role === 'airTransport'
+          ? 'un avion se charge à l’aérodrome, ou au dépôt d’une escale'
+          : 'un camion se charge au QG ou à un entrepôt, ou au dépôt d’un avant-poste',
+    NO_AIR_STOP: (d) =>
+      `l’avion se pose à une escale : un avant-poste de niveau ${num(d.level)} au moins`,
+    LOAD_FULL: (d) =>
+      Number(d.room) <= 0
+        ? `le transport est plein : ${num(d.capacity)} sur ${num(d.capacity)}`
+        : `plus que ${num(d.room)} de place à bord, sur ${num(d.capacity)}`,
+    NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
+    DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
+    DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
+    AIRDROP_AIR_ONLY: () => 'seul un avion de transport largue : camions et cargos se posent',
+    NO_SQUAD_THERE: () => 'aucune de vos escouades ne se tient là',
+    SQUAD_ANCHORED: () => 'cette escouade est ancrée : elle se recharge seule, sans paquet',
+    SQUAD_SUPPLIED: () =>
+      'rien à reprendre : coups et plein de l’escouade sont au complet, ou le paquet n’est pas de ce qui lui manque',
+    TOUR_NOT_AT_LOADING_POINT: (d) =>
+      `une tournée part d’un point de chargement : amenez ${
+        d.role === 'cargo'
+          ? 'le cargo au port'
+          : d.role === 'airTransport'
+            ? 'l’avion à l’aérodrome'
+            : 'le camion au QG ou à un entrepôt'
+      }, ou au dépôt d’un avant-poste`,
+    TOUR_NO_STOP: () =>
+      'une tournée passe par un dépôt au moins : lâchez le transport sur un de vos avant-postes',
+    TOUR_TOO_LONG: (d) => `une tournée compte ${num(d.maximum)} arrêts au plus`,
+    TOUR_STOP_TWICE: () => 'ce dépôt est déjà un arrêt de la tournée',
+    NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
+    NO_ROUNDS: () =>
+      'à sec : plus un coup dans la colonne — elle marche, elle n’attaque pas ; elle se recharge à l’ancre',
     UNKNOWN_TROOP: () => 'troupe inconnue',
     DUPLICATE_TROOP: () => 'une troupe ne se nomme qu’une fois dans un mouvement',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
@@ -725,6 +815,7 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    SEALED: () => 'Dakar garde ces réserves : elles ne se pillent pas',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     INSUFFICIENT_FUNDS: (d) =>
@@ -810,7 +901,8 @@ export const fr = {
     BUILDING_OCCUPIED: () => 'une de vos unités tient déjà ce bâtiment — une seule par bâtiment',
     SITE_OCCUPIED: () =>
       'ce bâtiment n’est pas libre : une de vos unités s’y tient ou s’y forme — faites-la sortir pour recruter',
-    BLITZ_ONLY: () => 'l’artillerie ne sert qu’en Blitz pour l’instant',
+    ONE_GUN_ONLY: () => 'une pièce tire à la fois : levez une seule pièce d’artillerie',
+    OUT_OF_GUNS_REACH: () => 'rien que l’artillerie puisse toucher : elle ne tire pas en l’air',
     ARTILLERY_ONLY: () => 'seule l’artillerie bombarde',
     INDIRECT_FIRE_ONLY: () => 'l’artillerie ne tire qu’à distance : bombardez',
     NOT_EMPLACED: (details) =>
@@ -1869,16 +1961,9 @@ export const fr = {
       'Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une partie existante.',
     backHome: 'retour à l’accueil',
     loading: 'Préparation du plateau…',
-    /**
-     * What the ground holds, and nothing else. The terrain type used to read here: it came
-     * from a hash of the region's name, so the tooltip was printing an invention where the
-     * one true fact about the region was available and unused.
-     */
-    regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     /** Décor seulement : aucune règle ne lit le terrain (fiche 08, « ni grille, ni terrain »). */
     regionTerrain: (terrain: string) => `terrain : ${terrain}`,
-    regionNoDeposit: 'aucun gisement — caserne, aérodrome',
-    regionCoastal: 'côtière — port possible',
+    regionCoastal: 'côtière',
   },
 
   banner: {
@@ -2000,7 +2085,7 @@ export const fr = {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
-    economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
+    economy: { title: 'Plateau personnel — stocks, tuiles et pièces', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
@@ -2135,13 +2220,21 @@ export const fr = {
       shock?: boolean;
       faced?: Faced | undefined;
     }) => {
-      /** **Un bombardement** (B20) : une frappe à distance, et personne ne pouvait répondre. */
+      /** **Un bombardement** (B20) : une frappe à distance, sans riposte possible. La salve bornée
+       *  (ADR 0028 §6) dit combien de troupes elle touche ; la cible ne sait pas d'où elle vient. */
       if (cause === 'bombardment') {
-        const lost = attacking ? theirs.lost : mine.lost;
-        const fell = (attacking ? theirs : mine).destroyed > 0;
-        return attacking
-          ? `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}notre tir en abat ${lost}, sans riposte possible${fell ? ' · cible détruite' : ''}`
-          : `bombardés ${where} — leur tir en abat ${lost}, aucune riposte possible${fell ? ' · unité détruite' : ''}`;
+        const { lost, troops, destroyed } = attacking ? theirs : mine;
+        const salvo = troops > 1;
+        const target = attacking ? 'cible' : 'unité';
+        const fell =
+          destroyed === 0
+            ? ''
+            : salvo
+              ? ` · ${destroyed} détruite${destroyed > 1 ? 's' : ''}`
+              : ` · ${target} détruite`;
+        if (attacking)
+          return `bombardement ${where} — ${faced ? `sur ${facedWords(faced)}, ` : ''}${salvo ? `notre salve touche ${troops} troupes et en abat` : 'notre tir en abat'} ${lost}, sans riposte possible${fell}`;
+        return `bombardés ${where} — ${salvo ? `une salve venue d’on ne sait où touche ${troops} de nos troupes et en abat` : 'leur tir en abat'} ${lost}, aucune riposte possible${fell}`;
       }
       const opening =
         cause === 'interception'
@@ -2205,6 +2298,7 @@ export const fr = {
     dispatches: {
       seasonConcluded: 'saison close',
       pointTaken: 'point stratégique',
+      depotBurned: 'dépôt brûlé',
       assault: 'assaut mené',
       attacked: 'attaque subie',
       construction: 'chantier',
@@ -2221,6 +2315,9 @@ export const fr = {
       sighting: 'relevé',
       campSighted: 'camp relevé',
       firedDry: 'tir à sec',
+      supply: 'ravitaillement',
+      airdrop: 'largage',
+      research: 'recherche',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       elimination: 'QG tombé',
@@ -2256,6 +2353,8 @@ export const fr = {
     /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
+    /** Un paquet descendu sous parachute (4.8). */
+    airdropped: 'largué',
     engaged: 'engagé',
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
@@ -2275,8 +2374,16 @@ export const fr = {
     editionOf: (time: string) => `édition de ${time}`,
     /** Une entrée de la file annulée à son tour : le droit avait disparu entre la mise en file
      *  et le démarrage. La dépêche dit la restitution, sinon le joueur cherche sa matière. */
-    constructionCancelled: (building: string, region: string) =>
-      `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
+    constructionCancelled: (
+      building: string,
+      region: string,
+      reason?: 'depositTaken' | 'tooClose',
+    ) =>
+      reason === 'depositTaken'
+        ? `Chantier abandonné : ${lowerFirst(building)} en ${region} — un autre exploitait déjà ce gisement ; son tenant est relevé. Matières remboursées.`
+        : reason === 'tooClose'
+          ? `Chantier abandonné : ${lowerFirst(building)} en ${region} — un de vos bâtiments se tient désormais trop près. Matières remboursées.`
+          : `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
@@ -2354,10 +2461,16 @@ export const fr = {
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
       /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
-      expeditionFoundNothing: (building: string, region: string, reason: 'gone' | 'disabled') =>
+      expeditionFoundNothing: (
+        building: string,
+        region: string,
+        reason: 'gone' | 'disabled' | 'sealed',
+      ) =>
         reason === 'gone'
           ? `Expédition bredouille — ${region} : ${building} relevé n’est plus debout. La colonne rentre à vide.`
-          : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
+          : reason === 'sealed'
+            ? `Expédition bredouille — ${region} : ${building} est gardé par Dakar, ses réserves ne se pillent pas. La colonne rentre à vide.`
+            : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,
@@ -2494,8 +2607,30 @@ export const fr = {
         `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
       pursuitLost: (country: string) =>
         `Cible perdue de vue — ${country} : notre unité s’arrête à sa dernière position connue.`,
-      firedDry: (country: string) =>
-        `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
+      tourWaiting: (role: string, why: 'stock' | 'full' | 'road', resource: string) =>
+        why === 'stock'
+          ? `Tournée en attente — ${role} : il manque ${resource} au chargement pour sa consigne. Elle repart quand il y en a.`
+          : why === 'full'
+            ? `Tournée en attente — ${role} : tous ses dépôts sont pleins. Elle repart quand l’un d’eux se vide.`
+            : `Tournée en attente — ${role} : sa route est refusée, le plein manque au chargement.`,
+      tourEnded: (role: string, why: TourEnd) =>
+        why === 'recalled'
+          ? `Tournée arrêtée — ${role} : rappelé, il reste au chargement.`
+          : why === 'road'
+            ? `Route refusée, tournée arrêtée — ${role} : le plein manque au chargement ; il rentre seul.`
+            : `Tournée coupée — ${role} : chargement ou dépôts perdus, ou repli ; il rentre seul.`,
+      supplyDelivered: (country: string, delivered: string, kept: string) =>
+        delivered === ''
+          ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
+          : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
+      researchDone: (card: ResearchCard) =>
+        `Recherche achevée — ${cardName(card)} : ${RESEARCH_UNLOCKS[card]}, désormais à vous.`,
+      airdropped: (country: string, delivered: string, kept: string, squad: boolean) =>
+        delivered === ''
+          ? `Largué pour rien — ${country} : ${squad ? 'l’escouade n’avait rien à reprendre, ou n’était plus là' : 'le dépôt était plein'}, ${kept} encore à bord. L’avion rentre.`
+          : `Largué — ${country} : ${delivered} ${squad ? 'repris par l’escouade' : 'au dépôt'}${kept === '' ? '' : `, ${kept} à bord`}. L’avion rentre.`,
+      firedDry: (country: string, troops: number) =>
+        `${troops === 1 ? 'Une de nos troupes était à sec' : `${troops} de nos troupes étaient à sec`} — ${country} : sans coups, ni frappe ni riposte. Elles se rechargent à l’ancre.`,
       /**
        * **Le seul événement du jeu qui ne laissait aucune trace.** Pas d'engagement, donc pas de
        * compte rendu : sans cette ligne, la plus longue marche d'une saison se lit « rien à
@@ -2531,6 +2666,56 @@ export const fr = {
    * la carte, et ce qui reste ici est ce qu'on écrit *à côté* d'une troupe — son adresse, son
    * effectif, ce qu'elle mange, et le cartouche qui la désigne.
    */
+  /** **Coups et plein** (ADR 0028 §3) : une cartouche et un jerrican, en crans. */
+  supplies: {
+    rounds: 'coups',
+    fuel: 'plein',
+    steps: (count: number) => `${count} cran${plural(count, '', 's')}`,
+    roundsTitle: (held: number, full: number) =>
+      `Coups : ${held} sur ${full} — un cran par passe tirée ; à sec, ni attaque ni riposte`,
+    fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
+      `Plein : ${held} sur ${full} crans de ${coal ? 'charbon' : 'pétrole'}, ≈ ${km} km de route — payé au départ`,
+    reload:
+      'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
+    formed: 'Part pleine, coups et plein.',
+    /** **Bakou** : le plein repris hors de toute ancre, sur le plateau personnel. */
+    viaBaku: 'plein repris à Bakou, sur le plateau personnel',
+    /** **Singapour** : les camions et les cargos de la colonne ne consomment rien. */
+    freedBySingapore: 'camions et cargos sans plein (Singapour)',
+    route: (steps: number, roundTrip = false) =>
+      `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
+  },
+  /** **La logistique** (ADR 0028 §4) : dépôts, charge des transports, livraisons, tournées. */
+  logistics: {
+    chargeTitle: (said: string, total: number, capacity: number) =>
+      `${said === '' ? 'Vide' : said} — ${total} sur ${capacity}, une seule charge partagée`,
+    depot: 'Dépôt',
+    dropOnTransport: 'Lâchez les jetons sur un camion, un cargo ou un avion de transport',
+    fromDepot: 'À un avant-poste, le transport se charge à son dépôt : glissez depuis le dépôt',
+    atThisDepot: 'Ce dépôt charge les transports qui se tiennent à son point',
+    loadHint: (amount: number, resource: string, after: number, capacity: number) =>
+      `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
+    loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
+    grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
+    tourLine: ({ state, stops, waiting }: TagTour): string =>
+      state === 'tracing'
+        ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
+        : state === 'recalled'
+          ? 'tournée rappelée · finit au chargement'
+          : waiting === null
+            ? `tournée · ${stops} arrêt${plural(stops, '', 's')}`
+            : `tournée · attend : ${
+                waiting.why === 'full'
+                  ? 'dépôts pleins'
+                  : waiting.why === 'road'
+                    ? 'route refusée'
+                    : `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
+              }`,
+    launch: 'lancer',
+    clear: 'effacer',
+    recall: 'rappeler',
+    tourStarted: 'Tournée lancée',
+  },
   troops: {
     atHome: 'à domicile',
     /** The host arrives as an `adm0_a3`; the naming happens here so that no caller can print
@@ -2545,7 +2730,7 @@ export const fr = {
     strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
     /**
      * **Ce que la troupe mange, lu sur la troupe** (ADR 0019 §4). Le bandeau sert un débit net
-     * et la fenêtre Économie le décompose par nation ; ici c'est la ligne d'une seule troupe —
+     * et le plateau personnel le décompose par nation ; ici c'est la ligne d'une seule troupe —
      * le seul endroit où le surcoût du hors-ravitaillement se lit à côté de qui le paie.
      */
     upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} vivres / h`,
@@ -2591,11 +2776,46 @@ export const fr = {
    * vocabulaire est celui d'une dépêche : ce qui manque, où, et rien d'autre — la ligne mène au
    * geste, elle ne l'explique pas.
    */
+  /** **Les premiers pas** (ADR 0027 §2) : l'ordre de route d'une première Mondiale. */
+  firstSteps: {
+    header: 'premiers pas',
+    progress: (done: number, total: number) => `${done} / ${total}`,
+    fold: 'replier',
+    unfold: 'déplier',
+    skip: 'passer',
+    doneLabel: 'fait :',
+    resume: 'Reprendre les premiers pas',
+    resumeNote: 'Cinq gestes, dans la vraie partie : la liste revient en tête de « à faire ».',
+    steps: {
+      hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
+      move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
+      form: 'Former une pièce : la lâcher sur une caserne',
+      research: 'Poser une carte de recherche sur le QG',
+      deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
+      /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
+      outpost: 'Fonder un avant-poste, puis y livrer un camion chargé',
+    },
+    /** Ce que dit la bulle, là où le geste se fait. */
+    cue: {
+      economy: 'Ouvrez Écon.',
+      /** Au téléphone, « Écon. » est un rond du coin : on touche d'abord le coin. */
+      corner: '(touchez le coin)',
+      hq: 'La tuile du QG, lâchée sur votre sol',
+      tiles: 'D’abord une caserne : sa tuile sur la carte',
+      pieces: 'Une pièce, lâchée sur la caserne',
+      research: 'Une carte, lâchée sur le QG',
+      move: 'Levez-la, posez-la plus loin',
+      truck: 'Un camion, lâché sur la caserne',
+      load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
+      outpost: 'Envoyez-la fonder un avant-poste',
+    },
+  },
+
   nextActions: {
     header: 'à faire maintenant',
     count: (count: number) => `${count} en attente`,
     toMap: 'carte',
-    toEconomy: 'économie',
+    toPersonalBoard: 'économie',
     toSite: 'au site',
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
@@ -2722,7 +2942,7 @@ export const fr = {
     raiseCarries: (reachKm: number) => `rayon ${num(reachKm)} km`,
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
-    raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
+    raiseQueued: 'Élévation déjà en file — elle se lit au plateau personnel.',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
@@ -2785,6 +3005,20 @@ export const fr = {
     theirsValue: (lost: number) =>
       `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
     pass: 'la passe',
+    dry: 'à sec',
+    /** **Une troupe à sec ne tire pas** (ADR 0028 §1), des deux côtés : la nôtre n'a pas pu
+     *  répondre, la leur n'a pas riposté — la dépêche le dit, sinon la passe se lit en défaite. */
+    dryValue: (mine: number, theirs: number, attacking: boolean) =>
+      [
+        mine > 0
+          ? `${mine} des nôtres sans coups, ${plural(mine, 'n’a', 'n’ont')} pas ${attacking ? 'frappé' : 'riposté'}`
+          : null,
+        theirs > 0
+          ? `${theirs} des leurs sans coups, ${plural(theirs, 'n’a', 'n’ont')} pas ${attacking ? 'riposté' : 'frappé'}`
+          : null,
+      ]
+        .filter((piece): piece is string => piece !== null)
+        .join(' · '),
     ground: 'le terrain',
     held: 'tenu',
     lost: 'perdu',
@@ -2910,8 +3144,8 @@ export const fr = {
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
-    before: (garrisonDamageTaken: number, dryFactor: number) =>
-      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups. Un camp à court de munitions tire à ×${factor(dryFactor)}.`,
+    before: (garrisonDamageTaken: number, blitz: boolean) =>
+      `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups.${blitz ? '' : ' Chaque passe tirée coûte un cran de coups : une troupe à sec n’attaque ni ne riposte.'}`,
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
      *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */
@@ -2940,9 +3174,9 @@ export const fr = {
      * entamée tire bien au prorata de ce qui lui reste.
      */
     stats: {
-      steel: {
-        name: 'coût — acier',
-        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot.',
+      cost: {
+        name: 'coût',
+        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot : de l’acier, plus la ressource de sa famille — vivres pour les hommes, pétrole pour les machines de terre et les avions, charbon pour les navires.',
       },
       training: {
         name: 'formation',
@@ -2956,7 +3190,7 @@ export const fr = {
         name: 'portée de détection',
         note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
       },
-    } satisfies Record<'steel' | 'training' | 'strength' | 'range', { name: string; note: string }>,
+    } satisfies Record<'cost' | 'training' | 'strength' | 'range', { name: string; note: string }>,
     /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
      *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
      *  carte lève. */
@@ -2998,23 +3232,22 @@ export const fr = {
     /**
      * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : un seul gabarit pour la
      * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le décompte collé
-     * sous eux. Ce qui n'est pas encore ouvert descend sous « plus haut » avec sa condition.
+     * sous eux. Ce qu'une carte de recherche tient encore descend dessous avec elle.
      */
     sheet: {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
-      opens: (level: number, roles: string) => `Le niveau ${level} ouvre ${roles}`,
-      waits: (role: string, level: number) => `${role} attend le niveau ${level}`,
-      and: ' et ',
+      /** **Un niveau rend** (ADR 0028 §5) : il ne débloque plus rien. */
+      lanes: (level: number) =>
+        level === 1 ? 'Forme une troupe à la fois' : `Forme ${level} troupes à la fois`,
       formHeader: 'former ici',
       formNote: 'un toucher, une troupe',
-      lockedHeader: 'Plus haut',
-      lockedNote: 'le site doit monter',
-      bill: (steel: number, duration: string) => `${steel} aci. · ${duration}`,
+      lockedHeader: 'Derrière une carte',
+      lockedNote: 'la recherche se pose sur le QG',
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
       queueFull: 'File pleine.',
-      steelShort: (missing: number) => `Il manque ${missing} acier.`,
+      short: (missing: number, resource: string) => `Il manque ${missing} ${resource}.`,
       running: 'en chaîne',
       remaining: 'restant',
       deliveredAround: (time: string) => `livrée vers ${time}`,
@@ -3060,15 +3293,11 @@ export const fr = {
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
-    tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
-    /** The tank waits for the level that arms its counter — said before the click, not after. */
-    roleLocked: (level: number) => `verrouillé — quartier général niveau ${level} requis`,
+    /** **Derrière sa carte** (ADR 0028 §5) : dit avant le clic, la carte nommée. */
     /** **La condition en toutes lettres, et la même dans les deux cadres** (contrats 03 et 06) :
      *  l'abaque la dit sans rien posséder, la modale de site la dit sur la carte qu'elle laisse
-     *  affichée. Le niveau ne s'imprime qu'à partir de 2 — « de niveau 1 » se lirait comme une
-     *  condition alors que c'est le bâtiment nu (67b). */
-    formsIn: (building: string, level: number) =>
-      level > 1 ? `se forme dans ${building} de niveau ${level}` : `se forme dans ${building}`,
+     *  affichée. */
+    formsIn: (building: string) => `se forme dans ${building}`,
     tierLabel: (tier: number) => `palier ${tier}`,
     enqueueTitle: (role: string, tier: string, site: string) => `enfiler ${role} ${tier} — ${site}`,
     enqueue: '+ 1 troupe',
@@ -3079,45 +3308,14 @@ export const fr = {
     cancel: 'annuler',
   },
 
-  /**
-   * **« Chantiers », la fenêtre Économie du téléphone** (refonte mobile, 1f et 1g) : un seul
-   * défilement, l'en-tête collé, quatre onglets qui y mènent. Les phrases de l'Économie y sont
-   * reprises telles quelles ; celles-ci n'existent que parce que la ligne d'un site y porte son
-   * bouton et sa facture.
-   */
+  /** **La ligne d'élévation d'un site au téléphone** (`RaiseControl`) : son bouton et sa facture. */
   works: {
-    header: 'chantiers',
-    tabs: { underway: 'en cours', sites: 'sites', chains: 'filière', hq: 'QG' },
-    remaining: 'restant',
-    raising: (region: string, from: number, to: number) => `en ${region} · niveau ${from} → ${to}`,
-    queueNote: 'payé d’avance · remboursé si annulé',
-    sitesHeader: 'les sites',
-    sitesNote: 'un toucher met en file',
-    families: {
-      extraction: 'extraction',
-      transformation: 'transformation',
-      projection: 'projection',
-      command: 'commandement',
-    },
     raise: (level: number, duration: string) => `▲ niv ${level} · ${duration}`,
     raiseTitle: (name: string, level: number) =>
       `mettre ${lowerFirst(name)} en file pour le niveau ${level}`,
-    cost: (amount: number, abbreviation: string) => `${num(amount)} ${abbreviation}.`,
     underway: (time: string) => `en chantier · ${time}`,
     queued: (rank: number) => `en file · ${rank}ᵉ`,
     lacking: (amount: number, resource: string) => `il manque ${num(amount)} ${resource}`,
-    queuedToast: (name: string, region: string, rank: number) =>
-      `${name} en ${region} — ${rank}ᵉ en file`,
-    startedToast: (name: string, region: string) => `${name} en ${region} — chantier en cours`,
-    toastNote: 'payé d’avance — remboursé intégralement si annulé',
-    chainsLead:
-      'Une ligne par ressource : son débit réel, son état, et ce qui manque. Les réserves restent au bandeau.',
-    deposits: (count: number) => `gisement${plural(count, '', 's')} ×${count}`,
-    linkLevel: (building: string, level: number) => `${building} · ${level}`,
-    lot: (made: number, ordered: number) => `lot ${made} / ${ordered}`,
-    /** L'heure du chantier remonte à l'en-tête une fois sa carte passée. */
-    headCountdown: (building: string, time: string) => `${lowerFirst(building)} · ${time}`,
-    hqWhere: (region: string) => `quartier général · ${region}`,
   },
 
   upgrade: {
@@ -3134,73 +3332,115 @@ export const fr = {
     neverOnDeposit: (none: string, deposit: string) => `jamais : ${none} de ${deposit}`,
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
     /** Une seule entrée par région, en cours ou en file — le refus que le serveur oppose. */
-    alreadyQueued: 'un chantier vise déjà cette région — annulez-le ou attendez son tour',
+    alreadyQueued: 'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
+  },
+
+  /**
+   * **Le plateau personnel** (ADR 0028 §7) : un panneau à soi, sous la table au bureau, en tiroir
+   * au téléphone. Toujours nommé en entier — « le plateau » seul désigne la table.
+   */
+  personalBoard: {
+    header: 'Plateau personnel',
+    open: 'déplier le plateau personnel',
+    fold: 'replier le plateau personnel',
+    /** Un bac : son nombre exact sur son plafond, et son débit réel. */
+    ofCap: (cap: number) => `/ ${num(cap)}`,
+    rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
+    full: 'bac plein',
+    harvest: (hours: number) =>
+      hours < 1
+        ? 'Récolte depuis que vous avez quitté le plateau personnel'
+        : `Récolte · ${num(hours)} h depuis que vous avez quitté le plateau personnel`,
+    harvestNone: 'Rien n’est entré ni sorti depuis votre dernière visite.',
+    harvestFirst: 'Ce qui entre se lira ici à votre prochaine visite.',
+    lost: (amount: number) => `${num(amount)} perdus : bac plein`,
+    delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
+    tilesHeader: 'tuiles',
+    tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',
+    tileCount: (count: number) => `×${count}`,
+    piecesHeader: 'réserve de pièces',
+    piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
+    piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',
+    /** Ce que dit la main au-dessus d'une cible. */
+    raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
+    form: (role: string, building: string) =>
+      `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
+    dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
+    dropBack: 'Relâchée ici, elle rentre',
+    formed: (role: string) => `${role} en file de formation`,
+    raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
+    worksHeader: 'chantiers',
+    upkeepHeader: 'entretien',
+    shortagesHeader: 'pénuries',
+    censusHeader: 'recensement',
+    hqLine: (level: number, maximum: number, slots: number) =>
+      `niveau ${level} sur ${maximum} · ${slots} slots de mouvement`,
+    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
+    listeningUnfigured: 'rayon de révélation non chiffré',
+    listeningTemporary:
+      'La station d’écoute est ici en attendant l’espionnage : un jalon inerte serait pire.',
+    overflowing: 'débordé — bac plein',
+    allSupplied: 'toutes ravitaillées, sol national ou rayon d’un avant-poste',
+    queueHeader: (count: number) =>
+      `en file — ${count} chantier${plural(count, '', 's')}, payé${plural(count, '', 's')} d’avance`,
+    /** Le pied replié en une ligne : le chantier, le solde de vivres, les pénuries. */
+    details: 'chantiers, entretien, pénuries, recensement',
+    noWorks: 'aucun chantier',
+    works: (name: string, time: string, queued: number) =>
+      `${name} · ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    shortages: (count: number) =>
+      count === 0 ? 'aucune pénurie' : `${count} pénurie${plural(count, '', 's')}`,
+    noShortage: 'Aucune pénurie.',
+    /** Une pénurie, et ce qui la répare : on ne perd jamais le joueur (ADR 0028 §1). */
+    starvedChain: (building: string, resource: string) =>
+      `${building} à sec de ${lowerFirst(resource)}`,
+    starvedChainFix: (a: string) => `bâtissez ou élevez ${a}`,
+  },
+
+  /** **Les cartes de recherche** (ADR 0028 §5) : sur le plateau personnel, sur le QG. */
+  research: {
+    header: 'recherche',
+    note: 'glissez une carte sur votre QG : payée à la pose, elle avance en heures de jeu et débloque à la fin — une à la fois',
+    names: RESEARCH_NAMES,
+    unlocks: RESEARCH_UNLOCKS,
+    branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
+    hours: (hours: number) => `${num(hours)} h`,
+    after: (cards: string) => `après ${cards}`,
+    and: ' et ',
+    counters: (cards: string) => `contre ${cards}`,
+    counteredBy: (cards: string) => `son contre : ${cards}`,
+    /** Un contre qu'on forme sans carte : `l'infanterie, au départ`. */
+    atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
+    done: 'acquise',
+    left: (time: string) => `reste ${time}`,
+    waiting: 'attend son QG',
+    dropOnHq: 'Lâchez la carte sur votre quartier général',
+    start: (card: string, hours: number) => `Chercher ${card} — ${num(hours)} h`,
+    started: (card: string) => `${card} posée sur le quartier général`,
+    /** La ligne du mât du QG, et celle de « en cours ». */
+    onHq: (card: string) => `recherche ${card}`,
   },
 
   economy: {
-    header: 'économie',
-    lead: 'Tout ce qui se pose et tout ce qui coule. Aucun stock chiffré ici : les réserves sont au panneau haut-droit — cette fenêtre dit quelle entrée manque, jamais combien il en reste.',
-    subtitle: (nation: string, season: number) => `${nation} — saison ${season}`,
-
-    /**
-     * **Le chantier, en tête et une seule fois.** La phrase se répétait sur chaque ligne
-     * d'élévation : répétée quatre fois, l'information la plus importante de la fenêtre était
-     * devenue du bruit de fond (`ordre-de-mobilisation-et-fenetre-economie.md` §2).
-     */
-    constructionHeader: 'chantier en cours',
     constructionNone:
       'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
-    constructionRemaining: (time: string) => `${time} restant`,
 
-    /**
-     * **La file, sous la tête et sobrement.** Aucun temps restant sur une ligne en attente : rien
-     * derrière la tête n'est daté en base, précisément pour qu'une annulation ne redate rien
-     * (`convex/constructions.ts`). Le rang est ce qui est vrai, un compte à rebours serait inventé.
-     */
-    queueHeader: (count: number) => `en file — ${count} chantier${plural(count, '', 's')}`,
     queueRank: (rank: number) => `${rank}ᵉ`,
     queueLevel: (level: number) => `niveau ${level}`,
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
-    queuePaid: 'payé d’avance',
-
-    /**
-     * **La filière, dessinée.** Un maillon bâti porte son débit réel, un maillon en chantier son
-     * temps restant, un maillon manquant sa condition en clair. « Rien de caché ne se débloque,
-     * rien d'affiché sans sa condition » — la règle qui remplace le grisé (ADR 0015, révision du
-     * 24/08/2026).
-     */
-    chartHeader: 'la filière',
-    legendBuilt: 'bâti',
-    legendUnderway: 'en chantier',
-    legendQueued: 'en file',
-    legendMissing: 'manquant',
-    roleDeposit: 'gisement',
-    roleDepositNone: 'gisement — aucun',
-    roleExtraction: 'extracteur',
-    roleConversion: 'conversion',
-    roleConversionMissing: 'conversion — manquante',
-    roleConversionUnderway: 'conversion — en chantier',
-    roleConversionQueued: 'conversion — en file',
-    roleOutput: 'sortie',
-    /** L'intitulé de la tête de colonne : le seul chiffre que la filière promet (P1). */
-    realRate: 'débit réel',
-    depositHeld: (count: number) =>
-      `${count} gisement${plural(count, '', 's')} sur votre territoire`,
-    depositNoneHeld: (deposit: string) =>
-      `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
     condition: {
       foundation: 'pose de fondation offerte',
-      locked: (level: number) => `demande un quartier général niveau ${level}`,
+      locked: (card: ResearchCard | null) =>
+        card === null
+          ? 'posez d’abord votre quartier général'
+          : `demande la recherche ${cardName(card)}`,
       deposit: (deposits: ReadonlyArray<string>) =>
-        `demande une région à gisement de ${deposits.join(' ou ')}`,
-      coastal: 'demande une région côtière tenue — aucune pour l’instant',
-      regionsTaken: 'toutes vos régions portent déjà un bâtiment',
-      free: (count: number) =>
-        `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
+        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
+      free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
 
     /** **La ligne que la colonne du QG gardait en réserve** (ADR 0020 §6). Zéro, elle n'est pas
@@ -3209,36 +3449,20 @@ export const fr = {
     unlinkedSites: (count: number) =>
       `${count} site${plural(count, '', 's')} hors réseau — la région ne porte plus vos couleurs`,
 
-    sitesHeader: 'les sites de la filière',
-    /** Les clés que rien ne porte, regroupées : une condition par ligne, jamais un vide
-     *  intercalé entre deux bâtisses debout. */
-    absentKeys: 'clés absentes',
-    /** La projection, en bas : la section de ce qui arme. Deux sections, pas trois onglets. */
-    projectionHeader: 'la projection — ce qui arme',
-    worksHeader: 'commandement et ouvrages',
-    built: 'bâti',
-
-    chainStates: {
-      off: 'éteinte',
-      /** **Un site coupé n'est pas à sec, il est coupé** (ADR 0020 §6) : le premier envoie
-       *  reprendre une frontière, le second envoie creuser une mine. Le tampon passe donc avant
-       *  « à sec » et avant « tourne » — c'est l'ordre de lecture de la filière. */
-      unlinked: 'hors réseau',
-      idle: 'en attente d’ordre',
-      running: 'tourne',
-      starved: 'à sec',
-      overflowing: 'débordée',
-    } satisfies Record<ChainState, string>,
-    starvedOn: (resource: string) => `à sec — ${resource}`,
-
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
       awaiting: 'en attente d’ordre',
       keepsAvailable: (resource: string) =>
         `${startsWithVowel(resource) ? 'L’' : 'Le '}${resource} reste disponible pour les bâtiments et les troupes.`,
       commandsItself: 'se commande',
+      line: 'ligne',
+      activeLine: 'ligne active',
+      /** `− 3 charbon / + 1 pétrole` : ce que la ligne prend pour un de ce qu'elle rend. */
+      flow: (inputs: ReadonlyArray<{ resource: string; quantity: number }>, output: string) =>
+        `${inputs.map(({ resource, quantity }) => `− ${quantity} ${resource}`).join(' ')} / + 1 ${output}`,
       order: 'commander un lot',
       launch: 'lancer le lot',
+      empty: 'un lot de zéro ne se lance pas — tirez la réglette',
       cancel: 'annuler le lot',
       close: 'refermer',
       quantity: (output: string) => output,
@@ -3276,28 +3500,24 @@ export const fr = {
     upkeepDrain: (perHour: number) => `− ${tenths(perHour)} vivres / h`,
     upkeepUnsupplied: (count: number, factor: number) =>
       `dont ${count} hors ravitaillement — entretien ×${factor}`,
-    upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
+    /** Le palier de la prochaine troupe, et où commence le suivant : de quoi décider de former
+     *  la onzième ou la vingt-sixième en connaissance de cause. */
+    upkeepStep: (rate: number, nextAt: number | null, nextRate: number | null) =>
+      nextAt === null || nextRate === null
+        ? `palier : ${rate} vivres / h par troupe — le dernier`
+        : `palier : ${rate} vivres / h par troupe — ${nextRate} à partir de la ${nextAt}ᵉ`,
+    upkeepOutposts: (count: number) => `${count} avant-poste${plural(count, '', 's')} debout`,
+    upkeepListening: 'écoutes',
+    /** A listening post with no coal left, said on the piece with what mends it. */
+    listeningSilent: 'muette — plus de charbon',
+    listeningSilentFix:
+      'Une mine sur du charbon, ou du charbon livré, la fera entendre de nouveau.',
+    upkeepCoalDrain: (perHour: number) => `− ${tenths(perHour)} charbon / h`,
     upkeepBalance: (net: number) =>
       `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} vivres / h`,
     upkeepStarving:
       'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
 
-    listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
-    listeningTemporary:
-      'La station d’écoute est ici en attendant la fenêtre Espionnage : un jalon inerte serait pire.',
-
-    level: (level: number) => `niveau ${level}`,
-    // The real rate is a settled quantity, not a table entry: it arrives with a tail of
-    // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
-    perHour: (rate: number) => `${tenths(rate)} / h`,
-
-    hqCarriesHeader: 'ce qu’il porte',
-    hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
-    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
-    hqSlots: (total: number) => `${total} slots de mouvement`,
-    hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
-    hqTier2: 'palier 2 ouvert en production',
-    hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
     cappedByHq: 'plafonné par le QG',
     inRegion: (region: string) => `en ${region}`,
   },
@@ -3309,13 +3529,11 @@ export const fr = {
    * désormais ; ce qui reste ici est ce qu'on lit **dans** le dépli.
    */
   mobilization: {
-    pick: 'Choisissez une clé, puis sa région.',
-    eligible: (count: number) =>
-      `${count} région${plural(count, '', 's')} éligible${plural(count, '', 's')}`,
-    noneEligible: 'aucune région éligible',
-    chooseRegion: (condition: string) => `Choisissez la région — ${condition}`,
-    highlighted: 'Cliquez l’une des régions surlignées sur le plateau.',
-    zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
+    pick: 'Choisissez une clé, puis visez un lieu.',
+    aim: 'visez un lieu',
+    chooseRegion: (condition: string) => `Visez un lieu — ${condition}`,
+    highlighted:
+      'Le fantôme suit le pointeur et s’aimante sur un gisement libre ; cliquez pour poser.',
     cancel: 'annuler la sélection de clé',
     /** **Une dette de socle est un couple** : deux mines dues se liraient sinon comme deux fois
      *  la même ligne, alors que l'une ne s'acquitte que sur du fer et l'autre que sur du
@@ -3323,14 +3541,14 @@ export const fr = {
     onDeposit: (building: string, deposit: string) => `${building} — ${deposit}`,
     /** **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). La
      *  ligne dit l'absence de condition plutôt qu'un gisement vide — c'est la liberté qui est
-     *  l'information, puisqu'une bâtisse par région fait du sol qu'il prend un sol perdu. */
+     *  l'information. */
     anywhereAtHome: (building: string) => `${building} — à poser sur votre sol`,
     /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
      *  coup : rien d'affiché sans sa condition. */
     wants: {
       deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')} requis`,
-      coastal: 'région côtière requise',
-      any: 'toute région tenue',
+      coastal: 'côte requise',
+      any: 'tout lieu tenu',
       home: 'n’importe où sur votre sol',
     },
   },
@@ -3780,6 +3998,9 @@ export const fr = {
       form: 'Former une escouade',
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
+      deliver: 'Livrer',
+      airdrop: 'Larguer',
+      tour: 'Tracer une tournée',
       sea: 'Marcher',
       inland: 'Faire route',
       air: 'Voler',
@@ -3801,6 +4022,23 @@ export const fr = {
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
     enemyColumn: 'colonne ennemie',
+    /** **Livrer** (ADR 0028 §4) : le transport décharge et rentre seul. */
+    deliver: 'livrer',
+    deliverConsequence:
+      'Décharge au dépôt ce qui y tient, garde le reste à bord, puis rentre seul.',
+    /** **Larguer** (ADR 0028 §4) : l'avion ne se pose pas, et paie le plein de l'aller-retour. */
+    airdrop: 'larguer',
+    airdropOutpostConsequence:
+      'Largue un paquet sous parachute sur le dépôt, sans se poser : ce qui ne tient pas reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
+    airdropSquadConsequence:
+      'Largue un paquet sous parachute : l’escouade reprend ses coups et son plein, dans la limite de ce que chaque troupe porte. Le reste reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
+    tour: 'tracer une tournée',
+    tourStop: (count: number) => `arrêt ${count} de la tournée`,
+    tourConsequence:
+      'Une boucle depuis le chargement, quatre dépôts au plus : il recharge sa consigne à chaque tour, saute un dépôt plein, et garde son slot.',
+    tracing: (count: number) => `tournée à tracer · ${count} arrêt${plural(count, '', 's')}`,
+    traceElsewhere:
+      'Une tournée se trace de dépôt en dépôt : lâchez le transport sur un de vos avant-postes, ou lancez-la depuis son étiquette',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>
@@ -3910,7 +4148,7 @@ export const fr = {
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
     queueCancelled: 'chantier en file annulé',
-    queueRefund: (amounts: string) => `remboursé : ${amounts}`,
+    queueRefund: 'remboursé :',
     queueRunning: 'le chantier a commencé — il ne se rembourse pas',
     /** Une garnison ne meurt pas d'une démolition (ADR 0019) : elle se retrouve dehors. */
     garrison: (count: number) =>
@@ -3949,6 +4187,9 @@ export const fr = {
     /** Le cas du chantier : ce qu'on retire alors est une promesse et non une bâtisse, et le
      *  joueur doit savoir qu'il n'attend plus rien. */
     underConstruction: 'le chantier de fondation est abandonné',
+    /** Le dépôt (ADR 0028 §4) : il rentre au plateau personnel, dans la limite de l'entrepôt. */
+    depot: (returned: number, lost: number) =>
+      `le dépôt rend ${returned} au plateau personnel${lost > 0 ? `, ${lost} perdus faute de place` : ''}`,
     noRefund: 'aucun remboursement — ni la fondation, ni les élévations',
     submit: 'démanteler — irréversible',
   },
@@ -3959,21 +4200,16 @@ export const fr = {
    * parce que c'est un état sans bouton, et qu'un état sans bouton doit dire sa sortie.
    */
   placing: {
-    hint: 'choisissez le point de côte — Échap pour renoncer',
-    /** Ce qu'on tient, son prix et son attente — les chiffres du panneau de construction, que
-     *  le joueur vient de lire sur une ligne et ne doit pas rechercher une fois la ligne
-     *  fermée. Le nom de la région tient la ligne au-dessus : c'est le *où*, pas le *quoi*. */
-    figures: (building: string, cost: string, duration: string) =>
-      `${building} · ${cost} · ${duration}`,
+    hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
+    noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
   },
 
   construction: {
     kicker: 'chantier',
     offerHeader: 'à poser',
-    noDeposit: 'aucun gisement',
-    coastal: 'côtière',
-    depositReason: (deposit: string) => `gisement de ${deposit}`,
-    coastalReason: 'région côtière',
+    depositReason: (deposits: ReadonlyArray<string>) =>
+      `sur un gisement libre de ${deposits.join(' ou ')}`,
+    coastalReason: 'sur la côte',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
     // badges. A running site names nothing, since the queue takes
     // everything the player can pay for (25/08).
@@ -3984,7 +4220,7 @@ export const fr = {
      * the region stays the player's, and the sentence has to make that difference audible.
      */
     foundationNotice: (owed: string) =>
-      `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
+      `Socle de la saison : ${owed}. Pose gratuite et immédiate — le lieu reste votre choix.`,
     /** **L'effet se produit hors du champ où l'on a cliqué** : le panneau se referme sur la carte
      *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le
      *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
@@ -3992,28 +4228,20 @@ export const fr = {
     queued: (building: string) => `${building} : chantier commandé — voir Économie.`,
     free: 'offert',
     immediate: 'immédiat',
-    /**
-     * The rest of the catalogue, below the offer. The header has to say *region*, not
-     * *impossible*: a port is not impossible, it is elsewhere — and a player who reads the
-     * shelf as a list of failures stops reading it.
-     */
-    elsewhereHeader: 'pas sur cette région',
+    /** The rest of the catalogue, below the offer: what the nation cannot order yet. */
+    elsewhereHeader: 'pas encore',
     /** After the name, never instead of it: what the nation already stands, all regions
      *  together. Hidden at zero — a column of « 0 déjà bâti » is noise, not a count. */
     built: (count: number) => `${count} déjà bâti${plural(count, '', 's')}`,
     blocked: {
-      constructionHere: 'un chantier vise déjà cette région',
       /** L'avant-poste qui couvrait cette région est détruit : ses bâtisses restent debout,
        *  son ancre est morte (ADR 0020 §10). */
       outOfReach: 'plus aucun avant-poste ne couvre cette région',
-      standing: 'déjà debout sur cette région',
-      regionTaken: (name: string) => `la région porte déjà ${name}`,
       unique: 'un seul quartier général par nation',
-      locked: (level: number) => `demande un quartier général niveau ${level}`,
-      deposit: (deposits: ReadonlyArray<string>) =>
-        `demande une région à gisement de ${deposits.join(' ou ')}`,
-      coastal: 'demande une région côtière',
-      here: 'ne peut pas se poser sur cette région',
+      locked: (card: ResearchCard | null) =>
+        card === null
+          ? 'posez d’abord votre quartier général'
+          : `demande la recherche ${cardName(card)}`,
     },
   },
 
@@ -4187,17 +4415,49 @@ export const theBuilding = (key: BuildingKey): string => {
     : `${fr.buildingGender[key] === 'f' ? 'la' : 'le'} ${name}`;
 };
 
-/** `le blindé`, `l’escorte` — a role designated, for the sentence that says what a level opens. */
-export const theRole = (role: UnitRole): string => {
-  const name = fr.roles[role].one;
-  return startsWithVowel(name)
-    ? `l’${name}`
-    : `${fr.roleGender[role] === 'f' ? 'la' : 'le'} ${name}`;
-};
-
 /** `une seconde caserne`, `un second port` — the building a parallel queue would need. */
 export const aSecondBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'une seconde' : 'un second'} ${lowerFirst(fr.buildings[key])}`;
+
+/**
+ * **Le refus sous le fantôme, dans les mots du serveur** (ADR 0029) : chaque code de
+ * `aimVerdict` passe par la phrase même que `constructions.start` renverrait.
+ */
+export function aimRefusalText(
+  refusal: NonNullable<AimVerdict['refusal']>,
+  key: BuildingKey,
+  reach: { readonly widestKm: number; readonly hasOutposts: boolean },
+  lockedBy: ResearchCard | null,
+  expected: ReadonlyArray<DepositKey>,
+): string {
+  const errors = fr.errors;
+  switch (refusal.code) {
+    case 'NO_GROUND':
+      return fr.placing.noGround;
+    case 'OUT_OF_REACH':
+      return errors.OUT_OF_OUTPOST_REACH({
+        reachKm: reach.widestKm,
+        hasOutposts: reach.hasOutposts,
+      });
+    case 'DEPOSIT_REQUIRED':
+      return errors.DEPOSIT_REQUIRED({ building: key, expected });
+    case 'TOO_CLOSE':
+      return errors.BUILDING_TOO_CLOSE({ near: refusal.near, km: refusal.km });
+    case 'RESEARCH_REQUIRED':
+      return errors.RESEARCH_REQUIRED({ card: lockedBy });
+    case 'HQ_FIRST':
+    case 'DEPOSIT_TAKEN':
+    case 'NOT_COASTAL':
+    case 'UNKNOWN_BUILDING':
+      return errors[refusal.code]();
+  }
+}
+
+/** `de l’usine`, `du port`, `de la caserne` — the building a distance is measured from. */
+export const ofTheBuilding = (key: BuildingKey): string => {
+  const the = theBuilding(key);
+  return the.startsWith('le ') ? `du ${the.slice(3)}` : `de ${the}`;
+};
 
 /** `une caserne`, `un aérodrome` — the sentence that names the remedy. */
 export const aBuilding = (key: BuildingKey): string =>
@@ -4316,6 +4576,10 @@ const aRoleName = (value: unknown): string =>
   typeof value === 'string' && value in fr.roles
     ? `${fr.roleGender[value as UnitRole] === 'f' ? 'une' : 'un'} ${fr.roles[value as UnitRole].one}`
     : str(value);
+const ofTheBuildingName = (value: unknown): string =>
+  typeof value === 'string' && value in fr.buildings
+    ? ofTheBuilding(value as BuildingKey)
+    : `de ${str(value)}`;
 const buildingName = (value: unknown): string =>
   typeof value === 'string' && value in fr.buildings
     ? fr.buildings[value as BuildingKey]

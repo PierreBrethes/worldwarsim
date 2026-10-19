@@ -6,7 +6,7 @@ import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { demolitionRefusalOf } from '../src/domain/construction';
 import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
-import { levelOf, playerBuildings } from './buildingReads';
+import { playerBuildings } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
@@ -18,9 +18,9 @@ import { refuseInBlitz } from './blitz';
 export type { BuildingKey };
 
 /**
- * **Raser un bâtiment à soi** (demande de Pierre, 15/09). Sans elle, une bâtisse par région
- * (ADR 0015) fige une région au premier choix pour toute la saison : une mine posée là où l'on
- * voudrait une caserne est une erreur sans retour.
+ * **Raser un bâtiment à soi** (demande de Pierre, 15/09). Sans elle, un point posé (ADR 0029) se
+ * fige au premier choix pour toute la saison : une mine qui tient le seul gisement d'à côté, ou
+ * une caserne trop près d'où l'on voudrait une usine, est une erreur sans retour.
  *
  * **Rien n'est rendu de l'acier payé** (décision 5a) : ce qui est bâti est dépensé, et un
  * remboursement ferait de la démolition un entrepôt de matière à l'abri du pillage. Ce qui
@@ -177,7 +177,6 @@ async function cancelWorkOn(
     await ctx.db.delete(entry._id);
   }
 
-  const hqLevel = levelOf(await playerBuildings(ctx, player._id), 'hq');
   /** **Une Blitz n'a jamais de lot en attente** (U6) : un seul par bâtiment libre, daté à
    *  l'ordre, donc rien à y rendre. */
   const batches = await ctx.db
@@ -186,7 +185,7 @@ async function cancelWorkOn(
     .collect();
   for (const batch of batches) {
     if (batch.finishesAt === null) {
-      add({ steel: recruitmentCost(batch.role, batch.tier, hqLevel).steel });
+      add(recruitmentCost(batch.role, batch.tier).costs);
     }
     await ctx.db.delete(batch._id);
   }

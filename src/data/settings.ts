@@ -71,7 +71,7 @@ export const markGestureHintSeen = (): void => localStorage.setItem(GESTURE_HINT
 const BRIEFING_KEY = 'wws-briefing';
 
 /**
- * The command sheet opens by itself on a player's very first board, then never again on its
+ * The command sheet opens by itself on a player's very first Blitz board, then never again on its
  * own. The flag is the browser's, not the season's: a veteran opening his second season is not
  * a new player, and re-teaching him the mouse would read as a fault. `Réglages` reopens it.
  */

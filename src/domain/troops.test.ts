@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import {
+  recruitRefusalOf,
+  type RecruitSituation,
   marchingTroopIds,
   representativeRole,
   stackRows,
@@ -380,5 +383,64 @@ describe('stationAtCombat', () => {
     expect(
       stationAtCombat(mine, { point: { lon: 60, lat: 10 }, outpostId: null }, new Set(), 25),
     ).toBeNull();
+  });
+});
+
+describe('what a projection site refuses to form (the reserve of pieces, ADR 0028 §7)', () => {
+  const stocks = { food: 100, steel: 100, coal: 100, oil: 100, ammunition: 100 };
+  const at = (overrides: Partial<RecruitSituation> = {}): RecruitSituation => ({
+    researched: [],
+    army: 0,
+    siteQueue: 0,
+    costs: { steel: 18, food: 10 },
+    stocks,
+    ...overrides,
+  });
+
+  it('forms a role in the building of its domain, and nowhere else', () => {
+    expect(recruitRefusalOf('infantry', 1, { key: 'barracks' }, at())).toBeNull();
+    expect(recruitRefusalOf('cargo', 1, { key: 'barracks' }, at())).toEqual({
+      code: 'WRONG_PROJECTION_BUILDING',
+      expected: 'port',
+      found: 'barracks',
+    });
+  });
+
+  it('waits for the research card that opens the role at this tier, and names it', () => {
+    expect(recruitRefusalOf('armor', 1, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'armor',
+    });
+    expect(recruitRefusalOf('infantry', 2, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'infantryMk2',
+    });
+    expect(recruitRefusalOf('artillery', 1, { key: 'barracks' }, at())).toEqual({
+      code: 'RESEARCH_REQUIRED',
+      card: 'artillery',
+    });
+    expect(
+      recruitRefusalOf(
+        'armor',
+        1,
+        { key: 'barracks' },
+        at({ researched: ['infantryMk2', 'armor'] }),
+      ),
+    ).toBeNull();
+  });
+
+  it('stops at the invisible bound, then at a full queue, then at the price', () => {
+    const barracks = { key: 'barracks' } as const;
+    expect(recruitRefusalOf('infantry', 1, barracks, at({ army: MONDIALE_TROOP_BOUND }))).toEqual({
+      code: 'TROOP_BOUND_REACHED',
+    });
+    expect(
+      recruitRefusalOf('infantry', 1, barracks, at({ siteQueue: MAX_QUEUED_BATCHES })),
+    ).toEqual({
+      code: 'QUEUE_FULL',
+    });
+    expect(
+      recruitRefusalOf('infantry', 1, barracks, at({ stocks: { ...stocks, steel: 5 } })),
+    ).toEqual({ code: 'INSUFFICIENT_RESOURCE', resource: 'steel', needed: 18, available: 5 });
   });
 });

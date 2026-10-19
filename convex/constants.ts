@@ -17,6 +17,7 @@ import type {
   BuildCostKey,
   BuildingKey,
   DepositKey,
+  ResearchCard,
   ResourceKey,
   UnitRole,
 } from '../src/domain/ids';
@@ -46,14 +47,18 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
 };
 
 /**
- * The one chain left (ADR 0028 §1): the arsenal casts a round from a coal and a steel, both of
- * which have a direct use of their own. One of each a round, three an hour and a level: set by
- * eye.
+ * The one chain left (ADR 0028 §1): the arsenal, with two lines to assign. Ammunition casts a
+ * round from a coal and a steel, both of which have a direct use of their own; synthetic oil
+ * (after its card, `lineLockOf`) turns three coal into one barrel. Reassigning is free: a lot
+ * is dropped and placed again, and drop returns nothing because nothing was taken.
+ *
+ * @a-mesurer one of each a round, three an hour and a level, and three coal for one oil: set by
+ * eye (the card says "3 charbon pour 1 pétrole").
  */
-export const CHAINS: Readonly<
-  Record<'arsenal', Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }>
+export const FACTORY_LINES: Readonly<
+  Record<'ammunition' | 'oil', Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }>
 > = {
-  arsenal: {
+  ammunition: {
     output: 'ammunition',
     inputs: [
       ['coal', 1],
@@ -61,9 +66,16 @@ export const CHAINS: Readonly<
     ],
     perHourPerLevel: 3,
   },
+  oil: { output: 'oil', inputs: [['coal', 3]], perHourPerLevel: 3 },
 };
 
-export type ChainKey = keyof typeof CHAINS;
+/** A line is named by what it makes. */
+export type LineKey = keyof typeof FACTORY_LINES;
+export const LINE_KEYS = Object.keys(FACTORY_LINES) as ReadonlyArray<LineKey>;
+/** The line a chain runs when no lot says otherwise. */
+export const DEFAULT_LINE: LineKey = 'ammunition';
+
+export type ChainKey = 'arsenal';
 
 /**
  * **A chain that eats a matter spent elsewhere is commanded by the player.** An arsenal at level
@@ -84,13 +96,20 @@ export const isCommanded = (key: BuildingKey): boolean =>
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
+/**
+ * **Steel plus the resource of the family** (ADR 0028 §2): coal for production (extractors,
+ * arsenal, warehouse, headquarters) and for the port and the listening post, food for the
+ * barracks, oil for the airfield. The outpost, priced below, is the one that costs food.
+ *
+ * @a-mesurer the second figure of the three extractors is new; set by eye against their steel
+ */
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
 > = {
   hq: { cost: { steel: 60, coal: 40 }, minutes: 45 },
-  farm: { cost: { steel: 20 }, minutes: 20 },
-  mine: { cost: { steel: 30 }, minutes: 30 },
-  oilWell: { cost: { steel: 45 }, minutes: 40 },
+  farm: { cost: { steel: 20, coal: 8 }, minutes: 20 },
+  mine: { cost: { steel: 30, coal: 10 }, minutes: 30 },
+  oilWell: { cost: { steel: 45, coal: 12 }, minutes: 40 },
   arsenal: { cost: { steel: 60, coal: 20 }, minutes: 55 },
   barracks: { cost: { steel: 40, food: 30 }, minutes: 40 },
   airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
@@ -102,45 +121,6 @@ export const BUILDING_SPEC: Readonly<
   // La ville de la Blitz ne se bâtit pas (`BUILDABLE_BUILDINGS`) : le barème l'exige, rien ne le lit.
   city: { cost: {}, minutes: 0 },
 };
-
-/**
- * `plan-progression-v1.md`: one headquarters level, one new question — the ground at 1, then the
- * army at 2. **The age of the army carries the sea and the air with it** (66a, 04/09): the port
- * and the airfield used to wait for 3, and the test season measured what that cost an island —
- * 577 steel for the first projection by sea against 198 by land, on an endowment of 500. A
- * nation whose only way out is the water cannot have that way out priced two levels above its
- * neighbour's road. What stays at 3 is the tank and the whole mark-2 step, which is a depth.
- *
- * Exhaustive by type: dropping a key breaks the build rather than quietly unlocking it at zero.
- *
- * **The warehouse and the depot stay at 1, and that is not a rounding**: storage is what protects
- * the absent player, so raising it would punish the one who can do nothing about it.
- */
-export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
-  hq: 1,
-  farm: 1,
-  mine: 1,
-  oilWell: 1,
-  warehouse: 1,
-  depot: 1,
-  barracks: 2,
-  arsenal: 2,
-  listening: 2,
-  airfield: 2,
-  port: 2,
-  city: 1,
-};
-
-/**
- * **`unlockLevel` is a width, `tier2HqLevel` is a depth: they must never be merged.** The
- * catalogue has to open across the whole run, and the mark-2 step has to stay *ahead* of where
- * the player already stands, or raising the headquarters rewards nothing. Somebody will try to
- * unify them; this paragraph is why not.
- *
- * It reads the ladder straight since the season has one single run (ADR 0020 §11): the
- * reprojection it used to do existed only to squeeze that ladder onto a shorter format.
- */
-export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
 
 /**
  * **Une seule ligne de départ** (ADR 0020 §11). L'escarmouche et la campagne ont disparu le
@@ -177,14 +157,10 @@ export const STARTING_STEEL = 400;
 export const STARTING_OIL = 40;
 
 /**
- * **How many passes a nation can fight before its arsenal has to exist.** A full company of
- * infantry draws ten rounds per engagement (`STRENGTH_PER_ROUND`), so eighty is eight
- * company-passes, and the arsenal has the whole season to arrive.
+ * **How many steps of rounds a nation can hand out before its arsenal has to exist**: a step
+ * costs `SUPPLY_STEP_COST`, so eighty is eight steps — three riflemen rearmed, roughly.
  *
- * **Its old justification is void, and the number survives it unchanged** (question 18, 25/08):
- * it was sized against a recruitment bill that no longer exists, and the measurement behind it
- * tested a removed rule. Nothing here is calibrated any more, and the simulator cannot help —
- * it does not model combat at all.
+ * @a-mesurer never calibrated; the simulator does not model combat
  */
 export const STARTING_AMMUNITION = 80;
 
@@ -221,7 +197,7 @@ export { settlesDebt } from '../src/domain/economy';
  *
  * **Le quartier général ouvre la liste** (décision 1b du 13/09, révision de l'ADR 0015) : il
  * n'est plus planté sur la capitale de 1940, il entre dans le socle comme première dette — et
- * comme rien d'autre ne se bâtit sans lui (`UNLOCKED_AT`, tout à 1), l'ordre n'est pas une
+ * comme rien d’autre ne se bâtit sans lui (`HQ_FIRST`), l’ordre n’est pas une
  * présentation, c'est la seule séquence que le serveur accepte.
  */
 export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<FoundationDebt> => [
@@ -237,7 +213,8 @@ export const LEVEL_COST_FACTOR = 1.8;
 /**
  * **Monter un avant-poste se tarife comme un bâtiment de projection du même niveau** (précision
  * du 15/09 de l'ADR 0020 §10). Le point de comparaison est le port : ce qu'on achète est de la
- * projection — un rayon, un emplacement, une portée de détection —, pas une filière.
+ * projection — un rayon, un emplacement, une portée de détection —, pas une filière. **Sa
+ * seconde ressource est des vivres** (ADR 0028 §2), les mêmes qu'il mange ensuite.
  *
  * **Et c'est aussi le prix de la fondation** (révision du 15/09 de l'ADR 0020 §10) :
  * `buildCost('outpost', 1)` est ce que `movements.foundOutpostHere` débite, et
@@ -250,7 +227,7 @@ export const LEVEL_COST_FACTOR = 1.8;
  * @a-mesurer calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09)
  */
 export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
-  cost: { steel: 65, coal: 20 },
+  cost: { steel: 65, food: 20 },
   minutes: 65,
 };
 
@@ -278,12 +255,18 @@ export function buildMinutes(key: BuildCostKey, level: number): number {
  * from the launch (ADR 0015). **The steel, the oil and the ammunition are missing on purpose**:
  * they are the three figures of the starting line, each named on its own above, and everything
  * else is shared. Never a figure per nation — the asymmetry comes from the map.
+ *
+ * **The kit covers the first projection in every resource of its bill** (ADR 0028 §2,
+ * `invariants.test.ts`): by land and by sea, plus one tank. The coal is what the sea route eats
+ * (the climb of the headquarters, the port, the cargo), hence 140.
+ *
+ * @a-mesurer the coal was 20 when only steel priced a projection; 140 is the sea route's bill
  */
 export const STARTING_STOCK: Readonly<
   Record<Exclude<ResourceKey, 'steel' | 'oil' | 'ammunition'>, number>
 > = {
   food: 120,
-  coal: 20,
+  coal: 140,
 };
 
 /** The whole endowment, the three figures of the starting line included — what `endow` hands
@@ -342,77 +325,161 @@ export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
 };
 
 /**
- * Cost and duration of **one tier-1 troop**. A batch is a troop, so nothing here multiplies by
- * a count any more (ADR 0014).
+ * **The resource a role's family adds to its steel** (ADR 0028 §2): food for men, oil for land
+ * machines and aircraft, coal for ships. Everything costs steel, plus this.
  */
-export const COST_BY_ROLE: Readonly<Record<UnitRole, { steel: number; minutes: number }>> = {
-  infantry: { steel: 18, minutes: 20 },
-  armor: { steel: 95, minutes: 70 },
-  landTransport: { steel: 40, minutes: 45 },
-  artillery: { steel: 80, minutes: 60 },
-  fighter: { steel: 110, minutes: 90 },
-  bomber: { steel: 160, minutes: 120 },
-  airTransport: { steel: 90, minutes: 75 },
-  escort: { steel: 175, minutes: 180 },
-  cargo: { steel: 120, minutes: 100 },
-  carrier: { steel: 430, minutes: 480 },
+export const FAMILY_RESOURCE_OF_ROLE: Readonly<Record<UnitRole, 'food' | 'oil' | 'coal'>> = {
+  infantry: 'food',
+  armor: 'oil',
+  landTransport: 'oil',
+  artillery: 'oil',
+  fighter: 'oil',
+  bomber: 'oil',
+  airTransport: 'oil',
+  escort: 'coal',
+  cargo: 'coal',
+  carrier: 'coal',
 };
 
 /**
- * One round per five points of engaged strength, per pass (chiffrage §5). **The pass is the only
- * facturation** (question 18, 25/08): recruitment used to bill the magazine up front as well,
- * which priced the same rounds twice. A troop is not expensive to raise, it is expensive to keep
- * fighting.
+ * Cost and duration of **one tier-1 troop**: its steel, its family's resource
+ * (`FAMILY_RESOURCE_OF_ROLE`) and its minutes. A batch is a troop, so nothing here multiplies by
+ * a count any more (ADR 0014).
+ *
+ * @a-mesurer the family figure is about a third of the steel for machines and ships, and ten
+ * against eighteen for a rifleman; never played
  */
-export const STRENGTH_PER_ROUND = 5;
+export const COST_BY_ROLE: Readonly<
+  Record<UnitRole, { steel: number; family: number; minutes: number }>
+> = {
+  infantry: { steel: 18, family: 10, minutes: 20 },
+  armor: { steel: 95, family: 30, minutes: 70 },
+  landTransport: { steel: 40, family: 12, minutes: 45 },
+  artillery: { steel: 80, family: 25, minutes: 60 },
+  fighter: { steel: 110, family: 35, minutes: 90 },
+  bomber: { steel: 160, family: 50, minutes: 120 },
+  airTransport: { steel: 90, family: 30, minutes: 75 },
+  escort: { steel: 175, family: 55, minutes: 180 },
+  cargo: { steel: 120, family: 40, minutes: 100 },
+  carrier: { steel: 430, family: 130, minutes: 480 },
+};
+
+/**
+ * **Ce qu'une carte de recherche coûte et dure** (ADR 0028 §5, artefact du 18/10) : payée à la
+ * pose, elle avance en heures de jeu sur le QG. Les prix de l'artefact sont décuplés pour tenir à
+ * l'échelle des coûts du code (une caserne vaut 40 d'acier, la dotation 400) ; les durées sont
+ * celles de l'artefact, 182 h pour une saison de 168 h — on ne finit pas l'arbre.
+ *
+ * **Le contre coûte moins et dure moins que l'arme qu'il contre** (`research.test.ts`).
+ *
+ * @a-mesurer l'artefact ×10, jamais joué
+ */
+export const RESEARCH_SPEC: Readonly<
+  Record<ResearchCard, { readonly hours: number; readonly cost: Costs }>
+> = {
+  infantryMk2: { hours: 8, cost: { steel: 60, food: 40 } },
+  armor: { hours: 16, cost: { steel: 120, oil: 60 } },
+  armorMk2: { hours: 28, cost: { steel: 180, oil: 80 } },
+  artillery: { hours: 12, cost: { steel: 100, oil: 40 } },
+  escort: { hours: 12, cost: { steel: 120, coal: 60 } },
+  carrier: { hours: 36, cost: { steel: 400, coal: 150 } },
+  aviation: { hours: 12, cost: { steel: 100, oil: 60 } },
+  bomber: { hours: 20, cost: { steel: 140, oil: 80 } },
+  airlift: { hours: 10, cost: { steel: 80, oil: 40 } },
+  syntheticOil: { hours: 18, cost: { steel: 100, coal: 100 } },
+  listening: { hours: 10, cost: { steel: 60, coal: 60 } },
+};
+
+/**
+ * **Coups et plein, en crans** (ADR 0028 §3, précision du 18/10) : ce qu'une troupe porte pleine.
+ * Les coups sont les passes qu'elle peut tirer ; le plein, la distance que ses moteurs couvrent
+ * encore, en crans de `FUEL_STEP_KM`. Zéro : elle n'en a pas (un transport ne tire pas,
+ * l'infanterie marche).
+ *
+ * @a-mesurer la table de la proposition (Q20), jamais jouée
+ */
+export const SUPPLY_BY_ROLE: Readonly<Record<UnitRole, { rounds: number; fuel: number }>> = {
+  infantry: { rounds: 3, fuel: 0 },
+  armor: { rounds: 2, fuel: 3 },
+  landTransport: { rounds: 0, fuel: 4 },
+  artillery: { rounds: 2, fuel: 2 },
+  fighter: { rounds: 2, fuel: 3 },
+  bomber: { rounds: 2, fuel: 3 },
+  airTransport: { rounds: 0, fuel: 3 },
+  escort: { rounds: 3, fuel: 6 },
+  cargo: { rounds: 0, fuel: 6 },
+  carrier: { rounds: 3, fuel: 6 },
+};
+
+/**
+ * Ce que coûte un cran, coups ou plein, dans sa ressource (Q28).
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const SUPPLY_STEP_COST = 10;
+
+/**
+ * La route qu'un cran de plein couvre (≈ 1 h 20 de route en Mondiale).
+ *
+ * @a-mesurer ≈ 500 km de l'ADR 0028, jamais joué
+ */
+export const FUEL_STEP_KM = 500;
+
+/**
+ * **Le dépôt d'avant-poste** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon, au total et
+ * partagés librement, par niveau du point.
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const DEPOT_CAPACITY_PER_LEVEL = 400;
+
+export const depotCapacity = (level: number): number =>
+  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level));
+
+/**
+ * **Une seule charge par transport** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon
+ * partagés librement. Distincte du butin qu'il emporte (`CARRY_CAPACITY_BY_ROLE`) et des places
+ * de ses passagers (ADR 0025). Zéro : ce n'est pas un transport.
+ *
+ * @a-mesurer la proposition le pose, aucune partie ne l'a joué
+ */
+export const LOAD_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
+  infantry: 0,
+  armor: 0,
+  landTransport: 200,
+  artillery: 0,
+  fighter: 0,
+  bomber: 0,
+  airTransport: 120,
+  escort: 0,
+  cargo: 800,
+  carrier: 0,
+};
+
+/** **L'escale aérienne** (ADR 0028 §5) : un avant-poste de ce niveau reçoit l'avion, qui s'y
+ *  charge, y livre et en repart comme d'un aérodrome. */
+export const AIR_STOP_LEVEL = 2;
+
+/** **Une tournée compte quatre arrêts au plus** (ADR 0028, précision du 18/10). */
+export const TOUR_MAX_STOPS = 4;
+
+/**
+ * **Une tournée qui attend** au chargement (le plateau personnel manque, ou tous ses dépôts sont
+ * pleins) regarde de nouveau à cet intervalle.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const TOUR_RETRY_MINUTES = 30;
+
+/**
+ * **Une route refusée** au chargement autant de fois d'affilée arrête la tournée : elle ne
+ * revient pas seule, à la différence d'un plateau à sec ou de dépôts pleins.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const TOUR_ROAD_WAITS = 3;
 
 export const TIER_2_FACTOR = 1.6;
-
-/**
- * ADR 0015: research lives at the headquarters, not on the projection buildings. **The gate is
- * counted above the launch, never in the absolute** (ADR 0017) — written as an absolute it
- * would open mark 2 wherever the headquarters happens to be planted, and a step that does not
- * exist is not a step.
- *
- * **This is a depth and `unlockLevel` is a width — do not merge them**; see the paragraph there.
- */
-export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
-
-export const TIER_2_HQ_LEVEL = HQ_LEVEL_AT_LAUNCH + TIER_2_LEVELS_ABOVE_LAUNCH;
-
-/**
- * **The weapon and its counter arrive together** (`plan-progression-v1.md`, question 6c): the
- * damage table makes mark-2 infantry the answer to a tank (.65/.45 against .15/.05), so opening
- * the tank first would hand out thirty-three hours of unanswerable armor. It reads the mark-2
- * threshold rather than holding a table of its own. Zero means "nothing above the building".
- */
-export const roleHqLevel = (role: UnitRole): number => (role === 'armor' ? TIER_2_HQ_LEVEL : 0);
-
-/**
- * **The level the projection building must reach to form the role** (67b, 04/09). A *width per
- * site*, never to be confused with `roleHqLevel`, which is a depth at the headquarters: since
- * `cappedByHq` holds a site under its headquarters, a barracks at 3 already implies a
- * headquarters at 3, and the tank keeps its counter (mark-2 infantry, opened at the headquarters)
- * in front of it — `invariants.test.ts` holds that, no reading does.
- *
- * It is what gives a projection site a reason to be raised at all: before this the second level
- * of a barracks bought nothing. Exhaustive by role, and never above `MAX_HQ_LEVEL` — a role
- * written at 6 would be a role hidden for the whole season.
- */
-export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
-  infantry: 1,
-  landTransport: 2,
-  armor: 3,
-  artillery: 3,
-  cargo: 1,
-  escort: 2,
-  carrier: 5,
-  fighter: 1,
-  airTransport: 2,
-  bomber: 3,
-};
-
-export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
 
 /** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob, and **never shown** (ADR 0027
@@ -429,16 +496,18 @@ export const MAX_QUEUED_BATCHES = 12;
  */
 export const MONDIALE_TROOP_BOUND = 150;
 
-export function chainSpeed(hqLevel: number): number {
-  return 1 + Math.max(0, hqLevel - 1) * 0.225;
-}
-
-export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number) {
+export function recruitmentCost(
+  role: UnitRole,
+  tier: UnitTier,
+): { readonly costs: Costs; readonly minutes: number } {
   const base = COST_BY_ROLE[role];
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
   return {
-    steel: Math.round(base.steel * factor),
-    minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
+    costs: {
+      steel: Math.round(base.steel * factor),
+      [FAMILY_RESOURCE_OF_ROLE[role]]: Math.round(base.family * factor),
+    },
+    minutes: Math.round(base.minutes * factor),
   };
 }
 
@@ -586,16 +655,19 @@ export const GARRISON_DAMAGE_TAKEN = 0.7;
 /** Design sheet 08 §3 : sous ce quart de son nominal, une troupe rompt le contact. */
 export const ROUT_THRESHOLD = 0.25;
 
-/** Chiffrage §4, design sheet 08 §7: a side whose stock cannot cover the pass fires at ×0.60 and
- *  never declines the engagement — an army out of ammunition is bad, not absent. */
-export const DRY_AMMUNITION_FACTOR = 0.6;
+/**
+ * **La salve bornée** (ADR 0028 §6) : ce qu'un tir indirect touche de l'escouade visée — un pion
+ * seul prend un coup, une grosse escouade quatre. La parade à l'escouade monstre.
+ *
+ * @a-mesurer rien n'a encore tiré dans une Mondiale
+ */
+export const SALVO_TARGETS = 4;
 
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
-  strengthPerRound: STRENGTH_PER_ROUND,
-  dryFactor: DRY_AMMUNITION_FACTOR,
+  salvoTargets: SALVO_TARGETS,
 };
 
 /**
@@ -680,10 +752,11 @@ export const contactKm = (theatre: Theatre | null): number =>
   theatre === null ? ARRIVAL_RADIUS_KM : theatreKm(theatre, BLITZ_SHARE.contact);
 
 /**
- * **Le rechargement d'une Blitz** (B19) : après une frappe, ce délai sans attaquer. La riposte ne
- * le déclenche pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne.
+ * **Le rechargement** (B19) : après une frappe, ce délai sans attaquer. La riposte ne le déclenche
+ * pas. L'infanterie plus vive qu'un bombardier, une minute en moyenne. En Mondiale, seule
+ * l'artillerie le lit, après une salve, aux mêmes valeurs (4.10) : ses crans bornent le reste.
  *
- * @a-mesurer toute la table ; rien n'a encore joué une soirée
+ * @a-mesurer toute la table, Blitz comme Mondiale ; rien n'a encore joué une soirée
  */
 export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
   infantry: 40,
@@ -709,6 +782,15 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
 export const INDIRECT_FIRE = { emplaceSeconds: 30 } as const;
 
 /**
+ * **En Mondiale, la portée et la zone morte de l'artillerie sont des kilomètres** (ADR 0028 §6) :
+ * la zone morte passe le rayon d'arrivée (`ARRIVAL_RADIUS_KM`), pour qu'on ne tire jamais sur ce
+ * qu'on touche ; la portée tient une région voisine.
+ *
+ * @a-mesurer rien n'a encore tiré dans une Mondiale
+ */
+export const MONDIALE_FIRE_REACH = { rangeKm: 150, deadZoneKm: 30 } as const;
+
+/**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
  * Le contact se date entre deux regards (`contactAt`), donc ce pas ne borne que la réaction à un
  * changement de cap.
@@ -732,23 +814,44 @@ export const PURSUIT_STEP_SECONDS = 15;
 export const LISTENING_STATION_RADIUS_KM = 120;
 
 /**
- * **What one troop eats an hour, whatever it is** (`consommation-continue.md` D1). One constant
- * and no table of nine: `nominalStrength` is not the same unit from one role to the next, so
- * feeding a carrier "in proportion to 24" would make it half the price of an infantry while it
- * carries three thousand men. A flat rate also keeps `chiffrage-combat.md` §5 for free — losing
- * men is never an economy — and it costs proportionally more to hold a cheap troop than an
- * expensive one, which is a third channel against the swarm.
+ * **What the army eats an hour, by steps** (ADR 0028 §2, replacing the flat rate of
+ * `consommation-continue.md` D1). Each troop pays the rate of its rank: one up to the tenth, two
+ * up to the twenty-fifth, three beyond. `nominalStrength` is not the same unit from one role to
+ * the next, so the rate still reads the head count and nothing else: a flat rate keeps
+ * `chiffrage-combat.md` §5 for free (losing men is never an economy), and the steps are what
+ * makes a large army pay for being large (`src/domain/upkeep.ts` reads them).
  *
- * One an hour against a farm's twelve: an army at the ceiling of twenty-four is two farms at
- * level one, which is the scale the number was picked to read at. Never measured.
+ * A farm at level one grows twelve an hour, which feeds twelve troops of the first step.
  *
- * @a-mesurer picked to read against a farm at level one, never measured
+ * @a-mesurer the three rates and the two thresholds are set by eye against a farm at level one
  */
-export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
+export const UPKEEP_STEPS: ReadonlyArray<{ readonly upTo: number; readonly rate: number }> = [
+  { upTo: 10, rate: 1 },
+  { upTo: 25, rate: 2 },
+  { upTo: Number.POSITIVE_INFINITY, rate: 3 },
+];
+
+/**
+ * **An outpost eats food on the personal board, by its level** (ADR 0028 §2): the brake on the
+ * carpet of outposts, which the price alone did not hold. A standing point only; a site under
+ * construction eats nothing yet.
+ *
+ * @a-mesurer set by eye: a level-one point against the twelve of a farm
+ */
+export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 1;
+
+/**
+ * **A listening post burns coal as long as it listens** (ADR 0028 §2, R17): a station, and an
+ * outpost given the listening specialization, each. Flat per post and not per level, since the
+ * radius is what a level buys.
+ *
+ * @a-mesurer set by eye: a post against the twelve an hour of a coal mine at level one
+ */
+export const LISTENING_COAL_PER_HOUR = 1;
 
 /**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
- * risk and peril" names no risk: a flat rate plus "nothing dies when dry" (D3) would make twenty
+ * risk and peril" names no risk: a plain rate plus "nothing dies when dry" (D3) would make twenty
  * free sentinels the cheapest way to empty the fog (ADR 0005).
  *
  * **Two is an assumed starting point, never a measured value**, chosen so the rule exists and can
@@ -1106,12 +1209,13 @@ export const OBJECTIVE_HARD_FAIRNESS = 0.75;
 export const OBJECTIVE_HARD_MAX = 4;
 
 /**
- * **Ce que la garnison locale a dans ses caissons, par troupe.** Le magasin est lu par camp avant
- * chaque passe (`convex/combat.ts`) et payé après : sans dotation, la garnison tirerait à sec dès
- * la première salve, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
+ * **Ce que la garnison locale a dans ses caissons, par troupe.** Elle est ancrée partout
+ * (`upkeepOf` ne lui compte aucune troupe hors ancrage), donc avant chaque passe elle reprend ses
+ * coups sur cette dotation, dix par cran (ADR 0028 §3) : sans elle, la garnison serait à sec
+ * après trois passes, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
  *
- * Elle ne se réapprovisionne jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange
- * pas* —, donc le chiffre est une réserve pour la saison et non un débit par heure.
+ * Rien ne la remplit jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* —,
+ * donc le chiffre est une réserve pour la saison et non un débit par heure.
  *
  * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
  */

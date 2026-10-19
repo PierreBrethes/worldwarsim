@@ -47,7 +47,7 @@ describe('HandSheet', () => {
     const held = [troop('inf', 'infantry'), troop('tank', 'armor')];
     render(
       <HandSheet
-        view={{ me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView}
+        view={{ me: { nation: 'france', stationedCargo: [], troops: [] } } as unknown as PlayerView}
         station={station}
         place="Saône-et-Loire"
         held={held}
@@ -73,7 +73,10 @@ describe('HandSheet in a Blitz', () => {
     render(
       <HandSheet
         view={
-          { mode: 'blitz', me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView
+          {
+            mode: 'blitz',
+            me: { nation: 'france', stationedCargo: [], troops: [] },
+          } as unknown as PlayerView
         }
         station={station}
         place="Portugal"
@@ -96,7 +99,10 @@ describe('HandSheet in a Blitz', () => {
     render(
       <HandSheet
         view={
-          { mode: 'blitz', me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView
+          {
+            mode: 'blitz',
+            me: { nation: 'france', stationedCargo: [], troops: [] },
+          } as unknown as PlayerView
         }
         station={station}
         place="Portugal"
@@ -122,7 +128,7 @@ describe('HandSheet founding', () => {
   const sheet = (founding: Parameters<typeof HandSheet>[0]['founding']) =>
     render(
       <HandSheet
-        view={{ me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView}
+        view={{ me: { nation: 'france', stationedCargo: [], troops: [] } } as unknown as PlayerView}
         station={station}
         place="Saône-et-Loire"
         held={[troop('inf', 'infantry')]}

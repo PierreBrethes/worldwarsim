@@ -1,11 +1,17 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { FirstSteps } from '../src/domain/first-steps';
 
 type Marks = {
   readonly journalReadAt: number | null;
   readonly telegraphReadAt: number | null;
   readonly telegraphPushedAt: number | null;
   readonly telegraphDirectReadAt: Readonly<Record<string, number>>;
+  readonly boardRead: {
+    readonly at: number;
+    readonly stocks: Readonly<Record<string, number>>;
+  } | null;
+  readonly firstSteps: FirstSteps;
 };
 
 /**
@@ -27,6 +33,11 @@ export async function readMarksOf(ctx: QueryCtx, player: Doc<'players'>): Promis
     telegraphReadAt: row?.telegraphReadAt ?? player.telegraphReadAt ?? null,
     telegraphPushedAt: row?.telegraphPushedAt ?? player.telegraphPushedAt ?? null,
     telegraphDirectReadAt: row?.telegraphDirectReadAt ?? {},
+    boardRead:
+      row?.boardReadAt === undefined || row.boardReadStocks === undefined
+        ? null
+        : { at: row.boardReadAt, stocks: row.boardReadStocks },
+    firstSteps: row?.firstSteps ?? { done: [], shown: 'open' },
   };
 }
 
@@ -37,7 +48,9 @@ export async function stampReadMark(
     | { journalReadAt: number }
     | { telegraphReadAt: number }
     | { telegraphPushedAt: number }
-    | { telegraphDirectReadAt: Record<string, number> },
+    | { telegraphDirectReadAt: Record<string, number> }
+    | { boardReadAt: number; boardReadStocks: Record<string, number> }
+    | { firstSteps: NonNullable<Doc<'readMarks'>['firstSteps']> },
 ): Promise<void> {
   const row = await ctx.db
     .query('readMarks')

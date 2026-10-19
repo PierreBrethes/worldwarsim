@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDING_SPACING_KM,
   clipToCapacity,
   placementRefusal,
+  siteOfPoint,
   emptyStocks,
   isLinked,
   produces,
+  shortfallOf,
   settleStocks,
   type Conversion,
   type Stocks,
 } from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
+import type { LonLat } from './geo';
 
 const stocksOf = (held: Partial<Record<ResourceKey, number>>): Stocks => ({
   ...emptyStocks(),
@@ -373,14 +377,119 @@ describe('a reserve emptied by a negative rate', () => {
   });
 });
 
-describe('legacy storage placement', () => {
-  const region = { deposit: null, coastal: false };
+describe('placement at a point (ADR 0029)', () => {
+  const free = { reached: true, deposit: null, coastal: false, nearest: null } as const;
+  const coal = { key: 'coal', taken: false } as const;
+
   it('refuses a new depot even on free ground', () => {
-    expect(placementRefusal('depot', region, { onRegion: null, hqLevel: 2 }, 1)).toBe(
-      'UNKNOWN_BUILDING',
-    );
+    expect(placementRefusal('depot', free, 2, null)).toBe('UNKNOWN_BUILDING');
   });
-  it('raises an old depot as a warehouse', () => {
-    expect(placementRefusal('warehouse', region, { onRegion: 'depot', hqLevel: 2 }, 1)).toBeNull();
+
+  it('refuses a tile a research card still holds, and anything before the headquarters', () => {
+    expect(placementRefusal('airfield', free, 2, 'aviation')).toBe('RESEARCH_REQUIRED');
+    expect(placementRefusal('barracks', free, 0, null)).toBe('HQ_FIRST');
+    expect(placementRefusal('hq', free, 0, null)).toBeNull();
+  });
+
+  it('refuses a point no soil and no reach of the player covers', () => {
+    expect(placementRefusal('barracks', { ...free, reached: false }, 2, null)).toBe('OUT_OF_REACH');
+  });
+
+  it('wants an exploitation on its own deposit, and on a free one', () => {
+    expect(placementRefusal('mine', free, 2, null)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, null)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, null)).toBeNull();
+    expect(
+      placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, null),
+    ).toBe('DEPOSIT_TAKEN');
+  });
+
+  it('wants a port on a coast', () => {
+    expect(placementRefusal('port', free, 2, null)).toBe('NOT_COASTAL');
+    expect(placementRefusal('port', { ...free, coastal: true }, 2, null)).toBeNull();
+  });
+
+  it(`keeps ${BUILDING_SPACING_KM} km between two buildings of the player`, () => {
+    const near = (km: number) => ({ ...free, nearest: { key: 'arsenal' as const, km } });
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, null)).toBe('TOO_CLOSE');
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, null)).toBeNull();
+  });
+
+  it('counts no region: two buildings far enough apart stand in the same one', () => {
+    expect(
+      placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, null),
+    ).toBe(null);
+  });
+});
+
+describe('siteOfPoint', () => {
+  const paris: LonLat = [2.35, 48.85];
+  const outposts = [
+    { id: 'far', lonLat: [10, 48.85] as LonLat, reachKm: 120 },
+    { id: 'near', lonLat: [3, 48.85] as LonLat, reachKm: 120 },
+  ];
+
+  it('hangs national soil from home', () => {
+    expect(siteOfPoint(paris, true, outposts)).toEqual({ kind: 'home' });
+  });
+
+  it('hangs a point abroad from the closest outpost that reaches it', () => {
+    expect(siteOfPoint(paris, false, outposts)).toEqual({ kind: 'outpost', outpostId: 'near' });
+  });
+
+  it('answers nothing out of every reach', () => {
+    expect(siteOfPoint([-60, 0], false, outposts)).toBeNull();
+  });
+});
+
+describe('shortfallOf', () => {
+  const stocks = { food: 50, steel: 100, coal: 5, oil: 0, ammunition: 0 };
+
+  it('names the first resource a price cannot be paid in, steel first', () => {
+    expect(shortfallOf({ steel: 120, food: 80 }, (key) => stocks[key])).toEqual({
+      resource: 'steel',
+      missing: 20,
+    });
+    expect(shortfallOf({ steel: 90, coal: 8 }, (key) => stocks[key])).toEqual({
+      resource: 'coal',
+      missing: 3,
+    });
+  });
+
+  it('says nothing when everything is covered', () => {
+    expect(shortfallOf({ steel: 100, food: 50 }, (key) => stocks[key])).toBeNull();
+  });
+});
+
+/** La ligne du pétrole synthétique : trois charbon pour un pétrole, sans toucher à l'acier. */
+describe('the synthetic oil line', () => {
+  const oil = (perHour: number, quota: number | null = null): Conversion => ({
+    by: 'arsenal',
+    output: 'oil',
+    inputs: [['coal', 3]],
+    perHour,
+    quota,
+  });
+
+  it('burns three coal for each oil it makes', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 100, steel: 50, oil: 10 }, 5);
+    expect(report.made).toBe(20);
+    expect(stocks.oil).toBe(30);
+    expect(100 - stocks.coal).toBe(3 * (stocks.oil - 10));
+    expect(stocks.steel).toBe(50);
+  });
+
+  it('stops exactly when the coal runs out, and names it', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 10 }, 5);
+    expect(report.made).toBeCloseTo(10 / 3);
+    expect(stocks.coal).toBeCloseTo(0);
+    expect(report).toMatchObject({ state: 'starved', missing: 'coal' });
+  });
+
+  it('stops at the oil ceiling without burning coal', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 100, oil: CEILING }, 5);
+    expect(report.made).toBe(0);
+    expect(stocks.coal).toBe(100);
+    expect(report.state).toBe('overflowing');
   });
 });

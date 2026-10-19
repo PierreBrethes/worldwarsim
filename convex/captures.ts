@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+import { pauseResearch } from './research';
+import { stopTour } from './tours';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation } from './_generated/server';
@@ -16,14 +18,15 @@ import { settleFunds } from './blitz';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
-import { regionFacts, pointOfBuilding } from './regions';
+import { pointOfBuilding } from './regions';
 import { landAtPoint } from './routes';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { irregularSeat } from './objectives';
-import { handOver } from './strategicPoints';
+import { handOver, holdsPoint } from './strategicPoints';
+import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
@@ -401,6 +404,35 @@ async function stop(
   await notifyBoth(ctx, capture, now, { kind: 'captureCancelled', reason });
 }
 
+/**
+ * **Dakar** (P11) : un dépôt d'avant-poste capturé au teneur brûle au lieu de passer au capteur. Son
+ * contenu est perdu, et les deux camps l'apprennent — une dépêche chacun.
+ */
+async function burnDepotAtDakar(
+  ctx: MutationCtx,
+  site: Doc<'outposts'>,
+  loser: Doc<'players'>,
+  capturerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  if (!(await holdsPoint(ctx, loser, 'dakar'))) return;
+  const lost = site.depot ?? emptyLoad();
+  await ctx.db.patch(site._id, { depot: emptyLoad() });
+  for (const [playerId, side] of [
+    [capturerId, 'capturer'],
+    [loser._id, 'holder'],
+  ] as const) {
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now,
+      kind: 'depotBurned',
+      side,
+      country: site.hostCountry,
+      lost,
+    });
+  }
+}
+
 export async function reassessCaptures(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -461,6 +493,8 @@ export const complete = internalMutation({
      *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
     const falls = isBuilding(site) && site.homeOf === loser._id;
     if (falls && mode === 'mondiale') {
+      /** Sa carte de recherche attend un QG : ce qu'elle a couru et payé n'est pas perdu. */
+      await pauseResearch(ctx, loser._id, now);
       await releaseBuilding(ctx, loser, site, now);
       await ctx.db.patch(site._id, {
         playerId: capture.playerId,
@@ -468,6 +502,7 @@ export const complete = internalMutation({
         level: Math.max(1, site.level - 1),
       });
       taken.push(site);
+      // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
       await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
       await toIrregulars(ctx, capture, loser, now);
     } else if (isPoint(site)) {
@@ -501,6 +536,7 @@ export const complete = internalMutation({
       await groundGarrison(ctx, site);
       await cancelRaisesOf(ctx, loser._id, site, now);
       await ctx.db.patch(site._id, { playerId: capture.playerId });
+      await burnDepotAtDakar(ctx, site, loser, capture.playerId, now);
       /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
        *  raid le trouverait vide et le désactiverait sans combat. */
       for (const troop of capturersOf(byPoint, capture)) {
@@ -514,9 +550,7 @@ export const complete = internalMutation({
 
     await ctx.db.delete(captureId);
     await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
-    const point = isBuilding(site)
-      ? (pointOfBuilding(site) ?? regionFacts(site.regionId)?.point ?? pointOf(capture.point))
-      : pointOf(site.point);
+    const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
     await surveyFromPoint(ctx, capture.playerId, point, now);
     if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
@@ -667,6 +701,8 @@ async function toIrregulars(
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
     .collect()) {
+    /** Sa tournée tombe avec lui : un siège irrégulier ne ravitaille personne. */
+    if (troop.tour !== undefined) await stopTour(ctx, troop, now, 'cut');
     await ctx.db.patch(troop._id, { playerId: irregularId });
   }
   await dropCapturesOf(ctx, loser._id, now);

@@ -6,13 +6,16 @@ import type { LonLat } from '../src/domain/geo';
 import type { UnitRole } from '../src/domain/ids';
 import {
   EXTRACTION_PER_HOUR,
-  FOOD_UPKEEP_PER_TROOP_PER_HOUR,
+  LISTENING_COAL_PER_HOUR,
+  OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
   nominalStrength,
+  recruitmentCost,
 } from './constants';
-import { regionFacts } from './regions';
+import { armyUpkeep } from '../src/domain/upkeep';
+import { regionFacts, pointOfRegion } from './regions';
 import { landAtPoint } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -101,6 +104,7 @@ async function raise(t: ReturnType<typeof boot>, seat: Seat, key: 'farm' | 'barr
       playerId,
       key,
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
       level: 1,
     }),
   );
@@ -128,6 +132,24 @@ async function plant(
   );
 }
 
+/** Sets the food reserve to a figure, as of now. */
+async function setFood(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
+  const playerId = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    /** Every row is dated now: the economy settles from the oldest of them. */
+    for (const row of rows) {
+      await ctx.db.patch(row._id, {
+        stock: row.key === 'food' ? stock : row.stock,
+        updatedAt: Date.now(),
+      });
+    }
+  });
+}
+
 const upkeepOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
   (await t.query(api.view.playerView, seat)).me.upkeep;
 
@@ -139,7 +161,7 @@ const eastOf = (point: LonLat, km: number): LonLat => [
 
 const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 
-describe('an army eats a flat rate, whatever it is made of', () => {
+describe('an army eats by steps, whatever it is made of', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -159,8 +181,8 @@ describe('an army eats a flat rate, whatever it is made of', () => {
   });
 
   /** The whole of D1: `nominalStrength` is not the same unit from one role to the next, so the
-   *  rate reads none of it. Twenty-four of anything eat twenty-four forfaits. */
-  it('charges an army as many forfaits as it has troops, roles apart', async () => {
+   *  rate reads none of it. Twenty-four of anything eat the same twenty-four ranks. */
+  it('charges an army the steps of its head count, roles apart', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const roles: ReadonlyArray<UnitRole> = ['infantry', 'armor', 'carrier', 'bomber', 'cargo'];
@@ -171,7 +193,19 @@ describe('an army eats a flat rate, whatever it is made of', () => {
 
     const upkeep = await upkeepOf(t, seat);
     expect(upkeep.troops).toBe(army);
-    expect(upkeep.foodPerHour).toBe(army * FOOD_UPKEEP_PER_TROOP_PER_HOUR);
+    expect(upkeep.foodPerHour).toBe(armyUpkeep(army, 0));
+  });
+
+  /** ADR 0028 §2: the eleventh troop is the first of the second step, whatever it is. */
+  it('moves the eleventh troop onto the second step, and the twenty-sixth onto the third', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    for (let rank = 0; rank < 10; rank += 1) await form(t, seat, 'infantry', null);
+    expect((await upkeepOf(t, seat)).foodPerHour).toBe(10);
+    await form(t, seat, 'infantry', null);
+    expect((await upkeepOf(t, seat)).foodPerHour).toBe(12);
+    for (let rank = 0; rank < 15; rank += 1) await form(t, seat, 'infantry', null);
+    expect((await upkeepOf(t, seat)).foodPerHour).toBe(10 + 15 * 2 + 3);
   });
 
   /** The intention of `chiffrage-combat.md` §5, kept for free: losing men is never an economy. */
@@ -192,10 +226,47 @@ describe('an army eats a flat rate, whatever it is made of', () => {
     for (let rank = 0; rank < 24; rank += 1) await form(t, seat, 'infantry', null);
 
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.food.ratePerHour).toBe(
-      EXTRACTION_PER_HOUR.food - 24 * FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-    );
+    expect(view.me.resources.food.ratePerHour).toBe(EXTRACTION_PER_HOUR.food - armyUpkeep(24, 0));
     expect(view.me.resources.food.ratePerHour).toBeLessThan(0);
+  });
+});
+
+describe('the empire eats and burns (ADR 0028 §2)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('takes food for each standing outpost, by level, out of the national rate', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, RIYADH);
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.upkeep.outpostFoodPerHour).toBe(OUTPOST_FOOD_PER_HOUR_PER_LEVEL);
+    expect(view.me.resources.food.ratePerHour).toBe(-OUTPOST_FOOD_PER_HOUR_PER_LEVEL);
+  });
+
+  it('eats nothing for an outpost still being built', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const id = await plant(t, seat, RIYADH);
+    await t.run(async (ctx) => ctx.db.patch(id, { standsAt: Date.now() + 3_600_000 }));
+
+    expect((await upkeepOf(t, seat)).outpostFoodPerHour).toBe(0);
+  });
+
+  it('burns coal for a listening outpost and for nothing else', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const id = await plant(t, seat, RIYADH);
+    expect((await upkeepOf(t, seat)).listeningCoalPerHour).toBe(0);
+
+    await t.run(async (ctx) => ctx.db.patch(id, { specialization: 'listening' as const }));
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.upkeep.listeningCoalPerHour).toBe(LISTENING_COAL_PER_HOUR);
+    expect(view.me.resources.coal.ratePerHour).toBe(-LISTENING_COAL_PER_HOUR);
   });
 });
 
@@ -253,10 +324,7 @@ describe('where a troop stands decides what it eats', () => {
 
     const hours = (sent.minutes * 60_000 + 1) / 3_600_000;
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.resources.food.stock).toBeCloseTo(
-      1_000 - hours * FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-      0,
-    );
+    expect(view.me.resources.food.stock).toBeCloseTo(1_000 - hours * armyUpkeep(1, 0), 0);
   });
 
   /** **The outpost feeds** (ADR 0019 §4): it does not project force, it supplies it. */
@@ -268,7 +336,7 @@ describe('where a troop stands decides what it eats', () => {
 
     const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(0);
-    expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR);
+    expect(upkeep.foodPerHour).toBe(armyUpkeep(1, 0));
   });
 
   /**
@@ -290,7 +358,7 @@ describe('where a troop stands decides what it eats', () => {
 
     const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(1);
-    expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER);
+    expect(upkeep.foodPerHour).toBe(armyUpkeep(0, 1));
   });
 
   it('charges the raised rate a step beyond that reach', async () => {
@@ -314,7 +382,7 @@ describe('where a troop stands decides what it eats', () => {
 
     const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(1);
-    expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER);
+    expect(upkeep.foodPerHour).toBe(armyUpkeep(0, 1));
   });
 
   /**
@@ -395,6 +463,8 @@ describe('a dry reserve stops the queue and kills nothing', () => {
     const barracks = await raise(t, seat, 'barracks');
     await starve(t, seat);
 
+    // Just enough food to pay the order: it empties the reserve, and the line must stop on it.
+    await setFood(t, seat, recruitmentCost('infantry', 1).costs.food!);
     const { recruitmentId } = await t.mutation(api.troops.recruit, {
       ...seat,
       buildingId: barracks,
@@ -469,6 +539,9 @@ describe('a delivered troop', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.troops).toHaveLength(1);
     // Nobody ate during the hours of the queue: the reserve is the one the order left.
-    expect(view.me.resources.food.stock).toBeCloseTo(1_000, 0);
+    expect(view.me.resources.food.stock).toBeCloseTo(
+      1_000 - recruitmentCost('infantry', 1).costs.food!,
+      0,
+    );
   });
 });

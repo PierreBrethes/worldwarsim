@@ -1,7 +1,6 @@
 import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
-import { TIER_2_HQ_LEVEL } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { RESOURCES, type BuildCostKey, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
@@ -68,7 +67,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       resources: server.me.resources,
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
-      tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
+      /** Une version de retard ne sert aucune recherche : rien d'acquis, rien en cours. */
+      research: server.me.research ?? { researched: [], running: null },
       foundation: server.me.foundation ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
        *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
@@ -106,6 +106,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: entry.regionName,
+        point: entry.point ?? null,
         level: entry.level,
       })),
       armyPresent: server.me.armyPresent ?? {},
@@ -126,6 +127,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         troops: server.me.upkeep?.troops ?? 0,
         unsupplied: server.me.upkeep?.unsupplied ?? 0,
         foodPerHour: server.me.upkeep?.foodPerHour ?? 0,
+        outpostFoodPerHour: server.me.upkeep?.outpostFoodPerHour ?? 0,
+        listeningCoalPerHour: server.me.upkeep?.listeningCoalPerHour ?? 0,
+        listeningSilent: server.me.upkeep?.listeningSilent ?? false,
         outposts: server.me.upkeep?.outposts ?? 0,
       },
       starving: server.me.starving ?? false,
@@ -175,6 +179,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
     ),
+    boardRead: server.boardRead ?? null,
+    firstSteps: server.firstSteps ?? { done: [], shown: 'open' },
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,
@@ -223,6 +229,8 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     troopIds: movement.troopIds,
     cargo: movement.cargo ?? emptyCargo(),
     mission: movement.mission ?? null,
+    ...(movement.delivery === true ? { delivery: true } : {}),
+    ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop }),
     minutesLeft: timing.minutesLeft,
     borderWait: timing.borderWait,
     progress: timing.progress,

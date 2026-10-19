@@ -188,10 +188,10 @@ export function buildThread(
   colors: ThreadColors,
   thickness: number,
   opacities: { readonly trace: number; readonly progress: number },
-  { aloft = false } = {},
+  { aloft = false, airdrop }: { readonly aloft?: boolean; readonly airdrop?: 'out' | 'back' } = {},
 ): Thread {
   const object = new Group();
-  const legs = cutIntoLegs(route, frame, aloft);
+  const legs = cutIntoLegs(route, frame, aloft, airdrop);
   const lineMaterials: LineMaterial[] = [];
   const width = threadWidth(thickness);
 
@@ -388,9 +388,10 @@ function cutIntoLegs(
   route: ComputedRoute,
   frame: WorldFrame,
   aloft: boolean,
+  airdrop?: 'out' | 'back',
 ): ReadonlyArray<ThreadLeg> {
   if (route.legs.length === 1 && route.legs[0]!.medium === 'air') {
-    return [airLeg(route, frame, aloft)];
+    return [airLeg(route, frame, aloft, airdrop)];
   }
 
   const points = route.points;
@@ -434,7 +435,19 @@ function cutIntoLegs(
   return legs;
 }
 
-function airLeg(route: ComputedRoute, frame: WorldFrame, aloft: boolean): ThreadLeg {
+/**
+ * **A airdrop flight never lands at its target** (ADR 0028 §4): the way out takes off from the strip
+ * and stays at cruise over the target, the way back leaves from there and lands at the strip.
+ */
+const airdropShare = (share: number, airdrop: 'out' | 'back' | undefined): number =>
+  airdrop === 'out' ? Math.min(share, 0.5) : airdrop === 'back' ? Math.max(share, 0.5) : share;
+
+function airLeg(
+  route: ComputedRoute,
+  frame: WorldFrame,
+  aloft: boolean,
+  airdrop?: 'out' | 'back',
+): ThreadLeg {
   const departure = frame.projectLonLat(route.points[0]!, SURFACE_ALTITUDE);
   const arrival = frame.projectLonLat(route.points[route.points.length - 1]!, SURFACE_ALTITUDE);
   const rise = airRise(departure.distanceTo(arrival));
@@ -442,7 +455,7 @@ function airLeg(route: ComputedRoute, frame: WorldFrame, aloft: boolean): Thread
   const vertices = Array.from({ length: AIR_SEGMENTS + 1 }, (_, k) => {
     const share = k / AIR_SEGMENTS;
     const point = departure.clone().lerp(arrival, share);
-    point.y += floor + (rise - floor) * flightAltitude(share);
+    point.y += floor + (rise - floor) * flightAltitude(airdropShare(share, airdrop));
     return point;
   });
   return { medium: 'air', strands: [strandOf(vertices)], length: lengthOf(vertices) };

@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fr } from '@/i18n/fr';
+import { fr, researchRequired } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
@@ -24,7 +24,11 @@ const client = {
   }),
   mutation: (_reference: unknown, args: unknown) => {
     sent(args);
-    return Promise.resolve({ cost: { steel: 18 }, rank: 0, recruitmentId: 'R-new' });
+    return Promise.resolve({
+      cost: { costs: { steel: 18, food: 10 }, minutes: 20 },
+      rank: 0,
+      recruitmentId: 'R-new',
+    });
   },
 } as unknown as ConvexReactClient;
 
@@ -45,14 +49,22 @@ afterEach(() => {
 });
 
 const SEAT = { token: 'jeton', seasonId: 'saison' } as unknown as Seat;
-const priced = (steel: number, minutes: number, strength: number) => ({ steel, minutes, strength });
+const priced = (
+  steel: number,
+  minutes: number,
+  strength: number,
+  lockedBy: string | null = null,
+) => ({
+  costs: { steel, food: Math.round(steel / 2) },
+  minutes,
+  strength,
+  lockedBy,
+});
 const GRID = [
   {
     role: 'infantry',
     tiers: 2,
     producedBy: 'barracks',
-    unlockedAtHqLevel: 0,
-    unlockedAtSiteLevel: 1,
     unit: priced(18, 16, 50),
     unitTier2: priced(29, 26, 30),
   },
@@ -60,8 +72,6 @@ const GRID = [
     role: 'landTransport',
     tiers: 1,
     producedBy: 'barracks',
-    unlockedAtHqLevel: 0,
-    unlockedAtSiteLevel: 2,
     unit: priced(40, 37, 24),
     unitTier2: null,
   },
@@ -69,10 +79,8 @@ const GRID = [
     role: 'armor',
     tiers: 2,
     producedBy: 'barracks',
-    unlockedAtHqLevel: 0,
-    unlockedAtSiteLevel: 3,
-    unit: priced(95, 57, 12),
-    unitTier2: priced(152, 91, 6),
+    unit: priced(95, 57, 12, 'armor'),
+    unitTier2: priced(152, 91, 6, 'armorMk2'),
   },
 ];
 const workshopWith = (
@@ -82,8 +90,6 @@ const workshopWith = (
   loadedAt: NOW,
   captures: [],
   hqLevel: 1,
-  tier2Unlocked: true,
-  requiredHqLevel: 2,
   maxQueue: 5,
   troopsInService: inService,
   troopsQueued: queue.length,
@@ -112,6 +118,7 @@ const view = {
         key: 'barracks',
         name: 'Caserne',
         regionId: 'FR-NOR',
+        point: [3, 50],
         level: 1,
         cappedByHq: false,
         nextLevelCost: { steel: 72 },
@@ -139,18 +146,17 @@ const mount = () =>
   );
 
 describe('a site sheet on a phone', () => {
-  it('forms what the site opens and sends the rest under « plus haut » with its condition', () => {
+  it('forms what is open and sends what a card holds below, naming the card', () => {
     workshop = workshopWith([]);
     mount();
 
     expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
-    expect(screen.getByText(fr.production.sheet.opens(2, 'le transport terrestre'))).toBeTruthy();
-    expect(screen.getByText(fr.production.sheet.waits('le blindé', 3))).toBeTruthy();
-    expect(screen.getByText(fr.production.formsIn('une caserne', 3))).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: /\+ 1 troupe/ })).toHaveLength(1);
+    expect(screen.getByText(fr.production.sheet.lanes(1))).toBeTruthy();
+    expect(screen.getByText(researchRequired('armor'))).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /\+ 1 troupe/ })).toHaveLength(2);
 
     act(() => screen.getByRole('button', { name: 'MK2' }).click());
-    act(() => screen.getByRole('button', { name: /\+ 1 troupe/ }).click());
+    act(() => screen.getAllByRole('button', { name: /\+ 1 troupe/ })[0]!.click());
     expect(sent).toHaveBeenCalledWith(
       expect.objectContaining({ buildingId: 'B-1', role: 'infantry', tier: 2 }),
     );

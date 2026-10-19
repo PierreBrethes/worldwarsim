@@ -13,7 +13,6 @@ import {
   outpostReachKm,
   REST_WINDOW_MINUTES,
   DETECTION_RANGE_KM,
-  unlockLevel,
 } from './constants';
 import { ConvexError } from 'convex/values';
 import { internal } from './_generated/api';
@@ -26,7 +25,7 @@ import {
   type MovementAim,
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
-import { regionFacts } from './regions';
+import { regionFacts, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
@@ -61,7 +60,6 @@ const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
  *  du 04/09 — et l'Alberta porte du pétrole, comme la Sibérie de la partie de test. */
 const ALBERTA = 'CAN-632';
 const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
-const SASKATCHEWAN = 'CAN-631';
 /** À plus de 600 km à l'ouest : aucune cellule dans le rayon d'un point neuf. */
 const BRITISH_COLUMBIA = 'CAN-633'; // voisine, son point à 659 km : hors de portée et elle le reste
 
@@ -124,6 +122,7 @@ async function raise(
       playerId,
       key,
       regionId,
+      point: pointOfRegion(regionId),
       level: 1,
       ...(point === undefined ? {} : { point }),
     });
@@ -228,7 +227,7 @@ async function ammunitionOf(t: ReturnType<typeof boot>, seat: Seat): Promise<num
   return view.me.resources.ammunition.stock;
 }
 
-/** The magazine, set where a case needs it — full, or too thin to cover the pass. */
+/** The ammunition on the personal board, set where a case needs it — what the anchor rearms from. */
 async function setAmmunition(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
   const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
@@ -579,7 +578,12 @@ describe('founding opens a construction site, and it has to be held', () => {
     ).toHaveLength(0);
     /** Et aucun emplacement : sa propre région lui est refusée. */
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: PRAHOVA }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'oilWell',
+        regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
@@ -604,6 +608,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -708,6 +713,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -833,31 +839,10 @@ describe('an outpost opens a radius to build in', () => {
   }
 
   /**
-   * **Un avant-poste atteint toujours la région où il se tient** (précision de l'ADR 0020 du
-   * 04/09). Le rayon se mesure au pôle d'inaccessibilité de la région, et celui d'une région
-   * grande comme l'Alberta est à 378 km du point où l'on plante : le puits de la région même de
-   * l'avant-poste se faisait refuser.
+   * **Le rayon se mesure du point de l'avant-poste au point visé** (ADR 0029) — jamais au pôle
+   * d'une région : un lieu à deux pas du mât se bâtit, quelle que soit la taille de l'Alberta.
    */
-  it('accepts the region the point stands in, however far its own point is', async () => {
-    const t = boot();
-    const { seat } = await launchedSeason(t);
-    await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
-
-    const started = await t.mutation(api.constructions.start, {
-      ...seat,
-      building: 'oilWell',
-      regionId: ALBERTA,
-    });
-    expect(started.finishesAt).toBeGreaterThan(Date.now());
-  });
-
-  /**
-   * **Là où je tiens est là où je peux bâtir** (révision du 17/09 de l'ADR 0020 §1) : le sol se
-   * mesure au disque, donc la voisine dont la frontière court à 84 km s'ouvre — son pôle à 659 km
-   * la fermait, et le joueur voyait à sa couleur une région où rien ne se posait. Ce qu'aucune
-   * cellule n'approche, lui, reste dehors.
-   */
-  it('opens the neighbouring region the disc touches, and nothing past it', async () => {
+  it('accepts a point within the reach, however far the point of its region is', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
@@ -865,33 +850,50 @@ describe('an outpost opens a radius to build in', () => {
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
-      regionId: SASKATCHEWAN,
+      regionId: ALBERTA,
+      point: { lon: FORT_MCMURRAY[0], lat: FORT_MCMURRAY[1] - 0.5 },
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
+  });
+
+  /** Ce que le disque ne couvre pas reste dehors, même dans la région où le mât se tient. */
+  it('refuses a point past the reach, in its own region as in the next', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
 
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
         building: 'warehouse',
+        regionId: ALBERTA,
+        point: pointOfRegion(ALBERTA),
+      }),
+    ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'warehouse',
         regionId: BRITISH_COLUMBIA,
+        point: pointOfRegion(BRITISH_COLUMBIA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
-  /**
-   * **Un avant-poste n'est pas un bâtiment**, et `REGION_TAKEN` ne le compte pas : le sol qu'il
-   * occupe reste constructible, ce qui est tout l'intérêt de l'y planter. Ce qui prend une
-   * région est le bâtiment qui s'y tient — la seconde entrée le montre.
-   */
-  it('never takes the region it stands in', async () => {
+  /** **Un avant-poste n'est pas un bâtiment** : l'espacement ne le compte pas, et le sol à son
+   *  pied reste constructible — c'est tout l'intérêt de l'y planter. */
+  it('lets a building stand at the foot of its mast', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
 
-    await t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: ALBERTA });
-    await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ALBERTA }),
-    ).rejects.toThrow('REGION_TAKEN');
+    const started = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: ALBERTA,
+      point: { lon: FORT_MCMURRAY[0] + 0.02, lat: FORT_MCMURRAY[1] },
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
   /** The whole point of the loop: the well the nation has no ground for at home. */
@@ -902,6 +904,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -912,8 +915,23 @@ describe('an outpost opens a radius to build in', () => {
   it('refuses one outside it, and names the widest reach he has', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
+    /** La clé avant la portée, comme `placementRefusal` sous le fantôme : un aérodrome verrouillé
+     *  hors de portée se dit verrouillé aux deux bouts. */
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      }),
+    ).rejects.toThrow('RESEARCH_REQUIRED');
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: RUHR })
+      .mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
@@ -927,31 +945,41 @@ describe('an outpost opens a radius to build in', () => {
 
   /**
    * **The two rules stack, they do not stand in for one another.** The reach says *where* a
-   * building may go up, the catalogue tier says *whether the season has reached it* — so a
-   * region an outpost has opened still refuses an airfield until the headquarters reaches the
-   * level the catalogue opens projection at (`unlockLevel`).
+   * building may go up, the research card says *whether the player has opened it* — so a region
+   * an outpost has opened still refuses an airfield until the aviation card comes to its end.
    */
-  it('stacks the tier of the catalogue on top of the reach', async () => {
+  it('stacks the research card on top of the reach', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
-    const opensAt = unlockLevel('airfield');
-    await setHqLevel(t, seat, opensAt - 1);
 
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: PRAHOVA }),
-    ).rejects.toThrow('BUILDING_LOCKED');
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: PRAHOVA,
+        point: pointOfRegion(PRAHOVA),
+      }),
+    ).rejects.toThrow('RESEARCH_REQUIRED');
 
-    await setHqLevel(t, seat, opensAt);
+    await t.run(async (ctx) => {
+      await ctx.db.patch((await seatIn(ctx, seat))._id, { researched: ['aviation'] });
+    });
 
-    // The reach keeps its own say at that level: an opened tier is not a passport.
+    // The reach keeps its own say: an opened card is not a passport.
     await expect(
-      t.mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: RUHR }),
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'airfield',
+        regionId: RUHR,
+        point: pointOfRegion(RUHR),
+      }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
 
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'airfield',
       regionId: PRAHOVA,
+      point: pointOfRegion(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -959,11 +987,11 @@ describe('an outpost opens a radius to build in', () => {
   it('keeps home free of any reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    await setHqLevel(t, seat, unlockLevel('barracks'));
     const started = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'barracks',
       regionId: MARNE,
+      point: pointOfRegion(MARNE),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -1059,7 +1087,87 @@ describe('an attack marches at somebody', () => {
  * ammunition and the pass took it over, so this is where the resource has to be seen leaving
  * the national stock — and where a nation that let it run out has to be seen paying for it.
  */
-describe('the pass is what ammunition is spent on', () => {
+/** ADR 0028 §3 : le plein se paie au départ, et une route plus longue que lui est refusée. */
+describe('the fuel a route takes', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function setStock(t: ReturnType<typeof boot>, seat: Seat, key: string, stock: number) {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((one) => one.key === key)!;
+      await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    });
+  }
+
+  const marchTo = (
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    barracks: Id<'buildings'>,
+    troop: Id<'troops'>,
+    point: { lon: number; lat: number },
+  ) =>
+    t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      point,
+    });
+  /** Près de Ploiești : plus de deux mille kilomètres de route depuis la Marne. */
+  const PLOIESTI = { lon: 26.0, lat: 44.95 };
+  /** Berlin : moins de quatre crans de route. */
+  const BERLIN = { lon: 13.4, lat: 52.5 };
+
+  it('refuses a tank a road longer than its three steps, and says how many it needs', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const tank = await form(t, seat, 'armor', barracks);
+
+    await expect(marchTo(t, seat, barracks, tank, PLOIESTI)).rejects.toThrow('NOT_ENOUGH_FUEL');
+  });
+
+  it('bills a tank whose transport left without it, whatever its stale seat says', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const tank = await form(t, seat, 'armor', barracks);
+    const gone = await form(t, seat, 'cargo', null);
+    await t.run(async (ctx) => ctx.db.patch(tank, { carriedBy: gone }));
+
+    await marchTo(t, seat, barracks, tank, { lon: 4.35, lat: 50.85 });
+
+    expect((await t.run(async (ctx) => ctx.db.get(tank)))!.fuel).toBeLessThan(3);
+  });
+
+  it('fills an empty truck at home before it leaves, and takes the road off its fuel', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'oil', 100);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const truck = await form(t, seat, 'landTransport', barracks);
+    await t.run(async (ctx) => ctx.db.patch(truck, { fuel: 0 }));
+
+    const { movementId } = await marchTo(t, seat, barracks, truck, BERLIN);
+
+    const steps = await t.run(async (ctx) =>
+      Math.ceil(((await ctx.db.get(movementId))!.distanceUnits * 111) / 500),
+    );
+    expect(steps).toBeLessThanOrEqual(4);
+    expect((await t.run(async (ctx) => ctx.db.get(truck)))!.fuel).toBe(4 - steps);
+    expect((await t.query(api.view.playerView, seat)).me.resources.oil.stock).toBe(60);
+  });
+});
+
+describe('the rounds a troop carries into the pass', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -1081,18 +1189,72 @@ describe('the pass is what ammunition is spent on', () => {
     return { troop, defender };
   }
 
-  it('takes off each side what it fires: ten rounds to strike, five to riposte', async () => {
+  /** ADR 0028 §3 : chacune tire sur ses crans, et l'ancre les reprend sur le plateau personnel. */
+  it('spends a step of each troop that fires, and refills it at the anchor only', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);
     await setAmmunition(t, guest, 500);
 
-    await fight(t, seat, guest);
+    const { troop, defender } = await fight(t, seat, guest);
 
-    // One round per five points: fifty soldiers strike for ten, the thirty-two the strike left
-    // in the barracks riposte for seven — one pays only for what one fires (C3, 14/10).
+    // Home again, the attacker took its spent step back off the board: ten ammunition. The
+    // defender stands in Romania, nobody's soil — it lives on what it carries.
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.rounds).toBe(3);
     expect(await ammunitionOf(t, seat)).toBe(490);
-    expect(await ammunitionOf(t, guest)).toBe(493);
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.rounds).toBe(2);
+    expect(await ammunitionOf(t, guest)).toBe(500);
+  });
+
+  it('has a troop out of rounds take the strike without a riposte, and tells its owner', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await setAmmunition(t, guest, 500);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const defender = await form(t, guest, 'infantry', theirs);
+    await t.run(async (ctx) => ctx.db.patch(defender, { rounds: 0 }));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(50);
+    const [engagement] = await engagementsIn(t);
+    expect(engagement!.troops.find((row) => row.side === 'defender')!.dry).toBe(true);
+    const dry = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'firedDry'))
+        .collect(),
+    );
+    expect(dry).toMatchObject([{ playerId: await playerOf(t, guest), troops: 1 }]);
+    // The attacker reads it in its account: one of theirs did not answer.
+    const report = (await t.query(api.view.playerView, seat)).reports[0]!;
+    expect(report.theirs.dry).toBe(1);
+  });
+
+  it('refuses the attack of a column out of rounds that its anchor cannot rearm', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setAmmunition(t, seat, 0);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.patch(troop, { rounds: 0 }));
+
+    await expect(
+      attacking(t, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        target: { kind: 'region', regionId: PRAHOVA },
+      }),
+    ).rejects.toThrow('NO_ROUNDS');
   });
 
   it('bills nothing to a garrison the strike wiped out, and never tells it it ran dry', async () => {
@@ -1123,24 +1285,7 @@ describe('the pass is what ammunition is spent on', () => {
     expect(dry).toHaveLength(0);
   });
 
-  it('strikes at .60 and empties what is left when the magazine cannot cover the pass', async () => {
-    const t = boot();
-    const { seat, guest } = await launchedSeason(t);
-    await setAmmunition(t, seat, 4);
-    await setAmmunition(t, guest, 500);
-
-    const { troop, defender } = await fight(t, seat, guest);
-
-    // Supplied, the reference case takes 18 off the garrison and 16 off the attacker. Dry, the
-    // attacker's strike is worth .60 of itself — .5 × .6 × .7 × 50, eleven — and the defender,
-    // keeping more to riposte with, bites harder.
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 11);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
-    // The four rounds it had went into the pass; it did not fight for free.
-    expect(await ammunitionOf(t, seat)).toBe(0);
-  });
-
-  it('leaves the magazine alone on a march that meets nobody', async () => {
+  it('takes no ammunition for a march that meets nobody', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await setAmmunition(t, seat, 500);

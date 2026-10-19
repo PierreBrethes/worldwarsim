@@ -31,7 +31,7 @@ const troop = (id: string, role: TroopView['role']): TroopView => ({
   mending: false,
 });
 const HELD = [troop('i-1', 'infantry'), troop('i-2', 'infantry'), troop('a-1', 'armor')];
-const view = { me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView;
+const view = { me: { nation: 'france', stationedCargo: [], troops: [] } } as unknown as PlayerView;
 
 const mount = (onPrepare = vi.fn()) => {
   render(

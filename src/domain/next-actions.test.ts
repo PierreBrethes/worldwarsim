@@ -174,7 +174,7 @@ describe('what waits for the player', () => {
   it('names an idle site only while nothing heads the queue', () => {
     const idle = nextActionsOf(board({ construction: null }))[0];
     expect(idle?.kind).toBe('idleSite');
-    expect(idle?.targets).toEqual([{ kind: 'surface', surface: 'economy' }]);
+    expect(idle?.targets).toEqual([{ kind: 'surface', surface: 'personalBoard' }]);
 
     expect(kinds(board())).not.toContain('idleSite');
   });

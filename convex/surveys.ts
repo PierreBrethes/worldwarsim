@@ -10,6 +10,7 @@
  * une requête réactive (`WWS/docs/technique/brouillard-et-fanout.md`).
  */
 
+import { listeningSilentOf } from './resources';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { surveyStops } from '../src/domain/control';
@@ -90,7 +91,7 @@ export async function standingObserversOf(
     if (building.capturedAt !== undefined) {
       observers.push({ point: stand, radiusKm: OWN_GROUND_KM });
     }
-    if (building.key === 'listening') {
+    if (building.key === 'listening' && !(await listeningSilentOf(ctx, playerId, now))) {
       observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }
@@ -169,12 +170,16 @@ export async function fileSurvey(
   const truth = await heldOver(ctx, player.seasonId, seen, at);
   const installationsByRegion = new Map<
     string,
-    Array<{ buildingId: Id<'buildings'>; key: Doc<'buildings'>['key'] }>
+    Array<{
+      buildingId: Id<'buildings'>;
+      key: Doc<'buildings'>['key'];
+      point: Doc<'buildings'>['point'];
+    }>
   >();
   for (const building of await seasonBuildings(ctx, player.seasonId)) {
     if (building.playerId === playerId || !covered.has(building.regionId)) continue;
     const installations = installationsByRegion.get(building.regionId) ?? [];
-    installations.push({ buildingId: building._id, key: building.key });
+    installations.push({ buildingId: building._id, key: building.key, point: building.point });
     installationsByRegion.set(building.regionId, installations);
   }
 

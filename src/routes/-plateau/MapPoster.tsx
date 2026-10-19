@@ -1,3 +1,5 @@
+import { SupplyPictos } from '@/shell/SupplyPictos';
+import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
 import type { MapLabel } from '@/domain/labels';
 import { posterOf, type Poster } from '@/domain/map-poster';
@@ -23,6 +25,17 @@ export function MapPoster({ poster }: { poster: Poster }) {
       <div className="map-poster-eyebrow">{poster.eyebrow}</div>
       <h3>{poster.title}</h3>
       {poster.pile !== null && <PileSheet {...poster.pile} />}
+      {poster.supplies != null && (
+        <>
+          <div className="map-poster-row">
+            <span>
+              {fr.supplies.rounds} · {fr.supplies.fuel}
+            </span>
+            <SupplyPictos supplies={poster.supplies} />
+          </div>
+          <div>{fr.supplies.reload}</div>
+        </>
+      )}
       {poster.lines.map((line, rank) =>
         line.kind === 'text' ? (
           <div key={rank}>{line.text}</div>

@@ -1,6 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { isStanding } from '../src/domain/outposts';
+import { siteOfPoint } from '../src/domain/economy';
 import { outpostReachKm } from './constants';
 import { levelOf, playerBuildings } from './buildingReads';
 import { outpostsOf, pointOf } from './movement/forces';
@@ -68,19 +69,32 @@ export function siteFor(
   return nearest === null ? null : { kind: 'outpost', outpostId: nearest.outpostId };
 }
 
+/** Standing outposts as the pure reach reads them (`siteOfPoint`). */
+export const reachesOf = (outposts: ReadonlyArray<Doc<'outposts'>>) =>
+  outposts.map((outpost) => ({
+    id: outpost._id,
+    lonLat: pointOf(outpost.point),
+    reachKm: outpostReachKm(outpost.level),
+  }));
+
 /**
- * **Where a placement on this region anchors, read with nothing else around it.** It is the one
- * question an insert asks — `sitesOf` answers it too, but a `finish` has no budget to read and
- * no reason to build one.
+ * **Where a placement at this point anchors**, read with nothing else around it (ADR 0029): the
+ * national soil when its region is at home, otherwise the closest standing outpost that reaches
+ * the point. It is the one question an insert asks — the refusal asked it first.
  */
 export async function anchorAt(
   ctx: QueryCtx,
   player: Doc<'players'>,
   regionId: string,
+  point: { readonly lon: number; readonly lat: number },
 ): Promise<Site | null> {
   const region = regionFacts(regionId);
   if (region === null) return null;
-  return siteFor(region, homeCountryOf(player.nation), await standingOutpostsOf(ctx, player._id));
+  return siteOfPoint(
+    [point.lon, point.lat],
+    region.country === homeCountryOf(player.nation),
+    reachesOf(await standingOutpostsOf(ctx, player._id)),
+  );
 }
 
 /** **Les points debout de ce joueur**, et c'est ce qu'un emplacement veut dire : un chantier

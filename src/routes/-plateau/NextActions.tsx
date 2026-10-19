@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { keepNextActionsFolded, readNextActionsFolded } from '@/data/settings';
 import { fr } from '@/i18n/fr';
 import { useSheetClose } from '@/shell/BottomSheet';
@@ -6,6 +6,7 @@ import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import {
   nextActionsOf,
+  todoCountOf,
   type NextAction,
   type NextActionSurface,
   type NextActionTarget,
@@ -73,8 +74,16 @@ export function NextActions({
   onOpenSurface,
   onOpenSite,
   onOpenOutpost,
+  firstSteps = null,
+  shut = false,
 }: {
   view: PlayerView;
+  /** **Le plateau personnel ouvert au bureau** : la carte s'y couchait par-dessus, sur les gestes
+   *  mêmes qu'elle demande. Elle se range sur son carré le temps qu'il est ouvert. */
+  shut?: boolean;
+  /** **Les premiers pas** (ADR 0027 §2), en tête de la carte tant qu'il en reste un à faire :
+   *  ils comptent pour une attente, et la carte existe pour eux même quand rien d'autre n'attend. */
+  firstSteps?: ReactNode;
   /**
    * **Sous le seuil, la carte quitte la carte** (piste A, passe 2, A5) : elle devient la feuille
    * qu'ouvre l'entrée « à faire » du pied, qui porte déjà le titre et le compte. Il n'en reste que
@@ -104,7 +113,9 @@ export function NextActions({
   const actions = nextActionsOf(view);
   useRanks();
 
-  if (actions.length === 0) {
+  const count = todoCountOf(view);
+
+  if (count === 0) {
     return frame === 'sheet' ? (
       <p className="px-4 py-[14px] text-[13px] text-[var(--ink-soft)] italic">
         {fr.nextActions.nothing}
@@ -154,7 +165,13 @@ export function NextActions({
     ),
   );
 
-  if (frame === 'sheet') return <div>{rows}</div>;
+  if (frame === 'sheet')
+    return (
+      <div>
+        {firstSteps}
+        {rows}
+      </div>
+    );
 
   const fold = () => {
     // Folding hides an armed key's rows: it disarms, like the foundation's own fold.
@@ -170,21 +187,21 @@ export function NextActions({
     <>
       <button
         type="button"
-        aria-expanded={!folded}
+        aria-expanded={!folded && !shut}
         title={fr.nextActions.header}
         onClick={fold}
         className={`${SQUARE_FRAME} bg-[var(--ink)] text-[var(--paper)] ${
-          folded ? '' : 'outline-2 outline-offset-[3px] outline-[var(--ink)]'
+          folded || shut ? '' : 'outline-2 outline-offset-[3px] outline-[var(--ink)]'
         }`}
       >
         <span className="font-(family-name:--font-display) text-[21px] leading-none font-bold">
-          {actions.length}
+          {count}
         </span>
         <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
           {fr.rail.todo}
         </span>
       </button>
-      {!folded && (
+      {!folded && !shut && (
         <section
           className="float paper-grain absolute top-0 left-full ml-[calc(var(--table-gap)/var(--hud-scale)/0.75)] max-h-full w-[300px] overflow-y-auto border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
           style={{ zoom: CARD_ZOOM }}
@@ -192,7 +209,7 @@ export function NextActions({
           <div className="flex items-end gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
             <div className="grid min-w-0 flex-1 gap-[5px]">
               <span className="text-[10px] leading-none font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
-                {fr.nextActions.count(actions.length)}
+                {fr.nextActions.count(count)}
               </span>
               <h2 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">
                 {fr.nextActions.header}
@@ -207,6 +224,7 @@ export function NextActions({
               {fr.nextActions.fold}
             </button>
           </div>
+          {firstSteps}
           {rows}
         </section>
       )}
@@ -219,7 +237,7 @@ export function NextActions({
 const CARD_ZOOM = 0.75;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
-  economy: fr.nextActions.toEconomy,
+  personalBoard: fr.nextActions.toPersonalBoard,
 };
 
 /** Plusieurs occurrences : le mot dit laquelle le clic va ouvrir, « carte 1 / 6 ». */
