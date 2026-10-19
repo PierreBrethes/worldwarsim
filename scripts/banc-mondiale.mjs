@@ -157,14 +157,16 @@ const HEART = { lon: 8, lat: 50 };
 const around = (spread) => ({ lon: HEART.lon + rand(spread), lat: HEART.lat + rand(spread) });
 const scenes = [];
 for (let k = 0; k < PLAYERS; k++) {
-  scenes.push(
-    await admin.mutation(internal('dev:benchScene'), {
+  const reserve = around(0.8);
+  scenes.push({
+    reserve,
+    ...(await admin.mutation(internal('dev:benchScene'), {
       playerId: playerOf(k),
       squads: Array.from({ length: SQUADS }, () => around(0.8)),
-      reserve: { at: around(0.8), count: TROOPS - SQUADS * SQUAD_SIZE - 1 },
+      reserve: { at: reserve, count: TROOPS - SQUADS * SQUAD_SIZE - 1 },
       outposts: Array.from({ length: 4 }, () => around(1.2)),
-    }),
-  );
+    })),
+  });
 }
 let tours = 0;
 for (let k = 0; k < PLAYERS; k++) {
@@ -194,7 +196,8 @@ const ramp = [];
 let flights = 0;
 for (const stage of STAGES) {
   while (flights < stage && queue.length > 0) {
-    const group = queue.splice(0, Math.min(4, stage - flights));
+    /** Un départ par appel : chacun relit le brouillard de son joueur, comme un vrai `march`. */
+    const group = queue.splice(0, 1);
     const byPlayer = Map.groupBy(group, (flight) => flight.k);
     for (const [k, mine] of byPlayer) {
       const result = await coldRetry(() =>
@@ -248,6 +251,18 @@ for (const squad of scenes[MEASURED].squads.slice(0, 2))
     ),
   );
 
+/** Et un joueur qui a déjà vingt-trois colonnes en vol : son départ relit tout ce qu'il voit et
+ *  tout ce qu'on voit de lui. Ses slots sont pris, donc le vrai `march` passe par le banc. */
+const BUSY = 1;
+const busy = await measured('dev:benchFlights', () =>
+  admin.mutation(internal('dev:benchFlights'), {
+    playerId: playerOf(BUSY),
+    flights: [
+      { ids: scenes[BUSY].reserveIds.slice(1, 4), from: scenes[BUSY].reserve, to: around(2.5) },
+    ],
+  }),
+);
+
 const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
 const cell = (run) => (run.timedOut ? `${fixed(run.ms)} (coupée à 1 s)` : fixed(run.ms));
@@ -269,6 +284,9 @@ for (const [k, run] of marches.entries())
   console.log(
     `| \`march\` sous charge (\`marchTo\` n°${String(k + 1)}) | ${cell(run)} | ${String(run.read)} | ${String(run.written)} |`,
   );
+console.log(
+  `| \`march\` d'un joueur aux 23 colonnes en vol | ${cell(busy)} | ${String(busy.read)} | ${String(busy.written)} |`,
+);
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
 console.log('\nMontée en charge de `reassessDetection` :\n');
 console.log(
