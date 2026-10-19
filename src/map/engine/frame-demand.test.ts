@@ -3,7 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
-import { FrameDemand, HEARTBEAT_MS, SETTLE_MS } from './frame-demand';
+import {
+  FLOW_FULL_MS,
+  FLOW_REDUCED_MS,
+  FrameDemand,
+  HEARTBEAT_MS,
+  SETTLE_MS,
+} from './frame-demand';
 
 describe('FrameDemand', () => {
   it('renders through the whole settle window after a stir, then rests', () => {
@@ -54,6 +60,22 @@ describe('FrameDemand', () => {
     const whole = reasons.filter((reason) => reason === 'heartbeat').length;
     expect(whole).toBeGreaterThanOrEqual(9);
     expect(whole).toBeLessThanOrEqual(10);
+  });
+
+  it('paces a flowing thread: ten whole frames a second reduced, thirty active, none when hidden', () => {
+    const wholeFrames = (pace: number): number => {
+      const demand = new FrameDemand(0);
+      demand.due(SETTLE_MS);
+      let count = 0;
+      for (let now = SETTLE_MS + 16; now <= SETTLE_MS + 10_000; now += 16)
+        if (demand.due(now, pace) !== null) count += 1;
+      return count;
+    };
+    expect(wholeFrames(FLOW_REDUCED_MS)).toBeLessThanOrEqual(10 * 10);
+    expect(wholeFrames(FLOW_REDUCED_MS)).toBeGreaterThanOrEqual(10 * 8);
+    expect(wholeFrames(FLOW_FULL_MS)).toBeLessThanOrEqual(10 * 32);
+    expect(wholeFrames(FLOW_FULL_MS)).toBeGreaterThanOrEqual(10 * 28);
+    expect(wholeFrames(Number.POSITIVE_INFINITY)).toBe(0);
   });
 
   it('renders a stirred frame whole even when the ambience asked for it too', () => {
