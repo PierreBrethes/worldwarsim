@@ -1553,6 +1553,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setPlacingAim(null);
     setPlacing(held);
   }, []);
+  const dismissPlacing = useCallback(() => hold(null), [hold]);
 
   /**
    * **Le clic sur la carte commande le chantier**, par la mutation qui commande tous les
@@ -3088,6 +3089,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               building={buildingSite !== null}
               placing={placingCard}
               onPlacePoint={placeAt}
+              onPlacingDismiss={dismissPlacing}
               onPlacingAim={setPlacingAim}
               aiming={column !== null}
               focus={focus}
@@ -3418,6 +3420,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 }
                 focused={boardOpen ? (focused ?? null) : null}
                 onHoldTile={holdTile}
+                placing={placing?.key ?? null}
                 onPlaceTile={placeTile}
                 onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
                 cue={

@@ -421,6 +421,8 @@ export class MapEngine {
    * country would answer two questions where the player asked one.
    */
   onPlacePoint: (spot: PlacingSpot) => void = () => {};
+  /** The acting button, pressed while a building is held, puts it back (#162). */
+  onPlacingDismiss: () => void = () => {};
   /** The ghost moved onto another point — what the board reads its refusal off, before the click. */
   onPlacingAim: (spot: PlacingSpot | null) => void = () => {};
   onAct: (click: MapActClick) => void = () => {};
@@ -1798,6 +1800,7 @@ export class MapEngine {
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt();
+    if (press.acts && !press.reads && this.placing !== null) return this.onPlacingDismiss();
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
 

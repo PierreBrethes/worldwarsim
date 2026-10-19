@@ -49,6 +49,7 @@ import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
+import { pressRail } from './rail-gesture';
 
 /** What the hand holds: a tile builds or raises, a piece is formed on a projection site. */
 type Held =
@@ -66,9 +67,6 @@ type Tab = 'buildings' | 'troops';
 
 /** Under this travel a press is a click, not a drag: the tile stays in hand for a click on the map. */
 const DRAG_THRESHOLD_PX = 5;
-
-/** Under this travel a finger has not yet said whether it scrolls the rail or lifts the tile. */
-const TOUCH_SLOP_PX = 8;
 
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
@@ -98,6 +96,7 @@ export function PersonalBoard({
   onResearch,
   onHoldTile,
   onPlaceTile,
+  placing,
   onTakeTokens,
   cue = null,
 }: {
@@ -121,6 +120,8 @@ export function PersonalBoard({
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
   onPlaceTile: () => boolean;
+  /** The building whose ghost the map holds: its tile is lit, and Échap is the ghost's. */
+  placing: BuildingKey | null;
 }) {
   const narrow = useNarrowScreen();
   const now = useClock();
@@ -163,12 +164,12 @@ export function PersonalBoard({
   useEffect(() => {
     if (!front || !open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || held !== null) return;
+      if (event.key !== 'Escape' || held !== null || placing !== null) return;
       onOpen(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [front, held, open, onOpen]);
+  }, [front, held, placing, open, onOpen]);
 
   // Folded, the focus that was inside the band (or that it took to the body) goes to its handle.
   const wasFolded = useRef(folded);
@@ -402,6 +403,8 @@ export function PersonalBoard({
               cued={cuedRack === 'tiles' ? 'buildings' : cuedRack === 'pieces' ? 'troops' : null}
               focusedKey={focusedKey}
               held={held}
+              placing={placing}
+              motion={motion}
               onTake={observing ? null : take}
             />
             <Works
@@ -736,58 +739,38 @@ type Grab = {
 type Take = (grab: Grab) => void;
 
 /**
- * **Une pièce de la main est un bouton** : la souris la prend en glissant, Entrée la met en main,
- * et le clic qu'un pointeur laisse derrière sa pression ne la reprend pas. **Au doigt**, le rang
- * défile sous un balayage et la tuile se prend d'un geste vers le haut ; touchée sans glisser,
- * elle se met en main comme au clavier.
+ * **Une tuile de la bande est un bouton** (#162) : un clic, un toucher ou Entrée la met en main,
+ * un geste vers le haut la prend sous le pointeur, un geste de côté fait défiler sa rangée
+ * (`pressRail`). Le clic qu'un pointeur laisse derrière sa pression ne la reprend pas.
  */
-const takeProps = (take: Take | null) =>
-  take === null
-    ? {}
-    : {
-        onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-          if (event.button !== 0) return;
-          const grab = {
-            element: event.currentTarget,
-            pointerId: event.pointerId,
-            x: event.clientX,
-            y: event.clientY,
-          };
-          if (event.pointerType !== 'touch') {
-            event.preventDefault();
-            return take(grab);
-          }
-          liftOrSwipe(grab, take);
-        },
-        onClick: (event: ReactMouseEvent<HTMLElement>) => {
-          if (event.detail === 0)
-            take({ element: event.currentTarget, pointerId: null, x: 0, y: 0 });
-        },
-      };
+const gripOf =
+  (rail: { readonly current: HTMLElement | null }, motion: MapMotion) => (take: Take | null) =>
+    take === null
+      ? {}
+      : {
+          onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+            event.stopPropagation();
+            const element = event.currentTarget;
+            pressRail(
+              event,
+              rail.current,
+              {
+                pick: () => take({ element, pointerId: null, x: 0, y: 0 }),
+                lift: ({ x, y }, pointerId) => take({ element, pointerId, x, y }),
+              },
+              motion,
+            );
+          },
+          onClick: (event: ReactMouseEvent<HTMLElement>) => {
+            if (event.detail === 0)
+              take({ element: event.currentTarget, pointerId: null, x: 0, y: 0 });
+          },
+        };
 
-function liftOrSwipe(grab: Grab, take: Take) {
-  const off = () => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', off);
-  };
-  function move(event: PointerEvent) {
-    if (event.pointerId !== grab.pointerId) return;
-    const dx = event.clientX - grab.x;
-    const dy = event.clientY - grab.y;
-    if (Math.hypot(dx, dy) < TOUCH_SLOP_PX) return;
-    off();
-    if (Math.abs(dy) > Math.abs(dx)) take({ ...grab, x: event.clientX, y: event.clientY });
-  }
-  function up(event: PointerEvent) {
-    if (event.pointerId !== grab.pointerId) return;
-    off();
-    take({ ...grab, pointerId: null });
-  }
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', off);
-}
+type Grip = ReturnType<ReturnType<typeof gripOf>>;
+
+/** Between the tiles a press only scrolls. */
+const NO_PICK = { pick: null, lift: null } as const;
 
 /** **Le plateau à tuiles** : deux onglets d'index, et leur rang qu'on fait défiler — flèches et
  *  molette au bureau, balayage au doigt. */
@@ -800,10 +783,13 @@ function Tray({
   cued,
   focusedKey,
   held,
+  placing,
+  motion,
   onTake,
 }: {
   view: PlayerView;
   workshop: Workshop | undefined;
+  motion: MapMotion;
   tab: Tab;
   onTab: (tab: Tab) => void;
   narrow: boolean;
@@ -811,10 +797,12 @@ function Tray({
   cued: Tab | null;
   focusedKey: BuildingKey | null;
   held: Held | null;
+  placing: BuildingKey | null;
   onTake: ((what: Held, grab: Grab) => void) | null;
 }) {
   const rail = useRef<HTMLDivElement>(null);
   const lit = useRef<HTMLButtonElement>(null);
+  const grip = gripOf(rail, motion);
 
   // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones".
   useEffect(() => {
@@ -876,7 +864,8 @@ function Tray({
       <div className="relative min-w-0">
         <div
           ref={rail}
-          className={`flex h-full snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
+          onPointerDown={(event) => pressRail(event, rail.current, NO_PICK, motion)}
+          className={`flex h-full touch-pan-x snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
             narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pr-[30px] pb-[10px] pl-[2px]'
           }`}
         >
@@ -888,8 +877,12 @@ function Tray({
                 buildingKey={key}
                 view={view}
                 narrow={narrow}
-                lit={key === focusedKey || (held?.kind === 'tile' && held.key === key)}
-                onTake={onTake === null ? null : (grab) => onTake({ kind: 'tile', key }, grab)}
+                lit={
+                  key === focusedKey ||
+                  key === placing ||
+                  (held?.kind === 'tile' && held.key === key)
+                }
+                grip={grip(onTake === null ? null : (grab) => onTake({ kind: 'tile', key }, grab))}
               />
             ))}
           {tab === 'troops' && !sites && (
@@ -908,9 +901,9 @@ function Tray({
                   narrow={narrow}
                   locked={lock !== null}
                   lit={held?.kind === 'piece' && held.role === role && held.tier === tier}
-                  onTake={
-                    onTake === null ? null : (grab) => onTake({ kind: 'piece', role, tier }, grab)
-                  }
+                  grip={grip(
+                    onTake === null ? null : (grab) => onTake({ kind: 'piece', role, tier }, grab),
+                  )}
                   picture={
                     <UnitSprite
                       nation={view.me.nation}
@@ -959,7 +952,7 @@ function TileFrame({
   narrow,
   locked,
   lit,
-  onTake,
+  grip,
   picture,
   meta,
   price,
@@ -969,7 +962,7 @@ function TileFrame({
   narrow: boolean;
   locked: boolean;
   lit: boolean;
-  onTake: Take | null;
+  grip: Grip;
   picture: ReactNode;
   meta: string;
   price: ReactNode;
@@ -979,18 +972,18 @@ function TileFrame({
     <button
       ref={ref}
       type="button"
-      {...takeProps(onTake)}
+      {...grip}
       title={label}
       aria-label={label}
-      className={`grid shrink-0 snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`grid shrink-0 touch-pan-x snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
-          ? 'h-[98px] w-[84px] touch-pan-x px-[5px] pt-[4px] pb-[5px]'
-          : 'h-[128px] w-[100px] touch-none px-[6px] pt-[5px] pb-[6px]'
+          ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
+          : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
       } ${
         locked
           ? 'border-dashed bg-transparent'
           : `bg-[#efe5cc] shadow-[0_2px_0_var(--ink)] ${narrow ? '' : 'mat-tile'}`
-      } ${onTake === null ? '' : 'cursor-grab'} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
+      } ${'onClick' in grip ? 'cursor-pointer' : ''} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
     >
       <b
         className={`line-clamp-2 leading-[1.1] font-semibold ${narrow ? 'text-[11px]' : 'text-[12px]'}`}
@@ -1020,14 +1013,14 @@ function Tile({
   view,
   narrow,
   lit,
-  onTake,
+  grip,
 }: {
   ref?: Ref<HTMLButtonElement> | undefined;
   buildingKey: BuildingKey;
   view: PlayerView;
   narrow: boolean;
   lit: boolean;
-  onTake: Take | null;
+  grip: Grip;
 }) {
   const standing = view.me.buildings.filter((building) => building.key === buildingKey);
   /** **Sa pareille debout**, la plus basse : la tuile dit l'élévation et son prix, comme la
@@ -1046,7 +1039,7 @@ function Tile({
       narrow={narrow}
       locked={refusal !== null}
       lit={lit}
-      onTake={onTake}
+      grip={grip}
       picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
       meta={
         refusal ??

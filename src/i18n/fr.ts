@@ -2889,7 +2889,7 @@ export const fr = {
     cue: {
       /** La bande repliée : on la déplie d'abord. */
       unfold: 'Dépliez le plateau personnel',
-      hq: 'La tuile du QG, lâchée sur votre sol',
+      hq: 'Cliquez la tuile du QG, puis votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
       pieces: 'Une pièce, lâchée sur la caserne',
       center: 'D’abord un Centre de recherche : sa tuile sur la carte',
@@ -3447,7 +3447,7 @@ export const fr = {
     harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
-    tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',
+    tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
     piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
     piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',

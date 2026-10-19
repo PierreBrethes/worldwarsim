@@ -211,6 +211,8 @@ type Props = {
    */
   placing?: PlacingBuilding | null;
   onPlacePoint?: (spot: PlacingSpot) => void;
+  /** The acting button over the map while a building is held: it goes back (#162). */
+  onPlacingDismiss?: () => void;
   onPlacingAim?: (spot: PlacingSpot | null) => void;
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
@@ -371,6 +373,7 @@ export function WorldMap({
   building = false,
   placing = null,
   onPlacePoint,
+  onPlacingDismiss,
   onPlacingAim,
   aiming = false,
   focus = null,
@@ -1027,6 +1030,10 @@ export function WorldMap({
   useEffect(() => {
     if (engine.current) engine.current.onPlacingAim = onPlacingAim ?? (() => {});
   }, [onPlacingAim]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onPlacingDismiss = onPlacingDismiss ?? (() => {});
+  }, [onPlacingDismiss]);
 
   /**
    * **Sous le doigt, un voyage referme la rose** : le toucher qui l'a ouverte a aussi ouvert une
