@@ -599,7 +599,7 @@ export type BuildSpec = {
  * lies under it and what he has put on it. Only his own — a region held by anyone else carries
  * no deposit and no building here, structurally, which is the same guard as the arc union.
  */
-export type RegionView = {
+type RegionView = {
   readonly id: string;
   readonly name: string;
   readonly coastal: boolean;
@@ -646,7 +646,7 @@ type RunningWork = {
   readonly level: number;
 };
 
-export type QueuedWork = {
+type QueuedWork = {
   readonly id: string;
   readonly name: string;
   readonly key: BuildCostKey;

@@ -8,10 +8,10 @@ import { PROJECTION_BY_DOMAIN } from './troops';
  * retire une part de la durée, les parts se multiplient, un plancher les borne.
  * @a-mesurer l'équilibrage chiffrera la part par niveau
  */
-export const LEVEL_SPEEDUP = 0.15;
+const LEVEL_SPEEDUP = 0.15;
 
 /** @a-mesurer la durée ne descend jamais sous cette part de la base */
-export const LEVEL_SPEED_FLOOR = 0.4;
+const LEVEL_SPEED_FLOOR = 0.4;
 
 /** Le facteur de durée d'un bâtiment de ce niveau : 1 au premier, jamais sous le plancher. */
 export const levelSpeed = (level: number): number =>

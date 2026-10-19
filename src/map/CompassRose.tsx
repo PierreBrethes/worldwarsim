@@ -604,7 +604,7 @@ function placeFingerBubble(
  * like `Pictogram`: these six drawings do not exist in `public/pictograms/`, and a twenty-unit
  * path gains nothing from going through a file.
  */
-export const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
+const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   cabin: <path d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z" />,
   /** L'élévation : le chevron sur ses deux assises — « un étage de plus » à quinze pixels, sans
    *  reprendre un trait de la grue, qui reste à « Bâtir ici » (tranché le 01/09). */

@@ -122,7 +122,7 @@ export type Spot = {
 };
 
 /** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche. Le QG a sa propre règle. */
-export const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter'];
+const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter'];
 
 /**
  * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before

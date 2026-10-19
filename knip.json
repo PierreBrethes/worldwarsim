@@ -8,5 +8,5 @@
   ],
   "project": ["src/**/*.{ts,tsx,css}", "convex/**/*.ts", "scripts/**/*.mjs"],
   "ignoreDependencies": ["world-atlas"],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": false
 }

@@ -4581,7 +4581,7 @@ export function aimRefusalText(
 }
 
 /** `de l’usine`, `du port`, `de la caserne` — the building a distance is measured from. */
-export const ofTheBuilding = (key: BuildingKey): string => {
+const ofTheBuilding = (key: BuildingKey): string => {
   const the = theBuilding(key);
   return the.startsWith('le ') ? `du ${the.slice(3)}` : `de ${the}`;
 };

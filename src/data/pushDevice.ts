@@ -9,7 +9,7 @@ import {
 } from '@/domain/push-device';
 import type { Seat } from './session';
 
-export function readCapabilities(): DeviceCapabilities {
+function readCapabilities(): DeviceCapabilities {
   const apple =
     /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);

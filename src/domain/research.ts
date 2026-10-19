@@ -18,7 +18,7 @@ import {
  * pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
  * ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
  */
-export type Unlock =
+type Unlock =
   | { readonly kind: 'role'; readonly role: UnitRole; readonly tier: UnitTier }
   | { readonly kind: 'building'; readonly key: BuildingKey }
   /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
@@ -30,7 +30,7 @@ export type Unlock =
 
 export type Lane = 'works' | 'training';
 
-export type Branch = 'land' | 'sea' | 'air' | 'industry';
+type Branch = 'land' | 'sea' | 'air' | 'industry';
 
 type CardSpec = {
   readonly branch: Branch;

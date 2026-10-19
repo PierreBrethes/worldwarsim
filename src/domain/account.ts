@@ -1,7 +1,7 @@
-export const NICKNAME_MIN = 3;
-export const NICKNAME_MAX = 16;
-export const PASSWORD_MIN_BYTES = 8;
-export const PASSWORD_MAX_BYTES = 72;
+const NICKNAME_MIN = 3;
+const NICKNAME_MAX = 16;
+const PASSWORD_MIN_BYTES = 8;
+const PASSWORD_MAX_BYTES = 72;
 /** Ce qui sépare deux tentatives de connexion sur un même pseudo. Pas un verrouillage : les
  *  pseudos sont publics, et un compte qu'un adversaire pourrait fermer en se trompant exprès
  *  serait une arme. Trois secondes ramènent une recherche de mot de passe à vingt essais par

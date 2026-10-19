@@ -403,7 +403,7 @@ export type EndsOf = (
 
 /** How far the lead-in runs along the axis, in board units, capped by a share of the leg.
  *  `@a-mesurer` on the board. */
-export const LEAD_LENGTH = 0.5;
+const LEAD_LENGTH = 0.5;
 const LEAD_SHARE = 0.4;
 const LEAD_STEPS = 10;
 

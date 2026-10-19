@@ -299,7 +299,7 @@ function useEscapeToClose(onClose: () => void, inFront: boolean): void {
 }
 
 /** The desktop « fermer » of every window header, one size for all. */
-export function CloseButton({ onClick }: { onClick: () => void }) {
+function CloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"

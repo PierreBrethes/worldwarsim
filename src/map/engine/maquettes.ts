@@ -314,11 +314,11 @@ export const GARRISON_FOOT = 0.8;
  * way reaches past half a span at its corners, and a span apart a headquarters and its barracks
  * still stood in one another (retours du 15/10). `@a-mesurer` on the board.
  */
-export const RING_GAP = 1.25;
+const RING_GAP = 1.25;
 
 /** **How far a ring may carry a maquette from its own point**, in board units at full piece
  *  size: under a span, so the site reads where it is. `@a-mesurer` on the board. */
-export const MAX_SHIFT = 0.55;
+const MAX_SHIFT = 0.55;
 
 type Placed = {
   readonly id: string;

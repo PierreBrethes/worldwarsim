@@ -21,7 +21,7 @@ export const RACE_POINTS: Readonly<Record<RacePoint, LonLat>> = {
 };
 
 /** The four belligerents of the race, in the order the table breaks a tie. */
-export const RACE_NATIONS: ReadonlyArray<Nation> = ['uk', 'germany', 'italy', 'ussr'];
+const RACE_NATIONS: ReadonlyArray<Nation> = ['uk', 'germany', 'italy', 'ussr'];
 
 /** Who takes which point, at which share of the page's scroll — Malta changes hands last. */
 const RACE_SCHEDULE: ReadonlyArray<readonly [RacePoint, Nation, number]> = [
@@ -81,7 +81,7 @@ export const ASSAULT = {
   again: 16,
 } as const;
 
-export const ASSAULT_STEPS = ['order', 'strike', 'riposte', 'rout', 'capture'] as const;
+const ASSAULT_STEPS = ['order', 'strike', 'riposte', 'rout', 'capture'] as const;
 export type AssaultStep = (typeof ASSAULT_STEPS)[number];
 
 export function assaultStepAt(seconds: number): AssaultStep {

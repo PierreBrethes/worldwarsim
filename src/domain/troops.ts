@@ -128,7 +128,7 @@ export function recruitRefusalOf(
  * server raises after it (`refusalOf`, ADR 0015) — never two. An outpost is not in it: the
  * `outpost` aim already makes a garrison of what arrives (ADR 0019 §3).
  */
-export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
+const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
   infantry: BUILDINGS,
   /** Le port et l'aérodrome s'y ajoutent (ADR 0025 §5) : une coque chargée de chars rentre à
    *  quai, un avion débarque ses passagers sur son terrain. */

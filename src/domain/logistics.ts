@@ -218,7 +218,7 @@ export function visitPlan<T extends string>(
 
 /** **Une prise de jetons** (prototype v3) : glisser prend 10 ; l'appui maintenu accélère, 10 par
  *  10 jusqu'à 50, puis 50 par 50. */
-export const GRAB_STEP = 10;
+const GRAB_STEP = 10;
 const GRAB_STEP_MS = 200;
 
 export function grabbedAfter(heldMs: number): number {

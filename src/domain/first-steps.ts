@@ -25,7 +25,7 @@ export type FirstSteps = {
 };
 
 /** What the bubble says, named here and worded in `fr.firstSteps.cue`. */
-export type CueSay =
+type CueSay =
   'hq' | 'move' | 'tiles' | 'pieces' | 'center' | 'research' | 'truck' | 'load' | 'outpost';
 
 /** Where the bubble stands — over a rack of the personal board, or under a piece on the map —

@@ -23,7 +23,7 @@ export type EuropeSheet = {
 };
 
 /** The belligerents of the page, washed in their nation's ink. */
-export const PLAYING: ReadonlyMap<string, Nation> = new Map([
+const PLAYING: ReadonlyMap<string, Nation> = new Map([
   ['FRA', 'france'],
   ['GBR', 'uk'],
   ['DEU', 'germany'],

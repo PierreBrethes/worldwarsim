@@ -23,7 +23,7 @@ import { PALETTE } from '@/map/engine/palette';
 /** Everything on the sheet lies this far over it, so the paper does not swallow it. */
 export const SHEET_Y = 0.08;
 
-export function canvasTexture(
+function canvasTexture(
   width: number,
   height: number,
   draw: (ctx: CanvasRenderingContext2D) => void,

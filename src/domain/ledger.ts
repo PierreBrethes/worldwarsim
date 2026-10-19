@@ -17,7 +17,7 @@ import { cumulative } from './upkeep';
  *
  * Le texte vit dans `fr.ts` : les lignes ne portent que ce qu'il faut pour le dire.
  */
-export type LedgerWhat =
+type LedgerWhat =
   | {
       readonly kind: 'site';
       readonly building: BuildingKey;
@@ -38,7 +38,7 @@ export type LedgerWhat =
 
 export type LedgerRow = { readonly what: LedgerWhat; readonly perHour: number };
 
-export type LedgerSectionId = 'buildings' | 'troops' | 'outposts' | 'listening' | 'factory';
+type LedgerSectionId = 'buildings' | 'troops' | 'outposts' | 'listening' | 'factory';
 
 export type LedgerSection = {
   readonly id: LedgerSectionId;
