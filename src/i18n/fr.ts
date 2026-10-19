@@ -247,6 +247,10 @@ export const fr = {
     return: 'retour',
   } satisfies Record<MovementType, string>,
 
+  /** Le mouvement d'un avion qui largue (ADR 0028 §4) : une marche pour le serveur, un largage
+   *  pour le joueur. */
+  airdropMovement: 'largage',
+
   resources: {
     food: 'vivres',
     steel: 'acier',

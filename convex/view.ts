@@ -659,7 +659,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
          *  isolée, que seul un largage ravitaille. */
-        ...(blitz || economy.upkeep.storeOf[troop._id] === undefined ? {} : { anchored: true as const }),
+        ...(blitz || economy.upkeep.storeOf[troop._id] === undefined
+          ? {}
+          : { anchored: true as const }),
         ...(troop.load === undefined ? {} : { load: troop.load }),
         ...(troop.tour === undefined
           ? {}

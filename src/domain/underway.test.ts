@@ -51,6 +51,17 @@ describe('what runs, nearest first', () => {
     });
   });
 
+  it('calls a plane flying out to drop a packet a drop, and its way home a return', () => {
+    const lines = underwayOf(
+      board({}, [
+        march('M-1', 14, { drop: 'out' }),
+        march('M-2', 20, { type: 'return', drop: 'back' }),
+      ]),
+      [],
+    );
+    expect(lines.map((line) => line.label)).toEqual(['largage → Somme', 'retour → Somme']);
+  });
+
   it('dates a column held at a border at its resolution, not at its arrival', () => {
     const held = march('M-1', 0, { borderWait: { resolutionInMinutes: 300 } });
     expect(underwayOf(board({}, [held]), [])[0]?.endsAt).toBe(minutes(300));

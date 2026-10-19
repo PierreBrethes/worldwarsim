@@ -335,7 +335,9 @@ export type DropTarget =
     }
   | {
       readonly kind: 'squad';
-      readonly troops: ReadonlyArray<Carrying & { readonly id: string; readonly anchored: boolean }>;
+      readonly troops: ReadonlyArray<
+        Carrying & { readonly id: string; readonly anchored: boolean }
+      >;
     };
 
 export type DropRefusal =

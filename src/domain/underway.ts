@@ -67,7 +67,10 @@ export function underwayOf(
     lines.push({
       id: `movement-${arc.id}`,
       endsAt: at(arc.borderWait?.resolutionInMinutes ?? arc.minutesLeft),
-      label: fr.underway.movement(fr.movementTypes[arc.type], arc.destinationLabel),
+      label: fr.underway.movement(
+        arc.drop === 'out' ? fr.airdropMovement : fr.movementTypes[arc.type],
+        arc.destinationLabel,
+      ),
       face: { kind: 'unit', role: representativeRole(arc.stack) },
       place: { kind: 'movement', arcId: arc.id },
       moving: true,
