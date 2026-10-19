@@ -683,7 +683,7 @@ export type WorkSite = {
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
   'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
->;
+> & { readonly minutes?: number };
 
 export function workSitesOf(
   me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
@@ -709,7 +709,9 @@ export function workSitesOf(
       level: standing === undefined ? 1 : standing.level + 1,
       rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
-      minutes: standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes,
+      /** Dated at the start: the length the server wrote, not today's headquarters level. */
+      minutes:
+        work.minutes ?? (standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes),
     });
   };
   if (me.construction !== null) rising(me.construction, 0);

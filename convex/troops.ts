@@ -358,7 +358,7 @@ export async function startLanes(
 /** **Une troupe à la fois par site, deux avec Formation double** (ADR 0031). La Blitz forme une
  *  unité par bâtiment. */
 const lanesOf = (player: Doc<'players'> | null, blitz: boolean): number =>
-  blitz || player === null ? 1 : laneCount(player.researched ?? [], 'training');
+  player === null ? 1 : laneCount(player.researched ?? [], 'training', blitz);
 
 /** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site. La Blitz
  *  forme en `BLITZ.recruitMinutes`, sans niveau. */

@@ -89,12 +89,19 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
 };
 
 /** **Les files qui avancent en même temps** (ADR 0031) : une par défaut, une de plus par carte
- *  acquise qui l'ouvre. Lu par l'écran et par le serveur. */
-export const laneCount = (researched: ReadonlyArray<ResearchCard>, of: Lane): number =>
-  1 +
-  researched.filter((card) =>
-    RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'lane' && unlock.of === of),
-  ).length;
+ *  acquise qui l'ouvre ; la Blitz n'a pas de recherche, donc une seule. Lu par l'écran et par le
+ *  serveur. */
+export const laneCount = (
+  researched: ReadonlyArray<ResearchCard>,
+  of: Lane,
+  blitz: boolean,
+): number =>
+  blitz
+    ? 1
+    : 1 +
+      researched.filter((card) =>
+        RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'lane' && unlock.of === of),
+      ).length;
 
 /** Les slots de mouvement qu'ouvrent ces cartes : un par carte Transmissions acquise. */
 export const slotCardsOf = (researched: ReadonlyArray<ResearchCard>): ReadonlyArray<ResearchCard> =>

@@ -187,11 +187,12 @@ describe('the Transmissions cards', () => {
 
 describe('the lane cards (ADR 0031)', () => {
   it('open a second lane each, late and dear, behind Transmissions II and with no counter', () => {
-    expect(laneCount([], 'works')).toBe(1);
-    expect(laneCount(['transmissions1', 'transmissions2'], 'training')).toBe(1);
-    expect(laneCount(['doubleWorks'], 'works')).toBe(2);
-    expect(laneCount(['doubleWorks'], 'training')).toBe(1);
-    expect(laneCount(['doubleTraining'], 'training')).toBe(2);
+    expect(laneCount([], 'works', false)).toBe(1);
+    expect(laneCount(['transmissions1', 'transmissions2'], 'training', false)).toBe(1);
+    expect(laneCount(['doubleWorks'], 'works', false)).toBe(2);
+    expect(laneCount(['doubleWorks'], 'training', false)).toBe(1);
+    expect(laneCount(['doubleTraining'], 'training', false)).toBe(2);
+    expect(laneCount(['doubleWorks'], 'works', true)).toBe(1);
     for (const card of ['doubleWorks', 'doubleTraining'] as const) {
       expect(RESEARCH_TREE[card].after).toEqual(['transmissions2']);
       expect(RESEARCH_SPEC[card].hours).toBe(30);

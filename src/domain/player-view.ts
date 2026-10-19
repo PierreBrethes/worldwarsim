@@ -639,6 +639,9 @@ type RunningWork = {
    *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
+  /** **La durée dont le serveur l'a daté** : la barre se tire d'elle, jamais d'un recalcul au
+   *  niveau du QG d'aujourd'hui. Absente sur un chantier d'avant le champ. */
+  readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
 };
@@ -655,6 +658,8 @@ export type QueuedWork = {
   readonly level: number;
   /** Daté : il monte sur la seconde file (Chantier double, ADR 0031), `null` : il attend sa file. */
   readonly minutesLeft?: number | null;
+  /** Sa durée datée, quand il monte (`RunningWork.minutes`). */
+  readonly minutes?: number;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';

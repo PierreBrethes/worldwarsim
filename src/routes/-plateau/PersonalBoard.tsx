@@ -13,8 +13,7 @@ import { createPortal } from 'react-dom';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { buildMinutes } from '../../../convex/constants';
-import { spedMinutes, speedsUp } from '@/domain/level-speed';
+import { speedsUp, worksMinutes } from '@/domain/level-speed';
 import { countdownLabel, fr, researchRequired, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { useMapMotion } from '@/data/mapMotion';
@@ -1139,7 +1138,9 @@ function Works({
         </p>
       )}
       {rows.map(({ work, running }, index) => {
-        const total = spedMinutes(buildMinutes(work.key, work.level), view.me.hqLevel);
+        const total =
+          (running ? work.minutes : undefined) ??
+          worksMinutes(work.key, work.level, view.me.hqLevel);
         const left = running ? currentMinutes(work.minutesLeft!, view.loadedAt, now) : total;
         return (
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">

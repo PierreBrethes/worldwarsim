@@ -1026,6 +1026,10 @@ export default defineSchema({
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
+    /** **La durée dont `runHead` l'a daté**, au niveau du QG d'alors (ADR 0031) : l'écran en tire
+     *  sa barre sans la recalculer au niveau d'aujourd'hui. Absent tant qu'il attend, et sur les
+     *  lignes d'avant le champ. */
+    minutes: v.optional(v.number()),
     /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
      *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
      *  Absent on an outpost's raise only: the point already stands on its own row. */

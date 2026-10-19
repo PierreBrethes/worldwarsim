@@ -36,7 +36,6 @@ import {
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
   buildCost,
-  buildMinutes,
   nominalStrength,
   settlesDebt,
 } from './constants';
@@ -53,7 +52,8 @@ import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { followCenter } from './research';
-import { spedMinutes } from '../src/domain/level-speed';
+import { worksMinutes } from '../src/domain/level-speed';
+import { modeOf } from '../src/domain/season-mode';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -480,7 +480,7 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 
   /** **Un chantier à la fois, deux avec Chantier double** (ADR 0031), relus à chaque réveil : la
    *  carte acquise date l'entrée qui attendait. */
-  const lanes = laneCount(player.researched ?? [], 'works');
+  const lanes = laneCount(player.researched ?? [], 'works', modeOf(season.mode) === 'blitz');
   /** Une élévation qui attend la fin d'une désactivation ne tient pas de voie : la suite passe. */
   const waitingOut = new Set<Id<'constructions'>>();
 
@@ -550,8 +550,9 @@ async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number
   /** Daté au départ, au niveau du QG d'alors : élevé plus tard, il ne redate pas ce chantier, le
    *  gain vaut pour la suite (ADR 0031). */
   const hqLevel = levelOf(await playerBuildings(ctx, head.playerId), 'hq');
-  const finishesAt = now + spedMinutes(buildMinutes(head.building, head.level), hqLevel) * 60_000;
-  await ctx.db.patch(head._id, { finishesAt });
+  const minutes = worksMinutes(head.building, head.level, hqLevel);
+  const finishesAt = now + minutes * 60_000;
+  await ctx.db.patch(head._id, { finishesAt, minutes });
   await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
     constructionId: head._id,
   });

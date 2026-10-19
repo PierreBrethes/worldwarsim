@@ -632,6 +632,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   ? null
                   : ([construction.point.lon, construction.point.lat] as [number, number]),
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              minutes: construction.minutes,
               level: construction.level,
             }
           : null,
@@ -646,6 +647,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           /** Daté : ce chantier monte lui aussi, sur la seconde file (ADR 0031). Absent : il attend. */
           minutesLeft:
             entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
+          minutes: entry.minutes,
           id: entry._id,
           name: entry.building,
           key: workKey(entry.building),
@@ -659,7 +661,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           level: entry.level,
         })),
       /** Combien de chantiers montent en même temps : un, deux avec Chantier double (ADR 0031). */
-      buildLanes: blitz ? 1 : laneCount(player.researched ?? [], 'works'),
+      buildLanes: laneCount(player.researched ?? [], 'works', blitz),
       armyPresent,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it

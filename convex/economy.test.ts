@@ -1,4 +1,5 @@
 import { DEPOSIT_POINTS } from '../src/domain/world';
+import { worksMinutes } from '../src/domain/level-speed';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
@@ -1594,6 +1595,22 @@ describe('the construction queue', () => {
     expect(await datedCount(t)).toBe(2);
     expect(await steelOf(t, seat)).toBe(opening);
     expect((await t.query(api.view.playerView, seat)).me.buildLanes).toBe(2);
+  });
+
+  /** **La durée datée reste celle du départ** : le QG s'élève pendant qu'un chantier monte, la vue
+   *  sert toujours la durée écrite, donc la barre de l'écran ne saute pas. */
+  it('serves the length a running works was dated by, whatever the headquarters becomes', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await t.mutation(api.constructions.start, { ...seat, ...SITES[0]! });
+    const dated = worksMinutes('barracks', 1, 2);
+    expect((await t.query(api.view.playerView, seat)).me.construction?.minutes).toBe(dated);
+
+    await promoteHq(t, seat, 4);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.construction?.minutes).toBe(dated);
+    expect(worksMinutes('barracks', 1, 4)).toBeLessThan(dated);
   });
 
   /** One entry per point, and the spacing reads the queue: two entries aiming at one place would
