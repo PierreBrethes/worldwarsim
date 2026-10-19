@@ -1,9 +1,9 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { researchMs, researchRefusalOf } from '../src/domain/research';
+import { holdsHq, researchMs, researchRefusalOf } from '../src/domain/research';
 import { RESEARCH_SPEC } from './constants';
 import { refuseInBlitz } from './blitz';
 import { playerBuildings } from './buildingReads';
@@ -11,12 +11,6 @@ import { fail } from './errors';
 import { debit, economyOf } from './resources';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { RESEARCH_CARD } from './validators';
-
-/** **Un QG à soi, debout** : un QG pris à un autre ne cherche pas pour son preneur. */
-export const holdsHq = (buildings: ReadonlyArray<Doc<'buildings'>>): boolean =>
-  buildings.some(
-    (building) => building.key === 'hq' && building.capturedAt === undefined && building.level > 0,
-  );
 
 /**
  * **Poser une carte sur son QG** (ADR 0028 §5) : payée à la pose, elle court en heures de jeu
@@ -34,7 +28,13 @@ export const start = mutation({
     const refusal = researchRefusalOf(card, {
       researched: player.researched ?? [],
       running: player.research?.card ?? null,
-      hqHeld: holdsHq(await playerBuildings(ctx, player._id)),
+      hqHeld: holdsHq(
+        (await playerBuildings(ctx, player._id)).map((building) => ({
+          key: building.key,
+          level: building.level,
+          captured: building.capturedAt !== undefined,
+        })),
+      ),
       stocks,
     });
     if (refusal !== null) {

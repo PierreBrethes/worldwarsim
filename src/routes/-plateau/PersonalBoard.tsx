@@ -44,6 +44,9 @@ import {
 import {
   RESEARCH_TREE,
   comingSoon,
+  counterOf,
+  countersOf,
+  holdsHq,
   researchProgressOf,
   researchRefusalOf,
 } from '@/domain/research';
@@ -773,7 +776,7 @@ const pieceName = (role: UnitRole, tier: UnitTier): string =>
 const situationOf = (view: PlayerView, now: number) => ({
   researched: view.me.research.researched,
   running: view.me.research.running?.card ?? null,
-  hqHeld: view.me.buildings.some((building) => building.key === 'hq'),
+  hqHeld: holdsHq(view.me.buildings),
   stocks: stocksAt(view, now),
 });
 
@@ -844,9 +847,8 @@ function ResearchCardTile({
   const done = view.me.research.researched.includes(card);
   const running = view.me.research.running?.card === card ? view.me.research.running : null;
   const progress = running === null ? null : researchProgressOf(running, now);
-  const counters = RESEARCH_CARDS.filter((weapon) =>
-    RESEARCH_TREE[weapon].counteredBy.includes(card),
-  );
+  const counters = countersOf(card);
+  const counter = counterOf(card);
   const refusal = done || running !== null ? null : cardRefusalOf(view, card);
   const name = fr.research.names[card];
   const label = refusal === null ? name : `${name} — ${refusal}`;
@@ -881,9 +883,11 @@ function ResearchCardTile({
           {fr.research.counters(names(counters))}
         </span>
       )}
-      {spec.counteredBy.length > 0 && (
+      {counter !== null && (
         <span className="text-[10.5px] leading-[1.25] text-[var(--critical)]">
-          {fr.research.counteredBy(names(spec.counteredBy))}
+          {fr.research.counteredBy(
+            'card' in counter ? cardName(counter.card) : fr.research.atStart(counter.start),
+          )}
         </span>
       )}
       <span className="mt-[2px] font-(family-name:--font-mono) text-[10px]">

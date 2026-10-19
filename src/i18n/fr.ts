@@ -3337,6 +3337,8 @@ export const fr = {
     and: ' et ',
     counters: (cards: string) => `contre ${cards}`,
     counteredBy: (cards: string) => `son contre : ${cards}`,
+    /** Un contre qu'on forme sans carte : `l'infanterie, au départ`. */
+    atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
     done: 'acquise',
     coming: 'à venir',
     left: (time: string) => `reste ${time}`,

@@ -1,7 +1,15 @@
-import { RESEARCH_SPEC } from '../../convex/constants';
+import { DAMAGE_TABLE, RESEARCH_SPEC } from '../../convex/constants';
+import { profileOf } from './combat';
 import { blitzOnly } from './blitz';
 import { shortfallOf } from './economy';
-import type { BuildingKey, ResearchCard, ResourceKey, UnitRole, UnitTier } from './ids';
+import {
+  RESEARCH_CARDS,
+  type BuildingKey,
+  type ResearchCard,
+  type ResourceKey,
+  type UnitRole,
+  type UnitTier,
+} from './ids';
 
 /**
  * **La recherche débloque, elle ne bonifie jamais** (ADR 0028 §5, décision 44a) : une carte ouvre
@@ -21,52 +29,43 @@ type CardSpec = {
   readonly unlocks: ReadonlyArray<Unlock>;
   /** Toutes, avant de la poser. */
   readonly after: ReadonlyArray<ResearchCard>;
-  /** Les cartes de ce qui la contre : elles coûtent et durent moins (`research.test.ts`). */
-  readonly counteredBy: ReadonlyArray<ResearchCard>;
 };
 
 const role = (unit: UnitRole, tier: UnitTier = 1): Unlock => ({ kind: 'role', role: unit, tier });
 
 export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
-  infantryMk2: { branch: 'land', unlocks: [role('infantry', 2)], after: [], counteredBy: [] },
+  infantryMk2: { branch: 'land', unlocks: [role('infantry', 2)], after: [] },
   armor: {
     branch: 'land',
     unlocks: [role('armor')],
     after: ['infantryMk2'],
-    counteredBy: ['infantryMk2'],
   },
-  armorMk2: { branch: 'land', unlocks: [role('armor', 2)], after: ['armor'], counteredBy: [] },
-  artillery: { branch: 'land', unlocks: [role('artillery')], after: [], counteredBy: [] },
-  escort: { branch: 'sea', unlocks: [role('escort')], after: [], counteredBy: [] },
+  armorMk2: { branch: 'land', unlocks: [role('armor', 2)], after: ['armor'] },
+  artillery: { branch: 'land', unlocks: [role('artillery')], after: [] },
+  escort: { branch: 'sea', unlocks: [role('escort')], after: [] },
   carrier: {
     branch: 'sea',
     unlocks: [role('carrier')],
     after: ['escort', 'aviation'],
-    counteredBy: ['escort', 'aviation'],
   },
   aviation: {
     branch: 'air',
     unlocks: [{ kind: 'building', key: 'airfield' }, role('fighter')],
     after: [],
-    counteredBy: [],
   },
   bomber: {
     branch: 'air',
     unlocks: [role('bomber')],
     after: ['aviation'],
-    counteredBy: ['aviation'],
   },
-  airlift: { branch: 'air', unlocks: [role('airTransport')], after: ['aviation'], counteredBy: [] },
-  syntheticOil: { branch: 'industry', unlocks: [{ kind: 'line' }], after: [], counteredBy: [] },
+  airlift: { branch: 'air', unlocks: [role('airTransport')], after: ['aviation'] },
+  syntheticOil: { branch: 'industry', unlocks: [{ kind: 'line' }], after: [] },
   listening: {
     branch: 'industry',
     unlocks: [{ kind: 'building', key: 'listening' }],
     after: [],
-    counteredBy: [],
   },
 };
-
-const CARDS = Object.keys(RESEARCH_TREE) as ReadonlyArray<ResearchCard>;
 
 /**
  * **Une carte dont ce qu'elle ouvre n'existe pas encore en Mondiale** reste dans l'arbre, et sa
@@ -83,8 +82,9 @@ const lockOf = (
   matches: (unlock: Unlock) => boolean,
   researched: ReadonlyArray<ResearchCard>,
 ): ResearchCard | null =>
-  CARDS.find((card) => !researched.includes(card) && RESEARCH_TREE[card].unlocks.some(matches)) ??
-  null;
+  RESEARCH_CARDS.find(
+    (card) => !researched.includes(card) && RESEARCH_TREE[card].unlocks.some(matches),
+  ) ?? null;
 
 /** La carte qui manque pour former ce rôle à ce palier, `null` quand rien ne le retient. */
 export const roleLockOf = (
@@ -178,3 +178,71 @@ export function researchProgressOf(
     finishesAt: running.since === null ? null : running.since + running.remainingMs,
   };
 }
+
+/** Les unités qu'une carte ouvre, telles que la table des dégâts les nomme. */
+const unitsOf = (card: ResearchCard) =>
+  RESEARCH_TREE[card].unlocks.flatMap((unlock) =>
+    unlock.kind === 'role' ? [{ role: unlock.role, tier: unlock.tier }] : [],
+  );
+
+/** Ce qu'on forme sans aucune carte : infanterie MK1, camion, cargo. */
+const STARTING_UNITS = (['infantry', 'landTransport', 'cargo'] as const).map((unit) => ({
+  role: unit,
+  tier: 1 as UnitTier,
+}));
+
+const beats = (
+  one: { readonly role: UnitRole; readonly tier: UnitTier },
+  other: { readonly role: UnitRole; readonly tier: UnitTier },
+): boolean => {
+  const a = profileOf(one.role, one.tier);
+  const b = profileOf(other.role, other.tier);
+  return (DAMAGE_TABLE[a]?.[b] ?? 0) > (DAMAGE_TABLE[b]?.[a] ?? 0);
+};
+
+/** Le poids d'un prix, toutes ressources confondues : de quoi dire qu'un contre coûte moins. */
+export const researchWeight = (card: ResearchCard): number =>
+  Object.values(RESEARCH_SPEC[card].cost).reduce((sum, amount) => sum + (amount ?? 0), 0);
+
+/**
+ * **Le contre d'une carte, lu dans `DAMAGE_TABLE`** : X contre Y quand X fait à Y plus de dégâts
+ * qu'il n'en reçoit. De tout ce qui contre ses unités, une unité de départ, sinon la carte la
+ * moins chère puis la plus courte. `null` pour une carte qui n'ouvre aucune unité, ou que rien ne
+ * contre.
+ */
+export function counterOf(
+  card: ResearchCard,
+): { readonly start: UnitRole } | { readonly card: ResearchCard } | null {
+  const weapons = unitsOf(card);
+  const counters = (units: ReadonlyArray<{ role: UnitRole; tier: UnitTier }>) =>
+    units.some((unit) => weapons.some((weapon) => beats(unit, weapon)));
+  const start = STARTING_UNITS.find((unit) => counters([unit]));
+  if (start !== undefined) return { start: start.role };
+  const best = RESEARCH_CARDS.filter((other) => other !== card && counters(unitsOf(other))).sort(
+    (a, b) =>
+      researchWeight(a) - researchWeight(b) || RESEARCH_SPEC[a].hours - RESEARCH_SPEC[b].hours,
+  )[0];
+  return best === undefined ? null : { card: best };
+}
+
+/** Les cartes dont celle-ci est le contre (`counterOf`) : ce que sa ligne « contre » nomme. */
+export const countersOf = (card: ResearchCard): ReadonlyArray<ResearchCard> =>
+  RESEARCH_CARDS.filter((weapon) => {
+    const counter = counterOf(weapon);
+    return counter !== null && 'card' in counter && counter.card === card;
+  });
+
+/**
+ * **Un QG à soi, debout et jamais pris** : lui seul cherche. Un QG pris à un autre ne cherche pas
+ * pour son preneur ; lu par l'écran et par `research.start`.
+ */
+export const holdsHq = (
+  buildings: ReadonlyArray<{
+    readonly key: BuildingKey;
+    readonly level: number;
+    readonly captured?: boolean;
+  }>,
+): boolean =>
+  buildings.some(
+    (building) => building.key === 'hq' && building.captured !== true && building.level > 0,
+  );

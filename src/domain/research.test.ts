@@ -1,41 +1,61 @@
 import { describe, expect, it } from 'vitest';
 import { RESEARCH_SPEC } from '../../convex/constants';
-import { RESEARCH_CARDS, type ResearchCard } from './ids';
+import { RESEARCH_CARDS } from './ids';
 import {
   RESEARCH_TREE,
   buildingLockOf,
   comingSoon,
+  counterOf,
+  countersOf,
+  holdsHq,
+  researchWeight,
   researchProgressOf,
   researchRefusalOf,
   roleLockOf,
 } from './research';
 
-const total = (card: ResearchCard) =>
-  Object.values(RESEARCH_SPEC[card].cost).reduce((sum, amount) => sum + (amount ?? 0), 0);
-
 const stocks = { food: 500, steel: 500, coal: 500, oil: 500, ammunition: 0 };
 const ready = { researched: [], running: null, hqHeld: true, stocks } as const;
 
 describe('the research tree', () => {
-  it('lets the counter pass before the weapon: it costs less and lasts less', () => {
-    const couples = RESEARCH_CARDS.flatMap((weapon) =>
-      RESEARCH_TREE[weapon].counteredBy.map((counter) => [weapon, counter] as const),
+  /**
+   * **Le contre passe avant l'arme** (ADR 0028 §5) : une carte qui en demande une autre ouvre une
+   * arme, et ce qui la contre — lu dans `DAMAGE_TABLE` — est au départ, ou coûte moins et dure
+   * moins qu'elle. Ni le contre ni l'arme ne sont écrits ici : la table et `RESEARCH_SPEC` font foi.
+   */
+  it('lets the counter of every weapon pass before it, read off the damage table', () => {
+    const weapons = RESEARCH_CARDS.filter(
+      (card) =>
+        RESEARCH_TREE[card].after.length > 0 &&
+        RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'role'),
     );
-    expect(couples).toEqual(
-      expect.arrayContaining([
-        ['armor', 'infantryMk2'],
-        ['bomber', 'aviation'],
-        ['carrier', 'escort'],
-        ['carrier', 'aviation'],
-      ]),
-    );
-    for (const [weapon, counter] of couples) {
-      expect(RESEARCH_SPEC[counter].hours).toBeLessThan(RESEARCH_SPEC[weapon].hours);
-      expect(RESEARCH_SPEC[counter].cost.steel ?? 0).toBeLessThan(
+    expect(weapons.length).toBeGreaterThan(0);
+    for (const weapon of weapons) {
+      const counter = counterOf(weapon);
+      expect(counter, weapon).not.toBeNull();
+      if (counter === null || !('card' in counter)) continue;
+      const { card } = counter;
+      expect(RESEARCH_SPEC[card].hours, `${card} → ${weapon}`).toBeLessThan(
+        RESEARCH_SPEC[weapon].hours,
+      );
+      expect(RESEARCH_SPEC[card].cost.steel ?? 0, `${card} → ${weapon}`).toBeLessThan(
         RESEARCH_SPEC[weapon].cost.steel ?? 0,
       );
-      expect(total(counter)).toBeLessThan(total(weapon));
+      expect(researchWeight(card), `${card} → ${weapon}`).toBeLessThan(researchWeight(weapon));
     }
+  });
+
+  it('reads the counters off the table: the escort answers the carrier, the fighter the bomber', () => {
+    expect(counterOf('carrier')).toEqual({ card: 'escort' });
+    expect(countersOf('aviation')).toEqual(expect.arrayContaining(['bomber']));
+    expect(counterOf('artillery')).toEqual({ start: 'infantry' });
+    expect(counterOf('listening')).toBeNull();
+  });
+
+  it('holds a research only on a headquarters of one’s own, standing', () => {
+    expect(holdsHq([{ key: 'hq', level: 1 }])).toBe(true);
+    expect(holdsHq([{ key: 'hq', level: 1, captured: true }])).toBe(false);
+    expect(holdsHq([{ key: 'barracks', level: 2 }])).toBe(false);
   });
 
   it('is not finished within a season', () => {
