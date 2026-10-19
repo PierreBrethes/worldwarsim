@@ -114,7 +114,12 @@ import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { boardingRefusalDetails, boardingRefusalOf, type Column } from '@/domain/movement-orders';
+import {
+  boardingRefusalDetails,
+  boardingRefusalOf,
+  disbandRefusalOf,
+  type Column,
+} from '@/domain/movement-orders';
 import {
   type ArcView,
   type CombatReport,
@@ -256,6 +261,10 @@ type GroupRead = {
   readonly troopIds: ReadonlyArray<string>;
   readonly compass: Compass | null;
 };
+
+/** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
+const groupKeyOf = (action: OrderAction): string =>
+  `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
 
 /** L'identifiant que porte une pile sur la carte : son étiquette posée, ou sa garnison. */
 const pileIdOf = (station: MarchStation): string =>
@@ -986,7 +995,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         view.mode === 'blitz' ? null : view.me.slots.total - view.me.slots.used,
       );
       for (const action of group?.actions ?? [])
-        if (isOrder(action)) groupReads.current.set(JSON.stringify(choiceOf(action).aim), reads);
+        if (isOrder(action)) groupReads.current.set(groupKeyOf(action), reads);
       return group;
     },
     [view, marching, pileCompass],
@@ -1298,11 +1307,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         case 'plunder':
         case 'capture':
         case 'collect': {
-          const reads = grouped
-            ? groupReads.current.get(JSON.stringify(choiceOf(action).aim))
-            : undefined;
-          if (reads !== undefined) {
-            groupSend.current(reads, action);
+          if (grouped) {
+            // Never the lead alone: a group read that is gone is said, not half sent.
+            const reads = groupReads.current.get(groupKeyOf(action));
+            if (reads === undefined) {
+              setOrderError(fr.selection.reread);
+              dropHand();
+            } else groupSend.current(reads, action);
             return;
           }
           if (column === null || inFlight.current) return;
@@ -2152,16 +2163,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         const own = matchingOrder(compass, action);
         return own !== undefined && isOrder(own) ? [{ station, troopIds, own }] : [];
       });
-      if (orders.length !== reads.length) return;
+      if (orders.length !== reads.length) {
+        setOrderError(fr.selection.partRefused(reads.length - orders.length, reads.length, null));
+        dropHand();
+        return;
+      }
       inFlight.current = true;
       setOrderError(null);
       void Promise.allSettled(
         orders.map(({ station, troopIds, own }) => sendOrder(station, troopIds, choiceOf(own))),
       ).then((results) => {
         settle();
-        clearSelection();
+        // A pile the server refused stays chosen; one that left drops out by itself.
         const failed = results.find((result) => result.status === 'rejected');
-        if (failed !== undefined) handleError(failed.reason, setOrderError);
+        if (failed === undefined) clearSelection();
+        else handleError(failed.reason, setOrderError);
         const sent = results.find((result) => result.status === 'fulfilled');
         if (sent !== undefined) afterSent(sent.value, action.label);
         else dropHand();
@@ -2202,8 +2218,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       rest,
     );
     const join = group?.actions.find((action) => action.key === 'aim' && action.join !== undefined);
-    const reads =
-      join?.key === 'aim' ? groupReads.current.get(JSON.stringify(join.aim)) : undefined;
+    const reads = join?.key === 'aim' ? groupReads.current.get(groupKeyOf(join)) : undefined;
     if (join === undefined || reads === undefined) {
       setBarRefusal(group?.refusal ?? fr.selection.noSquadHere);
       return;
@@ -2215,8 +2230,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
   const disbandSquad = useCallback(() => {
     const [only] = chosen;
-    if (chosen.length !== 1 || only?.kind !== 'point') {
-      setBarRefusal(fr.errors.NOT_A_SQUAD());
+    const pile =
+      only === undefined || chosen.length !== 1
+        ? []
+        : troopsAt(view.me, stationKeyOf(only), marching);
+    const refusal = disbandRefusalOf({
+      onPoint: only?.kind === 'point' && chosen.length === 1,
+      pieces: pile.filter((troop) => carrierIn(troop, pile) === null).length,
+      blitz,
+      loaded: view.me.stationedCargo.some(
+        (group) =>
+          group.cargo.carried > 0 && group.troopIds.some((id) => pile.some((t) => t.id === id)),
+      ),
+    });
+    if (refusal !== null || only?.kind !== 'point') {
+      setBarRefusal(fr.errors[refusal ?? 'NOT_A_SQUAD']());
       return;
     }
     setBarRefusal(null);
@@ -2224,7 +2252,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       clearSelection,
       (problem: unknown) => handleError(problem, setBarRefusal),
     );
-  }, [chosen, disbandMutation, seat, clearSelection]);
+  }, [chosen, view.me, marching, blitz, disbandMutation, seat, clearSelection]);
 
   /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
   useEffect(() => {

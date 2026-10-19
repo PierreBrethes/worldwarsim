@@ -810,7 +810,10 @@ export function disbandRefusalOf({
   return loaded ? 'SQUAD_CARRIES_LOOT' : null;
 }
 
-/** L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude. @a-mesurer */
+/**
+ * L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude.
+ * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
+ */
 export const DISBAND_SPREAD_DEG = 0.05;
 
 /** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne

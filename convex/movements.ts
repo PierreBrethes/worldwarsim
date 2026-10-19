@@ -395,7 +395,13 @@ export const disband = mutation({
         .query('stationedLoot')
         .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
         .collect()
-    ).some((row) => JSON.stringify(row.stationedAt) === JSON.stringify(point));
+    ).some(
+      ({ stationedAt }) =>
+        stationedAt !== null &&
+        typeof stationedAt !== 'string' &&
+        stationedAt.lon === point.lon &&
+        stationedAt.lat === point.lat,
+    );
     const refusal = disbandRefusalOf({
       onPoint: true,
       pieces: pieces.length,

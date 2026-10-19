@@ -1426,6 +1426,7 @@ export class MapEngine {
     // canvas, and a page that rebuilds the map a few times hits the context limit.
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
+    this.lassoPath?.ownerSVGElement?.remove();
   }
 
   private wireInputs(): void {

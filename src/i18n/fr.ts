@@ -4067,6 +4067,7 @@ export const fr = {
     /** Au doigt, après l'appui long sur le plateau : les touchers ajoutent. */
     picking: 'touchez vos piles',
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
+    reread: 'la sélection a changé sous la main — reprenez-la et lâchez-la de nouveau',
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
     label: 'Sélection',
   },
