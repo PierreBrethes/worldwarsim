@@ -13,6 +13,7 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'capture',
   'collect',
   'deliver',
+  'airdrop',
   'tour',
   'tourStop',
   'board',
@@ -69,6 +70,7 @@ export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
   const capital = action.label.charAt(0).toUpperCase() + action.label.slice(1);
   if (action.key === 'board') return { icon: '⤓', tone: 'order', verb: verbs.board };
   if (action.key === 'deliver') return { icon: '⇥', tone: 'order', verb: verbs.deliver };
+  if (action.key === 'airdrop') return { icon: '⇣', tone: 'order', verb: verbs.airdrop };
   if (action.key === 'tour' || action.key === 'tourStop')
     return { icon: '↻', tone: 'order', verb: action.key === 'tour' ? verbs.tour : capital };
   if (action.key !== 'aim')

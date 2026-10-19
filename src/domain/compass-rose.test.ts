@@ -496,6 +496,92 @@ describe('in aim', () => {
     });
   });
 
+  /** **Larguer** (ADR 0028 §4) : un avion chargé ne se pose qu'à une escale, mais il largue sur
+   *  n'importe lequel de ses avant-postes, et sur une escouade isolée. */
+  describe('a loaded plane', () => {
+    const flying = {
+      ...column,
+      roles: ['airTransport' as const],
+      departureBuildings: new Set<BuildingKey>(['airfield']),
+    };
+    const plane = {
+      id: 'P1',
+      role: 'airTransport',
+      tier: 1,
+      load: { ammunition: 60, oil: 0, coal: 0 },
+      stationedAt: { kind: 'building', buildingId: 'AF' },
+    };
+    const lone = (anchored: boolean, rounds = 0) => ({
+      id: 'S1',
+      role: 'infantry',
+      tier: 1,
+      supplies: { rounds, fuel: 0 },
+      stationedAt: {
+        kind: 'point' as const,
+        lonLat: [9, 52] as const,
+        country: 'DEU',
+        afloat: false,
+        coastal: false,
+      },
+      ...(anchored ? { anchored: true } : {}),
+    });
+    const withTroops = (depotLevel: number, ...others: object[]) =>
+      ({
+        ...view,
+        me: {
+          ...view.me,
+          troops: [plane, ...others],
+          outposts: view.me.outposts.map((outpost) => ({
+            ...outpost,
+            level: depotLevel,
+            depot: { ammunition: 0, oil: 0, coal: 0 },
+            depotCapacity: 400,
+          })),
+        },
+      }) as unknown as PlayerView;
+    const outpost = {
+      kind: 'outpost',
+      id: 'AP-01',
+      hostCountry: 'NOR',
+      name: 'relais',
+      coastal: false,
+    } as const;
+    const squad = {
+      kind: 'force',
+      id: 'S1-stack',
+      onLand: true,
+      country: 'DEU',
+      name: 'escouade',
+      headcount: 1,
+      station: lone(false).stationedAt,
+      regionId: null,
+    } as const;
+
+    it('drops on an outpost with no airstrip, and delivers only on an air stop', () => {
+      expect(
+        compassOf(outpost, withTroops(1), flying, null, 0, ['P1'])?.actions.map(
+          (action) => action.key,
+        ),
+      ).toEqual(['airdrop']);
+      expect(
+        compassOf(outpost, withTroops(2), flying, null, 0, ['P1'])?.actions.map(
+          (action) => action.key,
+        ),
+      ).toEqual(['deliver', 'airdrop', 'aim']);
+    });
+
+    it('drops on a lone squad that lacks rounds, and says why not on an anchored or a full one', () => {
+      const far = { kind: 'building', buildingId: 'AF' } as const;
+      const at = (...troops: object[]) =>
+        compassOf(squad, withTroops(1, ...troops), flying, far, 0, ['P1']);
+      expect(at(lone(false))?.actions.map((action) => action.key)).toContain('airdrop');
+      expect(at(lone(true))?.refusal).toBe(
+        'cette escouade est ancrée : elle se recharge seule, sans paquet',
+      );
+      expect(at(lone(false, 3))?.refusal).toContain('rien à reprendre');
+    });
+  });
+
   /** **Un point adverse ne bouge pas** : la plate de visée d'aujourd'hui, assaut et raid, et pas
    *  de marche — on ne marche pas *sur* un point qu'on vient combattre. */
   it('keeps the assault and the raid on an outpost that is not mine, and adds capture', () => {

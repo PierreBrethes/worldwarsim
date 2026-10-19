@@ -39,6 +39,7 @@ import { NATION_BY_ADM0 } from './nations';
 import {
   carriersAmong,
   deliverRefusalOf,
+  dropRefusalOf,
   loadTotal,
   onTourRefusalOf,
   tourRefusalOf,
@@ -534,6 +535,23 @@ export type CompassAction =
       readonly consequence: string;
       readonly outpostId: string;
       /** Le nom du point, pour le cartouche « transmis ». */
+      readonly destination: string;
+    }
+  /**
+   * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche son paquet sur un de mes
+   * avant-postes — escale ou non — ou sur une de mes escouades isolées, et rentre seul. Un
+   * mouvement, avec son slot ; la règle est `dropRefusalOf`, celle que `logistics.airdrop` relit.
+   */
+  | {
+      readonly key: 'airdrop';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly target:
+        | { readonly kind: 'outpost'; readonly outpostId: string }
+        | { readonly kind: 'squad'; readonly point: LonLat };
+      /** Le nom du lieu, pour le cartouche « transmis ». */
       readonly destination: string;
     }
   /**
@@ -1206,10 +1224,25 @@ function withDelivery(
         },
       ]
     : [];
+  const drop: ReadonlyArray<CompassAction> =
+    dropRefusalOf(carriers, { kind: 'outpost', ...depot }) === null
+      ? [
+          {
+            key: 'airdrop',
+            pictogram: 'crate',
+            label: fr.compass.airdrop,
+            cost: slotCost(view),
+            consequence: fr.compass.airdropOutpostConsequence,
+            target: { kind: 'outpost', outpostId },
+            destination: fan.name,
+          },
+        ]
+      : [];
   const refusal = deliverRefusalOf(carriers, depot);
   if (refusal !== null) {
     const { code, ...details } = refusal;
-    return { ...fan, actions: tour, refusal: tour.length > 0 ? null : fr.errors[code](details) };
+    const actions = [...drop, ...tour];
+    return { ...fan, actions, refusal: actions.length > 0 ? null : fr.errors[code](details) };
   }
   const deliver: CompassAction = {
     key: 'deliver',
@@ -1220,7 +1253,7 @@ function withDelivery(
     outpostId,
     destination: fan.name,
   };
-  return { ...fan, actions: [deliver, ...tour, ...fan.actions], refusal: null };
+  return { ...fan, actions: [deliver, ...drop, ...tour, ...fan.actions], refusal: null };
 }
 
 /** **Le dépôt d'un de mes points**, tel que livrer et tourner le lisent — la lecture de
@@ -1786,15 +1819,63 @@ function towardsMyPile(
             : [],
         )
       : [];
-  const actions = [...(onto?.actions ?? []), ...join];
+  const dropped = airdropOnSquad(station, target.name, view, column, heldTroopIds);
+  const actions = [...(onto?.actions ?? []), ...dropped.actions, ...join];
   return {
     kicker: fr.compass.aiming(column.roles.length),
     name: target.name,
     actions,
+    /** Le motif d'un largage refusé se dit à côté de « rejoindre » : l'avion chargé qu'on tient
+     *  n'apprendrait sinon jamais pourquoi la branche manque. */
     refusal:
-      actions.length > 0
+      dropped.refusal ??
+      (actions.length > 0
         ? null
-        : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad)),
+        : (onto?.refusal ?? (column.blitz === undefined ? fan.refusal : fr.compass.noSquad))),
+  };
+}
+
+/**
+ * **Larguer sur une escouade isolée** (ADR 0028 §4) : l'avion chargé en main, lâché sur une de mes
+ * piles posées. Rien si la main ne porte aucun avion chargé ; sinon la branche, ou le motif de
+ * `dropRefusalOf` — ancrée, déjà pleine — que la rose dit à la place.
+ */
+function airdropOnSquad(
+  station: Extract<TroopStation, { kind: 'point' }>,
+  name: string,
+  view: PlayerView,
+  column: Column,
+  heldTroopIds: ReadonlyArray<string>,
+): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } {
+  const carriers = carriersAmong(view.me.troops.filter((troop) => heldTroopIds.includes(troop.id)));
+  if (column.blitz !== undefined || !carriers.some((troop) => loadTotal(troop.load) > 0))
+    return { actions: [], refusal: null };
+  const refusal = dropRefusalOf(carriers, {
+    kind: 'squad',
+    troops: heldAt(station, view).map((troop) => ({
+      id: troop.id,
+      role: troop.role,
+      ...troop.supplies,
+      anchored: troop.anchored === true,
+    })),
+  });
+  if (refusal !== null) {
+    const { code, ...details } = refusal;
+    return { actions: [], refusal: fr.errors[code](details) };
+  }
+  return {
+    actions: [
+      {
+        key: 'airdrop',
+        pictogram: 'crate',
+        label: fr.compass.airdrop,
+        cost: slotCost(view),
+        consequence: fr.compass.airdropSquadConsequence,
+        target: { kind: 'squad', point: station.lonLat },
+        destination: name,
+      },
+    ],
+    refusal: null,
   };
 }
 

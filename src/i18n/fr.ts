@@ -731,7 +731,8 @@ export const fr = {
     DROP_BY_AIR_ONLY: () => 'seul un avion de transport largue : camions et cargos se posent',
     NO_SQUAD_THERE: () => 'aucune de vos escouades ne se tient là',
     SQUAD_ANCHORED: () => 'cette escouade est ancrée : elle se recharge seule, sans paquet',
-    SQUAD_SUPPLIED: () => 'rien à reprendre : coups et plein de l’escouade sont au complet, ou le paquet n’est pas de ce qui lui manque',
+    SQUAD_SUPPLIED: () =>
+      'rien à reprendre : coups et plein de l’escouade sont au complet, ou le paquet n’est pas de ce qui lui manque',
     TOUR_NOT_AT_LOADING_POINT: (d) =>
       `une tournée part d’un point de chargement : amenez ${
         d.role === 'cargo'

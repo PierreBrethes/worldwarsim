@@ -875,6 +875,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
   const deliver = useMutation(api.logistics.deliver);
+  const airdrop = useMutation(api.logistics.airdrop);
   const loadTransport = useMutation(api.logistics.load);
   /** **Charger** (ADR 0028 §4) : des jetons du plateau personnel ou d'un dépôt, glissés sur un
    *  transport ; la main montre alors toutes les étiquettes de transport. */
@@ -1086,6 +1087,35 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           );
           return;
         }
+        /** **Larguer** (ADR 0028 §4) : l'avion part au lâcher, paie l'aller-retour et rentre seul. */
+        case 'airdrop': {
+          if (column === null || inFlight.current) return;
+          inFlight.current = true;
+          setOrderError(null);
+          airdrop({
+            ...seat,
+            origin: wireOrigin(column.station),
+            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+            target:
+              action.target.kind === 'outpost'
+                ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
+                : {
+                    kind: 'squad',
+                    point: { lon: action.target.point[0], lat: action.target.point[1] },
+                  },
+          }).then(
+            (filed) => {
+              settle();
+              afterSent({ ...filed, destination: action.destination }, action.label);
+            },
+            (problem: unknown) => {
+              settle();
+              handleError(problem, setOrderError);
+              dropHand();
+            },
+          );
+          return;
+        }
         /** **Tracer une tournée** (ADR 0028) : le premier dépôt, puis les suivants ; rien ne part
          *  avant que l'étiquette du transport la lance. */
         case 'tour':
@@ -1172,6 +1202,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       boardTransport,
       bombard,
       deliver,
+      airdrop,
       dropHand,
       column,
       seat,
