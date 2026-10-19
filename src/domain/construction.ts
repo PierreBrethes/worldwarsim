@@ -189,7 +189,7 @@ export const pledgedWork = (
   readonly regionId: string;
   readonly outpostId: string | null;
   readonly point: LonLat | null;
-  /** Daté : il monte déjà (une voie du QG) ; absent ou `null` : il attend. */
+  /** Daté : il monte déjà (sur une file de chantier) ; absent ou `null` : il attend. */
   readonly minutesLeft?: number | null;
 }> =>
   view.me.construction === null
@@ -349,6 +349,9 @@ export function aimVerdict(
         : { key: deposit.deposit, taken: !freeDeposits(view).includes(deposit) },
     coastal: aim.coastal,
     nearest: nearestBuilding(aim.lonLat, around),
+    already:
+      view.me.buildings.some((building) => building.key === key && building.captured !== true) ||
+      pledgedBuildings(view).some((order) => order.key === key),
   };
   const refusal = placementRefusal(key, spot, view.me.hqLevel, view.buildCatalog[key].lockedBy);
   if (refusal === null) return { refusal: null, free };
@@ -680,7 +683,7 @@ export type WorkSite = {
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
   'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
->;
+> & { readonly minutes?: number };
 
 export function workSitesOf(
   me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
@@ -688,7 +691,7 @@ export function workSitesOf(
   loadedAt: number,
 ): WorkSite[] {
   const sites: WorkSite[] = [];
-  /** Un chantier qui monte, sur n'importe laquelle des voies du QG (#136). */
+  /** Un chantier qui monte, sur n'importe laquelle des files de chantier (ADR 0031). */
   const rising = (work: RisingWork, rank: number) => {
     if (work.outpostId !== null || work.key === 'outpost') return;
     const key = work.key;
@@ -706,7 +709,9 @@ export function workSitesOf(
       level: standing === undefined ? 1 : standing.level + 1,
       rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
-      minutes: standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes,
+      /** Dated at the start: the length the server wrote, not today's headquarters level. */
+      minutes:
+        work.minutes ?? (standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes),
     });
   };
   if (me.construction !== null) rising(me.construction, 0);
@@ -732,29 +737,14 @@ export function workSitesOf(
 }
 
 /**
- * **Chantiers qui montent en même temps par niveau du quartier général** (#136) : le niveau N en
- * permet N.
- * @a-mesurer un chantier par niveau, à éprouver sur le rythme réel d'une Mondiale
+ * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), celles qui
+ * démarrent — les premières en attente, tant qu'une file est libre (ADR 0031 : une, deux avec
+ * Chantier double). Les files ne rétrécissent jamais : une carte acquise le reste.
  */
-export const LANES_PER_HQ_LEVEL = 1;
-
-/** Sans QG debout, une seule voie : c'est ce qui permet de le rebâtir. */
-export const buildLanes = (hqLevel: number): number => Math.max(1, hqLevel * LANES_PER_HQ_LEVEL);
-
-/**
- * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), lesquelles
- * repartent en attente parce que les voies ont rétréci (les dernières), et lesquelles démarrent
- * (les premières en attente, tant qu'une voie est libre). Une seule lecture pour le serveur.
- */
-export function lanesPlan(
-  running: ReadonlyArray<boolean>,
-  lanes: number,
-): { pause: number[]; start: number[] } {
-  const indices = running.map((_, index) => index);
-  const rising = indices.filter((index) => running[index]);
-  const waiting = indices.filter((index) => !running[index]);
-  return {
-    pause: rising.slice(lanes),
-    start: waiting.slice(0, Math.max(0, lanes - rising.length)),
-  };
+export function lanesPlan(running: ReadonlyArray<boolean>, lanes: number): number[] {
+  const rising = running.filter(Boolean).length;
+  return running
+    .map((_, index) => index)
+    .filter((index) => !running[index])
+    .slice(0, Math.max(0, lanes - rising));
 }

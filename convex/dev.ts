@@ -6,11 +6,11 @@ import { heldOf } from './control';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
-import { seatedOf } from './movement/forces';
 import { reassessDetection } from './movement/detection';
-import { seatLoose } from '../src/domain/troops';
+import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
-import { UNIT_ROLE } from './validators';
+import { LON_LAT, UNIT_ROLE } from './validators';
+import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
@@ -112,7 +112,7 @@ export const fillStocks = internalMutation({
 });
 
 /**
- * **Un QG élevé d'un coup**, pour la démo des chantiers parallèles (#136) : le niveau fait les voies.
+ * **Un QG élevé d'un coup**, pour la démo des chantiers : le niveau les accélère (ADR 0031).
  *
  * `npx convex run dev:promoteHq '{"playerId":"…","level":3}'`
  */
@@ -192,38 +192,6 @@ export const backfillSeasonPreview = internalMutation({
       seasons += 1;
     }
     return { seasons };
-  },
-});
-
-/**
- * **Qui est à bord, écrit une fois** (révision de l'ADR 0025, 15/10). Être à bord se calculait :
- * une troupe au point d'un transport y montait. C'est désormais un état (`troops.carriedBy`), et
- * une partie en cours garde ce qu'elle voyait — chaque pile posée sur un point, et chaque colonne
- * en route, s'assoit comme le calcul l'asseyait. Sans elle, un convoi en mer n'aurait plus personne à bord.
- * Idempotente : qui est déjà assis ne bouge pas.
- *
- * `npx convex run dev:backfillCarriedBy`
- */
-export const backfillCarriedBy = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const groups = new Map<string, Array<Doc<'troops'>>>();
-    const riding = new Map<string, string>();
-    for (const movement of await ctx.db.query('movements').collect())
-      for (const troopId of movement.troopIds) riding.set(troopId, movement._id);
-    for (const troop of await ctx.db.query('troops').collect()) {
-      /** À quai, dans un bâtiment, personne n'était à bord (`boardingPile` d'avant). */
-      if (!riding.has(troop._id) && typeof troop.stationedAt === 'string') continue;
-      const key = riding.get(troop._id) ?? `${troop.playerId}:${JSON.stringify(troop.stationedAt)}`;
-      groups.set(key, [...(groups.get(key) ?? []), troop]);
-    }
-    let seated = 0;
-    for (const group of groups.values())
-      for (const [riderId, carrierId] of seatLoose(group.map(seatedOf))) {
-        await ctx.db.patch(riderId as Id<'troops'>, { carriedBy: carrierId as Id<'troops'> });
-        seated += 1;
-      }
-    return { seated };
   },
 });
 
@@ -538,25 +506,67 @@ export const airdropScene = internalMutation({
 });
 
 /**
- * **Une recherche en cours** (ADR 0028 §5) : l'infanterie MK2 et l'aviation acquises, le blindé
- * posé sur le QG il y a six heures — dix heures à courir.
+ * **Une recherche en cours** (ADR 0028 §5, #123) : un Centre de recherche de niveau 2 au sud de la
+ * capitale, l'infanterie MK2 et l'aviation acquises, le blindé posé il y a six heures sur le
+ * Centre — le reste de sa durée, raccourcie au niveau 2, à courir.
  */
 export const researchScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  /** `idle` : le Centre debout et rien de posé, pour poser une carte depuis l'arbre. */
+  args: { playerId: v.id('players'), idle: v.optional(v.boolean()) },
+  handler: async (ctx, { playerId, idle }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
     await headquartersOf(ctx, player);
+    const regionId = capitalRegionOf(player.nation);
+    const { lon, lat } = pointOfRegion(regionId);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'researchCenter',
+      regionId,
+      point: { lon, lat: lat - 0.45 },
+      level: 2,
+      outpostId: null,
+    });
+    if (idle === true) {
+      await ctx.db.patch(playerId, { researched: ['infantryMk2', 'aviation'] });
+      return;
+    }
     const now = Date.now();
     const hour = 3_600_000;
-    const remainingMs = 10 * hour;
+    const totalMs = researchMs('armor', 2);
+    const remainingMs = totalMs - 6 * hour;
     await ctx.db.patch(playerId, {
       researched: ['infantryMk2', 'aviation'],
-      research: { card: 'armor', remainingMs: 16 * hour, since: now - 6 * hour },
+      research: { card: 'armor', totalMs, remainingMs: totalMs, since: now - 6 * hour },
     });
     await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
       playerId,
       finishesAt: now + remainingMs,
+    });
+  },
+});
+
+/**
+ * **Les niveaux qui accélèrent** (ADR 0031), pour la démo : une caserne de niveau 3 à la capitale
+ * et la carte Chantier double acquise, la seconde file de chantier ouverte.
+ */
+export const levelsScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    const regionId = capitalRegionOf(player.nation);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'barracks',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 3,
+    });
+    await ctx.db.patch(playerId, {
+      researched: ['transmissions1', 'transmissions2', 'doubleWorks'],
     });
   },
 });
@@ -733,4 +743,206 @@ export const navyScene = internalMutation({
       stationedAt: port,
     });
   },
+});
+
+/**
+ * **Le banc de charge de la Mondiale** (#143, `scripts/banc-mondiale.mjs`). Quatre portes internes
+ * pour remplir une saison locale sans mille deux cents appels publics : la scène d'un joueur, ses
+ * mouvements en vol, une réévaluation du brouillard, et l'état de la file des jobs.
+ *
+ * La scène : des escouades de trois fantassins, une pile de troupes en réserve, quatre avant-postes
+ * au dépôt entamé, et un camion chargé au premier (la tournée se lance par `tours.start`).
+ */
+export const benchScene = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    squads: v.array(LON_LAT),
+    reserve: v.object({ at: LON_LAT, count: v.number() }),
+    outposts: v.array(LON_LAT),
+  },
+  handler: async (ctx, { playerId, squads, reserve, outposts }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const troop = (role: 'infantry' | 'armor', at: { lon: number; lat: number }) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role,
+        tier: 1,
+        nominalStrength: nominalStrength(role, 1),
+        currentStrength: nominalStrength(role, 1),
+        stationedAt: at,
+      });
+    const placed: { at: { lon: number; lat: number }; ids: Id<'troops'>[] }[] = [];
+    for (const at of squads)
+      placed.push({
+        at,
+        ids: [
+          await troop('infantry', at),
+          await troop('infantry', at),
+          await troop('infantry', at),
+        ],
+      });
+    const reserveIds: Id<'troops'>[] = [];
+    for (let k = 0; k < reserve.count; k++)
+      reserveIds.push(await troop(k % 4 === 0 ? 'armor' : 'infantry', reserve.at));
+    const outpostIds: Id<'outposts'>[] = [];
+    for (const [k, point] of outposts.entries())
+      outpostIds.push(
+        await ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId,
+          point,
+          hostCountry: 'BENCH',
+          level: 2,
+          specialization: 'relay',
+          foundedAt: Date.now() - 1,
+          disabledUntil: null,
+          immuneUntil: null,
+          depot:
+            k === 0
+              ? { ammunition: 260, oil: 150, coal: 90 }
+              : { ammunition: 60, oil: 40, coal: 20 },
+        }),
+      );
+    const truckId =
+      outpostIds[0] === undefined
+        ? null
+        : await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role: 'landTransport',
+            tier: 1,
+            nominalStrength: nominalStrength('landTransport', 1),
+            currentStrength: nominalStrength('landTransport', 1),
+            stationedAt: outpostIds[0],
+            load: { ammunition: 90, oil: 50, coal: 20 },
+          });
+    return { squads: placed, reserveIds, outpostIds, truckId };
+  },
+});
+
+/** Les mouvements d'un lot d'escouades : le vrai `march`, sans le slot (`keepsSlot`), un refus compté, puis la relecture du brouillard de leur joueur. */
+export const benchFlights = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    flights: v.array(v.object({ ids: v.array(v.id('troops')), from: LON_LAT, to: LON_LAT })),
+  },
+  handler: async (ctx, { playerId, flights }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (season === null) throw new Error('no such season');
+    const failedAt: number[] = [];
+    for (const flight of flights)
+      try {
+        await march(ctx, {
+          playerId,
+          season,
+          type: 'march',
+          origin: { kind: 'point', point: flight.from },
+          troopIds: flight.ids,
+          aim: await aimOf(ctx, playerId, { kind: 'point', point: flight.to }),
+          keepsSlot: true,
+        });
+      } catch {
+        failedAt.push(flights.indexOf(flight));
+      }
+    /** `keepsSlot` laisse la relecture à l'appelant, comme un pas de tournée. */
+    await reassessDetection(ctx, season._id, Date.now(), playerId);
+    return { filed: flights.length - failedAt.length, failedAt };
+  },
+});
+
+/** La réévaluation du brouillard seule, pour la chronométrer : entière, ou d'un joueur. */
+export const benchReassess = internalMutation({
+  args: { seasonId: v.id('seasons'), playerId: v.optional(v.id('players')) },
+  handler: async (ctx, { seasonId, playerId }) => {
+    await reassessDetection(ctx, seasonId, Date.now(), playerId);
+  },
+});
+
+/**
+ * **Les réveils qui s'empilaient** (#146) : deux joueurs avec une station d'écoute, l'un au
+ * charbon qui brûle, l'autre à sec. Chaque appel règle le muet puis relit le brouillard, comme
+ * le font les règlements et les départs d'une partie ; sans garde, chacun laissait un job de plus.
+ */
+export const benchWakeups = internalMutation({
+  args: { seasonId: v.id('seasons'), burning: v.id('players'), silent: v.id('players') },
+  handler: async (ctx, { seasonId, burning, silent }) => {
+    for (const [playerId, coal] of [
+      [burning, 50],
+      [silent, 0],
+    ] as const) {
+      const has = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).some((building) => building.key === 'listening');
+      if (!has) {
+        const nation = (await ctx.db.get(playerId))!.nation;
+        if (!isNation(nation)) continue;
+        const regionId = capitalRegionOf(nation);
+        await ctx.db.insert('buildings', {
+          seasonId,
+          playerId,
+          key: 'listening',
+          regionId,
+          point: pointOfRegion(regionId),
+          level: 1,
+        });
+        for (const row of await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect())
+          if (row.key === 'coal') await ctx.db.patch(row._id, { stock: coal });
+      }
+    }
+    await settle(ctx, silent, Date.now());
+    await reassessDetection(ctx, seasonId, Date.now());
+  },
+});
+
+/** Ce que le banc a posé, et la file des jobs planifiés encore en attente. */
+export const benchStats = internalQuery({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const count = async (table: 'troops' | 'movements' | 'outposts') =>
+      (
+        await ctx.db
+          .query(table)
+          .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+          .collect()
+      ).length;
+    /** Les jobs nés depuis la saison seulement : la table système garde ceux des bancs passés,
+     *  et les relire tous dépassait les 4 096 lectures d'une query. */
+    const since = (await ctx.db.get(seasonId))?._creationTime ?? 0;
+    const jobs = await ctx.db.system
+      .query('_scheduled_functions')
+      .withIndex('by_creation_time', (q) => q.gte('_creationTime', since))
+      .collect();
+    const byName = new Map<string, number>();
+    for (const job of jobs)
+      if (job.state.kind === 'pending') byName.set(job.name, (byName.get(job.name) ?? 0) + 1);
+    return {
+      troops: await count('troops'),
+      movements: await count('movements'),
+      outposts: await count('outposts'),
+      pendingJobs: jobs.filter((job) => job.state.kind === 'pending').length,
+      /** Par fonction : de quoi voir quel job s'empile (#146). */
+      pendingByName: [...byName].sort((a, b) => b[1] - a[1]),
+    };
+  },
+});
+
+/** Les places d'une saison, dans l'ordre d'arrivée : de quoi nourrir le banc. */
+export const benchPlayers = internalQuery({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) =>
+    (
+      await ctx.db
+        .query('players')
+        .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+        .collect()
+    ).map((player) => ({ id: player._id, nation: player.nation })),
 });

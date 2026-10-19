@@ -773,7 +773,8 @@ export async function march(
      *  paie le plein de l'aller-retour. */
     airdrop?:
       { readonly outpostId: Id<'outposts'> } | { readonly point: { lon: number; lat: number } };
-    /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028). */
+    /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028), et dont
+     *  l'appelant relit le brouillard. */
     keepsSlot?: boolean;
   },
 ) {
@@ -924,7 +925,10 @@ export async function march(
    *  cours de fondation n'est qu'une promesse tenue par la colonne qui la garde. Rien n'est
    *  remboursé, et le point disparaît avant que le brouillard soit réévalué. */
   if (origin.kind === 'outpost') await collapseIfAbandoned(ctx, origin.outpostId, now);
-  await reassessDetection(ctx, filed.seasonId, now);
+  /** Rien d'autre n'a bougé : la pile quittée et la colonne neuve sont au joueur. Un pas de
+   *  tournée (`keepsSlot`) laisse ce soin à qui l'a lancé — le départ, la reprise ou l'arrivée
+   *  du pas d'avant relisent le brouillard une fois, après lui. */
+  if (!keepsSlot) await reassessDetection(ctx, filed.seasonId, now, playerId);
   /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
   await surveyFromPoint(ctx, playerId, departure.point, now, column.roles);

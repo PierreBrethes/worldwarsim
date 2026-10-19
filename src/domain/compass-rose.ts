@@ -676,7 +676,6 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
   attack: 'rifles',
   raid: 'pennant',
   outpost: 'cabin',
-  recall: 'anchor',
   agent: 'helmet',
   return: 'anchor',
 };
@@ -1310,7 +1309,7 @@ const tourRefusalOfView = (view: PlayerView, carrier: TroopView, stops: Readonly
 
 /** **Où se tient le transport, pour charger ou partir en tournée** : un de mes bâtiments, un de
  *  mes avant-postes debout, ou ailleurs — la lecture de `logistics.placeOf`. */
-export function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace {
+function loadingPlaceOf(view: PlayerView, troop: TroopView): LoadingPlace {
   const at = troop.stationedAt;
   if (at.kind === 'building') {
     const building = view.me.buildings.find((one) => one.id === at.buildingId);

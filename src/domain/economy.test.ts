@@ -378,7 +378,13 @@ describe('a reserve emptied by a negative rate', () => {
 });
 
 describe('placement at a point (ADR 0029)', () => {
-  const free = { reached: true, deposit: null, coastal: false, nearest: null } as const;
+  const free = {
+    reached: true,
+    deposit: null,
+    coastal: false,
+    nearest: null,
+    already: false,
+  } as const;
   const coal = { key: 'coal', taken: false } as const;
 
   it('refuses a new depot even on free ground', () => {
@@ -389,6 +395,14 @@ describe('placement at a point (ADR 0029)', () => {
     expect(placementRefusal('airfield', free, 2, 'aviation')).toBe('RESEARCH_REQUIRED');
     expect(placementRefusal('barracks', free, 0, null)).toBe('HQ_FIRST');
     expect(placementRefusal('hq', free, 0, null)).toBeNull();
+  });
+
+  it('refuses a second research centre, built or ordered, and nothing else for having one', () => {
+    expect(placementRefusal('researchCenter', free, 2, null)).toBeNull();
+    expect(placementRefusal('researchCenter', { ...free, already: true }, 2, null)).toBe(
+      'ALREADY_BUILT',
+    );
+    expect(placementRefusal('barracks', { ...free, already: true }, 2, null)).toBeNull();
   });
 
   it('refuses a point no soil and no reach of the player covers', () => {

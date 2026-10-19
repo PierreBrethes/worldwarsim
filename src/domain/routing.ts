@@ -95,9 +95,6 @@ export const COST_BY_MEDIUM: Readonly<Record<'land' | 'sea' | 'landMotorized', n
 /** How a land column moves, as the screen says it. Read off the route rather than off the
  *  pile: the server weighted the route, and it is the one that knows what it charged. */
 export type LandPace = 'foot' | 'motorized';
-
-export const landPaceOf = (route: { readonly landCost: number }): LandPace =>
-  route.landCost < COST_BY_MEDIUM.land ? 'motorized' : 'foot';
 /** Embarking or landing costs the equivalent of 8 sea units — the column/convoy trade-off. */
 export const TRANSFER_COST = 8;
 

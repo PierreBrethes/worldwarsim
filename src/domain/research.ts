@@ -1,6 +1,7 @@
 import { DAMAGE_TABLE, RESEARCH_SPEC, type LineKey } from '../../convex/constants';
 import { profileOf } from './combat';
 import { shortfallOf } from './economy';
+import { levelSpeed } from './level-speed';
 import {
   RESEARCH_CARDS,
   type BuildingKey,
@@ -12,19 +13,24 @@ import {
 
 /**
  * **La recherche débloque, elle ne bonifie jamais** (ADR 0028 §5, décision 44a) : une carte ouvre
- * une unité, une tuile, une ligne d'usine ou un slot de mouvement (décision révisée le 19/10 :
- * une capacité entière, jamais un pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
+ * une unité, une tuile, une ligne d'usine, un slot de mouvement ou une seconde file de chantier
+ * ou de formation (décision révisée le 19/10, ADR 0031 : une capacité entière, jamais un
+ * pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
  * ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
  */
-export type Unlock =
+type Unlock =
   | { readonly kind: 'role'; readonly role: UnitRole; readonly tier: UnitTier }
   | { readonly kind: 'building'; readonly key: BuildingKey }
   /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
   | { readonly kind: 'line'; readonly output: 'oil' }
   /** Un slot de mouvement de plus (`movementSlots`). */
-  | { readonly kind: 'slot' };
+  | { readonly kind: 'slot' }
+  /** Une file de plus : un chantier de plus en même temps, ou une troupe de plus par site. */
+  | { readonly kind: 'lane'; readonly of: Lane };
 
-export type Branch = 'land' | 'sea' | 'air' | 'industry';
+export type Lane = 'works' | 'training';
+
+type Branch = 'land' | 'sea' | 'air' | 'industry';
 
 type CardSpec = {
   readonly branch: Branch;
@@ -70,7 +76,32 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
   transmissions1: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: [] },
   transmissions2: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions1'] },
   transmissions3: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions2'] },
+  doubleWorks: {
+    branch: 'industry',
+    unlocks: [{ kind: 'lane', of: 'works' }],
+    after: ['transmissions2'],
+  },
+  doubleTraining: {
+    branch: 'industry',
+    unlocks: [{ kind: 'lane', of: 'training' }],
+    after: ['transmissions2'],
+  },
 };
+
+/** **Les files qui avancent en même temps** (ADR 0031) : une par défaut, une de plus par carte
+ *  acquise qui l'ouvre ; la Blitz n'a pas de recherche, donc une seule. Lu par l'écran et par le
+ *  serveur. */
+export const laneCount = (
+  researched: ReadonlyArray<ResearchCard>,
+  of: Lane,
+  blitz: boolean,
+): number =>
+  blitz
+    ? 1
+    : 1 +
+      researched.filter((card) =>
+        RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'lane' && unlock.of === of),
+      ).length;
 
 /** Les slots de mouvement qu'ouvrent ces cartes : un par carte Transmissions acquise. */
 export const slotCardsOf = (researched: ReadonlyArray<ResearchCard>): ReadonlyArray<ResearchCard> =>
@@ -125,7 +156,7 @@ export type ResearchRefusal =
       readonly code: 'RESEARCH_DONE' | 'RESEARCH_AFTER' | 'RESEARCH_BUSY';
       readonly card: ResearchCard;
     }
-  | { readonly code: 'RESEARCH_NEEDS_HQ' }
+  | { readonly code: 'RESEARCH_NEEDS_CENTER' }
   | {
       readonly code: 'INSUFFICIENT_RESOURCE';
       readonly resource: ResourceKey;
@@ -135,17 +166,17 @@ export type ResearchRefusal =
 
 export type ResearchSituation = {
   readonly researched: ReadonlyArray<ResearchCard>;
-  /** La carte posée, qu'elle avance ou qu'elle attende son QG : une seule à la fois. */
+  /** La carte posée, qu'elle avance ou qu'elle attende son Centre : une seule à la fois. */
   readonly running: ResearchCard | null;
-  /** Un QG à soi, debout et jamais capturé. */
-  readonly hqHeld: boolean;
+  /** Le niveau de son Centre de recherche (`searcherLevel`), `null` sans Centre. */
+  readonly centerLevel: number | null;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
 };
 
 /**
- * **Ce que le QG refuse de chercher**, lu par la carte qu'on lâche dessus avant le relâché et par
- * `research.start` après : déjà acquise, une carte d'abord, une autre en cours, pas de
- * QG, puis le prix. Chaque refus nomme la carte que sa phrase dit.
+ * **Ce que le Centre de recherche refuse de chercher**, lu par la fenêtre de l'arbre avant le geste
+ * et par `research.start` après : déjà acquise, une carte d'abord, une autre en cours, pas de
+ * Centre, puis le prix. Chaque refus nomme la carte que sa phrase dit.
  */
 export function researchRefusalOf(
   card: ResearchCard,
@@ -155,7 +186,7 @@ export function researchRefusalOf(
   const missing = RESEARCH_TREE[card].after.find((first) => !situation.researched.includes(first));
   if (missing !== undefined) return { code: 'RESEARCH_AFTER', card: missing };
   if (situation.running !== null) return { code: 'RESEARCH_BUSY', card: situation.running };
-  if (!situation.hqHeld) return { code: 'RESEARCH_NEEDS_HQ' };
+  if (situation.centerLevel === null) return { code: 'RESEARCH_NEEDS_CENTER' };
   const short = shortfallOf(RESEARCH_SPEC[card].cost, (resource) => situation.stocks[resource]);
   if (short === null) return null;
   const available = situation.stocks[short.resource];
@@ -169,25 +200,31 @@ export function researchRefusalOf(
 
 /**
  * **Une carte posée** : ce qu'il lui reste à courir, et depuis quand elle court — `null` quand
- * son QG manque et qu'elle attend. Ce qui est payé et couru n'est jamais perdu.
+ * son Centre manque et qu'elle attend. Ce qui est payé et couru n'est jamais perdu.
  */
 export type RunningResearch = {
   readonly card: ResearchCard;
+  /** Sa durée au niveau du Centre qui l'a prise ; absente, celle du premier niveau. */
+  readonly totalMs?: number;
   readonly remainingMs: number;
   readonly since: number | null;
 };
 
-export const researchMs = (card: ResearchCard): number => RESEARCH_SPEC[card].hours * 3_600_000;
+/** La durée d'une carte, accélérée au niveau du Centre de recherche qui la prend (ADR 0031). Elle
+ *  se fixe à la pose : élever le Centre accélère la carte suivante. */
+export const researchMs = (card: ResearchCard, centerLevel = 1): number =>
+  RESEARCH_SPEC[card].hours * 3_600_000 * levelSpeed(centerLevel);
 
 export function researchProgressOf(
   running: RunningResearch,
   now: number,
 ): { readonly share: number; readonly finishesAt: number | null } {
-  const total = researchMs(running.card);
+  const total = running.totalMs ?? researchMs(running.card);
   const left =
     running.since === null
       ? running.remainingMs
-      : Math.max(0, running.remainingMs - (now - running.since));
+      : // An hour read just before the server's own counts nothing as run.
+        Math.max(0, running.remainingMs - Math.max(0, now - running.since));
   return {
     share: total > 0 ? 1 - left / total : 1,
     finishesAt: running.since === null ? null : running.since + running.remainingMs,
@@ -255,16 +292,27 @@ export const countersOf = (card: ResearchCard): ReadonlyArray<ResearchCard> =>
   });
 
 /**
- * **Un QG à soi, debout et jamais pris** : lui seul cherche. Un QG pris à un autre ne cherche pas
- * pour son preneur ; lu par l'écran et par `research.start`.
+ * **Mon Centre de recherche qui cherche** : un Centre à soi, debout et jamais pris, le plus haut
+ * s'il y en a deux ; `null` sans Centre, et la carte posée attend. Un Centre pris à un autre ne
+ * cherche pas pour son preneur. La seule lecture, de l'écran comme du serveur.
  */
-export const holdsHq = (
+export const searcherOf = <
+  B extends { readonly key: BuildingKey; readonly level: number; readonly captured?: boolean },
+>(
+  buildings: ReadonlyArray<B>,
+): B | null =>
+  buildings
+    .filter((building) => building.key === 'researchCenter' && building.captured !== true)
+    .reduce<B | null>(
+      (best, building) => (best === null || building.level > best.level ? building : best),
+      null,
+    );
+
+/** Le niveau de ce Centre, `null` sans lui. */
+export const searcherLevel = (
   buildings: ReadonlyArray<{
     readonly key: BuildingKey;
     readonly level: number;
     readonly captured?: boolean;
   }>,
-): boolean =>
-  buildings.some(
-    (building) => building.key === 'hq' && building.captured !== true && building.level > 0,
-  );
+): number | null => searcherOf(buildings)?.level ?? null;

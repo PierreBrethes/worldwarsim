@@ -12,7 +12,7 @@
 
 const HOUR_MS = 3_600_000;
 
-export type ReportPlayer = {
+type ReportPlayer = {
   readonly id: string;
   readonly nation: string | null;
   readonly nickname: string;
@@ -21,7 +21,7 @@ export type ReportPlayer = {
 };
 
 /** Une ligne d'édition (`editions`) : les chiffres de classement d'un joueur à une heure. */
-export type ReportEdition = {
+type ReportEdition = {
   readonly playerId: string;
   readonly at: number;
   readonly territory: number;
@@ -47,7 +47,7 @@ export type OutpostEvent = {
   readonly kind: 'stands' | 'raised' | 'dismantled' | 'captured' | 'taken' | 'lost';
 };
 
-export type ReportEngagement = {
+type ReportEngagement = {
   readonly attackerId: string;
   readonly defenderId: string;
   readonly at: number;
@@ -69,7 +69,7 @@ export type ReportInput = {
   readonly engagements: ReadonlyArray<ReportEngagement>;
 };
 
-export type SnowballRow = {
+type SnowballRow = {
   readonly hour: number;
   /** L'heure de l'édition lue à cette marque : si les éditions s'arrêtent, elle ne suit plus. */
   readonly edition: number;
@@ -83,7 +83,7 @@ export type SnowballRow = {
 };
 
 /** **La tortue** : où se tiennent les troupes d'un joueur à l'instant de la lecture. */
-export type TroopRow = {
+type TroopRow = {
   readonly playerId: string;
   readonly total: number;
   readonly home: number;
@@ -92,14 +92,14 @@ export type TroopRow = {
 };
 
 /** **L'escouade monstre** : la plus grosse, et où elle se tient. */
-export type SquadRow = {
+type SquadRow = {
   readonly playerId: string;
   readonly largest: number;
   readonly where: ReportTroop['where'] | null;
 };
 
 /** **La charge** : les pièces d'un joueur, file de recrutement comprise, face à la borne. */
-export type LoadRow = {
+type LoadRow = {
   readonly playerId: string;
   readonly pieces: number;
   readonly queued: number;
@@ -111,7 +111,7 @@ export type LoadRow = {
  * atteint entre deux marques, et les gestes comptés un à un (fondation, élévation, démantèlement,
  * prise et perte par capture, chantier mort).
  */
-export type OutpostRow = {
+type OutpostRow = {
   readonly playerId: string;
   readonly series: ReadonlyArray<number>;
   readonly standing: number;
@@ -129,7 +129,7 @@ export type OutpostRow = {
  * premier contact. Les garnisons neutres sont comptées à part : les frapper n'est pas toucher
  * quelqu'un.
  */
-export type IsolationRow = {
+type IsolationRow = {
   readonly nation: string;
   readonly given: number;
   readonly suffered: number;

@@ -33,7 +33,7 @@ import {
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
-import { researchMs, researchProgressOf } from '@/domain/research';
+import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
@@ -136,6 +136,7 @@ import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underwa
 import {
   carrierIn,
   PROJECTION_BY_DOMAIN,
+  hasSiteSheet,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
@@ -294,10 +295,6 @@ function freeCapacityOf(view: PlayerView, troopIds: ReadonlyArray<string>): numb
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
 
-/** The three buildings that station a column — their mast opens a garrison. Since ADR 0019 they
- *  no longer decide what it may ask for, only where a domain gate is read. */
-const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
-
 const JournalWindow = lazy(() =>
   import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
 );
@@ -319,6 +316,9 @@ const TelegraphWindow = lazy(() =>
 const GunneryWindow = lazy(() =>
   import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
 );
+const ResearchWindow = lazy(() =>
+  import('./-plateau/ResearchWindow').then((module) => ({ default: module.ResearchWindow })),
+);
 const PressWindow = lazy(() =>
   import('./-plateau/PressWindow').then((module) => ({ default: module.PressWindow })),
 );
@@ -338,6 +338,8 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   warehouse: 'personalBoard',
   depot: 'personalBoard',
   listening: 'personalBoard',
+  /** Le Centre de recherche ouvre l'arbre (#123). */
+  researchCenter: 'research',
   barracks: 'site',
   airfield: 'site',
   port: 'site',
@@ -819,7 +821,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
-      const siteModal = view.mode === 'blitz' || PROJECTION_KEYS.includes(standing.key);
+      const siteModal = hasSiteSheet(view.mode, standing.key);
       if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
@@ -837,10 +839,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }
       }
       void navigate({
-        search: (previous) => ({
-          ...withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]),
-          building: buildingId,
-        }),
+        search: (previous) => {
+          const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
+          /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
+          const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
+          return { ...next, windows, building: buildingId };
+        },
       });
     },
     [
@@ -1964,6 +1968,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       };
     };
+    const searcher = searcherOf(view.me.buildings);
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: buildingLabelId(building),
@@ -1984,7 +1989,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  sur ce que la station entend vraiment. */
       reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ...garrisonOf(building),
-      ...(building.key === 'hq' ? researchOnHq(view.me) : {}),
+      ...(building === searcher ? researchOnCenter(view.me) : {}),
       ink: view.me.ink,
     }));
 
@@ -2614,12 +2619,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [briefing, setBriefing] = useState(() => blitz && !briefingSeen());
   const firstSteps = useFirstSteps(view, seat);
   const boardOpen = windows.includes('personalBoard');
-  /** **La recherche posée au-dessus de la bande** (#122), en attendant sa fenêtre (#123). « Écon. »
-   *  qui déplie la bande la referme. */
-  const [boardResearch, setBoardResearch] = useState(false);
-  useEffect(() => {
-    if (boardOpen) setBoardResearch(false);
-  }, [boardOpen]);
+  const researchOpen = windows.includes('research');
   /** The windows drawn as windows: the personal board is the band, its flag only unfolds it. */
   const surfaces = windows.filter(
     (name): name is Exclude<BoardWindow, 'personalBoard'> => name !== 'personalBoard',
@@ -2894,7 +2894,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
-        /** Un site de niveau N forme N troupes à la fois : la ligne tombe à la plus proche. */
+        /** Avec Formation double, deux lots montent à la fois : la ligne tombe au plus proche. */
         const started = facility.queue.filter((batch) => batch.started);
         if (started.length === 0) return [];
         const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
@@ -2977,7 +2977,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
-      shut={boardOpen || boardResearch}
+      shut={boardOpen}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
@@ -3411,8 +3411,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 view={view}
                 seat={seat}
                 open={boardOpen}
-                research={boardResearch}
-                onResearch={setBoardResearch}
+                research={researchOpen}
+                onResearch={(open) => (open ? openWindow('research') : closeWindow('research'))}
                 front={surfaces.length === 0 || windows.at(-1) === 'personalBoard'}
                 onOpen={(open) =>
                   open ? openWindow('personalBoard') : closeWindow('personalBoard')
@@ -3508,6 +3508,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                       {...windowProps}
                     />
                   );
+                case 'research':
+                  return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
                 case 'settings':
                   return (
                     <SettingsWindow
@@ -3934,8 +3936,8 @@ function postedStacks(
   });
 }
 
-/** **La carte que porte mon QG** (ADR 0028 §5) : son nom et sa barre sur le mât. */
-function researchOnHq(me: PlayerView['me']): {
+/** **La carte que cherche mon Centre de recherche** (#123) : son nom et sa barre sur son mât. */
+function researchOnCenter(me: PlayerView['me']): {
   research?: Extract<LabelLine, { role: 'research' }>;
 } {
   const running = me.research.running;
@@ -3944,8 +3946,8 @@ function researchOnHq(me: PlayerView['me']): {
   return {
     research: {
       role: 'research',
-      text: fr.research.onHq(cardName(running.card)),
-      since: (finishesAt ?? Date.now()) - researchMs(running.card),
+      text: fr.research.onCenter(cardName(running.card)),
+      since: (finishesAt ?? Date.now()) - (running.totalMs ?? researchMs(running.card)),
       dueAt: finishesAt,
       share,
     },

@@ -20,6 +20,9 @@ const WINDOWS = [
   /** La presse : le classement à l'heure du dernier relevé. Elle ne commande rien — on la
    *  ferme, et c'est la seule action que le contrat 07 lui accorde. */
   'press',
+  /** **L'arbre de recherche** (#123) : le clic sur le Centre de recherche, ou « Recherche » sur
+   *  la bande du plateau personnel. */
+  'research',
 ] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];

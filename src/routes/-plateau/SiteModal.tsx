@@ -17,6 +17,7 @@ import { equipmentLabel } from '@/emblems/units/equipment';
 import type { UnitTier } from '@/domain/troops';
 import {
   DOMAIN_BY_ROLE,
+  hasSiteSheet,
   marchingTroopIds,
   stationKeyOf,
   TIERS_BY_ROLE,
@@ -26,6 +27,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
+import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
@@ -71,7 +73,7 @@ export function SiteModal({
   const building = view.me.buildings.find((candidate) => candidate.id === buildingId) ?? null;
   /** Un lien mort — le bâtiment est tombé, l'URL le nomme encore — n'ouvre pas un cadre vide :
    *  il n'ouvre rien, et la carte reste ce qu'elle est. */
-  if (building === null) return null;
+  if (building === null || !hasSiteSheet(view.mode, building.key)) return null;
 
   return (
     <FloatingWindow name="site" onClose={onClose} {...windowProps} alignment="top" width={1180}>
@@ -172,10 +174,20 @@ function Site({
           setError(null);
           void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
         };
+  /** Les durées du barème, raccourcies au niveau du site (ADR 0031) : celles que le serveur date.
+   *  La Blitz forme en `BLITZ.recruitMinutes`, sans niveau. */
+  const sped = <Piece extends { minutes: number }>(piece: Piece): Piece =>
+    workshop?.blitz ? piece : { ...piece, minutes: spedMinutes(piece.minutes, building.level) };
   const roles =
     facility === null
       ? []
-      : (workshop?.grid ?? []).filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain);
+      : (workshop?.grid ?? [])
+          .filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain)
+          .map((entry) => ({
+            ...entry,
+            unit: sped(entry.unit),
+            unitTier2: entry.unitTier2 === null ? null : sped(entry.unitTier2),
+          }));
   const unlinked = region !== undefined && !region.linked && produces(building.key);
 
   if (narrow)
@@ -210,7 +222,9 @@ function Site({
         eyebrow={
           <>
             {fr.economy.inRegion(region?.name ?? building.regionId)} ·{' '}
-            {fr.production.siteLevel(building.level)}
+            {speedsUp(building.key)
+              ? fr.common.levelSpeed(building.level)
+              : fr.production.siteLevel(building.level)}
           </>
         }
         title={fr.buildings[building.key]}
@@ -927,8 +941,8 @@ function SheetHeading({ title, note }: { title: string; note: string }) {
 }
 
 /**
- * **Ce que le niveau rend, et le bouton qui le monte** — en tête de « former » : un site de
- * niveau N forme N troupes à la fois (ADR 0028 §5). Le bouton est celui des Chantiers.
+ * **Ce que le niveau rend, et le bouton qui le monte** — en tête de « former » : chaque niveau
+ * raccourcit la formation (ADR 0031). Le bouton est celui des Chantiers.
  */
 function SiteLadder({
   building,
@@ -950,7 +964,7 @@ function SiteLadder({
           {fr.production.sheet.siteKicker(siteLevel)}
         </div>
         <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
-          {fr.production.sheet.lanes(siteLevel)}
+          {fr.common.levelSpeed(siteLevel)}
         </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} />

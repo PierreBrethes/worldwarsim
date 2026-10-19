@@ -28,6 +28,7 @@ import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { isStanding } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
+import { cancelJob, isPending } from '../scheduledJobs';
 import { economyOf } from '../resources';
 import { holdsPoint } from '../strategicPoints';
 import {
@@ -67,11 +68,22 @@ type PassiveWatcher = Watcher & Omit<Caught, 'from' | 'to'>;
 /**
  * Replaces every prediction affected by the current board. It is called only from mutations that
  * changed a route, a manifest or a detector; no query and no periodic loop enters here.
+ *
+ * **`changed` : l'événement ne touche qu'un joueur** (#145). Un départ, une arrivée sans combat,
+ * un pas de tournée ou une recrue ne changent que les détecteurs de leur joueur — la pile quittée
+ * ou rejointe, la colonne née ou finie — et ses propres colonnes comme cibles. Refaire ses relevés
+ * à lui et ceux qu'on tient sur ses colonnes rend exactement ce que rendrait la réévaluation
+ * complète : rien d'autre sur le plateau n'a bougé, et la grille d'échantillons ne bouge pas avec
+ * l'instant (`mobileSighting`). Recroiser chaque
+ * colonne avec chaque autre à chaque départ dépassait la seconde d'une mutation passé quarante
+ * colonnes. Les camps, les caisses et les captures se relisent toujours en entier : ils lisent la
+ * position présente de toutes les colonnes, et ils coûtent peu.
  */
 export async function reassessDetection(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   now = Date.now(),
+  changed?: Id<'players'>,
 ): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return;
@@ -83,20 +95,29 @@ export async function reassessDetection(
       ? movements.filter((movement) => movement.arrivesAt > now)
       : [];
   const board = await detectionBoard(ctx, seasonId, active, now);
+  const ledgers = await observerLedgers(ctx, board, movements, changed);
 
   for (const target of movements) {
+    const watchedBy =
+      changed === undefined || target.playerId === changed ? null : new Set([changed]);
     const mobile = board.mobileById.get(target._id);
     const desired =
       mobile === undefined || target.troopIds.some((id) => board.veiled.has(id))
         ? []
-        : sightingsFor(mobile, board, now);
-    await syncSightings(ctx, target, await desired, now);
+        : sightingsFor(mobile, board, now, watchedBy);
+    await syncSightings(
+      ctx,
+      target,
+      await desired,
+      now,
+      ledgers.sightingsByMovement.get(target._id) ?? [],
+    );
   }
 
-  await forgetStaleSightings(ctx, board, now);
+  const camps = await forgetStaleSightings(ctx, ledgers, now);
 
   if (season.status === 'launched' && season.concludedAt === null) {
-    await syncCampSightings(ctx, seasonId, board, now);
+    await syncCampSightings(ctx, seasonId, board, now, camps);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
     /** **La capture se relit aux mêmes événements que le brouillard** : un départ, une arrivée,
@@ -204,12 +225,40 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   arrivesAt: movement.arrivesAt,
 });
 
-async function cancelJob(ctx: MutationCtx, jobId: Id<'_scheduled_functions'>): Promise<void> {
-  try {
-    await ctx.scheduler.cancel(jobId);
-  } catch {
-    // A callback that has already started validates the stored prediction before doing anything.
-  }
+/**
+ * **Un seul réveil de charbon par joueur** (#146). Le même état redonne la même heure (à l'arrondi
+ * près) : le job en attente la couvre déjà et reste. Une autre heure, ou plus de charbon qui brûle,
+ * l'annule d'abord. La tolérance reste sous la seconde de marge que porte l'heure, pour que le
+ * réveil ne parte jamais avant que le charbon soit à sec.
+ */
+const DRY_TOLERANCE_MS = 500;
+
+async function keepDryWakeUp(
+  ctx: MutationCtx,
+  player: Doc<'players'> | undefined,
+  dryAt: number | null,
+): Promise<void> {
+  if (player === undefined) return;
+  const kept = player.dryJob;
+  if (
+    kept !== undefined &&
+    dryAt !== null &&
+    Math.abs(kept.at - dryAt) <= DRY_TOLERANCE_MS &&
+    (await isPending(ctx, kept.jobId))
+  )
+    return;
+  if (kept === undefined && dryAt === null) return;
+  if (kept !== undefined) await cancelJob(ctx, kept.jobId);
+  const dryJob =
+    dryAt === null
+      ? undefined
+      : {
+          jobId: await ctx.scheduler.runAt(dryAt, internal.listening.reassess, {
+            playerId: player._id,
+          }),
+          at: dryAt,
+        };
+  await ctx.db.patch(player._id, { dryJob });
 }
 
 async function detectionBoard(
@@ -315,10 +364,14 @@ async function detectionBoard(
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
       // The coal is burning down: wake the ears at the instant it runs out, since nothing else will.
-      if (!economy.listeningSilent && economy.ratePerHour.coal < 0) {
-        const dryAt = now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000;
-        await ctx.scheduler.runAt(dryAt, internal.listening.reassess, { playerId });
-      }
+      const burning = !economy.listeningSilent && economy.ratePerHour.coal < 0;
+      await keepDryWakeUp(
+        ctx,
+        playerById.get(playerId),
+        burning
+          ? now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000
+          : null,
+      );
     }
     return silent.get(playerId)!;
   };
@@ -359,7 +412,8 @@ async function detectionBoard(
     });
   }
 
-  return { mobileById, watchers, players, posted, veiled };
+  const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
+  return { mobileById, watchers, players, posted, veiled, mutualWindows };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
@@ -377,26 +431,78 @@ type CurrentDetector = { readonly point: LonLat; readonly radiusKm: number };
  */
 async function forgetStaleSightings(
   ctx: MutationCtx,
-  board: DetectionBoard,
+  ledgers: ObserverLedgers,
   now: number,
-): Promise<void> {
+): Promise<ReadonlyArray<Doc<'campSightings'>>> {
   const cutoff = now - LAST_KNOWN_HOURS * 3_600_000;
+  for (const sighting of ledgers.frozen) {
+    if (sighting.frozen!.closedAt <= cutoff) await deleteSighting(ctx, sighting);
+  }
+  const kept: Array<Doc<'campSightings'>> = [];
+  for (const camp of ledgers.camps) {
+    if (camp.until !== null && camp.until <= cutoff) await ctx.db.delete(camp._id);
+    else kept.push(camp);
+  }
+  return kept;
+}
+
+/**
+ * **Chaque registre d'observateur se lit une fois par réévaluation** (#145) : par joueur, sur son
+ * propre index, puis rangé par mouvement. Une lecture par mouvement relisait les mêmes lignes une
+ * seconde fois, et le ménage les relisait une troisième. Pour un événement d'un seul joueur, son
+ * registre et les lignes tenues sur ses colonnes ; les camps, toujours en entier, puisqu'ils se
+ * relisent en entier.
+ */
+async function observerLedgers(
+  ctx: MutationCtx,
+  board: DetectionBoard,
+  movements: ReadonlyArray<Doc<'movements'>>,
+  changed: Id<'players'> | undefined,
+) {
+  const sightings = new Map<Id<'sightings'>, Doc<'sightings'>>();
+  const camps: Array<Doc<'campSightings'>> = [];
   for (const player of board.players) {
+    if (changed === undefined || player._id === changed) {
+      for (const sighting of await ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()) {
+        sightings.set(sighting._id, sighting);
+      }
+    }
+    camps.push(
+      ...(await ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()),
+    );
+  }
+  for (const movement of changed === undefined ? [] : movements) {
+    if (movement.playerId !== changed) continue;
     for (const sighting of await ctx.db
       .query('sightings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .withIndex('byMovement', (q) => q.eq('movementId', movement._id))
       .collect()) {
-      const frozen = sighting.frozen;
-      if (frozen !== undefined && frozen.closedAt <= cutoff) await deleteSighting(ctx, sighting);
-    }
-    for (const camp of await ctx.db
-      .query('campSightings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect()) {
-      if (camp.until !== null && camp.until <= cutoff) await ctx.db.delete(camp._id);
+      sightings.set(sighting._id, sighting);
     }
   }
+
+  const sightingsByMovement = new Map<Id<'movements'>, Array<Doc<'sightings'>>>();
+  const frozen: Array<Doc<'sightings'>> = [];
+  for (const sighting of sightings.values()) {
+    if (sighting.frozen !== undefined) frozen.push(sighting);
+    const held = sightingsByMovement.get(sighting.movementId) ?? [];
+    held.push(sighting);
+    sightingsByMovement.set(sighting.movementId, held);
+  }
+  /** Dans l'ordre de l'index `byMovement`, que la synchronisation suivait. */
+  for (const rows of sightingsByMovement.values()) {
+    rows.sort((a, b) => a._creationTime - b._creationTime);
+  }
+  return { sightingsByMovement, frozen, camps };
 }
+
+type ObserverLedgers = Awaited<ReturnType<typeof observerLedgers>>;
 
 /** Ce qui a pris le camp, et le peu que l'observateur en tire sur son propre plateau. */
 type CampDetector = CurrentDetector & {
@@ -420,6 +526,7 @@ async function syncCampSightings(
   seasonId: Id<'seasons'>,
   board: DetectionBoard,
   now: number,
+  camps: ReadonlyArray<Doc<'campSightings'>>,
 ): Promise<void> {
   const detectors = new Map<Id<'players'>, CampDetector[]>();
   const watch = (playerId: Id<'players'>, detector: CampDetector) => {
@@ -485,12 +592,7 @@ async function syncCampSightings(
   };
 
   for (const player of board.players) {
-    const rows = (
-      await ctx.db
-        .query('campSightings')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect()
-    ).filter((row) => row.seasonId === seasonId);
+    const rows = camps.filter((row) => row.playerId === player._id && row.seasonId === seasonId);
     const byStation = new Map(rows.map((row) => [row.stationKey, row]));
 
     for (const [stationKey, camp] of board.posted) {
@@ -686,6 +788,11 @@ function nextLootCrateDetectionTransition(
   return null;
 }
 
+/**
+ * **Seules les dates qui bougent bougent** (#146). Chaque prédiction garde son job tant que sa
+ * paire, son sens et son heure sont ceux de la nouvelle planche ; une autre est annulée et
+ * recréée, une qui n'a plus lieu disparaît.
+ */
 async function rescheduleLootCrateDetectionJobs(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -696,11 +803,12 @@ async function rescheduleLootCrateDetectionJobs(
     .query('lootCrateDetectionJobs')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
+  const kept = new Map<string, Doc<'lootCrateDetectionJobs'>>();
+  const stale: Array<Doc<'lootCrateDetectionJobs'>> = [];
   for (const prediction of previous) {
-    if (prediction.scheduledJobId !== undefined) {
-      await cancelJob(ctx, prediction.scheduledJobId);
-    }
-    await ctx.db.delete(prediction._id);
+    const key = `${prediction.movementId}|${prediction.crateId}`;
+    if (kept.has(key)) stale.push(prediction);
+    else kept.set(key, prediction);
   }
 
   const crates = await ctx.db
@@ -709,8 +817,22 @@ async function rescheduleLootCrateDetectionJobs(
     .collect();
   for (const mobile of board.mobileById.values()) {
     for (const crate of crates) {
+      const key = `${mobile.movement._id}|${crate._id}`;
       const transition = nextLootCrateDetectionTransition(mobile, pointOf(crate.point), now);
-      if (transition === null || transition.at >= crate.expiresAt) continue;
+      const current = kept.get(key);
+      kept.delete(key);
+      if (transition === null || transition.at >= crate.expiresAt) {
+        if (current !== undefined) stale.push(current);
+        continue;
+      }
+      if (
+        current !== undefined &&
+        current.kind === transition.kind &&
+        current.at === transition.at &&
+        (await isPending(ctx, current.scheduledJobId))
+      )
+        continue;
+      if (current !== undefined) stale.push(current);
       const detectionJobId = await ctx.db.insert('lootCrateDetectionJobs', {
         seasonId,
         movementId: mobile.movement._id,
@@ -724,6 +846,11 @@ async function rescheduleLootCrateDetectionJobs(
       );
       await ctx.db.patch(detectionJobId, { scheduledJobId });
     }
+  }
+  stale.push(...kept.values());
+  for (const prediction of stale) {
+    if (prediction.scheduledJobId !== undefined) await cancelJob(ctx, prediction.scheduledJobId);
+    await ctx.db.delete(prediction._id);
   }
 }
 
@@ -760,28 +887,25 @@ function stationOf(
     : { point, hostCountry: facts.country, region: facts.name };
 }
 
+/** What sees `target` pass — every player's detectors, or only those of `watchedBy`. */
 async function sightingsFor(
   target: Mobile,
   board: Awaited<ReturnType<typeof detectionBoard>>,
   now: number,
+  watchedBy: ReadonlySet<Id<'players'>> | null,
 ): Promise<ReadonlyArray<Caught>> {
   const caught: Caught[] = [];
-  const watchers = board.watchers.filter(
-    (watcher) => watcher.playerId !== target.movement.playerId,
-  );
+  const watching = (playerId: Id<'players'>) =>
+    playerId !== target.movement.playerId && (watchedBy === null || watchedBy.has(playerId));
+  const watchers = board.watchers.filter((watcher) => watching(watcher.playerId));
   for (const sighting of sightingsAlong({ mine: target.force, watchers, after: now })) {
     const watcher = watchers.find((candidate) => candidate.id === sighting.id);
     if (watcher !== undefined) caught.push({ ...watcher, from: sighting.from, to: sighting.to });
   }
 
   for (const observer of board.mobileById.values()) {
-    if (observer.movement.playerId === target.movement.playerId || observer.rangeKm <= 0) continue;
-    const window = mobileSighting({
-      observer: observer.force,
-      target: target.force,
-      radiusKm: observer.rangeKm,
-      after: now,
-    });
+    if (!watching(observer.movement.playerId) || observer.rangeKm <= 0) continue;
+    const window = mutualWindow(board, observer, target, now);
     if (window === null) continue;
     const point = positionAt(observer.force, window.from);
     caught.push({
@@ -794,8 +918,36 @@ async function sightingsFor(
     });
   }
 
-  caught.push(...crossedSoil(target, board.players, now));
+  caught.push(
+    ...crossedSoil(
+      target,
+      board.players.filter((player) => watchedBy === null || watchedBy.has(player._id)),
+      now,
+    ),
+  );
   return caught;
+}
+
+/**
+ * **Deux colonnes au même rayon se voient pendant la même fenêtre** : la distance, le milieu et
+ * l'intervalle commun ne dépendent pas de qui regarde. La fenêtre se calcule une fois par paire et
+ * sert les deux sens (#145) ; à rayons différents, chacun garde la sienne.
+ */
+function mutualWindow(board: DetectionBoard, observer: Mobile, target: Mobile, now: number) {
+  const mutual = observer.rangeKm === target.rangeKm;
+  const key =
+    observer.movement._id < target.movement._id
+      ? `${observer.movement._id}|${target.movement._id}`
+      : `${target.movement._id}|${observer.movement._id}`;
+  if (mutual && board.mutualWindows.has(key)) return board.mutualWindows.get(key)!;
+  const window = mobileSighting({
+    observer: observer.force,
+    target: target.force,
+    radiusKm: observer.rangeKm,
+    after: now,
+  });
+  if (mutual) board.mutualWindows.set(key, window);
+  return window;
 }
 
 function crossedSoil(
@@ -809,14 +961,17 @@ function crossedSoil(
     const home = homeCountryOf(player.nation);
     if (home !== null) soils.set(home, player._id);
   }
-  const from = Math.max(now, target.force.departedAt);
+  /** La grille du trajet, rognée à l'instant, comme `sightingsAlong` (#145). */
+  const from = target.force.departedAt;
   const span = target.force.arrivesAt - from;
   if (soils.size === 0 || span <= 0) return [];
 
+  const countries = new Set(soils.keys());
   const windows = new Map<string, { from: number; to: number }>();
   for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
     const at = from + (index * span) / INTERCEPTION_SAMPLES;
-    const host = hostAmongCountries(positionAt(target.force, at), new Set(soils.keys()));
+    if (at < now) continue;
+    const host = hostAmongCountries(positionAt(target.force, at), countries);
     if (host === '') continue;
     const held = windows.get(host);
     if (held === undefined) windows.set(host, { from: at, to: at });
@@ -837,6 +992,7 @@ async function syncSightings(
   movement: Doc<'movements'>,
   candidates: ReadonlyArray<Caught>,
   now: number,
+  rows: ReadonlyArray<Doc<'sightings'>>,
 ): Promise<void> {
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
@@ -852,10 +1008,6 @@ async function syncSightings(
     }
   }
 
-  const rows = await ctx.db
-    .query('sightings')
-    .withIndex('byMovement', (q) => q.eq('movementId', movement._id))
-    .collect();
   const byPlayer = new Map<Id<'players'>, Array<Doc<'sightings'>>>();
   for (const row of rows) {
     const kept = byPlayer.get(row.playerId) ?? [];
@@ -895,6 +1047,15 @@ async function replaceSighting(
 ): Promise<void> {
   if (row.from <= now) {
     if (next.to > row.to) await ctx.db.patch(row._id, { to: next.to });
+    return;
+  }
+  /** La grille ne bouge plus avec l'instant (#145) : une fenêtre future relue telle quelle garde
+   *  sa ligne et son rendez-vous, sans réécriture ni job replanifié. */
+  const fields = sightingFields(next);
+  if (
+    (row.revealJobId !== undefined || row.noticeFiled === true) &&
+    (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key])
+  ) {
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);

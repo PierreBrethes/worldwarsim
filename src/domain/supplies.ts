@@ -29,7 +29,7 @@ export const suppliesOf = (troop: Carrying): Supplies => ({
 });
 
 /** Le plein d'un navire est de charbon, celui d'un moteur de terre ou d'un avion de pétrole. */
-export const fuelResourceOf = (role: UnitRole): 'oil' | 'coal' =>
+const fuelResourceOf = (role: UnitRole): 'oil' | 'coal' =>
   FAMILY_RESOURCE_OF_ROLE[role] === 'coal' ? 'coal' : 'oil';
 
 export const fuelStepsFor = (km: number): number => Math.ceil(km / FUEL_STEP_KM);

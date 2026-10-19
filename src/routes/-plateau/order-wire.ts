@@ -108,7 +108,7 @@ export const wireOrigin = (station: MarchStation) =>
  * holds the index; a **point** has no name to give — so it is written as what it is, a pair of
  * coordinates, rather than borrowed from the country it happens to fall in (ADR 0019 §1).
  */
-export function destinationOf(aim: MovementAim, preview: Previewed | undefined): string {
+function destinationOf(aim: MovementAim, preview: Previewed | undefined): string {
   if (aim.kind === 'point') return fr.aim.pointAt(aim.lon, aim.lat);
   /** The building, then the region the server names — « Port · Nord », the address the journal
    *  will print when the column enters it (`station-name.ts` writes it the same way). */

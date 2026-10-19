@@ -32,7 +32,7 @@ export type UnitRole =
 export type UnitTier = 1 | 2;
 
 /**
- * **Les quatorze cartes de recherche de la Mondiale** (ADR 0028 §5), dans l'ordre de l'arbre :
+ * **Les cartes de recherche de la Mondiale** (ADR 0028 §5), dans l'ordre de l'arbre :
  * terre, mer, air, industrie. Ce qu'elles débloquent vit dans `src/domain/research.ts`.
  */
 export const RESEARCH_CARDS = [
@@ -50,6 +50,8 @@ export const RESEARCH_CARDS = [
   'transmissions1',
   'transmissions2',
   'transmissions3',
+  'doubleWorks',
+  'doubleTraining',
 ] as const;
 
 export type ResearchCard = (typeof RESEARCH_CARDS)[number];
@@ -63,17 +65,8 @@ export type ResearchCard = (typeof RESEARCH_CARDS)[number];
  * are put on the road home by the resolution itself, outside the slots. It is a movement all
  * the same — it takes time, it can be seen, and it can be intercepted.
  *
- * `recall` is **history**: it was the one order a garrison could give, back when where a column
- * stood decided what it could ask for. ADR 0019 removed that origin and the word with it, but
- * columns recalled before the change are still walking and their documents still say `recall` —
- * so the vocabulary keeps it and `ORDERABLE_TYPES` no longer offers it.
- *
- * **Révision du 29/08/2026 : `decoy` a quitté cette liste.** Le leurre a été retiré du jeu, et
- * c'est la différence avec `recall` : un rappel en vol atterrit encore, un leurre ne fait plus
- * rien nulle part. Le mot reste dans le validateur Convex — et là seulement — le temps que les
- * documents déjà écrits partent au prochain wipe (`convex/validators.ts`).
  */
-export type MovementType = 'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'return';
+export type MovementType = 'march' | 'attack' | 'raid' | 'outpost' | 'agent' | 'return';
 
 /**
  * The five resources of the Mondiale (ADR 0028 §1), each with a direct use and a shortage that
@@ -108,6 +101,7 @@ export const BUILDINGS = [
   'airfield',
   'port',
   'listening',
+  'researchCenter',
   'warehouse',
   'depot',
   'city',

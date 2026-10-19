@@ -11,6 +11,7 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
+import { levelGain } from '../domain/level-speed';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
@@ -81,6 +82,8 @@ const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'Transmissions I',
   transmissions2: 'Transmissions II',
   transmissions3: 'Transmissions III',
+  doubleWorks: 'Chantier double',
+  doubleTraining: 'Formation double',
 };
 
 /** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
@@ -99,6 +102,8 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'un slot de mouvement de plus',
   transmissions2: 'un slot de mouvement de plus',
   transmissions3: 'un slot de mouvement de plus',
+  doubleWorks: 'une seconde file de chantier',
+  doubleTraining: 'une seconde file de formation dans chaque site',
 };
 
 /** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
@@ -288,7 +293,6 @@ export const fr = {
     attack: 'attaque',
     raid: 'raid d’avant-poste',
     outpost: 'fondation d’avant-poste',
-    recall: 'rappel de garnison',
     agent: 'agent',
     return: 'retour',
   } satisfies Record<MovementType, string>,
@@ -322,6 +326,7 @@ export const fr = {
     airfield: 'Aérodrome',
     port: 'Port',
     listening: 'Station d’écoute',
+    researchCenter: 'Centre de recherche',
     warehouse: 'Entrepôt',
     depot: 'Entrepôt',
     city: 'Ville',
@@ -343,13 +348,14 @@ export const fr = {
     airfield: 'm',
     port: 'm',
     listening: 'f',
+    researchCenter: 'm',
     warehouse: 'm',
     depot: 'm',
     city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
-    hq: 'unique et chez soi — plafonne les autres, porte la recherche ; son niveau est le nombre de chantiers en même temps',
+    hq: 'unique et chez soi — plafonne les autres ; son niveau raccourcit chaque chantier',
     farm: 'exploite des terres',
     mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
     oilWell: 'exploite un gisement de pétrole',
@@ -358,6 +364,8 @@ export const fr = {
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
+    researchCenter:
+      'unique — cherche les cartes de recherche, une à la fois ; son niveau raccourcit chaque carte',
     warehouse: 'relève le plafond des cinq ressources — se pille',
     depot: 'relève le plafond des cinq ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
@@ -738,10 +746,15 @@ export const fr = {
     RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
     RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
     RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
-    RESEARCH_BUSY: (d) => `le QG cherche déjà ${cardName(d.card)} — une carte à la fois`,
-    RESEARCH_NEEDS_HQ: () => 'posez d’abord votre quartier général — c’est lui qui cherche',
+    RESEARCH_BUSY: (d) => `${cardName(d.card)} est en cours — une carte à la fois`,
+    RESEARCH_NEEDS_CENTER: () => 'bâtissez d’abord un Centre de recherche — c’est lui qui cherche',
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
+    ALREADY_BUILT: (d): string => {
+      const key = d.building as BuildingKey;
+      const feminine: boolean = fr.buildingGender[key] === 'f';
+      return `${feminine ? 'une seule' : 'un seul'} ${lowerFirst(fr.buildings[key])} par nation : élevez ${feminine ? 'la vôtre' : 'le vôtre'}`;
+    },
     /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
      *  l'ordre plutôt qu'un palier. */
     HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
@@ -972,6 +985,12 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    /** **Ce qu'un niveau rend** (ADR 0031), sur la fiche et sur l'aperçu d'élévation :
+     *  « niveau 3 : −28 % ». Le premier niveau dure ce que dit le barème. */
+    levelSpeed: (level: number) =>
+      levelGain(level) === 0
+        ? `niveau ${level} : durée du barème`
+        : `niveau ${level} : −${levelGain(level)} %`,
     /** Le « ? » qui déplie une phrase d'aide : la phrase se lit une fois, le chiffre tous les jours. */
     help: 'aide',
   },
@@ -2020,15 +2039,6 @@ export const fr = {
     drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
-    /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : cinq colonnes sur un téléphone,
-     *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
-    abbreviations: {
-      food: 'viv',
-      coal: 'cha',
-      oil: 'pét',
-      steel: 'aci',
-      ammunition: 'mun',
-    } satisfies Record<ResourceKey, string>,
     slots: 'mouvements',
   },
 
@@ -2161,6 +2171,7 @@ export const fr = {
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
     economy: { title: 'Plateau personnel — stocks, tuiles et pièces', label: 'écon.' },
+    research: { title: 'Centre de recherche — l’arbre des cartes', label: 'rech.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
@@ -2584,16 +2595,10 @@ export const fr = {
         `${building} en ${region} a livré une compagnie — ${role}.`,
       deliveredHome: (role: string) =>
         `Une compagnie — ${role} — a rejoint le pays : son site n’était plus debout.`,
-      columnArrived: (
-        movementType: 'march' | 'recall' | 'return',
-        troops: number,
-        country: string,
-      ) => {
+      columnArrived: (movementType: 'march' | 'return', troops: number, country: string) => {
         const column = `${troops} troupe${plural(troops, '', 's')}`;
         if (movementType === 'return')
           return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
-        if (movementType === 'recall')
-          return `Une garnison de ${column} est rentrée au pays — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
       /** L'adresse en toutes lettres (décision 64b) : « a pris position — France » ne dirait
@@ -2875,7 +2880,7 @@ export const fr = {
       hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
       move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
       form: 'Former une pièce : la lâcher sur une caserne',
-      research: 'Poser une carte de recherche sur le QG',
+      research: 'Bâtir un Centre de recherche, puis y poser une carte',
       deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
       /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
       outpost: 'Fonder un avant-poste, puis y livrer un camion chargé',
@@ -2887,7 +2892,8 @@ export const fr = {
       hq: 'La tuile du QG, lâchée sur votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
       pieces: 'Une pièce, lâchée sur la caserne',
-      research: 'Une carte, lâchée sur le QG',
+      center: 'D’abord un Centre de recherche : sa tuile sur la carte',
+      research: 'Ouvrez l’arbre : une carte sur le Centre',
       move: 'Levez-la, posez-la plus loin',
       truck: 'Un camion, lâché sur la caserne',
       load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
@@ -3322,13 +3328,10 @@ export const fr = {
       tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
-      /** **Un niveau rend** (ADR 0028 §5) : il ne débloque plus rien. */
-      lanes: (level: number) =>
-        level === 1 ? 'Forme une troupe à la fois' : `Forme ${level} troupes à la fois`,
       formHeader: 'former ici',
       formNote: 'un toucher, une troupe',
       lockedHeader: 'Derrière une carte',
-      lockedNote: 'la recherche se pose sur le QG',
+      lockedNote: 'la recherche se pose sur le Centre de recherche',
       /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
       queueFull: 'File pleine.',
       short: (missing: number, resource: string) => `Il manque ${missing} ${resource}.`,
@@ -3452,6 +3455,9 @@ export const fr = {
     pieceSite: (building: string) => `sur ${lowerFirst(building)}`,
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
+    /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
+    raiseSped: (building: string, level: number) =>
+      `Élever ${lowerFirst(building)} — ${fr.common.levelSpeed(level)}`,
     form: (role: string, building: string) =>
       `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
     dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
@@ -3459,9 +3465,9 @@ export const fr = {
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
     worksHeader: (lanes: number) =>
-      lanes > 1 ? `chantiers · ${lanes} avancent à la fois` : 'chantiers · un seul avance',
-    /** Ce que le niveau suivant du QG ajouterait, dit sous la file. */
-    nextLane: (level: number) => `le QG niveau ${level} en ajouterait un`,
+      lanes > 1 ? `chantiers · ${lanes} files` : 'chantiers · une file',
+    /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
+    hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
@@ -3481,33 +3487,59 @@ export const fr = {
       `${building} à sec de ${lowerFirst(resource)}`,
   },
 
-  /** **Les cartes de recherche** (ADR 0028 §5) : sur le plateau personnel, sur le QG. */
+  /** **Les cartes de recherche** (ADR 0028 §5) : dans l'arbre, sur le Centre de recherche. */
   research: {
     header: 'recherche',
-    note: 'glissez une carte sur votre QG : payée à la pose, elle avance en heures de jeu et débloque à la fin — une à la fois',
+    /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
+     *  marge, l'arbre de haut en bas. */
+    title: 'Centre de recherche',
+    subtitle: (place: string, level: number) => `${place} · niveau ${level} · une carte à la fois`,
+    noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',
+    captured:
+      'un Centre pris à un autre ne cherche pas pour vous — la carte attend un Centre à vous',
     names: RESEARCH_NAMES,
     unlocks: RESEARCH_UNLOCKS,
     branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
+    /** La colonne des cartes qui ouvrent un slot ou une file, à part de l'industrie. */
+    transmissions: 'transmissions',
+    benchesHeader: 'le poste du centre',
+    bench: 'poste 1',
+    benchFree: 'libre — posez une carte de l’arbre',
+    benchNone: 'bâtissez un Centre de recherche pour l’ouvrir',
+    /** Une seconde file de recherche n'existe pas encore : une carte l'ouvrira peut-être. */
+    benchMore: 'une seule carte à la fois',
+    levelHeader: 'ce que donne le niveau',
     hours: (hours: number) => `${num(hours)} h`,
-    after: (cards: string) => `après ${cards}`,
+    /** « 6 h 05 » : ce qui reste à une carte, à la minute. */
+    time: (ms: number) => {
+      const minutes = Math.max(0, Math.ceil(ms / 60_000));
+      return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
+    running: (percent: number, time: string) => `en cours · ${percent} % · reste ${time}`,
+    waiting: 'attend un Centre de recherche',
+    waitingAt: (percent: number) => `${percent} % · attend un Centre de recherche`,
+    left: (time: string) => `reste ${time}`,
+    missing: (cards: string) => `il manque ${cards}`,
+    inProgress: ' (en cours)',
     and: ' et ',
     counters: (cards: string) => `contre ${cards}`,
     counteredBy: (cards: string) => `son contre : ${cards}`,
     /** Un contre qu'on forme sans carte : `l'infanterie, au départ`. */
     atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
     done: 'acquise',
-    left: (time: string) => `reste ${time}`,
-    waiting: 'attend son QG',
-    dropOnHq: 'Lâchez la carte sur votre quartier général',
-    start: (card: string, hours: number) => `Chercher ${card} — ${num(hours)} h`,
-    started: (card: string) => `${card} posée sur le quartier général`,
-    /** La ligne du mât du QG, et celle de « en cours ». */
-    onHq: (card: string) => `recherche ${card}`,
+    search: 'chercher',
+    searchTitle: (card: string, time: string) => `Chercher ${card} — ${time}, payée à la pose`,
+    started: (card: string) => `${card} posée sur le Centre de recherche`,
+    legendDone: '— trait plein : après une carte acquise',
+    legendAhead: '- - pointillé : après une carte à venir',
+    legendHow: 'Une carte se paie à la pose ; elle avance en heures de jeu.',
+    /** La ligne du mât du Centre de recherche, et celle de « en cours ». */
+    onCenter: (card: string) => `recherche ${card}`,
   },
 
   economy: {
     constructionNone:
-      'Aucun chantier. La file est illimitée et se paie à la mise en file — le niveau du QG dit combien avancent à la fois.',
+      'Aucun chantier. La file est illimitée et se paie à la mise en file — le niveau du QG raccourcit chaque chantier.',
 
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
@@ -3658,8 +3690,8 @@ export const fr = {
     standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
     /** **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout et ce qu'il fait. */
     censusHeader: 'recensement',
-    hqLine: (level: number, maximum: number, lanes: number) =>
-      `niveau ${level} sur ${maximum} · ${lanes} chantier${lanes > 1 ? 's' : ''} à la fois`,
+    hqLine: (level: number, maximum: number) =>
+      `${fr.common.levelSpeed(level)} sur les chantiers · niveau maximal ${maximum}`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
     listeningUnfigured: 'rayon de révélation non chiffré',
     listeningTemporary:
@@ -4538,6 +4570,8 @@ export function aimRefusalText(
       return errors.BUILDING_TOO_CLOSE({ near: refusal.near, km: refusal.km });
     case 'RESEARCH_REQUIRED':
       return errors.RESEARCH_REQUIRED({ card: lockedBy });
+    case 'ALREADY_BUILT':
+      return errors.ALREADY_BUILT({ building: key });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
     case 'NOT_COASTAL':
@@ -4547,7 +4581,7 @@ export function aimRefusalText(
 }
 
 /** `de l’usine`, `du port`, `de la caserne` — the building a distance is measured from. */
-export const ofTheBuilding = (key: BuildingKey): string => {
+const ofTheBuilding = (key: BuildingKey): string => {
   const the = theBuilding(key);
   return the.startsWith('le ') ? `du ${the.slice(3)}` : `de ${the}`;
 };

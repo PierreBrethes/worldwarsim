@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { distanceKm, type LonLat } from './geo';
 import {
+  INTERCEPTION_SAMPLES,
   mediumAt,
   mobileSighting,
   positionAt,
   sightingsAlong,
   type MarchingForce,
+  type Watcher,
 } from './interception';
 
 const HOUR = 3_600_000;
@@ -135,4 +137,128 @@ describe('what a posted watcher sees pass', () => {
       seen.find((sighting) => sighting.id === 'second')!.from,
     );
   });
+});
+
+/**
+ * **Le tri est un raccourci, jamais une autre réponse** (#145). `mobileSighting` et
+ * `sightingsAlong` écartent les tronçons de temps que deux boîtes séparent de plus que le rayon ;
+ * sur des scènes denses, au ras de l'antiméridien comme du cercle polaire, et sur des routes
+ * mixtes, ils rendent exactement ce que rend la marche de chaque échantillon.
+ */
+describe('the pruned walk answers what the full walk answers', () => {
+  const walkedPair = (
+    observer: MarchingForce,
+    target: MarchingForce,
+    radiusKm: number,
+    after: number,
+  ) => {
+    const from = Math.max(observer.departedAt, target.departedAt);
+    const to = Math.min(observer.arrivesAt, target.arrivesAt);
+    if (to < from || radiusKm <= 0) return null;
+    let opened: number | null = null;
+    let closed: number | null = null;
+    for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
+      const at = from + ((to - from) * index) / INTERCEPTION_SAMPLES;
+      if (at < after) continue;
+      const medium = mediumAt(observer, at);
+      if (medium === null || medium !== mediumAt(target, at)) continue;
+      if (distanceKm(positionAt(observer, at), positionAt(target, at)) > radiusKm) continue;
+      opened ??= at;
+      closed = at;
+    }
+    return opened === null || closed === null ? null : { from: opened, to: closed };
+  };
+  const walkedWatchers = (mine: MarchingForce, watchers: ReadonlyArray<Watcher>, after: number) => {
+    const span = mine.arrivesAt - mine.departedAt;
+    if (span <= 0 || watchers.length === 0) return [];
+    const windows = new Map<string, { from: number; to: number }>();
+    for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
+      const at = mine.departedAt + index * (span / INTERCEPTION_SAMPLES);
+      if (at < after) continue;
+      const here = positionAt(mine, at);
+      for (const watcher of watchers) {
+        if (distanceKm(here, watcher.point) > watcher.radiusKm) continue;
+        const window = windows.get(watcher.id);
+        if (window === undefined) windows.set(watcher.id, { from: at, to: at });
+        else window.to = at;
+      }
+    }
+    return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+  };
+
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const MEDIUMS = ['land', 'sea', 'air'] as const;
+  const force = (id: string, center: LonLat, spread: number): MarchingForce => {
+    const points: LonLat[] = [];
+    let here: LonLat = [
+      center[0] + (random() * 2 - 1) * spread,
+      center[1] + (random() * 2 - 1) * spread,
+    ];
+    for (let step = 0, steps = 2 + Math.floor(random() * 10); step < steps; step += 1) {
+      points.push([((here[0] + 540) % 360) - 180, Math.max(-85, Math.min(85, here[1]))]);
+      here = [here[0] + (random() * 2 - 1) * spread, here[1] + (random() * 2 - 1) * spread];
+    }
+    /** Mostly one land leg, so that mediums agree often enough for distance to decide. */
+    const mixed = random() < 0.3;
+    const legs = Array.from({ length: mixed ? 1 + Math.floor(random() * 3) : 1 }, () => ({
+      medium: mixed ? MEDIUMS[Math.floor(random() * MEDIUMS.length)]! : ('land' as const),
+      distanceUnits: 1 + random() * 5,
+    }));
+    const departedAt = -random() * 5 * HOUR;
+    return {
+      id,
+      points,
+      ...(random() < 0.3
+        ? {}
+        : { legs, distanceUnits: legs.reduce((sum, leg) => sum + leg.distanceUnits, 0) }),
+      ...(random() < 0.5 ? {} : { landCost: 0.6 }),
+      departedAt,
+      arrivesAt: departedAt + (1 + random() * 20) * HOUR,
+    };
+  };
+
+  for (const center of [
+    [8, 50],
+    [179.5, -10],
+    [20, 78],
+  ] as const) {
+    it(`agrees on every pair and every watcher around ${String(center)}`, () => {
+      const forces = Array.from({ length: 40 }, (_, k) => force(`f${String(k)}`, center, 1.5));
+      const watchers: Watcher[] = Array.from({ length: 60 }, (_, k) => ({
+        id: `w${String(k)}`,
+        point: [
+          ((center[0] + (random() * 2 - 1) * 4 + 540) % 360) - 180,
+          center[1] + (random() * 2 - 1) * 4,
+        ],
+        radiusKm: 10 + random() * 200,
+      }));
+      let seen = 0;
+      let missed = 0;
+      for (const observer of forces) {
+        const after = -random() * 2 * HOUR;
+        expect(sightingsAlong({ mine: observer, watchers, after })).toEqual(
+          walkedWatchers(observer, watchers, after),
+        );
+        for (const target of forces) {
+          if (target === observer) continue;
+          const radiusKm = 10 + random() * 150;
+          const expected = walkedPair(observer, target, radiusKm, after);
+          expect(mobileSighting({ observer, target, radiusKm, after })).toEqual(expected);
+          /** The detection pass serves one window to both columns when their radii agree. */
+          expect(walkedPair(target, observer, radiusKm, after)).toEqual(expected);
+          /** Read again later, the same window, cut at the later instant — never a moved one. */
+          const later = after + random() * HOUR;
+          const reread = mobileSighting({ observer, target, radiusKm, after: later });
+          if (expected === null || expected.to < later) expect(reread).toBeNull();
+          else if (expected.from >= later) expect(reread).toEqual(expected);
+          else expect(reread?.to).toBe(expected.to);
+          if (expected === null) missed += 1;
+          else seen += 1;
+        }
+      }
+      expect(seen).toBeGreaterThan(50);
+      expect(missed).toBeGreaterThan(50);
+    });
+  }
 });

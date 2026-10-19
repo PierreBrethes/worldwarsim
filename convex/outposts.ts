@@ -6,7 +6,7 @@ import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding } from './buildings';
 import { playerBuildings } from './buildingReads';
-import { buildCost, buildMinutes, outpostReachKm, type Costs } from './constants';
+import { buildCost, outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
@@ -29,10 +29,6 @@ import { surveyFoundation } from './surveys';
  * une garnison posée sur une promesse. Elle tient, le point se lève ; elle s'en va, il n'y a
  * plus rien à lever. L'ordre lui-même reste dans `movements.ts`, où toutes les portes sont.
  */
-
-/** Combien de minutes un chantier de fondation dure — le même barème que l'élévation, au
- *  niveau 1 (`convex/constants.ts`). */
-export const foundationMinutes = (): number => buildMinutes('outpost', 1);
 
 /**
  * **Le lever, à `standsAt` exactement même s'il se réveille en retard** — même motif que la fin

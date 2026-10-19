@@ -46,6 +46,14 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
   sea: 'port',
 };
 
+/**
+ * Whether a building has a site sheet. The sheet reads the server's `facilities`, which in a
+ * Mondiale lists the forming buildings only: opened on the HQ, it waited for a row that never
+ * came (#155).
+ */
+export const hasSiteSheet = (mode: PlayerView['mode'], key: BuildingKey): boolean =>
+  mode === 'blitz' || Object.values(PROJECTION_BY_DOMAIN).includes(key);
+
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
 
@@ -120,7 +128,7 @@ export function recruitRefusalOf(
  * server raises after it (`refusalOf`, ADR 0015) — never two. An outpost is not in it: the
  * `outpost` aim already makes a garrison of what arrives (ADR 0019 §3).
  */
-export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
+const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
   infantry: BUILDINGS,
   /** Le port et l'aérodrome s'y ajoutent (ADR 0025 §5) : une coque chargée de chars rentre à
    *  quai, un avion débarque ses passagers sur son terrain. */

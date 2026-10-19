@@ -101,7 +101,8 @@ export type PlacementRefusal =
   | 'DEPOSIT_REQUIRED'
   | 'DEPOSIT_TAKEN'
   | 'NOT_COASTAL'
-  | 'TOO_CLOSE';
+  | 'TOO_CLOSE'
+  | 'ALREADY_BUILT';
 
 /**
  * **The point aimed at, as placement reads it** — the facts each side gathers its own way (the
@@ -116,7 +117,12 @@ export type Spot = {
   readonly coastal: boolean;
   /** The closest of the player's other buildings, standing or ordered, and how far. */
   readonly nearest: { readonly key: BuildingKey; readonly km: number } | null;
+  /** One of this very key already stands (built, not captured) or is ordered. */
+  readonly already: boolean;
 };
+
+/** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche. Le QG a sa propre règle. */
+const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter'];
 
 /**
  * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before
@@ -149,6 +155,7 @@ export function placementRefusal(
 ): PlacementRefusal | null {
   const byKey = keyRefusal(key, hqLevel, lockedBy);
   if (byKey !== null) return byKey;
+  if (spot.already && UNIQUE_BUILDINGS.includes(key)) return 'ALREADY_BUILT';
   if (!spot.reached) return 'OUT_OF_REACH';
   if (EXPLOITED_DEPOSITS[key] !== undefined) {
     if (!exploits(key, spot.deposit?.key ?? null)) return 'DEPOSIT_REQUIRED';

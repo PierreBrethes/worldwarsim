@@ -31,7 +31,7 @@ const SCANNED = ['convex', 'src/domain'];
 export const REGISTER_PATH = 'WWS/docs/technique/a-mesurer.md';
 
 const MARKER = /@a-mesurer\b(.*)$/;
-const DECLARATION = /^export const (\w+)/;
+const DECLARATION = /^(?:export )?const (\w+)/;
 
 function sourceFiles(directory) {
   const absolute = join(ROOT, directory);

@@ -11,8 +11,8 @@
  * tournées : le camion du QG par Lille, sautée, et Bruxelles ; celui de Bruxelles par Lille seule,
  * qui attend. `--largage` pose pour la France un aérodrome et un avion chargé, un avant-poste de
  * niveau 1 près de Bruxelles et une escouade à sec en Rhénanie : de quoi larguer (ADR 0028 §4).
- * `--recherche` donne à la France l'infanterie MK2 et l'aviation, et le blindé en cours sur son QG
- * (ADR 0028 §5). `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
+ * `--recherche` donne à la France un Centre de recherche de niveau 2, l'infanterie MK2 et l'aviation,
+ * et le blindé en cours sur le Centre (#123) ; `--centre`, le même Centre sans carte posée. `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
  * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
@@ -23,7 +23,8 @@
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
- * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
+ * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
+ * ajoute une caserne de niveau 3 et la carte Chantier double : deux montent ensemble.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
  *
  *     npm run demo:mondiale
@@ -49,12 +50,16 @@ const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
 const airdrops = process.argv.includes('--largage');
-const research = process.argv.includes('--recherche');
+/** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
+const idleCenter = process.argv.includes('--centre');
+const research = idleCenter || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
-const works = process.argv.includes('--chantiers');
+/** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 et Chantier double (ADR 0031). */
+const levels = process.argv.includes('--niveaux');
+const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
 
@@ -161,9 +166,9 @@ if (!bare) {
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
-  /** Deux cartes acquises, une troisième en cours sur le QG (ADR 0028 §5). */
+  /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
-    cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a })]);
+    cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
   /** Une salve sur seize troupes, une fois la pièce en batterie (ADR 0028 §6). */
   if (artillery && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:artilleryScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
@@ -220,6 +225,7 @@ if (!bare) {
       point: { lon: paris.point[0], lat: paris.point[1] },
     });
     cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 3 })]);
+    if (levels) cli(['run', 'dev:levelsScene', JSON.stringify({ playerId: scene.a })]);
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     for (const [building, id] of [
       ['barracks', 'FRA-5268'],

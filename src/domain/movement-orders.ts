@@ -339,7 +339,7 @@ export function lootCollectionOrderRefusalOf(
  *
  * @a-mesurer deux, d'après la décision du 19/10, jamais joué
  */
-export const STARTING_MOVEMENT_SLOTS = 2;
+const STARTING_MOVEMENT_SLOTS = 2;
 
 /**
  * **The movement slots, carried by research** (issue #124, decision 44a revised): two at the
@@ -825,7 +825,7 @@ export function disbandRefusalOf({
  * L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude.
  * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
  */
-export const DISBAND_SPREAD_DEG = 0.05;
+const DISBAND_SPREAD_DEG = 0.05;
 
 /** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
  *  autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. */

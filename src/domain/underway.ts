@@ -1,5 +1,5 @@
 import { cardName, countryLabel, fr } from '@/i18n/fr';
-import { researchProgressOf } from './research';
+import { researchProgressOf, searcherOf } from './research';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
@@ -56,7 +56,7 @@ export type RecruitmentDue = {
  * Un mouvement tenu à une frontière par une plage de repos tombe à sa résolution, qui est
  * l'heure où quelque chose se passera.
  */
-/** **Tous les chantiers qui montent**, la tête et les autres voies du QG (`minutesLeft` daté) —
+/** **Tous les chantiers qui montent**, la tête et la seconde file de Chantier double (`minutesLeft` daté) —
  *  la même lecture que `sitesOf`. */
 export function datedWorksOf(
   me: PlayerView['me'],
@@ -155,18 +155,24 @@ export function underwayOf(
     });
   }
 
-  /** La carte que porte mon QG ; une carte qui attend son QG n'a pas d'heure, elle n'y est pas. */
+  /** La carte que cherche mon Centre ; une carte qui attend un Centre n'a pas d'heure, elle n'y
+   *  est pas. */
   const research = view.me.research.running;
-  const hq = view.me.buildings.find((building) => building.key === 'hq');
+  const center = searcherOf(view.me.buildings) ?? undefined;
   const researchEnds =
     research === null ? null : researchProgressOf(research, view.loadedAt).finishesAt;
-  if (research !== null && hq !== undefined && researchEnds !== null)
+  if (research !== null && center !== undefined && researchEnds !== null)
     lines.push({
       id: 'research',
       endsAt: researchEnds,
-      label: fr.research.onHq(cardName(research.card)),
-      face: { kind: 'building', key: 'hq' },
-      place: { kind: 'building', regionId: hq.regionId, key: 'hq', point: hq.point },
+      label: fr.research.onCenter(cardName(research.card)),
+      face: { kind: 'building', key: 'researchCenter' },
+      place: {
+        kind: 'building',
+        regionId: center.regionId,
+        key: 'researchCenter',
+        point: center.point,
+      },
       moving: false,
     });
 

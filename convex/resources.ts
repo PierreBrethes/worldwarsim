@@ -28,6 +28,7 @@ import {
   type Costs,
 } from './constants';
 import { fail } from './errors';
+import { isPending } from './scheduledJobs';
 import { linkingOver } from './holding';
 import { pointOfBuilding, regionFacts } from './regions';
 import { depositAt } from '../src/domain/world';
@@ -460,7 +461,9 @@ async function writeStocks(
    */
   const owner = economy.rows[0]?.playerId;
   if (economy.starving && owner !== undefined) {
-    await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId: owner });
+    await wakeOnce(ctx, owner, 'resumeJobId', (playerId) =>
+      ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId }),
+    );
   }
 
   /**
@@ -472,9 +475,24 @@ async function writeStocks(
     const coal = stocks.coal;
     const rate = economy.ratePerHour.coal;
     if (economy.listeningSilent || (coal <= 0 && rate < 0)) {
-      await ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId: owner });
+      await wakeOnce(ctx, owner, 'reassessJobId', (playerId) =>
+        ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId }),
+      );
     }
   }
+}
+
+/** **Un réveil à la fois** (#146) : deux règlements de suite sont couverts par le même job, qui
+ *  relira l'état une fois la mutation écrite. Un job déjà parti n'empêche pas d'en planifier un. */
+async function wakeOnce(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  field: 'reassessJobId' | 'resumeJobId',
+  schedule: (playerId: Id<'players'>) => Promise<Id<'_scheduled_functions'>>,
+): Promise<void> {
+  const player = await ctx.db.get(playerId);
+  if (player === null || (await isPending(ctx, player[field]))) return;
+  await ctx.db.patch(playerId, { [field]: await schedule(playerId) });
 }
 
 /** Whether this player's listening posts are silent for want of coal right now. */

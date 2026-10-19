@@ -128,6 +128,24 @@ et relève les erreurs de console. `--nu` au premier saute stocks et troupes. `-
 capture — par exemple `--geste 'clic=1392,660' --geste 'texte=Mine — charbon' --geste 'survol=995,425'`
 pour voir le fantôme d'une pose.
 
+## Banc de charge de la Mondiale (#143)
+
+Même prérequis que ci-dessus (Docker levé, `.env.local` sur 127.0.0.1, `npx convex deploy` : le banc
+appelle les fonctions `dev:bench*`). Il refuse tout backend non local.
+
+```bash
+npm run banc:mondiale   # 8 joueurs, ~150 troupes chacun, 161 mouvements en vol, 7 tournées, ~35 s
+```
+
+Il fonde une nouvelle saison à chaque passage (comptes `Banc1`..`Banc8` dans
+`scripts/banc-mondiale.accounts.json`, ignoré par git), puis imprime : `playerView` d'un joueur,
+`reassessDetection`, `marchTo` sous charge, jobs planifiés en attente, et une montée en charge
+(20 à 161 mouvements). Durées et documents lus viennent du backend lui-même, par
+`/api/stream_function_logs` (`executionTime`, `usageStats.databaseReadDocuments`) : pas le temps
+client, réseau compris. Une exécution coupée à la seconde permise est marquée « coupée à 1 s » et
+ne rend que ce qu'elle avait lu. Le nombre de jobs varie d'un passage à l'autre (rendez-vous de
+contact selon les positions tirées).
+
 ## VPS (Hostinger) — mise en prod initiale
 
 En prod, le compose de dev est complété par

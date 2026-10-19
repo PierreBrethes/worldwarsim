@@ -198,6 +198,15 @@ export default defineSchema({
      */
     accountId: v.optional(v.id('accounts')),
     /**
+     * **Les jobs que ce joueur a en attente** (#146) : on garde l'id, on annule avant de
+     * replanifier, et on ne replanifie que si l'échéance change. `dryJob` est le réveil des
+     * oreilles à l'instant où le charbon s'épuise ; `reassessJobId` et `resumeJobId`, les réveils
+     * immédiats d'un règlement (oreilles muettes, file de recrues affamée).
+     */
+    dryJob: v.optional(v.object({ jobId: v.id('_scheduled_functions'), at: v.number() })),
+    reassessJobId: v.optional(v.id('_scheduled_functions')),
+    resumeJobId: v.optional(v.id('_scheduled_functions')),
+    /**
      * **Ce siège n'est pas un joueur** (objectifs neutres, 17/09/2026) : il ne tient que les
      * garnisons locales des objectifs neutres. Absent vaut « un vrai joueur », comme tout champ
      * posé après coup (leçon du 27/08 sur `buildings.seasonId`).
@@ -261,12 +270,15 @@ export default defineSchema({
      *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
     researched: v.optional(v.array(RESEARCH_CARD)),
     /**
-     * **La carte posée sur le QG**, une seule à la fois : ce qu'il lui reste à courir, et depuis
-     * quand — `null` quand son QG manque et qu'elle attend (`research.ts`). Absent : aucune.
+     * **La carte posée sur le Centre de recherche**, une seule à la fois : sa durée au niveau du
+     * Centre qui l'a prise, ce qu'il lui reste à courir, et depuis quand — `null` quand son Centre
+     * manque et qu'elle attend (`research.ts`). Absent : aucune.
      */
     research: v.optional(
       v.object({
         card: RESEARCH_CARD,
+        /** Absent sur une carte posée avant #123 : la durée du premier niveau. */
+        totalMs: v.optional(v.number()),
         remainingMs: v.number(),
         since: v.union(v.number(), v.null()),
       }),
@@ -994,8 +1006,8 @@ export default defineSchema({
   /**
    * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`
    * above, and deliberately the same one: a second model of queue would be a second set of
-   * rules to remember. As many entries advance at once as the headquarters has levels
-   * (`buildLanes`, #136); the queue behind them is unbounded and **already paid for**.
+   * rules to remember. One entry advances at once, two with the Chantier double card
+   * (`laneCount`, ADR 0031); the queue behind them is unbounded and **already paid for**.
    *
    * Only the entries that advance carry a `finishesAt`. The followers have not started, they
    * are dated nowhere, and they are exactly the ones a cancellation refunds in full without
@@ -1023,6 +1035,10 @@ export default defineSchema({
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
+    /** **La durée dont `runHead` l'a daté**, au niveau du QG d'alors (ADR 0031) : l'écran en tire
+     *  sa barre sans la recalculer au niveau d'aujourd'hui. Absent tant qu'il attend, et sur les
+     *  lignes d'avant le champ. */
+    minutes: v.optional(v.number()),
     /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
      *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
      *  Absent on an outpost's raise only: the point already stands on its own row. */

@@ -187,14 +187,14 @@ describe('a queue per projection building', () => {
     expect(queue[1]!.minutesLeft).toBeGreaterThan(queue[0]!.minutesLeft);
   });
 
-  /** **Un niveau rend** (ADR 0028 §5) : une caserne de niveau N forme N troupes à la fois. */
-  it('forms as many troops at once as the site has levels', async () => {
+  /** **Un niveau accélère** (ADR 0031) : une troupe à la fois, 15 % plus vite au niveau 2. */
+  it('forms one troop at a time, faster with each level of its site', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
     await setHqLevel(t, seat, 2);
     const barracks = await raise(t, seat, 'barracks', MARNE, 2);
-    for (let batch = 0; batch < 3; batch += 1)
+    for (let batch = 0; batch < 2; batch += 1)
       await t.mutation(api.troops.recruit, {
         ...seat,
         buildingId: barracks,
@@ -204,12 +204,45 @@ describe('a queue per projection building', () => {
 
     const workshop = await t.query(api.troops.workshop, seat);
     const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
-    expect(queue.map((batch) => batch.started)).toEqual([true, true, false]);
-    const minutes = recruitmentCost('infantry', 1).minutes;
-    expect(queue[2]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
+    expect(queue.map((batch) => batch.started)).toEqual([true, false]);
+    const minutes = Math.round(recruitmentCost('infantry', 1).minutes * 0.85);
+    expect(queue[0]!.minutesLeft).toBeCloseTo(minutes, 0);
+    expect(queue[1]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
   });
 
-  it('dates a waiting batch the moment its site is raised', async () => {
+  /** **Formation double** (ADR 0031) : la carte acquise date tout de suite le lot qui attendait. */
+  it('forms a second troop at once in each site once Formation double is researched', async () => {
+    vi.useFakeTimers();
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    for (let batch = 0; batch < 3; batch += 1)
+      await t.mutation(api.troops.recruit, {
+        ...seat,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
+    const playerId = await playerOf(t, seat);
+    await t.run((ctx) =>
+      ctx.db.patch(playerId, {
+        researched: ['transmissions1', 'transmissions2'],
+        research: { card: 'doubleTraining', remainingMs: 0, since: Date.now() },
+      }),
+    );
+    await t.mutation(internal.research.finish, { playerId, finishesAt: Date.now() });
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+    vi.useRealTimers();
+
+    const workshop = await t.query(api.troops.workshop, seat);
+    const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
+    expect(queue.map((batch) => batch.started)).toEqual([true, true, false]);
+  });
+
+  /** Le gain vaut pour la suite : le lot en cours garde sa date, le suivant ne part pas plus tôt. */
+  it('keeps the due time of the batch under way when its site is raised', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await credit(t, seat, 4000);
@@ -236,11 +269,17 @@ describe('a queue per projection building', () => {
         finishesAt: Date.now(),
       });
     });
+    const before = await t.query(api.troops.workshop, seat);
     await t.mutation(internal.constructions.finish, { constructionId });
 
     const workshop = await t.query(api.troops.workshop, seat);
     const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
-    expect(queue.map((batch) => batch.started)).toEqual([true, true]);
+    expect(queue.map((batch) => batch.started)).toEqual([true, false]);
+    const head = before.facilities.find((facility) => facility.id === barracks)!.queue[0]!;
+    expect(before.loadedAt + head.minutesLeft * 60_000).toBeCloseTo(
+      workshop.loadedAt + queue[0]!.minutesLeft * 60_000,
+      -3,
+    );
   });
 
   it('gives two barracks two independent queues', async () => {

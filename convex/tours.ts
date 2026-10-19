@@ -23,6 +23,7 @@ import { movementsOf, pointOf } from './movement/forces';
 import { aimOf, claimSlot, march, troopsAmong, type MarchOrigin } from './movement/orders';
 import { reassessDetection } from './movement/detection';
 import { debit, economyOf } from './resources';
+import { cancelJob } from './scheduledJobs';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { resupply, takeFromDepot } from './supplies';
 import { pointOfBuilding } from './regions';
@@ -91,7 +92,7 @@ export const start = mutation({
       },
     });
     await atBase(ctx, troopId, now);
-    await reassessDetection(ctx, seasonId, now);
+    await reassessDetection(ctx, seasonId, now, player._id);
     return null;
   },
 });
@@ -112,7 +113,11 @@ export const recall = mutation({
       movement.troopIds.includes(troopId),
     );
     if (underway) await ctx.db.patch(troopId, { tour: { ...troop.tour, recalled: true } });
-    else await endTour(ctx, troop, Date.now(), 'recalled');
+    else {
+      await endTour(ctx, troop, Date.now(), 'recalled');
+      /** Sans tournée, le camion n'est plus voilé par Rangoun (#145). */
+      await reassessDetection(ctx, seasonId, Date.now(), player._id);
+    }
     return null;
   },
 });
@@ -125,8 +130,15 @@ export const retry = internalMutation({
     if (troop?.tour?.waiting === undefined) return;
     if (!(await seasonStillPlays(ctx, troop.playerId))) return;
     const now = Date.now();
+    const was = troop.tour.waiting;
     await atBase(ctx, troopId, now);
-    await reassessDetection(ctx, troop.seasonId, now);
+    /** **Un regard qui retrouve la même attente ne change rien au plateau** (#146) : la
+     *  réévaluation ne part que si la tournée a bougé ou fini. Elle ne touche que son joueur :
+     *  ses dépôts, ses stocks, son camion. */
+    const waiting = (await ctx.db.get(troopId))?.tour?.waiting;
+    if (waiting !== undefined && waiting.why === was.why && waiting.resource === was.resource)
+      return;
+    await reassessDetection(ctx, troop.seasonId, now, troop.playerId);
   },
 });
 
@@ -328,6 +340,7 @@ async function wait(
    *  un plateau à sec ou des dépôts pleins, eux, se remplissent ou se vident d'eux-mêmes. */
   const roads = reason.why === 'road' ? (was?.why === 'road' ? (was.roads ?? 1) : 0) + 1 : 0;
   if (roads >= TOUR_ROAD_WAITS) return endTour(ctx, troop, now, 'road');
+  if (tour.retryJobId !== undefined) await cancelJob(ctx, tour.retryJobId);
   const retryJobId = await ctx.scheduler.runAfter(
     TOUR_RETRY_MINUTES * 60_000,
     internal.tours.retry,
@@ -363,13 +376,7 @@ export async function stopTour(
   why: TourEnd,
 ): Promise<void> {
   const jobId = troop.tour?.retryJobId;
-  if (jobId !== undefined) {
-    try {
-      await ctx.scheduler.cancel(jobId);
-    } catch {
-      // A running retry reads the tour again before acting.
-    }
-  }
+  if (jobId !== undefined) await cancelJob(ctx, jobId);
   await ctx.db.patch(troop._id, { tour: undefined });
   await ctx.db.insert('notices', {
     playerId: troop.playerId,

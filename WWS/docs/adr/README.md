@@ -13,7 +13,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0003](0003-courbure-cpu.md) | Courbure appliquée CPU et non dans le vertex shader | acceptée |
 | [0004](0004-avant-postes-plutot-que-conquete.md) | Avant-postes ponctuels plutôt que conquête de provinces | acceptée |
 | [0005](0005-brouillard-par-defaut.md) | Brouillard de guerre par défaut | acceptée, révisée par 0020, précisée par 0021, révisée le 10/09 (rumeur de butin, 84a) |
-| [0006](0006-slots-de-mouvement.md) | Slots de mouvement comme régulateur central | acceptée |
+| [0006](0006-slots-de-mouvement.md) | Slots de mouvement comme régulateur central | acceptée, source des slots révisée par 0030 |
 | [0007](0007-epoque-1940.md) | Époque 1940 plutôt que matériel moderne | acceptée |
 | [0008](0008-combat-par-interception.md) | Combat par interception et rejeu, pas de tour par tour | acceptée, révisée par 0021 |
 | [0009](0009-pseudo-et-code-plutot-que-comptes.md) | Pseudo et code de partie plutôt que comptes | révisée par 0022 |
@@ -28,7 +28,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08, §3 et §5 révisés par 0021 |
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée, §3 et §6 révisés par 0024, §2 révisé par 0025 |
 | [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée, §10 et §11 révisés par 0027 |
-| [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09, §2 et §3 révisés par 0024 |
+| [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09, §2 et §3 révisés par 0024, source des slots révisée par 0030 |
 | [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009, révisée le 12/09 |
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
 | [0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) | L'engagement est intentionnel, et une force posée se voit dans la portée | acceptée — révise 0008, 0019 §3/§6, 0021 §2/§3 |
@@ -37,4 +37,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0027](0027-la-mondiale-au-centre.md) | La Mondiale au centre, et l'économie comme seul frein | acceptée — remplace la fiche 01, révise 0001, 0020 §10/§11 |
 | [0028](0028-l-economie-de-la-mondiale.md) | L'économie de la Mondiale : cinq ressources, la logistique par les pièces | acceptée — révise 0015, 0026 (16/10), 66a, R1/R5 du 14/10, le relais ; précise 0025 |
 | [0029](0029-placement-libre-et-gisements-ponctuels.md) | Le placement libre des bâtiments, et les gisements ponctuels | acceptée — révise 0013, 0015 (une bâtisse et un gisement par région) |
-| [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a |
+| [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a ; §2 révisé par 0031 ; §3 : le QG forme l'infanterie en Blitz seulement |
+| [0031](0031-les-niveaux-accelerent.md) | Les niveaux accélèrent, la recherche ouvre des files | acceptée — précise la règle 1, révise 0028 §5 et 0030 §2 |

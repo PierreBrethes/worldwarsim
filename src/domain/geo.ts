@@ -20,6 +20,42 @@ export function distanceKm(a: LonLat, b: LonLat): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * A latitude band and a longitude span, the span **unwrapped**: `west` may sit below -180 or
+ * `east` above 180, so a box straddling the antimeridian is one interval and not two.
+ */
+export type GeoBox = {
+  readonly south: number;
+  readonly north: number;
+  readonly west: number;
+  readonly east: number;
+};
+
+/**
+ * **No two points of these boxes are closer than this** — a floor under `distanceKm`, never an
+ * estimate of it. The haversine term is a latitude gap plus a longitude gap weighted by the two
+ * cosines; each term is floored by the smallest gap and the smallest cosine either box allows.
+ */
+export function boxGapKm(a: GeoBox, b: GeoBox): number {
+  const dLat = Math.max(0, a.south - b.north, b.south - a.north);
+  let dLon = 0;
+  if (a.east - a.west + (b.east - b.west) < 360) {
+    const shift = 360 * Math.round((a.west + a.east - (b.west + b.east)) / 720);
+    dLon = 180;
+    for (const turn of [-360, 0, 360]) {
+      const west = b.west + shift + turn;
+      const east = b.east + shift + turn;
+      dLon = Math.min(dLon, Math.max(0, west - a.east, a.west - east));
+    }
+  }
+  const leastCos = (box: GeoBox) =>
+    Math.cos(toRadians(Math.min(90, Math.max(Math.abs(box.south), Math.abs(box.north)))));
+  const h =
+    Math.sin(toRadians(dLat) / 2) ** 2 +
+    leastCos(a) * leastCos(b) * Math.sin(toRadians(dLon) / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+
 /** Follow one great-circle bearing for an exact surface distance. Longitude is folded back into
  * the map's canonical interval, so a search disk may cross the antimeridian without splitting. */
 export function destinationPoint(origin: LonLat, distance: number, bearing: number): LonLat {

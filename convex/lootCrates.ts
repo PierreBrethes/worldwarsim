@@ -6,7 +6,7 @@
 
 import { v } from 'convex/values';
 import { internalMutation } from './_generated/server';
-import { reassessLootCrateDetection, refreshLootCrateDetection } from './movement/detection';
+import { reassessDetection, refreshLootCrateDetection } from './movement/detection';
 import { resolveDueLootCollectionMissions } from './lootCollections';
 
 /** A late wake-up uses the original deadline and can only remove the row that still owns it. */
@@ -26,7 +26,9 @@ export const expire = internalMutation({
     });
     if ((await ctx.db.get(crateId)) === null) return;
     await ctx.db.delete(crateId);
-    await reassessLootCrateDetection(ctx, crate.seasonId);
+    /** Les missions réglées ont pu poser, retenir ou renvoyer des colonnes de plusieurs joueurs :
+     *  tout se relit, caisses comprises (#145). */
+    await reassessDetection(ctx, crate.seasonId);
   },
 });
 

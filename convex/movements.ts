@@ -21,7 +21,7 @@ import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
-import { playerBuildings } from './buildingReads';
+import { levelOf, playerBuildings } from './buildingReads';
 import {
   cargoTotal,
   lootPointsOf,
@@ -37,7 +37,8 @@ import {
   buildCost,
   routeMinutes,
 } from './constants';
-import { foundationMinutes, scheduleStand } from './outposts';
+import { scheduleStand } from './outposts';
+import { foundationMinutes } from '../src/domain/level-speed';
 import { debit } from './resources';
 import { fail } from './errors';
 import {
@@ -46,7 +47,6 @@ import {
   forgetMovement,
   garrisonOf,
   outpostGarrisonOf,
-  recallAt,
   standAt,
 } from './movement/arrival';
 import {
@@ -197,7 +197,7 @@ export const foundOutpostHere = mutation({
      * n'existe pas encore, donc un voisin qui peut réagir. Sans elle, la fondation était le
      * seul geste du jeu sans contre-coup possible.
      */
-    const standsAt = founded + foundationMinutes() * 60_000;
+    const standsAt = founded + foundationMinutes(levelOf(buildings, 'hq')) * 60_000;
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: season._id,
       playerId: player._id,
@@ -650,7 +650,7 @@ export const preview = query({
   },
   handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip }) => {
     const { player } = await playerOf(ctx, token, seasonId);
-    if (type === 'decoy' || namesATroopTwice(troopIds)) return null;
+    if (namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
@@ -971,7 +971,8 @@ export const arrive = internalMutation({
         point: movement.to,
         resolvesAt: held,
       });
-      await reassessDetection(ctx, movement.seasonId, now);
+      /** Retenue, la colonne reste plus longtemps au bout de son fil : rien d'autre ne bouge. */
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
 
@@ -1007,7 +1008,7 @@ export const arrive = internalMutation({
     if (movement.tourLeg !== undefined) {
       if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
       else await arriveAtBase(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
 
@@ -1059,11 +1060,7 @@ export const arrive = internalMutation({
           troops: entered,
         });
       }
-    } else if (movement.type === 'recall') await recallAt(ctx, movement);
-    /** **Un leurre encore en vol le 29/08/2026 finit ici, et n'y fait rien** : il ne porte
-     *  personne, donc `attachHome` ne rattache rien et `forgetMovement` l'efface. Une branche
-     *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
-    else {
+    } else {
       const home = await attachHome(ctx, movement);
       if (movement.type === 'return' && !(await completeLootDelivery(ctx, movement, now))) {
         await stationMovementLoot(ctx, movement, home);
@@ -1073,11 +1070,7 @@ export const arrive = internalMutation({
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
      *  their own notice. Without this a player came back to "rien à signaler" after eight quiet
      *  hours. */
-    if (
-      (movement.type === 'march' && !garrisoned) ||
-      movement.type === 'recall' ||
-      movement.type === 'return'
-    ) {
+    if ((movement.type === 'march' && !garrisoned) || movement.type === 'return') {
       await ctx.db.insert('notices', {
         playerId: movement.playerId,
         at: now,
@@ -1094,7 +1087,14 @@ export const arrive = internalMutation({
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
     await resupply(ctx, movement.playerId, landed, now);
-    await reassessDetection(ctx, movement.seasonId, now);
+    /** **Sans combat, l'arrivée ne change que son joueur** : la colonne n'est plus, ses troupes
+     *  se posent ; un assaut, lui, touche le défenseur, et tout se relit. */
+    await reassessDetection(
+      ctx,
+      movement.seasonId,
+      now,
+      movement.type === 'attack' || movement.type === 'raid' ? undefined : movement.playerId,
+    );
   },
 });
 

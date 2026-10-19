@@ -15,7 +15,6 @@ import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { firesIndirect } from '../../src/domain/indirect-fire';
-import { playerBuildings } from '../buildingReads';
 import {
   cargoTotal,
   movementCargoFields,
@@ -482,31 +481,6 @@ async function deactivate(
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
    *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
   await scheduleRestore(ctx, outpost.seasonId, disabledUntil);
-}
-
-/** `fromBuildingId` carries no address here — the column left an outpost, not a building
- *  (question 21, 18/08) — so the barracks is looked up fresh. Razed since, the troops still come
- *  home rather than die for it (rule 3). */
-export async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  /** What the troops ate until now, they ate where they stood: settle before the address
-   *  changes the upkeep, or the new rate is charged backwards over the whole march. */
-  await settle(ctx, movement.playerId, Date.now());
-  const buildings =
-    movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
-  const barracks =
-    movement.target.kind === 'region'
-      ? buildings.find(
-          (building) =>
-            building.key === 'barracks' &&
-            movement.target.kind === 'region' &&
-            building.regionId === movement.target.regionId,
-        )
-      : undefined;
-  for (const troopId of movement.troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop) await ctx.db.patch(troopId, { stationedAt: barracks ? barracks._id : movement.to });
-  }
-  await stationMovementLoot(ctx, movement, barracks ? barracks._id : movement.to);
 }
 
 /** A building razed while its troops were away leaves them standing where they arrived rather

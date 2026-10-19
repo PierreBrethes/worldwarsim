@@ -70,7 +70,7 @@ function veilMaterial(
 }
 
 /** The land cells whose four neighbours are land too: a hull beaches on the rest. */
-export function inlandBytes(grid: RouteGrid): Uint8Array<ArrayBuffer> {
+function inlandBytes(grid: RouteGrid): Uint8Array<ArrayBuffer> {
   const { width, height } = grid;
   const land = landMaskOf(grid);
   const bytes = new Uint8Array(land.length);

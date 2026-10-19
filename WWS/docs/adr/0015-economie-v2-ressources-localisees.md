@@ -1,5 +1,7 @@
 # ADR 0015 — Économie v2 : ressources localisées et filières courtes
 
+> **Révisée par l'[ADR 0030](0030-le-qg-batit-la-recherche-transmet.md)** (source des slots) : « slots de mouvement = `1 + niveau` » (tableau des bornes) n'est plus la règle ; les slots viennent de la recherche. L'ADR 0031 fait accélérer les niveaux au lieu d'ouvrir des files.
+
 > **Révisée le 09/09/2026 — stockage unique.** L'entrepôt est le seul stockage national et
 > `depot` n'est plus qu'une clé historique. La règle est écrite dans
 > [ADR 0017 §3](0017-format-de-saison-et-socle-place.md#3-le-plafond-de-stockage-borne-ce-qui-entre-jamais-ce-qui-est-détenu),

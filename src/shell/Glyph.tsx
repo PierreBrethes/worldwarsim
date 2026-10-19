@@ -48,6 +48,17 @@ export function PressGlyph({ size = 19 }: { size?: number }) {
   );
 }
 
+/** **Une fiole** : le col, la panse, le niveau du liquide. Tracée comme les autres, la recherche
+ *  n'ayant pas de planche à cuire. */
+export function ResearchGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M8 3h4M9 3v5l-5 8.5h12L11 8V3" />
+      <path d="M6.3 13h7.4" />
+    </Glyph>
+  );
+}
+
 export function SettingsGlyph({ size = 19 }: { size?: number }) {
   return (
     <Glyph size={size}>

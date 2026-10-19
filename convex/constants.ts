@@ -101,7 +101,8 @@ export const STORAGE_CAP_PER_LEVEL = 600;
  * arsenal, warehouse, headquarters) and for the port and the listening post, food for the
  * barracks, oil for the airfield. The outpost, priced below, is the one that costs food.
  *
- * @a-mesurer the second figure of the three extractors is new; set by eye against their steel
+ * @a-mesurer the second figure of the three extractors is new; set by eye against their steel,
+ * and the research centre (#123) is set near the barracks
  */
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
@@ -115,6 +116,8 @@ export const BUILDING_SPEC: Readonly<
   airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
   port: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   listening: { cost: { steel: 35, coal: 15 }, minutes: 40 },
+  // De l'ordre de la caserne (#123), à mesurer comme le reste du barème.
+  researchCenter: { cost: { steel: 45, coal: 30 }, minutes: 45 },
   warehouse: { cost: { steel: 30, coal: 10 }, minutes: 25 },
   // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { steel: 40, coal: 15 }, minutes: 30 },
@@ -133,10 +136,6 @@ export const BUILDING_SPEC: Readonly<
  *  1b du 13/09, et non plus un bâtiment planté sur la capitale (révision de l'ADR 0015). */
 export const HQ_LEVEL_AT_LAUNCH = 1;
 export const MAX_HQ_LEVEL = 5;
-
-/** **What the home screen offers, never what a season is** (révision du 27/08 de l'ADR 0017) :
- *  une saison peut n'avoir aucune horloge. */
-export const DEFAULT_DURATION_HOURS = 168;
 
 /**
  * **La première projection par mer doit tenir dans la dotation** (333 acier : quartier général
@@ -368,7 +367,9 @@ export const COST_BY_ROLE: Readonly<
  * **Ce qu'une carte de recherche coûte et dure** (ADR 0028 §5, artefact du 18/10) : payée à la
  * pose, elle avance en heures de jeu sur le QG. Les prix de l'artefact sont décuplés pour tenir à
  * l'échelle des coûts du code (une caserne vaut 40 d'acier, la dotation 400) ; les durées sont
- * celles de l'artefact, 182 h pour une saison de 168 h (232 h avec les trois cartes Transmissions) — on ne finit pas l'arbre.
+ * celles de l'artefact, 182 h pour une saison de 168 h (292 h avec les trois cartes Transmissions
+ * et les deux cartes de file) — on ne finit pas l'arbre. Les cartes de file (ADR 0031) sont
+ * chères et tardives : le prix du porte-avions, trente heures.
  *
  * **Le contre coûte moins et dure moins que l'arme qu'il contre** (`research.test.ts`).
  *
@@ -391,6 +392,8 @@ export const RESEARCH_SPEC: Readonly<
   transmissions1: { hours: 10, cost: { steel: 60, coal: 60 } },
   transmissions2: { hours: 16, cost: { steel: 100, coal: 90 } },
   transmissions3: { hours: 24, cost: { steel: 160, coal: 130 } },
+  doubleWorks: { hours: 30, cost: { steel: 400, coal: 150 } },
+  doubleTraining: { hours: 30, cost: { steel: 400, coal: 150 } },
 };
 
 /**

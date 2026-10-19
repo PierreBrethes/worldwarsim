@@ -531,6 +531,8 @@ export type Building = {
   readonly cappedByHq: boolean;
   /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
   readonly disabled?: true;
+  /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */
+  readonly captured?: true;
 };
 
 /**
@@ -597,7 +599,7 @@ export type BuildSpec = {
  * lies under it and what he has put on it. Only his own — a region held by anyone else carries
  * no deposit and no building here, structurally, which is the same guard as the arc union.
  */
-export type RegionView = {
+type RegionView = {
   readonly id: string;
   readonly name: string;
   readonly coastal: boolean;
@@ -637,11 +639,14 @@ type RunningWork = {
    *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
+  /** **La durée dont le serveur l'a daté** : la barre se tire d'elle, jamais d'un recalcul au
+   *  niveau du QG d'aujourd'hui. Absente sur un chantier d'avant le champ. */
+  readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
 };
 
-export type QueuedWork = {
+type QueuedWork = {
   readonly id: string;
   readonly name: string;
   readonly key: BuildCostKey;
@@ -651,8 +656,10 @@ export type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
-  /** Daté : il monte sur une autre voie du QG (#136), `null` : il attend sa voie. */
+  /** Daté : il monte sur la seconde file (Chantier double, ADR 0031), `null` : il attend sa file. */
   readonly minutesLeft?: number | null;
+  /** Sa durée datée, quand il monte (`RunningWork.minutes`). */
+  readonly minutes?: number;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -779,7 +786,7 @@ type NoticeBody =
   | {
       readonly kind: 'columnArrived';
       readonly at: number;
-      readonly movementType: 'march' | 'recall' | 'return';
+      readonly movementType: 'march' | 'return';
       readonly hostCountry: string;
       readonly troops: number;
     }
@@ -1299,7 +1306,7 @@ export type PlayerView = {
     readonly construction: RunningWork | null;
     /** The rest of the queue in build order: running ones (`minutesLeft`) and waiting ones. */
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
-    /** How many works rise at once: the headquarters level, 1 without it (`buildLanes`). */
+    /** How many works rise at once: one, two with the Chantier double card (`laneCount`). */
     readonly buildLanes: number;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;

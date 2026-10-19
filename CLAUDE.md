@@ -56,7 +56,9 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`).
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
-  (`WWS/docs/technique/brouillard-et-fanout.md`).
+  (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une
+  colonne appelle `reassessDetection` elle-même, avec `changed` si un seul joueur est touché :
+  on ne compte plus sur une réévaluation suivante.
 - **Une règle, une fonction.** Ce que l'interface propose et ce que le serveur accepte sortent de
   la même fonction pure de `src/domain/` (`*RefusalOf`, `src/domain/movement-orders.ts`). Rien
   n'est grisé : un ordre est offert, ou son refus est dit (ADR 0015).
@@ -68,6 +70,10 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
   (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :
   un seul endroit traduit un bouton en rôle, `roleOf` (`src/map/engine/index.ts`, test par grep).
+  Le serveur ne croit aucune donnée géographique du client (région, point, cible) : il la recoupe
+  sur sa grille.
+- **Échéance.** Un état long (chantier, tournée, recherche, livraison, largage) relit sa règle à son
+  échéance : la carte a pu changer depuis l'ordre.
 - **Deux modes.** `modeOf` dit le mode ; en Blitz, toute distance est une part du théâtre, lue par
   `contactKm`, `detectionRangeOf` et `fireReachOf` seuls (`null` = Mondiale).
 - **Valeurs.** Une constante marquée `@a-mesurer` est un placeholder, pas une décision.

@@ -18,10 +18,10 @@ Centre de recherche (#123), le QG ne portait plus guère que sa propre chute.
    III, chacune +1 slot, chacune après la précédente (à la manière de l'Ordinateur d'Ogame). La
    décision 44a devient : *une recherche débloque une unité, une tuile, une ligne d'usine, ou un
    slot*. Un slot est une capacité entière, jamais un pourcentage.
-2. **Le QG bâtit.** Son niveau N fait avancer N chantiers à la fois (`buildLanes`), le reste attend
+2. *(Révisé par l'ADR 0031 : le niveau du QG accélère les chantiers en pourcentage ; la seconde file vient d'une recherche.)* **Le QG bâtit.** Son niveau N fait avancer N chantiers à la fois (`buildLanes`), le reste attend
    en file. C'est le « plafond de chantier » de la décision R10 du 14/10. Élever le QG accélère
    toute l'économie, sans pourcentage.
-3. **Le QG reste le cœur.** Sa chute élimine, il ancre le sol national, et il forme l'infanterie.
+3. **Le QG reste le cœur.** Sa chute élimine, il ancre le sol national, et — **en Blitz seulement** — il forme l'infanterie. En Mondiale, seuls la caserne, l'aérodrome et le port forment (`workshop`, `convex/troops.ts` ; `hasSiteSheet`, #155).
 
 ## Conséquences
 

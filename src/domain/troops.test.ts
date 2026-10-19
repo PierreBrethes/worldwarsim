@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import {
+  hasSiteSheet,
   recruitRefusalOf,
   type RecruitSituation,
   marchingTroopIds,
@@ -442,5 +443,20 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
     expect(
       recruitRefusalOf('infantry', 1, barracks, at({ stocks: { ...stocks, steel: 5 } })),
     ).toEqual({ code: 'INSUFFICIENT_RESOURCE', resource: 'steel', needed: 18, available: 5 });
+  });
+});
+
+describe('hasSiteSheet', () => {
+  it('lets a Mondiale site sheet open on the forming buildings only, never on the HQ', () => {
+    expect(hasSiteSheet('mondiale', 'barracks')).toBe(true);
+    expect(hasSiteSheet('mondiale', 'airfield')).toBe(true);
+    expect(hasSiteSheet('mondiale', 'port')).toBe(true);
+    expect(hasSiteSheet('mondiale', 'hq')).toBe(false);
+    expect(hasSiteSheet('mondiale', 'mine')).toBe(false);
+  });
+
+  it('opens every held Blitz building, the HQ included', () => {
+    expect(hasSiteSheet('blitz', 'hq')).toBe(true);
+    expect(hasSiteSheet('blitz', 'city')).toBe(true);
   });
 });

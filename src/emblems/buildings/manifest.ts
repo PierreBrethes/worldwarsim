@@ -21,6 +21,7 @@ import listening from './listening.webp';
 import mine from './mine.webp';
 import oilWell from './oilWell.webp';
 import port from './port.webp';
+import researchCenter from './researchCenter.svg';
 import warehouse from './warehouse.webp';
 
 /**
@@ -48,6 +49,7 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
   airfield,
   port,
   listening,
+  researchCenter,
   warehouse,
   depot: warehouse,
   city,
@@ -71,6 +73,8 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
   airfield: airfieldMaquette,
   port: portMaquette,
   listening: listeningMaquette,
+  // Pas encore de GLB (#123) : la planche tient sa place.
+  researchCenter: null,
   warehouse: warehouseMaquette,
   depot: warehouseMaquette,
   city: cityMaquette,

@@ -11,16 +11,16 @@ import { homeCountryOf, regionFacts, type RegionFacts } from './regions';
 /**
  * **A site is what a building hangs from** (ADR 0020 §10): the national soil a player was born
  * on, or one outpost he founded. There are exactly those two, and the union says so — a building
- * cannot be anchored to something in between. It counts nothing: no placement budget (ADR 0027).
+ * cannot be anchored to something in between. It counts nothing: no placement budget survives (ADR 0029).
  */
 export type Site =
   { readonly kind: 'home' } | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> };
 
 export const HOME: Site = { kind: 'home' };
 
-/** Un point tel qu'une portée le lit : son emplacement, son rayon — qui suit son niveau depuis le
+/** Un point tel qu'une portée le lit : sa position, son rayon — qui suit son niveau depuis le
  *  31/08 —, **ce que son disque touche** (révision du 17/09) et son identité, pour que l'ancrage
- *  sache de quel budget il parle. La couverture est celle que la couleur lit, mémoïsée par point
+ *  sache de quel site il parle. La couverture est celle que la couleur lit, mémoïsée par point
  *  et par rayon : deux mesures du même cercle finiraient par se contredire. */
 export const reachOf = (outpost: Doc<'outposts'>) => ({
   point: pointOf(outpost.point),
@@ -41,17 +41,17 @@ export const reachOf = (outpost: Doc<'outposts'>) => ({
  * mât se tient. Constat de Pierre, 17/09, un point au triple point São Paulo / Minas Gerais / Rio.
  *
  * C'est la même lecture que le serveur refuse avec (`OUT_OF_OUTPOST_REACH`), lue une seconde fois
- * pour une seconde question : *puis-je bâtir ici* et *quel budget cela mange* doivent sortir d'une
+ * pour une seconde question : *puis-je bâtir ici* et *à quel site cela s'ancre* doivent sortir d'une
  * seule géométrie, sans quoi un joueur poserait sur un site qui n'existe pas.
  *
  * La région où un point se tient y est à distance nulle, ce qui **absorbe la précision du 04/09** :
  * elle n'a plus à être passée à part. Deux points à égalité — les siens, tous les deux plantés
  * dans la région — vont au premier fondé : ce n'est pas un litige, c'est le même joueur, et il
- * n'y a que le budget d'emplacements qui change de colonne.
+ * n'y a que l'ancre du bâtiment qui change de site.
  *
  * Deactivated points anchor like any other: a raid freezes production, it does not move a
- * building's placement from one budget to another (ADR 0020 §10, §6). **Un chantier, lui,
- * n'ancre rien** : il n'offre aucun emplacement tant qu'il n'est pas levé (révision du 15/09),
+ * building's anchor from one site to another (ADR 0020 §10, §6). **Un chantier, lui,
+ * n'ancre rien** : il n'ancre aucun bâtiment tant qu'il n'est pas levé (révision du 15/09),
  * et l'appelant le retire de la liste avant d'arriver ici — la géométrie ne date rien.
  */
 export function siteFor(
@@ -97,7 +97,7 @@ export async function anchorAt(
   );
 }
 
-/** **Les points debout de ce joueur**, et c'est ce qu'un emplacement veut dire : un chantier
+/** **Les points debout de ce joueur**, et c'est ce qu'un site veut dire : un chantier
  *  n'est pas encore un site (révision du 15/09 de l'ADR 0020 §10). */
 const standingOutpostsOf = async (
   ctx: QueryCtx,
@@ -110,7 +110,7 @@ const standingOutpostsOf = async (
 /**
  * The anchor as the row carries it. **An anchor that resolves to nothing writes no field at
  * all**, which reads back exactly as it should — a building on ground no site of the player
- * reaches counts against no budget, and nothing more goes up there. Both doors refuse such a
+ * reaches has no anchor, and nothing more goes up there. Both doors refuse such a
  * placement long before this (`OUT_OF_OUTPOST_REACH`), so it is a floor, not a path.
  */
 export const anchored = (site: Site | null): { outpostId?: Id<'outposts'> | null } =>
@@ -126,8 +126,8 @@ export type Sites = {
 };
 
 /**
- * **Every site of a player and what is left on it**, read once. Both doors of the placement
- * rule go through it and so does the view: a second count of the same budget is a screen that
+ * **Every site of a player and where a region anchors**, read once. Both doors of the placement
+ * rule go through it and so does the view: a second reading of the same sites is a screen that
  * offers what the server refuses.
  */
 export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Sites> {

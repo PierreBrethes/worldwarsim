@@ -23,7 +23,8 @@ import {
   nominalStrength,
   recruitmentCost,
 } from './constants';
-import { roleLockOf } from '../src/domain/research';
+import { laneCount, roleLockOf } from '../src/domain/research';
+import { spedMinutes } from '../src/domain/level-speed';
 import type { ResearchCard } from '../src/domain/ids';
 import { fail } from './errors';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -78,8 +79,9 @@ export const workshop = query({
         regionName: regionFacts(building.regionId)?.name ?? building.regionId,
         queue: dateQueue(
           waiting.filter((batch) => batch.buildingId === building._id).sort(byRank),
+          building,
           blitz,
-          lanesOf(building, blitz),
+          lanesOf(player, blitz),
           now,
         ),
       }));
@@ -272,7 +274,8 @@ export const deliver = internalMutation({
       site: station === null ? null : { building: station.key, regionId: station.regionId },
     });
     await ctx.db.delete(recruitmentId);
-    await reassessDetection(ctx, season._id);
+    /** Une troupe neuve est un détecteur de plus, à son joueur seul. */
+    await reassessDetection(ctx, season._id, Date.now(), batch.playerId);
     await startLanes(ctx, batch.buildingId, Date.now());
   },
 });
@@ -328,7 +331,7 @@ export async function startLanes(
   const player = await ctx.db.get(head.playerId);
   const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
   const building = await ctx.db.get(buildingId);
-  const lanes = building === null ? 1 : lanesOf(building, blitz);
+  const lanes = lanesOf(player, blitz);
   const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
   if (idle.length === 0) return;
   /**
@@ -344,19 +347,30 @@ export async function startLanes(
   if ((await economyOf(ctx, head.playerId, now)).starving) return;
 
   for (const batch of idle) {
-    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    /** Daté au départ, au niveau du site d'alors : une élévation plus tard ne le redate pas, le
+     *  gain vaut pour la suite (ADR 0031). */
+    const minutes = trainingMinutes(batch, building, blitz);
     const finishesAt = now + minutes * 60_000;
     await ctx.db.patch(batch._id, { finishesAt });
     await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: batch._id });
   }
 }
 
-/**
- * **Un niveau rend** (ADR 0028 §5) : un site de projection de niveau N forme N troupes à la fois,
- * chacune à sa durée. La Blitz forme une unité par bâtiment.
- */
-const lanesOf = (building: Doc<'buildings'>, blitz: boolean): number =>
-  blitz ? 1 : Math.max(1, building.level);
+/** **Une troupe à la fois par site, deux avec Formation double** (ADR 0031). La Blitz forme une
+ *  unité par bâtiment. */
+const lanesOf = (player: Doc<'players'> | null, blitz: boolean): number =>
+  player === null ? 1 : laneCount(player.researched ?? [], 'training', blitz);
+
+/** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site. La Blitz
+ *  forme en `BLITZ.recruitMinutes`, sans niveau. */
+const trainingMinutes = (
+  batch: Doc<'recruitments'>,
+  building: Doc<'buildings'> | null,
+  blitz: boolean,
+): number =>
+  blitz
+    ? BLITZ.recruitMinutes
+    : spedMinutes(recruitmentCost(batch.role, batch.tier).minutes, building?.level ?? 1);
 
 async function queueOf(
   ctx: QueryCtx,
@@ -396,6 +410,7 @@ const priced = (role: UnitRole, tier: 1 | 2, researched: ReadonlyArray<ResearchC
  */
 function dateQueue(
   queue: ReadonlyArray<Doc<'recruitments'>>,
+  building: Doc<'buildings'>,
   /** En Blitz une recrue sort en `BLITZ.recruitMinutes`, sans marque. */
   blitz: boolean,
   /** Ce que le site forme à la fois (`lanesOf`) : chaque lot prend le premier banc libre. */
@@ -404,7 +419,7 @@ function dateQueue(
 ) {
   const free = Array.from({ length: lanes }, () => now);
   return queue.map((batch) => {
-    const minutes = blitz ? BLITZ.recruitMinutes : recruitmentCost(batch.role, batch.tier).minutes;
+    const minutes = trainingMinutes(batch, building, blitz);
     const bench = free.indexOf(Math.min(...free));
     const finishesAt = batch.finishesAt ?? (free[bench] ?? now) + minutes * 60_000;
     free[bench] = finishesAt;

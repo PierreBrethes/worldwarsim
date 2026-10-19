@@ -97,6 +97,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             regionName: server.me.construction.regionName,
             point: server.me.construction.point ?? null,
             minutesLeft: server.me.construction.minutesLeft,
+            ...(server.me.construction.minutes === undefined
+              ? {}
+              : { minutes: server.me.construction.minutes }),
             level: server.me.construction.level ?? 1,
           }
         : null,
@@ -110,6 +113,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         point: entry.point ?? null,
         level: entry.level,
         minutesLeft: entry.minutesLeft ?? null,
+        ...(entry.minutes === undefined ? {} : { minutes: entry.minutes }),
       })),
       buildLanes: server.me.buildLanes ?? 1,
       armyPresent: server.me.armyPresent ?? {},

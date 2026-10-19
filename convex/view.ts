@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
-import { buildLanes } from '../src/domain/construction';
+import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
@@ -83,7 +83,7 @@ import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
-import { buildingLockOf, lineLockOf } from '../src/domain/research';
+import { buildingLockOf, laneCount, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
 import { seasonObjectives } from './objectives';
 import { readMarksOf } from './readMarks';
@@ -172,12 +172,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const economy = await economyOf(ctx, player._id, now);
   const buildings = await playerBuildings(ctx, player._id);
   const hqLevel = levelOf(buildings, 'hq');
+  /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
+  const worksMinutesAt = (key: Parameters<typeof buildMinutes>[0], level: number) =>
+    worksMinutes(key, level, hqLevel);
   /** Every site of his and what is left on it, read by the one function both doors of the
    *  placement rule read (`convex/sites.ts`). */
   const sites = await sitesOf(ctx, player);
   const queue = await queueOf(ctx, player._id);
   /** The first dated entry is the one the banner counts down; the others that rise beside it
-   *  (one lane per headquarters level, #136) travel in `constructionQueue` with their own date. */
+   *  (a second lane with Chantier double, ADR 0031) travel in `constructionQueue` with their own date. */
   const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
 
   /**
@@ -216,11 +219,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * est toujours, à distance nulle, ce qui absorbe la précision du 04/09.
    *
    * **Un point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait
-   * ce que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il
-   * reste celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
+   * ce que la vue refuserait d'offrir. L'ancre d'un bâtiment ne bouge pas pour autant : elle
+   * reste celle du point (`convex/sites.ts`), partagée entre toutes ses régions.
    */
   for (const outpost of outposts) {
-    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'offre aucun emplacement, donc
+    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'ancre rien, donc
      *  il n'ouvre aucun sol — le serveur refuserait ce que la vue offrirait. */
     if (!isStanding(outpost, now)) continue;
     for (const regionId of regionsWithinReach(
@@ -367,7 +370,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       key,
       {
         cost: buildCost(key, 1),
-        minutes: buildMinutes(key, 1),
+        minutes: worksMinutesAt(key, 1),
         // The card travels with the price so the panel offers exactly what the server takes.
         // La Blitz garde son catalogue : rien n'y est tenu par une carte.
         lockedBy: blitz ? null : buildingLockOf(key, player.researched ?? []),
@@ -575,9 +578,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         point: pointOfBuilding(building),
         level: building.level,
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
-        nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
+        nextLevelMinutes: worksMinutesAt(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
+        ...(building.capturedAt === undefined ? {} : { captured: true as const }),
       })),
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,
@@ -628,6 +632,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   ? null
                   : ([construction.point.lon, construction.point.lat] as [number, number]),
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              minutes: construction.minutes,
               level: construction.level,
             }
           : null,
@@ -639,9 +644,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       constructionQueue: queue
         .filter((entry) => entry !== construction)
         .map((entry) => ({
-          /** Daté : ce chantier monte lui aussi, sur une autre voie du QG (#136). Absent : il attend. */
+          /** Daté : ce chantier monte lui aussi, sur la seconde file (ADR 0031). Absent : il attend. */
           minutesLeft:
             entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
+          minutes: entry.minutes,
           id: entry._id,
           name: entry.building,
           key: workKey(entry.building),
@@ -654,8 +660,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
         })),
-      /** Combien de chantiers montent en même temps : le niveau du QG (`buildLanes`). */
-      buildLanes: buildLanes(hqLevel),
+      /** Combien de chantiers montent en même temps : un, deux avec Chantier double (ADR 0031). */
+      buildLanes: laneCount(player.researched ?? [], 'works', blitz),
       armyPresent,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
@@ -782,7 +788,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost:
           outpost.level >= OUTPOST_MAX_LEVEL ? {} : buildCost('outpost', outpost.level + 1),
         nextLevelMinutes:
-          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : buildMinutes('outpost', outpost.level + 1),
+          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutesAt('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
         depot: outpost.depot ?? emptyLoad(),
         depotCapacity: depotCapacity(outpost.level),
@@ -847,7 +853,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     buildCatalog,
     /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
      *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
-    outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
+    outpostFoundation: { cost: buildCost('outpost', 1), minutes: foundationMinutes(hqLevel) },
     /** Servi plutôt que recopié : l'écrêtage annoncé avant de raser un entrepôt et celui que
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
@@ -879,7 +885,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * qui n'existe plus (`convex/validators.ts`).
      */
     movements: await Promise.all(
-      movements.filter(notDecoyMovement).map(async (movement) => {
+      movements.map(async (movement) => {
         const barracks =
           movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
@@ -1093,9 +1099,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .withIndex('byPlayerAt', (q) => q.eq('playerId', player._id).lte('at', now))
         .order('desc')
         .take(NOTICES_SERVED)
-    )
-      .filter(notDecoyNotice)
-      .map(placed),
+    ).map(placed),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
     journalReadAt: marks.journalReadAt,
@@ -1211,29 +1215,13 @@ async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<
 }
 
 /**
- * **Ce que le retrait du leurre laisse en base, et que rien ne doit servir** (29/08/2026). Les
- * littéraux `decoy` restent dans le schéma le temps d'un wipe — un mouvement en vol, des dépêches
- * déjà déposées — mais le client ne connaît plus le mot : ni `MovementType`, ni l'union `Notice`
- * ne le portent. Le filtre est la couture entre les deux, et il vaut mieux qu'une migration : la
- * saison est jetable (ADR 0001), le mot part avec elle.
- */
-const notDecoyMovement = <T extends { readonly type: string }>(
-  movement: T,
-): movement is T & { readonly type: Exclude<T['type'], 'decoy'> } => movement.type !== 'decoy';
-
-const notDecoyNotice = <T extends { readonly kind: string }>(
-  notice: T,
-): notice is Exclude<T, { readonly kind: `decoy${string}` }> => !notice.kind.startsWith('decoy');
-
-/**
  * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
  * region table, so an id would reach the headline raw. Everything else travels untouched — the
  * shape is the union the schema stores, member for member, so a kind added there breaks the
  * compilation in `src/data/serverView.ts` (the served notices are handed to the journal without a
  * cast) rather than reaching the journal as a row nobody words.
  */
-type PlayableNotice = Exclude<Doc<'notices'>, { readonly kind: `decoy${string}` }>;
-function named(notice: PlayableNotice) {
+function named(notice: Doc<'notices'>) {
   const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
   switch (notice.kind) {
     case 'buildingDemolished':
@@ -1304,7 +1292,7 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
  *  point of the region it names. One computation for every kind — a kind added to the schema with
  *  either field is located without a line here. */
-function placed(notice: PlayableNotice) {
+function placed(notice: Doc<'notices'>) {
   const regionId =
     'regionId' in notice
       ? notice.regionId

@@ -24,8 +24,9 @@ d'événements (ADR 0027 §7) ; la refonte du simulateur est abandonnée.
 ## 🟠 Structurantes
 
 **Que devient un quartier général frappé ?** Le QG est la première dette du socle, posé **par
-le joueur** (1b du 13/09) ; il porte les emplacements du sol national (2 × niveau, ADR 0020 §10)
-et la future recherche. La frappe de bâtiment (78a) a tranché pour les autres : intégrité,
+le joueur** (1b du 13/09) ; il ancre le sol national et bâtit (son niveau accélère les chantiers, ADR 0030 et 0031) ;
+les emplacements par niveau (ADR 0020 §10) sont remplacés par l'espacement (ADR 0029), et la
+recherche vit au Centre de recherche (#123). La frappe de bâtiment (78a) a tranché pour les autres : intégrité,
 désactivation, jamais de destruction, réparation seule. Pour le QG : *désactivé, jamais détruit,
 son niveau ne redescend jamais* est la piste cohérente — la destruction du QG est une
 recherche de palier 4+ qui réviserait « jamais éliminé » (question 39). À trancher avant
@@ -46,7 +47,7 @@ sur les seules régions tenues par avant-poste (le sol garde sa couleur, pas son
 valeur fixe par nation ; garder et relever le seuil. Révise l'ADR 0020 §2 quelle que soit la
 réponse. **À trancher avant de donner `fin-de-saison-au-seuil-tenu`.**
 
-**Élever ou fonder.** Le niveau 2 d'un point coûte 117 alliage et donne un emplacement et
+**Élever ou fonder.** *(Prix en alliage datés d'avant le 18/10 : l'acier les a remplacés, et l'ADR 0029 a retiré les emplacements.)* Le niveau 2 d'un point coûte 117 alliage et donne un emplacement et
 60 km de rayon ; une fondation coûte 65, donne un emplacement, un cercle neuf et de la couleur.
 À tout prix supérieur à la fondation, élever est dominé par fonder tant qu'il reste de la place.
 Le prix n'est pas le sujet ; ce qu'un niveau achète l'est. Mesure d'abord (7a : avant-postes
@@ -77,7 +78,7 @@ chacun une règle, et huit troupes signature ; **aucun n'est codé** — les nat
 par la géographie, les gisements et les sprites. C'est le pitch d'origine (« chaque pays a son
 identité réelle »). Deux contraintes déjà posées : un atout casse une règle, il ne bonifie
 jamais (règle des pourcentages) ; l'unité spéciale passe par la recherche au QG (ADR 0014 :
-médecin OU parachutiste pour l'infanterie mk1) et attend l'ADR recherche (44a). Quatre ou cinq
+médecin OU parachutiste pour l'infanterie mk1) et attend la recherche (ADR 0028 §5, 0030 et 0031). Quatre ou cinq
 nations d'abord, jamais huit d'un coup. Le *nerf du Japon* (doctrine du porte-avions annule
 l'irréversibilité) et le *pouvoir italien jamais simulé* se jugent quand ils existent.
 
