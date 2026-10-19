@@ -1356,7 +1356,8 @@ async function detectedArcs(
      *  arc becomes the last known position ADR 0005 asks for, and the client decides which of
      *  the two states the two dates put it in. */
     if (sighting.from > now) continue;
-    const movement = await ctx.db.get(sighting.movementId);
+    /** Une ligne figée a perdu son mouvement : inutile de le chercher. */
+    const movement = sighting.frozen === undefined ? await ctx.db.get(sighting.movementId) : null;
     /**
      * **Le mouvement est fini, le souvenir reste** (ADR 0024 §2). Le tronçon a été figé à la
      * disparition (`forgetMovement`) : il n'y a plus de route à rejouer, donc rien à
