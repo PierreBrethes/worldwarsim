@@ -83,6 +83,8 @@ export type CombatRules = {
   /** The share of a blow a garrison takes — its walls, never a multiplier on its own fire. */
   readonly garrisonDamageTaken: number;
   readonly routThreshold: number;
+  /** **La salve bornée** (ADR 0028 §6) : ce qu'un tir indirect touche de l'escouade visée. */
+  readonly salvoTargets: number;
 };
 
 export type Combatant = {
@@ -195,15 +197,17 @@ export function resolveEngagement({
     shooters.filter(fires).flatMap((shooter) => {
       const strength = firing(shooter);
       if (strength <= 0) return [];
-      const target = pick(shooter, at, rules);
-      if (target === null) return [];
+      const targets = picks(shooter, at, rules, mode === 'indirect' ? rules.salvoTargets : 1);
+      if (targets.length === 0) return [];
       if (shooter.combatant.rounds === 0) {
         dry.add(shooter.combatant.id);
         return [];
       }
       fired.add(shooter.combatant.id);
-      const cover = target.combatant.sheltered ? rules.garrisonDamageTaken : 1;
-      return [hit(shooter, strength, target, cover, phase, rules)];
+      return targets.map((target) => {
+        const cover = target.combatant.sheltered ? rules.garrisonDamageTaken : 1;
+        return hit(shooter, strength, target, cover, phase, rules);
+      });
     });
 
   const struck = salvo(striking, holding, 'strike');
@@ -255,6 +259,47 @@ export function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide 
  * sans banc une fois les pertes appliquées est **noyé**, et c'est `drownedOf` qui le dit, sur
  * l'état d'après la passe. La question ouverte de la 0014 est close ; le tir ne l'a pas apprise.
  */
+function picks(
+  shooter: Fighter,
+  targets: ReadonlyArray<Fighter>,
+  rules: CombatRules,
+  count: number,
+): Fighter[] {
+  const kept: Fighter[] = [];
+  while (kept.length < count) {
+    const next = pick(
+      shooter,
+      targets.filter((one) => !kept.includes(one)),
+      rules,
+    );
+    if (next === null) break;
+    kept.push(next);
+  }
+  return kept;
+}
+
+/**
+ * **Ce qu'une salve touche de l'escouade visée** (ADR 0028 §6, la parade à l'escouade monstre) :
+ * les `salvoTargets` troupes que la pièce blesse le plus, dans l'ordre de la passe — un pion seul
+ * prend un coup, une grosse escouade quatre, jamais ses voisines. Le serveur ne met que celles-là
+ * dans la passe : le tireur n'apprend rien du reste.
+ */
+export function salvoOf<Troop extends Combatant>(
+  gun: Combatant,
+  squad: ReadonlyArray<Troop>,
+  rules: CombatRules,
+): Troop[] {
+  const line = (combatant: Combatant, side: CombatSide): Fighter => ({
+    combatant,
+    side,
+    remaining: combatant.strength,
+  });
+  const fighters = [...squad].sort(byStrikeOrder).map((one) => line(one, 'defender'));
+  return picks(line(gun, 'attacker'), fighters, rules, rules.salvoTargets).map(
+    (fighter) => fighter.combatant as Troop,
+  );
+}
+
 function pick(
   shooter: Fighter,
   targets: ReadonlyArray<Fighter>,

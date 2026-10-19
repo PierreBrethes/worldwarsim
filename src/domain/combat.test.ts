@@ -5,6 +5,7 @@ import {
   drownedOf,
   profileOf,
   resolveEngagement,
+  salvoOf,
   TRANSPORT_PROFILES,
   type Combatant,
   type CombatProfile,
@@ -319,6 +320,32 @@ describe('indirect fire', () => {
   it('spends no round of the target, since it does not fire', () => {
     const fight = duel('artillery', 'infantry1', { mode: 'indirect' });
     expect(fight.engagement.fired).toEqual([fight.attacker.id]);
+  });
+
+  /** **La salve bornée** (ADR 0028 §6) : un pion seul prend un coup, une grosse escouade quatre,
+   *  et une salve ne coûte qu'un cran. */
+  it('strikes up to four troops of the squad, each in full, for one round', () => {
+    const gun = { ...troop('artillery'), rounds: 2 };
+    const squad = Array.from({ length: 6 }, () => troop('infantry1'));
+    const engagement = resolveEngagement({
+      attackers: [gun],
+      defenders: squad,
+      rules: COMBAT_RULES,
+      mode: 'indirect',
+    });
+    expect(engagement.strikes).toHaveLength(COMBAT_RULES.salvoTargets);
+    expect(engagement.strikes.map((strike) => strike.losses)).toEqual([30, 30, 30, 30]);
+    expect(new Set(engagement.strikes.map((strike) => strike.target)).size).toBe(4);
+    expect(engagement.fired).toEqual([gun.id]);
+  });
+
+  it('picks the four troops it hurts most, oldest first on a tie', () => {
+    const gun = troop('artillery');
+    const squad = [troop('armor2'), troop('infantry1'), troop('infantry1'), troop('armor2')];
+    squad.push(troop('infantry1'), troop('infantry1'));
+    expect(salvoOf(gun, squad, COMBAT_RULES).map((one) => one.id)).toEqual(
+      squad.filter((one) => one.role === 'infantry').map((one) => one.id),
+    );
   });
 });
 

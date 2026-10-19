@@ -648,6 +648,8 @@ export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   garrisonDamageTaken: GARRISON_DAMAGE_TAKEN,
   routThreshold: ROUT_THRESHOLD,
+  /** @a-mesurer quatre, la parade à l'escouade monstre (ADR 0028 §6) */
+  salvoTargets: 4,
 };
 
 /**
@@ -758,7 +760,17 @@ export const RELOAD_SECONDS_BY_ROLE: Readonly<Record<UnitRole, number>> = {
  *
  * @a-mesurer rien n'a encore joué une soirée
  */
-export const INDIRECT_FIRE = { emplaceSeconds: 30 } as const;
+export const INDIRECT_FIRE = {
+  emplaceSeconds: 30,
+  /**
+   * **En Mondiale, la portée et la zone morte sont des kilomètres** (ADR 0028 §6, 4.10) : la
+   * zone morte passe le rayon d'arrivée (`ARRIVAL_RADIUS_KM`), pour qu'on ne tire jamais sur ce
+   * qu'on touche ; la portée tient une région voisine.
+   *
+   * @a-mesurer rien n'a encore tiré dans une Mondiale
+   */
+  mondiale: { rangeKm: 150, deadZoneKm: 30 },
+} as const;
 
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
