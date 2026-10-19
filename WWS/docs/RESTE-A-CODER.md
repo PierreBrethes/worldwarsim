@@ -89,8 +89,14 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       testé. Barre sur l'affiche du QG, sur la carte et dans « en cours ». Démo :
       `npm run demo:mondiale -- --recherche`. Le schéma change : `players.researched`,
       `players.research`.
-   10. **Artillerie et grosses escouades** : salve bornée, dessin regroupé au-delà de douze, borne
-       serveur. *Se voit* : salve sur plusieurs troupes, fanion qui porte le compte.
+   10. ~~**Artillerie et grosses escouades**~~ : faite le 19/10. La carte « Artillerie » est réelle :
+       la pièce se forme en Mondiale et bombarde de sa batterie (`fireReachOf(null)`, portée et zone
+       morte en km), sans riposte, une salve par cran ; la salve touche jusqu'à quatre troupes de
+       l'escouade visée (`salvoOf`), le reste n'entre pas dans la passe, un dérouté rentre seul, et
+       la dépêche du bombardé dit combien de troupes une salve « venue d'on ne sait où » a touchées.
+       Au-delà de douze troupes, une figurine par rôle et le compte sur le fanion. La borne serveur
+       se dit à la réserve de pièces avant le lâcher et à la formation après (inchangée). Démo :
+       `npm run demo:mondiale -- --artillerie`.
 
    Bakou, Dakar et Singapour (point 3) attendent les features 3 et 7 ; Rangoun (« aucun envoi
    vers lui ») attend la feature 7, Hong Kong (« l'événement de la une ») les événements de la
