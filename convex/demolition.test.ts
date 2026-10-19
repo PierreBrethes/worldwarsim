@@ -10,11 +10,10 @@ import {
   nominalStrength,
   recruitmentCost,
 } from './constants';
-import { regionFacts, pointOfRegion } from './regions';
 import { scoresOf } from '../src/domain/standings';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -51,7 +50,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
-      point: pointOfRegion(regionId),
+      point: pointIn(regionId),
       level,
       outpostId: null,
     });
@@ -139,7 +138,7 @@ describe('raser un bâtiment', () => {
         ...seat,
         building: 'barracks',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       }),
     ).resolves.toBeDefined();
   });
@@ -185,9 +184,9 @@ describe('raser un bâtiment', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.steel.stock).toBeCloseTo(before + waiting, 5);
-    const point = regionFacts(MARNE)!.point;
+    const { lon } = pointIn(MARNE);
     const garrison = view.me.troops.filter(
-      (troop) => troop.stationedAt.kind === 'point' && troop.stationedAt.lonLat[0] === point[0],
+      (troop) => troop.stationedAt.kind === 'point' && troop.stationedAt.lonLat[0] === lon,
     );
     expect(garrison).toHaveLength(1);
     expect(await noticesOf(t, seat, 'buildingDemolished')).toMatchObject([
@@ -243,7 +242,7 @@ describe('raser un bâtiment', () => {
       ...seat,
       building: 'mine',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
     const placed = (await buildingsOf(t, seat)).find((building) => building.regionId === MOSELLE)!;
     expect(
@@ -283,13 +282,13 @@ describe('raser un bâtiment', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'listening',
       regionId: MEURTHE,
-      point: pointOfRegion(MEURTHE),
+      point: pointIn(MEURTHE),
     });
     const refund = buildCost('listening', 2).steel ?? 0;
 

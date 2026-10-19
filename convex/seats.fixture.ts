@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { nicknameKey } from '../src/domain/account';
 import { isNation } from '../src/domain/nations';
+import { DEPOSIT_POINTS } from '../src/domain/world';
 import { capitalRegionOf, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
@@ -144,9 +145,19 @@ export async function placeHq(t: Bench, seat: Seat, regionId?: string): Promise<
     ...seat,
     building: 'hq',
     regionId: region,
-    point: pointOfRegion(region),
+    point: pointIn(region),
   });
   return region;
+}
+
+/**
+ * **Où une suite vise dans une région** : sur son gisement quand elle en porte un, sinon à son
+ * pôle. Le gisement se tenait au pôle jusqu'à ce que les mines aillent sur leurs sites de 1940
+ * (#125) ; viser ici garde à chaque suite la scène qu'elle décrivait.
+ */
+export function pointIn(regionId: string): { lon: number; lat: number } {
+  const deposit = DEPOSIT_POINTS.find((point) => point.regionId === regionId);
+  return deposit ? { lon: deposit.lonLat[0], lat: deposit.lonLat[1] } : pointOfRegion(regionId);
 }
 
 /** Les lignes d'accueil du compte qui tient cette place — ce que `accounts.seats` sert. */

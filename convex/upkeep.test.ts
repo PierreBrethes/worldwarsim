@@ -15,11 +15,11 @@ import {
   recruitmentCost,
 } from './constants';
 import { armyUpkeep } from '../src/domain/upkeep';
-import { regionFacts, pointOfRegion } from './regions';
+import { regionFacts } from './regions';
 import { landAtPoint } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, seatIn, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
@@ -104,7 +104,7 @@ async function raise(t: ReturnType<typeof boot>, seat: Seat, key: 'farm' | 'barr
       playerId,
       key,
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
       level: 1,
     }),
   );

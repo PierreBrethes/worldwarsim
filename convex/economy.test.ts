@@ -38,17 +38,11 @@ import {
   buildMinutes,
   nominalStrength,
 } from './constants';
-import {
-  capitalRegionOf,
-  foundationOwed,
-  homeDepositsOf,
-  regionFacts,
-  pointOfRegion,
-} from './regions';
+import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
 import { clipToStorage, settle } from './resources';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, unclocked } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, unclocked, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -58,7 +52,7 @@ const KIT = STARTING_KIT;
 /** French regions, straight out of `deposits.json` and `region-index.json`. */
 const MARNE = 'FRA-5323'; //  food
 const MOSELLE = 'FRA-5328'; // coal, inland
-const MEURTHE = 'FRA-5325'; // iron
+const ANJOU = 'FRA-5321'; // iron
 const PAS_DE_CALAIS = 'FRA-5334'; // coal, coastal
 const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
@@ -69,7 +63,7 @@ const RUHR = 'DEU-1572'; // German
 const CALAIS_SHORE = { lon: 2.31, lat: 50.63 };
 /** The same, on the other side of the Channel: a legal coast, the wrong country. */
 const ENGLISH_SHORE = { lon: -1.95, lat: 50.85 };
-const MOSELLE_POINT = regionFacts(MOSELLE)!.point;
+const MOSELLE_POINT = pointIn(MOSELLE);
 
 /**
  * **Une saison lancée, et rien de posé** — l'état réel d'un joueur à la première minute depuis la
@@ -139,7 +133,7 @@ async function raise(
       playerId: player._id,
       key,
       regionId,
-      point: pointOfRegion(regionId),
+      point: pointIn(regionId),
       level,
     });
   });
@@ -210,7 +204,7 @@ describe('exploitation', () => {
     const t = boot();
     const seat = await launchedSeason(t);
     await raise(t, seat, 'mine', MOSELLE);
-    await raise(t, seat, 'mine', MEURTHE);
+    await raise(t, seat, 'mine', ANJOU);
     await fill(t, seat, 'steel', 0);
     vi.advanceTimersByTime(3_600_000);
 
@@ -354,7 +348,7 @@ describe('what the industry window reads', () => {
       ...seat,
       building: 'barracks',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
 
     const view = await t.query(api.view.playerView, seat);
@@ -493,7 +487,7 @@ describe('placement', () => {
         ...seat,
         building: 'mine',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       }),
     ).rejects.toThrow('DEPOSIT_REQUIRED');
   });
@@ -515,7 +509,7 @@ describe('placement', () => {
           ...seat,
           building: 'port',
           regionId: MOSELLE,
-          point: { lon: MOSELLE_POINT[0], lat: MOSELLE_POINT[1] },
+          point: MOSELLE_POINT,
         }),
       ).rejects.toThrow('NOT_COASTAL');
       await t.mutation(api.constructions.start, {
@@ -550,7 +544,7 @@ describe('placement', () => {
           ...seat,
           building: 'barracks',
           regionId: MARNE,
-          point: pointOfRegion(MOSELLE),
+          point: pointIn(MOSELLE),
         }),
       ).rejects.toThrow('POINT_OUTSIDE_REGION');
     });
@@ -589,7 +583,7 @@ describe('placement', () => {
         ...seat,
         building: 'barracks',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       });
       expect(started.level).toBe(2);
       await expect(
@@ -597,7 +591,7 @@ describe('placement', () => {
           ...seat,
           building: 'barracks',
           regionId: ARDENNES,
-          point: pointOfRegion(ARDENNES),
+          point: pointIn(ARDENNES),
         }),
       ).rejects.toThrow('ALREADY_QUEUED_HERE');
     });
@@ -644,7 +638,7 @@ describe('placement', () => {
           playerId: other._id,
           key,
           regionId,
-          point: pointOfRegion(regionId),
+          point: pointIn(regionId),
           level: 1,
         });
       });
@@ -682,7 +676,7 @@ describe('placement', () => {
         ...seat,
         building: 'mine',
         regionId: MOSELLE,
-        point: pointOfRegion(MOSELLE),
+        point: pointIn(MOSELLE),
       });
       expect(placed).toMatchObject({ cost: {}, level: 0 });
       const view = await t.query(api.view.playerView, seat);
@@ -698,7 +692,7 @@ describe('placement', () => {
           ...seat,
           building: 'mine',
           regionId: MOSELLE,
-          point: pointOfRegion(MOSELLE),
+          point: pointIn(MOSELLE),
         }),
       ).rejects.toThrow('DEPOSIT_TAKEN');
     });
@@ -713,14 +707,14 @@ describe('placement', () => {
         ...seat,
         building: 'mine',
         regionId: PAS_DE_CALAIS,
-        point: pointOfRegion(PAS_DE_CALAIS),
+        point: pointIn(PAS_DE_CALAIS),
       });
       const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
       await t.mutation(api.constructions.start, {
         ...seat,
         building: 'mine',
         regionId: MOSELLE,
-        point: pointOfRegion(MOSELLE),
+        point: pointIn(MOSELLE),
       });
       await standOther(t, 'mine', MOSELLE);
 
@@ -743,7 +737,7 @@ describe('placement', () => {
         ...seat,
         building: 'mine',
         regionId: MOSELLE,
-        point: pointOfRegion(MOSELLE),
+        point: pointIn(MOSELLE),
       });
       const view = await t.query(api.view.playerView, seat);
       expect(view.me.buildings.some((building) => building.key === 'mine')).toBe(true);
@@ -763,7 +757,7 @@ describe('placement', () => {
         ...seat,
         building: 'airfield',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
@@ -775,7 +769,7 @@ describe('placement', () => {
       ...seat,
       building: 'airfield',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -790,7 +784,7 @@ describe('placement', () => {
       ...seat,
       building: 'listening',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -827,7 +821,7 @@ describe('placement', () => {
         ...seat,
         building: 'hq',
         regionId: MARNE,
-        point: pointOfRegion(MARNE),
+        point: pointIn(MARNE),
       }),
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
@@ -843,7 +837,7 @@ describe('placement', () => {
         ...seat,
         building: 'mine',
         regionId: RUHR,
-        point: pointOfRegion(RUHR),
+        point: pointIn(RUHR),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
@@ -1060,7 +1054,7 @@ describe('the foundation the season owes', () => {
         ...seat,
         building: due.key,
         regionId,
-        point: pointOfRegion(regionId),
+        point: pointIn(regionId),
       });
       bills.push(cost as Record<string, number>);
     }
@@ -1102,7 +1096,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'mine',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
     expect(offered.cost).toEqual({});
     expect(offered.finishesAt).toBe(Date.now());
@@ -1111,7 +1105,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'mine',
       regionId: PAS_DE_CALAIS,
-      point: pointOfRegion(PAS_DE_CALAIS),
+      point: pointIn(PAS_DE_CALAIS),
     });
     expect(billed.cost).toEqual(buildCost('mine', 1));
     expect(billed.finishesAt).toBeGreaterThan(Date.now());
@@ -1122,8 +1116,8 @@ describe('the foundation the season owes', () => {
     const iron = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'mine',
-      regionId: MEURTHE,
-      point: pointOfRegion(MEURTHE),
+      regionId: ANJOU,
+      point: pointIn(ANJOU),
     });
     expect(iron.cost).toEqual({});
   });
@@ -1142,7 +1136,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     expect(paid.finishesAt).toBeGreaterThan(Date.now());
     const spent = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
@@ -1151,7 +1145,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'farm',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
     expect(placed.cost).toEqual({});
     expect(placed.finishesAt).toBe(Date.now());
@@ -1176,7 +1170,7 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     const [lon, lat] = regionFacts(ARDENNES)!.point;
     await expect(
@@ -1201,20 +1195,20 @@ describe('the foundation the season owes', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
 
     const placed = await t.mutation(api.constructions.start, {
       ...seat,
       building: 'farm',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
     expect(placed).toMatchObject({ cost: {}, rank: null, finishesAt: Date.now() });
 
@@ -1247,7 +1241,7 @@ describe('the foundation the season owes', () => {
           ...seat,
           building: first,
           regionId,
-          point: pointOfRegion(regionId),
+          point: pointIn(regionId),
         })
         .then(
           () => true,
@@ -1293,7 +1287,7 @@ describe('the headquarters the player puts up', () => {
         ...seat,
         building: 'mine',
         regionId: MOSELLE,
-        point: pointOfRegion(MOSELLE),
+        point: pointIn(MOSELLE),
       }),
     ).rejects.toThrow('HQ_FIRST');
   });
@@ -1309,7 +1303,7 @@ describe('the headquarters the player puts up', () => {
       ...seat,
       building: 'hq',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
 
     const view = await t.query(api.view.playerView, seat);
@@ -1337,7 +1331,7 @@ describe('the headquarters the player puts up', () => {
       ...seat,
       building: 'hq',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
 
     await expect(
@@ -1345,7 +1339,7 @@ describe('the headquarters the player puts up', () => {
         ...seat,
         building: 'hq',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       }),
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
@@ -1362,7 +1356,7 @@ describe('the headquarters the player puts up', () => {
       ...seat,
       building: 'hq',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
 
     const view = await t.query(api.view.playerView, seat);
@@ -1375,7 +1369,7 @@ describe('the headquarters the player puts up', () => {
         ...seat,
         building: 'mine',
         regionId: MOSELLE,
-        point: pointOfRegion(MOSELLE),
+        point: pointIn(MOSELLE),
       }),
     ).rejects.toThrow('BUILDING_TOO_CLOSE');
     // Et le charbon se prend ailleurs : la dette suit l'espèce du gisement, pas le point perdu.
@@ -1383,7 +1377,7 @@ describe('the headquarters the player puts up', () => {
       ...seat,
       building: 'mine',
       regionId: PAS_DE_CALAIS,
-      point: pointOfRegion(PAS_DE_CALAIS),
+      point: pointIn(PAS_DE_CALAIS),
     });
     expect((await t.query(api.view.playerView, seat)).me.foundation).not.toContainEqual({
       key: 'mine',
@@ -1399,7 +1393,7 @@ describe('the headquarters the player puts up', () => {
       ...seat,
       building: 'farm',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
   });
 
@@ -1437,9 +1431,9 @@ describe('the construction queue', () => {
   /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses.
    *  Two of them open one level above the launch, so every test here promotes first. */
   const SITES = [
-    { building: 'barracks' as const, regionId: ARDENNES, point: pointOfRegion(ARDENNES) },
-    { building: 'warehouse' as const, regionId: JURA, point: pointOfRegion(JURA) },
-    { building: 'barracks' as const, regionId: MEURTHE, point: pointOfRegion(MEURTHE) },
+    { building: 'barracks' as const, regionId: ARDENNES, point: pointIn(ARDENNES) },
+    { building: 'warehouse' as const, regionId: JURA, point: pointIn(JURA) },
+    { building: 'barracks' as const, regionId: ANJOU, point: pointIn(ANJOU) },
   ];
 
   const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
@@ -1462,7 +1456,7 @@ describe('the construction queue', () => {
       ...seat,
       building: 'farm',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
     const minutes = buildMinutes('farm', 2);
     vi.advanceTimersByTime(minutes * 60_000 + 1);
@@ -1531,13 +1525,13 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
 
     // Against the head, and against a follower alike.
@@ -1546,7 +1540,7 @@ describe('the construction queue', () => {
         ...seat,
         building: 'barracks',
         regionId: ARDENNES,
-        point: pointOfRegion(ARDENNES),
+        point: pointIn(ARDENNES),
       }),
     ).rejects.toThrow('ALREADY_QUEUED_HERE');
     await expect(
@@ -1554,7 +1548,7 @@ describe('the construction queue', () => {
         ...seat,
         building: 'barracks',
         regionId: JURA,
-        point: pointOfRegion(JURA),
+        point: pointIn(JURA),
       }),
     ).rejects.toThrow('ALREADY_QUEUED_HERE');
   });
@@ -1576,13 +1570,13 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
 
     // The follower's ground goes under the queue: the building below is put up without paying,
@@ -1621,13 +1615,13 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
     await t.mutation(api.constructions.start, {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
 
     const before = await t.query(api.view.playerView, seat);
@@ -1701,7 +1695,7 @@ describe('the construction queue', () => {
       ...seat,
       building: 'barracks',
       regionId: ARDENNES,
-      point: pointOfRegion(ARDENNES),
+      point: pointIn(ARDENNES),
     });
 
     const troops = await measure(
@@ -1725,7 +1719,7 @@ describe('the construction queue', () => {
           ...seat,
           building: 'warehouse',
           regionId: JURA,
-          point: pointOfRegion(JURA),
+          point: pointIn(JURA),
         }),
       async () => {
         const waiting = (await t.query(api.view.playerView, seat)).me.constructionQueue[0]!;
@@ -1769,7 +1763,7 @@ describe('a region counts nothing (ADR 0029)', () => {
       ...seat,
       building: 'mine',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
   });
 });
@@ -1867,7 +1861,7 @@ describe('the ground a site reaches', () => {
       ...seat,
       building: 'warehouse',
       regionId: NEAR_EL_TARF,
-      point: pointOfRegion(NEAR_EL_TARF),
+      point: pointIn(NEAR_EL_TARF),
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -1880,7 +1874,7 @@ describe('the ground a site reaches', () => {
         ...seat,
         building: 'warehouse',
         regionId: ALSO_NEAR,
-        point: pointOfRegion(ALSO_NEAR),
+        point: pointIn(ALSO_NEAR),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
@@ -2103,7 +2097,7 @@ describe('a stock that is not a number buys nothing', () => {
         ...seat,
         building: 'barracks',
         regionId: MARNE,
-        point: pointOfRegion(MARNE),
+        point: pointIn(MARNE),
       }),
     ).rejects.toThrow(/INSUFFICIENT_RESOURCE/);
   });
@@ -2145,7 +2139,7 @@ describe('legacy depot compatibility', () => {
         playerId: player._id,
         building: 'depot',
         regionId: JURA,
-        point: pointOfRegion(JURA),
+        point: pointIn(JURA),
         level,
         rank: 1,
         finishesAt,
@@ -2163,7 +2157,7 @@ describe('legacy depot compatibility', () => {
         ...seat,
         building: 'depot',
         regionId: JURA,
-        point: pointOfRegion(JURA),
+        point: pointIn(JURA),
       }),
     ).rejects.toThrow('UNKNOWN_BUILDING');
     const after = await t.query(api.view.playerView, seat);
@@ -2211,7 +2205,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
     expect(started).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
@@ -2227,7 +2221,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
     const { id, playerId } = await legacy(t, seat);
     const queued = await t.query(api.view.playerView, seat);
@@ -2269,7 +2263,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
     expect(raised).toMatchObject({ level: 2, cost: { steel: 72, coal: 27 } });
     vi.advanceTimersByTime(54 * 60_000);
@@ -2304,7 +2298,7 @@ describe('legacy depot compatibility', () => {
       ...seat,
       building: 'warehouse',
       regionId: MOSELLE,
-      point: pointOfRegion(MOSELLE),
+      point: pointIn(MOSELLE),
     });
     const { id } = await legacy(t, seat);
     await raise(t, seat, 'farm', JURA);
@@ -2422,7 +2416,7 @@ describe('raising an outpost', () => {
         ...seat,
         building: 'oilWell',
         regionId: PRAHOVA,
-        point: pointOfRegion(PRAHOVA),
+        point: pointIn(PRAHOVA),
       }),
     ).resolves.toBeDefined();
   });
@@ -2488,7 +2482,7 @@ describe('raising an outpost', () => {
       ...seat,
       building: 'warehouse',
       regionId: JURA,
-      point: pointOfRegion(JURA),
+      point: pointIn(JURA),
     });
     const opening = await steelOf(t, seat);
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });

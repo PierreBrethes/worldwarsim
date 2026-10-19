@@ -272,9 +272,8 @@ describe('what holds a raise back', () => {
  * refus même de `constructions.start`, lu sur les faits que la vue et la carte portent.
  */
 describe('the point aimed at', () => {
-  const COAL = DEPOSIT_POINTS.find(
-    (deposit) => deposit.country === 'FRA' && deposit.deposit === 'coal',
-  )!;
+  /** The Pas-de-Calais: coal and nothing else in its region, unlike the Moselle and its iron. */
+  const COAL = DEPOSIT_POINTS.find((deposit) => deposit.id === 'coal-FRA-5334')!;
   const FRANCE = { id: 'FRA-5333', name: 'Paris', country: 'FRA' };
   const PARIS: LonLat = [2.35, 48.85];
 

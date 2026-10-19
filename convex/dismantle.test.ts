@@ -4,11 +4,11 @@ import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { buildCost, outpostReachKm } from './constants';
-import { regionFacts, pointOfRegion } from './regions';
+import { regionFacts } from './regions';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -79,7 +79,7 @@ async function anchor(
       playerId: player._id,
       key,
       regionId,
-      point: pointOfRegion(regionId),
+      point: pointIn(regionId),
       level,
       outpostId,
     });
@@ -223,7 +223,7 @@ describe('démanteler un avant-poste', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
-      point: pointOfRegion(PRAHOVA),
+      point: pointIn(PRAHOVA),
     });
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: point });
 

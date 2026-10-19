@@ -25,7 +25,7 @@ import {
   type MovementAim,
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
-import { regionFacts, pointOfRegion } from './regions';
+import { regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
@@ -40,6 +40,7 @@ import {
   surveyCamp,
   surveyRegion,
   unclocked,
+  pointIn,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
@@ -122,7 +123,7 @@ async function raise(
       playerId,
       key,
       regionId,
-      point: pointOfRegion(regionId),
+      point: pointIn(regionId),
       level: 1,
       ...(point === undefined ? {} : { point }),
     });
@@ -582,7 +583,7 @@ describe('founding opens a construction site, and it has to be held', () => {
         ...seat,
         building: 'oilWell',
         regionId: PRAHOVA,
-        point: pointOfRegion(PRAHOVA),
+        point: pointIn(PRAHOVA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
@@ -608,7 +609,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
-      point: pointOfRegion(PRAHOVA),
+      point: pointIn(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -713,7 +714,7 @@ describe('founding opens a construction site, and it has to be held', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
-      point: pointOfRegion(PRAHOVA),
+      point: pointIn(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -867,7 +868,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'warehouse',
         regionId: ALBERTA,
-        point: pointOfRegion(ALBERTA),
+        point: pointIn(ALBERTA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
     await expect(
@@ -875,7 +876,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'warehouse',
         regionId: BRITISH_COLUMBIA,
-        point: pointOfRegion(BRITISH_COLUMBIA),
+        point: pointIn(BRITISH_COLUMBIA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
@@ -904,7 +905,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'oilWell',
       regionId: PRAHOVA,
-      point: pointOfRegion(PRAHOVA),
+      point: pointIn(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -922,7 +923,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'airfield',
         regionId: RUHR,
-        point: pointOfRegion(RUHR),
+        point: pointIn(RUHR),
       }),
     ).rejects.toThrow('RESEARCH_REQUIRED');
     const refused: Record<string, unknown> = await t
@@ -930,7 +931,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'barracks',
         regionId: RUHR,
-        point: pointOfRegion(RUHR),
+        point: pointIn(RUHR),
       })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
@@ -957,7 +958,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'airfield',
         regionId: PRAHOVA,
-        point: pointOfRegion(PRAHOVA),
+        point: pointIn(PRAHOVA),
       }),
     ).rejects.toThrow('RESEARCH_REQUIRED');
 
@@ -971,7 +972,7 @@ describe('an outpost opens a radius to build in', () => {
         ...seat,
         building: 'airfield',
         regionId: RUHR,
-        point: pointOfRegion(RUHR),
+        point: pointIn(RUHR),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
 
@@ -979,7 +980,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'airfield',
       regionId: PRAHOVA,
-      point: pointOfRegion(PRAHOVA),
+      point: pointIn(PRAHOVA),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
@@ -991,7 +992,7 @@ describe('an outpost opens a radius to build in', () => {
       ...seat,
       building: 'barracks',
       regionId: MARNE,
-      point: pointOfRegion(MARNE),
+      point: pointIn(MARNE),
     });
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
