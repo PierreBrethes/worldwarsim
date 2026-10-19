@@ -9,7 +9,8 @@
  * pour la France un avant-poste près de Bruxelles, son dépôt entamé, un camion chargé au QG et un
  * autre au point (ADR 0028 §4). `--tournee` y ajoute Lille, au dépôt plein, et lance deux
  * tournées : le camion du QG par Lille, sautée, et Bruxelles ; celui de Bruxelles par Lille seule,
- * qui attend.
+ * qui attend. `--largage` pose pour la France un aérodrome et un avion chargé, un avant-poste de
+ * niveau 1 près de Bruxelles et une escouade à sec en Rhénanie : de quoi larguer (ADR 0028 §4).
  *
  *     npm run demo:mondiale
  *
@@ -30,6 +31,7 @@ const bare = process.argv.includes('--nu');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
+const drops = process.argv.includes('--largage');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -129,6 +131,9 @@ if (!bare) {
   /** Un avant-poste et son dépôt, un camion chargé au QG, un autre au point (ADR 0028 §4). */
   if (logistics && scene.a !== null)
     cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a, fullDepot: tours })]);
+  /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
+  if (drops && scene.a !== null)
+    cli(['run', 'dev:dropScene', JSON.stringify({ playerId: scene.a })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });

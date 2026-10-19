@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, internalQuery } from './_generated/server';
+import { internalMutation, internalQuery, type MutationCtx } from './_generated/server';
 import { heldOf } from './control';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
@@ -321,6 +321,30 @@ export const spawnTroops = internalMutation({
   },
 });
 
+/** Le QG du joueur, posé à la capitale s'il n'en a pas : c'est là qu'un transport se charge. */
+async function headquartersOf(ctx: MutationCtx, player: Doc<'players'>) {
+  let hq = (
+    await ctx.db
+      .query('buildings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect()
+  ).find((building) => building.key === 'hq');
+  if (hq === undefined && isNation(player.nation)) {
+    const regionId = capitalRegionOf(player.nation);
+    const id = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId: player._id,
+      key: 'hq',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+      homeOf: player._id,
+    });
+    hq = (await ctx.db.get(id))!;
+  }
+  return hq;
+}
+
 /**
  * **La scène de la logistique** (ADR 0028 §4), pour la démo : un avant-poste de niveau 2 près de
  * Bruxelles, son dépôt entamé, un camion chargé au QG et un autre en garnison au point.
@@ -359,26 +383,7 @@ export const logisticsScene = internalMutation({
       immuneUntil: null,
       depot: { ammunition: 260, oil: 150, coal: 90 },
     });
-    /** Un QG à la capitale s'il n'y en a pas : c'est là qu'un camion se charge au plateau. */
-    let hq = (
-      await ctx.db
-        .query('buildings')
-        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-        .collect()
-    ).find((building) => building.key === 'hq');
-    if (hq === undefined && isNation(player.nation)) {
-      const regionId = capitalRegionOf(player.nation);
-      const id = await ctx.db.insert('buildings', {
-        seasonId: player.seasonId,
-        playerId,
-        key: 'hq',
-        regionId,
-        point: pointOfRegion(regionId),
-        level: 1,
-        homeOf: playerId,
-      });
-      hq = (await ctx.db.get(id))!;
-    }
+    const hq = await headquartersOf(ctx, player);
     const truck = (stationedAt: Id<'buildings'> | Id<'outposts'>, load: Doc<'troops'>['load']) =>
       ctx.db.insert('troops', {
         seasonId: player.seasonId,
@@ -419,5 +424,74 @@ export const logisticsScene = internalMutation({
       load: { ammunition: 120, oil: 0, coal: 220 },
     });
     return outpostId;
+  },
+});
+
+/**
+ * **La scène du largage** (ADR 0028 §4), pour la démo : un aérodrome à la capitale, un avion
+ * chargé, un avant-poste de niveau 1 près de Bruxelles — une escale n'est pas requise — au dépôt
+ * entamé, et une escouade isolée en Rhénanie, à sec.
+ *
+ * `npx convex run dev:dropScene '{"playerId":"…"}'`
+ */
+export const dropScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    await headquartersOf(ctx, player);
+    const regionId = capitalRegionOf(player.nation);
+    const airfield = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'airfield',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
+    await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId,
+      role: 'airTransport',
+      tier: 1,
+      nominalStrength: nominalStrength('airTransport', 1),
+      currentStrength: nominalStrength('airTransport', 1),
+      stationedAt: airfield,
+      load: { ammunition: 80, oil: 40, coal: 0 },
+    });
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 4.35, lat: 50.85 },
+      hostCountry: 'BEL',
+      level: 1,
+      specialization: 'relay',
+      foundedAt: Date.now() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+      depot: { ammunition: 150, oil: 60, coal: 0 },
+    });
+    /** Une dépêche posée là : son « Localiser » cadre la carte entre l'aérodrome et le point. */
+    await ctx.db.insert('notices', {
+      playerId,
+      at: Date.now(),
+      kind: 'outpostFounded',
+      hostCountry: 'BEL',
+      point: { lon: 4.35, lat: 50.85 },
+      specialization: 'relay',
+    });
+    for (const troop of [
+      { role: 'infantry' as const, rounds: 0 },
+      { role: 'armor' as const, rounds: 0, fuel: 1 },
+    ])
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        tier: 1,
+        nominalStrength: nominalStrength(troop.role, 1),
+        currentStrength: nominalStrength(troop.role, 1),
+        stationedAt: { lon: 7.1, lat: 50.4 },
+        ...troop,
+      });
   },
 });
