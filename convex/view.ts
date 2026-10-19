@@ -674,7 +674,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                           : { resource: troop.tour.waiting.resource }),
                       },
                 recalled: troop.tour.recalled === true,
-                skipped: troop.tour.skipped?.length ?? 0,
+                skipped: troop.tour.skipped ?? [],
               },
             }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un

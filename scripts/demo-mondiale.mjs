@@ -7,7 +7,9 @@
  * date une visite du plateau personnel de neuf heures plus tôt : la prochaine ouverture montre la
  * récolte, des vivres et de l'acier entrés, du pétrole sorti (ADR 0028 §7). `--livraison` pose
  * pour la France un avant-poste près de Bruxelles, son dépôt entamé, un camion chargé au QG et un
- * autre au point (ADR 0028 §4).
+ * autre au point (ADR 0028 §4). `--tournee` y ajoute Lille, au dépôt plein, et lance deux
+ * tournées : le camion du QG par Lille, sautée, et Bruxelles ; celui de Bruxelles par Lille seule,
+ * qui attend.
  *
  *     npm run demo:mondiale
  *
@@ -27,7 +29,8 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 const bare = process.argv.includes('--nu');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
-const logistics = process.argv.includes('--livraison');
+const tours = process.argv.includes('--tournee');
+const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -125,7 +128,26 @@ if (!bare) {
       ]);
   /** Un avant-poste et son dépôt, un camion chargé au QG, un autre au point (ADR 0028 §4). */
   if (logistics && scene.a !== null)
-    cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a })]);
+    cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a, fullDepot: tours })]);
+  /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
+  if (tours && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const outpostIn = (lon) =>
+      me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - lon) < 0.05);
+    const lille = outpostIn(3.06);
+    const brussels = outpostIn(4.35);
+    const truckAt = (kind) =>
+      me.troops.find(
+        (troop) =>
+          troop.role === 'landTransport' &&
+          troop.stationedAt.kind === kind &&
+          (kind === 'building' || troop.stationedAt.outpostId === brussels.id),
+      );
+    const start = (truck, stops) =>
+      client.mutation(api.tours.start, { token: tokenA, seasonId, troopId: truck.id, stops });
+    await start(truckAt('building'), [lille.id, brussels.id]);
+    await start(truckAt('outpost'), [lille.id]);
+  }
   if (harvest)
     cli([
       'run',

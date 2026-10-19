@@ -63,6 +63,7 @@ import {
 import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
+export type { TourLoop };
 
 const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {

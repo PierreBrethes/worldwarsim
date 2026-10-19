@@ -57,8 +57,8 @@ describe('cargoTagsOf', () => {
     expect(truck).toMatchObject({ load: { ammunition: 60, oil: 20 }, loadCapacity: 200 });
   });
 
-  it('says why its tour waits, and the full depots this round skips (ADR 0028)', () => {
-    const tour = { stops: ['a', 'b'], recalled: false, skipped: 1 };
+  it('says why its tour waits (ADR 0028)', () => {
+    const tour = { stops: ['a', 'b'], recalled: false, skipped: [] };
     const [waiting] = cargoTagsOf(
       [
         {
@@ -72,13 +72,12 @@ describe('cargoTagsOf', () => {
       state: 'waiting',
       stops: 2,
       waiting: { why: 'stock', resource: 'oil' },
-      skipped: 1,
     });
     const [running] = cargoTagsOf(
       [{ ...troop('t1', 'landTransport'), tour: { ...tour, waiting: null } }],
       ashore,
     );
-    expect(running?.tour).toMatchObject({ state: 'running', skipped: 1 });
+    expect(running?.tour).toMatchObject({ state: 'running', waiting: null });
   });
 
   it('counts a heavy rider by the seats it takes: a tank fills three of a hull', () => {

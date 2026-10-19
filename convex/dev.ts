@@ -324,15 +324,29 @@ export const spawnTroops = internalMutation({
 /**
  * **La scène de la logistique** (ADR 0028 §4), pour la démo : un avant-poste de niveau 2 près de
  * Bruxelles, son dépôt entamé, un camion chargé au QG et un autre en garnison au point.
+ * `fullDepot` y ajoute Lille, un point au dépôt plein, que la démo des tournées saute ou attend.
  *
  * `npx convex run dev:logisticsScene '{"playerId":"…"}'`
  */
 export const logisticsScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  args: { playerId: v.id('players'), fullDepot: v.optional(v.boolean()) },
+  handler: async (ctx, { playerId, fullDepot }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
+    if (fullDepot === true)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon: 3.06, lat: 50.63 },
+        hostCountry: 'FRA',
+        level: 1,
+        specialization: 'relay',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot: { ammunition: 400, oil: 0, coal: 0 },
+      });
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: player.seasonId,
       playerId,

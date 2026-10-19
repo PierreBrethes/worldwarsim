@@ -480,7 +480,7 @@ describe('in aim', () => {
           ...base.me,
           troops: base.me.troops.map((troop) => ({
             ...troop,
-            tour: { baseId: 'HQ', stops: ['AP-01'], waiting: null, recalled: false, skipped: 0 },
+            tour: { baseId: 'HQ', stops: ['AP-01'], waiting: null, recalled: false, skipped: [] },
           })),
         },
       } as unknown as PlayerView;

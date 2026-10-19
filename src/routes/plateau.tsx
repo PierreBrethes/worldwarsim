@@ -34,7 +34,7 @@ import {
 import { aimRefusalText, fr, nationLabel } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
+import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
 import type { PieceClick, PlacingMagnet, PlacingSpot, StandingPile } from '@/map/engine';
 import {
   readWindows,
@@ -916,23 +916,30 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [recallTour, startTour, seat, trace],
   );
   /** **Les boucles à l'encre** : chaque tournée, et celle qu'on trace, du chargement au
-   *  chargement par ses dépôts. */
-  const tourLoops = useMemo(() => {
+   *  chargement par ses dépôts ; un dépôt que ce tour saute, plein, en pointillé. */
+  const tourLoops = useMemo((): ReadonlyArray<TourLoop> => {
     const pointOfStation = (id: string) =>
       view.me.buildings.find((building) => building.id === id)?.point ??
       view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
-    const loopOf = (baseId: string, stops: ReadonlyArray<string>, tracing: boolean) => {
+    const loopOf = (
+      baseId: string,
+      stops: ReadonlyArray<string>,
+      skipped: ReadonlyArray<string>,
+      tracing: boolean,
+    ): ReadonlyArray<TourLoop> => {
       const base = pointOfStation(baseId);
       const points = stops.flatMap((stop) => {
         const at = pointOfStation(stop);
-        return at === undefined ? [] : [at];
+        return at === undefined ? [] : [{ at, skipped: skipped.includes(stop) }];
       });
-      return base === undefined ? [] : [{ points: [base, ...points, base], tracing }];
+      return base === undefined ? [] : [{ base, stops: points, tracing }];
     };
     const tracedFrom = view.me.troops.find((troop) => troop.id === trace?.carrierId)?.stationedAt;
     return [
       ...view.me.troops.flatMap((troop) =>
-        troop.tour === undefined ? [] : loopOf(troop.tour.baseId, troop.tour.stops, false),
+        troop.tour === undefined
+          ? []
+          : loopOf(troop.tour.baseId, troop.tour.stops, troop.tour.skipped, false),
       ),
       ...(trace === null || tracedFrom === undefined
         ? []
@@ -943,6 +950,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 ? tracedFrom.outpostId
                 : '',
             trace.stops,
+            [],
             true,
           )),
     ];

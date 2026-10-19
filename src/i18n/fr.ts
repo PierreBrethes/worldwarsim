@@ -2600,23 +2600,19 @@ export const fr = {
       `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
-    tourLine: ({ state, stops, waiting, skipped }: TagTour): string =>
+    tourLine: ({ state, stops, waiting }: TagTour): string =>
       state === 'tracing'
         ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
         : state === 'recalled'
           ? 'tournée rappelée · finit au chargement'
-          : waiting !== null
-            ? `tournée · attend : ${
-                waiting.why === 'stock'
-                  ? `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
-                  : waiting.why === 'full'
-                    ? 'dépôts pleins'
-                    : 'route refusée'
-              }`
-            : `tournée · ${stops} arrêt${plural(stops, '', 's')}${
-                skipped > 0
-                  ? ` · saute ${skipped} dépôt${plural(skipped, '', 's')} plein${plural(skipped, '', 's')}`
-                  : ''
+          : waiting === null
+            ? `tournée · ${stops} arrêt${plural(stops, '', 's')}`
+            : `tournée · attend : ${
+                waiting.why === 'full'
+                  ? 'dépôts pleins'
+                  : waiting.why === 'road'
+                    ? 'route refusée'
+                    : `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
               }`,
     launch: 'lancer',
     clear: 'effacer',

@@ -4,18 +4,39 @@ import type { WorldFrame } from './frame';
 import { PALETTE } from './palette';
 import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 
-/** **Une boucle de tournée** (ADR 0028) : le chargement, ses dépôts dans l'ordre, et retour. En
- *  tracé, elle est encore à l'encre pointillée. */
-export type TourLoop = { readonly points: ReadonlyArray<LonLat>; readonly tracing: boolean };
+/** **Une boucle de tournée** (ADR 0028) : le chargement, ses dépôts dans l'ordre — ceux que ce
+ *  tour saute, pleins, marqués —, et retour. En tracé, elle est encore à l'encre pointillée. */
+export type TourLoop = {
+  readonly base: LonLat;
+  readonly stops: ReadonlyArray<{ readonly at: LonLat; readonly skipped: boolean }>;
+  readonly tracing: boolean;
+};
+
+type Stroke = { readonly points: ReadonlyArray<LonLat>; readonly dashed: boolean };
+
+/** **Les traits d'une boucle** : pleins là où elle passe, pointillés par un dépôt sauté, et
+ *  partout tant qu'on la trace. */
+export function strokesOf({ base, stops, tracing }: TourLoop): ReadonlyArray<Stroke> {
+  const points = [base, ...stops.map((stop) => stop.at), base];
+  const skipped = [false, ...stops.map((stop) => stop.skipped), false];
+  const strokes: Array<{ points: Array<LonLat>; dashed: boolean }> = [];
+  for (let i = 1; i < points.length; i += 1) {
+    const dashed = tracing || skipped[i - 1]! || skipped[i]!;
+    const last = strokes[strokes.length - 1];
+    if (last?.dashed === dashed) last.points.push(points[i]!);
+    else strokes.push({ points: [points[i - 1]!, points[i]!], dashed });
+  }
+  return strokes;
+}
 
 const WIDTH = 0.04;
-const FLOOR_PX = 2.2;
+const FLOOR_PX = 3;
 const LIFT = 0.01;
 const INK = { color: PALETTE.border, opacity: 0.8 };
 
 /**
  * **Les tournées tracées à l'encre**, chez soi seulement : une ligne fermée par boucle, pleine
- * quand elle tourne, pointillée tant qu'on la trace. Rien ne coule : l'encre est posée, elle ne
+ * quand elle tourne, pointillée par un dépôt sauté et tant qu'on la trace. Rien ne coule : l'encre est posée, elle ne
  * demande aucune image (`frame-demand.ts`), seule l'épaisseur suit le zoom.
  */
 export class TourInk {
@@ -47,13 +68,12 @@ export class TourInk {
       (child as Ribbon).geometry.dispose();
       child.removeFromParent();
     }
-    for (const loop of loops) {
-      if (loop.points.length < 2) continue;
-      const lifted = loop.points.map((point) => {
+    for (const stroke of loops.flatMap(strokesOf)) {
+      const lifted = stroke.points.map((point) => {
         const at = this.frame.projectLonLat(point);
         return new Vector3(at.x, at.y + LIFT, at.z);
       });
-      const ribbon = new Ribbon(lifted, loop.tracing ? this.dashed : this.solid);
+      const ribbon = new Ribbon(lifted, stroke.dashed ? this.dashed : this.solid);
       ribbon.renderOrder = 5;
       ribbon.frustumCulled = false;
       this.group.add(ribbon);

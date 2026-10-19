@@ -230,7 +230,10 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
     stops.map((stop) => ({ id: stop._id, ...depotOf(stop, now) })),
   );
   const first = plan.visit[0];
-  if (first === undefined) return wait(ctx, troop, now, { why: 'full' });
+  if (first === undefined)
+    return wait(ctx, { ...troop, tour: { ...tour, skipped: [...plan.skipped] } }, now, {
+      why: 'full',
+    });
   const next = tour.stops.indexOf(first) + 1;
   const ready = { ...(await ctx.db.get(troopId))!, tour: { ...tour, next } };
   if (!(await leg(ctx, ready, { kind: 'stop', outpostId: first })))

@@ -468,13 +468,13 @@ describe('the supply tour', () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await setStock(t, seat, 'ammunition', 500);
-    const { hq, truck, hungry } = await touring(t, seat);
+    const { hq, truck, full, hungry } = await touring(t, seat);
 
     expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: hungry } }]);
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.slots.used).toBe(1);
     expect(view.me.troops.find((troop) => troop.id === truck)?.tour).toMatchObject({
-      skipped: 1,
+      skipped: [full],
       waiting: null,
     });
 

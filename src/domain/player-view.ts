@@ -296,13 +296,13 @@ export type TroopView = {
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
   /** **Sa tournée** (ADR 0028) : son point de chargement, ses dépôts dans l'ordre, pourquoi elle
-   *  attend au chargement, si elle finit, rappelée, et combien de dépôts pleins ce tour saute. */
+   *  attend au chargement, si elle finit, rappelée, et les dépôts pleins que ce tour saute. */
   readonly tour?: {
     readonly baseId: string;
     readonly stops: ReadonlyArray<string>;
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
-    readonly skipped: number;
+    readonly skipped: ReadonlyArray<string>;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
