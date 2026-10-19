@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c42dfab -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6746c60 -->
 
 # Les constantes à mesurer
 
@@ -75,7 +75,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `LANES_PER_HQ_LEVEL` | `1` | `src/domain/construction.ts:739` | un chantier par niveau, à éprouver sur le rythme réel d'une Mondiale |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:88` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:342` | deux, d'après la décision du 19/10, jamais joué |
-| `DISBAND_SPREAD_DEG` | `0.05` | `src/domain/movement-orders.ts:817` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien |
+| `DISBAND_SPREAD_DEG` | `0.05` | `src/domain/movement-orders.ts:828` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `REMINDER_MINUTES` | `15` | `src/domain/operation-order.ts:38` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
