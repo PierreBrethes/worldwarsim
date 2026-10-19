@@ -318,6 +318,25 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     expect((await t.run((ctx) => ctx.db.get(movementId)))!.troopIds).toEqual(squad.slice(0, 2));
   });
 
+  it('wastes no round nor reload on a pile it cannot touch', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    await troop(t, guest, ROUEN, 'fighter');
+    const campId = await surveyCamp(t, seat, ROUEN);
+    emplaced();
+    await expect(
+      t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId: gun,
+        target: { kind: 'camp', campId },
+      }),
+    ).rejects.toThrow(/OUT_OF_GUNS_REACH/);
+    const battery = (await row(t, gun))!;
+    expect(battery.reloadUntil).toBeUndefined();
+    expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(0);
+  });
+
   it('refuses a target in its dead zone in a Mondiale', async () => {
     const t = boot();
     const { seat, guest } = await season(t, 'mondiale');

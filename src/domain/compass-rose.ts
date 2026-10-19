@@ -14,7 +14,13 @@ import {
 } from './construction';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
-import { bombardRefusalDetails, bombardRefusalOf, firesIndirect } from './indirect-fire';
+import {
+  bombardRefusalDetails,
+  bombardRefusalOf,
+  bombardsWith,
+  firesIndirect,
+  gunsReach,
+} from './indirect-fire';
 import { playedTheatre } from './theatres';
 import { captureDurationAt, type CaptureTarget } from './capture';
 import { PRODUCER_OF } from './economy';
@@ -1055,13 +1061,7 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
-  /** **En Mondiale, une escouade mêlée attaque** : seules ses pièces d'artillerie, levées seules,
-   *  bombardent ; en Blitz, une unité qui porte l'artillerie s'entend dire de bombarder. */
-  const bombarding =
-    column.blitz !== undefined
-      ? column.roles.some(firesIndirect)
-      : column.roles.every(firesIndirect);
-  if ((target.kind === 'camp' || target.kind === 'track') && bombarding)
+  if ((target.kind === 'camp' || target.kind === 'track') && bombardsWith(column.roles, view.mode))
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
@@ -1356,6 +1356,17 @@ export function traceCompass(target: CompassTarget, view: PlayerView, trace: Tou
   };
 }
 
+/** Le milieu d'une cible relevée : celui du camp, ou du fil de la colonne — seul ce qui s'en voit. */
+function mediumOf(
+  target: Extract<CompassTarget, { kind: 'camp' | 'track' }>,
+  view: PlayerView,
+): 'land' | 'sea' | 'air' {
+  if (target.kind === 'camp')
+    return view.camps.find((camp) => camp.id === target.id)?.medium ?? 'land';
+  const mode = view.arcs.find((arc) => arc.id === target.id)?.route.mode;
+  return mode === 'air' ? 'air' : mode === 'naval' ? 'sea' : 'land';
+}
+
 /**
  * **La pièce en main tire, ou dit pourquoi elle se tait** (B20) : une seule branche, et la même
  * règle que le serveur. L'heure est celle du clic — batterie et rechargement s'égrènent.
@@ -1382,6 +1393,7 @@ function bombardFan(
     seen:
       target.kind === 'track' ||
       view.camps.some((camp) => camp.id === target.id && !camp.lastKnown),
+    reachable: gunsReach(mediumOf(target, view)),
     emplacedAt: troop.emplacedAt ?? 0,
     reloadUntil: troop.reloadUntil ?? null,
     moving: marching.has(troop.id),

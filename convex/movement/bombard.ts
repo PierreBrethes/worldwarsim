@@ -71,12 +71,26 @@ export async function bombard(
   const onPoint = address !== null && typeof address !== 'string';
   /** Ses crans après la recharge à l'ancre, comme la passe les lira. */
   const [armed] = (await toppedUp(ctx, player._id, [troop], now)).troops;
+  const victim = (await ctx.db.get(quarry.troopId))!;
+  const pile = await pileOf(ctx, victim);
+  /** **Seules les troupes touchées entrent dans la passe** : le tireur n'apprend rien du reste.
+   *  La Blitz, sans escouade, n'y met que sa cible. */
+  const salvo = salvoOf(
+    combatantOf(troop),
+    (theatre === null ? [victim, ...pile] : [victim]).map((one) => ({
+      ...combatantOf(one),
+      troop: one,
+    })),
+    COMBAT_RULES,
+  ).map((one) => one.troop);
+  const struck = theatre === null ? salvo : [victim];
   const order = {
     roles: [troop.role],
     from: stance?.point ?? quarry.point,
     to: quarry.point,
     theatre,
     seen: true,
+    reachable: salvo.length > 0,
     emplacedAt: batteryReadyAt(troop),
     reloadUntil: troop.reloadUntil ?? null,
     moving,
@@ -91,17 +105,6 @@ export async function bombard(
   if (refusal !== null || stance === null)
     fail(refusal ?? 'UNKNOWN_TROOP', bombardRefusalDetails(order));
 
-  const victim = (await ctx.db.get(quarry.troopId))!;
-  const pile = await pileOf(ctx, victim);
-  /** Seules les troupes touchées entrent dans la passe : le tireur n'apprend rien du reste. */
-  const struck =
-    theatre === null
-      ? salvoOf(
-          combatantOf(troop),
-          [victim, ...pile].map((one) => ({ ...combatantOf(one), troop: one })),
-          COMBAT_RULES,
-        ).map((one) => one.troop)
-      : [victim];
   const { engagementId, engagement, routed, routedCargo } = await resolveContact(ctx, {
     seasonId: troop.seasonId,
     attacker: { playerId: player._id, troops: [troop] },

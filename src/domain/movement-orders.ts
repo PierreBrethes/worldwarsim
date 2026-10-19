@@ -2,7 +2,7 @@ import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
-import { firesIndirect } from './indirect-fire';
+import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
@@ -416,10 +416,11 @@ export function refusalOf(
       if (column.blitz !== undefined) {
         if (aim.kind !== 'camp' && aim.kind !== 'track') return 'UNIT_TARGET_ONLY';
         /** **L'artillerie ne charge pas** (B20) : elle se tait au contact, et bombarde. */
-        if (column.roles.some(firesIndirect)) return 'INDIRECT_FIRE_ONLY';
+        if (bombardsWith(column.roles, 'blitz')) return 'INDIRECT_FIRE_ONLY';
         if (column.blitz.reloading) return 'RELOADING';
         return closedGate(aim, column);
       }
+      if (bombardsWith(column.roles, 'mondiale')) return 'INDIRECT_FIRE_ONLY';
       if (column.outOfRounds === true) return 'NO_ROUNDS';
       if (aim.kind === 'objective' && !column.roles.includes('infantry'))
         return 'INFANTRY_REQUIRED';

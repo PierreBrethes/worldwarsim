@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { contactKm, INDIRECT_FIRE } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import { bombardRefusalOf, emplacedAt, fireReachOf } from './indirect-fire';
+import {
+  bombardRefusalOf,
+  bombardsWith,
+  emplacedAt,
+  fireReachOf,
+  gunsReach,
+} from './indirect-fire';
 import { THEATRES } from './theatres';
 
 const europe = THEATRES.find((theatre) => theatre.id === 'europe')!;
@@ -18,6 +24,7 @@ const ready = {
   to: east(100),
   theatre: europe,
   seen: true,
+  reachable: true,
   emplacedAt: NOW - 30_000,
   reloadUntil: null,
   moving: false,
@@ -98,8 +105,24 @@ describe('the indirect fire of a Mondiale', () => {
   it('stays silent out of rounds, and fires one gun at a time', () => {
     const to = east(fireReachOf(null).rangeKm / 2);
     expect(bombardRefusalOf({ ...mondiale, to, outOfRounds: true })).toBe('NO_ROUNDS');
-    expect(bombardRefusalOf({ ...mondiale, to, roles: ['artillery', 'infantry'] })).toBe(
+    expect(bombardRefusalOf({ ...mondiale, to, roles: ['artillery', 'artillery'] })).toBe(
       'ONE_GUN_ONLY',
     );
+    expect(bombardRefusalOf({ ...mondiale, to, roles: ['artillery', 'infantry'] })).toBe(
+      'ARTILLERY_ONLY',
+    );
+  });
+
+  it('wastes no salvo on what it cannot touch: nothing in the air', () => {
+    expect(gunsReach('air')).toBe(false);
+    expect(gunsReach('land') && gunsReach('sea')).toBe(true);
+    expect(bombardRefusalOf({ ...ready, reachable: false })).toBe('OUT_OF_GUNS_REACH');
+  });
+
+  it('bombards with guns alone in a Mondiale, with any unit carrying one in a Blitz', () => {
+    expect(bombardsWith(['artillery'], 'mondiale')).toBe(true);
+    expect(bombardsWith(['artillery', 'infantry'], 'mondiale')).toBe(false);
+    expect(bombardsWith(['landTransport', 'artillery'], 'blitz')).toBe(true);
+    expect(bombardsWith([], 'mondiale')).toBe(false);
   });
 });
