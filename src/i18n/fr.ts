@@ -8,7 +8,7 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
-import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
+import { OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
@@ -341,21 +341,6 @@ export const fr = {
     depot: 'm',
     city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
-
-  buildingEffects: {
-    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
-    farm: 'exploite des terres',
-    mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
-    oilWell: 'exploite un gisement de pétrole',
-    arsenal: 'charbon + acier → munitions, ou 3 charbon → 1 pétrole après recherche, sur commande',
-    barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
-    airfield: 'ouvre le domaine aérien et assemble les avions',
-    port: 'ouvre le domaine maritime et construit les navires — région côtière',
-    listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
-    warehouse: 'relève le plafond des cinq ressources — se pille',
-    depot: 'relève le plafond des cinq ressources — se pille',
-    city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
-  } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
     europe: 'Europe',
@@ -3471,8 +3456,6 @@ export const fr = {
     constructionNone:
       'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
 
-    queueRank: (rank: number) => `${rank}ᵉ`,
-    queueLevel: (level: number) => `niveau ${level}`,
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
 
@@ -3488,12 +3471,6 @@ export const fr = {
         `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
       free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
-
-    /** **La ligne que la colonne du QG gardait en réserve** (ADR 0020 §6). Zéro, elle n'est pas
-     *  là : un « 0 site hors réseau » permanent est du bruit de fond, et c'est la faute que le
-     *  chantier en tête a déjà coûtée une fois. */
-    unlinkedSites: (count: number) =>
-      `${count} site${plural(count, '', 's')} hors réseau — la région ne porte plus vos couleurs`,
 
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
@@ -3538,31 +3515,10 @@ export const fr = {
         `${building} se tait et rend l’${resource} au reste de la nation.`,
     },
 
-    /**
-     * **L'entretien se lit à côté de ce qu'il mange.** Le débit de vivres du bandeau est
-     * déjà net : cette section n'ajoute aucun chiffre, elle décompose celui-là.
-     */
-    upkeepTroops: (count: number) => `${count} troupe${plural(count, '', 's')} en service`,
-    upkeepDrain: (perHour: number) => `− ${tenths(perHour)} vivres / h`,
-    upkeepUnsupplied: (count: number, factor: number) =>
-      `dont ${count} hors ravitaillement — entretien ×${factor}`,
-    /** Le palier de la prochaine troupe, et où commence le suivant : de quoi décider de former
-     *  la onzième ou la vingt-sixième en connaissance de cause. */
-    upkeepStep: (rate: number, nextAt: number | null, nextRate: number | null) =>
-      nextAt === null || nextRate === null
-        ? `palier : ${rate} vivres / h par troupe — le dernier`
-        : `palier : ${rate} vivres / h par troupe — ${nextRate} à partir de la ${nextAt}ᵉ`,
-    upkeepOutposts: (count: number) => `${count} avant-poste${plural(count, '', 's')} debout`,
-    upkeepListening: 'écoutes',
     /** A listening post with no coal left, said on the piece with what mends it. */
     listeningSilent: 'muette — plus de charbon',
     listeningSilentFix:
       'Une mine sur du charbon, ou du charbon livré, la fera entendre de nouveau.',
-    upkeepCoalDrain: (perHour: number) => `− ${tenths(perHour)} charbon / h`,
-    upkeepBalance: (net: number) =>
-      `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} vivres / h`,
-    upkeepStarving:
-      'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
 
     cappedByHq: 'plafonné par le QG',
     inRegion: (region: string) => `en ${region}`,
