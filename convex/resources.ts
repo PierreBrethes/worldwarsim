@@ -126,7 +126,7 @@ export function storageCaps(
 /** A lot as the settlement reads it, whether it comes from the table or from a settled copy. */
 export type OrderState = {
   readonly chain: BuildingKey;
-  readonly line: LineKey;
+  readonly line?: LineKey | undefined;
   readonly ordered: number;
   readonly produced: number;
 };
@@ -163,6 +163,7 @@ export function chainsOf(
       by: key,
       output,
       inputs,
+      level: totalLevelOf(linked, key),
       perHour: perHourPerLevel * totalLevelOf(linked, key),
       quota: isCommanded(key) ? Math.max(0, (lot?.ordered ?? 0) - (lot?.produced ?? 0)) : null,
       /** Bâtie et entièrement coupée : c'est ça, `unlinked`. Rien de bâti reste `off` — il n'y a

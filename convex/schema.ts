@@ -538,8 +538,8 @@ export default defineSchema({
   orders: defineTable({
     playerId: v.id('players'),
     chain: BUILDING_KEY,
-    /** The line of the chain the lot runs on (`FACTORY_LINES`). */
-    line: LINE_KEY,
+    /** The line of the chain the lot runs on (`FACTORY_LINES`); absent reads `DEFAULT_LINE`. */
+    line: v.optional(LINE_KEY),
     ordered: v.number(),
     produced: v.number(),
     placedAt: v.number(),

@@ -460,3 +460,36 @@ describe('shortfallOf', () => {
     expect(shortfallOf({ steel: 100, food: 50 }, (key) => stocks[key])).toBeNull();
   });
 });
+
+/** La ligne du pétrole synthétique : trois charbon pour un pétrole, sans toucher à l'acier. */
+describe('the synthetic oil line', () => {
+  const oil = (perHour: number, quota: number | null = null): Conversion => ({
+    by: 'arsenal',
+    output: 'oil',
+    inputs: [['coal', 3]],
+    perHour,
+    quota,
+  });
+
+  it('burns three coal for each oil it makes', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 100, steel: 50, oil: 10 }, 5);
+    expect(report.made).toBe(20);
+    expect(stocks.oil).toBe(30);
+    expect(100 - stocks.coal).toBe(3 * (stocks.oil - 10));
+    expect(stocks.steel).toBe(50);
+  });
+
+  it('stops exactly when the coal runs out, and names it', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 10 }, 5);
+    expect(report.made).toBeCloseTo(10 / 3);
+    expect(stocks.coal).toBeCloseTo(0);
+    expect(report).toMatchObject({ state: 'starved', missing: 'coal' });
+  });
+
+  it('stops at the oil ceiling without burning coal', () => {
+    const { stocks, report } = settleOne(oil(4), { coal: 100, oil: CEILING }, 5);
+    expect(report.made).toBe(0);
+    expect(stocks.coal).toBe(100);
+    expect(report.state).toBe('overflowing');
+  });
+});

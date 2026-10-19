@@ -206,6 +206,8 @@ export type Conversion = {
   readonly output: ResourceKey;
   readonly inputs: ReadonlyArray<readonly [ResourceKey, number]>;
   readonly perHour: number;
+  /** The linked level `perHour` was computed from. */
+  readonly level?: number;
   /**
    * How many units of output are still owed on a standing lot — `null` for a chain that runs
    * on its own, whatever the stocks.

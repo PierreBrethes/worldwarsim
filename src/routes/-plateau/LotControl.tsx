@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { REST_WINDOW_MINUTES } from '../../../convex/constants';
 import { aBuilding, fr, researchRequired } from '@/i18n/fr';
-import type { ResourceKey } from '@/domain/ids';
+import type { LineKey } from '../../../convex/constants';
 import { handleError } from '@/data/errors';
 import { Gauge } from '@/shell/Gauge';
 import { PRODUCER_OF } from '@/domain/economy';
@@ -42,7 +42,7 @@ export function LotControl({
   const [error, setError] = useState<string | null>(null);
   const [sizing, setSizing] = useState(false);
   const [asked, setAsked] = useState<number | null>(null);
-  const [chosen, setChosen] = useState<ResourceKey | null>(null);
+  const [chosen, setChosen] = useState<LineKey | null>(null);
 
   const { order } = chain;
   const running = order !== null && order.produced < order.ordered;
@@ -184,7 +184,9 @@ export function LotControl({
             {wanted > 0 ? (
               <button
                 type="button"
-                onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
+                onClick={() =>
+                  send(place({ ...seat, chain: chain.by, line: line.output, quantity: wanted }))
+                }
                 className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase"
               >
                 {fr.economy.lot.launch}
@@ -276,8 +278,8 @@ function LinePicker({
   onPick,
 }: {
   lines: ChainView['lines'];
-  current: ResourceKey;
-  onPick: (output: ResourceKey) => void;
+  current: LineKey;
+  onPick: (output: LineKey) => void;
 }) {
   return (
     <div className="mb-[8px] flex flex-wrap items-center gap-2">

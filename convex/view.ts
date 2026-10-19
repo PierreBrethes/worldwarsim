@@ -55,7 +55,6 @@ import {
   type Costs,
   FACTORY_LINES,
   LINE_KEYS,
-  type LineKey,
 } from './constants';
 import { engagementsOf } from './combat';
 import { queueOf } from './constructions';
@@ -490,8 +489,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       chains: economy.chains.map(({ conversion, state, missing, made }) => {
         const lot = economy.orders.find((order) => order.chain === conversion.by) ?? null;
         // The linked level the settlement ran on, read back from its own rate.
-        const linkedLevel =
-          conversion.perHour / FACTORY_LINES[conversion.output as LineKey].perHourPerLevel;
+        const linkedLevel = conversion.level ?? 0;
         return {
           by: conversion.by,
           output: conversion.output,

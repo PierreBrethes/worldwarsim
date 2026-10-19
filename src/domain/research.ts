@@ -130,7 +130,7 @@ export type ResearchSituation = {
 
 /**
  * **Ce que le QG refuse de chercher**, lu par la carte qu'on lâche dessus avant le relâché et par
- * `research.start` après : déjà acquise, à venir, une carte d'abord, une autre en cours, pas de
+ * `research.start` après : déjà acquise, une carte d'abord, une autre en cours, pas de
  * QG, puis le prix. Chaque refus nomme la carte que sa phrase dit.
  */
 export function researchRefusalOf(

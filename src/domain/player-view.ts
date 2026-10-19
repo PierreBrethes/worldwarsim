@@ -1,3 +1,4 @@
+import type { LineKey } from '../../convex/constants';
 import type { SupplyLoad } from './logistics';
 import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
@@ -553,7 +554,7 @@ export type ChainView = {
    *  surface says it before the gesture, the server refuses with the same one. `maxOrder` is the
    *  largest lot the input reserve allows right now, in units of output. */
   readonly lines: ReadonlyArray<{
-    readonly output: ResourceKey;
+    readonly output: LineKey;
     readonly inputs: ReadonlyArray<{ readonly resource: ResourceKey; readonly quantity: number }>;
     readonly nominalPerHour: number;
     readonly lockedBy: ResearchCard | null;

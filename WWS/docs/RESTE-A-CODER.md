@@ -84,7 +84,7 @@ d'avant le 14/10 : à relire contre le code avant d'en reprendre un item.
       le QG (`research.start`, `researchRefusalOf`) se paie, court en heures de jeu, attend un QG
       tombé sans rien perdre, et débloque à la fin avec sa dépêche. Toute pièce et toute tuile hors
       du départ attend sa carte (`RESEARCH_REQUIRED`), visible ; artillerie et pétrole synthétique
-      restent « à venir ». `UNLOCKED_AT`, `TIER_2_HQ_LEVEL`, `ROLE_SITE_LEVEL` et `chainSpeed`
+      étaient « à venir » (faits en 4.10 et 4.11). `UNLOCKED_AT`, `TIER_2_HQ_LEVEL`, `ROLE_SITE_LEVEL` et `chainSpeed`
       retirés ; un site de projection de niveau N forme N troupes à la fois ; invariant du contre
       testé. Barre sur l'affiche du QG, sur la carte et dans « en cours ». Démo :
       `npm run demo:mondiale -- --recherche`. Le schéma change : `players.researched`,
