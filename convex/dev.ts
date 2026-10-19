@@ -12,7 +12,7 @@ import { seatLoose } from '../src/domain/troops';
 import { modeOf } from '../src/domain/season-mode';
 import { UNIT_ROLE } from './validators';
 import { nominalStrength } from './constants';
-import { capitalRegionOf, pointOfRegion } from './regions';
+import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
 import { layPoint } from './strategicPoints';
 
@@ -667,6 +667,51 @@ export const pointsScene = internalMutation({
       side: 'capturer',
       country: 'BEL',
       lost,
+    });
+  },
+});
+
+/**
+ * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
+ * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
+ *
+ * `npx convex run dev:navyScene '{"playerId":"…"}'`
+ */
+export const navyScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = { lon: 5.37, lat: 43.3 };
+    const region = nearestRegion([point.lon, point.lat]);
+    if (region === null) throw new Error('no region at Marseille');
+    const port = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'port',
+      regionId: region.id,
+      point,
+      level: 1,
+    });
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 3, lat: 43.3 },
+      hostCountry: 'FRA',
+      level: 1,
+      specialization: 'relay',
+      foundedAt: Date.now() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId,
+      role: 'cargo',
+      tier: 1,
+      nominalStrength: nominalStrength('cargo', 1),
+      currentStrength: nominalStrength('cargo', 1),
+      stationedAt: port,
     });
   },
 });

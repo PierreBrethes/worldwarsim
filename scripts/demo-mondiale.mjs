@@ -19,7 +19,8 @@
  * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
- * `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
+ * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
+ * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : trois montent ensemble, le quatrième attend sa voie (#136).
@@ -51,6 +52,7 @@ const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
 const works = process.argv.includes('--chantiers');
+const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -153,6 +155,9 @@ if (!bare) {
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
     cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
+  /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
+  if (navy && scene.a !== null)
+    cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
   /** Deux cartes acquises, une troisième en cours sur le QG (ADR 0028 §5). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a })]);
