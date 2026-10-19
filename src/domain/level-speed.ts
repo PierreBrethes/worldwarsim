@@ -1,4 +1,6 @@
 import type { BuildingKey } from './ids';
+import { buildMinutes } from '../../convex/constants';
+import type { BuildCostKey } from './ids';
 import { PROJECTION_BY_DOMAIN } from './troops';
 
 /**
@@ -19,6 +21,15 @@ export const levelSpeed = (level: number): number =>
  *  que l'écran affiche et que le serveur date. */
 export const spedMinutes = (minutes: number, level: number): number =>
   Math.round(minutes * levelSpeed(level));
+
+/** **La durée d'un chantier** au niveau du QG : la seule que le serveur date (`runHead`) et que
+ *  l'écran annonce avant le départ. */
+export const worksMinutes = (key: BuildCostKey, level: number, hqLevel: number): number =>
+  spedMinutes(buildMinutes(key, level), hqLevel);
+
+/** **La durée d'un chantier de fondation** : celle d'un avant-poste de niveau 1, accélérée comme
+ *  toute élévation par le QG. */
+export const foundationMinutes = (hqLevel: number): number => worksMinutes('outpost', 1, hqLevel);
 
 /** Le gain qu'imprime la fiche, en pour cent entiers : « niveau 3 : −28 % ». */
 export const levelGain = (level: number): number => Math.round((1 - levelSpeed(level)) * 100);

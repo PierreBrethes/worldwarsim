@@ -25,6 +25,7 @@ import {
   type MovementAim,
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
+import { foundationMinutes } from '../src/domain/level-speed';
 import { regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
@@ -571,6 +572,34 @@ describe('founding opens a construction site, and it has to be held', () => {
         point: pointIn(PRAHOVA),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+  });
+
+  /** **Le QG accélère la fondation comme toute élévation** (ADR 0031) : la date écrite et la durée
+   *  que la vue annonce sont celles de `foundationMinutes`. */
+  it('dates the foundation at the headquarters level, and the view says the same length', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const hq = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((building) => building.key === 'hq')!;
+      await ctx.db.patch(hq._id, { level: 3 });
+    });
+    const point = regionFacts(PRAHOVA)!.point;
+
+    await found(t, seat, point, [await post(t, seat, point)]);
+
+    const [outpost] = await outpostsOf(t, seat);
+    expect(foundationMinutes(3)).toBeLessThan(MINUTES);
+    expect(outpost!.standsAt).toBe(MIDDAY.getTime() + foundationMinutes(3) * 60_000);
+    expect((await t.query(api.view.playerView, seat)).outpostFoundation.minutes).toBe(
+      foundationMinutes(3),
+    );
   });
 
   /** **À `standsAt`, le point est un point** : il tient, il colore, il relève, il porte. */

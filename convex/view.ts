@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
-import { spedMinutes } from '../src/domain/level-speed';
+import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
 import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
@@ -173,8 +173,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const buildings = await playerBuildings(ctx, player._id);
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
-  const worksMinutes = (key: Parameters<typeof buildMinutes>[0], level: number) =>
-    spedMinutes(buildMinutes(key, level), hqLevel);
+  const worksMinutesAt = (key: Parameters<typeof buildMinutes>[0], level: number) =>
+    worksMinutes(key, level, hqLevel);
   /** Every site of his and what is left on it, read by the one function both doors of the
    *  placement rule read (`convex/sites.ts`). */
   const sites = await sitesOf(ctx, player);
@@ -370,7 +370,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       key,
       {
         cost: buildCost(key, 1),
-        minutes: worksMinutes(key, 1),
+        minutes: worksMinutesAt(key, 1),
         // The card travels with the price so the panel offers exactly what the server takes.
         // La Blitz garde son catalogue : rien n'y est tenu par une carte.
         lockedBy: blitz ? null : buildingLockOf(key, player.researched ?? []),
@@ -578,7 +578,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         point: pointOfBuilding(building),
         level: building.level,
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
-        nextLevelMinutes: worksMinutes(buildingCostKey(building), building.level + 1),
+        nextLevelMinutes: worksMinutesAt(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
@@ -786,7 +786,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost:
           outpost.level >= OUTPOST_MAX_LEVEL ? {} : buildCost('outpost', outpost.level + 1),
         nextLevelMinutes:
-          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutes('outpost', outpost.level + 1),
+          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutesAt('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
         depot: outpost.depot ?? emptyLoad(),
         depotCapacity: depotCapacity(outpost.level),
@@ -851,7 +851,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     buildCatalog,
     /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
      *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
-    outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
+    outpostFoundation: { cost: buildCost('outpost', 1), minutes: foundationMinutes(hqLevel) },
     /** Servi plutôt que recopié : l'écrêtage annoncé avant de raser un entrepôt et celui que
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,

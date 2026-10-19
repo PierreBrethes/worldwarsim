@@ -21,7 +21,7 @@ import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
-import { playerBuildings } from './buildingReads';
+import { levelOf, playerBuildings } from './buildingReads';
 import {
   cargoTotal,
   lootPointsOf,
@@ -37,7 +37,8 @@ import {
   buildCost,
   routeMinutes,
 } from './constants';
-import { foundationMinutes, scheduleStand } from './outposts';
+import { scheduleStand } from './outposts';
+import { foundationMinutes } from '../src/domain/level-speed';
 import { debit } from './resources';
 import { fail } from './errors';
 import {
@@ -197,7 +198,7 @@ export const foundOutpostHere = mutation({
      * n'existe pas encore, donc un voisin qui peut réagir. Sans elle, la fondation était le
      * seul geste du jeu sans contre-coup possible.
      */
-    const standsAt = founded + foundationMinutes() * 60_000;
+    const standsAt = founded + foundationMinutes(levelOf(buildings, 'hq')) * 60_000;
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: season._id,
       playerId: player._id,
