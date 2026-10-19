@@ -1,6 +1,7 @@
 import { pileSupplies, type PileSupplies } from './supplies';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
-import { fr, stackLabel } from '@/i18n/fr';
+import { cardName, fr, stackLabel } from '@/i18n/fr';
+import { researchProgressOf } from './research';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
@@ -299,6 +300,22 @@ function buildingPoster(
       });
       bar = order.produced / order.ordered;
     }
+  }
+
+  /** **La carte que porte mon QG** (ADR 0028 §5) : son nom, ce qui lui reste, sa barre. */
+  const research = building.key === 'hq' ? view.me.research.running : null;
+  if (research !== null) {
+    const { share, finishesAt } = researchProgressOf(research, now);
+    lines.push({
+      kind: 'row',
+      label: fr.research.header,
+      value: `${cardName(research.card)} · ${
+        finishesAt === null
+          ? fr.research.waiting
+          : fr.research.left(asDuration((finishesAt - now) / 60_000))
+      }`,
+    });
+    bar = share;
   }
 
   const works = label.works;

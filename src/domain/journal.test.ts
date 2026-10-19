@@ -387,3 +387,12 @@ describe('the combats a map toast announces', () => {
     expect(latestDispatchAt([])).toBe(0);
   });
 });
+
+describe('a research card at its end', () => {
+  it('is a notable dispatch that names the card and what it opens', () => {
+    const [done] = journalDispatches([], null, [{ kind: 'researchDone', at: 1, card: 'armor' }]);
+    expect(done).toMatchObject({ kind: 'research', severity: 'notable' });
+    expect(done?.text).toContain('« Blindé »');
+    expect(done?.text).toContain('le blindé MK1');
+  });
+});

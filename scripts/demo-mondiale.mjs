@@ -11,6 +11,8 @@
  * tournées : le camion du QG par Lille, sautée, et Bruxelles ; celui de Bruxelles par Lille seule,
  * qui attend. `--largage` pose pour la France un aérodrome et un avion chargé, un avant-poste de
  * niveau 1 près de Bruxelles et une escouade à sec en Rhénanie : de quoi larguer (ADR 0028 §4).
+ * `--recherche` donne à la France l'infanterie MK2 et l'aviation, et le blindé en cours sur son QG
+ * (ADR 0028 §5).
  *
  *     npm run demo:mondiale
  *
@@ -32,6 +34,7 @@ const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
 const airdrops = process.argv.includes('--largage');
+const research = process.argv.includes('--recherche');
 const logistics = tours || process.argv.includes('--livraison');
 
 const env = Object.fromEntries(
@@ -134,6 +137,9 @@ if (!bare) {
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
     cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
+  /** Deux cartes acquises, une troisième en cours sur le QG (ADR 0028 §5). */
+  if (research && scene.a !== null)
+    cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });

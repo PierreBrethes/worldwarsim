@@ -11,6 +11,7 @@ const route = directRoute([0, 0], [1, 1], 'land', 10);
 
 const me = {
   ink: '#2f4f78',
+  research: { researched: [], running: null },
   troops: [
     {
       id: 't1',
@@ -504,6 +505,18 @@ describe('the Blitz poster', () => {
       { kind: 'row', label: 'fonds', value: '+30/min' },
     ]);
     expect(posterFor(view({ mode: 'mondiale' }), [hq], 'm-b-hq')!.lines).toEqual([]);
+  });
+
+  it('carries the research card my HQ runs, with its bar', () => {
+    const hq = building('b-hq', 'hq', 'r-plain', null, 1);
+    const running = { card: 'armor', remainingMs: 16 * 3_600_000, since: LOADED_AT } as const;
+    const poster = posterFor(
+      view({ mode: 'mondiale', me: { ...me, research: { researched: [], running } } as never }),
+      [hq],
+      'm-b-hq',
+    )!;
+    expect(poster.lines[0]).toMatchObject({ kind: 'row', label: 'recherche' });
+    expect(poster.bar).toBeCloseTo(0, 2);
   });
 });
 

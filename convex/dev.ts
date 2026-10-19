@@ -440,6 +440,8 @@ export const airdropScene = internalMutation({
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
     await headquartersOf(ctx, player);
+    /** L'aérodrome et l'avion de transport sont derrière leurs cartes (ADR 0028 §5). */
+    await ctx.db.patch(playerId, { researched: ['aviation', 'airlift'] });
     const regionId = capitalRegionOf(player.nation);
     const airfield = await ctx.db.insert('buildings', {
       seasonId: player.seasonId,
@@ -493,5 +495,29 @@ export const airdropScene = internalMutation({
         stationedAt: { lon: 7.1, lat: 50.4 },
         ...troop,
       });
+  },
+});
+
+/**
+ * **Une recherche en cours** (ADR 0028 §5) : l'infanterie MK2 et l'aviation acquises, le blindé
+ * posé sur le QG il y a six heures — dix heures à courir.
+ */
+export const researchScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    await headquartersOf(ctx, player);
+    const now = Date.now();
+    const hour = 3_600_000;
+    const remainingMs = 10 * hour;
+    await ctx.db.patch(playerId, {
+      researched: ['infantryMk2', 'aviation'],
+      research: { card: 'armor', remainingMs: 16 * hour, since: now - 6 * hour },
+    });
+    await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
+      playerId,
+      finishesAt: now + remainingMs,
+    });
   },
 });
