@@ -418,7 +418,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
-        kind: 'supply',
+        kind: 'supplyDelivered',
         text: said.supplyDelivered(
           countryLabel(notice.hostCountry),
           supplyWords(notice.delivered),

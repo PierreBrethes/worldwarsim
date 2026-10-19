@@ -688,6 +688,8 @@ export type DispatchKind =
   | 'firedDry'
   /** **La logistique** (ADR 0028 §4) : une livraison posée, une tournée qui attend. */
   | 'supply'
+  /** A tour that really delivered (`supplyDelivered`), apart from `supply` which also says a tour waits or ended. */
+  | 'supplyDelivered'
   /** **Un largage** (ADR 0028 §4) : le paquet est descendu. */
   | 'airdrop'
   /** **Une carte de recherche achevée** (ADR 0028 §5). */

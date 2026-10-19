@@ -66,9 +66,10 @@ describe('stepsDoneIn', () => {
     expect(
       stepsDoneIn(view({ outposts: [{ ...(brussels as object), depot: { food: 5 } } as never] })),
     ).toEqual(['deliver']);
-    expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supply' }] as never }))).toEqual([
+    expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supplyDelivered' }] as never }))).toEqual([
       'deliver',
     ]);
+    expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supply' }] as never }))).toEqual([]);
   });
 
   it('takes no march for a delivery unless the server says it is one', () => {

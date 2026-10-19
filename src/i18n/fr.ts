@@ -2316,6 +2316,7 @@ export const fr = {
       campSighted: 'camp relevé',
       firedDry: 'tir à sec',
       supply: 'ravitaillement',
+      supplyDelivered: 'ravitaillement livré',
       airdrop: 'largage',
       research: 'recherche',
       foundNothing: 'bredouille',

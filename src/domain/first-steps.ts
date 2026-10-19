@@ -65,7 +65,7 @@ export function stepsDoneIn(view: PlayerView): ReadonlyArray<FirstStep> {
     deliver:
       mine.some((arc) => arc.delivery === true) ||
       me.outposts.some((outpost) => filled(outpost.depot)) ||
-      view.journal.some((dispatch) => dispatch.kind === 'supply'),
+      view.journal.some((dispatch) => dispatch.kind === 'supplyDelivered'),
   };
   return FIRST_STEPS.filter((step) => seen[step]);
 }
