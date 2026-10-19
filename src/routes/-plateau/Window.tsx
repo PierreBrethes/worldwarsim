@@ -12,6 +12,7 @@ import {
 import { fr } from '@/i18n/fr';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { useSwipe } from '@/shell/BottomSheet';
+import { useLeaveGhost } from '@/shell/paper-motion';
 import { useSoleSurface } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle, HandleContext } from './Draggable';
@@ -83,6 +84,7 @@ function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
   useEscapeToClose(onClose, inFront);
   useSoleSurface(onClose, inFront);
   useClosedWhenCovered(onClose, inFront);
+  useLeaveGhost(container, 'sheet-rise', 'sheet-sink');
   const keyboard = useKeyboardEdges();
   const [pull, setPull] = useState(0);
   const grip = useSwipe(
@@ -98,7 +100,7 @@ function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
       ref={container}
       tabIndex={-1}
       role="dialog"
-      className={`hud board-window surface-in @container flex flex-col overflow-hidden outline-none ${
+      className={`hud board-window sheet-rise @container flex flex-col overflow-hidden outline-none ${
         pull > 0 ? '' : 'sheet-return'
       }`}
       style={
@@ -190,6 +192,8 @@ function DeskWindow({
   children,
 }: FrameProps) {
   const container = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  useLeaveGhost(frame, 'paper-unfold', 'paper-fold');
   const [start] = useState(() => readWindowGeometry(name));
   const [size, setSize] = useState(start.size);
 
@@ -234,6 +238,7 @@ function DeskWindow({
   // placement and lets clicks through.
   return (
     <div
+      ref={frame}
       className={`pointer-events-none fixed inset-0 flex ${
         alignment === 'right'
           ? 'items-start justify-end px-4 pt-[calc(var(--board-top)_+_10px)] pb-4'
@@ -252,7 +257,7 @@ function DeskWindow({
         tabIndex={-1}
         role="dialog"
         onPointerDown={inFront ? undefined : onBringForward}
-        className="float hud surface-in @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
+        className="float hud paper-unfold @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px)`,
           width: size ? size.width : `min(${width}px, 100%)`,

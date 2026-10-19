@@ -1,5 +1,5 @@
 import { useQuery } from 'convex/react';
-import { Fragment, useState, type MouseEvent } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
   contactKm,
@@ -37,6 +37,7 @@ import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
 import { ClockGlyph, EyeGlyph, HeartGlyph, CoinGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
+import { durationToken, easeOutToken, motionNow } from '@/shell/paper-motion';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
@@ -69,6 +70,7 @@ export function GunneryWindow({
   const workshop = useQuery(api.troops.workshop, seat);
   const rows = gunneryRows(DAMAGE_TABLE);
   const [open, setOpen] = useState<CombatProfile | null>(null);
+  const { scroller, unfold } = useUnfoldInPlace(open, setOpen);
 
   return (
     <FloatingWindow name="gunnery" onClose={onClose} {...windowProps} alignment="top" width={1180}>
@@ -95,7 +97,7 @@ export function GunneryWindow({
 
         <Legend />
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div ref={scroller} className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full border-collapse text-[11.5px]">
             <thead>
               <tr>
@@ -127,7 +129,8 @@ export function GunneryWindow({
                 return (
                   <Fragment key={row.attacker}>
                     <tr
-                      onClick={() => setOpen(unfolded ? null : row.attacker)}
+                      data-row={row.attacker}
+                      onClick={() => unfold(unfolded ? null : row.attacker, row.attacker)}
                       className={`cursor-pointer border-b border-(color:--ink)/18 ${
                         unfolded ? 'bg-[rgba(255,255,255,.3)]' : ''
                       }`}
@@ -163,7 +166,7 @@ export function GunneryWindow({
                           colSpan={COMBAT_PROFILES.length + 2}
                           className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
-                          <div className="hud-fold">
+                          <div className="hud-fold paper-unfold flush">
                             <GunnerySheet
                               profile={row.attacker}
                               workshop={workshop}
@@ -191,6 +194,57 @@ export function GunneryWindow({
     </FloatingWindow>
   );
 }
+
+/**
+ * **La fiche se déplie depuis sa ligne, et la grille suit sans sauter** (#161). La ligne touchée
+ * reste sous le doigt : le défileur compense ce que la fiche d'avant rendait en hauteur au-dessus
+ * d'elle, quel que soit le réglage. Les lignes que le pli déplace partent ensuite de leur ancienne
+ * place (FLIP, `transform` seul, au pas et à la courbe du déroulé de la fiche, `.paper-unfold`) ;
+ * réduites ou coupées, elles sont tout de suite à la nouvelle.
+ */
+function useUnfoldInPlace(
+  open: CombatProfile | null,
+  setOpen: (next: CombatProfile | null) => void,
+) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const before = useRef<{ touched: string; tops: Map<string, number> } | null>(null);
+
+  const unfold = (next: CombatProfile | null, touched: CombatProfile) => {
+    if (scroller.current) before.current = { touched, tops: seen(scroller.current) };
+    setOpen(next);
+  };
+
+  useLayoutEffect(() => {
+    const box = scroller.current;
+    const last = before.current;
+    before.current = null;
+    if (!box || !last) return;
+    const drift = seen(box).get(last.touched)! - last.tops.get(last.touched)!;
+    box.scrollTop += drift;
+    if (motionNow() !== 'full') return;
+    const timing = { duration: durationToken('--dur-base'), easing: easeOutToken() };
+    const now = seen(box);
+    // La fiche neuve n'a pas d'ancienne place : elle part avec la ligne qui la porte.
+    let carried = 0;
+    for (const row of box.querySelectorAll<HTMLElement>('tbody > tr')) {
+      const key = row.dataset.row;
+      if (key !== undefined) carried = last.tops.get(key)! - now.get(key)!;
+      if (carried !== 0)
+        row.animate([{ transform: `translateY(${carried}px)` }, { transform: 'none' }], timing);
+    }
+  }, [open]);
+
+  return { scroller, unfold };
+}
+
+/** Où chaque ligne se lit dans le défileur, à l'écran et non dans le tableau. */
+const seen = (box: HTMLElement) =>
+  new Map(
+    [...box.querySelectorAll<HTMLElement>('tr[data-row]')].map((row) => [
+      row.dataset.row!,
+      row.offsetTop - box.scrollTop,
+    ]),
+  );
 
 type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
 

@@ -90,7 +90,7 @@ function Ticket({
   return (
     <section
       aria-label={fr.ledger.title(fr.resources[resource])}
-      className="paper-grain float pointer-events-auto grid w-[300px] grid-rows-[auto_1fr] border border-[var(--ink)] pt-[7px] text-[var(--ink)]"
+      className="paper-grain float paper-unfold pointer-events-auto grid w-[300px] grid-rows-[auto_1fr] border border-[var(--ink)] pt-[7px] text-[var(--ink)]"
       style={
         {
           maxHeight: `calc((100dvh - var(--board-top) - 6px - var(--table-margin) - ${MAT_LIFT}) / var(--hud-scale))`,
