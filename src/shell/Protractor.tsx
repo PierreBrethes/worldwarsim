@@ -13,7 +13,7 @@ import {
   type BoardWindow,
 } from '@/routes/-plateau/board-search';
 import { BottomSheet } from './BottomSheet';
-import { PressGlyph, SettingsGlyph, TelegraphGlyph } from './Glyph';
+import { PressGlyph, ResearchGlyph, SettingsGlyph, TelegraphGlyph } from './Glyph';
 import { IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
@@ -115,6 +115,12 @@ export function Protractor({
       ),
     ),
     windowRound(
+      'research',
+      fr.rail.research.title,
+      fr.rail.research.label,
+      <ResearchGlyph size={18} />,
+    ),
+    windowRound(
       'journal',
       fr.foot.journal,
       fr.foot.journal,
@@ -141,7 +147,9 @@ export function Protractor({
   const rounds = all.filter(
     (round) =>
       view.mode !== 'blitz' ||
-      (round.key !== 'personalBoard' && (round.key !== 'press' || !playing)),
+      (round.key !== 'personalBoard' &&
+        round.key !== 'research' &&
+        (round.key !== 'press' || !playing)),
   );
 
   function windowRound(
@@ -246,7 +254,7 @@ const ROUNDS_ID = 'protractor-rounds';
 
 const RADIUS = 205;
 const FIRST_DEG = 11;
-const STEP_DEG = 68 / 5;
+const STEP_DEG = 68 / 6;
 
 /** Où le rond de rang `rank` se pose sur l'arc, et dans quel ordre il sort puis rentre. */
 export function roundAt(rank: number, count: number): CSSProperties {

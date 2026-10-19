@@ -9,7 +9,7 @@ import {
   type BoardWindow,
 } from '@/routes/-plateau/board-search';
 import { AbacusMark } from '@/routes/-plateau/GunneryButton';
-import { PressGlyph, TelegraphGlyph } from './Glyph';
+import { PressGlyph, ResearchGlyph, TelegraphGlyph } from './Glyph';
 import { IndustryGlyph, Pictogram } from './IndicatorGlyph';
 
 /**
@@ -85,6 +85,7 @@ export function SurfaceColumn({
       {!blitz &&
         square('nation', fr.rail.nation, <Pictogram pictogram="nation" weight={20} size={18} />)}
       {!blitz && square('personalBoard', fr.rail.economy, <IndustryGlyph size={18} />)}
+      {!blitz && square('research', fr.rail.research, <ResearchGlyph size={18} />)}
       {square('gunnery', fr.rail.gunnery, <AbacusMark size={17} />)}
       {square(
         'journal',

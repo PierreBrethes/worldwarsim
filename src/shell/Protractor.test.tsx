@@ -82,11 +82,19 @@ const rounds = (): ReadonlyArray<string> =>
     .map((item) => item.textContent ?? '');
 
 describe('the protractor', () => {
-  it('lays six rounds in the mockup’s order, with the desk’s counts', async () => {
+  it('lays seven rounds in the mockup’s order, with the desk’s counts', async () => {
     await mount();
     act(() => hub().click());
 
-    expect(rounds()).toEqual(['1à faire', 'chant.', 'journal1', 'presse2ᵉ', 'télég.3', 'régl.']);
+    expect(rounds()).toEqual([
+      '1à faire',
+      'chant.',
+      'rech.',
+      'journal1',
+      'presse2ᵉ',
+      'télég.3',
+      'régl.',
+    ]);
   });
 
   it('counts the first step on show with the waits, on a new place', async () => {
