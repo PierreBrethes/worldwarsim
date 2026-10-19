@@ -1,5 +1,4 @@
 import { v } from 'convex/values';
-import { pauseResearch } from './research';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
@@ -137,7 +136,6 @@ export async function releaseBuilding(
 
   await settle(ctx, player._id, now);
   await groundGarrison(ctx, building);
-  if (building.key === 'hq') await pauseResearch(ctx, player._id, now);
   if (settled.length > 0) {
     await ctx.db.patch(player._id, {
       settledFoundation: [...(fresh.settledFoundation ?? []), ...settled],

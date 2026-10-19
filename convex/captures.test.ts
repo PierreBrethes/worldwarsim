@@ -853,6 +853,44 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **La carte de recherche attend son QG** (ADR 0028 §5) : la chute l'arrête sans rien
+   *  perdre, et un QG rebâti la relance là où elle en était. */
+  it('stops his research card at the fall, and lets a rebuilt headquarters run it on', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const loser = await playerOf(t, guest);
+    await t.run((ctx) =>
+      ctx.db.patch(loser._id, {
+        research: { card: 'carrier', remainingMs: 36 * HOUR, since: MIDDAY },
+      }),
+    );
+
+    await take(t, seat, hq);
+    await finish(t);
+    const paused = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
+    expect(paused).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: null });
+
+    const constructionId = await t.run((ctx) =>
+      ctx.db.insert('constructions', {
+        playerId: loser._id,
+        building: 'hq',
+        regionId: PSKOV,
+        point: pointOfRegion(PSKOV),
+        level: 1,
+        rank: 0,
+        finishesAt: Date.now(),
+      }),
+    );
+    await t.mutation(internal.constructions.finish, { constructionId });
+    const resumed = (await t.run((ctx) => ctx.db.get(loser._id)))!.research;
+    expect(resumed).toEqual({ card: 'carrier', remainingMs: 24 * HOUR, since: Date.now() });
+
+    vi.advanceTimersByTime(24 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    expect((await t.run((ctx) => ctx.db.get(loser._id)))!.researched).toEqual(['carrier']);
+  });
+
   /** Rien de lui ne lui survit : son chantier tombe, son sol perd sa couleur, et le siège
    *  qu'un tiers menait contre lui ne dort plus à ses heures. */
   it('leaves him no site under way, no ground, and no sleep to the sieges that outlive him', async () => {
