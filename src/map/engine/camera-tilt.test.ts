@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { edgeSafeTiltAt, steepestTiltAt, tiltShiftOf } from './camera-tilt';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -40,5 +40,25 @@ describe('the tilt-shift blur', () => {
   it('is nil at the world view whatever the lean', () => {
     expect(tiltShiftOf(steepestTiltAt(120), 120)).toBe(0);
     expect(tiltShiftOf(steepestTiltAt(65), 65)).toBe(0);
+  });
+});
+
+describe('the tilt that keeps the far edge of the board out of the picture', () => {
+  const fov = 40;
+
+  it('puts the top ray of the screen exactly on the edge', () => {
+    const tilt = edgeSafeTiltAt(60, fov, 90);
+    const half = (fov * Math.PI) / 360;
+    const reach = 60 * Math.cos(tilt) * Math.tan(tilt + half) - 60 * Math.sin(tilt);
+    expect(reach).toBeCloseTo(90, 6);
+  });
+
+  it('leans further when the edge is far, and straightens as it comes close', () => {
+    expect(edgeSafeTiltAt(60, fov, 200)).toBeGreaterThan(edgeSafeTiltAt(60, fov, 90));
+    expect(edgeSafeTiltAt(60, fov, 70)).toBeLessThan(edgeSafeTiltAt(60, fov, 90));
+  });
+
+  it('stays upright when even the plumb sees past the edge', () => {
+    expect(edgeSafeTiltAt(300, fov, 100)).toBe(0);
   });
 });
