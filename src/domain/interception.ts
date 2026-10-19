@@ -172,6 +172,28 @@ const legCost = (leg: RouteLeg, landCost = COST_BY_MEDIUM.land): number =>
     ? leg.distanceUnits
     : leg.distanceUnits * (leg.medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
 
+/**
+ * **The grid is the trip's, not the reading's** (#145). Samples are laid from the pair's common
+ * departure to its first arrival, and those before `after` are dropped: a pass read at any later
+ * instant walks the same instants and answers the same window, cut at `after`. A grid that
+ * started at the reading moved with every pass, so a window read twice was two windows — and a
+ * pass that relit only one player would have left everyone else on an older grid.
+ */
+function firstSampleFrom(
+  sampleAt: (index: number) => number,
+  samples: number,
+  start: number,
+  end: number,
+  after: number,
+): number {
+  if (after <= start) return 0;
+  if (end <= start) return samples + 1;
+  let index = Math.min(samples + 1, Math.ceil(((after - start) / (end - start)) * samples));
+  while (index > 0 && sampleAt(index - 1) >= after) index -= 1;
+  while (index <= samples && sampleAt(index) < after) index += 1;
+  return index;
+}
+
 /** The window in which one mobile detector sees another force in a compatible medium. */
 export function mobileSighting({
   observer,
@@ -186,10 +208,12 @@ export function mobileSighting({
   after?: number;
   samples?: number;
 }): { readonly from: number; readonly to: number } | null {
-  const from = Math.max(after, observer.departedAt, target.departedAt);
+  const from = Math.max(observer.departedAt, target.departedAt);
   const to = Math.min(observer.arrivesAt, target.arrivesAt);
   if (to < from || radiusKm <= 0) return null;
   const sampleAt = (index: number) => from + ((to - from) * index) / samples;
+  const first = firstSampleFrom(sampleAt, samples, from, to, after);
+  if (first > samples) return null;
   const inside = (index: number) => {
     const at = sampleAt(index);
     const observerMedium = mediumAt(observer, at);
@@ -219,7 +243,7 @@ export function mobileSighting({
     return null;
   };
   /** Columns that start or end side by side answer at the first sample, before any box. */
-  const opened = inside(0) ? 0 : edge(0, samples, false);
+  const opened = inside(first) ? first : edge(first, samples, false);
   if (opened === null) return null;
   const closed = inside(samples) ? samples : (edge(opened, samples, true) ?? opened);
   return { from: sampleAt(opened), to: sampleAt(closed) };
@@ -352,11 +376,13 @@ export function sightingsAlong({
   after?: number;
   samples?: number;
 }): ReadonlyArray<Sighting> {
-  const startedAt = Math.max(mine.departedAt, after);
+  const startedAt = mine.departedAt;
   const span = mine.arrivesAt - startedAt;
   if (span <= 0 || watchers.length === 0) return [];
   const step = span / samples;
   const sampleAt = (index: number) => startedAt + index * step;
+  const first = firstSampleFrom(sampleAt, samples, startedAt, mine.arrivesAt, after);
+  if (first > samples) return [];
 
   const windows = new Map<string, { from: number; to: number }>();
   const walk = (first: number, last: number, near: ReadonlyArray<Watcher>) => {
@@ -389,6 +415,6 @@ export function sightingsAlong({
       }
     }
   };
-  walk(0, samples, watchers);
+  walk(first, samples, watchers);
   return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
 }

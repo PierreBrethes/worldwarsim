@@ -71,8 +71,9 @@ type PassiveWatcher = Watcher & Omit<Caught, 'from' | 'to'>;
  * **`changed` : l'événement ne touche qu'un joueur** (#145). Un départ, une arrivée sans combat,
  * un pas de tournée ou une recrue ne changent que les détecteurs de leur joueur — la pile quittée
  * ou rejointe, la colonne née ou finie — et ses propres colonnes comme cibles. Refaire ses relevés
- * à lui et ceux qu'on tient sur ses colonnes rend, à l'instant de l'événement, exactement ce que
- * rendrait la réévaluation complète : rien d'autre sur le plateau n'a bougé. Recroiser chaque
+ * à lui et ceux qu'on tient sur ses colonnes rend exactement ce que rendrait la réévaluation
+ * complète : rien d'autre sur le plateau n'a bougé, et la grille d'échantillons ne bouge pas avec
+ * l'instant (`mobileSighting`). Recroiser chaque
  * colonne avec chaque autre à chaque départ dépassait la seconde d'une mutation passé quarante
  * colonnes. Les camps, les caisses et les captures se relisent toujours en entier : ils lisent la
  * position présente de toutes les colonnes, et ils coûtent peu.
@@ -902,14 +903,17 @@ function crossedSoil(
     const home = homeCountryOf(player.nation);
     if (home !== null) soils.set(home, player._id);
   }
-  const from = Math.max(now, target.force.departedAt);
+  /** La grille du trajet, rognée à l'instant, comme `sightingsAlong` (#145). */
+  const from = target.force.departedAt;
   const span = target.force.arrivesAt - from;
   if (soils.size === 0 || span <= 0) return [];
 
+  const countries = new Set(soils.keys());
   const windows = new Map<string, { from: number; to: number }>();
   for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
     const at = from + (index * span) / INTERCEPTION_SAMPLES;
-    const host = hostAmongCountries(positionAt(target.force, at), new Set(soils.keys()));
+    if (at < now) continue;
+    const host = hostAmongCountries(positionAt(target.force, at), countries);
     if (host === '') continue;
     const held = windows.get(host);
     if (held === undefined) windows.set(host, { from: at, to: at });
@@ -985,6 +989,15 @@ async function replaceSighting(
 ): Promise<void> {
   if (row.from <= now) {
     if (next.to > row.to) await ctx.db.patch(row._id, { to: next.to });
+    return;
+  }
+  /** La grille ne bouge plus avec l'instant (#145) : une fenêtre future relue telle quelle garde
+   *  sa ligne et son rendez-vous, sans réécriture ni job replanifié. */
+  const fields = sightingFields(next);
+  if (
+    (row.revealJobId !== undefined || row.noticeFiled === true) &&
+    (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key])
+  ) {
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);

@@ -152,13 +152,14 @@ describe('the pruned walk answers what the full walk answers', () => {
     radiusKm: number,
     after: number,
   ) => {
-    const from = Math.max(after, observer.departedAt, target.departedAt);
+    const from = Math.max(observer.departedAt, target.departedAt);
     const to = Math.min(observer.arrivesAt, target.arrivesAt);
     if (to < from || radiusKm <= 0) return null;
     let opened: number | null = null;
     let closed: number | null = null;
     for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
       const at = from + ((to - from) * index) / INTERCEPTION_SAMPLES;
+      if (at < after) continue;
       const medium = mediumAt(observer, at);
       if (medium === null || medium !== mediumAt(target, at)) continue;
       if (distanceKm(positionAt(observer, at), positionAt(target, at)) > radiusKm) continue;
@@ -168,12 +169,12 @@ describe('the pruned walk answers what the full walk answers', () => {
     return opened === null || closed === null ? null : { from: opened, to: closed };
   };
   const walkedWatchers = (mine: MarchingForce, watchers: ReadonlyArray<Watcher>, after: number) => {
-    const startedAt = Math.max(mine.departedAt, after);
-    const span = mine.arrivesAt - startedAt;
+    const span = mine.arrivesAt - mine.departedAt;
     if (span <= 0 || watchers.length === 0) return [];
     const windows = new Map<string, { from: number; to: number }>();
     for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
-      const at = startedAt + index * (span / INTERCEPTION_SAMPLES);
+      const at = mine.departedAt + index * (span / INTERCEPTION_SAMPLES);
+      if (at < after) continue;
       const here = positionAt(mine, at);
       for (const watcher of watchers) {
         if (distanceKm(here, watcher.point) > watcher.radiusKm) continue;
@@ -246,6 +247,12 @@ describe('the pruned walk answers what the full walk answers', () => {
           expect(mobileSighting({ observer, target, radiusKm, after })).toEqual(expected);
           /** The detection pass serves one window to both columns when their radii agree. */
           expect(walkedPair(target, observer, radiusKm, after)).toEqual(expected);
+          /** Read again later, the same window, cut at the later instant — never a moved one. */
+          const later = after + random() * HOUR;
+          const reread = mobileSighting({ observer, target, radiusKm, after: later });
+          if (expected === null || expected.to < later) expect(reread).toBeNull();
+          else if (expected.from >= later) expect(reread).toEqual(expected);
+          else expect(reread?.to).toBe(expected.to);
           if (expected === null) missed += 1;
           else seen += 1;
         }
