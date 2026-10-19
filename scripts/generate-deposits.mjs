@@ -308,7 +308,7 @@ const PROFILES = {
   // Ruhr, Saar and the central lignite; the iron is the gap, which is why it came from Sweden
   // through Narvik.
   germany: { food: 3 },
-  // Imported rice and one single iron mine. The nation that went to war because it had nothing — **oil is the gap**, and it is the whole
+  // Imported rice and two iron mines. The nation that went to war because it had nothing — **oil is the gap**, and it is the whole
   // fuse: the carrier exists in this game to go and fetch it. The second gap it used to declare
   // on iron is withdrawn (25/08/2026): a nation that can neither buy nor take iron cannot play,
   // and Kamaishi is what makes the shortage a shape instead of a wall.
@@ -402,14 +402,27 @@ const CORRECTIONS = {
      * 0004). One region and not two: what is corrected here is the unplayable, never the
      * unequal, and the asymmetry still comes from the map.
      */
-    'JPN-1865': [
+    'JPN-1865': ['iron', 'Kamaishi in Iwate, the first blast furnace of Japan', [141.88, 39.28]],
+
+    // The floor of two iron (#166): Hachinohe sand.
+    'JPN-1863': [
       'iron',
-      'Kamaishi in Iwate, the first blast furnace of Japan and the only iron mine of the archipelago',
-      [141.88, 39.28],
+      'the iron sand of the Hachinohe coast in Aomori, which fed the Hachinohe furnaces',
+      [141.5, 40.5],
     ],
+
+    // China — the second iron, after Daye: Ma'anshan on the Yangtze, worked since 1938.
+    'CHN-1179': ['iron', "Ma'anshan in Anhui, the Yangtze iron", [118.51, 31.69]],
 
     // United Kingdom — coal is the profile, and the iron that goes with Cumbrian haematite.
     'GBR-2032': ['iron', 'Cleveland ironstone, which fed the Teesside furnaces', [-1.05, 54.53]],
+    // The Northamptonshire ironstone of Corby, the largest ore field of the kingdom. It stands
+    // here so that Germany, at the floor of two, still reads short on iron against the median.
+    'GBR-2749': [
+      'iron',
+      'the Northamptonshire ironstone around Corby, the largest ore field of the kingdom',
+      [-0.7, 52.5],
+    ],
     'GBR-5688': [
       'coal',
       'the South Yorkshire coalfield around Barnsley — the third of the three, with Wales and the Midlands',
@@ -417,6 +430,12 @@ const CORRECTIONS = {
     ],
 
     // Germany — lignite is the other half of its coal, and the feedstock of synthetic fuel.
+    // Iron: a floor of two per nation (#166), Salzgitter in Lower Saxony being the first.
+    'DEU-DE23': [
+      'iron',
+      'the Maxhütte ore of Sulzbach-Rosenberg in the Upper Palatinate',
+      [11.74, 49.5],
+    ],
     'DEU-1600': [
       'coal',
       'the central German lignite of the Halle-Leipzig field, which fed Leuna',
