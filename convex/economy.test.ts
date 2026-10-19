@@ -1446,7 +1446,7 @@ describe('the headquarters the player puts up', () => {
 
 /**
  * **La file de chantier prépayée** (décision du 25/08). One construction advances at once
- * (ADR 0031: a second only with the Chantier double card) — but what is behind it is a queue without a ceiling, and
+ * (ADR 0031) — but what is behind it is a queue without a ceiling, and
  * every entry of it has already settled its bill. The objection the single site answered was a
  * queue that *promised* a stacking the server refuses; a prepaid entry promises nothing.
  *
@@ -1568,33 +1568,6 @@ describe('the construction queue', () => {
       0,
     );
     expect(view.buildCatalog.barracks.minutes).toBe(Math.round(buildMinutes('barracks', 1) * 0.8));
-  });
-
-  /** **Chantier double** (ADR 0031) : la carte acquise date tout de suite l'entrée qui attendait,
-   *  sans rien redébiter. */
-  it('runs a second works at once once Chantier double is researched', async () => {
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await promoteHq(t, seat, 2);
-    for (const site of SITES.slice(0, 2))
-      await t.mutation(api.constructions.start, { ...seat, ...site });
-    const opening = await steelOf(t, seat);
-    expect(await datedCount(t)).toBe(1);
-
-    const playerId = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
-    await t.run((ctx) =>
-      ctx.db.patch(playerId, {
-        researched: ['transmissions1', 'transmissions2'],
-        research: { card: 'doubleWorks', remainingMs: 0, since: Date.now() },
-      }),
-    );
-    await t.mutation(internal.research.finish, { playerId, finishesAt: Date.now() });
-    vi.advanceTimersByTime(1);
-    await t.finishInProgressScheduledFunctions();
-
-    expect(await datedCount(t)).toBe(2);
-    expect(await steelOf(t, seat)).toBe(opening);
-    expect((await t.query(api.view.playerView, seat)).me.buildLanes).toBe(2);
   });
 
   /** **La durée datée reste celle du départ** : le QG s'élève pendant qu'un chantier monte, la vue

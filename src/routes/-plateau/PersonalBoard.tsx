@@ -1131,7 +1131,7 @@ function Works({
   ].map((work) => ({ work, running: work.minutesLeft != null }));
   const list = (
     <div className="grid gap-[5px]">
-      <span className="eyebrow">{fr.personalBoard.worksHeader(view.me.buildLanes)}</span>
+      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
       {rows.length === 0 && (
         <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
           {fr.economy.constructionNone}

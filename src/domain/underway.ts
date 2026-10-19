@@ -56,7 +56,7 @@ export type RecruitmentDue = {
  * Un mouvement tenu à une frontière par une plage de repos tombe à sa résolution, qui est
  * l'heure où quelque chose se passera.
  */
-/** **Tous les chantiers qui montent**, la tête et la seconde file de Chantier double (`minutesLeft` daté) —
+/** **Tous les chantiers qui montent**, la tête (`minutesLeft` daté) —
  *  la même lecture que `sitesOf`. */
 export function datedWorksOf(
   me: PlayerView['me'],

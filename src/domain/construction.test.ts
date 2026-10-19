@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
-  lanesPlan,
   blockedOn,
   buildableOn,
   outpostRaiseHold,
@@ -653,14 +652,5 @@ describe('workSitesOf', () => {
         LOADED,
       ),
     ).toEqual([]);
-  });
-});
-
-describe('how many works rise at once', () => {
-  it('starts the first waiting entries up to the free lanes', () => {
-    expect(lanesPlan([false, false, false], 2)).toEqual([0, 1]);
-    expect(lanesPlan([true, false, false], 2)).toEqual([1]);
-    expect(lanesPlan([true, true, false], 2)).toEqual([]);
-    expect(lanesPlan([false, false], 1)).toEqual([0]);
   });
 });

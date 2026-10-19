@@ -2894,7 +2894,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
-        /** Avec Formation double, deux lots montent à la fois : la ligne tombe au plus proche. */
         const started = facility.queue.filter((batch) => batch.started);
         if (started.length === 0) return [];
         const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));

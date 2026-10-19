@@ -735,16 +735,3 @@ export function workSitesOf(
   });
   return sites;
 }
-
-/**
- * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), celles qui
- * démarrent — les premières en attente, tant qu'une file est libre (ADR 0031 : une, deux avec
- * Chantier double). Les files ne rétrécissent jamais : une carte acquise le reste.
- */
-export function lanesPlan(running: ReadonlyArray<boolean>, lanes: number): number[] {
-  const rising = running.filter(Boolean).length;
-  return running
-    .map((_, index) => index)
-    .filter((index) => !running[index])
-    .slice(0, Math.max(0, lanes - rising));
-}

@@ -290,7 +290,7 @@ describe('raser un bâtiment', () => {
       point: pointIn(MEURTHE),
     });
     const refund = buildCost('listening', 2).steel ?? 0;
-    // Une seule voie sans la carte Chantier double : la caserne monte, l'élévation de la station
+    // Une seule voie : la caserne monte, l'élévation de la station
     // attend derrière, et c'est celle-là qui se rembourse.
     const before = (await stocks(t, seat)).steel.stock;
     await t.mutation(api.buildings.demolish, { ...seat, buildingId: station });

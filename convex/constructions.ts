@@ -5,7 +5,7 @@ import {
   type BuildingKey,
   type ResearchCard,
 } from '../src/domain/ids';
-import { buildingLockOf, laneCount } from '../src/domain/research';
+import { buildingLockOf } from '../src/domain/research';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -18,7 +18,7 @@ import {
   placementRefusal,
   siteOfPoint,
 } from '../src/domain/economy';
-import { lanesPlan, outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
+import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
   buildingAt,
@@ -53,7 +53,6 @@ import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { followCenter } from './research';
 import { worksMinutes } from '../src/domain/level-speed';
-import { modeOf } from '../src/domain/season-mode';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -481,19 +480,13 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
   const season = await ctx.db.get(player.seasonId);
   if (!season) return;
 
-  /** **Un chantier à la fois, deux avec Chantier double** (ADR 0031), relus à chaque réveil : la
-   *  carte acquise date l'entrée qui attendait. */
-  const lanes = laneCount(player.researched ?? [], 'works', modeOf(season.mode) === 'blitz');
   /** Une élévation qui attend la fin d'une désactivation ne tient pas de voie : la suite passe. */
   const waitingOut = new Set<Id<'constructions'>>();
 
   for (;;) {
     const queue = (await queueOf(ctx, playerId)).filter((entry) => !waitingOut.has(entry._id));
-    const start = lanesPlan(
-      queue.map((entry) => entry.finishesAt !== null),
-      lanes,
-    );
-    const head = start.length === 0 ? undefined : queue[start[0]!];
+    /** Un chantier à la fois : la tête part quand aucun autre ne monte. */
+    const head = queue.some((entry) => entry.finishesAt !== null) ? undefined : queue[0];
     if (!head) return;
 
     /**
