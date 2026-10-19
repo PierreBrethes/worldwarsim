@@ -1,6 +1,5 @@
 import type { LonLat } from '../src/domain/geo';
 import {
-  cellsOfRegion,
   coveredByDisc,
   decodeRegionRaster,
   firstRegionEntry,
@@ -63,10 +62,6 @@ export const firstRouteEntryInRegion = (
 export const goalCellsForRegions = (
   regions: ReadonlyArray<{ readonly id: string; readonly point: LonLat }>,
 ): ReadonlyMap<number, ReadonlyArray<RegionGoal>> => goalCellsOfRegions(rasterOf(), regions);
-
-/** Les cellules d'une région, totales : celles du raster, ou sa cellule d'ancrage (ADR 0023). */
-export const routeCellsOfRegion = (regionId: string): ReadonlyArray<number> =>
-  cellsOfRegion(rasterOf(), regionId);
 
 /**
  * **Le point gravé d'un retour chargé est-il un vrai franchissement ?** (`plunder.ts`) La

@@ -374,21 +374,6 @@ body {
   color: var(--paper-dim);
 }
 
-/* A depleted resource that isn't refilling either is not an alert: it's a counter with
-   nothing to say. It fades without disappearing — the day it flows again, it comes back. */
-.resource-depleted {
-  opacity: 0.42;
-}
-
-/* A reserve of paper around the cut, so a dark silhouette lifts off the night desk. Measured:
-   coal falls to 2.80 of contrast against `--desk`, under the 3:1 floor for a pictogram, with
-   a third of its pixels near-black. The gesture is the map's — `.label-plate` carries the same
-   drop-shadow — and it goes on all eight, never on coal alone: one exception per resource is
-   one exception to maintain. */
-.resource-reserve {
-  filter: drop-shadow(0 0 1px var(--paper));
-}
-
 /* Something is coming in. A light runs the length of the fill, left to right, the way the
    resource does — the gauge already says how full, never that it is still filling, and a
    stalled chain and a running one drew the same bar. Clipped by the fill itself, so the

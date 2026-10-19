@@ -11,7 +11,6 @@ import {
   leadIn,
   pointOnLeg,
   AIR_RISE_MAX,
-  AIR_RISE_MIN,
   AIR_RISE_SHARE,
   DRIFT_CEILING_PX_S,
   DRIFT_SPEED,
@@ -225,7 +224,7 @@ describe('the relay diamonds', () => {
 
 describe('the air arc', () => {
   it('the rise follows the chord between its two bounds, and stops there', () => {
-    expect(airRise(1)).toBe(AIR_RISE_MIN);
+    expect(airRise(1)).toBe(HOVER_ALTITUDE);
     expect(airRise(100)).toBeCloseTo(100 * AIR_RISE_SHARE, 10);
     expect(airRise(4000)).toBe(AIR_RISE_MAX);
   });

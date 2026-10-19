@@ -107,14 +107,6 @@ export const CURRENT_RIBBONS: RibbonStyle = {
   tailPerStep: 2,
 };
 
-/**
- * `?weather=fast`: the sky runs twenty times faster from the page's opening, so a system lives
- * its 45 minutes in about two.
- */
-// ponytail: prototype switch for watching the weather; removed before the merge.
-const weatherPace = (search: string) =>
-  new URLSearchParams(search).get('weather') === 'fast' ? 20 : 1;
-
 const VERTEX = `
 attribute vec3 toward;
 attribute float side;
@@ -169,7 +161,6 @@ export class RibbonLayer implements AmbientLayer {
   readonly hz = RIBBON_HZ;
   private readonly cap: number;
   private readonly openedAt = Date.now();
-  private readonly pace = weatherPace(location.search);
   private readonly ribbons: Ribbon[] = [];
   private readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
   private readonly positions: BufferAttribute;
@@ -243,7 +234,7 @@ export class RibbonLayer implements AmbientLayer {
     if (time === this.lastTime) return;
     this.lastTime = time;
     this.renderer.getSize(this.resolution);
-    const epochMs = this.openedAt + (Date.now() - this.openedAt) * this.pace;
+    const epochMs = this.openedAt + (Date.now() - this.openedAt);
     // A hidden tab comes back with a pile of steps: the sky is a function of the hour, the
     // ribbons are not, so one step is enough to pick up where the wind is now.
     this.step(epochMs);

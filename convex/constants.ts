@@ -137,10 +137,6 @@ export const BUILDING_SPEC: Readonly<
 export const HQ_LEVEL_AT_LAUNCH = 1;
 export const MAX_HQ_LEVEL = 5;
 
-/** **What the home screen offers, never what a season is** (révision du 27/08 de l'ADR 0017) :
- *  une saison peut n'avoir aucune horloge. */
-export const DEFAULT_DURATION_HOURS = 168;
-
 /**
  * **La première projection par mer doit tenir dans la dotation** (333 acier : quartier général
  * au niveau 2, caserne, port, un cargo — `invariants.test.ts`), et c'est la règle de design de la

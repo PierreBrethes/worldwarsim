@@ -22,12 +22,11 @@ const SURFACE_ALTITUDE = COUNTRY_THICKNESS + 0.006;
 /** The air arc's rise: a share of the chord, clamped at both ends — a quarter of what it was
  *  until 15/10 (Pierre: the plane flew far too high above its shadow). */
 export const AIR_RISE_SHARE = 0.045;
-export const AIR_RISE_MIN = 1;
 export const AIR_RISE_MAX = 6;
 
 /** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers at the shortest hop's
- *  cruise, and its thread leaves and stops at that height. */
-export const HOVER_ALTITUDE = AIR_RISE_MIN;
+ *  cruise, and its thread leaves and stops at that height; also the air arc's rise floor. */
+export const HOVER_ALTITUDE = 1;
 
 /**
  * Without the floor, a hundred-kilometer hop draws flat and can no longer be told from a
@@ -35,7 +34,7 @@ export const HOVER_ALTITUDE = AIR_RISE_MIN;
  * to get lost.
  */
 export const airRise = (chord: number): number =>
-  Math.min(AIR_RISE_MAX, Math.max(AIR_RISE_MIN, chord * AIR_RISE_SHARE));
+  Math.min(AIR_RISE_MAX, Math.max(HOVER_ALTITUDE, chord * AIR_RISE_SHARE));
 
 const AIR_SEGMENTS = 48;
 

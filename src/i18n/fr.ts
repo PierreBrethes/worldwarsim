@@ -2040,15 +2040,6 @@ export const fr = {
     drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
-    /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : cinq colonnes sur un téléphone,
-     *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
-    abbreviations: {
-      food: 'viv',
-      coal: 'cha',
-      oil: 'pét',
-      steel: 'aci',
-      ammunition: 'mun',
-    } satisfies Record<ResourceKey, string>,
     slots: 'mouvements',
   },
 
