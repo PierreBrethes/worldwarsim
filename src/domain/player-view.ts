@@ -96,6 +96,8 @@ export type ArcView =
       readonly troopIds: ReadonlyArray<string>;
       /** Exact cargo and mission data exist only on the owner's branch of the arc union. */
       readonly cargo?: CargoView;
+      /** **Une livraison** (ADR 0028 §4) : la marche d'un transport vers un de mes dépôts. */
+      readonly delivery?: true;
       readonly mission?: OwnMovementMission;
       /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
        *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */

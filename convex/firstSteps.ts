@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
 import { readMarksOf, stampReadMark } from './readMarks';
+import { fail } from './errors';
 import { playerOf, requireStarted } from './seats';
 import { FIRST_STEP, FIRST_STEPS_SHOWN } from './validators';
 import { FIRST_STEPS } from '../src/domain/first-steps';
@@ -14,6 +15,9 @@ import { FIRST_STEPS } from '../src/domain/first-steps';
 export const check = mutation({
   args: { token: v.string(), seasonId: v.id('seasons'), steps: v.array(FIRST_STEP) },
   handler: async (ctx, { token, seasonId, steps }) => {
+    // Cinq pas au plus, chacun une fois : un tableau sans borne est une écriture sans borne.
+    if (steps.length > FIRST_STEPS.length || new Set(steps).size !== steps.length)
+      fail('FIRST_STEPS_INVALID');
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     const { firstSteps } = await readMarksOf(ctx, player);
@@ -32,6 +36,7 @@ export const show = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     const { firstSteps } = await readMarksOf(ctx, player);
+    if (firstSteps.shown === shown) return;
     await stampReadMark(ctx, player._id, { firstSteps: { done: [...firstSteps.done], shown } });
   },
 });

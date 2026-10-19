@@ -29,6 +29,9 @@ describe('les premiers pas', () => {
       done: ['hq', 'move'],
       shown: 'skipped',
     });
+    await expect(
+      t.mutation(api.firstSteps.check, { ...seat, steps: ['hq', 'hq'] }),
+    ).rejects.toThrow(/FIRST_STEPS_INVALID/);
     // Les pas d'un joueur ne sont pas ceux de l'autre.
     expect((await t.query(api.view.playerView, guest)).firstSteps.done).toEqual([]);
   });

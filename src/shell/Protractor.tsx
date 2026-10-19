@@ -4,7 +4,7 @@ import { fr } from '@/i18n/fr';
 import { CueBubble } from './CueBubble';
 import { asShortDuration } from '@/domain/duration';
 import { currentMinutes, type PlayerView } from '@/domain/player-view';
-import { nextActionsOf } from '@/domain/next-actions';
+import { todoCountOf } from '@/domain/next-actions';
 import { useMapMotion } from '@/data/mapMotion';
 import {
   toggleWindow,
@@ -51,7 +51,7 @@ export function Protractor({
   const hub = useRef<HTMLButtonElement>(null);
   const blitz = view.mode === 'blitz';
   const playing = view.season.outcome.concludedAt === null;
-  const waiting = nextActionsOf(view).length;
+  const waiting = todoCountOf(view);
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = blitz ? null : (view.press?.mine?.rank ?? null);
   const work = view.me.construction;

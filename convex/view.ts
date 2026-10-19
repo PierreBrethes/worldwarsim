@@ -931,6 +931,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           troopIds: movement.troopIds,
           cargo: cargoView(movementCargoLoads(movement), capacityOf(carriers)),
           mission,
+          /** **Une livraison** (ADR 0028 §4), dite au seul propriétaire de la marche. */
+          delivery: movement.delivery !== undefined,
           /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
           ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {

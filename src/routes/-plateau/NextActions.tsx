@@ -6,6 +6,7 @@ import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import {
   nextActionsOf,
+  todoCountOf,
   type NextAction,
   type NextActionSurface,
   type NextActionTarget,
@@ -112,7 +113,7 @@ export function NextActions({
   const actions = nextActionsOf(view);
   useRanks();
 
-  const count = actions.length + (firstSteps === null ? 0 : 1);
+  const count = todoCountOf(view);
 
   if (count === 0) {
     return frame === 'sheet' ? (

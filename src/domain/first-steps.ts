@@ -1,4 +1,3 @@
-import { distanceKm } from './geo';
 import { loadCapacityOf } from './logistics';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds } from './troops';
@@ -24,38 +23,68 @@ export type FirstSteps = {
   readonly shown: FirstStepsShown;
 };
 
-/** Where the bubble stands: over a rack of the personal board, or over a piece on the map. */
+/** What the bubble says, named here and worded in `fr.firstSteps.cue`. */
+export type CueSay = 'hq' | 'move' | 'tiles' | 'pieces' | 'research' | 'truck' | 'load' | 'outpost';
+
+/** Where the bubble stands — over a rack of the personal board, or under a piece on the map —
+ *  and what it says there. */
 export type FirstStepCue =
-  | { readonly kind: 'rack'; readonly rack: 'tiles' | 'pieces' | 'research' }
-  | { readonly kind: 'piece'; readonly station: TroopStation };
+  | { readonly kind: 'rack'; readonly rack: 'tiles' | 'pieces' | 'research'; readonly say: CueSay }
+  | { readonly kind: 'piece'; readonly station: TroopStation; readonly say: CueSay };
 
-/** A delivery is a march whose end is one of my outposts: the arc keeps no other trace of it. */
-const OUTPOST_REACH_KM = 1;
+const filled = (load: Readonly<Record<string, number>> | undefined): boolean =>
+  load !== undefined && Object.values(load).some((amount) => amount > 0);
 
-const loaded = (troop: TroopView | undefined): boolean =>
-  troop?.load !== undefined && Object.values(troop.load).some((amount) => amount > 0);
-
-/** The steps this view shows done right now. */
+/**
+ * **The steps this view shows done** — in what is under way, and in the durable trace each
+ * gesture leaves, so that a place already played checks its steps on the first look: a troop
+ * stood away from the headquarters has moved, a troop other than the gift company was formed,
+ * a depot holding something or a delivery told in the journal was delivered.
+ */
 export function stepsDoneIn(view: PlayerView): ReadonlyArray<FirstStep> {
   const { me } = view;
   const mine = view.arcs.flatMap((arc) => (arc.state === 'mine' ? [arc] : []));
-  const troopById = new Map(me.troops.map((troop) => [troop.id, troop]));
+  const hqIds = new Set(
+    me.buildings.flatMap((building) => (building.key === 'hq' ? [building.id] : [])),
+  );
   const seen: Readonly<Record<FirstStep, boolean>> = {
     hq: me.hqLevel > 0,
-    move: mine.some((arc) => arc.type !== 'return' && arc.type !== 'recall'),
-    form: me.recruiting.length > 0,
+    move:
+      mine.some((arc) => arc.type !== 'return' && arc.type !== 'recall') ||
+      me.troops.some(
+        ({ stationedAt: at }) =>
+          at.kind === 'point' ||
+          at.kind === 'outpost' ||
+          (at.kind === 'building' && !hqIds.has(at.buildingId)),
+      ),
+    form:
+      me.recruiting.length > 0 ||
+      me.troops.length > 1 ||
+      me.troops.some((troop) => troop.role !== 'infantry' || troop.tier !== 1),
     research: me.research.running !== null || me.research.researched.length > 0,
-    deliver: mine.some(
-      (arc) =>
-        arc.troopIds.some((id) => loaded(troopById.get(id))) &&
-        me.outposts.some((outpost) => distanceKm(outpost.lonLat, arc.to) < OUTPOST_REACH_KM),
-    ),
+    deliver:
+      mine.some((arc) => arc.delivery === true) ||
+      me.outposts.some((outpost) => filled(outpost.depot)) ||
+      view.journal.some((dispatch) => dispatch.kind === 'supply'),
   };
   return FIRST_STEPS.filter((step) => seen[step]);
 }
 
 export const litStepOf = (done: ReadonlyArray<FirstStep>): FirstStep | null =>
   FIRST_STEPS.find((step) => !done.includes(step)) ?? null;
+
+/** Nothing to learn in a Blitz, for an observer, or in a concluded season. */
+export const firstStepsApply = (view: PlayerView): boolean =>
+  view.mode !== 'blitz' && !view.me.defeated && view.season.outcome.concludedAt === null;
+
+/** **The step on show** — the one lit, while the list is neither passed nor finished. */
+export const shownStepOf = (view: PlayerView): FirstStep | null =>
+  firstStepsApply(view) && view.firstSteps.shown !== 'skipped'
+    ? litStepOf(view.firstSteps.done)
+    : null;
+
+/** Without an outpost of mine, the delivery begins by founding one. */
+export const outpostFirst = (view: PlayerView): boolean => view.me.outposts.length === 0;
 
 const PROJECTION_KEYS: ReadonlySet<string> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
@@ -67,27 +96,32 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
     view.me.troops.find(
       (troop) => wanted(troop) && !marching.has(troop.id) && troop.stationedAt.kind !== 'home',
     );
+  const onPiece = (troop: TroopView | undefined, say: CueSay): FirstStepCue | null =>
+    troop === undefined ? null : { kind: 'piece', station: troop.stationedAt, say };
   switch (step) {
     case 'hq':
-      return { kind: 'rack', rack: 'tiles' };
-    case 'move': {
-      const troop = standing(() => true);
-      return troop === undefined ? null : { kind: 'piece', station: troop.stationedAt };
-    }
+      return { kind: 'rack', rack: 'tiles', say: 'hq' };
+    case 'move':
+      return onPiece(
+        standing(() => true),
+        'move',
+      );
     case 'form':
-      return {
-        kind: 'rack',
-        rack: view.me.buildings.some((building) => PROJECTION_KEYS.has(building.key))
-          ? 'pieces'
-          : 'tiles',
-      };
+      return view.me.buildings.some((building) => PROJECTION_KEYS.has(building.key))
+        ? { kind: 'rack', rack: 'pieces', say: 'pieces' }
+        : { kind: 'rack', rack: 'tiles', say: 'tiles' };
     case 'research':
-      return { kind: 'rack', rack: 'research' };
+      return { kind: 'rack', rack: 'research', say: 'research' };
     case 'deliver': {
+      if (outpostFirst(view))
+        return onPiece(
+          standing(() => true),
+          'outpost',
+        );
       const truck = standing((troop) => loadCapacityOf(troop.role) > 0);
       return truck === undefined
-        ? { kind: 'rack', rack: 'pieces' }
-        : { kind: 'piece', station: truck.stationedAt };
+        ? { kind: 'rack', rack: 'pieces', say: 'truck' }
+        : onPiece(truck, 'load');
     }
   }
 }

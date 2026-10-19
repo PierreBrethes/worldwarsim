@@ -7,7 +7,9 @@ import { notify } from '@/shell/notifications';
 import {
   FIRST_STEPS,
   cueOf,
+  firstStepsApply,
   litStepOf,
+  outpostFirst,
   stepsDoneIn,
   type FirstStep,
   type FirstStepCue,
@@ -22,6 +24,8 @@ export type FirstStepsState = {
   /** The step to do now; `null` once all five are done. */
   readonly lit: FirstStep | null;
   readonly cue: FirstStepCue | null;
+  /** Sans avant-poste, la livraison commence par en fonder un : le pas le dit. */
+  readonly outpostFirst: boolean;
   readonly show: (shown: FirstStepsShown) => void;
 };
 
@@ -32,7 +36,7 @@ export type FirstStepsState = {
 export function useFirstSteps(view: PlayerView, seat: Seat): FirstStepsState | null {
   const check = useMutation(api.firstSteps.check);
   const showOn = useMutation(api.firstSteps.show);
-  const off = view.mode === 'blitz' || view.me.defeated || view.season.outcome.concludedAt !== null;
+  const off = !firstStepsApply(view);
   const { done, shown } = view.firstSteps;
   /** Ce qui est parti et pas encore revenu dans la vue : une seule écriture par pas. */
   const sent = useRef(new Set<FirstStep>());
@@ -61,6 +65,7 @@ export function useFirstSteps(view: PlayerView, seat: Seat): FirstStepsState | n
     shown,
     lit,
     cue: lit === null || shown === 'skipped' ? null : cueOf(lit, view),
+    outpostFirst: outpostFirst(view),
     show: (next) =>
       void showOn({ ...seat, shown: next }).catch((error: unknown) =>
         handleError(error, (said) => notify(said)),
@@ -82,6 +87,10 @@ export function FirstStepsList({
   onLead: () => void;
 }) {
   const folded = steps.shown === 'folded';
+  const labelOf = (step: FirstStep): string =>
+    step === 'deliver' && steps.outpostFirst
+      ? fr.firstSteps.steps.outpost
+      : fr.firstSteps.steps[step];
   return (
     <section
       aria-label={fr.firstSteps.header}
@@ -119,7 +128,7 @@ export function FirstStepsList({
                   className="flex w-full cursor-pointer items-baseline gap-2 border-l-[3px] border-[var(--arc-mine)] px-[10px] py-[6px] text-left hover:bg-(--ink)/7"
                 >
                   <span className="min-w-0 flex-1 text-[13px] leading-[1.25] font-semibold">
-                    {fr.firstSteps.steps[step]}
+                    {labelOf(step)}
                   </span>
                   <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
                     {steps.cue?.kind === 'piece'
@@ -145,7 +154,7 @@ export function FirstStepsList({
                   {steps.done.includes(step) && (
                     <span className="sr-only">{fr.firstSteps.doneLabel} </span>
                   )}
-                  {fr.firstSteps.steps[step]}
+                  {labelOf(step)}
                 </span>
               </li>
             ),
@@ -158,20 +167,3 @@ export function FirstStepsList({
 
 const LINK =
   'cursor-pointer font-(family-name:--font-mono) text-[10.5px] tracking-[.12em] text-[var(--ink)] uppercase underline-offset-2 hover:underline';
-
-/** Ce que dit la bulle du pas allumé, là où il se fait. */
-export function cueText(step: FirstStep, cue: FirstStepCue): string {
-  const say = fr.firstSteps.cue;
-  switch (step) {
-    case 'hq':
-      return say.hq;
-    case 'move':
-      return say.move;
-    case 'form':
-      return cue.kind === 'rack' && cue.rack === 'pieces' ? say.pieces : say.tiles;
-    case 'research':
-      return say.research;
-    case 'deliver':
-      return cue.kind === 'piece' ? say.load : say.truck;
-  }
-}

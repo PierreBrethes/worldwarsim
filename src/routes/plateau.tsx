@@ -170,7 +170,8 @@ import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
-import { FirstStepsList, cueText, useFirstSteps } from './-plateau/FirstSteps';
+import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
+import { shownStepOf } from '@/domain/first-steps';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -2226,8 +2227,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const firstSteps = useFirstSteps(view, seat);
   const boardOpen = windows.includes('personalBoard');
   const stepCue = firstSteps?.cue ?? null;
-  const stepText =
-    firstSteps?.lit == null || stepCue === null ? null : cueText(firstSteps.lit, stepCue);
+  const stepText = stepCue === null ? null : fr.firstSteps.cue[stepCue.say];
   /** Repliés ou passés, les premiers pas se reprennent depuis l'aide ; finis, il n'y a rien à reprendre. */
   const resumeSteps =
     firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'open'
@@ -2580,7 +2580,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onOpenOutpost={openOutpost}
       shut={boardOpen}
       firstSteps={
-        firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'skipped' ? null : (
+        firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
             steps={firstSteps}
             onLead={() => {

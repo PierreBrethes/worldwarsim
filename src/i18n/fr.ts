@@ -766,6 +766,7 @@ export const fr = {
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
     LOAD_AMOUNT_INVALID: () => 'on charge au moins un jeton, en nombre entier',
+    FIRST_STEPS_INVALID: () => 'premiers pas illisibles',
     TRANSPORT_UNDERWAY: () => 'ce transport est en route : il se charge à l’arrêt',
     TRANSPORT_ON_TOUR: () => 'ce transport est en tournée : rappelez-le d’abord',
     LOAD_NOT_HERE: (d) =>
@@ -2791,6 +2792,8 @@ export const fr = {
       form: 'Former une pièce : la lâcher sur une caserne',
       research: 'Poser une carte de recherche sur le QG',
       deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
+      /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
+      outpost: 'Fonder un avant-poste, puis y livrer un camion chargé',
     },
     /** Ce que dit la bulle, là où le geste se fait. */
     cue: {
@@ -2804,6 +2807,7 @@ export const fr = {
       move: 'Levez-la, posez-la plus loin',
       truck: 'Un camion, lâché sur la caserne',
       load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
+      outpost: 'Envoyez-la fonder un avant-poste',
     },
   },
 

@@ -11,6 +11,7 @@ import { distanceKm, type LonLat } from './geo';
 import { type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
+import { shownStepOf } from './first-steps';
 
 /**
  * **Ce qui a une position ne vit pas dans un panneau** (décision Pierre, 30/08). Le widget de
@@ -375,3 +376,8 @@ function pointOfStation(view: PlayerView, station: TroopStation): LonLat {
   }
   return view.me.homePosition;
 }
+
+/** **Ce que compte « à faire »** — les attentes, et le pas des premiers pas qui est à l'affiche :
+ *  le carré du bureau et le coin du téléphone lisent ce seul compte. */
+export const todoCountOf = (view: PlayerView): number =>
+  nextActionsOf(view).length + (shownStepOf(view) === null ? 0 : 1);
