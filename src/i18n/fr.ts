@@ -8,7 +8,7 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
-import { OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
+import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
@@ -341,6 +341,21 @@ export const fr = {
     depot: 'm',
     city: 'f',
   } satisfies Record<BuildingKey, 'm' | 'f'>,
+
+  buildingEffects: {
+    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
+    farm: 'exploite des terres',
+    mine: 'tire du charbon ou de l’acier, selon le gisement : charbon ou fer',
+    oilWell: 'exploite un gisement de pétrole',
+    arsenal: 'charbon + acier → munitions, ou 3 charbon → 1 pétrole après recherche, sur commande',
+    barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
+    airfield: 'ouvre le domaine aérien et assemble les avions',
+    port: 'ouvre le domaine maritime et construit les navires — région côtière',
+    listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
+    warehouse: 'relève le plafond des cinq ressources — se pille',
+    depot: 'relève le plafond des cinq ressources — se pille',
+    city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
+  } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
     europe: 'Europe',
@@ -3613,6 +3628,15 @@ export const fr = {
      */
     standingHeader: 'où elle se tient',
     standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
+    /** **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout et ce qu'il fait. */
+    censusHeader: 'recensement',
+    hqLine: (level: number, maximum: number, slots: number) =>
+      `niveau ${level} sur ${maximum} · ${slots} slots de mouvement`,
+    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
+    listeningUnfigured: 'rayon de révélation non chiffré',
+    listeningTemporary:
+      'La station d’écoute est ici en attendant l’espionnage : un jalon inerte serait pire.',
+    overflowing: 'débordé — bac plein',
     locate: (station: string) => `recentrer la carte sur ${station}`,
     restHeader: 'plage de repos déclarée',
     restNote:

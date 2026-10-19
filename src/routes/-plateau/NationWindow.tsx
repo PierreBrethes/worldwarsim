@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { fr, nationLabel, roleLabel, stackLabel } from '@/i18n/fr';
 import { asDayAndTime, asDuration, asLocalTime } from '@/domain/duration';
-import { DEPOSITS } from '@/domain/ids';
+import { DEPOSITS, type BuildingKey } from '@/domain/ids';
+import { MAX_HQ_LEVEL } from '../../../convex/constants';
 import { ADM0_BY_NATION, isNation } from '@/domain/nations';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import type {
@@ -19,12 +20,9 @@ import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
 
 /**
- * **The strategic identity sheet — and nothing else.** It used to carry the census of the
- * fifteen buildings, the placement budget and the headquarters' own button; the playtest had
- * three windows open in cascade to follow a single placement, and the census serves a decision
- * — *what to raise, what to put down next* — that is taken in Economy. So it moved there, with
- * the button, and this sheet stopped managing anything (`ordre-de-mobilisation-et-fenetre-
- * economie.md` §2).
+ * **The strategic identity sheet.** The census of the buildings left it once for the Economy
+ * window, then came back when the personal board became a band at the foot of the table (#122):
+ * a list of what stands is read here, not under the hand that builds.
  *
  * **It commands nothing.** The one handler it carries points the camera: the complete list of
  * troops landed here when the troops widget died (décision Pierre, 30/08) — the sheet already
@@ -106,6 +104,8 @@ export function NationWindow({
               </div>
             )}
           </Entry>
+
+          {view.mode !== 'blitz' && <Census view={view} />}
 
           {view.mode !== 'blitz' && (
             <Entry header={fr.nationSheet.restHeader}>
@@ -230,6 +230,59 @@ function FounderLine({ absence }: { absence: FounderAbsence }) {
           ? fr.nationSheet.founderAbsentOpen(since)
           : fr.nationSheet.founderAbsent(since, asDayAndTime(absence.concludeOpensAt))}
       </p>
+    </Entry>
+  );
+}
+
+/**
+ * **Le recensement** : le QG et ce qu'il porte, puis chaque bâtiment debout — sa région, son
+ * niveau et ce qu'il fait, l'écoute avec sa note, l'usine débordée quand son bac est plein. Il a
+ * quitté le pied du plateau personnel quand celui-ci est devenu une bande (#122).
+ */
+function Census({ view }: { view: PlayerView }) {
+  const hq = view.me.buildings.find((building) => building.key === 'hq') ?? null;
+  const others = view.me.buildings.filter((building) => building.key !== 'hq');
+  const region = (regionId: string) =>
+    view.me.regions.find((candidate) => candidate.id === regionId)?.name ?? regionId;
+  const chain = (key: BuildingKey) => view.me.chains.find((candidate) => candidate.by === key);
+  return (
+    <Entry header={fr.nationSheet.censusHeader}>
+      {hq === null ? (
+        <p className="text-[12.5px] leading-[1.4] text-[var(--critical)]">
+          {fr.nationSheet.hqMissing}
+        </p>
+      ) : (
+        <p className="text-[12.5px] leading-[1.4]">
+          <span className="font-semibold">{fr.buildings.hq}</span>{' '}
+          <span className="text-[var(--ink-soft)]">
+            {fr.nationSheet.hqLine(view.me.hqLevel, MAX_HQ_LEVEL, view.me.slots.total)}
+          </span>
+        </p>
+      )}
+      {others.map((building) => (
+        <p key={building.id} className="mt-[3px] text-[12px] leading-[1.35]">
+          <span className="font-semibold">{fr.buildings[building.key]}</span>{' '}
+          <span className="font-(family-name:--font-mono) text-[11px]">
+            {fr.common.levelShort(building.level)}
+          </span>{' '}
+          <span className="text-[var(--ink-soft)]">· {region(building.regionId)} · </span>
+          {building.key === 'listening' ? (
+            view.me.upkeep.listeningSilent ? (
+              <span className="text-[var(--critical)]">{fr.economy.listeningSilent}</span>
+            ) : (
+              <span className="text-[var(--ink-soft)]">
+                {fr.nationSheet.listeningUnfigured}{' '}
+                <HelpMark>{fr.nationSheet.listeningTemporary}</HelpMark>
+              </span>
+            )
+          ) : (
+            <span className="text-[var(--ink-soft)]">{fr.buildingEffects[building.key]}</span>
+          )}
+          {chain(building.key)?.state === 'overflowing' && (
+            <span className="text-[var(--notable-paper)]"> · {fr.nationSheet.overflowing}</span>
+          )}
+        </p>
+      ))}
     </Entry>
   );
 }
