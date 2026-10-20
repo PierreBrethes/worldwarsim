@@ -106,6 +106,7 @@ const server = spawn(
   [vite, 'preview', '--outDir', dist, '--port', String(PORT), '--strictPort'],
   { cwd: root, stdio: 'ignore' },
 );
+process.on('exit', () => server.kill());
 for (let k = 0; ; k++) {
   if (
     await fetch(origin).then(
@@ -745,7 +746,17 @@ const table = (gestures) =>
 
 const report = {
   at: new Date().toISOString(),
-  commit: execSync('git rev-parse --short HEAD', { cwd: root, encoding: 'utf8' }).trim(),
+  commit: (() => {
+    try {
+      return execSync('git rev-parse --short HEAD', {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      }).trim();
+    } catch {
+      return 'hors git';
+    }
+  })(),
   seasonId: accounts.seasonId,
   passes,
   load,
