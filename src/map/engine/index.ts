@@ -441,8 +441,8 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
-  /** 0..1, told only when it changes. */
-  onTiltShift: (strength: number) => void = () => {};
+  /** 0..1, told only when it changes (`watchTiltShift`). */
+  private onTiltShift: (strength: number) => void = () => {};
   private tiltShift = -1;
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
@@ -706,6 +706,15 @@ export class MapEngine {
    */
   invalidate(): void {
     this.demand.stir(performance.now());
+  }
+
+  /** **Le flou de bascule se dit dès la prochaine image** (#189) : la valeur déjà calculée avant
+   *  qu'on l'écoute n'était redite qu'au premier changement de pente — au téléphone, jamais tant
+   *  que le joueur n'inclinait pas la carte. */
+  watchTiltShift(listener: (strength: number) => void): void {
+    this.invalidate();
+    this.onTiltShift = listener;
+    this.tiltShift = -1;
   }
 
   /** **Couverte par une feuille, la carte ne dessine plus** (#189) : au téléphone, sous le

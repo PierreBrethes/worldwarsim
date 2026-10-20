@@ -463,11 +463,10 @@ export function WorldMap({
 
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onTiltShift = (strength) =>
-      container.current?.style.setProperty('--tilt-shift', String(strength));
-    return () => {
-      readyEngine.onTiltShift = () => {};
-    };
+    readyEngine.watchTiltShift((strength) =>
+      container.current?.style.setProperty('--tilt-shift', String(strength)),
+    );
+    return () => readyEngine.watchTiltShift(() => {});
   }, [readyEngine]);
 
   useEffect(() => {
