@@ -3937,9 +3937,9 @@ export const fr = {
     motionNote:
       'Auto suit le réglage du système. Coupées, les fils ne coulent plus et la carte se redessine au plus juste : le mode batterie.',
     dayCycleLabel: 'Cycle jour et nuit',
-    dayCycle: { real: 'réel', hour: 'accéléré — une heure' },
+    dayCycle: { twoHours: 'deux heures', hour: 'une heure', real: 'réel' },
     dayCycleNote:
-      'Réel : la nuit suit le vrai soleil. Accéléré : une journée entière en soixante minutes, pour juger la lumière sans attendre.',
+      'Une journée entière en deux heures ou en une, pour voir passer le jour et la nuit. Réel : la nuit suit le vrai soleil.',
     cameraLensLabel: 'Objectif de la caméra',
     cameraLens: { game: 'jeu', poc: 'prototype' },
     cameraLensNote:

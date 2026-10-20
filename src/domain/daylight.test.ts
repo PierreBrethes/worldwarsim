@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from './geo';
-import { boardInstant, nightAt, subsolarPoint, sunAltitude } from './daylight';
+import {
+  boardInstant,
+  DEFAULT_DAY_CYCLE,
+  LAMP_FLOOR_DEG,
+  nightAt,
+  subsolarPoint,
+  sunAltitude,
+  sunLightAt,
+} from './daylight';
 
 const PARIS: LonLat = [2.35, 48.86];
 const HOUR_MS = 3_600_000;
@@ -52,6 +60,27 @@ describe('nightAt', () => {
   });
 });
 
+describe('sunLightAt', () => {
+  const degrees = (radians: number) => (radians * 180) / Math.PI;
+
+  it('comes from the south at noon in Paris, the east in the morning, the west at dusk', () => {
+    expect(degrees(sunLightAt(Date.UTC(2026, 9, 21, 11, 45), PARIS).azimuth)).toBeCloseTo(180, -1);
+    expect(degrees(sunLightAt(Date.UTC(2026, 9, 21, 8), PARIS).azimuth)).toBeLessThan(150);
+    expect(degrees(sunLightAt(Date.UTC(2026, 9, 21, 16), PARIS).azimuth)).toBeGreaterThan(220);
+  });
+
+  it('keeps the true altitude, and lights from no lower than the floor', () => {
+    const noon = sunLightAt(Date.UTC(2026, 9, 21, 11, 45), PARIS);
+    expect(noon.altitude).toBeCloseTo(
+      sunAltitude(subsolarPoint(Date.UTC(2026, 9, 21, 11, 45)), PARIS),
+    );
+    expect(noon.elevation).toBe(noon.altitude);
+    const dusk = sunLightAt(Date.UTC(2026, 9, 21, 16, 30), PARIS);
+    expect(dusk.altitude).toBeLessThan(LAMP_FLOOR_DEG);
+    expect(dusk.elevation).toBe(LAMP_FLOOR_DEG);
+  });
+});
+
 describe('boardInstant', () => {
   const noon = Date.UTC(2026, 9, 13, 12, 20);
 
@@ -64,6 +93,14 @@ describe('boardInstant', () => {
     expect(boardInstant(start, 'hour')).toBe(Date.UTC(2026, 9, 13));
     expect(boardInstant(start + 30 * 60_000, 'hour')).toBe(Date.UTC(2026, 9, 13, 12));
     expect(boardInstant(start + 15 * 60_000, 'hour')).toBe(Date.UTC(2026, 9, 13, 6));
+  });
+
+  it('runs a day per two real hours by default', () => {
+    const start = Date.UTC(2026, 9, 13, 12);
+    expect(boardInstant(start, 'twoHours')).toBe(Date.UTC(2026, 9, 13));
+    expect(boardInstant(start + HOUR_MS, 'twoHours')).toBe(Date.UTC(2026, 9, 13, 12));
+    expect(boardInstant(start + 30 * 60_000, 'twoHours')).toBe(Date.UTC(2026, 9, 13, 6));
+    expect(DEFAULT_DAY_CYCLE).toBe('twoHours');
   });
 
   it('moves the terminator all the way round in an hour, without a jump', () => {

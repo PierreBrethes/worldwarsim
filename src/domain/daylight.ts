@@ -56,20 +56,54 @@ export function nightOfAltitude(altitude: number): number {
 export const nightAt = (epochMs: number, at: LonLat): number =>
   nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
 
-export type DayCycle = 'real' | 'hour';
-export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['real', 'hour'];
-export const DEFAULT_DAY_CYCLE: DayCycle = 'real';
+/** The lamp never lights from lower than this (choix de Pierre, #194) : un soleil rasant noie la
+ *  carte sous les ombres. */
+export const LAMP_FLOOR_DEG = 25;
+
+export type SunLight = {
+  /** Toward the subsolar point, in radians clockwise from north. */
+  readonly azimuth: number;
+  /** The sun's true height where one looks, in degrees. */
+  readonly altitude: number;
+  /** The height the lamp lights from: the altitude, never below `LAMP_FLOOR_DEG`. */
+  readonly elevation: number;
+};
+
+/** **La lampe de la table est le soleil** (#195) : sa direction et sa hauteur là où l'on regarde. */
+export function sunLightAt(epochMs: number, at: LonLat): SunLight {
+  const sun = subsolarPoint(epochMs);
+  const [lon, lat] = at;
+  const phi = lat * RAD;
+  const sunLat = sun[1] * RAD;
+  const dLon = (sun[0] - lon) * RAD;
+  const azimuth = Math.atan2(
+    Math.sin(dLon) * Math.cos(sunLat),
+    Math.cos(phi) * Math.sin(sunLat) - Math.sin(phi) * Math.cos(sunLat) * Math.cos(dLon),
+  );
+  const altitude = sunAltitude(sun, at);
+  return {
+    azimuth: (azimuth + 2 * Math.PI) % (2 * Math.PI),
+    altitude,
+    elevation: Math.max(altitude, LAMP_FLOOR_DEG),
+  };
+}
+
+export type DayCycle = 'twoHours' | 'hour' | 'real';
+export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['twoHours', 'hour', 'real'];
+/** Deux heures (#193) : une partie du soir voit passer le jour et la nuit sans qu'ils filent. */
+export const DEFAULT_DAY_CYCLE: DayCycle = 'twoHours';
 export const isDayCycle = (value: unknown): value is DayCycle =>
   DAY_CYCLES.includes(value as DayCycle);
 
 const HOUR_MS = 3_600_000;
+const CYCLE_MS: Record<DayCycle, number> = { twoHours: 2 * HOUR_MS, hour: HOUR_MS, real: DAY_MS };
 
 /**
- * The instant the board's sun is read at. Sped up, a whole day runs in each real hour: the hour of
- * day is the minutes into the real hour, set on the real date, so the declination stays the day's.
- * It only steps back at the hour mark, by the day's drift of the sun (under a degree).
+ * The instant the board's sun is read at. Sped up, a whole day runs in each real cycle: the hour of
+ * day is the time into the real cycle, set on the real date, so the declination stays the day's.
+ * It only steps back at the cycle mark, by the day's drift of the sun (under a degree).
  */
 export function boardInstant(epochMs: number, cycle: DayCycle): number {
-  if (cycle === 'real') return epochMs;
-  return epochMs - (epochMs % DAY_MS) + ((epochMs % HOUR_MS) / HOUR_MS) * DAY_MS;
+  const period = CYCLE_MS[cycle];
+  return epochMs - (epochMs % DAY_MS) + ((epochMs % period) / period) * DAY_MS;
 }
