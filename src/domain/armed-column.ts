@@ -26,7 +26,10 @@ export type ArmedColumn = {
  * (`convex/cargo.ts`) — une seconde table de ce qui tient à bord serait exactement la divergence
  * que l'ADR 0015 interdit à la rose.
  */
-export function freeCapacityOf(view: PlayerView, troopIds: ReadonlyArray<string>): number {
+export function freeCapacityOf(
+  view: Pick<PlayerView, 'me'>,
+  troopIds: ReadonlyArray<string>,
+): number {
   const picked = new Set(troopIds);
   const capacity = carryCapacityOf(
     view.me.troops.filter((troop) => picked.has(troop.id)),

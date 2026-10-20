@@ -505,7 +505,10 @@ export const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds
  *  still rather than flying somewhere approximate. */
-export function markerOfStation(view: PlayerView, station: TroopStation): string | null {
+export function markerOfStation(
+  view: Pick<PlayerView, 'me'>,
+  station: TroopStation,
+): string | null {
   /** Une pile posée a désormais son marqueur : la caméra a où aller quand on ouvre sa carte. */
   if (station.kind === 'point') return stackLabelId(station);
   if (station.kind === 'outpost') {
