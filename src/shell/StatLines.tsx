@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MAX_HQ_LEVEL } from '../../convex/constants';
 import { asSpan } from '@/domain/duration';
 import { shareOfReading, type StatKey, type StatReading, type StatRow } from '@/domain/stat-sheet';
@@ -173,27 +173,38 @@ function Ruler({ share }: { share: number | null }) {
   );
 }
 
+/** **Une ligne se déplie au toucher ou au clic** pour dire ce que la statistique veut dire : un
+ *  `title` ne s'affiche pas au doigt, et la note reste dans le bloc, sous sa ligne. */
 function Line({ row }: { row: StatRow }) {
+  const [open, setOpen] = useState(false);
   const share = shareOfReading(row.reading);
   const name = fr.stats.names[row.key];
   return (
-    <div
-      title={fr.stats.notes[row.key]}
-      data-stat={row.key}
-      className="grid grid-cols-[17px_72px_minmax(0,1fr)_auto] items-center gap-x-[7px] border-b border-(color:--ink)/18 py-[3px] last:border-b-0 max-md:grid-cols-[17px_84px_minmax(0,1fr)_auto]"
-    >
-      <StatGlyph stat={row.key} />
-      <span className="text-[12.5px] leading-[1.1] first-letter:uppercase">{name}</span>
-      <Ruler share={share} />
-      <span
-        className={`text-right ${
-          share === null
-            ? 'text-[12.5px] leading-[1.2] text-[var(--ink-note)] first-letter:uppercase'
-            : 'font-(family-name:--font-mono) text-[13px] leading-none font-semibold whitespace-nowrap'
-        }`}
+    <div data-stat={row.key} className="border-b border-(color:--ink)/18 last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="grid w-full cursor-pointer grid-cols-[17px_72px_minmax(0,1fr)_auto] items-center gap-x-[7px] py-[3px] text-left max-md:grid-cols-[17px_84px_minmax(0,1fr)_auto]"
       >
-        {statValue(row.key, row.reading)}
-      </span>
+        <StatGlyph stat={row.key} />
+        <span className="text-[12.5px] leading-[1.1] first-letter:uppercase">{name}</span>
+        <Ruler share={share} />
+        <span
+          className={`text-right ${
+            share === null
+              ? 'text-[12.5px] leading-[1.2] text-[var(--ink-note)] first-letter:uppercase'
+              : 'font-(family-name:--font-mono) text-[13px] leading-none font-semibold whitespace-nowrap'
+          }`}
+        >
+          {statValue(row.key, row.reading)}
+        </span>
+      </button>
+      {open && (
+        <p className="pb-[5px] pl-[24px] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
+          {fr.stats.notes[row.key]}
+        </p>
+      )}
     </div>
   );
 }

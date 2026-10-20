@@ -150,7 +150,6 @@ export function GunneryWindow({
                       <button
                         type="button"
                         onClick={() => setSort(key)}
-                        title={fr.stats.notes[key]}
                         className={`flex w-full cursor-pointer items-center gap-[3px] px-[4px] py-[6px] text-[9px] tracking-[.14em] whitespace-nowrap uppercase ${
                           sort === key
                             ? 'font-bold text-[var(--ink)] shadow-[inset_0_-3px_0_var(--ink)]'
