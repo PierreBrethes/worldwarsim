@@ -46,6 +46,7 @@ import jpCarrier from './japan/carrier.glb';
 import jpEscort from './japan/escort.glb';
 import jpFighter from './japan/fighter.glb';
 import jpInfantry1 from './japan/infantry-1.glb';
+import jpInfantry2 from './japan/infantry-2.glb';
 import jpLandTransport from './japan/landTransport.glb';
 import ukAirTransport from './uk/airTransport.glb';
 import ukArmor1 from './uk/armor-1.glb';
@@ -94,8 +95,8 @@ export type FigurineFiles = Partial<
 >;
 
 // Still to sculpt: the R35 (French armor MK1), the Ju 52 (German air transport), the Japanese
-// MK2 infantry (Type 1 anti-tank gun, no file yet), the Japanese air transport, the Soviet,
-// Chinese and Italian carriers and the French cargo — none exist as plates either. The artillery
+// air transport, the Soviet, Chinese and Italian carriers and the French cargo — none exist as
+// plates either. The artillery
 // (lot 6b) has no file in any nation yet: `uk/artillery.glb` first, the common model of
 // `PROMPTS-3D-2026-10-14.md` n° 2, then the seven others.
 export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = {
@@ -172,7 +173,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     cargo: itCargo,
   },
   japan: {
-    infantry: [jpInfantry1, null],
+    infantry: [jpInfantry1, jpInfantry2],
     armor: [jpArmor1, jpArmor2],
     landTransport: jpLandTransport,
     fighter: jpFighter,

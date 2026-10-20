@@ -90,6 +90,7 @@ Lumière : un soleil doux, un peu jaune, incliné, qui projette les ombres, plus
   fente, d'où sort une lunette. Une cheminée de laboratoire, et une antenne en treillis. Planche :
   `src/emblems/buildings/researchCenter.svg`.
 
-### Déjà sculpté, à brancher (pas de prompt)
-
-- **japan/infantry-2** : `WWS/GLBs/japon/canon_47mm_type_1.glb` (canon antichar Type 1).
+Un seul `fx_smoke` et un seul `fx_muzzle` par figurine. Une pièce servie par un fantassin ne
+donne pas ces noms aux repères de son servant : le moteur les cherche par leur nom, et
+`baked.test.ts` refuse les doublons. L'infanterie japonaise MK2, branchée le 20/10, en avait :
+ceux du servant ont été renommés `fx_smoke_crew` et `fx_muzzle_rifle`.
