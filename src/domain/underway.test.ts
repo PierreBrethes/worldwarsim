@@ -22,6 +22,8 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
     },
   }) as unknown as PlayerView;
 
+const minutes = (count: number) => LOADED + count * 60_000;
+
 const march = (id: string, minutesLeft: number, over: Partial<ArcView> = {}): ArcView =>
   ({
     state: 'mine',
@@ -29,12 +31,14 @@ const march = (id: string, minutesLeft: number, over: Partial<ArcView> = {}): Ar
     type: 'march',
     stack: { infantry: 2, armor: 1 },
     destinationLabel: 'Somme',
-    minutesLeft,
-    borderWait: null,
+    schedule: {
+      departedAt: LOADED,
+      arrivesAt: minutes(minutesLeft),
+      heldAt: null,
+      holdUntil: null,
+    },
     ...over,
   }) as ArcView;
-
-const minutes = (count: number) => LOADED + count * 60_000;
 
 describe('what runs, nearest first', () => {
   it('dates the card the research centre carries, and leaves one waiting for it undated', () => {
@@ -93,7 +97,9 @@ describe('what runs, nearest first', () => {
   });
 
   it('dates a column held at a border at its resolution, not at its arrival', () => {
-    const held = march('M-1', 0, { borderWait: { resolutionInMinutes: 300 } });
+    const held = march('M-1', 0, {
+      schedule: { departedAt: LOADED, arrivesAt: minutes(300), heldAt: LOADED, holdUntil: null },
+    });
     expect(underwayOf(board({}, [held]), [])[0]?.endsAt).toBe(minutes(300));
   });
 

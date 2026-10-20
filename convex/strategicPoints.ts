@@ -213,8 +213,20 @@ export async function handOver(
   });
   await tallyRace(ctx, point.seasonId, now);
   /** **Rangoun** : la mi-portée des tournées suit le point, donc le brouillard se relit à la prise
-   *  comme à la perte. */
-  if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
+   *  comme à la perte — sur les tournées de ses deux teneurs, les seules dont la portée change.
+   *  Sans tournée ni d'un côté ni de l'autre (un QG tombé n'en laisse aucune), rien à relire. */
+  if (point.key === 'rangoon') {
+    const holders = [former, holderId].flatMap((id) => (id === null ? [] : [id]));
+    const touring = async (playerId: Id<'players'>) =>
+      (
+        await ctx.db
+          .query('troops')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).some((troop) => troop.tour !== undefined);
+    if ((await Promise.all(holders.map(touring))).includes(true))
+      await reassessDetection(ctx, point.seasonId, now, holders);
+  }
 }
 
 /**

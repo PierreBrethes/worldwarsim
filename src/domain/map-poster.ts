@@ -9,6 +9,7 @@ import { capturingAt, isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
 import { YIELD_OF, produces } from './economy';
 import { loadingUntilOf } from './loading';
+import { arcProgressAt } from './arc-timing';
 import { carryCapacityOf } from './loot';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
@@ -165,7 +166,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
           {
             kind: 'row',
             label: fr.posters.route(arc.originLabel, arc.destinationLabel),
-            value: asClockTime(view.loadedAt + arc.minutesLeft * 60_000),
+            value: asClockTime(arc.schedule.heldAt ?? arc.schedule.arrivesAt),
           },
           // Ce que le cartouche disait de plus — retenue, charge, mission — ne se perd pas.
           ...label.lines.flatMap((line) =>
@@ -174,7 +175,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
               : [],
           ),
         ],
-        bar: arc.progress,
+        bar: arcProgressAt(arc, now),
         loading: loadingUntilOf(arc),
       };
     case 'lastKnown':
@@ -190,17 +191,11 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
             ? fr.posters.pierced(fr.movementTypes[known.type], stackLabel(known.stack))
             : fr.posters.unknown,
         },
-        ...(arc.estimatedMinutesLeft === null
-          ? []
-          : [
-              {
-                kind: 'row',
-                label: fr.posters.estimatedArrival,
-                value: fr.posters.estimatedTime(
-                  asClockTime(view.loadedAt + arc.estimatedMinutesLeft * 60_000),
-                ),
-              } as const,
-            ]),
+        {
+          kind: 'row',
+          label: fr.posters.estimatedArrival,
+          value: fr.posters.estimatedTime(asClockTime(arc.arrivesAt)),
+        },
         ...(arc.headingAtMe
           ? [
               {

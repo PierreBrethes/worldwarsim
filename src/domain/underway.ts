@@ -4,6 +4,7 @@ import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
 import { representativeRole } from './troops';
+import { borderResolution } from './arc-timing';
 
 /**
  * **Où la carte va quand on touche une ligne.** Le domaine ne connaît pas les étiquettes du
@@ -67,7 +68,7 @@ export function underwayOf(
     if (arc.state !== 'mine') continue;
     lines.push({
       id: `movement-${arc.id}`,
-      endsAt: at(arc.borderWait?.resolutionInMinutes ?? arc.minutesLeft),
+      endsAt: borderResolution(arc.schedule) ?? arc.schedule.arrivesAt,
       label: fr.underway.movement(
         arc.airdrop === 'out' ? fr.airdropMovement : fr.movementTypes[arc.type],
         arc.destinationLabel,

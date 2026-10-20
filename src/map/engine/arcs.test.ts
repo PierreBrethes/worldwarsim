@@ -35,7 +35,7 @@ const world: World = {
 } as unknown as World;
 
 /** Every view re-serves fresh objects: the same movement comes back equal, never identical. */
-const mine = (id: string, to: readonly [number, number] = [10, 5], progress = 0.2): ArcView => ({
+const mine = (id: string, to: readonly [number, number] = [10, 5]): ArcView => ({
   state: 'mine',
   id,
   from: [0, 0],
@@ -48,9 +48,7 @@ const mine = (id: string, to: readonly [number, number] = [10, 5], progress = 0.
   type: 'march',
   stack: { infantry: 2 },
   troopIds: [`${id}-troop`],
-  minutesLeft: 30,
-  borderWait: null,
-  progress,
+  schedule: { departedAt: 0, arrivesAt: 3_600_000, heldAt: null, holdUntil: null },
 });
 
 const layer = (trace: () => number = () => 0) =>
@@ -68,10 +66,9 @@ const sighted = (state: 'enemyDetected' | 'lastKnown'): ArcView =>
     detectorRegion: null,
     headingDegrees: 90,
     since: 0,
-    watchMinutesLeft: 30,
-    seenMinutesAgo: 5,
+    seenTo: 1_800_000,
+    arrivesAt: 3_600_000,
     lastSeenAt: 0,
-    progress: 0.5,
   }) as unknown as ArcView;
 
 const armor = (id: string, strength: number): TroopView =>
@@ -98,7 +95,7 @@ describe('ArcLayer.display', () => {
     const before = arcs.pawns.slice();
     const built = vi.mocked(figurineFor).mock.calls.length;
     const disposed = vi.spyOn(Pawn.prototype, 'dispose');
-    arcs.display([mine('a', [10, 5], 0.3), mine('b', [10, 5], 0.3)]);
+    arcs.display([mine('a'), mine('b')]);
     expect(arcs.pawns).toEqual(before);
     expect(arcs.pawns[0]).toBe(before[0]);
     expect(vi.mocked(figurineFor).mock.calls.length).toBe(built);
@@ -140,8 +137,7 @@ describe('ArcLayer.display', () => {
   it('builds twenty view updates of three movements once', () => {
     const arcs = layer();
     const before = vi.mocked(figurineFor).mock.calls.length;
-    for (let k = 0; k < 20; k++)
-      arcs.display([mine('a', [10, 5], k / 40), mine('b', [10, 5], k / 40), mine('c', [10, 5])]);
+    for (let k = 0; k < 20; k++) arcs.display([mine('a'), mine('b'), mine('c')]);
     // An infantry column dresses one medium: three pawns, three figurines, whatever the updates.
     expect(vi.mocked(figurineFor).mock.calls.length - before).toBe(3);
   });
@@ -174,5 +170,40 @@ describe('ArcLayer.display', () => {
     expect(trace).toHaveBeenCalledTimes(1);
     arcs.display([mine('a'), mine('b', [20, 5])]);
     expect(trace).toHaveBeenCalledTimes(1);
+  });
+
+  /** **The hour moves the pawn, not the view** (#183): no new answer, the column still walks. */
+  it('walks my column from the clock between two views', () => {
+    vi.useFakeTimers({ now: 0 });
+    const arcs = layer();
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const start = arcs.headPositions.get('a')!.clone();
+    vi.setSystemTime(1_800_000);
+    arcs.animate();
+    const half = arcs.headPositions.get('a')!.clone();
+    vi.setSystemTime(3_600_000);
+    arcs.animate();
+    const end = arcs.headPositions.get('a')!;
+    vi.useRealTimers();
+    expect(half.distanceTo(start)).toBeGreaterThan(0);
+    expect(end.distanceTo(half)).toBeCloseTo(half.distanceTo(start), 1);
+  });
+
+  /** **Une dernière position connue pâlit sans nouvelle réponse** (#183) : son encre se relit au
+   *  battement de la boucle, pas au prochain `display`. */
+  it('redraws a last known position as its ink fades, from the clock alone', () => {
+    vi.useFakeTimers({ now: 0 });
+    const arcs = layer();
+    arcs.display([sighted('lastKnown')]);
+    const [fresh] = arcs.pawns;
+    vi.advanceTimersByTime(500);
+    arcs.animate();
+    expect(arcs.pawns[0]).toBe(fresh);
+    vi.advanceTimersByTime(6 * 3_600_000);
+    arcs.animate();
+    vi.useRealTimers();
+    expect(arcs.pawns[0]).not.toBe(fresh);
+    expect(fresh!.parent).toBeNull();
   });
 });

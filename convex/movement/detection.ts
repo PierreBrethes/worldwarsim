@@ -73,12 +73,13 @@ type PassiveWatcher = Watcher & Omit<Caught, 'from' | 'to'>;
  * Replaces every prediction affected by the current board. It is called only from mutations that
  * changed a route, a manifest or a detector; no query and no periodic loop enters here.
  *
- * **`changed` : l'événement ne touche qu'un joueur** (#145). Un départ, une arrivée sans combat,
- * un pas de tournée ou une recrue ne changent que les détecteurs de leur joueur — la pile quittée
- * ou rejointe, la colonne née ou finie — et ses propres colonnes comme cibles. Refaire ses relevés
- * à lui et ceux qu'on tient sur ses colonnes rend exactement ce que rendrait la réévaluation
- * complète : rien d'autre sur le plateau n'a bougé, et la grille d'échantillons ne bouge pas avec
- * l'instant (`mobileSighting`). Recroiser chaque
+ * **`changed` : l'événement ne touche qu'un joueur** (#145), ou quelques-uns. Un départ, une
+ * arrivée sans combat, un pas de tournée ou une recrue ne changent que les détecteurs de leur
+ * joueur — la pile quittée ou rejointe, la colonne née ou finie — et ses propres colonnes comme
+ * cibles ; la chute d'un QG, ceux du capteur, du vaincu et du siège irrégulier (#171). Refaire
+ * leurs relevés à eux et ceux qu'on tient sur leurs colonnes rend exactement ce que rendrait la
+ * réévaluation complète : rien d'autre sur le plateau n'a bougé, et la grille d'échantillons ne
+ * bouge pas avec l'instant (`mobileSighting`). Recroiser chaque
  * colonne avec chaque autre à chaque départ dépassait la seconde d'une mutation passé quarante
  * colonnes. Les camps, les caisses et les captures se relisent toujours en entier : ils lisent la
  * position présente de toutes les colonnes, et ils coûtent peu.
@@ -87,10 +88,11 @@ export async function reassessDetection(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   now = Date.now(),
-  changed?: Id<'players'>,
+  changed?: Id<'players'> | ReadonlyArray<Id<'players'>>,
 ): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return;
+  const touched = changed === undefined ? null : new Set([changed].flat());
 
   const movements = await seasonMovements(ctx, seasonId);
 
@@ -99,11 +101,10 @@ export async function reassessDetection(
       ? movements.filter((movement) => movement.arrivesAt > now)
       : [];
   const board = await detectionBoard(ctx, seasonId, active, now);
-  const ledgers = await observerLedgers(ctx, board, movements, changed);
+  const ledgers = await observerLedgers(ctx, board, movements, touched);
 
   for (const target of movements) {
-    const watchedBy =
-      changed === undefined || target.playerId === changed ? null : new Set([changed]);
+    const watchedBy = touched === null || touched.has(target.playerId) ? null : touched;
     const mobile = board.mobileById.get(target._id);
     const desired = mobile === undefined ? [] : sightingsFor(mobile, board, now, watchedBy);
     await syncSightings(
@@ -284,7 +285,7 @@ async function detectionBoard(
   const troopById = new Map(troops.map((troop) => [troop._id, troop]));
   /** **Rangoun** : les tournées de son teneur ne se relèvent qu'à la part de portée de
    *  `sightingReachKm`. Relu ici à chaque réévaluation, donc éteint dès que le point change de
-   *  main (`handOver` réévalue). */
+   *  main (`handOver` réévalue s'il y a une tournée chez l'un des teneurs). */
   const rangoonTours = new Set<Id<'troops'>>();
   const keepers = new Map<Id<'players'>, boolean>();
   for (const troop of troops) {
@@ -368,6 +369,8 @@ async function detectionBoard(
   /** A post with no coal hears nothing (ADR 0028 §1): one economy read per owner, not per post. */
   const silent = new Map<Id<'players'>, boolean>();
   const isSilent = async (playerId: Id<'players'>): Promise<boolean> => {
+    /** The irregular seat keeps no stock, so the stations it inherits at a fall have no coal. */
+    if (playerById.get(playerId)?.irregular === true) return true;
     if (!silent.has(playerId)) {
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
@@ -457,20 +460,20 @@ async function forgetStaleSightings(
 /**
  * **Chaque registre d'observateur se lit une fois par réévaluation** (#145) : par joueur, sur son
  * propre index, puis rangé par mouvement. Une lecture par mouvement relisait les mêmes lignes une
- * seconde fois, et le ménage les relisait une troisième. Pour un événement d'un seul joueur, son
- * registre et les lignes tenues sur ses colonnes ; les camps, toujours en entier, puisqu'ils se
+ * seconde fois, et le ménage les relisait une troisième. Pour un événement de quelques joueurs, leurs
+ * registres et les lignes tenues sur leurs colonnes ; les camps, toujours en entier, puisqu'ils se
  * relisent en entier.
  */
 async function observerLedgers(
   ctx: MutationCtx,
   board: DetectionBoard,
   movements: ReadonlyArray<Doc<'movements'>>,
-  changed: Id<'players'> | undefined,
+  touched: ReadonlySet<Id<'players'>> | null,
 ) {
   const sightings = new Map<Id<'sightings'>, Doc<'sightings'>>();
   const camps: Array<Doc<'campSightings'>> = [];
   for (const player of board.players) {
-    if (changed === undefined || player._id === changed) {
+    if (touched === null || touched.has(player._id)) {
       for (const sighting of await ctx.db
         .query('sightings')
         .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
@@ -485,8 +488,8 @@ async function observerLedgers(
         .collect()),
     );
   }
-  for (const movement of changed === undefined ? [] : movements) {
-    if (movement.playerId !== changed) continue;
+  for (const movement of movements) {
+    if (touched === null || !touched.has(movement.playerId)) continue;
     for (const sighting of await ctx.db
       .query('sightings')
       .withIndex('byMovement', (q) => q.eq('movementId', movement._id))

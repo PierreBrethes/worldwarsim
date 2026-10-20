@@ -1,12 +1,13 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asDuration, asLocalTime } from '@/domain/duration';
+import { asLocalTime } from '@/domain/duration';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
+import { borderResolution } from './arc-timing';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import {
   RESOURCES,
@@ -333,6 +334,10 @@ export type LabelLine =
       /** À la seconde (« 0:42 ») plutôt qu'en durée, et muet une fois échu : un rechargement. */
       readonly clock?: true;
     }
+  /** **Une dernière position connue, et son âge qui court** (#183) : « il y a … » depuis
+   *  `since`, réécrit chaque seconde comme un compte à rebours — un texte figé à l'heure de la
+   *  réponse rendait chaque relevé à chaque réponse. */
+  | { readonly role: 'age'; readonly since: number }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
   /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
@@ -492,6 +497,9 @@ export type MapLabel = {
 export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role: 'countdown' }> =>
   line.role === 'countdown';
 
+export const isAge = (line: LabelLine): line is Extract<LabelLine, { role: 'age' }> =>
+  line.role === 'age';
+
 /**
  * **Les pièces se nomment au pointeur** (retours de Pierre du 13/10) : la planche, la figurine,
  * bientôt la maquette disent ce qu'elles sont, et vingt cartouches au repos couvraient la carte
@@ -603,7 +611,9 @@ export function ownerFlags(
 }
 
 export function buildLabels(
-  view: PlayerView,
+  view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
+    readonly me: Pick<PlayerView['me'], 'ink'>;
+  },
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
   return [
@@ -832,13 +842,9 @@ function markerLabel(marker: MapMarker): MapLabel {
         hostCountry: null,
         lines: [
           { role: 'nature', text: fr.camps.marker },
-          {
-            role: 'mention',
-            text:
-              marker.seenMinutesAgo === null
-                ? fr.camps.seenAt(asLocalTime(marker.since))
-                : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
-          },
+          marker.lastSeenAt === null
+            ? { role: 'mention', text: fr.camps.seenAt(asLocalTime(marker.since)) }
+            : { role: 'age', since: marker.lastSeenAt },
           ...lisbonLine(marker.nation),
         ],
       };
@@ -1129,25 +1135,13 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       force: null,
-      lines: [
-        { role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) },
-        ...lisbonLine(arc.nation),
-      ],
+      lines: [{ role: 'age', since: arc.lastSeenAt }, ...lisbonLine(arc.nation)],
     };
   }
   if (arc.state !== 'enemyDetected') return null;
 
   const type = arc.headingAtMe ? 'inbound-movement' : 'intel';
-  const schedule: ReadonlyArray<LabelLine> =
-    arc.estimatedMinutesLeft === null
-      ? []
-      : [
-          {
-            role: 'countdown',
-            dueAt: loadedAt + arc.estimatedMinutesLeft * 60_000,
-            prefix: '~',
-          },
-        ];
+  const schedule: LabelLine = { role: 'countdown', dueAt: arc.arrivesAt, prefix: '~' };
   const second: LabelLine = arc.identification.pierced
     ? {
         role: 'nature',
@@ -1180,7 +1174,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     building: null,
     station: null,
     force: null,
-    lines: [...schedule, second, ...lisbonLine(arc.nation)],
+    lines: [schedule, second, ...lisbonLine(arc.nation)],
   };
 }
 
@@ -1199,18 +1193,22 @@ function scheduleLines(
   arc: Extract<ArcView, { state: 'mine' }>,
   loadedAt: number,
 ): ReadonlyArray<LabelLine> {
-  const wait = arc.borderWait;
-  if (wait === null) {
-    const dueAt = loadedAt + arc.minutesLeft * 60_000;
-    // The share walked and the minutes left date the departure; a share at its end dates nothing.
-    const since =
-      arc.progress < 1 ? loadedAt - (arc.progress / (1 - arc.progress)) * (dueAt - loadedAt) : null;
-    return [{ role: 'countdown', dueAt, prefix: '', ...(since === null ? {} : { since }) }];
-  }
-  const resolvesAt = asLocalTime(loadedAt + wait.resolutionInMinutes * 60_000);
-  if (arc.minutesLeft === 0) return [{ role: 'mention', text: fr.labels.arrivalHeld(resolvesAt) }];
+  const { departedAt, arrivesAt, heldAt } = arc.schedule;
+  const resolution = borderResolution(arc.schedule);
+  // A column past its arrival, waiting for its pass, has no march left to gauge.
+  if (resolution === null)
+    return [
+      {
+        role: 'countdown',
+        dueAt: arrivesAt,
+        prefix: '',
+        ...(loadedAt < arrivesAt ? { since: departedAt } : {}),
+      },
+    ];
+  const resolvesAt = asLocalTime(resolution);
+  if (heldAt !== null) return [{ role: 'mention', text: fr.labels.arrivalHeld(resolvesAt) }];
   return [
-    { role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' },
+    { role: 'countdown', dueAt: arrivesAt, prefix: '' },
     { role: 'mention', text: fr.labels.borderHold(resolvesAt) },
   ];
 }

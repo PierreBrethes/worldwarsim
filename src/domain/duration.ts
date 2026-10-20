@@ -25,20 +25,23 @@ export const asShortDuration = (minutes: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 };
 
-export const asLocalTime = (instant: number) =>
-  new Date(instant).toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+/** One formatter per shape, built once: `toLocaleTimeString` builds one per call, and a server
+ *  answer dates every camp and every dispatch of the journal (#183). */
+const LOCAL_TIME = new Intl.DateTimeFormat('fr-FR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+const CLOCK_TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+export const asLocalTime = (instant: number) => LOCAL_TIME.format(instant);
 
 /**
  * **L'heure ronde, sans les secondes** : une échéance qu'on attend sans la regarder tourner — le
  * retour d'un avant-poste hors service, qui se compte en heures. Les secondes y seraient une
  * précision que personne n'utilise et une horloge de plus à faire battre.
  */
-export const asClockTime = (instant: number) =>
-  new Date(instant).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+export const asClockTime = (instant: number) => CLOCK_TIME.format(instant);
 
 /**
  * A due time far enough out that the hour alone would be ambiguous — a lot of a thousand

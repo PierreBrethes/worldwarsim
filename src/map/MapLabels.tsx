@@ -12,12 +12,16 @@ import { CargoTags, type CargoAim } from './CargoTags';
 import { CueBubble } from '@/shell/CueBubble';
 import {
   Fragment,
+  memo,
   useCallback,
+  useMemo,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
@@ -26,12 +30,14 @@ import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
+import { shareUnchanged } from '@/data/shareUnchanged';
 import { CaptureGauge, LoadingGauge, MarchGauge, ResearchLine } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
   NEUTRAL_FLAG,
   URGENCY_MS,
   cartoucheShown,
+  isAge,
   isCountdown,
   type MapLabel,
   type LabelPictogram,
@@ -95,7 +101,7 @@ export type TakeDepot = (
 const NO_LABELS: ReadonlySet<string> = new Set();
 
 export function MapLabels({
-  labels,
+  labels: served,
   engine,
   selected,
   selectedPlate,
@@ -192,10 +198,12 @@ export function MapLabels({
    *  (Blitz, retours du 15/10) : les neutres d'une Blitz couvraient l'Espagne. */
   groupFar?: boolean;
 }) {
+  const labels = useSameLabels(served);
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
   const countdowns = useRef(new Map<string, HTMLElement>());
+  const ages = useRef(new Map<string, HTMLElement>());
   const tethers = useRef(new Map<string, HTMLElement>());
   const motion = useMapMotion();
   const states = useRef(new Map<string, RenderState>());
@@ -512,6 +520,12 @@ export function MapLabels({
             : ''
           : `${countdown.prefix}${asDuration(left / 60_000)}`;
       roots.current.get(label.id)?.classList.toggle('label--urgent', left < URGENCY_MS);
+    }
+    for (const label of labels) {
+      const age = label.lines.find(isAge);
+      const node = ages.current.get(label.id);
+      if (age === undefined || node === undefined) continue;
+      node.textContent = fr.camps.lastKnown(asDuration(Math.max(0, now - age.since) / 60_000));
     }
   }, [labels]);
 
@@ -845,6 +859,85 @@ export function MapLabels({
     [engine],
   );
 
+  /**
+   * **Ce qu'un geste sur une étiquette déclenche, lu au moment du geste** (#183) : chaque
+   * `LabelNode` est mémoïsé et ne se rend qu'avec ce qu'il montre ; ce qu'il appelle se relit
+   * ici, à jour de ce rendu.
+   */
+  const gestures = useRef({} as LabelGestures);
+  gestures.current = {
+    enter: (label, event) => {
+      // A finger has no hover to take back: what it lit would stay lit (C4).
+      if (event.pointerType === 'touch') return;
+      over.current.label = label.id;
+      hover(event.buttons === 0);
+    },
+    move: (label, event) => {
+      if (holding && event.pointerType !== 'touch')
+        onHoldOver(label.id, event.clientX, event.clientY);
+    },
+    leave: (label, event) => {
+      if (event.pointerType === 'touch') return;
+      if (over.current.label === label.id) over.current.label = null;
+      hover(true);
+    },
+    click: (label, event) => {
+      // A drag that carried a pile ends here too: it was not a click.
+      if (engine?.consumeCarry() === true) return;
+      pressLabel(
+        label,
+        cleanPressAt(mapping, pressedWith.current, event.button, holding),
+        pressedWith.current,
+        event.clientX,
+        event.clientY,
+      );
+    },
+    keyDown: (label, event) => {
+      if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        const rect = roots.current.get(label.id)?.getBoundingClientRect();
+        onOpenLoot(
+          nearbyLootSightings(label, labels, states.current),
+          rect === undefined ? 0 : rect.left + rect.width / 2,
+          rect === undefined ? 0 : rect.top + rect.height / 2,
+        );
+      }
+    },
+    pointerDown: (label, event) => {
+      pressedWith.current = event.pointerType;
+      // Une de mes piles se porte aussi depuis son étiquette (glisser-déposer, 15/10).
+      if (label.type === 'stack' && label.station !== null && !muted)
+        engine?.pressOnLabel(label.id, event.nativeEvent);
+      // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
+      // doublerait. Elle revient au survol suivant.
+      showPoster.current(null);
+      // L'autoscroll du navigateur s'arme au bouton du milieu et se plante sur la carte.
+      if (buttonAt(event.button) === 'middle') event.preventDefault();
+    },
+    auxClick: (label, event) => {
+      if (buttonAt(event.button) !== 'middle' || mapping.middle !== 'act') return;
+      onAct(label, event.clientX, event.clientY);
+    },
+    contextMenu: (label, event) => {
+      // Le menu du navigateur est coupé quel que soit le rôle du bouton droit.
+      event.preventDefault();
+      if (mapping.right !== 'act') return;
+      onAct(label, event.clientX, event.clientY);
+    },
+    takeDepot: (outpostId, key, event) => onTakeDepot?.(outpostId, key, event),
+    disembark: (troopIds) => onDisembark?.(troopIds),
+    tour: (carrierId, act) => onTour?.(carrierId, act),
+  };
+  const disembark = useCallback(
+    (troopIds: ReadonlyArray<string>) => gestures.current.disembark(troopIds),
+    [],
+  );
+  const tour = useCallback(
+    (carrierId: string, act: TourAct) => gestures.current.tour(carrierId, act),
+    [],
+  );
+  const nodes = useMemo(() => ({ anchors, tethers, roots, blocks, countdowns, ages }), []);
+
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
@@ -853,266 +946,23 @@ export function MapLabels({
       className={`map-labels${muted ? ' pointer-events-none' : ''}${carriersShown ? ' map-labels--loading' : ''}`}
     >
       {labels.map((label) => (
-        <div
+        <LabelNode
           key={label.id}
-          className="label-anchor"
-          ref={(node) => {
-            register(anchors.current, label.id, node);
-          }}
-          style={{ display: 'none' }}
-        >
-          {cue?.labelId === label.id && (
-            <CueBubble
-              text={cue.text}
-              place="first-step-cue--up absolute top-[18px] left-0 -translate-x-1/2"
-            />
-          )}
-          <span
-            aria-hidden
-            className="label-tether"
-            style={{ display: 'none' }}
-            ref={(node) => {
-              register(tethers.current, label.id, node);
-            }}
-          />
-          <div
-            ref={(node) => {
-              register(roots.current, label.id, node);
-            }}
-            className={classesOf(label, label.id === selected || label.id === secondarySelected)}
-            role={label.lootSightingId === null ? undefined : 'button'}
-            tabIndex={label.lootSightingId === null ? undefined : 0}
-            aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
-            style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
-            onPointerEnter={(event) => {
-              // A finger has no hover to take back: what it lit would stay lit (C4).
-              if (event.pointerType === 'touch') return;
-              over.current.label = label.id;
-              hover(event.buttons === 0);
-            }}
-            onPointerMove={(event) => {
-              if (holding && event.pointerType !== 'touch')
-                onHoldOver(label.id, event.clientX, event.clientY);
-            }}
-            onPointerLeave={(event) => {
-              if (event.pointerType === 'touch') return;
-              if (over.current.label === label.id) over.current.label = null;
-              hover(true);
-            }}
-            data-label-id={label.id}
-            data-building-id={label.building?.id}
-            onClick={(event) => {
-              // A drag that carried a pile ends here too: it was not a click.
-              if (engine?.consumeCarry() === true) return;
-              pressLabel(
-                label,
-                cleanPressAt(mapping, pressedWith.current, event.button, holding),
-                pressedWith.current,
-                event.clientX,
-                event.clientY,
-              );
-            }}
-            onKeyDown={(event) => {
-              if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
-                event.preventDefault();
-                const rect = roots.current.get(label.id)?.getBoundingClientRect();
-                onOpenLoot(
-                  nearbyLootSightings(label, labels, states.current),
-                  rect === undefined ? 0 : rect.left + rect.width / 2,
-                  rect === undefined ? 0 : rect.top + rect.height / 2,
-                );
-              }
-            }}
-            onPointerDown={(event) => {
-              pressedWith.current = event.pointerType;
-              // Une de mes piles se porte aussi depuis son étiquette (glisser-déposer, 15/10).
-              if (label.type === 'stack' && label.station !== null && !muted)
-                engine?.pressOnLabel(label.id, event.nativeEvent);
-              // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
-              // doublerait. Elle revient au survol suivant.
-              showPoster.current(null);
-              // L'autoscroll du navigateur s'arme au bouton du milieu et se plante sur la carte.
-              if (buttonAt(event.button) === 'middle') event.preventDefault();
-            }}
-            onAuxClick={(event) => {
-              if (buttonAt(event.button) !== 'middle' || mapping.middle !== 'act') return;
-              onAct(label, event.clientX, event.clientY);
-            }}
-            onContextMenu={(event) => {
-              // Le menu du navigateur est coupé quel que soit le rôle du bouton droit.
-              event.preventDefault();
-              if (mapping.right !== 'act') return;
-              onAct(label, event.clientX, event.clientY);
-            }}
-          >
-            {label.flag !== undefined && (
-              <span
-                className={
-                  label.flag === NEUTRAL_FLAG ? 'label-owner label-owner--neutral' : 'label-owner'
-                }
-                style={
-                  label.flag === NEUTRAL_FLAG
-                    ? undefined
-                    : ({ '--owner-ink': label.flag } as CSSProperties)
-                }
-              >
-                <svg viewBox="0 0 16 22" width="16" height="22" aria-hidden>
-                  <path className="label-flag-pole" d="M2 1v21" />
-                  <path className="label-owner-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
-                </svg>
-              </span>
-            )}
-            <div
-              className="label-block"
-              ref={(node) => {
-                register(blocks.current, label.id, node);
-              }}
-            >
-              {(label.plate !== null || label.works !== null) && (
-                <span className="label-pictogram">
-                  {label.plate !== null && (
-                    <img
-                      className="label-plate"
-                      src={
-                        label.id === selected && selectedPlate !== null
-                          ? selectedPlate
-                          : label.plate
-                      }
-                      alt=""
-                    />
-                  )}
-                  {/* Le mode chantier au loin : un fanion ocre sur la planche, ou seul sur le mât
-                      d'un plan en file. L'heure et la barre sont à l'affiche. */}
-                  {label.works !== null && (
-                    <svg className="label-pennant" viewBox="0 0 16 22" width="16" height="22">
-                      <path className="label-flag-pole" d="M2 1v21" />
-                      <path
-                        className="label-pennant-cloth"
-                        d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z"
-                      />
-                    </svg>
-                  )}
-                </span>
-              )}
-              {label.type === 'arrival' && (
-                <span className="label-flag" aria-hidden>
-                  <svg viewBox="0 0 16 22" width="16" height="22">
-                    <path className="label-flag-pole" d="M2 1v21" />
-                    <path className="label-flag-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
-                  </svg>
-                </span>
-              )}
-              {label.deposit !== null && (
-                <span className="label-deposit">
-                  <img src={resourcePlate(YIELD_OF[label.deposit]) ?? undefined} alt="" />
-                </span>
-              )}
-              {label.lootSightingId !== null && (
-                <span className="label-loot">
-                  <Glyph size={28}>
-                    <path d="M3.5 7.5h13v9h-13zM3.5 7.5l3-4h7l3 4M10 7.5v9M6.5 3.5 10 7.5l3.5-4" />
-                  </Glyph>
-                </span>
-              )}
-              {label.camp !== null && (
-                <span className="label-camp">
-                  <Glyph size={26}>
-                    {silhouettePaths(label.camp.medium).map((path) => (
-                      <path key={path} d={path} fill="currentColor" stroke="none" />
-                    ))}
-                  </Glyph>
-                </span>
-              )}
-              {label.pictogram !== null && (
-                <span className="label-pictogram">
-                  <Pictogram
-                    pictogram={PICTOGRAM_OF_LABEL[label.pictogram]}
-                    weight={40}
-                    size={36}
-                  />
-                </span>
-              )}
-              <span className="label-bar" />
-              <div className="label-lines">
-                {label.lines.map((line, rank) =>
-                  line.role === 'countdown' ? (
-                    <Fragment key={rank}>
-                      <div
-                        className="label-line label-line--countdown"
-                        ref={(node) => {
-                          register(countdowns.current, label.id, node);
-                        }}
-                      />
-                      {line.since !== undefined && (
-                        <MarchGauge since={line.since} dueAt={line.dueAt} />
-                      )}
-                    </Fragment>
-                  ) : line.role === 'research' ? (
-                    <ResearchLine
-                      key={rank}
-                      text={line.text}
-                      since={line.since}
-                      dueAt={line.dueAt}
-                      share={line.share}
-                    />
-                  ) : line.role === 'loading' ? (
-                    <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
-                  ) : line.role === 'supplies' ? (
-                    <div key={rank} className="label-line label-line--figures">
-                      <SupplyPictos supplies={line.supplies} />
-                    </div>
-                  ) : line.role === 'charge' ? (
-                    <div key={rank} className="label-line label-line--figures label-line--depot">
-                      <ChargeBar load={line.load} capacity={line.capacity} />
-                      {onTakeDepot !== undefined &&
-                        label.station?.kind === 'outpost' &&
-                        SUPPLY_KEYS.filter((key) => line.load[key] > 0).map((key) => (
-                          <button
-                            key={key}
-                            type="button"
-                            title={fr.logistics.grab}
-                            className="depot-token"
-                            onPointerDown={(event) => {
-                              if (label.station?.kind === 'outpost')
-                                onTakeDepot(label.station.outpostId, key, event);
-                            }}
-                          >
-                            <ResourcePlate resource={key} height={14} />
-                            {line.load[key]}
-                          </button>
-                        ))}
-                    </div>
-                  ) : line.role === 'capture' ? (
-                    <CaptureGauge
-                      key={rank}
-                      side={line.side}
-                      hq={isHqSite(line.site)}
-                      clock={line.clock}
-                      completesAt={line.completesAt}
-                    />
-                  ) : (
-                    <div key={rank} className={`label-line label-line--${line.role}`}>
-                      {line.text}
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-            {label.cargo !== undefined &&
-              label.cargo.length > 0 &&
-              onDisembark !== undefined &&
-              !muted && (
-                <CargoTags
-                  tags={label.cargo}
-                  nation={nation}
-                  onDisembark={onDisembark}
-                  aim={cargoAim?.labelId === label.id ? cargoAim : null}
-                  available={carriersShown || availableLabels.has(label.id)}
-                  onTour={onTour}
-                />
-              )}
-          </div>
-        </div>
+          label={label}
+          selected={label.id === selected || label.id === secondarySelected}
+          plate={label.id === selected ? selectedPlate : null}
+          cue={cue?.labelId === label.id ? cue.text : null}
+          crawl={motion === 'full'}
+          muted={muted}
+          nation={nation}
+          onDisembark={onDisembark === undefined ? undefined : disembark}
+          onTour={onTour === undefined ? undefined : tour}
+          takesDepot={onTakeDepot !== undefined}
+          cargoAim={cargoAim?.labelId === label.id ? cargoAim : null}
+          available={carriersShown || availableLabels.has(label.id)}
+          gestures={gestures}
+          nodes={nodes}
+        />
       ))}
       {groups.map((group) => {
         const ink = inkOf(group.members[0] ?? '');
@@ -1208,6 +1058,297 @@ export function MapLabels({
       />
     </div>
   );
+}
+
+/**
+ * **Une liste rebâtie mais égale reste la même liste** (#183) : le plateau rebâtit ses étiquettes
+ * à chaque réponse, et chaque effet de la couche — repli des chevauchements, ancres, comptes à
+ * rebours — se relancerait pour une carte qui n'a pas changé. Le repli mesure six cents cartouches.
+ */
+function useSameLabels(labels: ReadonlyArray<MapLabel>): ReadonlyArray<MapLabel> {
+  const last = useRef(labels);
+  const kept = last.current;
+  const same =
+    kept === labels ||
+    (kept.length === labels.length &&
+      labels.every((label, rank) => shareUnchanged(kept[rank], label) === kept[rank]));
+  useLayoutEffect(() => {
+    if (!same) last.current = labels;
+  });
+  return same ? kept : labels;
+}
+
+type LabelNodes = Readonly<
+  Record<
+    'anchors' | 'tethers' | 'roots' | 'blocks' | 'countdowns' | 'ages',
+    RefObject<Map<string, HTMLElement>>
+  >
+>;
+
+/** What a gesture on a label does, read at the gesture from `MapLabels`' latest render. */
+type LabelGestures = {
+  readonly enter: (label: MapLabel, event: ReactPointerEvent<HTMLElement>) => void;
+  readonly move: (label: MapLabel, event: ReactPointerEvent<HTMLElement>) => void;
+  readonly leave: (label: MapLabel, event: ReactPointerEvent<HTMLElement>) => void;
+  readonly click: (label: MapLabel, event: ReactMouseEvent<HTMLElement>) => void;
+  readonly keyDown: (label: MapLabel, event: ReactKeyboardEvent<HTMLElement>) => void;
+  readonly pointerDown: (label: MapLabel, event: ReactPointerEvent<HTMLElement>) => void;
+  readonly auxClick: (label: MapLabel, event: ReactMouseEvent<HTMLElement>) => void;
+  readonly contextMenu: (label: MapLabel, event: ReactMouseEvent<HTMLElement>) => void;
+  readonly takeDepot: TakeDepot;
+  readonly disembark: (troopIds: ReadonlyArray<string>) => void;
+  readonly tour: (carrierId: string, act: TourAct) => void;
+};
+
+type LabelNodeProps = {
+  readonly label: MapLabel;
+  readonly selected: boolean;
+  /** The face the highlighted pile wears in place of its plate; `null` keeps the plate. */
+  readonly plate: string | null;
+  readonly cue: string | null;
+  readonly crawl: boolean;
+  readonly muted: boolean;
+  readonly nation: string | null;
+  readonly onDisembark: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  readonly onTour: ((carrierId: string, act: TourAct) => void) | undefined;
+  readonly takesDepot: boolean;
+  readonly cargoAim: CargoAim | null;
+  readonly available: boolean;
+  readonly gestures: RefObject<LabelGestures>;
+  readonly nodes: LabelNodes;
+};
+
+/**
+ * **Une étiquette ne se rend qu'avec ce qu'elle montre** (#183) : une réponse du serveur rebâtit
+ * la liste, et une étiquette restée égale — même texte, même classe, même ancre — garde son rendu.
+ * Le reste de ses props est stable : les gestes se relisent par `gestures`, les nœuds par `nodes`.
+ */
+const LabelNode = memo(function LabelNode({
+  label,
+  selected,
+  plate,
+  cue,
+  crawl,
+  muted,
+  nation,
+  onDisembark,
+  onTour,
+  takesDepot,
+  cargoAim,
+  available,
+  gestures,
+  nodes,
+}: LabelNodeProps) {
+  return (
+    <div
+      className="label-anchor"
+      ref={(node) => {
+        register(nodes.anchors.current, label.id, node);
+      }}
+      style={{ display: 'none' }}
+    >
+      {cue !== null && (
+        <CueBubble
+          text={cue}
+          place="first-step-cue--up absolute top-[18px] left-0 -translate-x-1/2"
+        />
+      )}
+      <span
+        aria-hidden
+        className="label-tether"
+        style={{ display: 'none' }}
+        ref={(node) => {
+          register(nodes.tethers.current, label.id, node);
+        }}
+      />
+      <div
+        ref={(node) => {
+          register(nodes.roots.current, label.id, node);
+        }}
+        className={classesOf(label, selected)}
+        role={label.lootSightingId === null ? undefined : 'button'}
+        tabIndex={label.lootSightingId === null ? undefined : 0}
+        aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
+        style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
+        onPointerEnter={(event) => gestures.current.enter(label, event)}
+        onPointerMove={(event) => gestures.current.move(label, event)}
+        onPointerLeave={(event) => gestures.current.leave(label, event)}
+        data-label-id={label.id}
+        data-building-id={label.building?.id}
+        onClick={(event) => gestures.current.click(label, event)}
+        onKeyDown={(event) => gestures.current.keyDown(label, event)}
+        onPointerDown={(event) => gestures.current.pointerDown(label, event)}
+        onAuxClick={(event) => gestures.current.auxClick(label, event)}
+        onContextMenu={(event) => gestures.current.contextMenu(label, event)}
+      >
+        {label.flag !== undefined && (
+          <span
+            className={
+              label.flag === NEUTRAL_FLAG ? 'label-owner label-owner--neutral' : 'label-owner'
+            }
+            style={
+              label.flag === NEUTRAL_FLAG
+                ? undefined
+                : ({ '--owner-ink': label.flag } as CSSProperties)
+            }
+          >
+            <svg viewBox="0 0 16 22" width="16" height="22" aria-hidden>
+              <path className="label-flag-pole" d="M2 1v21" />
+              <path className="label-owner-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
+            </svg>
+          </span>
+        )}
+        <div
+          className="label-block"
+          ref={(node) => {
+            register(nodes.blocks.current, label.id, node);
+          }}
+        >
+          {(label.plate !== null || label.works !== null) && (
+            <span className="label-pictogram">
+              {label.plate !== null && (
+                <img className="label-plate" src={plate ?? label.plate} alt="" />
+              )}
+              {/* Le mode chantier au loin : un fanion ocre sur la planche, ou seul sur le mât
+                  d'un plan en file. L'heure et la barre sont à l'affiche. */}
+              {label.works !== null && (
+                <svg className="label-pennant" viewBox="0 0 16 22" width="16" height="22">
+                  <path className="label-flag-pole" d="M2 1v21" />
+                  <path className="label-pennant-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
+                </svg>
+              )}
+            </span>
+          )}
+          {label.type === 'arrival' && (
+            <span className="label-flag" aria-hidden>
+              <svg viewBox="0 0 16 22" width="16" height="22">
+                <path className="label-flag-pole" d="M2 1v21" />
+                <path className="label-flag-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
+              </svg>
+            </span>
+          )}
+          {label.deposit !== null && (
+            <span className="label-deposit">
+              <img src={resourcePlate(YIELD_OF[label.deposit]) ?? undefined} alt="" />
+            </span>
+          )}
+          {label.lootSightingId !== null && (
+            <span className="label-loot">
+              <Glyph size={28}>
+                <path d="M3.5 7.5h13v9h-13zM3.5 7.5l3-4h7l3 4M10 7.5v9M6.5 3.5 10 7.5l3.5-4" />
+              </Glyph>
+            </span>
+          )}
+          {label.camp !== null && (
+            <span className="label-camp">
+              <Glyph size={26}>
+                {silhouettePaths(label.camp.medium).map((path) => (
+                  <path key={path} d={path} fill="currentColor" stroke="none" />
+                ))}
+              </Glyph>
+            </span>
+          )}
+          {label.pictogram !== null && (
+            <span className="label-pictogram">
+              <Pictogram pictogram={PICTOGRAM_OF_LABEL[label.pictogram]} weight={40} size={36} />
+            </span>
+          )}
+          <span className="label-bar" />
+          <div className="label-lines">
+            {label.lines.map((line, rank) =>
+              line.role === 'countdown' ? (
+                <Fragment key={rank}>
+                  <div
+                    className="label-line label-line--countdown"
+                    ref={(node) => {
+                      register(nodes.countdowns.current, label.id, node);
+                    }}
+                  />
+                  {line.since !== undefined && <MarchGauge since={line.since} dueAt={line.dueAt} />}
+                </Fragment>
+              ) : line.role === 'age' ? (
+                <div
+                  key={rank}
+                  className="label-line label-line--mention"
+                  ref={(node) => {
+                    register(nodes.ages.current, label.id, node);
+                  }}
+                />
+              ) : line.role === 'research' ? (
+                <ResearchLine
+                  key={rank}
+                  text={line.text}
+                  since={line.since}
+                  dueAt={line.dueAt}
+                  share={line.share}
+                />
+              ) : line.role === 'loading' ? (
+                <LoadingGauge key={rank} until={line.until} crawl={crawl} />
+              ) : line.role === 'supplies' ? (
+                <div key={rank} className="label-line label-line--figures">
+                  <SupplyPictos supplies={line.supplies} />
+                </div>
+              ) : line.role === 'charge' ? (
+                <div key={rank} className="label-line label-line--figures label-line--depot">
+                  <ChargeBar load={line.load} capacity={line.capacity} />
+                  {takesDepot &&
+                    label.station?.kind === 'outpost' &&
+                    SUPPLY_KEYS.filter((key) => line.load[key] > 0).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        title={fr.logistics.grab}
+                        className="depot-token"
+                        onPointerDown={(event) => {
+                          if (label.station?.kind === 'outpost')
+                            gestures.current.takeDepot(label.station.outpostId, key, event);
+                        }}
+                      >
+                        <ResourcePlate resource={key} height={14} />
+                        {line.load[key]}
+                      </button>
+                    ))}
+                </div>
+              ) : line.role === 'capture' ? (
+                <CaptureGauge
+                  key={rank}
+                  side={line.side}
+                  hq={isHqSite(line.site)}
+                  clock={line.clock}
+                  completesAt={line.completesAt}
+                />
+              ) : (
+                <div key={rank} className={`label-line label-line--${line.role}`}>
+                  {line.text}
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+        {label.cargo !== undefined &&
+          label.cargo.length > 0 &&
+          onDisembark !== undefined &&
+          !muted && (
+            <CargoTags
+              tags={label.cargo}
+              nation={nation}
+              onDisembark={onDisembark}
+              aim={cargoAim}
+              available={available}
+              onTour={onTour}
+            />
+          )}
+      </div>
+    </div>
+  );
+}, sameLabelProps);
+
+function sameLabelProps(before: LabelNodeProps, after: LabelNodeProps): boolean {
+  for (const key of Object.keys(after) as Array<keyof LabelNodeProps>) {
+    if (key === 'label') continue;
+    if (!Object.is(before[key], after[key])) return false;
+  }
+  return shareUnchanged(before.label, after.label) === before.label;
 }
 
 /** Where the poster stands relative to its label's anchor, measured once per render of it. */

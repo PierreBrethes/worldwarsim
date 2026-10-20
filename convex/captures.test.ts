@@ -8,7 +8,8 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
-import { foundationOwedBy, regionFacts, pointOfRegion } from './regions';
+import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regions';
+import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
@@ -918,6 +919,82 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **Chacun peut piller ce que le siège irrégulier hérite** (M16), objectifs neutres posés ou
+   *  non : le siège né à la chute a son plateau, que le pillage lit. */
+  it('lets a third side plunder a warehouse the irregulars inherited', async () => {
+    const t = boot();
+    const { seat, guest, third } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const warehouse = await building(t, guest, PSKOV, 1, 'warehouse');
+    await take(t, seat, hq);
+    await finish(t);
+
+    const raider = await playerOf(t, third);
+    const home = await t.run(
+      async (ctx) =>
+        (
+          await ctx.db
+            .query('buildings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', raider._id))
+            .collect()
+        ).find((held) => held.key === 'hq')!._id,
+    );
+    const infantry = await troop(t, third, 'infantry', home);
+    const to = pointOfRegion(PSKOV);
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: raider.seasonId,
+        playerId: raider._id,
+        type: 'march',
+        fromBuildingId: home,
+        target: { kind: 'building', buildingId: warehouse },
+        from: { lon: to.lon - 1, lat: to.lat },
+        to,
+        hostCountry: 'RUS',
+        points: [{ lon: to.lon - 1, lat: to.lat }, to],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry],
+        departedAt: Date.now() - HOUR,
+        arrivesAt: Date.now(),
+        plunder: { phase: 'outbound', buildingId: warehouse },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    const present = (await t.run((ctx) => ctx.db.get(movementId)))!.plunder;
+    if (present?.phase !== 'presence') throw new Error('presence not started');
+    vi.setSystemTime(present.until);
+    await t.mutation(internal.movements.completePlunderPresence, {
+      movementId,
+      expectedAt: present.until,
+    });
+
+    expect((await t.run((ctx) => ctx.db.get(warehouse)))!.disabledUntil).toBeGreaterThan(
+      present.until,
+    );
+  });
+
+  /** Le siège irrégulier n'a pas de stock : la station d'écoute qu'il hérite reste muette. */
+  it('hands his listening station to the irregulars, who hear nothing without coal', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const station = await building(t, guest, PSKOV, 1, 'listening');
+    await take(t, seat, hq);
+    await finish(t);
+
+    const after = await t.run(async (ctx) => ({
+      station: (await ctx.db.get(station))!,
+      irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true)!,
+      heard: (await ctx.db.query('sightings').collect()).filter(
+        (row) => row.detector === 'station',
+      ),
+    }));
+    expect(after.station.playerId).toBe(after.irregular._id);
+    expect(after.heard).toEqual([]);
+  });
+
   /** **Hong Kong lit la chute d'un QG** que son teneur ne voit pas : qui, quoi, où. */
   it("tells Hong Kong's holder of a capture it is not part of", async () => {
     const t = boot();
@@ -1092,4 +1169,211 @@ describe('a Mondiale headquarters', () => {
     );
     expect((await playerOf(t, seat)).defeated).not.toBe(true);
   });
+});
+
+/**
+ * **La chute d'un QG ne relit que les sièges qu'elle touche** (#171) : le capteur, l'éliminé et le
+ * siège irrégulier. Une table pleine, des colonnes en vol de tous les côtés, Rangoun et deux
+ * autres points au vaincu, une station du capteur muette faute de charbon que la saisie rallume :
+ * après la chute, une réévaluation entière n'a plus rien à changer.
+ */
+describe('a headquarters falling at a full table', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  let seed = 11;
+  const near = (spread: number) => {
+    const shift = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    return { lon: 8 + shift() * spread, lat: 50 + shift() * spread };
+  };
+
+  /** Ce que le brouillard tient, et ce qu'il a dit : relevés, camps et dépêches. */
+  const fog = (t: Bench) =>
+    t.run(async (ctx) => ({
+      sightings: (await ctx.db.query('sightings').collect())
+        .map((row) =>
+          JSON.stringify([
+            row.movementId,
+            row.playerId,
+            row.from,
+            row.to,
+            row.detector,
+            row.detectorId,
+            row.detectorRegion,
+            row.frozen?.closedAt ?? null,
+          ]),
+        )
+        .sort(),
+      camps: (await ctx.db.query('campSightings').collect())
+        .map((row) =>
+          JSON.stringify([
+            row.playerId,
+            row.stationKey,
+            row.ownerId,
+            row.point,
+            row.until,
+            row.detector,
+            row.detectorId,
+          ]),
+        )
+        .sort(),
+      notices: (await ctx.db.query('notices').collect()).length,
+    }));
+
+  /** Trois tables : une Mondiale ; la même, son vaincu en tournée quand il tient Rangoun ; une
+   *  Blitz, où le capteur prend tout et où les troupes du vaincu disparaissent. */
+  it.each([
+    ['in a Mondiale', 'mondiale', false],
+    ['in a Mondiale, its loser on tour while he holds Rangoon', 'mondiale', true],
+    ['in a Blitz', 'blitz', false],
+  ] as const)(
+    'reads again the seats it touches only, and leaves nothing for a full pass to change, %s',
+    async (_, mode, touring) => {
+      const t = boot();
+      const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+      const seats = [seat];
+      for (const name of ['Léa', 'Marc', 'Inès']) seats.push(await joinSeat(t, code, name));
+      const nations = ['france', 'uk', 'germany', 'italy'] as const;
+      for (const [k, one] of seats.entries()) {
+        await t.mutation(api.players.reserveNation, { ...one, nation: nations[k]! });
+        await t.mutation(api.players.declareReady, { ...one, ready: true });
+      }
+      if (mode === 'blitz') {
+        await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+      }
+      await t.mutation(api.seasons.launch, seat);
+      if (mode === 'blitz') await t.action(internal.blitz.place, { seasonId: seat.seasonId });
+      else for (const one of seats) await placeHq(t, one);
+      const players = await Promise.all(seats.map(async (one) => (await playerOf(t, one))._id));
+      const [capturerId, loserId] = [players[0]!, players[1]!];
+
+      const scenes = [];
+      for (const [k, playerId] of players.entries()) {
+        scenes.push(
+          await t.mutation(internal.dev.benchScene, {
+            playerId,
+            squads: Array.from({ length: 4 }, () => near(0.8)),
+            reserve: { at: near(0.8), count: 4 },
+            outposts: k === 1 && mode === 'mondiale' ? [near(0.6), near(0.6)] : [],
+          }),
+        );
+      }
+      if (mode === 'mondiale') {
+        /** La station du capteur au cœur du carré, à sec : la saisie du stock la rallume. Le
+         *  vaincu écoute aussi, d'une station et d'un avant-poste, qui passent au siège irrégulier. */
+        const central = allRegions()
+          .filter((region) => region.country === 'DEU')
+          .sort((a, b) => distanceKm(a.point, [8, 50]) - distanceKm(b.point, [8, 50]));
+        await t.run(async (ctx) => {
+          for (const [playerId, regionId] of [
+            [capturerId, central[0]!.id],
+            [loserId, central[1]!.id],
+          ] as const) {
+            await ctx.db.insert('buildings', {
+              seasonId: seat.seasonId,
+              playerId,
+              key: 'listening',
+              regionId,
+              point: pointOfRegion(regionId),
+              level: 1,
+            });
+          }
+          await ctx.db.insert('outposts', {
+            seasonId: seat.seasonId,
+            playerId: loserId,
+            point: near(0.5),
+            hostCountry: 'DEU',
+            level: 1,
+            specialization: 'listening',
+            foundedAt: Date.now() - 1,
+            disabledUntil: null,
+            immuneUntil: null,
+          });
+          for (const [playerId, stock] of [
+            [capturerId, 0],
+            [loserId, 5000],
+          ] as const) {
+            for (const row of await ctx.db
+              .query('resources')
+              .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+              .collect()) {
+              await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+            }
+          }
+        });
+        await holdPoint(t, seats[1]!, 'rangoon');
+      }
+      await reassess(t, seat.seasonId);
+      if (touring) {
+        await t.mutation(api.tours.start, {
+          ...seats[1]!,
+          troopId: scenes[1]!.truckId!,
+          stops: scenes[1]!.outpostIds.slice(1),
+        });
+      }
+      for (let squad = 0; squad < 3; squad += 1) {
+        for (const [k, playerId] of players.entries()) {
+          const { ids, at } = scenes[k]!.squads[squad]!;
+          const { filed } = await t.mutation(internal.dev.benchFlights, {
+            playerId,
+            /** Une Blitz ne marche qu'une unité à la fois. */
+            flights: [{ ids: mode === 'blitz' ? ids.slice(0, 1) : ids, from: at, to: near(2.5) }],
+          });
+          expect(filed).toBe(1);
+        }
+      }
+      const before = await t.run(async (ctx) => ({
+        heard: (await ctx.db.query('sightings').collect()).filter(
+          (row) => row.playerId === capturerId && row.detector === 'station',
+        ),
+        /** Ce que les détecteurs du vaincu relèvent encore : la chute doit le refermer. */
+        seenByLoser: (await ctx.db.query('sightings').collect()).filter(
+          (row) => row.playerId === loserId && row.detector !== 'territory' && row.to > Date.now(),
+        ),
+        legs: (await ctx.db.query('movements').collect()).filter(
+          (movement) => movement.playerId === loserId && movement.tourLeg !== undefined,
+        ),
+      }));
+      expect(before.heard).toEqual([]);
+      expect(before.seenByLoser.length).toBeGreaterThan(0);
+      expect(before.legs).toHaveLength(touring ? 1 : 0);
+
+      const fall = await t.mutation(internal.dev.benchFall, {
+        capturerId,
+        loserId,
+        points: mode === 'mondiale' ? 2 : 0,
+      });
+      await t.mutation(internal.captures.complete, fall);
+
+      const after = await t.run(async (ctx) => ({
+        loser: (await ctx.db.get(loserId))!,
+        points: await ctx.db.query('strategicPoints').collect(),
+        irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true),
+        troops: await ctx.db.query('troops').collect(),
+        buildings: await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', loserId))
+          .collect(),
+        heard: (await ctx.db.query('sightings').collect()).filter(
+          (row) => row.playerId === capturerId && row.detector === 'station',
+        ),
+      }));
+      expect(after.loser.defeated).toBe(true);
+      expect(after.points.filter((point) => point.holderId === loserId)).toEqual([]);
+      expect(after.troops.filter((troop) => troop.playerId === loserId)).toEqual([]);
+      expect(after.buildings).toEqual([]);
+      if (mode === 'mondiale') {
+        expect(after.troops.some((troop) => troop.playerId === after.irregular?._id)).toBe(true);
+        /** La station rallumée relève déjà : le capteur fait partie des sièges relus. */
+        expect(after.heard.length).toBeGreaterThan(0);
+      }
+
+      const fallen = await fog(t);
+      await reassess(t, seat.seasonId);
+      expect(await fog(t)).toEqual(fallen);
+    },
+  );
 });

@@ -7,7 +7,6 @@ import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
-import { arcTiming } from '@/domain/arc-timing';
 import { placeLabel } from '@/domain/station-name';
 import type { LonLat } from '@/domain/geo';
 import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
@@ -184,7 +183,10 @@ function adaptedView(world: World, server: ServerView): PlayerView {
      *  ne servira pas (contrat 07 P3 : pas d'historique). Un déploiement d'une version de retard
      *  n'en sert aucune, et la page dit simplement qu'aucune édition n'a paru. */
     press: server.press ?? null,
-    arcs: [...(server.movements ?? []).map(asArc), ...(server.detected ?? []).map(asDetectedArc)],
+    arcs: [
+      ...(server.movements ?? []).map(asArc),
+      ...(server.detected ?? []).map((seen) => asDetectedArc(seen, server.loadedAt)),
+    ],
     /** Un déploiement d'une version de retard n'en sert aucun : la carte ne pose alors aucun
      *  camp, ce qui est l'état d'avant l'ADR 0024 et jamais un camp inventé ici. */
     camps: server.camps ?? [],
@@ -225,20 +227,11 @@ function adaptedView(world: World, server: ServerView): PlayerView {
  * stack because it is the player's own, and nothing in the server's answer could turn it into a
  * detected one by accident (ADR 0005, convention §8).
  *
- * `progress` is the share of the trip already walked at the instant the view was loaded; the map
- * and the widget advance it from there against their own clock. `borderWait` is served as an
- * instant and travels as a countdown, like every other due time on the board.
+ * **No hour is read here** (#183): the arc carries the server's four dates, so it keeps its
+ * identity from one answer to the next while its trip stays the same, and the map, the label and
+ * the widget each read the share walked at their own instant (`progressAt`).
  */
 function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView {
-  const timing = arcTiming(
-    {
-      departedAt: movement.departedAt,
-      arrivesAt: movement.arrivesAt,
-      heldAt: movement.heldAt,
-      holdUntil: movement.holdUntil,
-    },
-    Date.now(),
-  );
   return {
     state: 'mine',
     id: movement.id,
@@ -256,9 +249,12 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     mission: movement.mission ?? null,
     ...(movement.delivery === true ? { delivery: true } : {}),
     ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop }),
-    minutesLeft: timing.minutesLeft,
-    borderWait: timing.borderWait,
-    progress: timing.progress,
+    schedule: {
+      departedAt: movement.departedAt,
+      arrivesAt: movement.arrivesAt,
+      heldAt: movement.heldAt,
+      holdUntil: movement.holdUntil,
+    },
   };
 }
 
@@ -291,20 +287,19 @@ const emptyCargo = () => ({
  * composition or a nation, because the server sent none — `identification` is nailed to
  * `pierced: false` since no system pierces anything yet (design sheet 04).
  *
- * **The window decides the state.** Inside it, the stretch is watched and the pawn walks it; past
- * its close the arc freezes into the last known position ADR 0005 demands — the information paid
- * for does not evaporate, it ages. `progress` is read at the instant the sighting closed rather
- * than now, which is exactly what "last known" means.
+ * **The window decides the state**, read at the server's hour (`loadedAt`) and not the client's:
+ * inside it, the stretch is watched and the pawn walks it; past its close the arc freezes into the
+ * last known position ADR 0005 demands — the information paid for does not evaporate, it ages.
  *
  * **Everything here is measured on the window and not on the trip** (decision 4a of 13/09/2026):
  * the served thread *is* the watched stretch, so the pawn reaches the end of it at `seenTo` and
- * stops there. `estimatedMinutesLeft` no longer times that walk — it is the arrival the label
+ * stops there (`progressAt`). `arrivesAt` no longer times that walk — it is the arrival the label
  * counts down to, and the arrival lies beyond everything drawn.
  */
-function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcView {
-  const now = Date.now();
-  const window = seen.seenTo - seen.seenFrom;
-  const watched = Math.min(now, seen.seenTo);
+function asDetectedArc(
+  seen: NonNullable<ServerView['detected']>[number],
+  loadedAt: number,
+): ArcView {
   const shared = {
     id: seen.id,
     from: [seen.from.lon, seen.from.lat] as LonLat,
@@ -316,24 +311,16 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
     detectorRegion: seen.detectorRegion,
     ...(seen.nation === undefined ? {} : { nation: seen.nation }),
     headingDegrees: seen.headingDegrees,
-    progress: window <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.seenFrom) / window)),
   };
 
-  if (now > seen.seenTo) {
-    return {
-      ...shared,
-      state: 'lastKnown',
-      seenMinutesAgo: (now - seen.seenTo) / 60_000,
-      lastSeenAt: seen.seenTo,
-    };
-  }
+  if (loadedAt > seen.seenTo) return { ...shared, state: 'lastKnown', lastSeenAt: seen.seenTo };
   return {
     ...shared,
     state: 'enemyDetected',
     headingAtMe: seen.headingAtMe,
     identification: { pierced: false },
-    estimatedMinutesLeft: Math.max(0, (seen.arrivesAt - now) / 60_000),
-    watchMinutesLeft: Math.max(0, (seen.seenTo - now) / 60_000),
+    arrivesAt: seen.arrivesAt,
+    seenTo: seen.seenTo,
     since: seen.seenFrom,
   };
 }

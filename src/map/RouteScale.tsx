@@ -75,16 +75,16 @@ export function RouteScale({
 }
 
 /**
- * `PlayerView` only carries the time left: the total is derived from progress. A frozen arc
- * or sea control has no schedule at all — the scale then shows the breakdown alone, which
- * remains the right answer to "which way does it go". A column held at the border is the same
- * case: at the end of its thread it has no time left, and a trip of zero minute would be a lie.
+ * A frozen arc or sea control has no schedule at all — the scale then shows the breakdown alone,
+ * which remains the right answer to "which way does it go". A column held at the border is the
+ * same case: at the end of its thread it has no time left, and a trip of zero minute would be a
+ * lie.
  *
  * **A sighting joins them** (decision 4a): the thread it serves is a watched stretch, and putting
  * a duration on it would be billing a fragment of road at the price of a whole trip.
  */
 function totalDuration(arc: ArcView): number | null {
-  const left = arc.state === 'mine' ? arc.minutesLeft : null;
-  if (left === null || arc.progress >= 1) return null;
-  return Math.max(0, left) / (1 - arc.progress);
+  if (arc.state !== 'mine' || arc.schedule.heldAt !== null) return null;
+  const { departedAt, arrivesAt } = arc.schedule;
+  return arrivesAt > departedAt ? (arrivesAt - departedAt) / 60_000 : null;
 }

@@ -30,6 +30,8 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
+import { arcProgressAt } from '@/domain/arc-timing';
+import { HEARTBEAT_MS } from './frame-demand';
 import { pieceScale } from './piece-scale';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
@@ -45,16 +47,8 @@ type RenderedArc = {
   relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
-  /**
-   * **The share walked, advanced by the loop and not by React.** `arc.progress` is a snapshot
-   * taken the instant the server's answer was adapted; reading it every frame renders a column
-   * that never moves until something else happens to re-render the board. The widget already
-   * counts down against its own clock, and the map has to do the same — with the difference
-   * that here it costs no re-render at all.
-   */
-  progress: number;
-  /** Share of the trip per millisecond, zero for anything that is not travelling. */
-  pace: number;
+  /** The ink a last known position was drawn in (`surveyInk`, two digits); `null` otherwise. */
+  ink: string | null;
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
   loadingUntil: number | null;
@@ -115,6 +109,8 @@ export class ArcLayer {
   private unitsPerPixel = 1;
   /** The dash drift's clock: it lives in the loop, never in React state. */
   private lastFrameMs = 0;
+  /** When the last known positions' ink was last read against the clock (`fadeLastKnown`). */
+  private inkReadMs = 0;
   private motionSetting: MapMotion = 'full';
   /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering.
    *  Full and reduced lay the runway and quay lead-ins (#129): reduced has the pawn on the axis
@@ -171,36 +167,32 @@ export class ArcLayer {
 
   /** A movement whose drawing did not change keeps its objects (`drawnKey`): the view is re-served
    *  at every step of any column and at every aim preview, and a pawn is up to three figurines. */
-  display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
+  display(arcs: ReadonlyArray<ArcView>, rebuilding = false): void {
     // Only mine are inked: nothing is added to what a sighting already says (fog). And only what
     // the player sent: a return is created by the resolution, nobody put a pen to it.
     const known = this.known;
     const appeared =
-      carried !== undefined || known === null
+      rebuilding || known === null
         ? []
         : arcs.filter((arc) => arc.state === 'mine' && arc.type !== 'return' && !known.has(arc.id));
-    if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
+    if (!rebuilding) this.known = new Set(arcs.map((arc) => arc.id));
     for (const id of this.inking.keys()) {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
     const now = performance.now();
+    const clock = Date.now();
     const previous = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered]));
     this.rendered = [];
     this.targets = [];
     for (const arc of arcs) {
-      const key = drawnKey(arc, this.playerNation, this.troops, this.motion !== 'off');
+      const key = drawnKey(arc, this.playerNation, this.troops, this.motion !== 'off', clock);
       let rendered = previous.get(arc.id);
       previous.delete(arc.id);
       if (rendered?.key !== key) {
         if (rendered) release(rendered);
-        rendered = this.build(arc, key, appeared.includes(arc), now);
+        rendered = this.build(arc, key, appeared.includes(arc), now, clock);
       }
       rendered.arc = arc;
-      /** A column the server says is at the end of its thread wins over the value the loop
-       *  carried: held at the border, its pace is nil, and a pawn carried to 0,98 would
-       *  otherwise stand there for good. */
-      rendered.progress = arc.progress >= 1 ? 1 : (carried?.get(arc.id) ?? arc.progress);
-      rendered.pace = paceOf(arc);
       rendered.loadingUntil = loadingUntilOf(arc);
       this.headPositions.set(arc.id, rendered.headPosition);
       this.targets.push(...rendered.thread.targets);
@@ -215,7 +207,13 @@ export class ArcLayer {
     this.animate();
   }
 
-  private build(arc: ArcView, key: string, appearing: boolean, now: number): RenderedArc {
+  private build(
+    arc: ArcView,
+    key: string,
+    appearing: boolean,
+    now: number,
+    clock: number,
+  ): RenderedArc {
     const stale = arc.state === 'lastKnown';
     const thread = buildThread(
       arc.route,
@@ -275,7 +273,11 @@ export class ArcLayer {
     const lastLeg = thread.legs.at(-1);
     let relic: Group | null = null;
     if (relicMedium !== null && lastLeg !== undefined && arc.state === 'lastKnown') {
-      relic = inkAnnotation(relicMedium, arc.lastSeenAt, arc.seenMinutesAgo).object;
+      relic = inkAnnotation(
+        relicMedium,
+        arc.lastSeenAt,
+        minutesSince(arc.lastSeenAt, clock),
+      ).object;
       pointOnLeg(lastLeg, 1, relic.position);
       relic.visible = false;
       this.group.add(relic);
@@ -289,8 +291,7 @@ export class ArcLayer {
       pawn,
       relic,
       headPosition: new Vector3(),
-      progress: arc.progress,
-      pace: 0,
+      ink: lastKnownInk(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
     };
@@ -345,6 +346,7 @@ export class ArcLayer {
     if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
 
     const now = performance.now();
+    const clock = Date.now();
     const sinceLastFrame = this.lastFrameMs === 0 ? 0 : now - this.lastFrameMs;
     const elapsed = sinceLastFrame / 1000;
     this.lastFrameMs = now;
@@ -365,8 +367,9 @@ export class ArcLayer {
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
       if (this.motion !== 'off') rendered.thread.drift(elapsed);
 
-      rendered.progress = Math.min(1, rendered.progress + sinceLastFrame * rendered.pace);
-      const position = temporalPosition(rendered.unrolled, rendered.progress);
+      // The share walked is read from the hour (#183): the arc carries the server's dates and
+      // keeps its identity from one answer to the next, so no answer moves a pawn.
+      const position = temporalPosition(rendered.unrolled, arcProgressAt(rendered.arc, clock));
       const { legIndex, local } = pawnTarget(position);
 
       rendered.thread.cut(legIndex, local);
@@ -404,14 +407,26 @@ export class ArcLayer {
 
       const pile = this.crates.get(rendered.arc.id);
       if (pile !== undefined && rendered.loadingUntil !== null) {
-        pile.update(
-          loadingAt(rendered.loadingUntil, Date.now()).crates,
-          now,
-          this.motion === 'full',
-        );
+        pile.update(loadingAt(rendered.loadingUntil, clock).crates, now, this.motion === 'full');
         pile.place(this.groundPoint, this.cameraPosition);
       }
     }
+    if (now - this.inkReadMs >= HEARTBEAT_MS) this.fadeLastKnown(now, clock);
+  }
+
+  /**
+   * **Une dernière position connue pâlit avec l'heure, pas avec la réponse** (#183) : l'arc
+   * garde son identité d'une réponse à l'autre, et `display` ne tourne plus qu'avec un arc ou une
+   * troupe qui change. Son encre se relit donc au battement de la boucle — une image par seconde
+   * au plus, qui tourne déjà, animations coupées comprises, et jamais en onglet caché.
+   */
+  private fadeLastKnown(now: number, clock: number): void {
+    this.inkReadMs = now;
+    if (this.rendered.some((rendered) => rendered.ink !== lastKnownInk(rendered.arc, clock)))
+      this.display(
+        this.rendered.map((rendered) => rendered.arc),
+        true,
+      );
   }
 
   private syncCrates(): void {
@@ -433,16 +448,12 @@ export class ArcLayer {
     }
   }
 
-  /**
-   * A rebuild is a change of geometry — the player's nation landed — never a change of hour.
-   * The share walked is carried over, otherwise every column would snap back to where the last
-   * server answer found it.
-   */
+  /** A rebuild is a change of geometry — the player's nation landed — never a change of hour:
+   *  nothing new appears, so nothing is inked. */
   rebuild(): void {
     const arcs = this.rendered.map((rendered) => rendered.arc);
-    const carried = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered.progress]));
     this.clear();
-    this.display(arcs, carried);
+    this.display(arcs, true);
   }
 
   /** Frees every thread and pawn, and detaches them from the scene. */
@@ -478,7 +489,7 @@ function release({ thread, pawn, relic }: RenderedArc): void {
 }
 
 /**
- * **What a movement draws**, beyond what the loop advances (progress, pace, loading): the nation
+ * **What a movement draws**, beyond what the loop advances (progress, loading): the nation
  * dressing it, its state, route and end, its roles and wear, the hour its annotation writes and
  * the ink a last known position fades to — read like `CampLayer`'s, by what shows, not by instants.
  */
@@ -487,6 +498,7 @@ function drawnKey(
   nation: string | null,
   troops: ReadonlyArray<TroopView>,
   lead: boolean,
+  clock: number,
 ): string {
   return JSON.stringify([
     nation,
@@ -497,31 +509,14 @@ function drawnKey(
     movementRoles(arc),
     movementWear(arc, troops),
     arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
-    arc.state === 'lastKnown'
-      ? [asClockTime(arc.lastSeenAt), surveyInk(arc.seenMinutesAgo).toFixed(2)]
-      : null,
+    arc.state === 'lastKnown' ? [asClockTime(arc.lastSeenAt), lastKnownInk(arc, clock)] : null,
   ]);
 }
 
-/**
- * How fast a column walks its own thread, as a share of the thread per millisecond — derived from
- * the one thing the server dates. For a movement of mine that is the arrival; **for a sighting it
- * is the close of the window**, because the thread drawn is the watched stretch and the pawn is
- * due at its end when the watch ends, not when the column lands somewhere nobody was shown.
- *
- * **Zero is a still pawn and not a bug**: a last known position is a memory and a sea control a
- * standing fact. The map must not invent a pace to fill a `null`.
- */
-function paceOf(arc: ArcView): number {
-  const left =
-    arc.state === 'mine'
-      ? arc.minutesLeft
-      : arc.state === 'enemyDetected'
-        ? arc.watchMinutesLeft
-        : null;
-  if (left === null || left <= 0 || arc.progress >= 1) return 0;
-  return (1 - arc.progress) / (left * 60_000);
-}
+const minutesSince = (at: number, clock: number): number => Math.max(0, clock - at) / 60_000;
+
+const lastKnownInk = (arc: ArcView, clock: number): string | null =>
+  arc.state === 'lastKnown' ? surveyInk(minutesSince(arc.lastSeenAt, clock)).toFixed(2) : null;
 
 /**
  * **The medium a last known position's annotation is written in, or `null` for none** (F2):
