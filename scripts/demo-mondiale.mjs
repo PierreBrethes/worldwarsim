@@ -25,7 +25,10 @@
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
  * ajoute une caserne de niveau 3.
- * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
+ * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
+ * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
+ * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
+ * relèverait sans Rangoun (#176).
  *
  *     npm run demo:mondiale
  *
@@ -49,6 +52,7 @@ const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
+const rangoon = process.argv.includes('--rangoun');
 const airdrops = process.argv.includes('--largage');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
@@ -258,6 +262,19 @@ if (!bare) {
       troopIds: [fleet.id],
       point: { lon: -34, lat: 47 },
     });
+  }
+  /** Rangoun à la France, et deux guetteurs de l'adversaire de part et d'autre de la mi-portée. */
+  if (tours && rangoon && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'rangoon' })]);
+    for (const [lon, lat] of [
+      [3.47, 50.46],
+      [3.11, 50.65],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.b, role: 'infantry', count: 1, lon, lat }),
+      ]);
   }
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && !held && scene.a !== null) {

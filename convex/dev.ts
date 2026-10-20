@@ -15,7 +15,7 @@ import { viewOf } from './view';
 import { reassessDetection } from './movement/detection';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
-import { LON_LAT, UNIT_ROLE } from './validators';
+import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE } from './validators';
 import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
@@ -977,14 +977,14 @@ export const benchFlights = internalMutation({
   },
 });
 
-/** **Rangoun tenu au banc** (#176) : ses tournées se relèvent à mi-portée, le pire cas du calcul. */
-export const benchRangoon = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+/** **Un point tenu par la porte du jeu** (`handOver`) : Rangoun au banc et à la démo (#176). */
+export const holdPoint = internalMutation({
+  args: { playerId: v.id('players'), key: STRATEGIC_POINT_KEY },
+  handler: async (ctx, { playerId, key }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
-    const point = await layPoint(ctx, player.seasonId, 'rangoon');
-    if (point === null) throw new Error('no region under rangoon');
+    const point = await layPoint(ctx, player.seasonId, key);
+    if (point === null) throw new Error(`no region under ${key}`);
     await handOver(ctx, point, playerId, Date.now());
   },
 });
