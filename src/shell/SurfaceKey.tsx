@@ -209,11 +209,11 @@ export function SurfaceKey({
               type="button"
               aria-label={fr.common.close}
               onClick={() => setMenu(false)}
-              className="hud board-veil z-[var(--z-band)] cursor-default bg-[rgba(15,10,4,.35)]"
+              className="hud board-veil z-[var(--z-band)] cursor-default bg-(--veil-menu)"
             />
             <nav
               aria-label={fr.footBar.menuLabel}
-              className="hud fixed z-[calc(var(--z-band)+1)] flex w-[170px] flex-col text-[var(--ink)]"
+              className="hud fixed z-[var(--z-menu)] flex w-[170px] flex-col text-[var(--ink)]"
               style={{
                 right: 'calc((6px + var(--safe-right)) / var(--hud-scale))',
                 bottom: 'calc((var(--board-bottom) + 8px) / var(--hud-scale))',

@@ -95,6 +95,8 @@
   --z-marker: 10;
   --z-indicator: 11;
   --z-band: 20;
+  /* Le menu des surfaces du téléphone : au-dessus de son voile, sous toute fenêtre. */
+  --z-menu: 21;
   --z-window: 30;
   --z-popin: 50;
   /* La rose au-dessus des cartes ancrées (08/10) : elle s'ouvre *sur* une pile désignée, et le
@@ -118,6 +120,8 @@
   /* **Une ligne de la barre basse du téléphone** (#179), en pixels d'écran : la ligne des réserves
      repliée et sa clé. Les feuilles et les fenêtres se posent au-dessus (`--board-bottom`). */
   --foot-bar: 66px;
+  /* Le voile sous le menu des surfaces : la carte s'efface sans disparaître. */
+  --veil-menu: rgb(15 10 4 / 35%);
   --dock-w: 430px;
   --panel-ctx-w: 308px;
   --panel-side-w: 250px;

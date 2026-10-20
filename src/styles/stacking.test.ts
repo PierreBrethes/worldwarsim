@@ -18,6 +18,7 @@ const LADDER = [
   '--z-marker',
   '--z-indicator',
   '--z-band',
+  '--z-menu',
   '--z-window',
   '--z-popin',
   '--z-rose',
