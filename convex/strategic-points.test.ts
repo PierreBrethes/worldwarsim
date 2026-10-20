@@ -502,14 +502,28 @@ describe('the rules the points break', () => {
     expect(await tourOf()).toMatchObject({ veiled: true });
   });
 
-  /** Rangoun change de main : seules les tournées de ses deux teneurs changent de portée. La
-   *  relecture qui s'en tient à eux rend ce qu'une réévaluation entière rendrait (#171). */
-  it('re-reads the tours of its two holders when Rangoon changes hands, and leaves a full pass nothing to change', async () => {
+  /** Rangoun change de main : seules les tournées de ses deux teneurs changent de portée, pour
+   *  tous ceux qui les écoutent — un tiers compris. La relecture qui s'en tient à eux rend ce
+   *  qu'une réévaluation entière rendrait (#171). */
+  it('re-reads the tours of its two holders when Rangoon changes hands, for a third who listens too, and leaves a full pass nothing to change', async () => {
     const t = boot();
-    const { seat, guest } = await launched(t);
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const guest = await joinSeat(t, code, 'Léa');
+    const third = await joinSeat(t, code, 'Marc');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+      [third, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    for (const who of [seat, guest, third]) await placeHq(t, who);
     const players = [await playerOf(t, seat), await playerOf(t, guest)];
+    const listener = await playerOf(t, third);
     /** Chacun écoute d'un avant-poste, et la tournée de l'autre passe aux trois quarts de sa
-     *  portée : vue à portée pleine, pas à mi-portée. */
+     *  portée : vue à portée pleine, pas à mi-portée. Le tiers écoute aux deux mêmes endroits. */
     const reach = outpostReachKm(1);
     const ears: ReadonlyArray<LonLat> = [
       [24, 50],
@@ -518,17 +532,18 @@ describe('the rules the points break', () => {
     await t.run(async (ctx) => {
       for (const [k, player] of players.entries()) {
         const ear = ears[k]!;
-        await ctx.db.insert('outposts', {
-          seasonId: player.seasonId,
-          playerId: player._id,
-          point: { lon: ear[0], lat: ear[1] },
-          hostCountry: hostAtPoint(ear),
-          level: 1,
-          specialization: 'listening',
-          foundedAt: Date.now() - 1,
-          disabledUntil: null,
-          immuneUntil: null,
-        });
+        for (const playerId of [player._id, listener._id])
+          await ctx.db.insert('outposts', {
+            seasonId: player.seasonId,
+            playerId,
+            point: { lon: ear[0], lat: ear[1] },
+            hostCountry: hostAtPoint(ear),
+            level: 1,
+            specialization: 'listening',
+            foundedAt: Date.now() - 1,
+            disabledUntil: null,
+            immuneUntil: null,
+          });
         const passed = ears[1 - k]!;
         const road: LonLat = [passed[0], passed[1] + (reach * 0.75) / 111.32];
         const from: LonLat = [road[0] - 2, road[1]];
@@ -590,7 +605,7 @@ describe('the rules the points break', () => {
     const seenBy = () =>
       t.run(async (ctx) => {
         const rows = await ctx.db.query('sightings').collect();
-        return players.map(
+        return [...players, listener].map(
           (player) =>
             rows.filter((row) => row.playerId === player._id && row.to > Date.now()).length,
         );
@@ -605,15 +620,15 @@ describe('the rules the points break', () => {
       expect(await ledger()).toEqual(relit);
     };
 
-    expect(await seenBy()).toEqual([1, 1]);
+    expect(await seenBy()).toEqual([1, 1, 2]);
     await give(players[0]!._id);
-    expect(await seenBy()).toEqual([1, 0]);
+    expect(await seenBy()).toEqual([1, 0, 1]);
     await fullPassChangesNothing();
     await give(players[1]!._id);
-    expect(await seenBy()).toEqual([0, 1]);
+    expect(await seenBy()).toEqual([0, 1, 1]);
     await fullPassChangesNothing();
     await give(null);
-    expect(await seenBy()).toEqual([1, 1]);
+    expect(await seenBy()).toEqual([1, 1, 2]);
     await fullPassChangesNothing();
   });
 
