@@ -962,6 +962,8 @@ export const arrive = internalMutation({
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
+      /** Retenue par le repos, la colonne ne s'arrête qu'à `held` : le plein se compte d'alors. */
+      for (const troopId of movement.troopIds) await ctx.db.patch(troopId, { fuelAt: held });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId });
       /** Fiche 11 §4.1. Filed at the hold, once — the reschedule lands past the window, so it
        *  cannot file a second. */

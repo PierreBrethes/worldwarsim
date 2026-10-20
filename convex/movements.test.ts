@@ -824,6 +824,9 @@ describe('the rest window holds an arrival at the border', () => {
      *  walking back rather than standing at a border. */
     const [back] = await movementsOf(t, seat);
     expect(back?.type).toBe('return');
+    /** Le plein de Bakou se recompte depuis l'arrivée du retour, pas depuis l'ancien arrêt. */
+    const walking = await t.run((ctx) => ctx.db.get(troop));
+    expect(walking?.fuelAt).toBe(back!.arrivesAt);
   });
 });
 

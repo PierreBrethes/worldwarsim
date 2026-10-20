@@ -886,6 +886,8 @@ export async function walkHome(
     if (load !== undefined && group[0]!.playerId === load.playerId && !attachedCargo.has(load)) {
       attachedCargo.add(load);
     }
+    /** Le plein de Bakou se recompte depuis l'arrivée du retour, comme depuis celle d'un départ. */
+    for (const troop of group) await ctx.db.patch(troop._id, { fuelAt: arrivesAt });
     filed.push(movementId);
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   }
