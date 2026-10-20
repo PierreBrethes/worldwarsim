@@ -1,3 +1,5 @@
+import type { MapMotion } from '@/domain/map-motion';
+
 /**
  * **Quand la carte doit-elle se redessiner ?** Elle rendait soixante images par seconde, même
  * posée et immobile : un plateau qu'on lit sans y toucher faisait tourner le GPU, et vidait la
@@ -23,6 +25,14 @@ export const HEARTBEAT_MS = 1000;
 /** A thread that flows (dashes, marching piece) asks a whole frame this often. */
 export const FLOW_FULL_MS = 32; // @a-mesurer: 30 frames a second, invisible on a drifting dash?
 export const FLOW_REDUCED_MS = 100;
+/** **Au doigt, le fil coule à quinze images par seconde** (#189) : à trente, une colonne en vol
+ *  prenait au téléphone près d'un cinquième du fil principal, carte posée. @a-mesurer : un tiret
+ *  qui dérive à 15 images se lit-il encore comme un mouvement continu sur un vrai téléphone ? */
+export const FLOW_TOUCH_MS = 66;
+
+/** Le pas d'un fil qui coule : réduit partout à dix, sinon quinze au doigt et trente au bureau. */
+export const flowPaceOf = (motion: MapMotion, touch: boolean): number =>
+  motion === 'reduced' ? FLOW_REDUCED_MS : touch ? FLOW_TOUCH_MS : FLOW_FULL_MS;
 
 export type FrameReason = 'stirred' | 'heartbeat' | 'ambient';
 

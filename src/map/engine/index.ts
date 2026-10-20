@@ -46,7 +46,7 @@ import {
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
-import { FLOW_FULL_MS, FLOW_REDUCED_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { flowPaceOf, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -405,6 +405,8 @@ export class MapEngine {
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
   private readonly ambience = new Ambience(parseFx(location.search));
+  /** Un écran qu'on touche : la carte y dessine moins de pixels et fait couler ses fils moins vite. */
+  private readonly touch = matchMedia('(pointer: coarse)').matches;
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -533,10 +535,7 @@ export class MapEngine {
     // the context without a stencil buffer since r163 and the material would plead in vain.
     this.renderer = new WebGLRenderer({ antialias: true, stencil: true });
     this.renderer.setPixelRatio(
-      Math.min(
-        devicePixelRatio,
-        matchMedia('(pointer: coarse)').matches ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO,
-      ),
+      Math.min(devicePixelRatio, this.touch ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO),
     );
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
@@ -2534,7 +2533,7 @@ export class MapEngine {
     // Un fil affiché coule (tirets, pion qui marche), un anneau bat : une image complète au pas
     // du mouvement, 30 par seconde en actif, 10 en réduit. Onglet caché : rien que le remué.
     const flowing = this.arcs.isFlowing || this.standing.ringing || this.camps.ringing;
-    const flowPace = this.ambience.motion === 'reduced' ? FLOW_REDUCED_MS : FLOW_FULL_MS;
+    const flowPace = flowPaceOf(this.ambience.motion, this.touch);
     const reason = this.demand.due(
       now,
       document.hidden ? Number.POSITIVE_INFINITY : flowing ? flowPace : HEARTBEAT_MS,

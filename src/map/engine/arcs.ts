@@ -298,8 +298,8 @@ export class ArcLayer {
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
-   *  marche. Tant qu'il y en a un, la boucle demande une image par pas de fil (`FLOW_FULL_MS`,
-   *  `FLOW_REDUCED_MS`, `frame-demand.ts`), pas une à chaque rafraîchissement. */
+   *  marche. Tant qu'il y en a un, la boucle demande une image par pas de fil (`flowPaceOf`,
+   *  `frame-demand.ts`), pas une à chaque rafraîchissement. */
   get isFlowing(): boolean {
     return this.motion !== 'off' && this.rendered.length > 0;
   }

@@ -6,6 +6,8 @@ import { PARACHUTE_MS } from './parachute';
 import {
   FLOW_FULL_MS,
   FLOW_REDUCED_MS,
+  FLOW_TOUCH_MS,
+  flowPaceOf,
   FrameDemand,
   HEARTBEAT_MS,
   SETTLE_MS,
@@ -76,6 +78,14 @@ describe('FrameDemand', () => {
     expect(wholeFrames(FLOW_FULL_MS)).toBeLessThanOrEqual(10 * 32);
     expect(wholeFrames(FLOW_FULL_MS)).toBeGreaterThanOrEqual(10 * 28);
     expect(wholeFrames(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('paces a thread at fifteen frames a second under a finger, thirty at the desk, ten reduced (#189)', () => {
+    expect(flowPaceOf('full', false)).toBe(FLOW_FULL_MS);
+    expect(flowPaceOf('full', true)).toBe(FLOW_TOUCH_MS);
+    expect(1000 / FLOW_TOUCH_MS).toBeCloseTo(15, 0);
+    expect(flowPaceOf('reduced', true)).toBe(FLOW_REDUCED_MS);
+    expect(flowPaceOf('reduced', false)).toBe(FLOW_REDUCED_MS);
   });
 
   it('folds the ambience into a flowing thread: no more frames than the flow asks (#189)', () => {
