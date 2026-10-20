@@ -72,6 +72,9 @@ export const IDENTITY_TABLES = [
 /** Documents per transaction: well under the system-operation cap of a single mutation. */
 const WIPE_BATCH = 200;
 
+/** Jobs per transaction: each cancel is a system operation, and 200 overran the cap on a loaded base. */
+const JOBS_PAGE = 50;
+
 /** One batch of one game table; `more` says whether the table still holds documents. */
 export const wipeBatch = internalMutation({
   args: { table: v.string() },
@@ -90,7 +93,7 @@ export const cancelJobsPage = internalMutation({
   handler: async (ctx, { cursor }) => {
     const page = await ctx.db.system
       .query('_scheduled_functions')
-      .paginate({ cursor, numItems: WIPE_BATCH });
+      .paginate({ cursor, numItems: JOBS_PAGE });
     for (const job of page.page)
       if (job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
     return { cursor: page.isDone ? null : page.continueCursor, done: page.isDone };
