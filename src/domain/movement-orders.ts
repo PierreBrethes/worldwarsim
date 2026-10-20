@@ -358,8 +358,9 @@ export const movementSlots = (researched: ReadonlyArray<ResearchCard>): number =
   STARTING_MOVEMENT_SLOTS + slotCardsOf(researched).length;
 
 /**
- * **Un mouvement maritime** : des coques, et ce qu'elles portent. C'est ce que **Halifax** sort
- * du compte des slots de son teneur (P11) — la marche, l'air et un débarquement à pied y restent.
+ * **Un mouvement maritime** : des coques, et ce qu'elles portent. C'est ce dont **Halifax** laisse
+ * un seul à la fois hors des slots de son teneur (ADR 0032) — la marche, l'air et un débarquement
+ * à pied y restent.
  */
 export const isMaritime = (
   troops: ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>,
@@ -367,12 +368,34 @@ export const isMaritime = (
   troops.length > 0 &&
   troops.every((troop) => troop.carried || DOMAIN_BY_ROLE[troop.role] === 'sea');
 
-/** Ce qu'un groupe de colonnes demande en slots : une chacune, sauf les maritimes du teneur
- *  d'Halifax. La porte (`claimSlot`) et la rose de groupe lisent la même. */
+type Crew = ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>;
+
+/** Combien de ces colonnes sont maritimes : ce que `slotsAskedBy` veut savoir de celles déjà en vol. */
+export const maritimeCount = (columns: ReadonlyArray<Crew>): number =>
+  columns.filter(isMaritime).length;
+
+/**
+ * Ce qu'un groupe de colonnes demande en slots : une chacune, sauf — au teneur d'**Halifax** — un
+ * mouvement maritime **à la fois** (ADR 0032). `maritimeHeld` dit combien en volent déjà : s'il
+ * en vole un, le suivant paie son slot. La porte (`claimSlot`), la bannière et la rose de groupe
+ * lisent la même.
+ */
 export const slotsAskedBy = (
-  columns: ReadonlyArray<ReadonlyArray<{ readonly role: UnitRole; readonly carried: boolean }>>,
+  columns: ReadonlyArray<Crew>,
   holdsHalifax: boolean,
-): number => (holdsHalifax ? columns.filter((crew) => !isMaritime(crew)).length : columns.length);
+  maritimeHeld = 0,
+): number => {
+  if (!holdsHalifax || maritimeHeld > 0) return columns.length;
+  return columns.length - Math.min(1, maritimeCount(columns));
+};
+
+/** **Halifax sur la bannière** : `null` hors du point, sinon si un mouvement maritime en vol y est
+ *  déjà épargné par le compte. */
+export const halifaxNoteOf = (slots: {
+  readonly halifax?: boolean;
+  readonly maritime?: number;
+}): { readonly sparing: boolean } | null =>
+  slots.halifax === true ? { sparing: (slots.maritime ?? 0) > 0 } : null;
 
 /** Les slots libres de la bannière : le seul `total - used`. */
 export const freeSlotsOf = (slots: { readonly total: number; readonly used: number }): number =>

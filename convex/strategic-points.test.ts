@@ -4,6 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { heldOver } from './holding';
 import type { LonLat } from '../src/domain/geo';
+import { BAKU_REFUEL_MS } from './constants';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
 import { drawPoints } from '../src/domain/strategic-points';
@@ -498,12 +499,13 @@ describe('the rules the points break', () => {
     expect(await tourOf()).toMatchObject({ veiled: true });
   });
 
-  /** Halifax : vos mouvements maritimes ne prennent pas de slot. */
-  it('lets the holder of Halifax sail with every slot taken, and counts no fleet on his banner', async () => {
+  /** Halifax : un mouvement maritime à la fois ne prend pas de slot (ADR 0032). */
+  it('lets the holder of Halifax sail one fleet at a time with every slot taken, and says so on his banner', async () => {
     const t = boot();
     const { seat } = await launched(t);
     const ATLANTIC: LonLat = [-30, 45];
     const FURTHER: LonLat = [-32, 46];
+    const OTHER: LonLat = [-28, 44];
     const LOIRET: LonLat = [2.3, 47.9];
     const BEAUCE: LonLat = [1.6, 48.3];
     const { total } = (await t.query(api.view.playerView, seat)).me.slots;
@@ -511,26 +513,41 @@ describe('the rules the points break', () => {
       await sail(t, seat, await posted(t, seat, 'infantry', LOIRET), LOIRET, BEAUCE);
     }
     const fleet = await posted(t, seat, 'escort', ATLANTIC);
+    const second = await posted(t, seat, 'escort', OTHER);
     await expect(sail(t, seat, fleet, ATLANTIC, FURTHER)).rejects.toThrow('MOVEMENT_IN_FLIGHT');
 
     await holdPoint(t, seat, 'halifax');
     await sail(t, seat, fleet, ATLANTIC, FURTHER);
-    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(total);
+    const { slots } = (await t.query(api.view.playerView, seat)).me;
+    expect(slots).toMatchObject({ used: total, maritime: 1, halifax: true });
+    // The free place is taken: a second fleet at sea pays its slot like anyone.
+    await expect(sail(t, seat, second, OTHER, FURTHER)).rejects.toThrow('MOVEMENT_IN_FLIGHT');
   });
 
   const FIELD: LonLat = [24, 50];
   const NEXT: LonLat = [25, 50];
+  /** About six hundred kilometres east: two steps of fuel for a plain engine, one at Singapore. */
+  const FAR: LonLat = [29.5, 50];
   const fuelOf = async (t: Bench, troopId: Id<'troops'>) =>
     t.run(async (ctx) => (await ctx.db.get(troopId))!.fuel);
+  const troopOf = (t: Bench, seat: Seat, troopId: Id<'troops'>) =>
+    t
+      .query(api.view.playerView, seat)
+      .then((view) => view.me.troops.find((one) => one.id === troopId));
 
-  /** Bakou : où qu'elles soient, vos troupes à l'arrêt reprennent leur plein sur le plateau. */
-  it('lets the holder of Baku refuel a stopped troop anywhere, from the personal board, and says so', async () => {
+  /** Bakou : un cran de plein toutes les 12 h, hors ancre, sans toucher au stock (ADR 0032). */
+  it('gives the holder of Baku one step of fuel back every twelve hours on a stopped troop, and says when', async () => {
     const t = boot();
     const { seat } = await launched(t);
     const tank = await posted(t, seat, 'armor', FIELD, 0);
-    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
-
     await holdPoint(t, seat, 'baku');
+    const before = (await t.query(api.view.playerView, seat)).me.resources.oil!.stock;
+    // Not yet: the road is refused, and the sheet gives the hour of the next step.
+    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+    expect((await troopOf(t, seat, tank))!.refuelAt).toBeCloseTo(MIDDAY + BAKU_REFUEL_MS, -1);
+
+    vi.setSystemTime(new Date(MIDDAY + BAKU_REFUEL_MS + 1));
+    expect((await troopOf(t, seat, tank))!.supplies).toMatchObject({ fuel: 1 });
     const asked = {
       ...seat,
       origin: { kind: 'point' as const, point: { lon: FIELD[0], lat: FIELD[1] } },
@@ -538,15 +555,13 @@ describe('the rules the points break', () => {
       target: { kind: 'point' as const, point: { lon: NEXT[0], lat: NEXT[1] } },
       type: 'march' as const,
     };
-    expect((await t.query(api.movements.preview, asked))!.fuel).toMatchObject({
-      viaBaku: true,
-      short: null,
-    });
-    const before = (await t.query(api.view.playerView, seat)).me.resources.oil!.stock;
+    expect((await t.query(api.movements.preview, asked))!.fuel).toMatchObject({ short: null });
     await sail(t, seat, tank, FIELD, NEXT);
-    // Refilled to the full three notches, then one paid for the road.
-    expect(await fuelOf(t, tank)).toBe(2);
-    expect((await t.query(api.view.playerView, seat)).me.resources.oil!.stock).toBeLessThan(before);
+    // The step regained was paid for the road, and no oil left the personal board for it.
+    expect(await fuelOf(t, tank)).toBe(0);
+    expect(
+      (await t.query(api.view.playerView, seat)).me.resources.oil!.stock,
+    ).toBeGreaterThanOrEqual(before);
   });
 
   it('stops refuelling the moment Baku is lost', async () => {
@@ -555,25 +570,39 @@ describe('the rules the points break', () => {
     const tank = await posted(t, seat, 'armor', FIELD, 0);
     await holdPoint(t, seat, 'baku');
     await holdPoint(t, seat, 'baku', guest);
+    vi.setSystemTime(new Date(MIDDAY + 2 * BAKU_REFUEL_MS));
     await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
   });
 
-  /** Singapour : vos camions et vos cargos roulent sans plein. */
-  it('lets the holder of Singapore drive a truck on an empty tank, and shows it no jerrican', async () => {
+  /** Singapour : −20 % de plein pour les camions et les cargos, au cran près (ADR 0032). */
+  it('takes a fifth off the fuel of a truck of the holder of Singapore, and tells him before the order', async () => {
     const t = boot();
     const { seat } = await launched(t);
-    const truck = await posted(t, seat, 'landTransport', FIELD, 0);
-    const tank = await posted(t, seat, 'armor', FIELD, 0);
-    await expect(sail(t, seat, truck, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+    const truck = await posted(t, seat, 'landTransport', FIELD, 1);
+    const tank = await posted(t, seat, 'armor', FIELD, 1);
+    const preview = (troopId: Id<'troops'>) =>
+      t.query(api.movements.preview, {
+        ...seat,
+        origin: { kind: 'point', point: { lon: FIELD[0], lat: FIELD[1] } },
+        troopIds: [troopId],
+        target: { kind: 'point', point: { lon: FAR[0], lat: FAR[1] } },
+        type: 'march',
+      });
+    // Two steps asked, one held: refused, for both.
+    expect((await preview(truck))!.fuel).toMatchObject({ steps: 2, eased: null });
+    await expect(sail(t, seat, truck, FIELD, FAR)).rejects.toThrow('NOT_ENOUGH_FUEL');
 
     await holdPoint(t, seat, 'singapore');
-    const served = (await t.query(api.view.playerView, seat)).me.troops;
-    expect(served.find((one) => one.id === truck)).toMatchObject({ fuelFree: true });
-    expect(served.find((one) => one.id === tank)).not.toHaveProperty('fuelFree');
-    await sail(t, seat, truck, FIELD, NEXT);
+    expect((await preview(truck))!.fuel).toMatchObject({
+      steps: 1,
+      short: null,
+      eased: { from: 2, to: 1 },
+    });
+    // The rule is for trucks and cargos: a tank still pays its road in full.
+    expect((await preview(tank))!.fuel).toMatchObject({ steps: 2, eased: null });
+    await sail(t, seat, truck, FIELD, FAR);
     expect(await fuelOf(t, truck)).toBe(0);
-    // The rule is for trucks and cargos: a tank still pays its road.
-    await expect(sail(t, seat, tank, FIELD, NEXT)).rejects.toThrow('NOT_ENOUGH_FUEL');
+    await expect(sail(t, seat, tank, FIELD, FAR)).rejects.toThrow('NOT_ENOUGH_FUEL');
   });
 
   /** Istanbul : une fois par jour, le dernier télégramme privé entre deux joueurs. */

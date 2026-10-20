@@ -1032,6 +1032,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   }),
                 ),
                 view.strategicPoints.some((point) => point.key === 'halifax' && point.mine),
+                view.me.slots.maritime ?? 0,
               ),
             },
       );
@@ -3825,9 +3826,10 @@ function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
           },
         ]
       : []),
-    /** Les deux points qui jouent sur le plein se disent là où l'on paie la route. */
-    ...(fuel.viaBaku ? [{ text: fr.supplies.viaBaku, alarm: false }] : []),
-    ...(fuel.freed ? [{ text: fr.supplies.freedBySingapore, alarm: false }] : []),
+    /** Singapour se dit là où l'on paie la route. */
+    ...(fuel.eased
+      ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]
+      : []),
   ];
 }
 

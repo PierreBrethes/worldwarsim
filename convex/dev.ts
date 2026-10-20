@@ -695,9 +695,9 @@ export const artilleryScene = internalMutation({
 });
 
 /**
- * **Bakou, Dakar et Singapour tenus** : le joueur tient les trois, un blindé et un camion au plein
- * vide en Rhénanie (le blindé reprend le sien à Bakou, le camion roule sans), et les deux dépêches
- * du dépôt qui brûle à Dakar.
+ * **Bakou, Dakar, Singapour et Halifax tenus** : le joueur tient les quatre, un blindé au plein vide
+ * en Rhénanie (arrêté depuis 5 h : à Bakou son prochain cran vient dans 7 h), un camion au plein de
+ * quatre crans (−20 % à Singapour), et les deux dépêches du dépôt qui brûle à Dakar.
  */
 export const pointsScene = internalMutation({
   args: { playerId: v.id('players'), enemyId: v.id('players') },
@@ -705,14 +705,14 @@ export const pointsScene = internalMutation({
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
-    for (const key of ['baku', 'dakar', 'singapore'] as const) {
+    for (const key of ['baku', 'dakar', 'singapore', 'halifax'] as const) {
       const point = await layPoint(ctx, player.seasonId, key);
       if (point === null) throw new Error(`no region under ${key}`);
       await ctx.db.patch(point._id, { holderId: player._id, heldSince: now - 3 * 3_600_000 });
     }
     for (const [role, fuel] of [
       ['armor', 0],
-      ['landTransport', 0],
+      ['landTransport', 4],
     ] as const)
       await ctx.db.insert('troops', {
         seasonId: player.seasonId,
@@ -723,6 +723,7 @@ export const pointsScene = internalMutation({
         currentStrength: nominalStrength(role, 1),
         stationedAt: { lon: 7.1, lat: 50.4 },
         fuel,
+        fuelAt: now - 5 * 3_600_000,
       });
     const lost = { ammunition: 40, oil: 20, coal: 0 };
     await ctx.db.insert('notices', {

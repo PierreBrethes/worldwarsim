@@ -660,7 +660,7 @@ export const preview = query({
 
     const now = Date.now();
     /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
-    const { troops, viaBaku } = await toppedUp(
+    const { troops } = await toppedUp(
       ctx,
       player._id,
       await troopsAmong(ctx, player._id, troopIds),
@@ -690,7 +690,7 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -755,18 +755,16 @@ const fuelFacts = async (
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
-  viaBaku: number,
 ) => {
-  const { steps, short, km, freed } = fuelBill(
+  const { steps, short, km, eased } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
     roundTrip,
     await holdsPoint(ctx, player, 'singapore'),
   );
-  /** **Bakou** et **Singapour** se disent à la carte : le plein repris sur le plateau personnel,
-   *  les camions et cargos qui roulent sans. */
-  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku > 0 };
+  /** **Singapour** se dit à la carte : le plein des camions et cargos, de tant à tant de crans. */
+  return { steps, short, km, roundTrip, eased };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -785,7 +783,7 @@ export const previewPlunder = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
@@ -817,7 +815,7 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -845,7 +843,7 @@ export const previewCapture = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await captureAimOf(ctx, player, target);
     const route = routeBetween(
@@ -865,7 +863,7 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -907,7 +905,7 @@ export const previewLootCollection = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await aimOf(ctx, player._id, { kind: 'point', point: sighting.point });
     if (refusalOf('march', aimed.aim, column) !== null) return null;
@@ -930,7 +928,7 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,

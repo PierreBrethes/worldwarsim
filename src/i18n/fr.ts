@@ -8,7 +8,12 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
-import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
+import {
+  BAKU_REFUEL_MS,
+  LISTENING_STATION_RADIUS_KM,
+  OUTPOST_REACH_KM_BY_LEVEL,
+  SINGAPORE_FUEL_DISCOUNT_PCT,
+} from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
@@ -532,13 +537,13 @@ export const fr = {
         'Vos tournées de ravitaillement ne se relèvent jamais : aucune détection ne les voit.',
       hongKong:
         'Vous lisez la dépêche de chaque capture, où que ce soit — points, bâtiments et avant-postes, même ceux que vous ne voyez pas : qui prend quoi, et où.',
-      halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
+      halifax: 'Un de vos mouvements maritimes à la fois ne prend pas de slot.',
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
-      baku: 'Vos troupes à l’arrêt font le plein sur le plateau personnel, où qu’elles soient : comme si elles étaient ancrées.',
+      baku: `Vos troupes motorisées à l’arrêt, hors de toute ancre, reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
       dakar:
         'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
-      singapore: 'Vos camions et vos cargos roulent sans plein.',
+      singapore: `Vos camions et vos cargos paient ${SINGAPORE_FUEL_DISCOUNT_PCT} % de plein en moins, au cran près.`,
     } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
@@ -1920,7 +1925,10 @@ export const fr = {
             'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
           ],
           narvik: ['Narvik', 'Vos exploitations produisent même hors réseau.'],
-          baku: ['Bakou', 'Vos motorisés font le plein partout.'],
+          baku: [
+            'Bakou',
+            `Vos motorisés à l’arrêt reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
+          ],
           lisbon: ['Lisbonne', 'Vous lisez la nation de tout ce que vous relevez.'],
         } satisfies Record<RacePoint, readonly [string, string]>,
       },
@@ -2009,8 +2017,20 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
-    slotsTitle: (used: number, total: number, cards: ReadonlyArray<ResearchCard> = []) =>
-      `mouvements en vol : ${used} / ${total}. Deux slots au départ, un de plus par carte Transmissions.${cards.map((card) => ` ${RESEARCH_NAMES[card]} : +1.`).join('')}`,
+    slotsTitle: (
+      used: number,
+      total: number,
+      cards: ReadonlyArray<ResearchCard> = [],
+      /** **Halifax** : le teneur, et s'il a un mouvement maritime en vol que le compte n'a pas retenu. */
+      halifax: { readonly sparing: boolean } | null = null,
+    ) =>
+      `mouvements en vol : ${used} / ${total}. Deux slots au départ, un de plus par carte Transmissions.${cards.map((card) => ` ${RESEARCH_NAMES[card]} : +1.`).join('')}${
+        halifax === null
+          ? ''
+          : halifax.sparing
+            ? ' Halifax : un mouvement maritime en vol ne compte pas.'
+            : ' Halifax : votre premier mouvement maritime ne prendra pas de slot.'
+      }`,
     counter: (label: string, stock: number, cap: number, rate: number) =>
       `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
@@ -2767,10 +2787,18 @@ export const fr = {
     reload:
       'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
-    /** **Bakou** : le plein repris hors de toute ancre, sur le plateau personnel. */
-    viaBaku: 'plein repris à Bakou, sur le plateau personnel',
-    /** **Singapour** : les camions et les cargos de la colonne ne consomment rien. */
-    freedBySingapore: 'camions et cargos sans plein (Singapour)',
+    /** **Bakou** : le prochain cran de plein d'une troupe à l'arrêt hors de toute ancre. */
+    refuelIn: (ms: number) => {
+      const minutes = Math.max(1, Math.ceil(ms / 60_000));
+      return minutes < 60
+        ? `${minutes} min`
+        : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
+    refuelTitle: (when: string) =>
+      `Bakou : un cran de plein repris toutes les ${BAKU_REFUEL_MS / 3_600_000} h hors ancre — le prochain dans ${when}`,
+    /** **Singapour** : le plein des camions et des cargos de la colonne, réduit de 20 %. */
+    easedBySingapore: (from: number, to: number) =>
+      `camions et cargos : ${to} cran${plural(to, '', 's')} au lieu de ${from} (Singapour, −${SINGAPORE_FUEL_DISCOUNT_PCT} %)`,
     route: (steps: number, roundTrip = false) =>
       `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
   },

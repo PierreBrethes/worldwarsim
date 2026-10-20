@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { fuelRefusalOf, outOfRounds, pileSupplies, suppliesOf, topUp } from './supplies';
+import { BAKU_REFUEL_MS } from '../../convex/constants';
+import {
+  bakuRefuel,
+  fuelRefusalOf,
+  fuelStepsOf,
+  outOfRounds,
+  pileSupplies,
+  suppliesOf,
+  topUp,
+} from './supplies';
 
 const STOCKS = { ammunition: 1000, oil: 1000, coal: 1000 };
 
@@ -37,15 +46,6 @@ describe('the top-up at the anchor', () => {
     expect(cost.ammunition).toBe(40);
   });
 
-  it('refuels the fuel of a stopped troop away from any anchor for Baku, and its rounds never', () => {
-    const { supplies, cost } = topUp(
-      [{ id: 'far', role: 'armor', rounds: 0, fuel: 0, anchored: false, fuelOnly: true }],
-      STOCKS,
-    );
-    expect(supplies.get('far')).toEqual({ rounds: 0, fuel: 3 });
-    expect(cost).toEqual({ ammunition: 0, oil: 30, coal: 0 });
-  });
-
   it('leaves a troop away from its anchor on what it carries', () => {
     const { supplies, cost } = topUp(
       [{ id: 'far', role: 'infantry', rounds: 0, anchored: false }],
@@ -56,11 +56,60 @@ describe('the top-up at the anchor', () => {
   });
 });
 
-describe('what the piece says of its fuel', () => {
-  it('shows no tank for the engines Singapore frees', () => {
-    const truck = { role: 'landTransport' as const, supplies: { rounds: 0, fuel: 0 } };
-    expect(pileSupplies([truck])?.fuel).not.toBeNull();
-    expect(pileSupplies([{ ...truck, fuelFree: true }])?.fuel).toBeNull();
+describe('the fuel a route costs an engine', () => {
+  it('is the plain ceil(km / 500) for everyone without Singapore', () => {
+    expect(fuelStepsOf('landTransport', 0)).toBe(0);
+    expect(fuelStepsOf('landTransport', 1)).toBe(1);
+    expect(fuelStepsOf('landTransport', 1500)).toBe(3);
+    expect(fuelStepsOf('armor', 1500, true)).toBe(3);
+  });
+
+  it('takes 20 % off a truck or a cargo at Singapore, in whole steps rounded up', () => {
+    // A one-step road stays one step: the discount never makes a trip free.
+    expect(fuelStepsOf('landTransport', 1, true)).toBe(1);
+    expect(fuelStepsOf('landTransport', 500, true)).toBe(1);
+    expect(fuelStepsOf('cargo', 501, true)).toBe(1);
+    expect(fuelStepsOf('cargo', 626, true)).toBe(2);
+    expect(fuelStepsOf('cargo', 2500, true)).toBe(4);
+    expect(fuelStepsOf('landTransport', 0, true)).toBe(0);
+  });
+});
+
+describe('the fuel Baku gives back to a stopped troop', () => {
+  const since = 1_000_000;
+  it('is a step every twelve hours, none before', () => {
+    expect(bakuRefuel('armor', 0, since, since + BAKU_REFUEL_MS - 1)).toMatchObject({
+      steps: 0,
+      nextAt: since + BAKU_REFUEL_MS,
+    });
+    expect(bakuRefuel('armor', 0, since, since + BAKU_REFUEL_MS)).toMatchObject({
+      steps: 1,
+      since: since + BAKU_REFUEL_MS,
+      nextAt: since + 2 * BAKU_REFUEL_MS,
+    });
+  });
+
+  it('keeps the remainder of a period it has not counted yet', () => {
+    const got = bakuRefuel('armor', 0, since, since + 2.5 * BAKU_REFUEL_MS);
+    expect(got).toEqual({
+      steps: 2,
+      since: since + 2 * BAKU_REFUEL_MS,
+      nextAt: since + 3 * BAKU_REFUEL_MS,
+    });
+  });
+
+  it('stops at the full tank and announces no next step', () => {
+    expect(bakuRefuel('armor', 2, since, since + 9 * BAKU_REFUEL_MS)).toEqual({
+      steps: 1,
+      since: since + 9 * BAKU_REFUEL_MS,
+      nextAt: null,
+    });
+    expect(bakuRefuel('armor', 3, since, since + BAKU_REFUEL_MS).nextAt).toBeNull();
+  });
+
+  it('gives nothing to a troop without an engine, nor before the clock starts', () => {
+    expect(bakuRefuel('infantry', 0, since, since + 9 * BAKU_REFUEL_MS).steps).toBe(0);
+    expect(bakuRefuel('armor', 0, since + BAKU_REFUEL_MS, since).steps).toBe(0);
   });
 });
 
@@ -79,6 +128,30 @@ describe('the fuel a route asks', () => {
         700,
       ),
     ).toEqual({ needed: 2, held: 1, role: 'landTransport' });
+  });
+
+  it('asks a truck of Singapore’s holder 20 % less, an armour the plain price', () => {
+    expect(
+      fuelRefusalOf(
+        [
+          { role: 'landTransport', fuel: 3 },
+          { role: 'armor', fuel: 3 },
+        ],
+        1500,
+        true,
+      ),
+    ).toBeNull();
+    expect(fuelRefusalOf([{ role: 'landTransport', fuel: 4 }], 2500, true)).toBeNull();
+    expect(fuelRefusalOf([{ role: 'landTransport', fuel: 4 }], 2500)).toEqual({
+      needed: 5,
+      held: 4,
+      role: 'landTransport',
+    });
+    expect(fuelRefusalOf([{ role: 'landTransport', fuel: 3 }], 2500, true)).toEqual({
+      needed: 4,
+      held: 3,
+      role: 'landTransport',
+    });
   });
 
   it('asks nothing of a troop without an engine', () => {
@@ -112,7 +185,7 @@ describe('what a pile says of its steps', () => {
       ]),
     ).toEqual({
       rounds: { held: 3, full: 5 },
-      fuel: { held: 1, full: 4, resource: 'oil' },
+      fuel: { held: 1, full: 4, resource: 'oil', refuelAt: null },
     });
   });
 

@@ -1,6 +1,8 @@
 import {
+  BAKU_REFUEL_MS,
   FAMILY_RESOURCE_OF_ROLE,
   FUEL_STEP_KM,
+  SINGAPORE_FUEL_DISCOUNT_PCT,
   SUPPLY_BY_ROLE,
   SUPPLY_STEP_COST,
 } from '../../convex/constants';
@@ -32,7 +34,41 @@ export const suppliesOf = (troop: Carrying): Supplies => ({
 const fuelResourceOf = (role: UnitRole): 'oil' | 'coal' =>
   FAMILY_RESOURCE_OF_ROLE[role] === 'coal' ? 'coal' : 'oil';
 
-export const fuelStepsFor = (km: number): number => Math.ceil(km / FUEL_STEP_KM);
+/** Les moteurs que Singapour soulage. */
+const SINGAPORE_ROLES: ReadonlyArray<UnitRole> = ['landTransport', 'cargo'];
+
+/**
+ * **Les crans de plein qu'une route coûte à ce moteur.** Au teneur de **Singapour**, un camion ou
+ * un cargo paie `SINGAPORE_FUEL_DISCOUNT_PCT` % de moins, **arrondi au cran supérieur** : une route
+ * d'un cran coûte toujours un cran, jamais zéro. Le calcul reste en entiers (pas de flottant). Le
+ * serveur et l'écran lisent celle-ci, pour la dépense comme pour le refus.
+ */
+export const fuelStepsOf = (role: UnitRole, km: number, holdsSingapore = false): number => {
+  const paidPct =
+    holdsSingapore && SINGAPORE_ROLES.includes(role) ? 100 - SINGAPORE_FUEL_DISCOUNT_PCT : 100;
+  return Math.ceil((km * paidPct) / (100 * FUEL_STEP_KM));
+};
+
+/**
+ * **Bakou** : une troupe à l'arrêt, hors de toute ancre, reprend un cran de plein toutes les
+ * `BAKU_REFUEL_MS`, jusqu'au plein. Calculé à la lecture depuis `since` (l'heure d'arrêt ou du
+ * dernier gain), jamais par un job : le serveur règle ce gain avant toute écriture qui lit le plein,
+ * l'écran le lit pour montrer le prochain cran. `since` avance du temps déjà compté, pour que le
+ * reste d'une période ne se perde pas ; plein atteint, il n'y a plus de prochain cran (`nextAt`).
+ */
+export function bakuRefuel(
+  role: UnitRole,
+  held: number,
+  since: number,
+  now: number,
+): { readonly steps: number; readonly since: number; readonly nextAt: number | null } {
+  const missing = fullSupplies(role).fuel - held;
+  if (missing <= 0) return { steps: 0, since: now, nextAt: null };
+  const steps = Math.min(missing, Math.max(0, Math.floor((now - since) / BAKU_REFUEL_MS)));
+  if (steps === missing) return { steps, since: now, nextAt: null };
+  const counted = since + steps * BAKU_REFUEL_MS;
+  return { steps, since: counted, nextAt: counted + BAKU_REFUEL_MS };
+}
 
 export type SupplyStocks = {
   readonly ammunition: number;
@@ -46,14 +82,9 @@ export type SupplyStocks = {
  * dure. Rien ne se refuse : un stock court laisse la dernière à moitié vide, et c'est ce que la
  * pièce dira. **L'ordre est celui des identifiants**, jamais celui de l'appelant : l'écran et le
  * serveur partagent un stock court de la même façon. Une troupe non ancrée garde ses crans.
- *
- * **Bakou** (`fuelOnly`) : le teneur fait le plein où qu'il soit — une troupe à l'arrêt hors de
- * toute ancre reprend ses crans de plein, comme si elle était ancrée, mais pas ses coups.
  */
 export function topUp(
-  troops: ReadonlyArray<
-    Carrying & { readonly id: string; readonly anchored: boolean; readonly fuelOnly?: boolean }
-  >,
+  troops: ReadonlyArray<Carrying & { readonly id: string; readonly anchored: boolean }>,
   stocks: SupplyStocks,
 ): { readonly supplies: ReadonlyMap<string, Supplies>; readonly cost: SupplyStocks } {
   const left = { ...stocks };
@@ -66,38 +97,18 @@ export function topUp(
   };
   const supplies = new Map<string, Supplies>();
   const anchored = troops
-    .filter((troop) => troop.anchored || troop.fuelOnly === true)
+    .filter((troop) => troop.anchored)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const troop of anchored) {
     const held = suppliesOf(troop);
     const full = fullSupplies(troop.role);
     supplies.set(troop.id, {
-      rounds: troop.anchored
-        ? held.rounds + take('ammunition', full.rounds - held.rounds)
-        : held.rounds,
+      rounds: held.rounds + take('ammunition', full.rounds - held.rounds),
       fuel: held.fuel + take(fuelResourceOf(troop.role), full.fuel - held.fuel),
     });
   }
   return { supplies, cost };
 }
-
-/**
- * **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. Les autres moteurs
- * paient leur route comme avant ; ceux-ci ne consomment rien, ne manquent de rien, et ne portent
- * pas de jerrican à l'écran.
- */
-const FUEL_FREE_ROLES: ReadonlyArray<UnitRole> = ['landTransport', 'cargo'];
-
-/** Ce moteur roule-t-il sans plein ? Le seul prédicat de Singapour, lu par le serveur et la vue. */
-export const isFuelFree = (role: UnitRole, holdsSingapore: boolean): boolean =>
-  holdsSingapore && FUEL_FREE_ROLES.includes(role);
-
-/**
- * **Bakou** : le teneur reprend le plein d'une troupe à l'arrêt hors de toute ancre, comme si elle
- * était ancrée — pour les moteurs seulement. Le seul prédicat, lu par `convex/supplies.ts`.
- */
-export const bakuRefuels = (role: UnitRole, holdsBaku: boolean, anchored: boolean): boolean =>
-  holdsBaku && !anchored && fullSupplies(role).fuel > 0;
 
 export type FuelShortfall = {
   readonly needed: number;
@@ -107,11 +118,15 @@ export type FuelShortfall = {
 
 /** **Une route plus longue que le plus petit plein de l'escouade est refusée** ; le refus dit
  *  qui manque, et de combien. Les troupes sans moteur ne comptent pas. */
-export function fuelRefusalOf(drivers: ReadonlyArray<Carrying>, km: number): FuelShortfall | null {
-  const needed = fuelStepsFor(km);
+export function fuelRefusalOf(
+  drivers: ReadonlyArray<Carrying>,
+  km: number,
+  holdsSingapore = false,
+): FuelShortfall | null {
   let short: FuelShortfall | null = null;
   for (const troop of drivers) {
     if (fullSupplies(troop.role).fuel === 0) continue;
+    const needed = fuelStepsOf(troop.role, km, holdsSingapore);
     const held = suppliesOf(troop).fuel;
     if (held < needed && (short === null || held < short.held))
       short = { needed, held, role: troop.role };
@@ -134,6 +149,8 @@ export type PileSupplies = {
     readonly held: number;
     readonly full: number;
     readonly resource: 'oil' | 'coal';
+    /** **Bakou** : quand le plus petit plein reprend son prochain cran, hors de toute ancre. */
+    readonly refuelAt: number | null;
   } | null;
 };
 
@@ -146,8 +163,8 @@ export function pileSupplies(
   troops: ReadonlyArray<{
     readonly role: UnitRole;
     readonly supplies?: Supplies;
-    /** Le plein de cette troupe est gratuit (Singapour) : il ne compte pas dans la pièce. */
-    readonly fuelFree?: boolean;
+    /** **Bakou** : l'heure du prochain cran de plein de cette troupe. */
+    readonly refuelAt?: number;
   }>,
 ): PileSupplies | null {
   const counted = troops.filter(
@@ -156,7 +173,7 @@ export function pileSupplies(
   if (counted.length === 0) return null;
   const armed = counted.filter((troop) => fullSupplies(troop.role).rounds > 0);
   const engines = counted
-    .filter((troop) => fullSupplies(troop.role).fuel > 0 && troop.fuelFree !== true)
+    .filter((troop) => fullSupplies(troop.role).fuel > 0)
     .sort((a, b) => a.supplies.fuel - b.supplies.fuel);
   const low = engines[0];
   return {
@@ -174,6 +191,7 @@ export function pileSupplies(
             held: low.supplies.fuel,
             full: fullSupplies(low.role).fuel,
             resource: fuelResourceOf(low.role),
+            refuelAt: low.refuelAt ?? null,
           },
   };
 }

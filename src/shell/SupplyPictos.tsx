@@ -74,6 +74,15 @@ export function SupplyPictos({
             <path d={JERRICAN} />
           </svg>
           {count(fuel.held, fuel.full)}
+          {fuel.refuelAt !== null && (
+            <span
+              className="text-[var(--ink-soft)]"
+              title={fr.supplies.refuelTitle(fr.supplies.refuelIn(fuel.refuelAt - Date.now()))}
+            >
+              {' '}
+              +1 · {fr.supplies.refuelIn(fuel.refuelAt - Date.now())}
+            </span>
+          )}
         </span>
       )}
     </span>

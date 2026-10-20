@@ -490,6 +490,9 @@ export default defineSchema({
      *  pleins — elle n'a rien dépensé depuis sa formation (`SUPPLY_BY_ROLE`). */
     rounds: v.optional(v.number()),
     fuel: v.optional(v.number()),
+    /** **Bakou** (ADR 0032) : l'heure d'où se compte le prochain cran de plein repris hors ancre
+     *  — son arrivée après un départ, ou son dernier gain. Absente, depuis sa formation. */
+    fuelAt: v.optional(v.number()),
     /** **La charge d'un transport** (ADR 0028 §4) : munitions, pétrole et charbon dans une seule
      *  capacité (`LOAD_CAPACITY_BY_ROLE`), séparée de ses places. Absente, vide. */
     load: v.optional(SUPPLY_LOAD),

@@ -14,6 +14,7 @@ import {
   captureOrderRefusalOf,
   isPlunderTarget,
   plunderOrderRefusalOf,
+  maritimeCount,
   slotsAskedBy,
   movementSlots,
   refusalDetails,
@@ -52,9 +53,8 @@ import {
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
 import {
   fuelRefusalOf,
-  fuelStepsFor,
+  fuelStepsOf,
   fullSupplies,
-  isFuelFree,
   outOfRounds,
   suppliesOf,
 } from '../../src/domain/supplies';
@@ -635,18 +635,18 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
 }
 
 /**
- * **Les slots tenus** : chaque mouvement, sauf un retour — et, au teneur de **Halifax**, sauf un
- * mouvement maritime (P11) —, plus chaque **tournée à l'arrêt** au chargement : elle garde son
- * slot tant qu'elle tourne (ADR 0028). Le même compte pour la porte (`claimSlot`) et pour la
- * bannière de la vue : une règle, une fonction.
+ * **Les colonnes qui tiennent un slot** : chaque mouvement, sauf un retour, plus chaque **tournée
+ * à l'arrêt** au chargement : elle garde son slot tant qu'elle tourne (ADR 0028). Ce que chacune
+ * demande, Halifax compris, est dit par `slotsAskedBy` : une règle, une fonction, pour la porte
+ * (`claimSlot`) et pour la bannière de la vue.
  */
-export async function slotsTaken(
+async function columnsHeld(
   ctx: QueryCtx,
   player: Doc<'players'>,
   movements: ReadonlyArray<Doc<'movements'>>,
   /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
   troops?: ReadonlyArray<Doc<'troops'>>,
-): Promise<number> {
+) {
   const flying = movements.filter((movement) => movement.type !== 'return');
   const marching = new Set(movements.flatMap((movement) => movement.troopIds));
   const resting = (
@@ -662,7 +662,23 @@ export async function slotsTaken(
   ];
   const crews = [];
   for (const troopIds of holders) crews.push(await crewOf(ctx, troopIds));
-  return slotsAskedBy(crews, await holdsPoint(ctx, player, 'halifax'));
+  return crews;
+}
+
+/** **Les slots tenus** : ce que les colonnes en vol demandent (`slotsAskedBy`), et combien sont
+ *  maritimes — la bannière et la rose de groupe en ont besoin pour Halifax. */
+export async function slotsTaken(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  movements: ReadonlyArray<Doc<'movements'>>,
+  /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
+  troops?: ReadonlyArray<Doc<'troops'>>,
+): Promise<{ readonly used: number; readonly maritime: number }> {
+  const crews = await columnsHeld(ctx, player, movements, troops);
+  return {
+    used: slotsAskedBy(crews, await holdsPoint(ctx, player, 'halifax')),
+    maritime: maritimeCount(crews),
+  };
 }
 
 async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
@@ -688,12 +704,12 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
+  const held = await columnsHeld(ctx, player, await movementsOf(ctx, playerId));
   const halifax = await holdsPoint(ctx, player, 'halifax');
-  if (slotsAskedBy([await crewOf(ctx, troopIds)], halifax) === 0) return;
+  const asked = slotsAskedBy([await crewOf(ctx, troopIds)], halifax, maritimeCount(held));
+  if (asked === 0) return;
   const maximum = movementSlots(player.researched ?? []);
-  if ((await slotsTaken(ctx, player, await movementsOf(ctx, playerId))) >= maximum) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum });
-  }
+  if (slotsAskedBy(held, halifax) + asked > maximum) fail('MOVEMENT_IN_FLIGHT', { maximum });
 }
 
 /**
@@ -706,14 +722,14 @@ export function fuelBill(
   blitz: boolean,
   /** **Un largage paie l'aller-retour** (ADR 0028 §4) : la route compte deux fois. */
   roundTrip = false,
-  /** **Singapour** : le teneur roule sans plein avec ses camions et ses cargos. */
+  /** **Singapour** : ses camions et ses cargos paient 20 % de plein en moins (ADR 0032). */
   holdsSingapore = false,
 ) {
   const column = troops.map(seatedOf);
   const seated = seatLoose(column);
   /** À bord, c'est le transport de la colonne qui le porte — un `carriedBy` resté d'un
    *  transport parti ailleurs ne fait rouler personne gratis (`carrierIn`). */
-  const engines = blitz
+  const drivers = blitz
     ? []
     : troops.filter(
         (troop) =>
@@ -721,15 +737,23 @@ export function fuelBill(
           carrierIn(seatedOf(troop), column) === null &&
           !seated.has(troop._id),
       );
-  const drivers = engines.filter((troop) => !isFuelFree(troop.role, holdsSingapore));
   const km = Math.round(distanceUnits * (roundTrip ? 2 : 1) * KM_PER_UNIT);
+  const stepsOf = (troop: Doc<'troops'>) => fuelStepsOf(troop.role, km, holdsSingapore);
+  const plain = (troop: Doc<'troops'>) => fuelStepsOf(troop.role, km);
+  const eased = drivers.filter((troop) => stepsOf(troop) < plain(troop));
   return {
     drivers,
-    /** Singapour a dispensé au moins un moteur de cette colonne : la carte le dit. */
-    freed: engines.length > drivers.length,
+    /** Les crans que chaque moteur paie, à son rôle. */
+    stepsOf,
+    /** Le plus gros cran payé par la colonne : ce que la carte dit de la route. */
+    steps: Math.max(0, ...drivers.map(stepsOf)),
+    /** Singapour a allégé au moins un moteur de cette colonne : la carte dit de combien. */
+    eased:
+      eased.length === 0
+        ? null
+        : { from: Math.max(...eased.map(plain)), to: Math.max(...eased.map(stepsOf)) },
     km,
-    steps: drivers.length === 0 ? 0 : fuelStepsFor(km),
-    short: fuelRefusalOf(drivers, km),
+    short: fuelRefusalOf(drivers, km, holdsSingapore),
   };
 }
 
@@ -861,12 +885,16 @@ export async function march(
   );
   if (fuel.short !== null)
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });
-  for (const troop of fuel.drivers)
-    await ctx.db.patch(troop._id, { fuel: suppliesOf(troop).fuel - fuel.steps });
 
   const now = Date.now();
   const minutes = await pacedMinutes(ctx, playerId, route, now);
   const arrivesAt = now + minutes * 60_000;
+  /** Le plein se débite ici, l'arrivée connue : le cran de Bakou se compte depuis l'arrêt. */
+  for (const troop of fuel.drivers)
+    await ctx.db.patch(troop._id, {
+      fuel: suppliesOf(troop).fuel - fuel.stepsOf(troop),
+      fuelAt: arrivesAt,
+    });
   const cargo = await takeStationedCargo(ctx, {
     seasonId: season._id,
     playerId,

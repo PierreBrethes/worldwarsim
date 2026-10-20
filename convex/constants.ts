@@ -438,6 +438,21 @@ export const SUPPLY_STEP_COST = 10;
 export const FUEL_STEP_KM = 500;
 
 /**
+ * **Singapour** (ADR 0032) : la part de plein que ses camions et ses cargos ne paient pas.
+ *
+ * @a-mesurer −20 % de la décision du 20/10, jamais joué
+ */
+export const SINGAPORE_FUEL_DISCOUNT_PCT = 20;
+
+/**
+ * **Bakou** (ADR 0032) : le temps qu'une troupe à l'arrêt, hors de toute ancre, met à reprendre
+ * un cran de plein.
+ *
+ * @a-mesurer 12 h de la décision du 20/10, jamais joué
+ */
+export const BAKU_REFUEL_MS = 12 * 3_600_000;
+
+/**
  * **Le dépôt d'avant-poste** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon, au total et
  * partagés librement, par niveau du point.
  *

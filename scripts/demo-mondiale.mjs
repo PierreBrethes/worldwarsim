@@ -15,8 +15,8 @@
  * et le blindé en cours sur le Centre (#123) ; `--centre`, le même Centre sans carte posée. `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
- * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
- * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
+ * tenir à la France Bakou, Dakar, Singapour et Halifax, avec un blindé au plein vide et un camion
+ * au plein en Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
@@ -245,7 +245,7 @@ if (!bare) {
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
-  /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */
+  /** Bakou, Dakar, Singapour et Halifax tenus par la France, de quoi lire leurs règles. */
   if (points && scene.a !== null && scene.b !== null)
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
