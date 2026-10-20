@@ -7,6 +7,7 @@ import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
+import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import {
   RESOURCES,
   type BuildingKey,
@@ -167,6 +168,8 @@ export type MapMarker =
       readonly emplacedAt?: number;
       /** **Ses coups et son plein** (ADR 0028 §3), absents en Blitz. */
       readonly supplies?: PileSupplies | null;
+      /** **Rangoun** : une pile toute en tournée montre d'où on la relève (`rangoonReachOf`). */
+      readonly reach?: Reach;
       readonly ink: string;
     }
   | {
@@ -285,6 +288,16 @@ export type Reach = {
   /** **Ce qu'une artillerie atteint** (B20) : l'anneau de portée, et la zone morte hachurée. */
   readonly fire?: { readonly rangeKm: number; readonly deadZoneKm: number };
 };
+
+/**
+ * **L'anneau que le teneur voit autour de sa tournée** : à quelle distance un fantassin la relève
+ * (`sightingReachKm`). Seul : ce qu'elle voit et ce qu'elle touche passent après ce qui la voit,
+ * et trois cercles à 25, 30 et 40 km ne se lisaient plus. Mondiale seule, comme le point.
+ */
+export const rangoonReachOf = (lonLat: LonLat, reach: Reach | null = null): Reach => ({
+  ...(reach ?? { lonLat, detectionKm: 0, contactKm: null }),
+  sightedKm: sightingReachKm(detectionRangeOf(['infantry'], null), true),
+});
 
 export type LabelType =
   | 'loot'
@@ -751,9 +764,14 @@ function markerLabel(marker: MapMarker): MapLabel {
     strategic: null,
     station: null,
     force: null,
-    /** Only two things cover ground, and only while the pointer asks: everything else answers
+    /** Only what covers ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
-    reach: marker.kind === 'outpost' || marker.kind === 'building' ? marker.reach : null,
+    reach:
+      marker.kind === 'outpost' || marker.kind === 'building'
+        ? marker.reach
+        : marker.kind === 'stack'
+          ? (marker.reach ?? null)
+          : null,
   } as const;
 
   switch (marker.kind) {

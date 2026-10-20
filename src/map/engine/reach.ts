@@ -171,7 +171,10 @@ export class ReachRing {
   }
 
   private write(reach: Reach): void {
-    this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
+    /** Une tournée de Rangoun ne montre que l'anneau d'où on la relève (`rangoonReachOf`). */
+    this.detection.line.visible = reach.detectionKm > 0;
+    if (reach.detectionKm > 0)
+      this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
     this.sighted.line.visible = reach.sightedKm !== undefined;
     if (reach.sightedKm !== undefined)
       this.sighted.write(circleAround(this.frame, reach.lonLat, reach.sightedKm));

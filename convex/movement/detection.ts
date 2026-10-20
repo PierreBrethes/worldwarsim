@@ -31,6 +31,7 @@ import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { economyOf } from '../resources';
 import { holdsPoint } from '../strategicPoints';
+import { isRangoonColumn } from '../../src/domain/strategic-points';
 import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,
@@ -296,10 +297,8 @@ async function detectionBoard(
     }
     if (keepers.get(troop.playerId)) rangoonTours.add(troop._id);
   }
-  /** Une pile n'a la part de Rangoun que si tout ce qui la compose est en tournée : une armée
-   *  posée à côté d'un camion de tournée ne s'en couvre pas. */
   const allOnRangoonTour = (troopIds: ReadonlyArray<Id<'troops'>>) =>
-    troopIds.length > 0 && troopIds.every((id) => rangoonTours.has(id));
+    isRangoonColumn(troopIds, (id) => rangoonTours.has(id));
   const mobileById = new Map<Id<'movements'>, Mobile>();
   for (const movement of movements) {
     const roles = movement.troopIds.flatMap((troopId) => {

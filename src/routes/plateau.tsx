@@ -31,11 +31,11 @@ import {
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
-  sightingReachKm,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
 import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
+import { isRangoonColumn } from '@/domain/strategic-points';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
@@ -62,6 +62,7 @@ import { captureRate } from '@/domain/capture';
 import {
   buildLabels,
   ownerFlags,
+  rangoonReachOf,
   type LabelLine,
   type MapLabel,
   type MapMarker,
@@ -1827,7 +1828,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
        *  change, et la carte n'a pas de trait pour dire une vitesse. */
       /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
-      reach:
+      reach: withRangoonPile(
+        view.me,
+        { kind: 'outpost', outpostId: outpost.id },
+        marching,
+        outpost.lonLat,
         outpost.specialization === 'listening' && outpost.standsAt === null
           ? {
               lonLat: outpost.lonLat,
@@ -1837,6 +1842,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               contactKm: null,
             }
           : null,
+      ),
       ink: view.me.ink,
       ...(view.mode === 'blitz' || outpost.standsAt !== null
         ? {}
@@ -2010,7 +2016,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
        *  sur ce que la station entend vraiment. */
-      reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
+      reach: withRangoonPile(
+        view.me,
+        { kind: 'building', buildingId: building.id },
+        marching,
+        building.point,
+        reachOfStation(building.key, pointOfRegion.get(building.regionId)),
+      ),
       ...garrisonOf(building),
       ...(building === searcher ? researchOnCenter(view.me) : {}),
       ink: view.me.ink,
@@ -2578,29 +2590,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             movement.progress +
               ((1 - movement.progress) * elapsed) / (movement.minutesLeft * 60_000),
           );
-    return {
-      lonLat: positionAt(
-        {
-          id: movement.id,
-          points: movement.route.points,
-          legs: movement.route.legs,
-          distanceUnits: movement.route.distanceUnits,
-          landCost: movement.route.landCost,
-          departedAt: 0,
-          arrivesAt: 1,
-        },
-        progress,
-      ),
-      detectionKm: detectionRangeOf(roles, blitzTheatre),
-      contactKm: contactKm(blitzTheatre),
-      /** **Rangoun** : la même règle que le serveur, une colonne toute en tournée. */
-      ...(movement.troopIds.length > 0 &&
-      movement.troopIds.every(
-        (id) => view.me.troops.find((troop) => troop.id === id)?.tour?.veiled === true,
-      )
-        ? { sightedKm: sightingReachKm(detectionRangeOf(['infantry'], blitzTheatre), true) }
-        : {}),
-    };
+    const lonLat = positionAt(
+      {
+        id: movement.id,
+        points: movement.route.points,
+        legs: movement.route.legs,
+        distanceUnits: movement.route.distanceUnits,
+        landCost: movement.route.landCost,
+        departedAt: 0,
+        arrivesAt: 1,
+      },
+      progress,
+    );
+    return isRangoonColumn(
+      movement.troopIds,
+      (id) => view.me.troops.find((troop) => troop.id === id)?.tour?.veiled === true,
+    )
+      ? rangoonReachOf(lonLat)
+      : {
+          lonLat,
+          detectionKm: detectionRangeOf(roles, blitzTheatre),
+          contactKm: contactKm(blitzTheatre),
+        };
   }, [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre]);
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
@@ -3995,6 +4006,9 @@ function postedStacks(
       cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,
       supplies: pileSupplies(held),
+      ...(isRangoonColumn(held, (troop) => troop.tour?.veiled === true)
+        ? { reach: rangoonReachOf(at.lonLat) }
+        : {}),
       ...reloadOf(held),
       ...emplacementOf(held),
     };
@@ -4095,6 +4109,24 @@ const regionName = (view: PlayerView, regionId: string): string =>
 
 /** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
  *  other one covers nothing, and a region the view does not carry has no point to draw around. */
+/**
+ * **Une tournée de Rangoun à l'arrêt** montre au survol de son mât l'anneau d'où on la relève,
+ * comme en route : la pile entière en tournée, la même règle que le serveur (`isRangoonColumn`).
+ */
+const withRangoonPile = (
+  me: PlayerView['me'],
+  station: TroopStation,
+  marching: ReadonlySet<string>,
+  lonLat: LonLat,
+  reach: Reach | null,
+): Reach | null =>
+  isRangoonColumn(
+    troopsAt(me, stationKeyOf(station), marching),
+    (troop) => troop.tour?.veiled === true,
+  )
+    ? rangoonReachOf(lonLat, reach)
+    : reach;
+
 const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | null =>
   key === 'listening' && point !== undefined
     ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
