@@ -246,6 +246,7 @@ export async function economyOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   now: number,
+  read?: Parameters<typeof upkeepOf>[3],
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
@@ -273,7 +274,7 @@ export async function economyOf(
    * is at risk. Food feeds no chain today, so the ordering costs nothing yet — it is written
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
-  const upkeep = await upkeepOf(ctx, playerId, now);
+  const upkeep = await upkeepOf(ctx, playerId, now, read);
   const ratePerHour = extractionRates(active, held, playerId);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */

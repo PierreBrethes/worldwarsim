@@ -170,7 +170,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const { player, season } = await belligerentOf(ctx, token, seasonId);
   const now = Date.now();
 
-  const economy = await economyOf(ctx, player._id, now);
+  const troops = await troopsOf(ctx, player._id);
+  const outposts = await outpostsOf(ctx, player._id);
+  const economy = await economyOf(ctx, player._id, now, { troops, outposts });
   const buildings = await playerBuildings(ctx, player._id);
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
@@ -203,9 +205,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     if (facts) carrying.set(facts.id, facts);
   }
 
-  const troops = await troopsOf(ctx, player._id);
   const recruiting = await recruitmentsOf(ctx, player._id);
-  const outposts = await outpostsOf(ctx, player._id);
   /**
    * **Le cercle entier d'un avant-poste, pas seulement la région de son point** (ADR 0020 §1 :
    * là où je tiens est là où je peux bâtir). Servir le seul sol du point laissait le joueur voir
@@ -425,6 +425,20 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
   //   `journal`        — the dispatches are built on the client from `reports` below.
+  /** One read per building a movement leaves from or heads for, and one lookup table of troops:
+   *  the loop below asked for each twice per movement (`get` and an O(M×T) `find`). */
+  const troopById = new Map(troops.map((troop) => [troop._id, troop]));
+  const movementBuildings = new Map<Id<'buildings'>, Doc<'buildings'> | null>();
+  for (const movement of movements) {
+    if (movement.fromBuildingId !== null) movementBuildings.set(movement.fromBuildingId, null);
+    if (movement.target.kind === 'building')
+      movementBuildings.set(movement.target.buildingId, null);
+  }
+  await Promise.all(
+    [...movementBuildings.keys()].map(async (id) =>
+      movementBuildings.set(id, await ctx.db.get(id)),
+    ),
+  );
   return {
     season: {
       number: 1,
@@ -887,17 +901,19 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     movements: await Promise.all(
       movements.map(async (movement) => {
         const barracks =
-          movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
+          movement.fromBuildingId === null
+            ? null
+            : (movementBuildings.get(movement.fromBuildingId) ?? null);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
         const departurePoint = pointOf(movement.from);
         const destination =
           movement.target.kind === 'region'
             ? regionFacts(movement.target.regionId)
             : movement.target.kind === 'building'
-              ? regionFacts((await ctx.db.get(movement.target.buildingId))?.regionId ?? '')
+              ? regionFacts(movementBuildings.get(movement.target.buildingId)?.regionId ?? '')
               : null;
         const carriers = movement.troopIds.flatMap((troopId) => {
-          const troop = troops.find((candidate) => candidate._id === troopId);
+          const troop = troopById.get(troopId);
           return troop === undefined ? [] : [troop];
         });
         const mission =
