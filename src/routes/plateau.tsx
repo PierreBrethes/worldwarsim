@@ -146,6 +146,7 @@ import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
+import { FootBar } from '@/shell/foot';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
@@ -2612,9 +2613,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
           </div>
           {/* **Le sous-main** (#122) : en Mondiale, la bande du plateau personnel est toujours sur
-          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire. */}
+          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire, et la barre des
+          réserves et de la clé la remplace, comme le temps que le plateau se charge. */}
+          {!blitz && replay !== null && <FootBar view={view} />}
           {!blitz && replay === null && (
-            <Suspense fallback={null}>
+            <Suspense fallback={<FootBar view={view} />}>
               <PersonalBoard
                 view={view}
                 seat={seat}

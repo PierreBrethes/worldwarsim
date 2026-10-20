@@ -78,7 +78,7 @@ export function Shell({
                   {tickets}
                   {/* La Mondiale n'a pas ici de barre : c'est le plateau personnel, qui reçoit la
                       clé par `FootContext`. La Blitz, sans plateau, a la sienne. */}
-                  {view.mode === 'blitz' && <FootBar view={view} foot={foot} />}
+                  {view.mode === 'blitz' && <FootBar view={view} />}
                 </FootContext.Provider>
               </PinContext.Provider>
             </main>

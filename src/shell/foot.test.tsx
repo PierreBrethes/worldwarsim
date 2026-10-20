@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
-import { FootBar, type Foot } from './foot';
+import { FootBar, FootContext, type Foot } from './foot';
 
 /**
  * **La barre de la Blitz** (#179) : pas de plateau, donc pas de réserves — les fonds, et la clé des
@@ -26,7 +26,11 @@ describe('the Blitz foot bar', () => {
   it('reads the funds beside the key, and claims itself while mounted', () => {
     const claim = vi.fn();
     const foot: Foot = { key: <button type="button">la clé</button>, claim };
-    const { unmount } = render(<FootBar view={view} foot={foot} />);
+    const { unmount } = render(
+      <FootContext.Provider value={foot}>
+        <FootBar view={view} />
+      </FootContext.Provider>,
+    );
 
     const bar = screen.getByRole('region', { name: fr.footBar.label });
     expect(bar.textContent).toContain('la clé');

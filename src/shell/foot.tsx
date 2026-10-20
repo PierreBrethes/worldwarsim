@@ -6,9 +6,11 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { fr } from '@/i18n/fr';
 import { FundsCell } from './Reglette';
+import { ReserveCell } from './ReserveCell';
 import { useClock } from './clock';
 
 /**
@@ -16,7 +18,7 @@ import { useClock } from './clock';
  * personnel lui-même — replié, la ligne des réserves ; tiré, le plateau —, et la clé des surfaces
  * est sa dernière case. `Shell` donne cette clé au plateau (`key`) et mesure la barre qu'il lui
  * dit (`claim`) : les feuilles et les indicateurs de la carte se posent au-dessus d'elle.
- * En Blitz, qui n'a pas de plateau, la barre est `FootBar` : les fonds et la clé.
+ * Sans plateau — la Blitz, un rejeu, le chargement —, la barre est `FootBar`.
  */
 export type Foot = {
   readonly key: ReactNode;
@@ -42,23 +44,54 @@ export function useClaimFoot(foot: Foot | null, node: RefObject<HTMLElement | nu
  *  l'échelle de la surface `.hud` qui la porte. */
 export const FOOT_ROW = 'calc(var(--foot-bar) / var(--hud-scale))';
 
-/** **La barre de la Blitz** : les fonds au lieu des réserves, la clé à droite. */
-export function FootBar({ view, foot }: { view: PlayerView; foot: Foot }) {
+/**
+ * **La barre quand le plateau personnel n'est pas là** : en Blitz, qui n'en a pas, les fonds ; en
+ * Mondiale pendant un rejeu ou le temps que le plateau se charge, la ligne des réserves — l'alerte
+ * « à sec » et la clé ne disparaissent jamais. Sous le seuil (la coque donne sa clé) elle est la
+ * barre basse ; au bureau, la ligne repliée du plateau, sans ses poignées.
+ */
+export function FootBar({ view }: { view: PlayerView }) {
+  const foot = useFoot();
   const now = useClock();
   const bar = useRef<HTMLElement>(null);
   useClaimFoot(foot, bar);
   const funds = view.me.funds;
+  const cells =
+    funds !== null ? (
+      <div className="flex min-w-0 flex-1 items-center px-[12px]">
+        <FundsCell funds={funds} loadedAt={view.loadedAt} now={now} stacked />
+      </div>
+    ) : (
+      <div className="flex h-full min-w-0 flex-1">
+        {RESOURCES.map((resource) => (
+          <ReserveCell key={resource} resource={resource} view={view} now={now} />
+        ))}
+      </div>
+    );
   return (
     <section
       ref={bar}
       aria-label={fr.footBar.label}
-      className="hud paper-grain float absolute right-0 left-0 z-[var(--z-band)] flex items-stretch border-t border-[var(--ink)] text-[var(--ink)]"
-      style={{ bottom: 'calc(var(--safe-bottom) / var(--hud-scale))', height: FOOT_ROW }}
+      className="hud paper-grain float fixed z-[var(--z-band)] flex items-stretch border border-[var(--ink)] text-[var(--ink)]"
+      style={
+        foot === null
+          ? {
+              left: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
+              right: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
+              bottom: 'calc(var(--table-margin) / var(--hud-scale))',
+              height: '54px',
+            }
+          : {
+              left: 0,
+              right: 0,
+              bottom: 'calc(var(--safe-bottom) / var(--hud-scale))',
+              height: FOOT_ROW,
+              borderWidth: '1px 0 0',
+            }
+      }
     >
-      <div className="flex min-w-0 flex-1 items-center px-[12px]">
-        {funds !== null && <FundsCell funds={funds} loadedAt={view.loadedAt} now={now} stacked />}
-      </div>
-      {foot.key}
+      {cells}
+      {foot?.key}
     </section>
   );
 }
