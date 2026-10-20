@@ -695,6 +695,7 @@ export const NOTICE = v.union(
     kind: v.literal('expeditionFoundNothing'),
     building: BUILDING_KEY,
     regionId: v.string(),
+    // 'sealed' ne s'écrit plus (Dakar ne scelle plus) : il reste pour les lignes déjà au journal.
     reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('sealed')),
   }),
   /**

@@ -846,15 +846,7 @@ function plunderFan(
   view: PlayerView,
   column: Column,
 ): Compass {
-  const sealed = view.surveyedInstallations.some(
-    (installation) => installation.id === target.id && installation.sealed === true,
-  );
-  const aimed: PlunderAim = {
-    kind: 'building',
-    buildingId: target.id,
-    key: target.key,
-    ...(sealed ? { sealed } : {}),
-  };
+  const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
   const isMine = view.me.buildings.some((standing) => standing.id === target.id);
   const refused = notInBlitz(view.mode) ?? plunderOrderRefusalOf(aimed, column, isMine);
   const label =

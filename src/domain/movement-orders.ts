@@ -258,17 +258,10 @@ export type PlunderAim = {
   readonly kind: 'building';
   readonly buildingId: string;
   readonly key: BuildingKey;
-  /** L'entrepôt est celui du teneur de Dakar : public, donc servi avec la visée comme `coastal`. */
-  readonly sealed?: boolean;
 };
 
 export type PlunderRefusal =
-  | 'EMPTY_MOVEMENT'
-  | 'FRIENDLY_TARGET'
-  | 'INFANTRY_REQUIRED'
-  | 'WAREHOUSE_TARGET_ONLY'
-  /** **Dakar** : les réserves de son teneur ne se pillent pas. */
-  | 'SEALED';
+  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
 
 export type LootCollectionRefusal = 'NO_CARGO_CAPACITY';
 
@@ -284,7 +277,6 @@ export function plunderRefusalOf(
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
-  if (aim.sealed === true) return 'SEALED';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
 }
 

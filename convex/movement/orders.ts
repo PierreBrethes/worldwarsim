@@ -24,7 +24,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
-import { holdsPoint, sealedByDakar } from '../strategicPoints';
+import { holdsPoint } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
 import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
@@ -179,8 +179,6 @@ export type SurveyedPlunderTarget = {
   readonly key: Doc<'buildings'>['key'];
   readonly regionId: string;
   readonly point: LonLat;
-  /** Dakar : l'entrepôt est celui de son teneur, refusé avant le départ (`SEALED`). */
-  readonly sealed: boolean;
 };
 
 /**
@@ -238,7 +236,6 @@ export async function surveyedTarget(
     key: seen.key,
     regionId: seen.regionId,
     point: pointOfBuilding(building ?? seen),
-    sealed: building !== null && (await sealedByDakar(ctx, building)),
   };
 }
 
@@ -247,7 +244,7 @@ export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
   const region = regionFacts(target.regionId);
   if (region === null || target.point === null) fail('UNKNOWN_BUILDING');
   return {
-    aim: { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
+    aim: { kind: 'building', buildingId: target._id, key: target.key },
     target: { kind: 'building', buildingId: target._id },
     point: target.point,
     name: region.name,
@@ -273,7 +270,6 @@ export async function captureAimOf(
         key: neutral.key,
         regionId: neutral.regionId,
         point: pointOfBuilding(neutral),
-        sealed: false,
       });
     }
     return plunderAimOf(await surveyedTarget(ctx, player, target.buildingId));

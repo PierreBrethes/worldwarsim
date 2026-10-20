@@ -17,7 +17,6 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { sealedByDakar } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seats';
@@ -86,29 +85,6 @@ async function reportNothingFound(
     regionId,
     reason: standing === null ? 'gone' : 'disabled',
   });
-}
-
-/**
- * **Dakar** (P11) : les réserves du teneur ne se pillent pas. La colonne arrive devant un entrepôt
- * qu'elle ne peut pas vider, l'apprend sur place (`expeditionFoundNothing`) et rentre à vide ; le
- * bâtiment n'est ni mis à l'arrêt ni pillé. Un autre bâtiment reste saboté comme avant.
- */
-async function sealedAtDakar(
-  ctx: MutationCtx,
-  target: Doc<'buildings'>,
-  now: number,
-  movement: Doc<'movements'>,
-): Promise<boolean> {
-  if (!(await sealedByDakar(ctx, target))) return false;
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'expeditionFoundNothing',
-    building: target.key,
-    regionId: target.regionId,
-    reason: 'sealed',
-  });
-  return true;
 }
 
 async function startPresence(
@@ -205,11 +181,6 @@ export async function arriveForPlunder(
     return;
   }
 
-  if (await sealedAtDakar(ctx, target, now, movement)) {
-    await returnEmpty(ctx, movement, troops, now);
-    return;
-  }
-
   const defence = await defenceOf(ctx, movement);
   if (defence !== null) {
     const { engagementId, engagement, routed, routedCargo } = await resolveContact(ctx, {
@@ -263,11 +234,6 @@ export async function completePresence(
   const troops = await troopsCarriedBy(ctx, movement);
   const target = await targetAt(ctx, movement, now);
   if (target === null || !troops.some((troop) => troop.role === 'infantry')) {
-    await returnEmpty(ctx, movement, troops, now);
-    return;
-  }
-
-  if (await sealedAtDakar(ctx, target, now, movement)) {
     await returnEmpty(ctx, movement, troops, now);
     return;
   }

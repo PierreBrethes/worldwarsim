@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
+import { holdsPoint, pointsView, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -200,7 +200,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     specializationLocked: locked.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyed = (
+  const surveyedInstallations = (
     await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerHasInstallations', (q) =>
@@ -214,18 +214,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       regionId: survey.regionId,
       point: pointOfBuilding(installation),
     })),
-  );
-  /** Dakar : les entrepôts de son teneur, que l'ordre refusera de piller. */
-  const surveyedInstallations = await Promise.all(
-    surveyed.map(async (installation) => {
-      const row =
-        installation.key === 'warehouse'
-          ? await ctx.db.get(installation.id as Id<'buildings'>)
-          : null;
-      return row !== null && (await sealedByDakar(ctx, row))
-        ? { ...installation, sealed: true as const }
-        : installation;
-    }),
   );
   const lootSightings = await ctx.db
     .query('lootCrateSightings')

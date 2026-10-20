@@ -788,7 +788,7 @@ export const previewPlunder = query({
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
       plunderRefusalOf(
-        { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
+        { kind: 'building', buildingId: target._id, key: target.key },
         column.roles,
         false,
       ) !== null

@@ -1366,8 +1366,6 @@ export type PlayerView = {
     readonly regionId: string;
     /** Where it stood when seen (ADR 0029): its mast, and the point a capture marches at. */
     readonly point: LonLat;
-    /** Un entrepôt du teneur de Dakar : ses réserves ne se pillent pas (`SEALED`). */
-    readonly sealed?: true;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{
