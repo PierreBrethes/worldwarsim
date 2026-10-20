@@ -4,6 +4,7 @@ import type { TourTrace } from './cargo-tag';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
+  type Boarding,
   type Column,
   type MovementAim,
 } from './movement-orders';
@@ -184,16 +185,15 @@ export function boardingAt(
     (troop) => !heldTroopIds.includes(troop.id) && fareOf(troop.role, PROBE, []) !== null,
   );
   if (carriers.length === 0) return null;
-  const site =
-    station.kind === 'building'
-      ? view.me.buildings.find((building) => building.id === station.buildingId)
-      : undefined;
-  const boardings = carriers.map((carrier) => ({
-    carrier,
-    riders: hullsAmong(held),
-    pile: aimed === null ? pile : [...pile, ...held],
-    atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
-  }));
+  const boardings = carriers.map((carrier) =>
+    boardingOf(
+      view.me.buildings,
+      station,
+      carrier,
+      held,
+      aimed === null ? pile : [...pile, ...held],
+    ),
+  );
   const fit = boardings.find((boarding) => boardingRefusalOf(boarding) === null);
   if (fit === undefined) {
     const first = boardings[0]!;
@@ -202,10 +202,9 @@ export function boardingAt(
       refusal: fr.errors[boardingRefusalOf(first)!](boardingRefusalDetails(first)),
     };
   }
-  const { needed, offered } = boardingRefusalDetails(fit);
-  const seats = seatsOf(fit.carrier.role);
+  const { needed } = boardingRefusalDetails(fit);
   const label = fr.compass.boardOnto(fr.compass.transports([fit.carrier.role]));
-  const places = fr.compass.boardPlaces(seats - offered + needed, seats);
+  const places = boardPlacesOf(fit);
   if (aimed === null)
     return {
       actions: [
@@ -250,6 +249,34 @@ export function boardingAt(
     ],
     refusal: null,
   };
+}
+
+/** **Le mouvement d'embarquement que la règle lit** : mes coques hors bord, le transport visé, la
+ *  pile où il se tient, et si l'on est à l'aérodrome. */
+export function boardingOf(
+  buildings: PlayerView['me']['buildings'],
+  station: TroopStation,
+  carrier: TroopView,
+  held: ReadonlyArray<TroopView>,
+  pile: ReadonlyArray<TroopView>,
+): Boarding {
+  const site =
+    station.kind === 'building'
+      ? buildings.find((building) => building.id === station.buildingId)
+      : undefined;
+  return {
+    carrier,
+    riders: hullsAmong(held),
+    pile,
+    atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
+  };
+}
+
+/** **Les places d'après**, dites : ce que l'embarquement laisse sur les sièges du transport. */
+export function boardPlacesOf(boarding: Boarding): string {
+  const { needed, offered } = boardingRefusalDetails(boarding);
+  const seats = seatsOf(boarding.carrier.role);
+  return fr.compass.boardPlaces(seats - offered + needed, seats);
 }
 
 /** Une recrue d'infanterie : ce qu'un transport prend au moins, s'il prend quelqu'un. */

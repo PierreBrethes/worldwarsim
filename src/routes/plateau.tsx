@@ -1,5 +1,4 @@
 import type { TourAct, TourTrace } from '@/domain/cargo-tag';
-import { hullsAmong } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
@@ -62,7 +61,7 @@ import {
   type OrderAction,
   isOrder,
 } from '@/domain/compass-rose';
-import { traceCompass } from '@/domain/compass-logistics';
+import { boardPlacesOf, boardingOf, traceCompass } from '@/domain/compass-logistics';
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
@@ -114,14 +113,12 @@ import {
 import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underway';
 import {
   carrierIn,
-  PROJECTION_BY_DOMAIN,
   hasSiteSheet,
   isProjectionKey,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
   stationKeyOf,
-  seatsOf,
   troopsAt,
   unitsOf,
   type MarchStation,
@@ -2104,27 +2101,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return { icon: '↺', tone: 'calm', verb: fr.drop.putBack, detail: fr.drop.putBackDetail };
       const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
       const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
-      const station = click.station;
-      const boarding = {
-        riders: hullsAmong(held),
-        carrier,
-        pile,
-        atAirfield:
-          station.kind === 'building' &&
-          view.me.buildings.find((building) => building.id === station.buildingId)?.key ===
-            PROJECTION_BY_DOMAIN.air,
-      };
+      const boarding = boardingOf(view.me.buildings, click.station, carrier, held, pile);
       const refusal = boardingRefusalOf(boarding);
-      const { needed, offered } = boardingRefusalDetails(boarding);
-      const seats = seatsOf(carrier.role);
-      const seated = { carrierId: carrier.id, need: needed, fits: refusal === null };
+      const seated = {
+        carrierId: carrier.id,
+        need: boardingRefusalDetails(boarding).needed,
+        fits: refusal === null,
+      };
       return refusal === null
         ? {
             boarding: seated,
             icon: '⤓',
             tone: 'order',
             verb: fr.drop.verbs.board,
-            detail: `${fr.compass.transports([carrier.role])} · ${fr.compass.boardPlaces(seats - offered + needed, seats)}`,
+            detail: `${fr.compass.transports([carrier.role])} · ${boardPlacesOf(boarding)}`,
           }
         : {
             boarding: seated,
