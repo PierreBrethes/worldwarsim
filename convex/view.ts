@@ -1084,8 +1084,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
  * **Le cloisonnement est ici.** `mine` porte les cinq chiffres ; `others` en porte trois. Une
  * industrie d'adversaire ne sort pas du serveur, donc aucun client, aucune capture de requête et
  * aucun bug d'affichage ne peut la révéler — c'est la même défense que les états d'arc.
+ *
+ * `seats` sont ceux que la vue a déjà lus : les mêmes lignes, pas un second balayage (#144).
  */
-/** `seats` are the ones the view already read: the same rows, not a second sweep (#144). */
 async function lastEdition(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,

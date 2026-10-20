@@ -26,14 +26,14 @@ export function useClock(periodMs = 1000): number {
     (listener) => {
       beat.listeners.add(listener);
       if (beat.timer === null) {
-        const tick = () => {
+        const strike = () => {
           beat.now = Date.now();
           beat.listeners.forEach((notify) => notify());
         };
-        beat.timer = setInterval(tick, periodMs);
+        beat.timer = setInterval(strike, periodMs);
         // Après une pause l'heure gardée est vieille : un premier battement la rafraîchit, hors
         // du rendu (la changer à l'abonnement fait boucler React sous Suspense).
-        setTimeout(tick, 0);
+        setTimeout(strike, 0);
       }
       return () => {
         beat.listeners.delete(listener);
