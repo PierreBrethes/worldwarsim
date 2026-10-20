@@ -1,49 +1,18 @@
-import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
-import type { TourAct, TourTrace } from '@/domain/cargo-tag';
-import { emptyLoad, isAirStop } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
-import {
-  Link,
-  Navigate,
-  createFileRoute,
-  redirect,
-  useNavigate,
-  useSearch,
-} from '@tanstack/react-router';
+import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import {
-  contactKm,
-  LISTENING_STATION_RADIUS_KM,
-  outpostReachKm,
-  detectionRangeOf,
-  SURVEY_FADED_HOURS,
-} from '../../convex/constants';
-import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
-import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
-import { isRangoonColumn } from '@/domain/strategic-points';
+import { contactKm, outpostReachKm } from '../../convex/constants';
+import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
-import type { PieceClick, PlacingMagnet, PlacingSpot, StandingPile } from '@/map/engine';
+import { WorldMap } from '@/map/WorldMap';
+import type { PieceClick } from '@/map/engine';
 import {
   readWindows,
-  toggleWindow,
-  windowOpen,
   withWindow,
   withoutWindow,
   type BoardSearch,
@@ -52,60 +21,55 @@ import {
 import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
+import { useHeldRegions } from './-plateau/useHeldRegions';
+import { useOrderPreview } from './-plateau/useOrderPreview';
+import { useTours } from './-plateau/useTours';
+import { usePlacing } from './-plateau/usePlacing';
+import { BoardWindows } from './-plateau/BoardWindows';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
-import { useClock } from '@/shell/clock';
 import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
-import { captureRate } from '@/domain/capture';
 import {
   buildLabels,
   ownerFlags,
-  rangoonReachOf,
-  type LabelLine,
   type MapLabel,
   type MapMarker,
   type Reach,
 } from '@/domain/labels';
-import { pilePieces, unitPieces } from '@/domain/pile-pieces';
-import { type BuildingKey, type UnitRole } from '@/domain/ids';
+import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
-import { FADED_WASH, surveyWash } from '@/domain/control';
-import { surveyedAt } from '@/domain/survey-ink';
-import { carryCapacityOf } from '@/domain/loot';
-import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
-import { buildingSprite } from '@/emblems/buildings/manifest';
-import { objectiveSprite } from '@/emblems/objectives/manifest';
-import { lootWords } from '@/domain/journal';
-import { objectiveArchetype } from '../../convex/constants';
+import { inkByClaimedCountry, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
-import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
-import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
+import { type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
-  traceCompass,
   type Compass,
   type CompassAction,
   type CompassTarget,
   type OrderAction,
   isOrder,
 } from '@/domain/compass-rose';
+import { boardPlacesOf, boardingOf, traceCompass } from '@/domain/compass-logistics';
+import { MapButtons, type Corner } from './-plateau/MapButtons';
+import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
-  aimVerdict,
-  depositHolders,
-  freeDeposits,
-  placementOf,
-  reachesOf,
-  workSitesOf,
-} from '@/domain/construction';
-import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
+  buildingLabelId,
+  campsOf,
+  markerOfStation,
+  markersOf,
+  stackOf,
+  standingPilesOf,
+} from './-plateau/board-markers';
+import { handReachOf, movementReachOf } from '@/domain/board-reach';
+import { depositHolders } from '@/domain/construction';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import {
   groupCompassOf,
+  groupSlotsOf,
   holds,
   matchingOrder,
   squadLeadOf,
@@ -113,45 +77,35 @@ import {
   type Selection,
 } from '@/domain/selection';
 import { SelectionBar } from './-plateau/SelectionBar';
-import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
-import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
+import { carriersFor } from '@/domain/cargo-tag';
+import type { DropHint, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
-import { asDuration, asLocalTime } from '@/domain/duration';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandRefusalOf,
-  freeSlotsOf,
-  slotsAskedBy,
-  type Column,
 } from '@/domain/movement-orders';
 import {
-  type ArcView,
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
   type PlayerView,
-  type Stack,
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
 import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underway';
 import {
   carrierIn,
-  PROJECTION_BY_DOMAIN,
   hasSiteSheet,
   isProjectionKey,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
   stationKeyOf,
-  stationPointOf,
-  seatsOf,
   troopsAt,
   unitsOf,
   type MarchStation,
 } from '@/domain/troops';
-import { fireReachOf, firesIndirect } from '@/domain/indirect-fire';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
@@ -177,8 +131,8 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import {
   useSendOrder,
   wireOrigin,
-  wireCaptureTarget,
-  wireTarget,
+  choiceOf,
+  groupKeyOf,
   type OrderChoice,
   type Previewed,
   type Sent,
@@ -186,8 +140,6 @@ import {
 import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
-import { LayersGlyph, Glyph, SettingsGlyph } from '@/shell/Glyph';
-import { SQUARE } from '@/shell/SurfaceColumn';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { CombatToasts } from './-plateau/CombatToasts';
 import { DispatchSheet } from './-plateau/DispatchSheet';
@@ -218,18 +170,6 @@ type Demolition = { buildingId: string; x: number; y: number };
  *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
 type Dismantling = { outpostId: string; x: number; y: number };
 
-/**
- * **Un bâtiment tenu en main** (ADR 0029) : la clé choisie, et la dette du socle qu'il vient
- * acquitter s'il a été pris dans l'ordre de mobilisation — c'est elle qui dit sur quel gisement
- * il s'aimante. Le lieu, c'est la carte qui le donne.
- */
-type HeldBuilding = {
-  readonly key: BuildingKey;
-  readonly debt: FoundationDebt | null;
-  /** Ce que la carte dit avant que le fantôme ait trouvé un point : la région du panneau. */
-  readonly title: string;
-};
-
 /** The garrison panel's subject and the point it is anchored to. */
 type OpenGarrison = {
   readonly station: TroopStation;
@@ -244,18 +184,6 @@ type OpenLoot = { readonly id: string; readonly x: number; readonly y: number };
 type OpenCamp = { readonly id: string; readonly x: number; readonly y: number };
 type OpenObjective = { readonly id: string; readonly x: number; readonly y: number };
 
-/**
- * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
- * function reads — built once here so the fan does not rebuild it on every hover.
- */
-type ArmedColumn = {
-  /** The address the widget and the garrison panel select on — and the one the order leaves
-   *  from, since ADR 0019 §1 made them the same thing. */
-  readonly station: MarchStation;
-  readonly troopIds: ReadonlyArray<string>;
-  readonly rule: Column;
-};
-
 /** **La marche que la route chiffre sous un pointeur arrêté** (ADR 0026 §6), et le point où
  *  l'heure s'affiche. */
 type RestAim = OrderChoice & { readonly x: number; readonly y: number };
@@ -269,62 +197,16 @@ type GroupRead = {
   readonly compass: Compass | null;
 };
 
-/** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
-const groupKeyOf = (action: OrderAction): string =>
-  `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
-
 /** L'identifiant que porte une pile sur la carte : son étiquette posée, ou sa garnison. */
 const pileIdOf = (station: MarchStation): string =>
   station.kind === 'point' ? stackLabelId(station) : stationKeyOf(station);
-
-/**
- * **Ce que des troupes peuvent encore charger**, leur charge en cours déduite : le seul chiffre
- * qui décide si « ramasser » existe. `carryCapacityOf` est la fonction que le serveur mesure avec
- * (`convex/cargo.ts`) — une seconde table de ce qui tient à bord serait exactement la divergence
- * que l'ADR 0015 interdit à la rose.
- */
-function freeCapacityOf(view: PlayerView, troopIds: ReadonlyArray<string>): number {
-  const picked = new Set(troopIds);
-  const capacity = carryCapacityOf(
-    view.me.troops.filter((troop) => picked.has(troop.id)),
-    CARRY_CAPACITY_BY_ROLE,
-  );
-  const carried = view.me.stationedCargo
-    .filter((group) => group.troopIds.some((troopId) => picked.has(troopId)))
-    .reduce((total, group) => total + group.cargo.carried, 0);
-  return Math.max(0, capacity - carried);
-}
 
 /** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
 
-const JournalWindow = lazy(() =>
-  import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
-);
-const SiteModal = lazy(() =>
-  import('./-plateau/SiteModal').then((module) => ({ default: module.SiteModal })),
-);
 const PersonalBoard = lazy(() =>
   import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
-);
-const NationWindow = lazy(() =>
-  import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
-);
-const SettingsWindow = lazy(() =>
-  import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
-);
-const TelegraphWindow = lazy(() =>
-  import('./-plateau/TelegraphWindow').then((module) => ({ default: module.TelegraphWindow })),
-);
-const GunneryWindow = lazy(() =>
-  import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
-);
-const ResearchWindow = lazy(() =>
-  import('./-plateau/ResearchWindow').then((module) => ({ default: module.ResearchWindow })),
-);
-const PressWindow = lazy(() =>
-  import('./-plateau/PressWindow').then((module) => ({ default: module.PressWindow })),
 );
 
 /**
@@ -476,15 +358,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
-  /**
-   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0029) : toute clé,
-   * choisie au panneau de construction ou dans l'ordre de mobilisation. C'est le cousin de la
-   * visée — même priorité sur les clics, Échap le lâche, aucune rose ne s'ouvre pendant — et il
-   * vit ici parce que c'est un geste de carte.
-   */
-  const [placing, setPlacing] = useState<HeldBuilding | null>(null);
-  /** Le point que le fantôme tient, et ce que la carte en sait : ce que le refus lit. */
-  const [placingAim, setPlacingAim] = useState<PlacingSpot | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
   // the frame after the pointer slides from one to the other, and a single variable would let
@@ -590,13 +463,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
   const [selectedObjective, setSelectedObjective] = useState<OpenObjective | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<OpenObjective | null>(null);
-  /**
-   * **The mobilisation order, armed.** The season still owes free placements, the player has
-   * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
-   * other two map gestures — a construction site and an aim — because it is one of them: a
-   * click on the map that means something because of what is armed.
-   */
-  const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
   const lootRumors = useQuery(api.lootRumors.list, seat);
@@ -984,9 +850,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [column, view],
   );
 
-  /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
-   *  l'étiquette du transport la lance ou l'efface. */
-  const [trace, setTrace] = useState<TourTrace | null>(null);
+  const { trace, setTrace, onTour, tourLoops } = useTours(seat, view.me, setOrderError);
   /** **La rose d'une pile de la sélection**, lue comme si elle était en main. */
   const pileCompass = useCallback(
     (target: CompassTarget, station: MarchStation, troopIds: ReadonlyArray<string>) =>
@@ -1020,23 +884,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ].map((pile) => ({ ...pile, compass: pileCompass(target, pile.station, pile.troopIds) }));
       const group = groupCompassOf(
         reads.map((read) => read.compass),
-        view.mode === 'blitz'
-          ? null
-          : {
-              free: freeSlotsOf(view.me.slots),
-              asked: slotsAskedBy(
-                reads.map((read) =>
-                  read.troopIds.flatMap((id) => {
-                    const troop = view.me.troops.find((one) => one.id === id);
-                    return troop === undefined
-                      ? []
-                      : [{ role: troop.role, carried: troop.carriedBy !== undefined }];
-                  }),
-                ),
-                view.strategicPoints.some((point) => point.key === 'halifax' && point.mine),
-                view.me.slots.maritime ?? 0,
-              ),
-            },
+        groupSlotsOf(
+          view,
+          reads.map((read) => read.troopIds),
+        ),
       );
       for (const action of group?.actions ?? [])
         if (isOrder(action)) groupReads.current.set(groupKeyOf(action), reads);
@@ -1102,63 +953,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     onHold: setCarryingTokens,
   });
-  const startTour = useMutation(api.tours.start);
-  const recallTour = useMutation(api.tours.recall);
-  /** **La tournée depuis l'étiquette** : lancer celle qu'on a tracée, l'effacer, la rappeler. */
-  const onTour = useCallback(
-    (carrierId: string, act: TourAct) => {
-      setOrderError(null);
-      const refused = (problem: unknown) => handleError(problem, setOrderError);
-      if (act === 'recall') {
-        recallTour({ ...seat, troopId: carrierId as Id<'troops'> }).catch(refused);
-        return;
-      }
-      const traced = trace;
-      setTrace(null);
-      if (act === 'clear' || traced === null || traced.carrierId !== carrierId) return;
-      startTour({
-        ...seat,
-        troopId: carrierId as Id<'troops'>,
-        stops: traced.stops.map((stop) => stop as Id<'outposts'>),
-      }).then(() => notify(fr.logistics.tourStarted, 'info'), refused);
-    },
-    [recallTour, startTour, seat, trace],
-  );
-  /** **Les boucles à l'encre** : chaque tournée, et celle qu'on trace, du chargement au
-   *  chargement par ses dépôts ; un dépôt que ce tour saute, plein, en pointillé. */
-  const tourLoops = useMemo((): ReadonlyArray<TourLoop> => {
-    const pointOfStation = (id: string) =>
-      view.me.buildings.find((building) => building.id === id)?.point ??
-      view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
-    const loopOf = (
-      baseId: string,
-      stops: ReadonlyArray<string>,
-      skipped: ReadonlyArray<string>,
-      tracing: boolean,
-    ): ReadonlyArray<TourLoop> => {
-      const base = pointOfStation(baseId);
-      const points = stops.flatMap((stop) => {
-        const at = pointOfStation(stop);
-        return at === undefined ? [] : [{ at, skipped: skipped.includes(stop) }];
-      });
-      return base === undefined ? [] : [{ base, stops: points, tracing }];
-    };
-    const tracedFrom = view.me.troops.find((troop) => troop.id === trace?.carrierId)?.stationedAt;
-    return [
-      ...view.me.troops.flatMap((troop) =>
-        troop.tour === undefined
-          ? []
-          : loopOf(troop.tour.baseId, troop.tour.stops, troop.tour.skipped, false),
-      ),
-      ...(trace === null || tracedFrom === undefined
-        ? []
-        : tracedFrom.kind === 'building'
-          ? loopOf(tracedFrom.buildingId, trace.stops, [], true)
-          : tracedFrom.kind === 'outpost'
-            ? loopOf(tracedFrom.outpostId, trace.stops, [], true)
-            : []),
-    ];
-  }, [view.me.troops, view.me.buildings, view.me.outposts, trace]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -1192,10 +986,41 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const carryEnded = useCallback(() => {
     if (!inFlight.current) setDragged(null);
   }, []);
+  /** **La pile en main monte à bord d'un transport** : l'embarquement de la rose et celui d'une
+   *  pièce lâchée sur sa pile partent du même appel. */
+  const boardHand = useCallback(
+    (troopIds: ReadonlyArray<string>, carrierId: string) => {
+      setOrderError(null);
+      return boardTransport({
+        ...seat,
+        troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+        carrierId: carrierId as Id<'troops'>,
+      });
+    },
+    [boardTransport, seat],
+  );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
   const previewNow = useRef<{ aim: OrderChoice['aim']; preview: Previewed } | undefined>(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
+      /** **Un ordre de colonne en vol, une fois** : le second lâcher n'envoie pas les mêmes troupes
+       *  deux fois, et la main ne se repose qu'à l'issue (refus compris). */
+      const sendColumn = (send: () => Promise<Sent>, label: string) => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        setOrderError(null);
+        send().then(
+          (filed) => {
+            settle();
+            afterSent(filed, label);
+          },
+          (problem: unknown) => {
+            settle();
+            handleError(problem, setOrderError);
+            dropHand();
+          },
+        );
+      };
       switch (action.key) {
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
@@ -1275,47 +1100,36 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
          *  d'aperçu ni de slot, la pile armée monte à bord et la visée se referme. */
         case 'board':
           if (column === null) return;
-          setOrderError(null);
-          boardTransport({
-            ...seat,
-            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            carrierId: action.carrierId as Id<'troops'>,
-          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          boardHand(column.troopIds, action.carrierId).then(dropHand, (problem: unknown) =>
+            handleError(problem, setOrderError),
+          );
           return;
         /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. **Larguer** :
          *  l'avion part de même, paie l'aller-retour et rentre seul. */
         case 'deliver':
         case 'airdrop': {
-          if (column === null || inFlight.current) return;
-          inFlight.current = true;
-          setOrderError(null);
+          if (column === null) return;
           const order = {
             ...seat,
             origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
           };
-          (action.key === 'deliver'
-            ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
-            : airdrop({
-                ...order,
-                target:
-                  action.target.kind === 'outpost'
-                    ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
-                    : {
-                        kind: 'squad',
-                        point: { lon: action.target.point[0], lat: action.target.point[1] },
-                      },
-              })
-          ).then(
-            (filed) => {
-              settle();
-              afterSent({ ...filed, destination: action.destination }, action.label);
-            },
-            (problem: unknown) => {
-              settle();
-              handleError(problem, setOrderError);
-              dropHand();
-            },
+          sendColumn(
+            () =>
+              (action.key === 'deliver'
+                ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
+                : airdrop({
+                    ...order,
+                    target:
+                      action.target.kind === 'outpost'
+                        ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
+                        : {
+                            kind: 'squad',
+                            point: { lon: action.target.point[0], lat: action.target.point[1] },
+                          },
+                  })
+              ).then((filed) => ({ ...filed, destination: action.destination })),
+            action.label,
           );
           return;
         }
@@ -1360,30 +1174,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             } else groupSend.current(reads, action);
             return;
           }
-          if (column === null || inFlight.current) return;
-          inFlight.current = true;
-          setOrderError(null);
-          const chosen = choiceOf(action);
-          const seen = previewNow.current;
-          sendOrder(
-            column.station,
-            column.troopIds,
-            chosen,
-            // The stop the server measured may be another target than the one let go on.
-            seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
-              ? seen.preview
-              : undefined,
-          ).then(
-            (filed) => {
-              settle();
-              afterSent(filed, action.label);
-            },
-            (problem: unknown) => {
-              settle();
-              handleError(problem, setOrderError);
-              dropHand();
-            },
-          );
+          if (column === null) return;
+          sendColumn(() => {
+            const chosen = choiceOf(action);
+            const seen = previewNow.current;
+            return sendOrder(
+              column.station,
+              column.troopIds,
+              chosen,
+              // The stop the server measured may be another target than the one let go on.
+              seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
+                ? seen.preview
+                : undefined,
+            );
+          }, action.label);
           return;
         }
         /**
@@ -1413,7 +1217,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       startConstruction,
       raiseOutpost,
       respecialize,
-      boardTransport,
+      boardHand,
       bombard,
       deliver,
       airdrop,
@@ -1425,6 +1229,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       afterSent,
       settle,
       grouped,
+      setTrace,
     ],
   );
 
@@ -1470,6 +1275,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [],
   );
 
+  const {
+    placing,
+    placingCard,
+    setPlacingAim,
+    hold,
+    dismissPlacing,
+    placeAt,
+    holdTile,
+    placeTile,
+    foundation,
+    armed,
+    mobilizeError,
+    setMobilizeError,
+  } = usePlacing(view, seat, motion, setOrderError);
+
   /**
    * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord,
    * la visée et la pose ensuite — chacune a sa propre sortie —, puis les cartes et panneaux ancrés
@@ -1491,243 +1311,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', close);
   }, [windows.length, column, placing]);
 
-  /** **Échap rend la carte intacte** : rien n'a été enfilé, il n'y a donc rien à défaire. */
-  useEffect(() => {
-    if (placing === null) return;
-    const drop = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPlacing(null);
-    };
-    document.addEventListener('keydown', drop);
-    return () => document.removeEventListener('keydown', drop);
-  }, [placing]);
-
-  /** Ce que le fantôme lit : les gisements que personne n'exploite à sa connaissance, et la
-   *  portée de ses avant-postes debout. */
-  /** **Keyed on the free deposits themselves, not on the view**: every Convex update brings a
-   *  new view, and a new list would re-arm the ghost under the pointer (`WorldMap`). */
-  const freeIds = freeDeposits(view)
-    .map((deposit) => deposit.id)
-    .join(',');
-  const freeDepositPoints = useMemo(() => {
-    const free = new Set(freeIds.split(','));
-    return DEPOSIT_POINTS.filter((deposit) => free.has(deposit.id));
-  }, [freeIds]);
-  const reaches = useMemo(() => reachesOf(view, outpostReachKm), [view]);
-
-  /**
-   * **L'aimant de la clé tenue** : un extracteur saute sur un gisement libre de son espèce — celui
-   * que sa dette nomme, s'il en acquitte une —, un port sur un quai, le reste se pose sous le
-   * pointeur. Mémoïsé sur la clé et la liste : la carte ne réarme le fantôme qu'à leur changement.
-   */
-  const magnet = useMemo<PlacingMagnet | null>(() => {
-    if (placing === null) return null;
-    const kinds =
-      placing.debt?.deposit != null ? [placing.debt.deposit] : EXPLOITED_DEPOSITS[placing.key];
-    if (kinds !== undefined) {
-      return {
-        kind: 'points',
-        points: freeDepositPoints
-          .filter((deposit) => kinds.includes(deposit.deposit))
-          .map((deposit) => deposit.lonLat),
-      };
-    }
-    return placing.key === 'port' ? { kind: 'coast' } : { kind: 'free' };
-  }, [placing, freeDepositPoints]);
-
-  const verdict =
-    placing === null || placingAim === null
-      ? null
-      : aimVerdict(view, placing.key, placingAim, reaches);
-
-  /** La carte du fantôme, écrite ici (ADR 0016) : le nom, la facture, et le refus du point visé
-   *  dans les mots du serveur (`aimRefusalText`). */
-  const placingCard = useMemo<PlacingBuilding | null>(() => {
-    if (placing === null || magnet === null) return null;
-    const spec = view.buildCatalog[placing.key];
-    const free = verdict?.free ?? false;
-    const widest = reaches.map((reach) => reach.reachKm);
-    return {
-      sprite: buildingSprite(placing.key),
-      magnet,
-      title: placingAim?.region?.name ?? placing.title,
-      name: fr.buildings[placing.key],
-      cost: spec.cost,
-      free,
-      duration: free ? fr.construction.immediate : asDuration(spec.minutes),
-      refusal:
-        verdict?.refusal == null
-          ? null
-          : aimRefusalText(
-              verdict.refusal,
-              placing.key,
-              {
-                widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
-                hasOutposts: widest.length > 0,
-              },
-              spec.lockedBy,
-              placing.debt?.deposit != null
-                ? [placing.debt.deposit]
-                : (EXPLOITED_DEPOSITS[placing.key] ?? []),
-            ),
-    };
-  }, [placing, magnet, placingAim, verdict, reaches, view]);
-
-  const hold = useCallback((held: HeldBuilding | null) => {
-    setPlacingAim(null);
-    setPlacing(held);
-  }, []);
-  const dismissPlacing = useCallback(() => hold(null), [hold]);
-
-  /**
-   * **Le clic sur la carte commande le chantier**, par la mutation qui commande tous les
-   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
-   * qu'un point soit nommé. **Un point refusé ne part pas** : la carte du fantôme dit déjà
-   * pourquoi, et la main reste pleine pour viser ailleurs.
-   */
-  const placeAt = useCallback(
-    (spot: PlacingSpot) => {
-      if (placing === null || spot.region === null) return;
-      if (aimVerdict(view, placing.key, spot, reaches).refusal !== null) return;
-      const ordered = placing;
-      const free = aimVerdict(view, placing.key, spot, reaches).free;
-      hold(null);
-      setOrderError(null);
-      setMobilizeError(null);
-      startConstruction({
-        ...seat,
-        building: ordered.key,
-        regionId: spot.region.id,
-        point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
-      }).then(
-        () => {
-          flySpent(free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat, motion);
-          if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
-        },
-        (problem: unknown) =>
-          handleError(problem, ordered.debt === null ? setOrderError : setMobilizeError),
-      );
-    },
-    [placing, startConstruction, seat, view, reaches, hold, motion],
-  );
-
-  /** **La tuile prise sur le plateau personnel** arme le même fantôme qu'une clé choisie : la
-   *  pose ne connaît qu'une main. */
-  const holdTile = useCallback(
-    (key: BuildingKey | null) =>
-      hold(key === null ? null : { key, debt: null, title: fr.buildings[key] }),
-    [hold],
-  );
-
-  /** La tuile lâchée sur la carte se pose où le fantôme se tient, s'il y est accepté. */
-  const placeTile = useCallback((): boolean => {
-    if (placing === null || placingAim === null || placingAim.region === null) return false;
-    if (aimVerdict(view, placing.key, placingAim, reaches).refusal !== null) return false;
-    placeAt(placingAim);
-    return true;
-  }, [placing, placingAim, view, reaches, placeAt]);
-
-  /**
-   * **The keys the season still owes, and whether any point takes them.** The condition is
-   * `placementOf` — what no point at all can take yet; where exactly, the ghost says.
-   */
-  const foundation = useMemo(
-    () =>
-      view.me.foundation.map((due) => ({
-        ...placementOf(view, due.key, due.deposit === null ? undefined : [due.deposit]),
-        deposit: due.deposit,
-      })),
-    [view],
-  );
-
-  // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
-  // so a couple that has left it has no line left to be armed on.
-  const armed =
-    placing?.debt != null &&
-    view.me.foundation.some((due) => debtKey(due) === debtKey(placing.debt!))
-      ? debtKey(placing.debt)
-      : null;
-
   const inkByCountry = useMemo(
     () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
     [blitz, view.me, view.opponents],
   );
 
-  // Nothing filters here: `me.buildings` is the player's own list and there is no other, so
-  // the map cannot ink a region an opponent built on (ADR 0005).
-  /**
-   * **La couleur du sol, servie par sa propre query** (ADR 0020 §1) : elle ne bouge qu'à la
-   * fondation ou à la perte d'un avant-poste, là où `PlayerView` se réinvalide au moindre pas
-   * d'une colonne. Les coudre ensemble ferait recalculer 4 589 régions pour une troupe qui
-   * marche. Le temps que la première réponse arrive, la carte est simplement sans teinte.
-   */
-  const heldRaw = useQuery(api.control.held, seat);
-  /**
-   * **L'ancienneté d'un relevé se voit sur la carte, pas au survol** (ADR 0020 §5) : une région à
-   * jour est franche, un relevé ancien est délavé. Le battement est à la minute — `surveyWash`
-   * rend une valeur crantée, donc la géométrie ne se refond qu'au changement de cran, et
-   * `showHeld` ignore une liste identique.
-   */
-  const surveyClock = useClock(60_000);
-  const held = useMemo(
-    () =>
-      (heldRaw ?? []).map(({ ink, regions }) => ({
-        ink,
-        outlined: blitz,
-        regions: regions.map((region) => ({
-          id: region.id,
-          /** **Une zone suspendue est au plancher, et elle y reste** (ADR 0020 §7) : elle ne
-           *  vieillit pas — il est chez lui, il sait ce qu'il a perdu et quand il le reprend —
-           *  donc son délavage est une constante et non une horloge. */
-          wash:
-            region.state === 'current'
-              ? 1
-              : region.state === 'suspended'
-                ? FADED_WASH
-                : surveyWash(surveyClock - region.seenAt, SURVEY_FADED_HOURS * 3_600_000),
-          state: region.state,
-        })),
-      })),
-    [blitz, heldRaw, surveyClock],
+  const { held, knownRegionById, suspendedUntilByRegion, surveyClock } = useHeldRegions(
+    seat,
+    blitz,
   );
-
-  /**
-   * **Ce que le survol lit du tenant d'une région — la même réponse que la carte peint**, indexée.
-   * La nation vient de la revendication, jamais des avant-postes de la vue : `me.outposts` ne dit
-   * que ce que le joueur a planté *dans ce pays-ci*, et une région tenue depuis le pays voisin s'y
-   * lisait « avant-poste : aucun » pendant que la carte la peignait (correctif du 31/08).
-   */
-  const knownRegionById = useMemo(
-    () =>
-      new Map(
-        (heldRaw ?? []).flatMap((claim) =>
-          claim.regions.flatMap((region) =>
-            region.state === 'suspended'
-              ? []
-              : [[region.id, { ...region, nation: claim.nation }] as const],
-          ),
-        ),
-      ),
-    [heldRaw],
-  );
-
-  /**
-   * **L'heure du retour, par région suspendue** (ADR 0020 §7). À part du tenant et jamais fondue
-   * dedans : une région disputée reprise par le voisin pendant la désactivation est *à lui* et
-   * *suspendue chez moi* à la fois, et une seule ligne aurait obligé l'une des deux à mentir.
-   * Le serveur ne la sert qu'au propriétaire (ADR 0005), donc rien ne filtre ici.
-   */
-  const suspendedUntilByRegion = useMemo(
-    () =>
-      new Map(
-        (heldRaw ?? []).flatMap((claim) =>
-          claim.regions.flatMap((region) =>
-            region.state === 'suspended' ? [[region.id, region.until] as const] : [],
-          ),
-        ),
-      ),
-    [heldRaw],
-  );
-
   const cut = useMemo(
     () => ({
       unlinked: view.me.regions.filter((region) => !region.linked).map((region) => region.id),
@@ -1763,328 +1355,33 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // work that will raise it; an outpost carries its own point, because it *is* a point and
   // colours no ground (fiche 03).
   const holders = useMemo(() => depositHolders(view), [view]);
-  const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
-    const loot: ReadonlyArray<MapMarker> = view.lootSightings
-      .filter((sighting) => sighting.present)
-      .map((sighting) => ({
-        kind: 'loot' as const,
-        id: `loot-${sighting.id}`,
-        sightingId: sighting.id,
-        lonLat: sighting.point,
-        current: sighting.current,
-      }));
-    /**
-     * **Toute la géologie, pas seulement la sienne** (décision 65a du 01/09). La bascule dessinait
-     * `me.regions` au nom de l'ADR 0005 : contresens, elle protège les *joueurs* — positions,
-     * mouvements, tenants — et le sol n'est ni l'un ni l'autre. Un gisement est fixe, identique
-     * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
-     * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
-     * (`DEPOSIT_POINTS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
-     * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
-     * au dézoom, rien ne pleut sur la carte.
-     */
-    /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
-    const seeking =
-      placing === null
-        ? undefined
-        : placing.debt?.deposit != null
-          ? [placing.debt.deposit]
-          : EXPLOITED_DEPOSITS[placing.key];
-    const deposits: ReadonlyArray<MapMarker> =
-      toggles.deposits && view.mode !== 'blitz'
-        ? DEPOSIT_POINTS.map((point) => {
-            const holder = holders.get(point.id);
-            return {
-              kind: 'deposit' as const,
-              id: `deposit-${point.id}`,
-              lonLat: point.lonLat,
-              deposit: point.deposit,
-              ...(holder === undefined ? {} : { held: holder }),
-              ...(seeking?.includes(point.deposit) ? { seek: true as const } : {}),
-            };
-          })
-        : [];
-
-    /**
-     * **A founded outpost has to stand on the board.** Without this the column that planted it
-     * becomes a garrison hanging from a point nothing draws: the troops leave the *stationnaires*
-     * of the widget for an address the map never shows, and the whole march reads as "nothing
-     * happened". `me.outposts` is mine only — the fog keeps an opponent's point out of the answer
-     * itself (`view.ts`), so there is nothing to filter on nationality here.
-     */
-    const outposts: ReadonlyArray<MapMarker> = view.me.outposts.map((outpost) => ({
-      kind: 'outpost' as const,
-      id: `outpost-${outpost.id}`,
-      lonLat: outpost.lonLat,
-      hostCountry: outpost.hostCountry,
-      /** **Le mât ouvre la garnison** : la colonne qui a fondé stationne là (ADR 0019 §1), et
-       *  depuis la disparition du widget de troupes plus rien ne l'ouvrait. */
-      station: { kind: 'outpost', outpostId: outpost.id },
-      specialization: outpost.specialization,
-      level: outpost.level,
-      standsAt: outpost.standsAt,
-      garrison: outpost.garrison,
-      /** **Ce qu'il écoute est ce qu'il ravitaille** : le même rayon, montré au survol. Le
-       *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
-       *  change, et la carte n'a pas de trait pour dire une vitesse. */
-      /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
-      reach: withRangoonPile(
-        view.me,
-        { kind: 'outpost', outpostId: outpost.id },
-        marching,
-        outpost.lonLat,
-        outpost.specialization === 'listening' && outpost.standsAt === null
-          ? {
-              lonLat: outpost.lonLat,
-              detectionKm: outpostReachKm(outpost.level),
-              /** Un point n'engage rien : il relève, et le cercle de contact est celui d'une
-               *  pile (décisions 4a et 3a du 16/09). */
-              contactKm: null,
-            }
-          : null,
-      ),
-      ink: view.me.ink,
-      ...(view.mode === 'blitz' || outpost.standsAt !== null
-        ? {}
-        : { depot: { load: outpost.depot, capacity: outpost.depotCapacity } }),
-      /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
-      cargo: cargoTagsOf(
-        troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
-        { afloat: false, atAirfield: false, trace },
-      ),
-    }));
-
-    /**
-     * **Une troupe posée se tient sur la carte**, et c'est la seule adresse qui n'a pas déjà un
-     * mât : une colonne laissée en campagne, une coque qui tient un bout de mer. Sans ce
-     * marqueur elles n'existaient que dans le widget — le joueur lisait « en campagne » sans
-     * jamais savoir où. Les autres adresses ne passent pas par ici : une garnison de bâtiment
-     * se lit sur sa plaque, celle d'un avant-poste sur son point.
-     */
-    const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching, regionAt);
-
-    /**
-     * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
-     * n'avait aucune poignée — un ordre existait côté serveur que rien à l'écran ne pouvait
-     * nommer. Le relevé porte le point où le site se tenait (ADR 0029), et le mât s'y pose : c'est
-     * le point que la capture et la frappe visent. Il suit le même interrupteur que les mâts à
-     * soi, parce que c'est le même encombrement.
-     */
-    /**
-     * **Un camp adverse relevé se tient sur la carte** (ADR 0024 §1) : sans mât, le §3 serait
-     * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
-     * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
-     */
-    /** **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact
-     *  de la réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait
-     *  plus rien. */
-    const isObjectivePoint = (point: LonLat): boolean =>
-      view.objectives.some(
-        (objective) => objective.point[0] === point[0] && objective.point[1] === point[1],
-      );
-    const camps: ReadonlyArray<MapMarker> = view.camps
-      .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
-      .map((camp) => ({
-        kind: 'camp' as const,
-        id: `camp-${camp.id}`,
-        campId: camp.id,
-        lonLat: camp.point,
-        medium: camp.medium,
-        lastKnown: camp.lastKnown,
-        since: camp.since,
-        seenMinutesAgo: camp.seenMinutesAgo,
-        lastSeenAt: camp.lastSeenAt,
-        ...(camp.nation === undefined ? {} : { nation: camp.nation }),
-      }));
-
-    /**
-     * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
-     * le seul marqueur public par décision : sans lui, une réserve annoncée par dépêche serait
-     * une adresse que rien à l'écran ne sait montrer, et le PVE ne ferait converger personne.
-     * Il ne porte ni encre ni garnison — un objectif n'appartient à personne, et ce qui le tient
-     * se relève comme toute force posée.
-     */
-    const objectives: ReadonlyArray<MapMarker> = (toggles.objectives ? view.objectives : []).map(
-      (objective) => ({
-        kind: 'objective' as const,
-        id: `objective-${objective.id}`,
-        objectiveId: objective.id,
-        lonLat: objective.point,
-        name: fr.objectives.names[objective.key] ?? objective.key,
-        tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
-        plate: objectiveSprite(objective.key),
-        depot: lootWords(objective.depot),
-        emptied: objective.status === 'taken',
-      }),
-    );
-
-    /** **Les Sept, sur la carte de tous** (P2) : à l'encre de leur teneur, aucune s'ils sont
-     *  neutres ; contestés, ils le disent sans dire par qui. */
-    const points: ReadonlyArray<MapMarker> = view.strategicPoints.map((point) => ({
-      kind: 'strategic' as const,
-      id: `strategic-${point.id}`,
-      pointId: point.id,
-      lonLat: point.point,
-      name: fr.points.names[point.key],
-      ink: point.holder === null ? null : nationInk(point.holder.nation),
-      state: point.contested
-        ? fr.points.contested
-        : point.holder === null
-          ? fr.points.neutral
-          : nationLabel(point.holder.nation),
-    }));
-
-    /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
-    const neutralIds = new Set(view.neutralSites.map((site) => site.id));
-    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
-      .filter((installation) => !neutralIds.has(installation.id))
-      .map((installation) => ({
-        kind: 'installation' as const,
-        id: `installation-${installation.id}`,
-        buildingId: installation.id,
-        key: installation.key,
-        regionId: installation.regionId,
-        lonLat: installation.point,
-        name: fr.buildings[installation.key],
-        plate: buildingSprite(installation.key),
-        washed: knownRegionById.get(installation.regionId)?.state !== 'current',
-        neutral: null,
-      }));
-    /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
-     *  se capturent comme un site adverse relevé, par la même rose. */
-    const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
-      kind: 'installation' as const,
-      id: `installation-${site.id}`,
-      buildingId: site.id,
-      key: site.key,
-      regionId: site.regionId,
-      lonLat: site.point,
-      name: fr.buildings[site.key],
-      plate: buildingSprite(site.key),
-      washed: false,
-      neutral: { lonLat: site.point },
-    }));
-
-    if (!toggles.buildings)
-      return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
-    const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
-    const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
-    const worksOn = (point: LonLat, key: string) =>
-      works.find(
-        (site) =>
-          site.point !== null &&
-          site.point[0] === point[0] &&
-          site.point[1] === point[1] &&
-          site.key === key,
-      ) ?? null;
-    const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
-    const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
-    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât,
-     *  et l'étiquette de ses transports chargés — un avion ne débarque qu'à l'aérodrome. */
-    const garrisonOf = (building: PlayerView['me']['buildings'][number]) => {
-      const held = troopsAt(
-        view.me,
-        stationKeyOf({ kind: 'building', buildingId: building.id }),
-        marching,
-      );
-      return {
-        ...reloadOf(held),
-        ...emplacementOf(held),
-        cargo: cargoTagsOf(held, {
-          afloat: false,
-          atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
-          trace,
-        }),
-      };
-    };
-    const searcher = searcherOf(view.me.buildings);
-    const standing = view.me.buildings.map((building) => ({
-      kind: 'building' as const,
-      id: buildingLabelId(building),
-      buildingId: building.id,
-      key: building.key,
-      regionId: building.regionId,
-      regionName: nameOfRegion.get(building.regionId) ?? building.regionId,
-      lonLat: building.point,
-      hostCountry: host,
-      name: building.name,
-      level: building.level,
-      plate: buildingSprite(building.key),
-      // An upgrade is work on a building that already stands: its own mast wears the pennant.
-      works: worksOn(building.point, building.key),
-      /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
-       *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
-       *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
-       *  sur ce que la station entend vraiment. */
-      reach: withRangoonPile(
-        view.me,
-        { kind: 'building', buildingId: building.id },
-        marching,
-        building.point,
-        reachOfStation(building.key, pointOfRegion.get(building.regionId)),
-      ),
-      ...garrisonOf(building),
-      ...(building === searcher ? researchOnCenter(view.me) : {}),
-      ink: view.me.ink,
-    }));
-
-    // A first level has no building to hang its works on: the site gets its own mast at its
-    // point, from the queue on. **Une élévation d'avant-poste ne plante rien** : le point a déjà
-    // son mât (précision du 15/09), et `workSitesOf` laisse ses travaux au panneau du point.
-    const raising = works
-      .filter((site) => site.phase !== 'raising')
-      .map((site) => ({
-        kind: 'building' as const,
-        id: buildingLabelId(site),
-        // Nothing stands: a click opens no line yet.
-        buildingId: null,
-        key: site.key,
-        regionId: site.regionId,
-        regionName: site.regionName,
-        lonLat: site.point,
-        hostCountry: host,
-        name: fr.buildings[site.key],
-        level: null,
-        plate: buildingSprite(site.key),
-        works: site,
-        /** Rien ne se tient encore : un chantier n'entend rien. */
-        reach: null,
-        ink: view.me.ink,
-      }));
-    return [
-      ...deposits,
-      ...loot,
-      ...camps,
-      ...objectives,
-      ...points,
-      ...surveyed,
-      ...neutral,
-      ...outposts,
-      ...stacks,
-      ...standing,
-      ...raising,
-    ];
-  }, [
-    marching,
-    trace,
-    regionAt,
-    view.me,
-    view.loadedAt,
-    view.buildCatalog,
-    view.lootSightings,
-    view.camps,
-    view.objectives,
-    view.strategicPoints,
-    view.surveyedInstallations,
-    view.neutralSites,
-    knownRegionById,
-    toggles.buildings,
-    toggles.deposits,
-    placing,
-    holders,
-    view.mode,
-    toggles.objectives,
-  ]);
+  const markers = useMemo<ReadonlyArray<MapMarker>>(
+    () =>
+      markersOf(view, { marching, trace, regionAt, toggles, placing, holders, knownRegionById }),
+    // Les champs de `view` que les marqueurs lisent, pas la vue entière : elle se réinvalide sans cesse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      marching,
+      trace,
+      regionAt,
+      view.me,
+      view.loadedAt,
+      view.buildCatalog,
+      view.lootSightings,
+      view.camps,
+      view.objectives,
+      view.strategicPoints,
+      view.surveyedInstallations,
+      view.neutralSites,
+      knownRegionById,
+      toggles.buildings,
+      toggles.deposits,
+      placing,
+      holders,
+      view.mode,
+      toggles.objectives,
+    ],
+  );
 
   const labels = useMemo(() => {
     const built = buildLabels(view, markers);
@@ -2407,12 +1704,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       if (inFlight.current) return 'board';
       inFlight.current = true;
-      setOrderError(null);
-      boardTransport({
-        ...seat,
-        troopIds: hand.troopIds.map((troopId) => troopId as Id<'troops'>),
-        carrierId: drop.carrierId as Id<'troops'>,
-      }).then(
+      boardHand(hand.troopIds, drop.carrierId).then(
         () => {
           settle();
           dropHand();
@@ -2424,7 +1716,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       );
       return 'board';
     },
-    [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
+    [clickOfFrom, hand, unitsAt, dropHand, boardHand, settle],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
@@ -2459,27 +1751,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return { icon: '↺', tone: 'calm', verb: fr.drop.putBack, detail: fr.drop.putBackDetail };
       const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
       const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
-      const station = click.station;
-      const boarding = {
-        riders: held.filter((troop) => carrierIn(troop, held) === null),
-        carrier,
-        pile,
-        atAirfield:
-          station.kind === 'building' &&
-          view.me.buildings.find((building) => building.id === station.buildingId)?.key ===
-            PROJECTION_BY_DOMAIN.air,
-      };
+      const boarding = boardingOf(view.me.buildings, click.station, carrier, held, pile);
       const refusal = boardingRefusalOf(boarding);
-      const { needed, offered } = boardingRefusalDetails(boarding);
-      const seats = seatsOf(carrier.role);
-      const seated = { carrierId: carrier.id, need: needed, fits: refusal === null };
+      const seated = {
+        carrierId: carrier.id,
+        need: boardingRefusalDetails(boarding).needed,
+        fits: refusal === null,
+      };
       return refusal === null
         ? {
             boarding: seated,
             icon: '⤓',
             tone: 'order',
             verb: fr.drop.verbs.board,
-            detail: `${fr.compass.transports([carrier.role])} · ${fr.compass.boardPlaces(seats - offered + needed, seats)}`,
+            detail: `${fr.compass.transports([carrier.role])} · ${boardPlacesOf(boarding)}`,
           }
         : {
             boarding: seated,
@@ -2494,38 +1779,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
   const standing = useMemo(
-    (): ReadonlyArray<StandingPile> =>
-      [
-        ...markers.flatMap((marker) =>
-          marker.kind === 'stack'
-            ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
-            : [],
-        ),
-        ...garrisonPiles(view.me, marching),
-      ].map((pile) => (blitz ? blitzPile(pile, view.me.troops) : pile)),
+    () => standingPilesOf(view.me, markers, marching, blitz),
     [markers, view.me, marching, blitz],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
   }, [markers, view.objectives, view.me]);
-  const camps = useMemo(
-    () =>
-      markers.flatMap((marker) =>
-        marker.kind === 'camp'
-          ? [
-              {
-                id: marker.id,
-                lonLat: marker.lonLat,
-                medium: marker.medium,
-                seenAt: surveyedAt(marker),
-                seenMinutesAgo: marker.seenMinutesAgo,
-              },
-            ]
-          : [],
-      ),
-    [markers],
-  );
+  const camps = useMemo(() => campsOf(markers), [markers]);
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -2555,64 +1816,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
    * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il part avec la main.
    */
-  const handReach = useMemo<Reach | null>(() => {
-    if (column === null) return null;
-    /** **L'artillerie levée montre où elle tire** (B20) : la portée et la zone morte, de sa
-     *  batterie — un bâtiment compris, d'où elle tire aussi. */
-    const firing = column.rule.roles.some(firesIndirect);
-    if (!firing && column.station.kind !== 'point') return null;
-    const at = stationPointOf(view.me, column.station);
-    if (at === null) return null;
-    return {
-      lonLat: at,
-      detectionKm: detectionRangeOf(column.rule.roles, blitzTheatre),
-      /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
-       *  une seule règle, celle que l'arrivée lit pour trouver qui se tient là. */
-      contactKm: firing ? null : contactKm(blitzTheatre),
-      ...(firing ? { fire: fireReachOf(blitzTheatre) } : {}),
-    };
-  }, [column, view.me, blitzTheatre]);
-  const movementReach = useMemo<Reach | null>(() => {
-    const movement = view.arcs.find(
-      (arc): arc is Extract<ArcView, { state: 'mine' }> =>
-        arc.state === 'mine' && arc.id === hoveredMovement,
-    );
-    if (movement === undefined) return null;
-    const roles = (Object.entries(movement.stack) as ReadonlyArray<[UnitRole, number | undefined]>)
-      .filter(([, count]) => (count ?? 0) > 0)
-      .map(([role]) => role);
-    const elapsed = Math.max(0, surveyClock - view.loadedAt);
-    const progress =
-      movement.progress >= 1 || movement.minutesLeft <= 0
-        ? 1
-        : Math.min(
-            1,
-            movement.progress +
-              ((1 - movement.progress) * elapsed) / (movement.minutesLeft * 60_000),
-          );
-    const lonLat = positionAt(
-      {
-        id: movement.id,
-        points: movement.route.points,
-        legs: movement.route.legs,
-        distanceUnits: movement.route.distanceUnits,
-        landCost: movement.route.landCost,
-        departedAt: 0,
-        arrivesAt: 1,
-      },
-      progress,
-    );
-    return isRangoonColumn(
-      movement.troopIds,
-      (id) => view.me.troops.find((troop) => troop.id === id)?.tour?.veiled === true,
-    )
-      ? rangoonReachOf(lonLat)
-      : {
-          lonLat,
-          detectionKm: detectionRangeOf(roles, blitzTheatre),
-          contactKm: contactKm(blitzTheatre),
-        };
-  }, [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre]);
+  const handReach = useMemo<Reach | null>(
+    () => handReachOf(view.me, column, blitzTheatre),
+    [column, view.me, blitzTheatre],
+  );
+  const movementReach = useMemo<Reach | null>(
+    () => movementReachOf(view, hoveredMovement, surveyClock, blitzTheatre),
+    // Les champs de `view` que la portée lit, pas la vue entière : elle se réinvalide sans cesse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre],
+  );
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
   const selectedObjectiveView =
@@ -2857,99 +2070,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ),
     [],
   );
-
-  /**
-   * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
-   * parce qu'aucune ne sait refuser à la place des autres : celle qui ne sert pas est en `skip`,
-   * et la carte lit celle de l'ordre en cours.
-   */
-  const aimed = resting;
-  const dispatch =
-    column === null || aimed === null
-      ? null
-      : {
-          ...seat,
-          origin: wireOrigin(column.station),
-          troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-        };
-  const mission = aimed?.mission ?? null;
-  /** **Une réponse périmée ne s'affiche jamais** : un argument neuf rend `undefined` jusqu'à sa
-   *  propre réponse, et l'abonnement précédent est remplacé, pas empilé (ADR 0026 §6). */
-  const marchPreview = useQuery(
-    api.movements.preview,
-    dispatch === null || aimed === null || mission?.kind !== 'march'
-      ? 'skip'
-      : {
-          ...dispatch,
-          target: wireTarget(aimed.aim),
-          type: aimed.type,
-          ...(mission.roundTrip === true ? { roundTrip: true } : {}),
-        },
-  );
-  const plunderPreview = useQuery(
-    api.movements.previewPlunder,
-    dispatch === null || mission?.kind !== 'plunder'
-      ? 'skip'
-      : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
-  );
-  const capturePreview = useQuery(
-    api.movements.previewCapture,
-    dispatch === null || mission?.kind !== 'capture'
-      ? 'skip'
-      : { ...dispatch, target: wireCaptureTarget(mission.target) },
-  );
-  const collectPreview = useQuery(
-    api.movements.previewLootCollection,
-    dispatch === null || mission?.kind !== 'collect'
-      ? 'skip'
-      : { ...dispatch, sightingId: mission.sightingId as Id<'lootCrateSightings'> },
-  );
-  const preview =
-    mission === null
-      ? undefined
-      : mission.kind === 'plunder'
-        ? plunderPreview
-        : mission.kind === 'capture'
-          ? capturePreview
-          : mission.kind === 'collect'
-            ? collectPreview
-            : marchPreview;
+  const { preview, dropNotes, aimRoute } = useOrderPreview(seat, column, resting);
   previewNow.current =
     resting === null || preview === undefined ? undefined : { aim: resting.aim, preview };
-  /** No card before the order any more: what would change it is said under the verb, at the stop. */
-  const dropNotes = useMemo(
-    (): ReadonlyArray<DropNote> =>
-      resting === null || preview === undefined
-        ? []
-        : preview === null
-          ? [{ text: fr.aim.noRoute, alarm: true }]
-          : [
-              { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
-              ...(preview.holdUntil === null
-                ? []
-                : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
-              ...('spared' in preview && preview.spared !== null
-                ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
-                : []),
-              ...fuelNotes(preview),
-            ],
-    [resting, preview],
-  );
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
-
-  /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc
-   *  nor pawn any more, only the ochre band to the point aimed at. */
-  const aimRoute = useMemo(
-    () =>
-      column === null || aimed === null || !preview
-        ? null
-        : preview.route.points.map((point) => [point.lon, point.lat] as LonLat),
-    [column, aimed, preview],
-  );
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
    *  au-dessus. L'aperçu épouse son contenu jusqu'à mi-hauteur, et la fiche d'une troupe armée,
@@ -3068,86 +2196,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
     />
   );
-
-  /** Une fenêtre de la pile, montée dans sa propre frontière de chargement (plus bas). */
-  const surface = (name: Exclude<BoardWindow, 'personalBoard'>, rank: number): ReactNode => {
-    const windowProps = {
-      rank,
-      inFront: rank === surfaces.length - 1,
-      onBringForward: () => bringForward(name),
-      onClose: () => {
-        /** La manchette d'une notification ne survit pas au journal qui la portait. */
-        if (name === 'journal') setJournalLead(null);
-        closeWindow(name);
-      },
-    };
-    switch (name) {
-      case 'journal':
-        return (
-          <JournalWindow
-            key={name}
-            view={view}
-            seat={seat}
-            leadReport={journalLead}
-            rumors={lootRumors}
-            selectedRumorId={selectedRumorId}
-            onSelectRumor={selectRumor}
-            garrisonAt={garrisonAtCombat}
-            onShowCombat={showCombat}
-            onLocate={locate}
-            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
-            {...windowProps}
-          />
-        );
-      case 'telegraph':
-        return <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />;
-      case 'site':
-        /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
-         *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
-        return focused === undefined ? null : (
-          <SiteModal
-            key={name}
-            view={view}
-            seat={seat}
-            buildingId={focused}
-            onOpenGunnery={() => openWindow('gunnery')}
-            onPrepare={prepareColumn}
-            {...windowProps}
-          />
-        );
-      case 'nation':
-        return <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />;
-      case 'gunnery':
-        return <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />;
-      case 'press':
-        return (
-          <PressWindow
-            key={name}
-            press={view.press}
-            verdict={view.season.verdict}
-            ending={ending.facts}
-            blitz={blitz}
-            points={view.strategicPoints}
-            race={view.season.race}
-            {...windowProps}
-          />
-        );
-      case 'research':
-        return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
-      case 'settings':
-        return (
-          <SettingsWindow
-            key={name}
-            seat={seat}
-            mayConclude={view.me.mayConclude}
-            defeated={view.me.defeated}
-            blitz={blitz}
-            onShowBriefing={showBriefing}
-            {...windowProps}
-          />
-        );
-    }
-  };
 
   return (
     <Shell
@@ -3595,11 +2643,34 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           )}
           {/* **Une frontière par fenêtre** (#161) : la fenêtre qu'on ouvre pour la première fois
               se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
-          {surfaces.map((name, rank) => (
-            <Suspense key={name} fallback={null}>
-              {surface(name, rank)}
-            </Suspense>
-          ))}
+          <BoardWindows
+            surfaces={surfaces}
+            view={view}
+            seat={seat}
+            telegraph={telegraph}
+            theatre={blitzTheatre}
+            ending={ending.facts}
+            blitz={blitz}
+            focused={focused}
+            journalLead={journalLead}
+            rumors={lootRumors}
+            selectedRumorId={selectedRumorId}
+            onSelectRumor={selectRumor}
+            garrisonAt={garrisonAtCombat}
+            onShowCombat={showCombat}
+            onLocate={locate}
+            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
+            onOpenWindow={openWindow}
+            onPrepare={prepareColumn}
+            onLocateStation={locateStation}
+            onShowBriefing={showBriefing}
+            onBringForward={bringForward}
+            onClose={(name) => {
+              /** La manchette d'une notification ne survit pas au journal qui la portait. */
+              if (name === 'journal') setJournalLead(null);
+              closeWindow(name);
+            }}
+          />
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}
@@ -3645,110 +2716,6 @@ const SENT_NOTICE_MS = 6000;
  *  une, et la feuille du sol reviendrait sous le pouce une fois l'ordre parti. */
 const keepSelection = (): void => {};
 
-type Corner = 'layers' | 'controls';
-
-/**
- * **Les boutons du coin de la carte** (refonte mobile, 1a ; bureau aligné le 12/10) : revenir chez
- * soi, les calques, et au bureau l'aide-mémoire — du même papier, 44 px sous le pouce, 36 à la
- * souris. Sous le seuil, les calques gardent aussi leur ligne au dossier de la nation et les gestes
- * vivent dans son aide-mémoire. `H` recentre et `?` ouvre les gestes, jamais pendant une saisie.
- */
-function MapButtons({
-  narrow,
-  layers,
-  onRecenter,
-  onCorner,
-}: {
-  narrow: boolean;
-  /** A Blitz has no deposits: nothing for the layers to switch. */
-  layers: boolean;
-  onRecenter: () => void;
-  onCorner: Dispatch<SetStateAction<Corner | null>>;
-}) {
-  const toggle = (card: Corner) => onCorner((open) => (open === card ? null : card));
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') return onCorner(null);
-      if (isTyping() || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key === '?' && !narrow) {
-        event.preventDefault();
-        onCorner((open) => (open === 'controls' ? null : 'controls'));
-      } else if (event.key === 'h' || event.key === 'H') {
-        event.preventDefault();
-        onRecenter();
-      }
-    };
-    addEventListener('keydown', onKey);
-    return () => removeEventListener('keydown', onKey);
-  }, [narrow, onRecenter, onCorner]);
-
-  const size = narrow ? 'h-[44px] w-[44px]' : 'h-[46px] w-[46px]';
-  const glyph = narrow ? 22 : 20;
-  const search = useSearch({ strict: false }) as BoardSearch;
-  return (
-    <div className="hud flex flex-col gap-[calc(var(--table-gap)/var(--hud-scale))]">
-      <button
-        type="button"
-        title={fr.mapUi.recenterTitle}
-        aria-label={fr.mapUi.recenter}
-        aria-keyshortcuts="H"
-        onClick={onRecenter}
-        className={`${MAP_BUTTON} ${size}`}
-      >
-        <Glyph size={glyph}>
-          <circle cx="10" cy="10" r="5.2" />
-          <path d="M10 1.5v4.2M10 14.3v4.2M1.5 10h4.2M14.3 10h4.2" />
-        </Glyph>
-      </button>
-      {layers && (
-        <button
-          type="button"
-          title={fr.foot.layersTitle}
-          aria-label={fr.foot.layersTitle}
-          onClick={() => toggle('layers')}
-          className={`${MAP_BUTTON} ${size}`}
-        >
-          <LayersGlyph size={glyph} />
-        </button>
-      )}
-      {!narrow && (
-        <button
-          type="button"
-          title={fr.mapUi.controlsLabel}
-          aria-label={fr.mapUi.controlsLabel}
-          aria-keyshortcuts="?"
-          onClick={() => toggle('controls')}
-          className={`${MAP_BUTTON} ${size} font-(family-name:--font-body) text-[16px] leading-none`}
-        >
-          ?
-        </button>
-      )}
-      {/* **Les réglages au pied de la pile** (table plein écran, 13/10) : ils ont quitté la colonne
-          des surfaces, qu'on ouvre souvent, pour le coin, qu'on touche rarement. Sous le seuil ils
-          gardent leur ligne au dossier de la nation. */}
-      {!narrow && (
-        <Link
-          to="/plateau"
-          search={toggleWindow(search, 'settings')}
-          title={fr.rail.settings}
-          aria-label={fr.rail.settings}
-          aria-current={windowOpen(search, 'settings') ? 'true' : undefined}
-          className={SQUARE}
-        >
-          <SettingsGlyph size={18} />
-          <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
-            {fr.rail.settingsShort}
-          </span>
-        </Link>
-      )}
-    </div>
-  );
-}
-
-const MAP_BUTTON =
-  'press paper-grain paper-hover flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] float';
-
 function Loading() {
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)]">
@@ -3757,377 +2724,7 @@ function Loading() {
   );
 }
 
-/**
- * The column as the shared rule reads it, built from what the player is allowed to see. It is
- * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
- * two callers.
- *
- * `station` is the address the garrison panel was opened on, whichever of its two doors — the
- * ground under it is only consulted for the domain gates, and a point carries none.
- */
-/**
- * **Une branche de la rose, devenue un ordre.** Piller ou saboter — un seul ordre, la même carte
- * de confirmation (S8) : le type sur le fil reste `march`, l'expédition marche jusqu'au site et
- * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
- * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
- */
-function choiceOf(action: OrderAction): OrderChoice {
-  const said = { label: action.label, consequence: action.consequence };
-  switch (action.key) {
-    case 'aim':
-      return {
-        ...said,
-        aim: action.aim,
-        type: action.type,
-        mission:
-          action.boardsOn === undefined
-            ? { kind: 'march' }
-            : { kind: 'march', boardsOn: action.boardsOn },
-      };
-    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
-     *  paie l'aller-retour, et l'aperçu le dit. */
-    case 'deliver':
-    case 'tour':
-    case 'airdrop':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'march',
-        mission: action.key === 'airdrop' ? { kind: 'march', roundTrip: true } : { kind: 'march' },
-      };
-    case 'plunder':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'march',
-        mission: { kind: 'plunder', buildingId: action.buildingId },
-      };
-    case 'capture':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'attack',
-        mission: { kind: 'capture', target: action.target },
-      };
-    case 'collect':
-      return {
-        ...said,
-        aim: {
-          kind: 'point',
-          lon: action.point[0],
-          lat: action.point[1],
-          onLand: true,
-          coastal: false,
-          surveyed: false,
-        },
-        type: 'march',
-        mission: { kind: 'collect', sightingId: action.sightingId },
-      };
-  }
-}
-
-/** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
-function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
-  if (fuel.short !== null)
-    return [
-      {
-        text: fr.errors.NOT_ENOUGH_FUEL({
-          ...fuel.short,
-          km: fuel.km,
-          roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
-        }),
-        alarm: true,
-      },
-    ];
-  return [
-    ...(fuel.steps > 0
-      ? [
-          {
-            text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip),
-            alarm: false,
-          },
-        ]
-      : []),
-    /** Singapour se dit là où l'on paie la route. */
-    ...(fuel.eased
-      ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]
-      : []),
-  ];
-}
-
-function armedColumn(
-  view: PlayerView,
-  station: MarchStation,
-  troopIds: ReadonlyArray<string>,
-): ArmedColumn {
-  const troops = troopIds.flatMap((troopId) => {
-    const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-    return troop ? [troop] : [];
-  });
-  const roles = troops.map((troop) => troop.role);
-  const departure =
-    station.kind === 'building'
-      ? view.me.buildings.find((building) => building.id === station.buildingId)
-      : undefined;
-  const outpost =
-    station.kind === 'outpost'
-      ? view.me.outposts.find((candidate) => candidate.id === station.outpostId)
-      : undefined;
-  return {
-    station,
-    troopIds,
-    rule: {
-      roles,
-      myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
-      myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
-      /** An outpost and a plain point carry no region, so a column standing on one finds no gate
-       *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
-      departureBuildings: new Set([
-        ...(departure === undefined
-          ? []
-          : view.me.buildings
-              .filter((building) => building.regionId === departure.regionId)
-              .map((building) => building.key)),
-        /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
-        ...(outpost !== undefined && isAirStop(outpost.level) ? [PROJECTION_BY_DOMAIN.air] : []),
-      ]),
-      /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
-       *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
-       *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté
-       *  client est une seconde réponse. */
-      afloat: station.kind === 'point' && station.afloat,
-      /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
-       *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
-      coastal: station.kind === 'point' ? station.coastal : (outpost?.coastal ?? false),
-      captureRate: captureRate(troops),
-      ...roundsOf(view, troops),
-      ...blitzOf(view, troops),
-    },
-  };
-}
-
-/** **La même lecture que `columnOf` après la recharge du départ** (ADR 0028 §3) : une troupe
- *  ancrée reprend ses coups à son ancre — le plateau personnel, ou le dépôt de l'avant-poste —
- *  avant que l'ordre ne les lise. */
-function roundsOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
-  if (view.mode === 'blitz') return {};
-  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
-  const stock = (key: keyof SupplyStocks) => view.me.resources[key]?.stock ?? 0;
-  const board = { ammunition: stock('ammunition'), oil: stock('oil'), coal: stock('coal') };
-  const stores = new Set(troops.map((troop) => troop.depotId));
-  const supplies = new Map(
-    [...stores].flatMap((store) => [
-      ...topUp(
-        troops
-          .filter((troop) => troop.depotId === store)
-          .map((troop) => ({
-            ...troop.supplies,
-            id: troop.id,
-            role: troop.role,
-            anchored: troop.supplied && !marching.has(troop.id),
-          })),
-        store === undefined
-          ? board
-          : (view.me.outposts.find((outpost) => outpost.id === store)?.depot ?? emptyLoad()),
-      ).supplies,
-    ]),
-  );
-  const after = troops.map((troop) => ({
-    role: troop.role,
-    ...(supplies.get(troop.id) ?? troop.supplies),
-  }));
-  return outOfRounds(after) ? { outOfRounds: true } : {};
-}
-
-/** **La même lecture que `columnOf`** côté serveur (lot 5) : le théâtre, le rechargement, et mes
- *  bâtiments déjà tenus par une troupe posée. */
-function blitzOf(view: PlayerView, troops: ReadonlyArray<PlayerView['me']['troops'][number]>) {
-  const theatre = playedTheatre(view);
-  if (theatre === null) return {};
-  const marching = new Set(view.arcs.flatMap((arc) => (arc.state === 'mine' ? arc.troopIds : [])));
-  const leaving = new Set(troops.map((troop) => troop.id));
-  const now = Date.now();
-  return {
-    blitz: {
-      theatre,
-      reloading: troops.some((troop) => (troop.reloadUntil ?? 0) > now),
-      occupiedBuildingIds: new Set(
-        view.me.troops.flatMap((troop) =>
-          troop.stationedAt.kind === 'building' && !marching.has(troop.id) && !leaving.has(troop.id)
-            ? [troop.stationedAt.buildingId]
-            : [],
-        ),
-      ),
-    },
-  };
-}
-
-/** Where a station stands on the board, as the label layer names it. A building answers with
- *  its mast and an outpost with its own marker; a **point** has none — the camera then holds
- *  still rather than flying somewhere approximate. */
-/**
- * **Les piles posées, une carte par adresse.** Le portrait est celui du rôle majoritaire — la
- * règle du pion d'un mouvement (`movementSprite`), pour qu'une colonne ne change pas de visage
- * en s'arrêtant. Une nation sans planche pour ce rôle rend `null` et l'étiquette retombe sur
- * son pictogramme : c'est un dessin qui manque, jamais une pile qui disparaît.
- */
-function postedStacks(
-  me: PlayerView['me'],
-  marching: ReadonlySet<string>,
-  regionAt: RegionAt | null,
-): ReadonlyArray<MapMarker> {
-  const names = stationNames({ me });
-  const posts = new Map<
-    string,
-    { readonly at: Extract<TroopStation, { kind: 'point' }>; readonly held: TroopView[] }
-  >();
-  for (const troop of me.troops) {
-    const at = troop.stationedAt;
-    if (marching.has(troop.id) || at.kind !== 'point') continue;
-    const key = stationKeyOf(at);
-    const post = posts.get(key);
-    if (post === undefined) posts.set(key, { at, held: [troop] });
-    else post.held.push(troop);
-  }
-
-  return [...posts.values()].map(({ at, held }) => {
-    const stack = stackOf(held);
-    const face = representativeRole(stack);
-    const tier = held.find((troop) => troop.role === face)?.tier ?? 1;
-    return {
-      kind: 'stack' as const,
-      id: stackLabelId(at),
-      lonLat: at.lonLat,
-      station: at,
-      stack,
-      place: pilePlace(at, names, regionAt),
-      plate: face === null ? null : spriteUrl(me.nation, face, tier),
-      pieces: pilePieces(held),
-      cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
-      ink: me.ink,
-      supplies: pileSupplies(held),
-      ...(isRangoonColumn(held, (troop) => troop.tour?.veiled === true)
-        ? { reach: rangoonReachOf(at.lonLat) }
-        : {}),
-      ...reloadOf(held),
-      ...emplacementOf(held),
-    };
-  });
-}
-
-/** **La carte que cherche mon Centre de recherche** (#123) : son nom et sa barre sur son mât. */
-function researchOnCenter(me: PlayerView['me']): {
-  research?: Extract<LabelLine, { role: 'research' }>;
-} {
-  const running = me.research.running;
-  if (running === null) return {};
-  const { share, finishesAt } = researchProgressOf(running, Date.now());
-  return {
-    research: {
-      role: 'research',
-      text: fr.research.onCenter(cardName(running.card)),
-      since: (finishesAt ?? Date.now()) - (running.totalMs ?? researchMs(running.card)),
-      dueAt: finishesAt,
-      share,
-    },
-  };
-}
-
-/** **L'artillerie** (B20) : la pile est en batterie quand sa dernière pièce posée l'est. */
-function emplacementOf(held: ReadonlyArray<TroopView>): { emplacedAt?: number } {
-  const at = Math.max(0, ...held.map((troop) => troop.emplacedAt ?? 0));
-  return at > Date.now() ? { emplacedAt: at } : {};
-}
-
-/** **Blitz** (B19) : la pile recharge tant que sa dernière troupe à avoir frappé recharge. */
-function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
-  const until = Math.max(0, ...held.map((troop) => troop.reloadUntil ?? 0));
-  return until > Date.now() ? { reloadUntil: until } : {};
-}
-
-/**
- * **Les garnisons de mes bâtiments, au pied de leur maquette** (ADR 0026 §5). Mes troupes
- * seulement : la garnison d'un autre ne sort jamais du serveur. Une maquette qui n'est pas debout
- * — chantier, bâtiments masqués — n'en porte aucune, et le moteur ne la pose pas.
- */
-function garrisonPiles(
-  me: PlayerView['me'],
-  marching: ReadonlySet<string>,
-): ReadonlyArray<StandingPile> {
-  return me.buildings.flatMap((building) => {
-    // The station's key, as `holding` names the pile a hand was taken from.
-    const id = stationKeyOf({ kind: 'building', buildingId: building.id });
-    const troops = troopsAt(me, id, marching);
-    return troops.length === 0
-      ? []
-      : [
-          {
-            id,
-            at:
-              building.key === PROJECTION_BY_DOMAIN.sea
-                ? { beside: buildingLabelId(building), quay: building.point }
-                : { beside: buildingLabelId(building) },
-            pieces: pilePieces(troops),
-          },
-        ];
-  });
-}
-
-function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
-  const here = new Set(pile.pieces.troopIds);
-  return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
-}
-
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
- *  deux mines d'une même région sont deux mâts. */
-const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
-  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
-
-const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
-  troops.reduce<Stack>(
-    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
-    {},
-  );
-
-function markerOfStation(view: PlayerView, station: TroopStation): string | null {
-  /** Une pile posée a désormais son marqueur : la caméra a où aller quand on ouvre sa carte. */
-  if (station.kind === 'point') return stackLabelId(station);
-  if (station.kind === 'outpost') {
-    return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
-      ? `outpost-${station.outpostId}`
-      : null;
-  }
-  if (station.kind !== 'building') return null;
-  const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
-  return building === undefined ? null : buildingLabelId(building);
-}
-
 /** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer
  *  le panneau qui portait ce nom en titre. */
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
-
-/** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
- *  other one covers nothing, and a region the view does not carry has no point to draw around. */
-/**
- * **Une tournée de Rangoun à l'arrêt** montre au survol de son mât l'anneau d'où on la relève,
- * comme en route : la pile entière en tournée, la même règle que le serveur (`isRangoonColumn`).
- */
-const withRangoonPile = (
-  me: PlayerView['me'],
-  station: TroopStation,
-  marching: ReadonlySet<string>,
-  lonLat: LonLat,
-  reach: Reach | null,
-): Reach | null =>
-  isRangoonColumn(
-    troopsAt(me, stationKeyOf(station), marching),
-    (troop) => troop.tour?.veiled === true,
-  )
-    ? rangoonReachOf(lonLat, reach)
-    : reach;
-
-const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | null =>
-  key === 'listening' && point !== undefined
-    ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
-    : null;

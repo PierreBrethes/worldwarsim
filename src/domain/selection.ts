@@ -3,6 +3,8 @@
 // ordre, que le serveur relit pile par pile avec la même rose.
 import { fr } from '@/i18n/fr';
 import type { Compass, CompassAction } from './compass-rose';
+import { freeSlotsOf, slotsAskedBy } from './movement-orders';
+import type { PlayerView } from './player-view';
 import { stationKeyOf, type MarchStation } from './troops';
 
 export type Selection = ReadonlyArray<MarchStation>;
@@ -96,6 +98,30 @@ export function groupCompassOf(
       ...action,
       cost: slots === null ? null : fr.selection.cost(slots.asked, slots.free),
     })),
+  };
+}
+
+/** **Les slots que la sélection demande**, un par pile (Halifax en épargne un maritime) ;
+ *  `null` en Blitz, qui n'en compte pas. */
+export function groupSlotsOf(
+  view: PlayerView,
+  troopIdsPerPile: ReadonlyArray<ReadonlyArray<string>>,
+): { readonly free: number; readonly asked: number } | null {
+  if (view.mode === 'blitz') return null;
+  return {
+    free: freeSlotsOf(view.me.slots),
+    asked: slotsAskedBy(
+      troopIdsPerPile.map((troopIds) =>
+        troopIds.flatMap((id) => {
+          const troop = view.me.troops.find((one) => one.id === id);
+          return troop === undefined
+            ? []
+            : [{ role: troop.role, carried: troop.carriedBy !== undefined }];
+        }),
+      ),
+      view.strategicPoints.some((point) => point.key === 'halifax' && point.mine),
+      view.me.slots.maritime ?? 0,
+    ),
   };
 }
 
