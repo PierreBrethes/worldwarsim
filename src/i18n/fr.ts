@@ -3372,7 +3372,8 @@ export const fr = {
       load: 'Ce qu’il emporte en tournée vers les dépôts : munitions, pétrole et charbon, partagés librement.',
       loot: 'Ce qu’elle rapporte d’un pillage ou d’une caisse, au prorata de son effectif.',
       cost: 'Payé à la pose du lot, rendu si on l’annule.',
-      training: 'Le temps de la chaîne à la livrer, au niveau du site qui la forme.',
+      training:
+        'Le temps de la chaîne à la livrer, au niveau 1 du site qui la forme ; chaque niveau en retire une part.',
       upkeep:
         'Ce que la pile mange par heure : chaque troupe paie le taux de son rang dans l’armée, plus cher hors de toute ancre.',
       levelGain: 'Chaque niveau retire une part de la durée de ce que le bâtiment fait.',
@@ -3410,8 +3411,6 @@ export const fr = {
       noFire: 'ne tire pas',
       cappedByHq: 'après le quartier général',
     } satisfies Record<string, string | ((km?: number) => string)>,
-    fogged:
-      'Le relevé ne dit ni force, ni composition, ni nation : aucune statistique de la pièce.',
     foggedPierced: 'Les types sont classés à l’abaque.',
     toGunnery: 'Ce que valent les types du jeu se lit à l’abaque.',
     seeGunnery: 'les types, à l’abaque',
