@@ -189,4 +189,21 @@ describe('ArcLayer.display', () => {
     expect(half.distanceTo(start)).toBeGreaterThan(0);
     expect(end.distanceTo(half)).toBeCloseTo(half.distanceTo(start), 1);
   });
+
+  /** **Une dernière position connue pâlit sans nouvelle réponse** (#183) : son encre se relit au
+   *  battement de la boucle, pas au prochain `display`. */
+  it('redraws a last known position as its ink fades, from the clock alone', () => {
+    vi.useFakeTimers({ now: 0 });
+    const arcs = layer();
+    arcs.display([sighted('lastKnown')]);
+    const [fresh] = arcs.pawns;
+    vi.advanceTimersByTime(500);
+    arcs.animate();
+    expect(arcs.pawns[0]).toBe(fresh);
+    vi.advanceTimersByTime(6 * 3_600_000);
+    arcs.animate();
+    vi.useRealTimers();
+    expect(arcs.pawns[0]).not.toBe(fresh);
+    expect(fresh!.parent).toBeNull();
+  });
 });

@@ -31,6 +31,7 @@ import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { arcProgressAt } from '@/domain/arc-timing';
+import { HEARTBEAT_MS } from './frame-demand';
 import { pieceScale } from './piece-scale';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
@@ -46,6 +47,8 @@ type RenderedArc = {
   relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
+  /** The ink a last known position was drawn in (`surveyInk`, two digits); `null` otherwise. */
+  ink: string | null;
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
   loadingUntil: number | null;
@@ -106,6 +109,8 @@ export class ArcLayer {
   private unitsPerPixel = 1;
   /** The dash drift's clock: it lives in the loop, never in React state. */
   private lastFrameMs = 0;
+  /** When the last known positions' ink was last read against the clock (`fadeLastKnown`). */
+  private inkReadMs = 0;
   private motionSetting: MapMotion = 'full';
   /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering.
    *  Full and reduced lay the runway and quay lead-ins (#129): reduced has the pawn on the axis
@@ -286,6 +291,7 @@ export class ArcLayer {
       pawn,
       relic,
       headPosition: new Vector3(),
+      ink: lastKnownInk(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
     };
@@ -405,6 +411,22 @@ export class ArcLayer {
         pile.place(this.groundPoint, this.cameraPosition);
       }
     }
+    if (now - this.inkReadMs >= HEARTBEAT_MS) this.fadeLastKnown(now, clock);
+  }
+
+  /**
+   * **Une dernière position connue pâlit avec l'heure, pas avec la réponse** (#183) : l'arc
+   * garde son identité d'une réponse à l'autre, et `display` ne tourne plus qu'avec un arc ou une
+   * troupe qui change. Son encre se relit donc au battement de la boucle — une image par seconde
+   * au plus, qui tourne déjà, animations coupées comprises, et jamais en onglet caché.
+   */
+  private fadeLastKnown(now: number, clock: number): void {
+    this.inkReadMs = now;
+    if (this.rendered.some((rendered) => rendered.ink !== lastKnownInk(rendered.arc, clock)))
+      this.display(
+        this.rendered.map((rendered) => rendered.arc),
+        true,
+      );
   }
 
   private syncCrates(): void {
@@ -487,13 +509,14 @@ function drawnKey(
     movementRoles(arc),
     movementWear(arc, troops),
     arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
-    arc.state === 'lastKnown'
-      ? [asClockTime(arc.lastSeenAt), surveyInk(minutesSince(arc.lastSeenAt, clock)).toFixed(2)]
-      : null,
+    arc.state === 'lastKnown' ? [asClockTime(arc.lastSeenAt), lastKnownInk(arc, clock)] : null,
   ]);
 }
 
 const minutesSince = (at: number, clock: number): number => Math.max(0, clock - at) / 60_000;
+
+const lastKnownInk = (arc: ArcView, clock: number): string | null =>
+  arc.state === 'lastKnown' ? surveyInk(minutesSince(arc.lastSeenAt, clock)).toFixed(2) : null;
 
 /**
  * **The medium a last known position's annotation is written in, or `null` for none** (F2):
