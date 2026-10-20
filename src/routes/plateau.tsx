@@ -163,6 +163,8 @@ import {
   wireOrigin,
   wireCaptureTarget,
   wireTarget,
+  choiceOf,
+  groupKeyOf,
   type OrderChoice,
   type Previewed,
   type Sent,
@@ -240,10 +242,6 @@ type GroupRead = {
   readonly troopIds: ReadonlyArray<string>;
   readonly compass: Compass | null;
 };
-
-/** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
-const groupKeyOf = (action: OrderAction): string =>
-  `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
 
 /** L'identifiant que porte une pile sur la carte : son étiquette posée, ou sa garnison. */
 const pileIdOf = (station: MarchStation): string =>
@@ -3352,67 +3350,6 @@ function Loading() {
  * `station` is the address the garrison panel was opened on, whichever of its two doors — the
  * ground under it is only consulted for the domain gates, and a point carries none.
  */
-/**
- * **Une branche de la rose, devenue un ordre.** Piller ou saboter — un seul ordre, la même carte
- * de confirmation (S8) : le type sur le fil reste `march`, l'expédition marche jusqu'au site et
- * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
- * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
- */
-function choiceOf(action: OrderAction): OrderChoice {
-  const said = { label: action.label, consequence: action.consequence };
-  switch (action.key) {
-    case 'aim':
-      return {
-        ...said,
-        aim: action.aim,
-        type: action.type,
-        mission:
-          action.boardsOn === undefined
-            ? { kind: 'march' }
-            : { kind: 'march', boardsOn: action.boardsOn },
-      };
-    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
-     *  paie l'aller-retour, et l'aperçu le dit. */
-    case 'deliver':
-    case 'tour':
-    case 'airdrop':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'march',
-        mission: action.key === 'airdrop' ? { kind: 'march', roundTrip: true } : { kind: 'march' },
-      };
-    case 'plunder':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'march',
-        mission: { kind: 'plunder', buildingId: action.buildingId },
-      };
-    case 'capture':
-      return {
-        ...said,
-        aim: action.aim,
-        type: 'attack',
-        mission: { kind: 'capture', target: action.target },
-      };
-    case 'collect':
-      return {
-        ...said,
-        aim: {
-          kind: 'point',
-          lon: action.point[0],
-          lat: action.point[1],
-          onLand: true,
-          coastal: false,
-          surveyed: false,
-        },
-        type: 'march',
-        mission: { kind: 'collect', sightingId: action.sightingId },
-      };
-  }
-}
-
 /** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
 function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
   if (fuel.short !== null)

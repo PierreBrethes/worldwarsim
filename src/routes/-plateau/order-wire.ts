@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
+import type { OrderAction } from '@/domain/compass-rose';
 import type { MovementType } from '@/domain/ids';
 import type { MovementAim } from '@/domain/movement-orders';
 import type { MarchStation } from '@/domain/troops';
@@ -219,3 +220,68 @@ export function useSendOrder(seat: Seat) {
     [seat, marchTo, enterGarrison, enterOutpost, attack, raid, plunder, capture, collectLoot],
   );
 }
+
+/**
+ * **Une branche de la rose, devenue un ordre.** Piller ou saboter — un seul ordre, la même carte
+ * de confirmation (S8) : le type sur le fil reste `march`, l'expédition marche jusqu'au site et
+ * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
+ * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
+ */
+export function choiceOf(action: OrderAction): OrderChoice {
+  const said = { label: action.label, consequence: action.consequence };
+  switch (action.key) {
+    case 'aim':
+      return {
+        ...said,
+        aim: action.aim,
+        type: action.type,
+        mission:
+          action.boardsOn === undefined
+            ? { kind: 'march' }
+            : { kind: 'march', boardsOn: action.boardsOn },
+      };
+    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
+     *  paie l'aller-retour, et l'aperçu le dit. */
+    case 'deliver':
+    case 'tour':
+    case 'airdrop':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: action.key === 'airdrop' ? { kind: 'march', roundTrip: true } : { kind: 'march' },
+      };
+    case 'plunder':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: { kind: 'plunder', buildingId: action.buildingId },
+      };
+    case 'capture':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'attack',
+        mission: { kind: 'capture', target: action.target },
+      };
+    case 'collect':
+      return {
+        ...said,
+        aim: {
+          kind: 'point',
+          lon: action.point[0],
+          lat: action.point[1],
+          onLand: true,
+          coastal: false,
+          surveyed: false,
+        },
+        type: 'march',
+        mission: { kind: 'collect', sightingId: action.sightingId },
+      };
+  }
+}
+
+/** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
+export const groupKeyOf = (action: OrderAction): string =>
+  `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
