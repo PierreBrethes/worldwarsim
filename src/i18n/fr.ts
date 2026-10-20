@@ -2240,7 +2240,6 @@ export const fr = {
       `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, ${blitz ? '' : 'presse, '}télégraphe, réglages`,
     close: 'refermer le menu',
     closeShort: 'fermer',
-    works: 'chant.',
   },
 
   /** Les entrées du téléphone, que portaient la barre de pied et que portent les ronds du
@@ -3538,7 +3537,6 @@ export const fr = {
     /** La récolte pliée dans la bande : depuis quand, puis l'écart de chaque bac. */
     harvestSince: (hours: number) => (hours < 1 ? 'depuis peu' : `depuis ${num(hours)} h`),
     harvestReplay: 'revoir la récolte',
-    researchShort: 'rech.',
     harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
