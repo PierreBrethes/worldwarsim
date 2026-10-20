@@ -1,12 +1,12 @@
 import { useQuery } from 'convex/react';
-import { Fragment, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
   contactKm,
   DAMAGE_TABLE,
-  CARRY_CAPACITY_BY_ROLE,
   GARRISON_DAMAGE_TAKEN,
-  detectionRangeOf,
+  UPKEEP_STEPS,
+  UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../../convex/constants';
 import {
   aBuilding,
@@ -16,50 +16,47 @@ import {
   researchRequired,
   roleLabel,
 } from '@/i18n/fr';
-import { pieceAt } from '@/domain/research';
-import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import {
-  gunneryRows,
-  movementSheetOf,
-  PROFILE_UNITS,
-  type Band,
-  type GunneryShot,
-} from '@/domain/gunnery';
-import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, tierLabel } from '@/domain/troops';
-import type { UnitTier } from '@/domain/troops';
-import type { ResearchCard, UnitRole } from '@/domain/ids';
-import type { Cost } from '@/domain/player-view';
-import { Price } from '@/shell/Price';
-import { SupplyPictos } from '@/shell/SupplyPictos';
-import { fullSupplies, pileSupplies } from '@/domain/supplies';
-import { asDuration } from '@/domain/duration';
+  COMBAT_PROFILES,
+  profileOf,
+  TRANSPORT_PROFILES,
+  type CombatProfile,
+} from '@/domain/combat';
+import { gunneryRows, PROFILE_UNITS, type Band, type GunneryShot } from '@/domain/gunnery';
+import {
+  columnsOf,
+  pieceRows,
+  rankedBy,
+  shareOfReading,
+  troopStats,
+  type PieceRow,
+  type TroopStatKey,
+} from '@/domain/stat-sheet';
+import { DOMAIN_BY_ROLE, tierLabel } from '@/domain/troops';
+import { pieceAt } from '@/domain/research';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
-import { ClockGlyph, EyeGlyph, HeartGlyph, CoinGlyph } from '@/shell/Glyph';
-import { HoverCard } from '@/shell/HoverCard';
+import { StatGlyph, StatLines, statValue } from '@/shell/StatLines';
 import { durationToken, easeOutToken, motionNow } from '@/shell/paper-motion';
+import { useNarrowScreen } from '@/shell/viewport';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 import { rolesFormingSites } from '@/domain/blitz';
 import type { Theatre } from '@/domain/theatres';
-import { BLITZ } from '../../../convex/constants';
 
 /**
- * **L'abaque de tir, et le catalogue au pli** (ADR 0018 §4, décisions du 31/08 et 60b du 01/09).
- * Soixante-quinze couples existaient, testés, et le joueur recrutait à l'aveugle ; la grille a
- * réglé « qui bat qui ». Le pli règle le reste — ce que ça coûte, ce que ça vaut, et **ce qu'il
- * faut bâtir pour l'avoir**, qui vivait dans les sections « bloqué : aucun aérodrome » de la
- * fenêtre Production morte avec l'onglet (59a).
+ * **L'abaque : le classement de toutes les pièces, puis « qui bat qui »** (ADR 0018 §4, #191).
+ * Le classement range chaque statistique en mini-barres sur l'échelle du jeu — un titre de colonne
+ * le trie, le meilleur en haut — et la grille de tir, inchangée, répond à la question qui reste.
+ * Une ligne se plie pour la fiche de la pièce et ce qu'il faut bâtir pour l'avoir (contrat 06).
  *
  * **`DAMAGE_TABLE` est importée, jamais recopiée.** C'est la leçon de `verif-chiffrage.mjs`, qui
  * validait le chiffrage sur une copie : deux tables finissent par diverger, et le jour où elles
- * divergent l'écran ment sur des chiffres que le jeu ne joue plus. Le catalogue suit la même
- * règle : `workshop.grid` est servi **sans condition de bâtiment**, donc la fiche se lit sans
- * rien posséder — c'est tout l'objet du déménagement.
+ * divergent l'écran ment sur des chiffres que le jeu ne joue plus. Les statistiques suivent la même
+ * règle (`stat-sheet.ts`) : le catalogue se lit sans rien posséder.
  *
- * **Aucune action, aucun stock.** On ne forme pas depuis l'abaque : un coût nu suffit, et un
- * « 18 / 320 » y serait la réserve imprimée une fois de plus (contrat 06 P3).
+ * **Aucune action, aucun stock.** On ne forme pas depuis l'abaque.
  */
 export function GunneryWindow({
   seat,
@@ -69,129 +66,353 @@ export function GunneryWindow({
 }: WindowProps & { seat: Seat; theatre: Theatre | null }) {
   const workshop = useQuery(api.troops.workshop, seat);
   const rows = gunneryRows(DAMAGE_TABLE);
+  const pieces = useMemo(() => pieceRows(theatre), [theatre]);
+  const columns = columnsOf(pieces);
+  const [sort, setSort] = useState<TroopStatKey>('pace');
+  const ranked = rankedBy(pieces, sort);
   const [open, setOpen] = useState<CombatProfile | null>(null);
   const { scroller, unfold } = useUnfoldInPlace(open, setOpen);
+  const narrow = useNarrowScreen();
+  const fold = (profile: CombatProfile) => unfold(open === profile ? null : profile, profile);
+
+  /* Ce que la table garantit, imprimé : c'est le garde-fou du projet (fiche 08 §9), et c'est la
+     première chose qu'un joueur venu chercher l'arme absolue doit lire. Au téléphone il défile avec
+     la liste : fixe, il laissait cinq lignes à l'écran. */
+  const guarantee = (
+    <div className="shrink-0 border-b border-(color:--ink)/35 px-4 py-[10px]">
+      <p className="font-(family-name:--font-display) text-[17px] leading-[1.25] text-[var(--ink)]">
+        {fr.gunnery.guarantee}
+      </p>
+      {/* Le bonus de défense et le contact, repliés au bout de la phrase : ils se lisent une
+          fois, la table tous les jours. Le contact est le même pour tous — il se dit ici, et
+          jamais sur la fiche d'un rôle, où il passerait pour une de ses qualités. */}
+      <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
+        {fr.gunnery.lead}{' '}
+        <HelpMark>
+          {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, workshop?.blitz === true)}{' '}
+          {fr.gunnery.contactRange(contactKm(theatre))}
+        </HelpMark>
+      </div>
+    </div>
+  );
+  const transports = (
+    <p className="border-t border-(color:--ink)/35 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
+      {fr.gunnery.transports(TRANSPORT_PROFILES.map((profile) => profileLabel(profile)).join(', '))}
+    </p>
+  );
 
   return (
     <FloatingWindow name="gunnery" onClose={onClose} {...windowProps} alignment="top" width={1180}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <WindowHead title={fr.gunnery.header} onClose={onClose} />
 
-        {/* Ce que la table garantit, imprimé : c'est le garde-fou du projet (fiche 08 §9), et
-            c'est la première chose qu'un joueur venu chercher l'arme absolue doit lire. */}
-        <div className="shrink-0 border-b border-(color:--ink)/35 px-4 py-[10px]">
-          <p className="font-(family-name:--font-display) text-[17px] leading-[1.25] text-[var(--ink)]">
-            {fr.gunnery.guarantee}
-          </p>
-          {/* Le bonus de défense et le contact, repliés au bout de la phrase : ils se lisent une
-              fois, la table tous les jours. Le contact est le même pour tous — il se dit ici, et
-              jamais sur la fiche d'un rôle, où il passerait pour une de ses qualités. */}
-          <div className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
-            {fr.gunnery.lead}{' '}
-            <HelpMark>
-              {fr.gunnery.before(GARRISON_DAMAGE_TAKEN, workshop?.blitz === true)}{' '}
-              {fr.gunnery.contactRange(contactKm(theatre))}
-            </HelpMark>
-          </div>
-        </div>
-
-        <Legend />
+        {!narrow && guarantee}
 
         <div ref={scroller} className="min-h-0 flex-1 overflow-auto overscroll-contain">
-          <table className="w-full border-collapse text-[11.5px]">
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  className="sticky top-0 left-0 z-20 border-b border-[var(--ink)] bg-[var(--paper)] px-3 py-[6px] text-left text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase"
-                >
-                  {fr.gunnery.piece}
-                </th>
-                {COMBAT_PROFILES.map((defender) => (
+          {narrow && guarantee}
+          <h3 className="px-4 pt-3 pb-1 font-(family-name:--font-display) text-[19px] leading-none font-bold">
+            {fr.gunnery.pieces}
+          </h3>
+          <p className="px-4 pb-2 text-[12px] leading-[1.4] text-[var(--ink-soft)]">
+            {narrow ? fr.gunnery.rankingLeadPhone : fr.gunnery.rankingLead}
+          </p>
+
+          {narrow ? (
+            <RankingList
+              columns={columns}
+              sort={sort}
+              onSort={setSort}
+              ranked={ranked}
+              open={open}
+              onFold={fold}
+              workshop={workshop}
+              theatre={theatre}
+            />
+          ) : (
+            <table className="w-full border-collapse text-[12px]">
+              <thead>
+                <tr>
                   <th
-                    key={defender}
                     scope="col"
-                    title={profileLabel(defender)}
-                    className="sticky top-0 z-10 border-b border-[var(--ink)] bg-[var(--paper)] px-[6px] py-[6px] font-(family-name:--font-mono) text-[9.5px] tracking-[.06em] text-[var(--ink-soft)]"
+                    className="sticky top-0 left-0 z-20 border-b border-[var(--ink)] bg-[var(--paper)] px-2 py-[6px] text-left text-[9px] tracking-[.14em] text-[var(--ink-soft)] uppercase"
                   >
-                    {profileAbbreviation(defender)}
+                    {fr.gunnery.piece}
                   </th>
-                ))}
-                <th
-                  scope="col"
-                  className="sticky top-0 z-10 w-[26px] border-b border-[var(--ink)] bg-[var(--paper)]"
-                />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const unfolded = open === row.attacker;
-                return (
-                  <Fragment key={row.attacker}>
-                    <tr
-                      data-row={row.attacker}
-                      onClick={() => unfold(unfolded ? null : row.attacker, row.attacker)}
-                      className={`cursor-pointer border-b border-(color:--ink)/18 ${
-                        unfolded ? 'bg-[rgba(255,255,255,.3)]' : ''
+                  {columns.map((key) => (
+                    <th
+                      key={key}
+                      scope="col"
+                      aria-sort={sort === key ? 'descending' : 'none'}
+                      className={`sticky top-0 z-10 border-b border-[var(--ink)] p-0 text-left ${
+                        sort === key ? 'bg-[var(--paper-pile)]' : 'bg-[var(--paper)]'
                       }`}
                     >
-                      <th
-                        scope="row"
-                        className="sticky left-0 z-10 bg-[var(--paper)] px-3 py-[5px] text-left text-[12px] font-normal whitespace-nowrap text-[var(--ink)]"
+                      <button
+                        type="button"
+                        onClick={() => setSort(key)}
+                        title={fr.stats.notes[key]}
+                        className={`flex w-full cursor-pointer items-center gap-[3px] px-[4px] py-[6px] text-[9px] tracking-[.14em] whitespace-nowrap uppercase ${
+                          sort === key
+                            ? 'font-bold text-[var(--ink)] shadow-[inset_0_-3px_0_var(--ink)]'
+                            : 'font-semibold text-[var(--ink-soft)]'
+                        }`}
                       >
-                        {profileLabel(row.attacker)}
-                      </th>
-                      {row.fires ? (
-                        row.shots.map((shot) => (
-                          <Cell key={shot.defender} attacker={row.attacker} shot={shot} />
-                        ))
-                      ) : (
-                        /* Il se recrute et ne tire sur rien : la ligne le dit, plutôt que de
-                           disparaître ou de s'aligner en onze tirets — les deux se liraient comme
-                           une panne au lieu d'une règle. */
-                        <td
-                          colSpan={COMBAT_PROFILES.length}
-                          className="border-l border-(color:--ink)/14 px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
+                        <StatGlyph stat={key} size={13} />
+                        {fr.stats.names[key]}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.map((piece) => {
+                  const profile = profileOf(piece.role, piece.tier);
+                  const unfolded = open === profile;
+                  return (
+                    <Fragment key={profile}>
+                      <tr
+                        data-row={profile}
+                        onClick={() => fold(profile)}
+                        className={`cursor-pointer border-b border-(color:--ink)/18 ${
+                          unfolded ? 'bg-[rgba(255,255,255,.3)]' : ''
+                        }`}
+                      >
+                        <th
+                          scope="row"
+                          className="sticky left-0 z-[1] bg-[var(--paper)] px-2 py-[5px] text-left text-[13px] font-normal whitespace-nowrap text-[var(--ink)]"
                         >
-                          {fr.gunnery.firesNothing}
-                        </td>
-                      )}
-                      <td className="px-[6px] py-[5px] text-center text-[12px] text-[var(--ink-soft)]">
-                        {unfolded ? '▴' : '▾'}
-                      </td>
-                    </tr>
-                    {unfolded && (
-                      <tr>
-                        <td
-                          colSpan={COMBAT_PROFILES.length + 2}
-                          className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
-                        >
-                          <div className="hud-fold paper-unfold flush">
-                            <GunnerySheet
-                              profile={row.attacker}
-                              workshop={workshop}
-                              theatre={theatre}
-                            />
-                          </div>
-                        </td>
+                          {profileLabel(profile)}
+                          <span className="ml-[4px] text-[9px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
+                            {fr.production.domains[DOMAIN_BY_ROLE[piece.role]]}
+                          </span>
+                        </th>
+                        {columns.map((key) => (
+                          <RankCell key={key} stat={key} piece={piece} sorted={sort === key} />
+                        ))}
                       </tr>
+                      {unfolded && (
+                        <tr>
+                          <td
+                            colSpan={columns.length + 1}
+                            className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
+                          >
+                            <div className="hud-fold paper-unfold flush">
+                              <GunnerySheet
+                                profile={profile}
+                                workshop={workshop}
+                                theatre={theatre}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {theatre === null && (
+            <p className="px-4 py-[8px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
+              {fr.gunnery.upkeepNote(
+                UPKEEP_STEPS.map(({ rate, upTo }) => ({
+                  rate,
+                  upTo: Number.isFinite(upTo) ? upTo : null,
+                })),
+                UPKEEP_UNSUPPLIED_MULTIPLIER,
+              )}
+            </p>
+          )}
+
+          <h3 className="px-4 pt-4 pb-1 font-(family-name:--font-display) text-[19px] leading-none font-bold">
+            {fr.gunnery.whoBeatsWho}
+            <small className="ml-2 font-(family-name:--font-text) text-[13px] font-medium text-[var(--ink-soft)] italic">
+              {fr.gunnery.whoBeatsWhoNote}
+            </small>
+          </h3>
+          <Legend />
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[11.5px]">
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky top-0 left-0 z-20 border-b border-[var(--ink)] bg-[var(--paper)] px-3 py-[6px] text-left text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase"
+                  >
+                    {fr.gunnery.piece}
+                  </th>
+                  {COMBAT_PROFILES.map((defender) => (
+                    <th
+                      key={defender}
+                      scope="col"
+                      title={profileLabel(defender)}
+                      className="sticky top-0 z-10 border-b border-[var(--ink)] bg-[var(--paper)] px-[6px] py-[6px] font-(family-name:--font-mono) text-[9.5px] tracking-[.06em] text-[var(--ink-soft)]"
+                    >
+                      {profileAbbreviation(defender)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.attacker} className="border-b border-(color:--ink)/18">
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-[1] bg-[var(--paper)] px-3 py-[5px] text-left text-[12px] font-normal whitespace-nowrap text-[var(--ink)]"
+                    >
+                      {profileLabel(row.attacker)}
+                    </th>
+                    {row.fires ? (
+                      row.shots.map((shot) => (
+                        <Cell key={shot.defender} attacker={row.attacker} shot={shot} />
+                      ))
+                    ) : (
+                      /* Il se recrute et ne tire sur rien : la ligne le dit, plutôt que de
+                         disparaître ou de s'aligner en onze tirets — les deux se liraient comme
+                         une panne au lieu d'une règle. */
+                      <td
+                        colSpan={COMBAT_PROFILES.length}
+                        className="border-l border-(color:--ink)/14 px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
+                      >
+                        {fr.gunnery.firesNothing}
+                      </td>
                     )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {narrow && transports}
         </div>
 
-        {/* Les transports ne sont pas des trous de la grille, ils en sont les cibles : le dire
-            vaut mieux qu'une colonne muette qui a l'air d'une panne (fiche 08 §9). */}
-        <p className="shrink-0 border-t border-(color:--ink)/35 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
-          {fr.gunnery.transports(
-            TRANSPORT_PROFILES.map((profile) => profileLabel(profile)).join(', '),
-          )}
-        </p>
+        {!narrow && <div className="shrink-0">{transports}</div>}
       </div>
     </FloatingWindow>
+  );
+}
+
+/** Une case du classement : la valeur, et sous elle une barre sur l'échelle du jeu. Un mot (« au
+ *  contact », « ne tire pas ») n'a pas d'échelle, donc pas de barre. */
+function RankCell({
+  stat,
+  piece,
+  sorted,
+}: {
+  stat: TroopStatKey;
+  piece: PieceRow;
+  sorted: boolean;
+}) {
+  const reading = piece.readings[stat];
+  const share = shareOfReading(reading);
+  return (
+    <td
+      data-stat={stat}
+      className={`min-w-[54px] px-[4px] py-[4px] align-bottom ${sorted ? 'bg-(--ink)/6' : ''}`}
+    >
+      {reading === undefined ? (
+        <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-note)]">
+          {fr.gunnery.outOfReach}
+        </span>
+      ) : (
+        <>
+          <span
+            className={`mb-[3px] block font-(family-name:--font-mono) text-[11.5px] leading-none whitespace-nowrap ${
+              sorted ? 'font-semibold' : ''
+            } ${share === null ? 'text-[var(--ink-note)]' : ''}`}
+          >
+            {statValue(stat, reading, true)}
+          </span>
+          <span className="block h-[5px] bg-(--ink)/10">
+            {share !== null && (
+              <i
+                className={`block h-full ${sorted ? 'bg-[var(--ink)]' : 'bg-(--ink)/70'}`}
+                style={{ width: `${Math.max(4, share * 100)}%` }}
+              />
+            )}
+          </span>
+        </>
+      )}
+    </td>
+  );
+}
+
+/**
+ * **Au téléphone, une statistique à la fois** : un menu choisit laquelle, et les pièces s'alignent
+ * en barres classées, la meilleure en haut. Treize colonnes ne tiennent pas dans 390 px ; une seule
+ * statistique, lue sur toutes les pièces, est la lecture que le doigt vient chercher.
+ */
+function RankingList({
+  columns,
+  sort,
+  onSort,
+  ranked,
+  open,
+  onFold,
+  workshop,
+  theatre,
+}: {
+  columns: ReadonlyArray<TroopStatKey>;
+  sort: TroopStatKey;
+  onSort: (key: TroopStatKey) => void;
+  ranked: ReadonlyArray<PieceRow>;
+  open: CombatProfile | null;
+  onFold: (profile: CombatProfile) => void;
+  workshop: WorkshopView | undefined;
+  theatre: Theatre | null;
+}) {
+  return (
+    <div className="grid gap-[4px] px-3 pb-3">
+      <select
+        value={sort}
+        onChange={(event) => onSort(event.target.value as TroopStatKey)}
+        aria-label={fr.gunnery.sortMenu}
+        className="mb-[6px] min-h-[44px] border border-[var(--ink)] bg-[var(--paper-pile)] px-2 text-[13px] font-semibold text-[var(--ink)]"
+      >
+        {columns.map((key) => (
+          <option key={key} value={key}>
+            {fr.gunnery.sortBy(fr.stats.names[key])}
+          </option>
+        ))}
+      </select>
+      {ranked.map((piece) => {
+        const profile = profileOf(piece.role, piece.tier);
+        const reading = piece.readings[sort];
+        const share = shareOfReading(reading);
+        return (
+          <Fragment key={profile}>
+            <button
+              type="button"
+              data-row={profile}
+              onClick={() => onFold(profile)}
+              aria-expanded={open === profile}
+              className="grid min-h-[36px] cursor-pointer grid-cols-[112px_minmax(0,1fr)_auto] items-center gap-[6px] text-left text-[12.5px]"
+            >
+              <span>{profileLabel(profile)}</span>
+              <span className="block h-[12px] bg-(--ink)/10">
+                {share !== null && (
+                  <i
+                    className="block h-full bg-[var(--ink)]"
+                    style={{ width: `${Math.max(3, share * 100)}%` }}
+                  />
+                )}
+              </span>
+              <span
+                className={`font-(family-name:--font-mono) text-[12px] whitespace-nowrap ${
+                  share === null ? 'text-[var(--ink-note)]' : 'font-semibold'
+                }`}
+              >
+                {reading === undefined ? fr.gunnery.outOfReach : statValue(sort, reading, true)}
+              </span>
+            </button>
+            {open === profile && (
+              <div className="border-y border-(color:--ink)/35 bg-[rgba(255,255,255,.22)]">
+                <GunnerySheet profile={profile} workshop={workshop} theatre={theatre} />
+              </div>
+            )}
+          </Fragment>
+        );
+      })}
+    </div>
   );
 }
 
@@ -240,7 +461,7 @@ function useUnfoldInPlace(
 /** Où chaque ligne se lit dans le défileur, à l'écran et non dans le tableau. */
 const seen = (box: HTMLElement) =>
   new Map(
-    [...box.querySelectorAll<HTMLElement>('tr[data-row]')].map((row) => [
+    [...box.querySelectorAll<HTMLElement>('[data-row]')].map((row) => [
       row.dataset.row!,
       row.offsetTop - box.scrollTop,
     ]),
@@ -249,13 +470,10 @@ const seen = (box: HTMLElement) =>
 type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
 
 /**
- * **La fiche du rôle, au pli de sa ligne** (contrat 06 P2). Elle dit le matériel, ce qu'il coûte,
- * ce qu'il vaut et — la raison d'être du déménagement — **ce qu'il faut bâtir pour l'avoir**, en
- * toutes lettres. Un bâtiment absent n'y grise rien : il y a une phrase à sa place, et la fiche
- * se lit identique qu'on possède la caserne ou non.
- *
- * Les deux marques d'un rôle se lisent **côte à côte** : la comparaison est la question qu'on
- * vient poser, et la faire payer un second pli l'aurait tuée.
+ * **La fiche du rôle, au pli de sa ligne** (contrat 06 P2, #191). Le bloc de statistiques dit tout
+ * ce que la pièce vaut, et la fiche garde ce que le bloc ne dit pas — **ce qu'il faut bâtir pour
+ * l'avoir**, en toutes lettres : un bâtiment absent n'y grise rien, la fiche se lit identique
+ * qu'on possède la caserne ou non. Les deux marques d'un rôle sont deux lignes du classement.
  */
 export function GunnerySheet({
   profile,
@@ -271,9 +489,8 @@ export function GunnerySheet({
   const entry = workshop?.grid.find((candidate) => candidate.role === role) ?? null;
   const nation = workshop?.nation ?? null;
   const blitz = workshop?.blitz === true;
-  const marks: ReadonlyArray<UnitTier> = marked && !blitz ? [1, 2] : [1];
-  const [rangeHover, setRangeHover] = useState<StatHover | null>(null);
-  const movement = movementSheetOf([role]);
+  const roster = workshop?.roster.find((row) => row.role === role && row.tier === tier)?.count ?? 0;
+  const lockedBy = entry === null ? null : pieceAt(entry, tier).lockedBy;
 
   return (
     /* La planche et la fiche côte à côte tant qu'il y a de la place ; l'une sous l'autre sous le
@@ -299,53 +516,14 @@ export function GunnerySheet({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-(family-name:--font-display) text-[20px] leading-none font-extrabold text-[var(--ink)]">
             {roleLabel(role, 1)}
+            {marked && !blitz ? ` ${tierLabel(tier)}` : ''}
           </span>
           <span className="eyebrow">{fr.production.domains[DOMAIN_BY_ROLE[role]]}</span>
-          <span className="ml-auto flex items-center gap-[6px] font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-            <StatGlyph stat="range" onHover={setRangeHover} />
-            {fr.gunnery.detectionRange(detectionRangeOf([role], theatre))}
-          </span>
         </div>
 
-        <div className="flex flex-wrap gap-x-[24px] gap-y-1 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-          <span>{fr.gunnery.nominalLootCapacity(CARRY_CAPACITY_BY_ROLE[role])}</span>
-          {LIFT_CAPACITY[role] !== undefined && (
-            <span>{fr.gunnery.liftCapacity(LIFT_CAPACITY[role])}</span>
-          )}
-          {LIFT_COST[role] !== undefined && <span>{fr.gunnery.liftCost(LIFT_COST[role])}</span>}
-          <span>{fr.gunnery.movementRule(movement)}</span>
+        <div className="max-w-[460px]">
+          <StatLines rows={troopStats(role, tier, theatre)} />
         </div>
-
-        {rangeHover !== null && (
-          <HoverCard left={rangeHover.left} top={rangeHover.top} width={STAT_POPIN_WIDTH}>
-            <span className="block text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-              {fr.gunnery.stats.range.name}
-            </span>
-            <span className="mt-[2px] block leading-[1.4] text-[var(--ink)]">
-              {fr.gunnery.stats.range.note}
-            </span>
-          </HoverCard>
-        )}
-
-        {entry !== null && (
-          <div className="flex flex-wrap gap-x-[34px] gap-y-3">
-            {marks.map((mark, rank) => (
-              <Mark
-                key={mark}
-                mark={mark}
-                marked={marked}
-                cost={pieceAt(entry, mark)}
-                role={role}
-                roster={
-                  workshop?.roster.find((row) => row.role === role && row.tier === mark)?.count ?? 0
-                }
-                lockedBy={pieceAt(entry, mark).lockedBy}
-                first={rank === 0}
-                blitz={blitz}
-              />
-            ))}
-          </div>
-        )}
 
         <div className="flex flex-wrap gap-x-[32px] gap-y-2 border-t border-(color:--ink)/22 pt-[10px]">
           {sheet.kind === 'combat' ? (
@@ -378,7 +556,8 @@ export function GunnerySheet({
         </div>
 
         {/* **La condition, en toutes lettres** (contrat 06) : c'est ce que remplaçaient les
-            sections « bloqué » de la fenêtre morte, et c'est la seule marque que l'abaque porte. */}
+            sections « bloqué » de la fenêtre morte, et c'est la seule marque que l'abaque porte.
+            Le zéro de « en service » s'imprime : une fiche sans la ligne se lirait comme un oubli. */}
         {entry !== null && (
           <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-(color:--ink)/22 pt-[9px]">
             <span aria-hidden className="h-[7px] w-[7px] shrink-0 bg-[var(--ink)]" />
@@ -387,171 +566,29 @@ export function GunnerySheet({
                 ? fr.blitz.formsIn(rolesFormingSites(role).map(aBuilding))
                 : fr.production.formsIn(aBuilding(entry.producedBy))}
             </span>
-            {entry.unit.lockedBy !== null && !blitz && (
+            {lockedBy !== null && !blitz && (
               <>
                 <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
-                  {researchRequired(entry.unit.lockedBy)}
+                  {researchRequired(lockedBy)}
                 </span>
               </>
             )}
+            <span className="ml-auto flex items-baseline gap-2">
+              <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+                {fr.production.inService}
+              </span>
+              <span
+                className="font-(family-name:--font-mono) text-[12.5px]"
+                style={{ color: roster > 0 ? 'var(--ink)' : 'var(--ink-note)' }}
+              >
+                {roster}
+              </span>
+            </span>
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-/** Une marque et ce qu'elle demande : le coût est **le** chiffre, les trois autres lignes le
- *  qualifient. Le zéro de « en service » s'imprime — une fiche sans la ligne se lirait comme un
- *  oubli plutôt que comme une absence.
- *
- *  **Les trois données servies n'ont plus de libellé** (68a) : un pictogramme muet les porte, et
- *  le nom ne revient qu'au survol de ce pictogramme. Trois mots de moins par marque, deux marques
- *  côte à côte : c'est la comparaison qu'on vient poser qui gagne la place. « En service » garde
- *  le sien — c'est un compte de la partie, pas une donnée de la pièce, et lui donner un dessin
- *  l'aurait rangé avec les trois autres. */
-function Mark({
-  mark,
-  marked,
-  cost,
-  role,
-  roster,
-  lockedBy,
-  first,
-  blitz,
-}: {
-  mark: UnitTier;
-  marked: boolean;
-  cost: { costs: Cost; minutes: number; strength: number };
-  role: UnitRole;
-  roster: number;
-  lockedBy: ResearchCard | null;
-  first: boolean;
-  blitz: boolean;
-}) {
-  const [hovered, setHovered] = useState<StatHover | null>(null);
-
-  return (
-    <div
-      className={`relative flex flex-col gap-[5px] ${
-        first ? '' : 'border-l border-(color:--ink)/22 pl-[22px]'
-      }`}
-    >
-      {marked && (
-        <span className="font-(family-name:--font-mono) text-[11px] tracking-[.12em] text-[var(--ink-soft)]">
-          {tierLabel(mark)}
-        </span>
-      )}
-      {/* La Blitz paie en fonds et forme en une minute (`BLITZ`) : ni lingot, ni durée du barème. */}
-      {blitz ? (
-        <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
-          {fr.blitz.price(BLITZ.rolePrice[role])}
-        </span>
-      ) : (
-        <span className="flex items-center gap-[7px]">
-          <StatGlyph stat="cost" onHover={setHovered} />
-          <span className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold text-[var(--ink)]">
-            <Price costs={cost.costs} size={16} />
-          </span>
-        </span>
-      )}
-      <span className="flex items-center gap-[7px]">
-        <StatGlyph stat="training" onHover={setHovered} />
-        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-          {asDuration(blitz ? BLITZ.recruitMinutes : cost.minutes)}
-        </span>
-      </span>
-      <span className="flex items-center gap-[7px]">
-        <StatGlyph stat="strength" onHover={setHovered} />
-        <span className="text-[13.5px] font-semibold text-[var(--ink)]">
-          {cost.strength} {fr.strengthUnits[role]}
-        </span>
-      </span>
-      {!blitz && (
-        <span className="text-[12.5px] text-[var(--ink)]">
-          <SupplyPictos
-            supplies={pileSupplies([{ role, supplies: fullSupplies(role) }])}
-            size={14}
-          />
-        </span>
-      )}
-      <span className="flex items-baseline gap-2 border-t border-(color:--ink)/22 pt-[5px]">
-        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          {fr.production.inService}
-        </span>
-        <span
-          className="font-(family-name:--font-mono) text-[12.5px]"
-          style={{ color: roster > 0 ? 'var(--ink)' : 'var(--ink-note)' }}
-        >
-          {roster}
-        </span>
-      </span>
-      {lockedBy !== null && (
-        <span className="max-w-[24ch] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
-          {researchRequired(lockedBy)}
-        </span>
-      )}
-      {hovered !== null && (
-        <HoverCard left={hovered.left} top={hovered.top} width={STAT_POPIN_WIDTH}>
-          <span className="block text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-            {fr.gunnery.stats[hovered.stat].name}
-          </span>
-          <span className="mt-[2px] block leading-[1.4] text-[var(--ink)]">
-            {fr.gunnery.stats[hovered.stat].note}
-          </span>
-        </HoverCard>
-      )}
-    </div>
-  );
-}
-
-type SheetStat = keyof typeof fr.gunnery.stats;
-
-type StatHover = {
-  readonly stat: SheetStat;
-  readonly left: number;
-  readonly top: number;
-};
-
-/** Une largeur, parce qu'une popin qui explique n'est pas une popin qui chiffre : celle du
- *  bandeau des ressources tient sur une ligne, celles-ci portent une phrase et doivent la
- *  replier. Trois lignes pour la plus longue des trois, sans déborder de la fiche. */
-const STAT_POPIN_WIDTH = 232;
-
-const STAT_DRAWING: Readonly<Record<SheetStat, typeof CoinGlyph>> = {
-  cost: CoinGlyph,
-  training: ClockGlyph,
-  strength: HeartGlyph,
-  range: EyeGlyph,
-};
-
-/**
- * Le dessin **est** le libellé : il porte le nom de la donnée pour le lecteur d'écran, et
- * l'ouvre en clair pour la souris. La popin s'ancre sur lui et se ferme dès qu'on le quitte —
- * survoler le chiffre à côté n'ouvre rien, c'est la valeur, elle ne s'explique pas elle-même.
- */
-function StatGlyph({
-  stat,
-  onHover,
-}: {
-  stat: SheetStat;
-  onHover: (hover: StatHover | null) => void;
-}) {
-  const Drawing = STAT_DRAWING[stat];
-  const anchor = (event: MouseEvent<HTMLElement>) => {
-    const glyph = event.currentTarget;
-    onHover({ stat, left: glyph.offsetLeft, top: glyph.offsetTop + glyph.offsetHeight + 4 });
-  };
-
-  return (
-    <span
-      onMouseEnter={anchor}
-      onMouseLeave={() => onHover(null)}
-      className="flex shrink-0 cursor-help text-[var(--ink)]"
-    >
-      <Drawing label={fr.gunnery.stats[stat].name} />
-    </span>
   );
 }
 
@@ -618,8 +655,6 @@ function Legend() {
         </span>
         <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.gunnery.bands.none}</span>
       </span>
-      <span className="flex-1" />
-      <span className="eyebrow">{fr.gunnery.foldHint}</span>
     </div>
   );
 }

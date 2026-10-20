@@ -209,7 +209,11 @@ export function StatLines({
   /** Ce que la réglette gradue : toutes les pièces du jeu, ou les niveaux d'un bâtiment. */
   scale?: 'pieces' | 'levels';
 }) {
-  const rubrics = grouped ? [...new Set(rows.map((row) => RUBRIC_OF[row.key]))] : [null];
+  const rubrics = grouped
+    ? (Object.keys(fr.stats.rubrics) as Rubric[]).filter((rubric) =>
+        rows.some((row) => RUBRIC_OF[row.key] === rubric),
+      )
+    : [null];
   const scaled = rows.some((row) => shareOfReading(row.reading) !== null);
   return (
     <div className="grid gap-px" data-testid="stat-lines">
