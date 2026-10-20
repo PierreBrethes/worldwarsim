@@ -15,7 +15,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { BottomSheet } from './BottomSheet';
 import { MapGlyph, PressGlyph, ResearchGlyph, TelegraphGlyph, TodoGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
-import { useSoleSurface } from './sole-surface';
+import { useCloseSoleSurface, useSoleSurface } from './sole-surface';
 
 /** Les surfaces de la colonne du bureau, que le menu du téléphone ouvre et que « carte » referme.
  *  Le plateau personnel n'y est pas : c'est la barre elle-même. */
@@ -77,6 +77,7 @@ export function SurfaceKey({
     return () => document.removeEventListener('keydown', escape, true);
   }, [menu]);
 
+  const closeSurface = useCloseSoleSurface();
   const go = (to: BoardSearch) => void navigate({ to: '/plateau', search: to });
   const press = () => {
     if (onMap) {
@@ -86,7 +87,9 @@ export function SurfaceKey({
     }
     setMenu(false);
     setTodoOpen(false);
-    if (SURFACES.some((name) => windowOpen(search, name)))
+    // A window leaves by its own close (the journal dates its reading, the telegraph leaves its
+    // channel); the address only steps in when none holds the place.
+    if (!closeSurface() && SURFACES.some((name) => windowOpen(search, name)))
       go(SURFACES.reduce(withoutWindow, search));
   };
 

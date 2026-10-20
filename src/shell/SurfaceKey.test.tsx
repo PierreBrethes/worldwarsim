@@ -9,9 +9,11 @@ import {
   type AnyRouter,
 } from '@tanstack/react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { windowOpen, withoutWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
-import { SoleSurfaceProvider } from './sole-surface';
+import { SoleSurfaceProvider, useSoleSurface } from './sole-surface';
 import { SurfaceKey } from './SurfaceKey';
 
 /**
@@ -53,16 +55,38 @@ const view = {
   },
 } as unknown as PlayerView;
 
-async function mount(shown: PlayerView = view, initial = '/plateau'): Promise<AnyRouter> {
+/** Une fenêtre qui date sa lecture à la fermeture, comme le journal (`markRead`) : elle ne ferme
+ *  que par son `onClose`, jamais en disparaissant de l'adresse. */
+function ReadingWindow({ onClose }: { onClose: () => void }) {
+  useSoleSurface(onClose);
+  return <p>fenêtre ouverte</p>;
+}
+
+function Board({ view: shown, onClose }: { view: PlayerView; onClose: () => void }) {
+  const search = useSearch({ strict: false }) as BoardSearch;
+  const navigate = useNavigate();
+  const close = () => {
+    onClose();
+    void navigate({ to: '/plateau', search: withoutWindow(search, 'journal') });
+  };
+  return (
+    <SoleSurfaceProvider>
+      <SurfaceKey view={shown} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
+      {windowOpen(search, 'journal') && <ReadingWindow onClose={close} />}
+    </SoleSurfaceProvider>
+  );
+}
+
+async function mount(
+  shown: PlayerView = view,
+  initial = '/plateau',
+  onClose: () => void = () => {},
+): Promise<AnyRouter> {
   const root = createRootRoute();
   const board = createRoute({
     getParentRoute: () => root,
     path: '/plateau',
-    component: () => (
-      <SoleSurfaceProvider>
-        <SurfaceKey view={shown} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
-      </SoleSurfaceProvider>
-    ),
+    component: () => <Board view={shown} onClose={onClose} />,
   });
   const router = createRouter({
     routeTree: root.addChildren([board]),
@@ -160,5 +184,14 @@ describe('the surface key', () => {
     const todo = screen.getByRole('dialog', { name: fr.nextActions.header });
     expect(within(todo).getByText('les lignes à faire')).toBeTruthy();
     expect(key().textContent).toContain(fr.footBar.map);
+  });
+
+  it('closes a window by its own close, so the journal dates its reading', async () => {
+    const markRead = vi.fn();
+    await mount(view, '/plateau?windows=%5B%22journal%22%5D', markRead);
+    expect(screen.getByText('fenêtre ouverte')).toBeTruthy();
+
+    await act(async () => key().click());
+    expect(markRead).toHaveBeenCalledOnce();
   });
 });
