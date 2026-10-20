@@ -404,7 +404,6 @@ export class MapEngine {
   private hoverDirty = true;
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
-  /** Scratch vectors of the loop: it allocates nothing per frame. */
   private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
@@ -2468,11 +2467,12 @@ export class MapEngine {
   /**
    * **La cible reste sur le monde, retenue sans à-coup** (#187) : passée le bord du plateau, elle
    * revient chaque tour d'une part de ce qui dépasse — un glisser au-delà sent une résistance, pas
-   * un mur. L'œil suit la cible : ni la pente ni la distance ne bougent. Mouvement coupé : d'un coup.
+   * un mur. L'œil suit la cible : ni la pente ni la distance ne bougent. Hors animations actives :
+   * d'un coup, comme tout mouvement de caméra.
    */
   private holdTargetOnBoard(): void {
     const target = this.controls.target;
-    const rate = this.ambience.motion === 'off' ? 1 : BOARD_HOLD_RATE;
+    const rate = this.ambience.motion !== 'full' ? 1 : BOARD_HOLD_RATE;
     const dx = boardHoldOf(target.x, this.frame.width / 2, rate);
     const dz = boardHoldOf(target.z, this.frame.height / 2, rate);
     if (dx === 0 && dz === 0) return;
@@ -2485,7 +2485,8 @@ export class MapEngine {
   private loop = (): void => {
     this.animation = requestAnimationFrame(this.loop);
     this.animateJourney();
-    if (this.journey === null) this.holdTargetOnBoard();
+    // Held orbit (a pile carried, the lasso): the map must not slide under the hand.
+    if (this.journey === null && !this.orbitHeld) this.holdTargetOnBoard();
     this.controls.maxPolarAngle = steepestTiltAt(
       this.camera.position.distanceTo(this.controls.target),
     );
