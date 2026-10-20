@@ -546,7 +546,10 @@ export function MapLabels({
       }),
     );
     refreshCountdowns();
-  }, [labels, refreshCountdowns, apply]);
+    // Une étiquette gardée garde son `lod` : le changement qui relançait le repli n'arrive plus,
+    // or son cartouche a pu s'élargir (une troupe arrive) et chevaucher sa voisine.
+    scheduleDegrade();
+  }, [labels, refreshCountdowns, apply, scheduleDegrade]);
 
   // Camera rest is not enough for thread labels: their anchor is a movement head, which
   // advances while nothing moves on screen. Without this lap, two pawns meeting stay
