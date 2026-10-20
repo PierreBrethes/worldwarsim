@@ -584,6 +584,28 @@ describe('plunder presence', () => {
     expect((await t.run((ctx) => ctx.db.get(infantry)))?.stationedAt).toBe(barracks);
   });
 
+  /** **Dakar** : le pilleur lit, avant l'ordre, ce que le pillage laissera — la fonction du serveur. */
+  it('says before the order what the warehouse of the holder of Dakar keeps', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, seat);
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [infantry],
+      buildingId: warehouseId,
+    };
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({ spared: null });
+
+    await holdPoint(t, seat, 'dakar', guest);
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({
+      spared: sparedPerResourceOf(true),
+    });
+  });
+
   /** ADR 0028 §3 : le plein se dit avant l'ordre, ici comme sur une marche. */
   it('says before the order that the escort lacks the fuel for the road', async () => {
     const t = boot();

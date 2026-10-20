@@ -2909,6 +2909,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               ...(preview.holdUntil === null
                 ? []
                 : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+              ...('spared' in preview && preview.spared !== null
+                ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
+                : []),
               ...fuelNotes(preview),
             ],
     [resting, preview],

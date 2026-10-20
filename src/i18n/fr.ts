@@ -3215,6 +3215,9 @@ export const fr = {
     paces: { motorized: 'motorisé', foot: 'à pied' } satisfies Record<LandPace, string>,
     noRoute: 'Aucune route terrestre vers cette destination.',
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
+    /** **Dakar** : ce que le pillage laisse par ressource chez son teneur. */
+    sparedAtDakar: (spared: number) =>
+      `Dakar le garde : ${spared} de chaque ressource restent sur place`,
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
