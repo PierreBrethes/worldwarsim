@@ -96,6 +96,7 @@ describe('HandSheet', () => {
     expect(stat('pace')).not.toBeNull();
     expect(stat('detection')?.textContent).toContain('60 km');
     expect(stat('fuel')?.textContent).toContain('marche');
+    expect(container.textContent).not.toContain(fr.garrison.paces.foot);
   });
 });
 

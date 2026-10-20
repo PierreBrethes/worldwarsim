@@ -41,6 +41,7 @@ export function GarrisonStack({
   onPrepare,
   onPickedChange,
   onDisembark,
+  statsBelow = false,
 }: {
   view: PlayerView;
   station: TroopStation;
@@ -57,6 +58,9 @@ export function GarrisonStack({
   onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   /** **Débarquer** (15/10) : la voie clavier de la branche de la rose ; absent, pas de bouton. */
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** Le bloc de statistiques de la pile se lit juste dessous : allure, places et butin n'y sont
+   *  pas dits deux fois. */
+  statsBelow?: boolean;
 }) {
   const narrow = useNarrowScreen();
   /** The step the army stands on: what the last troop pays, so what shedding one saves. */
@@ -218,13 +222,13 @@ export function GarrisonStack({
         />
       ))}
 
-      {composes && onLand && !narrow && (
+      {composes && onLand && !narrow && !statsBelow && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']}
         </div>
       )}
 
-      {composes && !narrow && view.mode !== 'blitz' && (
+      {composes && !narrow && !statsBelow && view.mode !== 'blitz' && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.lootCapacity(carryCapacity)}
         </div>
@@ -257,15 +261,17 @@ export function GarrisonStack({
             <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
               {fr.garrison.picked(picked.size)}
             </span>
-            <span
-              className="font-(family-name:--font-mono) text-[11px]"
-              style={{ color: stranded ? 'var(--critical)' : 'var(--ink-soft)' }}
-            >
-              {/* Les places d'abord : c'est ce qui décide si la pile part (ADR 0025). */}
-              {lift.offered > 0 && `${fr.garrison.seatsShort(lift.needed, lift.offered)} · `}
-              {onLand && `${fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']} · `}
-              {fr.garrison.lootShort(carryCapacity)}
-            </span>
+            {!statsBelow && (
+              <span
+                className="font-(family-name:--font-mono) text-[11px]"
+                style={{ color: stranded ? 'var(--critical)' : 'var(--ink-soft)' }}
+              >
+                {/* Les places d'abord : c'est ce qui décide si la pile part (ADR 0025). */}
+                {lift.offered > 0 && `${fr.garrison.seatsShort(lift.needed, lift.offered)} · `}
+                {onLand && `${fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']} · `}
+                {fr.garrison.lootShort(carryCapacity)}
+              </span>
+            )}
           </div>
           {onPrepare && (
             <button

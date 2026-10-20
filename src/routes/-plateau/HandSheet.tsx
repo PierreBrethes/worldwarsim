@@ -162,6 +162,7 @@ export function HandSheet({
           observing={false}
           onPickedChange={onCompose}
           onDisembark={onDisembark}
+          statsBelow
         />
       </div>
       {!supplied && (
