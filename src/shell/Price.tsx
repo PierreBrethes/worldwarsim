@@ -18,15 +18,20 @@ export function Price({
   onPaper = true,
   lacking = null,
   size = 12,
+  stacked = false,
 }: {
   costs: Costs;
   /** False on an ink-dark ground, where the lighter inks of the plate read better. */
   onPaper?: boolean;
   lacking?: ResourceKey | null;
   size?: number;
+  /** Une ressource par ligne : la cellule étroite d'un tableau. */
+  stacked?: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-[9px]">
+    <span
+      className={`inline-flex ${stacked ? 'flex-col items-start gap-0' : 'items-center gap-[9px]'}`}
+    >
       {ORDER.filter((key) => (costs[key] ?? 0) > 0).map((key) => (
         <span key={key} className="inline-flex items-center gap-[3px]" title={fr.resources[key]}>
           <span className="flex" style={{ color: resourceColor(key, onPaper) }}>

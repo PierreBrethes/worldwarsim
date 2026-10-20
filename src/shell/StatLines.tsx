@@ -94,7 +94,7 @@ export function statValue(key: StatKey, reading: StatReading, short = false): Re
     case 'roles':
       return reading.roles.map((role) => roleLabel(role, 1)).join(', ');
     case 'price':
-      return <Price costs={reading.costs} size={13} />;
+      return <Price costs={reading.costs} size={13} stacked={short} />;
     case 'funds':
       return fr.blitz.price(reading.amount);
     case 'raise':

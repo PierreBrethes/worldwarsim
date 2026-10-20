@@ -144,8 +144,8 @@ export function GunneryWindow({
                       scope="col"
                       aria-sort={sort === key ? 'descending' : 'none'}
                       className={`sticky top-0 z-10 border-b border-[var(--ink)] p-0 text-left ${
-                        sort === key ? 'bg-[var(--paper-pile)]' : 'bg-[var(--paper)]'
-                      }`}
+                        key === 'training' ? NARROW_HIDDEN : ''
+                      } ${sort === key ? 'bg-[var(--paper-pile)]' : 'bg-[var(--paper)]'}`}
                     >
                       <button
                         type="button"
@@ -290,6 +290,10 @@ export function GunneryWindow({
   );
 }
 
+/** Sous 1440 px la table ne tient plus dans la fenêtre : la formation, qui se lit aussi sur la
+ *  fiche dépliée, cède sa colonne. */
+const NARROW_HIDDEN = 'max-[1439px]:hidden';
+
 /** Une case du classement : la valeur, et sous elle une barre sur l'échelle du jeu. Un mot (« au
  *  contact », « ne tire pas ») n'a pas d'échelle, donc pas de barre. */
 function RankCell({
@@ -306,7 +310,7 @@ function RankCell({
   return (
     <td
       data-stat={stat}
-      className={`min-w-[54px] px-[4px] py-[4px] align-bottom ${sorted ? 'bg-(--ink)/6' : ''}`}
+      className={`${stat === 'training' ? NARROW_HIDDEN : ''} min-w-[54px] px-[4px] py-[4px] align-bottom ${sorted ? 'bg-(--ink)/6' : ''}`}
     >
       {reading === undefined ? (
         <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-note)]">
