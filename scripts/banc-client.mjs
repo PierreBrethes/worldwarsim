@@ -635,6 +635,8 @@ async function play(profileName, pass) {
       1700,
     );
   }
+  // L'inertie d'un geste de la souris court encore deux secondes : le repos commence après.
+  await page.waitForTimeout(3000);
   const statics = await page.evaluate(mapStatic);
   await gesture('repos 10 s', () => page.waitForTimeout(10000), 0);
   await context.close();
