@@ -8,7 +8,7 @@ import { razeBuilding } from './buildings';
 import { playerBuildings } from './buildingReads';
 import { buildCost, outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
-import { homeGroundsOf, occupationsOf, soleHoldOf } from './holding';
+import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
 import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
 import { allRegions } from './regions';
@@ -123,6 +123,9 @@ export async function collapseIfAbandoned(
     at: now,
   });
   /** Le rendez-vous du lever n'est pas annulé : il trouvera un point disparu et ne fera rien. */
+  /** L'heure de son lever quitte la couleur retenue (`until`) : passé elle, les vues reliraient
+   *  la saison pour un point qui n'existe plus (#144). */
+  await recordLinkage(ctx, outpost.seasonId);
 }
 
 /** **Ce qui tient encore le chantier** : les troupes qui y sont stationnées et qui n'en sont pas

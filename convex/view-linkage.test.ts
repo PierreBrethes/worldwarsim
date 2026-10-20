@@ -6,7 +6,8 @@ import type { MutationCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import type { BuildingKey } from '../src/domain/ids';
 import type { PlayerView } from '../src/domain/player-view';
-import { outpostReachKm } from './constants';
+import { nominalStrength, outpostReachKm } from './constants';
+import { collapseIfAbandoned } from './outposts';
 import { linkingOver, recordLinkage } from './holding';
 import { leaveTheWar } from './players';
 import { reportChange, settleBeforeChange } from './production';
@@ -332,5 +333,44 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
 
     await changeColour(t, rival.seasonId, async () => {});
     expect(linkedAt(await holdsTheContract(t, seat), BUZAU)).toBe(false);
+  });
+
+  /**
+   * **L'heure du lever entre dans la couleur retenue à la fondation, et en sort avec un chantier
+   * effondré** : sans quoi, passé ce lever, les huit vues reliraient la saison pour un point qui
+   * n'existe plus, jusqu'au changement de couleur suivant.
+   */
+  it('retient l’heure du lever à la fondation, et l’oublie quand le chantier s’effondre', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const me = await seatDoc(t, seat);
+    const at = point(PRAHOVA);
+    const troopId = await t.run((ctx) =>
+      ctx.db.insert('troops', {
+        seasonId: me.seasonId,
+        playerId: me._id,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: { lon: at[0], lat: at[1] },
+      }),
+    );
+    const { outpostId, standsAt } = await t.mutation(api.movements.foundOutpostHere, {
+      ...seat,
+      regionId: null,
+      point: { lon: at[0], lat: at[1] },
+      specialization: 'relay',
+      troopIds: [troopId],
+    });
+    expect((await seatDoc(t, seat)).linkage?.until).toBe(standsAt);
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(troopId);
+      await collapseIfAbandoned(ctx, outpostId, Date.now());
+    });
+    expect((await seatDoc(t, seat)).linkage?.until).toBeNull();
+    vi.setSystemTime(standsAt + 1);
+    await holdsTheContract(t, seat);
   });
 });
