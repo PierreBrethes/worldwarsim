@@ -26,6 +26,10 @@ import {
 } from './player-view';
 import type { Compass, CompassAction, CompassTarget } from './compass-rose';
 
+/** Un transport de la main porte-t-il quelque chose ? Livrer et larguer n'ont d'objet que là. */
+const carriesLoad = (held: ReadonlyArray<TroopView>) =>
+  carriersAmong(held).some((troop) => loadTotal(troop.load) > 0);
+
 /**
  * **Un transport chargé lâché sur son avant-poste y livre** (ADR 0028 §4) : la branche passe
  * devant l'entrée en garnison, que Tab rend. Refusée — dépôt plein, avion hors escale —, elle
@@ -41,12 +45,7 @@ export function withDelivery(
   const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
   const carriers = carriersAmong(held);
   const outpost = view.me.outposts.find((candidate) => candidate.id === outpostId);
-  if (
-    outpost === undefined ||
-    !carriers.some((troop) => loadTotal(troop.load) > 0) ||
-    marchOf(fan) === undefined
-  )
-    return fan;
+  if (outpost === undefined || !carriesLoad(held) || marchOf(fan) === undefined) return fan;
   const depot = depotOfView(outpost);
   const marching = marchOf(fan)!;
   const carrier = carriers.length === 1 ? carriers[0]! : null;
@@ -335,8 +334,7 @@ function airdropBranch(
   name: string,
 ): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } {
   const march = marchOf(fan);
-  if (march === undefined || !carriersAmong(held).some((troop) => loadTotal(troop.load) > 0))
-    return { actions: [], refusal: null };
+  if (march === undefined || !carriesLoad(held)) return { actions: [], refusal: null };
   const outpost =
     at.kind === 'outpost'
       ? view.me.outposts.find((candidate) => candidate.id === at.outpostId)
