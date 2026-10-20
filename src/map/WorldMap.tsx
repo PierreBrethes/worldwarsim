@@ -436,16 +436,22 @@ export function WorldMap({
     // The board does not wait for these 500 KB, and their failure is mute — but the possession
     // colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
-    loadRegions()
-      .then((data) => {
-        if (abandoned) return;
-        instance.displayRegions(data);
-        regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
-      })
-      .catch(() => {});
+    // Two frames on: the sea and the countries are drawn before the 2.6 MB are asked for.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        loadRegions()
+          .then((data) => {
+            if (abandoned) return;
+            instance.displayRegions(data);
+            regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
+          })
+          .catch(() => {});
+      });
+    });
 
     return () => {
       abandoned = true;
+      cancelAnimationFrame(frame);
       observer.disconnect();
       instance.dispose();
       engine.current = null;
