@@ -536,8 +536,24 @@ async function play(profileName, pass) {
   }
 
   // La carte : déplacer, zoomer, incliner, d'un point de mer en haut à gauche.
-  const sea = [Math.round(width * 0.3), Math.round(height * 0.32)];
-  const centre = [Math.round(width / 2), Math.round(height * 0.45)];
+  /** Le point libre de la carte le plus proche : une carte d'interface posée dessus (la colonne
+   *  « en cours » au téléphone) prendrait le geste, et la caméra ne bougerait pas. */
+  const free = ([x, y]) =>
+    page.evaluate(
+      ([x0, y0]) => {
+        const canvas = window.mapEngine.renderer.domElement;
+        for (let r = 0; r < 300; r += 10)
+          for (let a = 0; a < 16; a++) {
+            const x = Math.round(x0 + r * Math.cos((a * Math.PI) / 8));
+            const y = Math.round(y0 + r * Math.sin((a * Math.PI) / 8));
+            if (document.elementFromPoint(x, y) === canvas) return [x, y];
+          }
+        return [x0, y0];
+      },
+      [x, y],
+    );
+  const sea = await free([Math.round(width * 0.3), Math.round(height * 0.32)]);
+  const centre = await free([Math.round(width / 2), Math.round(height * 0.45)]);
   const by = ([x, y], dx, dy) => [x + dx, y + dy];
   if (phone) {
     await gesture(
