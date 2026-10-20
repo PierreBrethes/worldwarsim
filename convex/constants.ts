@@ -152,6 +152,8 @@ export const STARTING_STEEL = 400;
  *
  * No table per nation, deliberately: the asymmetry comes from the map, and eight hand-written
  * values would be eight more numbers to balance for an effect geography gives away free.
+ *
+ * @a-mesurer 90 depuis le modèle de #158, jamais joué
  */
 export const STARTING_OIL = 90;
 
@@ -207,6 +209,12 @@ export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<
   })),
 ];
 
+/**
+ * **Ce qu'un niveau de plus coûte, en prix comme en durée** : chaque niveau multiplie ceux du
+ * précédent (`buildCost`, `buildMinutes`).
+ *
+ * @a-mesurer 2,0 depuis le modèle de #158, jamais joué
+ */
 export const LEVEL_COST_FACTOR = 2.0;
 
 /**
@@ -523,11 +531,13 @@ export function recruitmentCost(
  *
  * Three deliberate departures from design sheet 08 must survive any edit: the token anti-air
  * value of mark-2 infantry (.06 to .12, so a pure air force pays *something*), the fighter as the
- * only answer to the bomber, and the carrier's mediocre line — its strength is reach, not power.
+ * only air unit that beats the bomber (the escort only trades even with it, #158), and the
+ * carrier's mediocre line — its strength is reach, not power.
  *
- * The counters it must keep (#126, `combat.test.ts`): mark-2 infantry over mark-1 armour, the
- * fighter over the bomber, the escort and the fighter over the carrier. One cycle only, and on
- * purpose: rifle beats anti-tank, anti-tank beats tank, tank beats rifle.
+ * The counters it must keep (#126, #158, `combat.test.ts`): mark-2 infantry over mark-1 armour,
+ * the fighter over the bomber, the escort over the fighter (naval anti-air), the escort and the
+ * fighter over the carrier. One cycle only, and on purpose: rifle beats anti-tank, anti-tank
+ * beats tank, tank beats rifle.
  *
  * @a-mesurer trois cases revues le 19/10 pour les contres (#126), jamais jouées
  */

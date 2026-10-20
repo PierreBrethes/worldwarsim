@@ -6,7 +6,7 @@ import { PROJECTION_BY_DOMAIN } from './troops';
 /**
  * **Un niveau accélère ce que fait le bâtiment** (ADR 0031) : chaque niveau au-delà du premier
  * retire une part de la durée, les parts se multiplient, un plancher les borne.
- * @a-mesurer l'équilibrage chiffrera la part par niveau
+ * @a-mesurer 0,20 depuis le modèle de #158, jamais joué
  */
 const LEVEL_SPEEDUP = 0.2;
 
