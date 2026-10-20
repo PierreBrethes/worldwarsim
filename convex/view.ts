@@ -652,18 +652,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               level: construction.level,
             }
           : null,
-      /**
-       * **What is paid for besides the first running site**, in build order: the entries that
-       * rise on another lane carry their `minutesLeft`, the ones that wait carry `null` and show
-       * only their rank — a countdown for them would have to be invented.
-       */
+      /** **What is paid for behind the running site**, in build order: only a rank, a countdown
+       *  would have to be invented. */
       constructionQueue: queue
         .filter((entry) => entry !== construction)
         .map((entry) => ({
-          /** Absent : il attend sa file. */
-          minutesLeft:
-            entry.finishesAt === null ? null : Math.max(0, (entry.finishesAt - now) / 60_000),
-          minutes: entry.minutes,
           id: entry._id,
           name: entry.building,
           key: workKey(entry.building),

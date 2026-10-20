@@ -37,7 +37,6 @@ import {
   UNIT_ROLE,
   UNIT_TIER,
   RESEARCH_CARD,
-  STORED_RESEARCH_CARD,
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
@@ -269,7 +268,7 @@ export default defineSchema({
     fundsAt: v.optional(v.number()),
     /** **Les cartes de recherche acquises** (ADR 0028 §5), dans l'ordre où elles ont abouti.
      *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
-    researched: v.optional(v.array(STORED_RESEARCH_CARD)),
+    researched: v.optional(v.array(RESEARCH_CARD)),
     /**
      * **La carte qui court sur le Centre de recherche** : sa durée au niveau du
      * Centre qui l'a prise, ce qu'il lui reste à courir, et depuis quand — `null` quand son Centre
@@ -277,7 +276,7 @@ export default defineSchema({
      */
     research: v.optional(
       v.object({
-        card: STORED_RESEARCH_CARD,
+        card: RESEARCH_CARD,
         /** Absent sur une carte posée avant #123 : la durée du premier niveau. */
         totalMs: v.optional(v.number()),
         remainingMs: v.number(),

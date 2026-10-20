@@ -656,10 +656,6 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
-  /** Daté : il monte, `null` : il attend sa file. */
-  readonly minutesLeft?: number | null;
-  /** Sa durée datée, quand il monte (`RunningWork.minutes`). */
-  readonly minutes?: number;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -1303,10 +1299,10 @@ export type PlayerView = {
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
-    /** The first running site — the one the banner counts down. The others that rise beside it
-     *  are in `constructionQueue` with a `minutesLeft`. */
+    /** The first running site — the one the banner counts down. The ones behind it
+     *  wait in `constructionQueue`. */
     readonly construction: RunningWork | null;
-    /** The rest of the queue in build order: running ones (`minutesLeft`) and waiting ones. */
+    /** The rest of the queue in build order, all waiting. */
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;

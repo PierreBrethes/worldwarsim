@@ -114,8 +114,6 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
-        minutesLeft: entry.minutesLeft ?? null,
-        ...(entry.minutes === undefined ? {} : { minutes: entry.minutes }),
       })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},

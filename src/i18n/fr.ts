@@ -3471,8 +3471,8 @@ export const fr = {
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
     work: (name: string, level: number) => `${name} niv. ${level}`,
     workAt: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
-    workTail: (time: string, running: number, queued: number) =>
-      ` · reste ${time}${running > 1 ? ` · ${running} en cours` : ''}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    workTail: (time: string, queued: number) =>
+      ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
     left: (time: string) => `reste ${time}`,

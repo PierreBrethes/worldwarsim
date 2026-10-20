@@ -623,23 +623,6 @@ describe('workSitesOf', () => {
     ]);
   });
 
-  it('plans a queued entry that rises on another lane like the head, dated by its own clock', () => {
-    const second = { ...queued('warehouse', 'r-b', 1), minutesLeft: 20 };
-    const sites = workSitesOf(
-      me({
-        construction: head('farm', 'r-a', 10),
-        constructionQueue: [second, queued('barracks', 'r-c', 1)],
-      }) as PlayerView['me'],
-      CATALOG,
-      LOADED,
-    );
-    expect(sites.map((site) => [site.phase, site.regionId, site.rank, site.finishesAt])).toEqual([
-      ['rising', 'r-a', 0, LOADED + 600_000],
-      ['rising', 'r-b', 1, LOADED + 1_200_000],
-      ['queued', 'r-c', 2, null],
-    ]);
-  });
-
   it("leaves an outpost's works to its own mast", () => {
     const outpost = { ...head('outpost', 'r-o', 5), outpostId: 'o1' };
     expect(

@@ -1197,8 +1197,6 @@ function SiteBand({
 function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   const running = view.me.construction;
   if (running === null) return <>{fr.personalBoard.noWorks}</>;
-  const alongside = view.me.constructionQueue.filter((entry) => entry.minutesLeft != null).length;
-  const queued = view.me.constructionQueue.length - alongside;
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
@@ -1206,8 +1204,7 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
       </b>
       {fr.personalBoard.workTail(
         countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
-        1 + alongside,
-        queued,
+        view.me.constructionQueue.length,
       )}
     </>
   );
@@ -1242,10 +1239,11 @@ function Works({
   const drop = useMutation(api.constructions.cancel);
   const [error, setError] = useState<string | null>(null);
   const [unfolded, setUnfolded] = useState(false);
+  const head = view.me.construction;
   const rows = [
-    ...(view.me.construction === null ? [] : [view.me.construction]),
-    ...view.me.constructionQueue,
-  ].map((work) => ({ work, running: work.minutesLeft != null }));
+    ...(head === null ? [] : [{ work: head, running: true as const }]),
+    ...view.me.constructionQueue.map((work) => ({ work, running: false as const })),
+  ];
   const list = (
     <div className="grid gap-[5px]">
       <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
@@ -1258,7 +1256,7 @@ function Works({
         const total =
           (running ? work.minutes : undefined) ??
           worksMinutes(work.key, work.level, view.me.hqLevel);
-        const left = running ? currentMinutes(work.minutesLeft!, view.loadedAt, now) : total;
+        const left = running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total;
         return (
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
             <span className="flex items-baseline gap-2">
