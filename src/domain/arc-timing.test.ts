@@ -74,7 +74,17 @@ describe('arcProgressAt', () => {
   });
 
   it('keeps a last known position at the end of its stretch', () => {
-    const { seenTo, arrivesAt, headingAtMe, identification, since, ...rest } = watched;
-    expect(arcProgressAt({ ...rest, state: 'lastKnown', lastSeenAt: seenTo }, NOW)).toBe(1);
+    const lost = {
+      state: 'lastKnown',
+      id: 'lost',
+      from: [0, 0],
+      to: [1, 1],
+      route,
+      detector: 'troop',
+      detectorRegion: null,
+      headingDegrees: 0,
+      lastSeenAt: NOW - HOUR,
+    } as const satisfies ArcView;
+    expect(arcProgressAt(lost, NOW)).toBe(1);
   });
 });

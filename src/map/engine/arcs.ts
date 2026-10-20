@@ -46,12 +46,6 @@ type RenderedArc = {
   relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
-  /**
-   * **The share walked, read from the hour by the loop and not by React** (#183): the arc
-   * carries the server's dates and keeps its identity from one answer to the next, so the map
-   * reads where the column stands at every frame (`arcProgressAt`) — at no re-render at all.
-   */
-  progress: number;
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
   loadingUntil: number | null;
@@ -194,7 +188,6 @@ export class ArcLayer {
         rendered = this.build(arc, key, appeared.includes(arc), now, clock);
       }
       rendered.arc = arc;
-      rendered.progress = arcProgressAt(arc, clock);
       rendered.loadingUntil = loadingUntilOf(arc);
       this.headPositions.set(arc.id, rendered.headPosition);
       this.targets.push(...rendered.thread.targets);
@@ -293,7 +286,6 @@ export class ArcLayer {
       pawn,
       relic,
       headPosition: new Vector3(),
-      progress: arcProgressAt(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
     };
@@ -369,8 +361,9 @@ export class ArcLayer {
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
       if (this.motion !== 'off') rendered.thread.drift(elapsed);
 
-      rendered.progress = arcProgressAt(rendered.arc, clock);
-      const position = temporalPosition(rendered.unrolled, rendered.progress);
+      // The share walked is read from the hour (#183): the arc carries the server's dates and
+      // keeps its identity from one answer to the next, so no answer moves a pawn.
+      const position = temporalPosition(rendered.unrolled, arcProgressAt(rendered.arc, clock));
       const { legIndex, local } = pawnTarget(position);
 
       rendered.thread.cut(legIndex, local);
