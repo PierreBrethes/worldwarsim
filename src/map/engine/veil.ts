@@ -15,6 +15,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, LAND_STENCIL, SEA_LEVEL, onLand, type WorldFrame } from './frame';
 import { followShare } from './landing';
 import { PALETTE } from './palette';
+import { TRAME_SCALE } from './regions';
 
 /** Over the night shade, under the theatre frame, the reaches, the threads and the pieces. */
 const VEIL_LIFT = COUNTRY_THICKNESS + 0.011;
@@ -22,8 +23,9 @@ const VEIL_RANK = 2.5;
 /** The prototype's: a third of ink, a hatch over it that says « pas ici » without a word. */
 const VEIL_DEPTH = 0.26;
 const HATCH_DEPTH = 0.14;
-/** The hatch's period in device pixels: screen-space, it reads the same at every distance. */
-const HATCH_PX = 9;
+/** The hatch's period in CSS pixels, screen-space: it reads the same at every distance and at
+ *  every pixel ratio the map renders at (#189) — 4.5, what nine buffer pixels made at 2. */
+const HATCH_CSS_PX = 4.5;
 const FADE_RATE = 10;
 
 function veilMaterial(
@@ -35,6 +37,7 @@ function veilMaterial(
     uniforms: {
       strength,
       ink: { value: new Color(PALETTE.border) },
+      trameScale: TRAME_SCALE,
       inland: inland ?? { value: null },
       origin: board.origin,
       scale: board.scale,
@@ -48,6 +51,7 @@ function veilMaterial(
     fragmentShader: `
       uniform float strength;
       uniform vec3 ink;
+      uniform float trameScale;
       uniform sampler2D inland;
       uniform vec2 origin;
       uniform vec2 scale;
@@ -58,7 +62,7 @@ function veilMaterial(
             ? '1.0'
             : 'smoothstep(0.3, 0.7, texture2D(inland, (vBoard - origin) * scale).r)'
         };
-        float hatch = step(0.5, fract((gl_FragCoord.x + gl_FragCoord.y) / ${HATCH_PX.toFixed(1)}));
+        float hatch = step(0.5, fract((gl_FragCoord.x + gl_FragCoord.y) / trameScale / ${HATCH_CSS_PX.toFixed(1)}));
         float alpha = strength * here * (${VEIL_DEPTH} + ${HATCH_DEPTH} * hatch);
         if (alpha < 0.004) discard;
         gl_FragColor = vec4(ink, alpha);

@@ -110,9 +110,16 @@ const HATCH_EDGE = 0.9;
  * corps — sans elle, three.js reconnaît deux trames au même `onBeforeCompile` et leur sert le
  * premier programme compilé.
  */
+/**
+ * **Les pixels du tampon par pixel CSS, tels que la carte les rend** (#189) : au doigt 1,5, et non
+ * le `devicePixelRatio` de l'écran, sans quoi les trames se resserrent au téléphone. Un seul
+ * uniforme, partagé par toutes les trames ; le moteur le règle avec son pixel ratio.
+ */
+export const TRAME_SCALE = { value: 1 };
+
 export function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.trameScale = { value: window.devicePixelRatio || 1 };
+    shader.uniforms.trameScale = TRAME_SCALE;
     shader.fragmentShader = shader.fragmentShader
       .replace('void main() {', 'uniform float trameScale;\nvoid main() {')
       .replace(

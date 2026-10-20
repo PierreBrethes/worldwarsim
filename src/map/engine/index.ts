@@ -79,7 +79,7 @@ import { buildCoastalWash } from './coastal-wash';
 import { HELD_OPACITY, nationShades, PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
-import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
+import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
@@ -537,6 +537,7 @@ export class MapEngine {
     this.renderer.setPixelRatio(
       Math.min(devicePixelRatio, this.touch ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO),
     );
+    TRAME_SCALE.value = this.renderer.getPixelRatio();
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     // Redrawn on whole frames only (`FrameDemand`): an ambient step moves no piece.
