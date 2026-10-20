@@ -31,7 +31,7 @@ export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, IndicatorCateg
   deposit: 'deposits',
   outpost: 'outposts',
   /** Une réserve neutre n'est ni à moi ni à l'autre : sa propre couche, qui emporte aussi la
-   *  garnison relevée à son pied (`plateau.tsx`). */
+   *  garnison relevée à son pied (`board-markers.ts`). */
   objective: 'objectives',
   /** Le renseignement est tout ce qu'on a relevé chez l'autre : ses colonnes, ses forces posées,
    *  ses installations — trois natures, une seule question, « où est-il ». */

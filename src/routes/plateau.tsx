@@ -1,4 +1,3 @@
-import { pileSupplies } from '@/domain/supplies';
 import type { TourAct, TourTrace } from '@/domain/cargo-tag';
 import { hullsAmong } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
@@ -27,13 +26,11 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm, SURVEY_FADED_HOURS } from '../../convex/constants';
-import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
-import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
-import { isRangoonColumn } from '@/domain/strategic-points';
+import { aimRefusalText, fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
-import type { PieceClick, PlacingMagnet, PlacingSpot, StandingPile } from '@/map/engine';
+import type { PieceClick, PlacingMagnet, PlacingSpot } from '@/map/engine';
 import {
   readWindows,
   toggleWindow,
@@ -55,22 +52,15 @@ import { StaleSeat } from '@/shell/StaleSeat';
 import {
   buildLabels,
   ownerFlags,
-  rangoonReachOf,
-  type LabelLine,
   type MapLabel,
   type MapMarker,
   type Reach,
 } from '@/domain/labels';
-import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
+import { inkByClaimedCountry, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
-import { surveyedAt } from '@/domain/survey-ink';
 import { buildingSprite } from '@/emblems/buildings/manifest';
-import { objectiveSprite } from '@/emblems/objectives/manifest';
-import { lootWords } from '@/domain/journal';
-import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
@@ -86,18 +76,20 @@ import {
 import { traceCompass } from '@/domain/compass-logistics';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
-  handReachOf,
-  movementReachOf,
-  reachOfStation,
-  withRangoonPile,
-} from '@/domain/board-reach';
+  buildingLabelId,
+  campsOf,
+  markerOfStation,
+  markersOf,
+  stackOf,
+  standingPilesOf,
+} from './-plateau/board-markers';
+import { handReachOf, movementReachOf } from '@/domain/board-reach';
 import {
   aimVerdict,
   depositHolders,
   freeDeposits,
   placementOf,
   reachesOf,
-  workSitesOf,
 } from '@/domain/construction';
 import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
@@ -110,7 +102,7 @@ import {
   type Selection,
 } from '@/domain/selection';
 import { SelectionBar } from './-plateau/SelectionBar';
-import { cargoTagsOf, carriersFor } from '@/domain/cargo-tag';
+import { carriersFor } from '@/domain/cargo-tag';
 import type { DropHint, DropNote, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -126,7 +118,6 @@ import {
   type JournalDispatch,
   type ReplayView,
   type PlayerView,
-  type Stack,
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
@@ -1726,328 +1717,33 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // work that will raise it; an outpost carries its own point, because it *is* a point and
   // colours no ground (fiche 03).
   const holders = useMemo(() => depositHolders(view), [view]);
-  const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
-    const loot: ReadonlyArray<MapMarker> = view.lootSightings
-      .filter((sighting) => sighting.present)
-      .map((sighting) => ({
-        kind: 'loot' as const,
-        id: `loot-${sighting.id}`,
-        sightingId: sighting.id,
-        lonLat: sighting.point,
-        current: sighting.current,
-      }));
-    /**
-     * **Toute la géologie, pas seulement la sienne** (décision 65a du 01/09). La bascule dessinait
-     * `me.regions` au nom de l'ADR 0005 : contresens, elle protège les *joueurs* — positions,
-     * mouvements, tenants — et le sol n'est ni l'un ni l'autre. Un gisement est fixe, identique
-     * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
-     * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
-     * (`DEPOSIT_POINTS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
-     * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
-     * au dézoom, rien ne pleut sur la carte.
-     */
-    /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
-    const seeking =
-      placing === null
-        ? undefined
-        : placing.debt?.deposit != null
-          ? [placing.debt.deposit]
-          : EXPLOITED_DEPOSITS[placing.key];
-    const deposits: ReadonlyArray<MapMarker> =
-      toggles.deposits && view.mode !== 'blitz'
-        ? DEPOSIT_POINTS.map((point) => {
-            const holder = holders.get(point.id);
-            return {
-              kind: 'deposit' as const,
-              id: `deposit-${point.id}`,
-              lonLat: point.lonLat,
-              deposit: point.deposit,
-              ...(holder === undefined ? {} : { held: holder }),
-              ...(seeking?.includes(point.deposit) ? { seek: true as const } : {}),
-            };
-          })
-        : [];
-
-    /**
-     * **A founded outpost has to stand on the board.** Without this the column that planted it
-     * becomes a garrison hanging from a point nothing draws: the troops leave the *stationnaires*
-     * of the widget for an address the map never shows, and the whole march reads as "nothing
-     * happened". `me.outposts` is mine only — the fog keeps an opponent's point out of the answer
-     * itself (`view.ts`), so there is nothing to filter on nationality here.
-     */
-    const outposts: ReadonlyArray<MapMarker> = view.me.outposts.map((outpost) => ({
-      kind: 'outpost' as const,
-      id: `outpost-${outpost.id}`,
-      lonLat: outpost.lonLat,
-      hostCountry: outpost.hostCountry,
-      /** **Le mât ouvre la garnison** : la colonne qui a fondé stationne là (ADR 0019 §1), et
-       *  depuis la disparition du widget de troupes plus rien ne l'ouvrait. */
-      station: { kind: 'outpost', outpostId: outpost.id },
-      specialization: outpost.specialization,
-      level: outpost.level,
-      standsAt: outpost.standsAt,
-      garrison: outpost.garrison,
-      /** **Ce qu'il écoute est ce qu'il ravitaille** : le même rayon, montré au survol. Le
-       *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
-       *  change, et la carte n'a pas de trait pour dire une vitesse. */
-      /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
-      reach: withRangoonPile(
-        view.me,
-        { kind: 'outpost', outpostId: outpost.id },
-        marching,
-        outpost.lonLat,
-        outpost.specialization === 'listening' && outpost.standsAt === null
-          ? {
-              lonLat: outpost.lonLat,
-              detectionKm: outpostReachKm(outpost.level),
-              /** Un point n'engage rien : il relève, et le cercle de contact est celui d'une
-               *  pile (décisions 4a et 3a du 16/09). */
-              contactKm: null,
-            }
-          : null,
-      ),
-      ink: view.me.ink,
-      ...(view.mode === 'blitz' || outpost.standsAt !== null
-        ? {}
-        : { depot: { load: outpost.depot, capacity: outpost.depotCapacity } }),
-      /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
-      cargo: cargoTagsOf(
-        troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
-        { afloat: false, atAirfield: false, trace },
-      ),
-    }));
-
-    /**
-     * **Une troupe posée se tient sur la carte**, et c'est la seule adresse qui n'a pas déjà un
-     * mât : une colonne laissée en campagne, une coque qui tient un bout de mer. Sans ce
-     * marqueur elles n'existaient que dans le widget — le joueur lisait « en campagne » sans
-     * jamais savoir où. Les autres adresses ne passent pas par ici : une garnison de bâtiment
-     * se lit sur sa plaque, celle d'un avant-poste sur son point.
-     */
-    const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching, regionAt);
-
-    /**
-     * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
-     * n'avait aucune poignée — un ordre existait côté serveur que rien à l'écran ne pouvait
-     * nommer. Le relevé porte le point où le site se tenait (ADR 0029), et le mât s'y pose : c'est
-     * le point que la capture et la frappe visent. Il suit le même interrupteur que les mâts à
-     * soi, parce que c'est le même encombrement.
-     */
-    /**
-     * **Un camp adverse relevé se tient sur la carte** (ADR 0024 §1) : sans mât, le §3 serait
-     * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
-     * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
-     */
-    /** **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact
-     *  de la réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait
-     *  plus rien. */
-    const isObjectivePoint = (point: LonLat): boolean =>
-      view.objectives.some(
-        (objective) => objective.point[0] === point[0] && objective.point[1] === point[1],
-      );
-    const camps: ReadonlyArray<MapMarker> = view.camps
-      .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
-      .map((camp) => ({
-        kind: 'camp' as const,
-        id: `camp-${camp.id}`,
-        campId: camp.id,
-        lonLat: camp.point,
-        medium: camp.medium,
-        lastKnown: camp.lastKnown,
-        since: camp.since,
-        seenMinutesAgo: camp.seenMinutesAgo,
-        lastSeenAt: camp.lastSeenAt,
-        ...(camp.nation === undefined ? {} : { nation: camp.nation }),
-      }));
-
-    /**
-     * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
-     * le seul marqueur public par décision : sans lui, une réserve annoncée par dépêche serait
-     * une adresse que rien à l'écran ne sait montrer, et le PVE ne ferait converger personne.
-     * Il ne porte ni encre ni garnison — un objectif n'appartient à personne, et ce qui le tient
-     * se relève comme toute force posée.
-     */
-    const objectives: ReadonlyArray<MapMarker> = (toggles.objectives ? view.objectives : []).map(
-      (objective) => ({
-        kind: 'objective' as const,
-        id: `objective-${objective.id}`,
-        objectiveId: objective.id,
-        lonLat: objective.point,
-        name: fr.objectives.names[objective.key] ?? objective.key,
-        tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
-        plate: objectiveSprite(objective.key),
-        depot: lootWords(objective.depot),
-        emptied: objective.status === 'taken',
-      }),
-    );
-
-    /** **Les Sept, sur la carte de tous** (P2) : à l'encre de leur teneur, aucune s'ils sont
-     *  neutres ; contestés, ils le disent sans dire par qui. */
-    const points: ReadonlyArray<MapMarker> = view.strategicPoints.map((point) => ({
-      kind: 'strategic' as const,
-      id: `strategic-${point.id}`,
-      pointId: point.id,
-      lonLat: point.point,
-      name: fr.points.names[point.key],
-      ink: point.holder === null ? null : nationInk(point.holder.nation),
-      state: point.contested
-        ? fr.points.contested
-        : point.holder === null
-          ? fr.points.neutral
-          : nationLabel(point.holder.nation),
-    }));
-
-    /** Un neutre relevé encore neutre a déjà son mât, au quai : un seul marqueur par bâtiment. */
-    const neutralIds = new Set(view.neutralSites.map((site) => site.id));
-    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations
-      .filter((installation) => !neutralIds.has(installation.id))
-      .map((installation) => ({
-        kind: 'installation' as const,
-        id: `installation-${installation.id}`,
-        buildingId: installation.id,
-        key: installation.key,
-        regionId: installation.regionId,
-        lonLat: installation.point,
-        name: fr.buildings[installation.key],
-        plate: buildingSprite(installation.key),
-        washed: knownRegionById.get(installation.regionId)?.state !== 'current',
-        neutral: null,
-      }));
-    /** **Les neutres de la Blitz se tiennent sur la carte de tous** : publics, sans garnison, ils
-     *  se capturent comme un site adverse relevé, par la même rose. */
-    const neutral: ReadonlyArray<MapMarker> = view.neutralSites.map((site) => ({
-      kind: 'installation' as const,
-      id: `installation-${site.id}`,
-      buildingId: site.id,
-      key: site.key,
-      regionId: site.regionId,
-      lonLat: site.point,
-      name: fr.buildings[site.key],
-      plate: buildingSprite(site.key),
-      washed: false,
-      neutral: { lonLat: site.point },
-    }));
-
-    if (!toggles.buildings)
-      return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
-    const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
-    const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
-    const worksOn = (point: LonLat, key: string) =>
-      works.find(
-        (site) =>
-          site.point !== null &&
-          site.point[0] === point[0] &&
-          site.point[1] === point[1] &&
-          site.key === key,
-      ) ?? null;
-    const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
-    const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
-    /** **La garnison attend comme une pile posée** (B19, B20) : le compte à rebours sur le mât,
-     *  et l'étiquette de ses transports chargés — un avion ne débarque qu'à l'aérodrome. */
-    const garrisonOf = (building: PlayerView['me']['buildings'][number]) => {
-      const held = troopsAt(
-        view.me,
-        stationKeyOf({ kind: 'building', buildingId: building.id }),
-        marching,
-      );
-      return {
-        ...reloadOf(held),
-        ...emplacementOf(held),
-        cargo: cargoTagsOf(held, {
-          afloat: false,
-          atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
-          trace,
-        }),
-      };
-    };
-    const searcher = searcherOf(view.me.buildings);
-    const standing = view.me.buildings.map((building) => ({
-      kind: 'building' as const,
-      id: buildingLabelId(building),
-      buildingId: building.id,
-      key: building.key,
-      regionId: building.regionId,
-      regionName: nameOfRegion.get(building.regionId) ?? building.regionId,
-      lonLat: building.point,
-      hostCountry: host,
-      name: building.name,
-      level: building.level,
-      plate: buildingSprite(building.key),
-      // An upgrade is work on a building that already stands: its own mast wears the pennant.
-      works: worksOn(building.point, building.key),
-      /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
-       *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
-       *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
-       *  sur ce que la station entend vraiment. */
-      reach: withRangoonPile(
-        view.me,
-        { kind: 'building', buildingId: building.id },
-        marching,
-        building.point,
-        reachOfStation(building.key, pointOfRegion.get(building.regionId)),
-      ),
-      ...garrisonOf(building),
-      ...(building === searcher ? researchOnCenter(view.me) : {}),
-      ink: view.me.ink,
-    }));
-
-    // A first level has no building to hang its works on: the site gets its own mast at its
-    // point, from the queue on. **Une élévation d'avant-poste ne plante rien** : le point a déjà
-    // son mât (précision du 15/09), et `workSitesOf` laisse ses travaux au panneau du point.
-    const raising = works
-      .filter((site) => site.phase !== 'raising')
-      .map((site) => ({
-        kind: 'building' as const,
-        id: buildingLabelId(site),
-        // Nothing stands: a click opens no line yet.
-        buildingId: null,
-        key: site.key,
-        regionId: site.regionId,
-        regionName: site.regionName,
-        lonLat: site.point,
-        hostCountry: host,
-        name: fr.buildings[site.key],
-        level: null,
-        plate: buildingSprite(site.key),
-        works: site,
-        /** Rien ne se tient encore : un chantier n'entend rien. */
-        reach: null,
-        ink: view.me.ink,
-      }));
-    return [
-      ...deposits,
-      ...loot,
-      ...camps,
-      ...objectives,
-      ...points,
-      ...surveyed,
-      ...neutral,
-      ...outposts,
-      ...stacks,
-      ...standing,
-      ...raising,
-    ];
-  }, [
-    marching,
-    trace,
-    regionAt,
-    view.me,
-    view.loadedAt,
-    view.buildCatalog,
-    view.lootSightings,
-    view.camps,
-    view.objectives,
-    view.strategicPoints,
-    view.surveyedInstallations,
-    view.neutralSites,
-    knownRegionById,
-    toggles.buildings,
-    toggles.deposits,
-    placing,
-    holders,
-    view.mode,
-    toggles.objectives,
-  ]);
+  const markers = useMemo<ReadonlyArray<MapMarker>>(
+    () =>
+      markersOf(view, { marching, trace, regionAt, toggles, placing, holders, knownRegionById }),
+    // Les champs de `view` que les marqueurs lisent, pas la vue entière : elle se réinvalide sans cesse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      marching,
+      trace,
+      regionAt,
+      view.me,
+      view.loadedAt,
+      view.buildCatalog,
+      view.lootSightings,
+      view.camps,
+      view.objectives,
+      view.strategicPoints,
+      view.surveyedInstallations,
+      view.neutralSites,
+      knownRegionById,
+      toggles.buildings,
+      toggles.deposits,
+      placing,
+      holders,
+      view.mode,
+      toggles.objectives,
+    ],
+  );
 
   const labels = useMemo(() => {
     const built = buildLabels(view, markers);
@@ -2457,38 +2153,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
   const standing = useMemo(
-    (): ReadonlyArray<StandingPile> =>
-      [
-        ...markers.flatMap((marker) =>
-          marker.kind === 'stack'
-            ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
-            : [],
-        ),
-        ...garrisonPiles(view.me, marching),
-      ].map((pile) => (blitz ? blitzPile(pile, view.me.troops) : pile)),
+    () => standingPilesOf(view.me, markers, marching, blitz),
     [markers, view.me, marching, blitz],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
   }, [markers, view.objectives, view.me]);
-  const camps = useMemo(
-    () =>
-      markers.flatMap((marker) =>
-        marker.kind === 'camp'
-          ? [
-              {
-                id: marker.id,
-                lonLat: marker.lonLat,
-                medium: marker.medium,
-                seenAt: surveyedAt(marker),
-                seenMinutesAgo: marker.seenMinutesAgo,
-              },
-            ]
-          : [],
-      ),
-    [markers],
-  );
+  const camps = useMemo(() => campsOf(markers), [markers]);
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -3768,146 +3440,6 @@ function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
       ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]
       : []),
   ];
-}
-
-/** Where a station stands on the board, as the label layer names it. A building answers with
- *  its mast and an outpost with its own marker; a **point** has none — the camera then holds
- *  still rather than flying somewhere approximate. */
-/**
- * **Les piles posées, une carte par adresse.** Le portrait est celui du rôle majoritaire — la
- * règle du pion d'un mouvement (`movementSprite`), pour qu'une colonne ne change pas de visage
- * en s'arrêtant. Une nation sans planche pour ce rôle rend `null` et l'étiquette retombe sur
- * son pictogramme : c'est un dessin qui manque, jamais une pile qui disparaît.
- */
-function postedStacks(
-  me: PlayerView['me'],
-  marching: ReadonlySet<string>,
-  regionAt: RegionAt | null,
-): ReadonlyArray<MapMarker> {
-  const names = stationNames({ me });
-  const posts = new Map<
-    string,
-    { readonly at: Extract<TroopStation, { kind: 'point' }>; readonly held: TroopView[] }
-  >();
-  for (const troop of me.troops) {
-    const at = troop.stationedAt;
-    if (marching.has(troop.id) || at.kind !== 'point') continue;
-    const key = stationKeyOf(at);
-    const post = posts.get(key);
-    if (post === undefined) posts.set(key, { at, held: [troop] });
-    else post.held.push(troop);
-  }
-
-  return [...posts.values()].map(({ at, held }) => {
-    const stack = stackOf(held);
-    const face = representativeRole(stack);
-    const tier = held.find((troop) => troop.role === face)?.tier ?? 1;
-    return {
-      kind: 'stack' as const,
-      id: stackLabelId(at),
-      lonLat: at.lonLat,
-      station: at,
-      stack,
-      place: pilePlace(at, names, regionAt),
-      plate: face === null ? null : spriteUrl(me.nation, face, tier),
-      pieces: pilePieces(held),
-      cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
-      ink: me.ink,
-      supplies: pileSupplies(held),
-      ...(isRangoonColumn(held, (troop) => troop.tour?.veiled === true)
-        ? { reach: rangoonReachOf(at.lonLat) }
-        : {}),
-      ...reloadOf(held),
-      ...emplacementOf(held),
-    };
-  });
-}
-
-/** **La carte que cherche mon Centre de recherche** (#123) : son nom et sa barre sur son mât. */
-function researchOnCenter(me: PlayerView['me']): {
-  research?: Extract<LabelLine, { role: 'research' }>;
-} {
-  const running = me.research.running;
-  if (running === null) return {};
-  const { share, finishesAt } = researchProgressOf(running, Date.now());
-  return {
-    research: {
-      role: 'research',
-      text: fr.research.onCenter(cardName(running.card)),
-      since: (finishesAt ?? Date.now()) - (running.totalMs ?? researchMs(running.card)),
-      dueAt: finishesAt,
-      share,
-    },
-  };
-}
-
-/** **L'artillerie** (B20) : la pile est en batterie quand sa dernière pièce posée l'est. */
-function emplacementOf(held: ReadonlyArray<TroopView>): { emplacedAt?: number } {
-  const at = Math.max(0, ...held.map((troop) => troop.emplacedAt ?? 0));
-  return at > Date.now() ? { emplacedAt: at } : {};
-}
-
-/** **Blitz** (B19) : la pile recharge tant que sa dernière troupe à avoir frappé recharge. */
-function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
-  const until = Math.max(0, ...held.map((troop) => troop.reloadUntil ?? 0));
-  return until > Date.now() ? { reloadUntil: until } : {};
-}
-
-/**
- * **Les garnisons de mes bâtiments, au pied de leur maquette** (ADR 0026 §5). Mes troupes
- * seulement : la garnison d'un autre ne sort jamais du serveur. Une maquette qui n'est pas debout
- * — chantier, bâtiments masqués — n'en porte aucune, et le moteur ne la pose pas.
- */
-function garrisonPiles(
-  me: PlayerView['me'],
-  marching: ReadonlySet<string>,
-): ReadonlyArray<StandingPile> {
-  return me.buildings.flatMap((building) => {
-    // The station's key, as `holding` names the pile a hand was taken from.
-    const id = stationKeyOf({ kind: 'building', buildingId: building.id });
-    const troops = troopsAt(me, id, marching);
-    return troops.length === 0
-      ? []
-      : [
-          {
-            id,
-            at:
-              building.key === PROJECTION_BY_DOMAIN.sea
-                ? { beside: buildingLabelId(building), quay: building.point }
-                : { beside: buildingLabelId(building) },
-            pieces: pilePieces(troops),
-          },
-        ];
-  });
-}
-
-function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
-  const here = new Set(pile.pieces.troopIds);
-  return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
-}
-
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
- *  deux mines d'une même région sont deux mâts. */
-const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
-  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
-
-const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
-  troops.reduce<Stack>(
-    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
-    {},
-  );
-
-function markerOfStation(view: PlayerView, station: TroopStation): string | null {
-  /** Une pile posée a désormais son marqueur : la caméra a où aller quand on ouvre sa carte. */
-  if (station.kind === 'point') return stackLabelId(station);
-  if (station.kind === 'outpost') {
-    return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
-      ? `outpost-${station.outpostId}`
-      : null;
-  }
-  if (station.kind !== 'building') return null;
-  const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
-  return building === undefined ? null : buildingLabelId(building);
 }
 
 /** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer
