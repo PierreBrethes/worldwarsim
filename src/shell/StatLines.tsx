@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { MAX_HQ_LEVEL } from '../../convex/constants';
-import { asDuration } from '@/domain/duration';
+import { asSpan } from '@/domain/duration';
 import { shareOfReading, type StatKey, type StatReading, type StatRow } from '@/domain/stat-sheet';
 import { fr, roleLabel } from '@/i18n/fr';
 import { SolidGlyph } from './Glyph';
@@ -82,7 +82,7 @@ export function StatGlyph({ stat, size = 15 }: { stat: StatKey; size?: number })
   );
 }
 
-const duration = (value: number): string => asDuration(value);
+const duration = (value: number): string => asSpan(value);
 
 /** Ce que la valeur imprime, selon la statistique : c'est ici que se choisit l'unité. */
 export function statValue(key: StatKey, reading: StatReading, short = false): ReactNode {
