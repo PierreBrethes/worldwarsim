@@ -187,7 +187,8 @@ const scaled = (
 ): StatReading => ({
   kind: 'scaled',
   value,
-  share: shareOn(key, extra.of ?? value, scaleOf(key, theatre)),
+  // La marque se place sur ce qui reste, pas sur le plafond : une pile à sec n'a pas une barre pleine.
+  share: shareOn(key, value, scaleOf(key, theatre)),
   ...extra,
 });
 

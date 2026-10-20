@@ -165,6 +165,21 @@ describe('pileStats', () => {
     expect(rowOf(rows, 'fuel')).toMatchObject({ kind: 'scaled', value: 3, of: 4 });
   });
 
+  it('places the mark on what is held, not on the ceiling', () => {
+    const share = (held: number) =>
+      (
+        rowOf(
+          pileStats(
+            [troop('t', 'landTransport', { supplies: { rounds: 0, fuel: held } })],
+            context,
+          ),
+          'fuel',
+        ) as { share: number }
+      ).share;
+    expect(share(0)).toBe(0);
+    expect(share(4)).toBeGreaterThan(share(1));
+  });
+
   it('counts the free seats and the loot capacity', () => {
     const rows = pileStats(
       [troop('t', 'landTransport'), troop('i', 'infantry', { carriedBy: 't' })],
