@@ -14,6 +14,18 @@ import { directRoute } from './routing';
 import { asLocalTime } from './duration';
 
 const LOADED_AT = 1_700_000_000_000;
+const MINUTE = 60_000;
+
+/** A column out for half an hour, due in `left` minutes, as the server dates it. */
+const march = (
+  left: number,
+  hold: { heldAt?: number; holdUntil?: number } = {},
+): Extract<ArcView, { state: 'mine' }>['schedule'] => ({
+  departedAt: LOADED_AT - 30 * MINUTE,
+  arrivesAt: LOADED_AT + left * MINUTE,
+  heldAt: hold.heldAt ?? null,
+  holdUntil: hold.holdUntil ?? null,
+});
 
 const mineArc = (override: Partial<Extract<ArcView, { state: 'mine' }>>): ArcView => ({
   state: 'mine',
@@ -28,9 +40,7 @@ const mineArc = (override: Partial<Extract<ArcView, { state: 'mine' }>>): ArcVie
   type: 'attack',
   stack: { infantry: 24, armor: 6 },
   troopIds: [],
-  minutesLeft: 30,
-  borderWait: null,
-  progress: 0.5,
+  schedule: march(30),
   ...override,
 });
 
@@ -45,10 +55,9 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
   headingDegrees: 87,
   headingAtMe: false,
   identification: { pierced: false },
-  estimatedMinutesLeft: 100,
-  watchMinutesLeft: 12,
+  arrivesAt: LOADED_AT + 100 * MINUTE,
+  seenTo: LOADED_AT + 12 * MINUTE,
   since: 0,
-  progress: 0.34,
   ...override,
 });
 
@@ -130,13 +139,7 @@ describe('buildLabels', () => {
 
   it('says the hold instead of counting down an arrival that will not happen', () => {
     const [label] = buildLabels(
-      viewWith([
-        mineArc({
-          minutesLeft: 0,
-          progress: 1,
-          borderWait: { resolutionInMinutes: 420 },
-        }),
-      ]),
+      viewWith([mineArc({ schedule: march(420, { heldAt: LOADED_AT - MINUTE }) })]),
       [],
     );
     expect(texts(label!.lines)).toEqual([
@@ -145,20 +148,20 @@ describe('buildLabels', () => {
   });
 
   it('dates the departure of my column, for its bar, from what the view serves', () => {
-    const [label] = buildLabels(viewWith([mineArc({ minutesLeft: 30, progress: 0.5 })]), []);
+    const [label] = buildLabels(viewWith([mineArc({ schedule: march(30) })]), []);
     expect(label?.lines.find((line) => line.role === 'countdown')).toEqual({
       role: 'countdown',
       dueAt: LOADED_AT + 30 * 60_000,
       prefix: '',
       since: LOADED_AT - 30 * 60_000,
     });
-    const [done] = buildLabels(viewWith([mineArc({ minutesLeft: 0, progress: 1 })]), []);
+    const [done] = buildLabels(viewWith([mineArc({ schedule: march(0) })]), []);
     expect(done?.lines.find((line) => line.role === 'countdown')).not.toHaveProperty('since');
   });
 
   it('keeps the countdown and announces the hold while the column still walks', () => {
     const [label] = buildLabels(
-      viewWith([mineArc({ minutesLeft: 30, borderWait: { resolutionInMinutes: 180 } })]),
+      viewWith([mineArc({ schedule: march(30, { holdUntil: LOADED_AT + 180 * MINUTE }) })]),
       [],
     );
     expect(texts(label!.lines)).toEqual([
@@ -265,9 +268,7 @@ describe('buildLabels', () => {
           to: [1, 1],
           route: directRoute([0, 0], [1, 1], 'land', 10),
           headingDegrees: 10,
-          seenMinutesAgo: 5,
-          lastSeenAt: 0,
-          progress: 0.2,
+          lastSeenAt: LOADED_AT - 5 * MINUTE,
         },
       ]),
       [],
@@ -315,9 +316,7 @@ describe('buildLabels', () => {
         to: [1, 1],
         route: directRoute([0, 0], [1, 1], 'sea', 10),
         headingDegrees: 10,
-        seenMinutesAgo: 5,
-        lastSeenAt: 0,
-        progress: 0.2,
+        lastSeenAt: LOADED_AT - 5 * MINUTE,
       },
       {
         state: 'seaControl',

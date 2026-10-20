@@ -101,9 +101,7 @@ const arcs: ReadonlyArray<ArcView> = [
     type: 'attack',
     stack: { armor: 1 },
     troopIds: ['T-3'],
-    minutesLeft: 8,
-    borderWait: null,
-    progress: 0.5,
+    schedule: { departedAt: 0, arrivesAt: 3_600_000, heldAt: null, holdUntil: null },
   },
   {
     state: 'enemyDetected',
@@ -116,10 +114,9 @@ const arcs: ReadonlyArray<ArcView> = [
     headingDegrees: 142,
     headingAtMe: false,
     identification: { pierced: false },
-    estimatedMinutesLeft: null,
-    watchMinutesLeft: 4,
+    arrivesAt: 3_600_000,
+    seenTo: 3_600_000,
     since: 0,
-    progress: 0.5,
   },
 ];
 

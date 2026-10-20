@@ -246,9 +246,12 @@ describe('posterOf', () => {
       type: 'march',
       stack: { armor: 1 },
       troopIds: [],
-      minutesLeft: 90,
-      borderWait: null,
-      progress: 0.4,
+      schedule: {
+        departedAt: LOADED_AT - 60 * 60_000,
+        arrivesAt: LOADED_AT + 90 * 60_000,
+        heldAt: null,
+        holdUntil: null,
+      },
     };
     const poster = posterFor(view({ arcs: [arc] }), [], 'mv');
     expect(poster).toMatchObject({
@@ -385,10 +388,9 @@ describe('posterOf', () => {
       headingDegrees: 90,
       headingAtMe: true,
       identification: { pierced: false },
-      estimatedMinutesLeft: 30,
-      watchMinutesLeft: 10,
+      arrivesAt: LOADED_AT + 30 * 60_000,
+      seenTo: LOADED_AT + 10 * 60_000,
       since: LOADED_AT - 40 * 60_000,
-      progress: 0.5,
     };
     const poster = posterFor(view({ arcs: [arc] }), [], 'foe');
     // In sight, the hour of its first observation — the camp's rule, and the annotation's (H3).
@@ -416,9 +418,7 @@ describe('posterOf', () => {
       detector: 'troop',
       detectorRegion: null,
       headingDegrees: 0,
-      seenMinutesAgo: 120,
       lastSeenAt: LOADED_AT - 125 * 60_000,
-      progress: 1,
     };
     const camp: MapMarker = {
       kind: 'camp',

@@ -23,6 +23,7 @@ import type { ChainState } from './economy';
 import type { BoardRead } from './harvest';
 import type { FirstSteps } from './first-steps';
 import type { ComputedRoute } from './routing';
+import type { ArcSchedule } from './arc-timing';
 import type { ResourceAmounts } from './loot';
 
 export type { UnitRole };
@@ -102,14 +103,13 @@ export type ArcView =
       /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
        *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
       readonly airdrop?: 'out' | 'back';
-      readonly minutesLeft: number;
       /**
-       * An arrival falling inside the target's rest window stalls the movement at the
-       * border: it only resolves when the window ends. `null` when resolution happens on
-       * arrival — see `windowExit`.
+       * **Its four dates, as served — never a share or a countdown against the clock** (#183):
+       * the arc keeps its identity until its trip changes, and whoever draws or counts reads
+       * the hour itself (`arcProgressAt`, `borderResolution`). A rest window that bites holds
+       * it at the border (`heldAt`) or will (`holdUntil`).
        */
-      readonly borderWait: { readonly resolutionInMinutes: number } | null;
-      readonly progress: number;
+      readonly schedule: ArcSchedule;
     }
   | {
       readonly state: 'enemyDetected';
@@ -136,13 +136,12 @@ export type ArcView =
       readonly identification: MovementIdentification;
       /** When the arrival is due. It times the label's countdown and nothing else: the arrival
        *  lies past the end of the thread drawn. */
-      readonly estimatedMinutesLeft: number | null;
-      /** How long the watch still runs. **It is what paces the pawn**: the pion must reach the
-       *  end of the watched stretch when the window closes, not when the column lands. */
-      readonly watchMinutesLeft: number;
+      readonly arrivesAt: number;
+      /** When the watch closes. **It is what paces the pawn**: the pion must reach the end of the
+       *  watched stretch when the window closes, not when the column lands. */
+      readonly seenTo: number;
       /** L'instant de sa première observation, l'heure qu'il porte tant qu'il est en vue (H3). */
       readonly since: number;
-      readonly progress: number;
     }
   | {
       readonly state: 'lastKnown';
@@ -154,11 +153,9 @@ export type ArcView =
       readonly detectorRegion: string | null;
       readonly nation?: string;
       readonly headingDegrees: number;
-      readonly seenMinutesAgo: number;
       /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
-       *  écrivent, sans le redériver d'un âge. */
+       *  écrivent, et dont l'âge se lit à l'heure de qui le dessine. */
       readonly lastSeenAt: number;
-      readonly progress: number;
     }
   | {
       readonly state: 'seaControl';

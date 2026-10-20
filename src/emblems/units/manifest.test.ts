@@ -127,9 +127,7 @@ describe('movementSprites', () => {
     type: 'attack',
     stack: { infantry: 2, armor: 5 },
     troopIds: [],
-    minutesLeft: 60,
-    borderWait: null,
-    progress: 0.4,
+    schedule: { departedAt: 0, arrivesAt: 3_600_000, heldAt: null, holdUntil: null },
   } as const satisfies ArcView;
 
   it('shows the dominant role of my stack on the ground it walks', () => {
@@ -169,10 +167,9 @@ describe('movementSprites', () => {
       headingDegrees: 45,
       headingAtMe: false,
       identification: { pierced: false },
-      estimatedMinutesLeft: null,
-      watchMinutesLeft: 5,
+      arrivesAt: 3_600_000,
+      seenTo: 3_600_000,
       since: 0,
-      progress: 0.1,
     };
     expect(movementSprites(enemy, 'france')).toBeNull();
   });
@@ -193,10 +190,9 @@ describe('movementSprites', () => {
       headingDegrees: 90,
       headingAtMe: true,
       identification: { pierced: true, type: 'attack', stack: { armor: 9 } },
-      estimatedMinutesLeft: 30,
-      watchMinutesLeft: 9,
+      arrivesAt: 3_600_000,
+      seenTo: 3_600_000,
       since: 0,
-      progress: 0.6,
     };
     expect(movementSprites(identified, 'france')).toBeNull();
   });

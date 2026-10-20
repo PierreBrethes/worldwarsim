@@ -7,6 +7,7 @@ import type { ArcView, PlayerView, TroopStation } from './player-view';
 import { isRangoonColumn } from './strategic-points';
 import type { Theatre } from './theatres';
 import { stationKeyOf, stationPointOf, troopsAt } from './troops';
+import { arcProgressAt } from './arc-timing';
 import type { ArmedColumn } from './armed-column';
 import type { LonLat } from './geo';
 
@@ -37,7 +38,7 @@ export function handReachOf(
 }
 
 export function movementReachOf(
-  view: PlayerView,
+  view: Pick<PlayerView, 'arcs'> & { readonly me: Pick<PlayerView['me'], 'troops'> },
   movementId: string | null,
   now: number,
   theatre: Theatre | null,
@@ -50,14 +51,7 @@ export function movementReachOf(
   const roles = (Object.entries(movement.stack) as ReadonlyArray<[UnitRole, number | undefined]>)
     .filter(([, count]) => (count ?? 0) > 0)
     .map(([role]) => role);
-  const elapsed = Math.max(0, now - view.loadedAt);
-  const progress =
-    movement.progress >= 1 || movement.minutesLeft <= 0
-      ? 1
-      : Math.min(
-          1,
-          movement.progress + ((1 - movement.progress) * elapsed) / (movement.minutesLeft * 60_000),
-        );
+  const progress = arcProgressAt(movement, now);
   const lonLat = positionAt(
     {
       id: movement.id,

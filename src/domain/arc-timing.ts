@@ -1,3 +1,5 @@
+import type { ArcView } from './player-view';
+
 /**
  * Where a column stands and what it still owes, from the four dates the server keeps on it.
  *
@@ -14,28 +16,33 @@ export type ArcSchedule = {
   readonly holdUntil: number | null;
 };
 
-export type ArcTiming = {
-  readonly minutesLeft: number;
-  readonly progress: number;
-  readonly borderWait: { readonly resolutionInMinutes: number } | null;
-};
+const share = (from: number, to: number, now: number): number =>
+  to <= from ? 1 : Math.min(1, Math.max(0, (now - from) / (to - from)));
 
-export function arcTiming(
-  { departedAt, arrivesAt, heldAt, holdUntil }: ArcSchedule,
-  now: number,
-): ArcTiming {
-  if (heldAt !== null) {
-    return {
-      minutesLeft: 0,
-      progress: 1,
-      borderWait: { resolutionInMinutes: Math.max(0, (arrivesAt - now) / 60_000) },
-    };
+/** The share of my column's thread walked at `now`; a column held at the border is at its end. */
+export const shareWalked = ({ departedAt, arrivesAt, heldAt }: ArcSchedule, now: number): number =>
+  heldAt !== null ? 1 : share(departedAt, arrivesAt, now);
+
+/** When a rest window lets my column go: held, the pass that resolves it; walking towards a
+ *  known window, its close; `null` when nothing bites. */
+export const borderResolution = ({ arrivesAt, heldAt, holdUntil }: ArcSchedule): number | null =>
+  heldAt !== null ? arrivesAt : holdUntil;
+
+/**
+ * **Where the pawn stands at `now`** (#183): the arc carries instants and keeps its identity
+ * from one answer to the next, so the hour is read here, by whoever draws, every frame. A
+ * sighting is paced on its watch window — the thread is the watched stretch — and a last known
+ * position stays at its end.
+ */
+export function arcProgressAt(arc: ArcView, now: number): number {
+  switch (arc.state) {
+    case 'mine':
+      return shareWalked(arc.schedule, now);
+    case 'enemyDetected':
+      return share(arc.since, arc.seenTo, now);
+    case 'lastKnown':
+      return 1;
+    case 'seaControl':
+      return arc.progress;
   }
-  const span = arrivesAt - departedAt;
-  return {
-    minutesLeft: Math.max(0, (arrivesAt - now) / 60_000),
-    progress: span <= 0 ? 1 : Math.min(1, Math.max(0, (now - departedAt) / span)),
-    borderWait:
-      holdUntil === null ? null : { resolutionInMinutes: Math.max(0, (holdUntil - now) / 60_000) },
-  };
 }

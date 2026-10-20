@@ -6,7 +6,8 @@ import { RouteScale } from './RouteScale';
 
 afterEach(cleanup);
 
-const arc = (id: string, minutesLeft: number, progress: number) =>
+const HOUR = 3_600_000;
+const arc = (id: string, departedAt: number, arrivesAt: number) =>
   ({
     state: 'mine',
     id,
@@ -17,13 +18,12 @@ const arc = (id: string, minutesLeft: number, progress: number) =>
       costUnits: 2,
       legs: [{ medium: 'land', distanceUnits: 2 }],
     },
-    minutesLeft,
-    progress,
+    schedule: { departedAt, arrivesAt, heldAt: null, holdUntil: null },
   }) as unknown as ArcView;
 
 describe('the route scale', () => {
   it('times a column in flight by its whole trip', () => {
-    render(<RouteScale arc={arc('m1', 60, 0.5)} />);
+    render(<RouteScale arc={arc('m1', -HOUR, HOUR)} />);
     expect(screen.getAllByText(/02:00:00/).length).toBeGreaterThan(0);
   });
 });
