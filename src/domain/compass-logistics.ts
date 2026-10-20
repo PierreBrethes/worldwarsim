@@ -17,7 +17,7 @@ import {
   tourRefusalOf,
   type LoadingPlace,
 } from './logistics';
-import { carrierIn, fareOf, PROJECTION_BY_DOMAIN, seatsOf, stationKeyOf } from './troops';
+import { fareOf, PROJECTION_BY_DOMAIN, seatsOf, stationKeyOf } from './troops';
 import {
   type OutpostView,
   type PlayerView,
@@ -190,7 +190,7 @@ export function boardingAt(
       : undefined;
   const boardings = carriers.map((carrier) => ({
     carrier,
-    riders: held.filter((troop) => carrierIn(troop, held) === null),
+    riders: hullsAmong(held),
     pile: aimed === null ? pile : [...pile, ...held],
     atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
   }));

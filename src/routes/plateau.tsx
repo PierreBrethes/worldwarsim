@@ -1,6 +1,6 @@
 import { outOfRounds, pileSupplies, topUp, type SupplyStocks } from '@/domain/supplies';
 import type { TourAct, TourTrace } from '@/domain/cargo-tag';
-import { emptyLoad, isAirStop } from '@/domain/logistics';
+import { emptyLoad, hullsAmong, isAirStop } from '@/domain/logistics';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import {
@@ -2461,7 +2461,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
       const station = click.station;
       const boarding = {
-        riders: held.filter((troop) => carrierIn(troop, held) === null),
+        riders: hullsAmong(held),
         carrier,
         pile,
         atAirfield:
