@@ -918,6 +918,26 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** Le siège irrégulier n'a pas de stock : la station d'écoute qu'il hérite reste muette. */
+  it('hands his listening station to the irregulars, who hear nothing without coal', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const station = await building(t, guest, PSKOV, 1, 'listening');
+    await take(t, seat, hq);
+    await finish(t);
+
+    const after = await t.run(async (ctx) => ({
+      station: (await ctx.db.get(station))!,
+      irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true)!,
+      heard: (await ctx.db.query('sightings').collect()).filter(
+        (row) => row.detector === 'station',
+      ),
+    }));
+    expect(after.station.playerId).toBe(after.irregular._id);
+    expect(after.heard).toEqual([]);
+  });
+
   /** **Hong Kong lit la chute d'un QG** que son teneur ne voit pas : qui, quoi, où. */
   it("tells Hong Kong's holder of a capture it is not part of", async () => {
     const t = boot();

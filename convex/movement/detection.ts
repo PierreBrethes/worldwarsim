@@ -368,6 +368,8 @@ async function detectionBoard(
   /** A post with no coal hears nothing (ADR 0028 §1): one economy read per owner, not per post. */
   const silent = new Map<Id<'players'>, boolean>();
   const isSilent = async (playerId: Id<'players'>): Promise<boolean> => {
+    /** The irregular seat keeps no stock, so the stations it inherits at a fall have no coal. */
+    if (playerById.get(playerId)?.irregular === true) return true;
     if (!silent.has(playerId)) {
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
