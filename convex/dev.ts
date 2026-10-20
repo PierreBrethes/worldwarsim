@@ -977,6 +977,18 @@ export const benchFlights = internalMutation({
   },
 });
 
+/** **Rangoun tenu au banc** (#176) : ses tournées se relèvent à mi-portée, le pire cas du calcul. */
+export const benchRangoon = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = await layPoint(ctx, player.seasonId, 'rangoon');
+    if (point === null) throw new Error('no region under rangoon');
+    await handOver(ctx, point, playerId, Date.now());
+  },
+});
+
 /** La réévaluation du brouillard seule, pour la chronométrer : entière, ou d'un joueur. */
 export const benchReassess = internalMutation({
   args: { seasonId: v.id('seasons'), playerId: v.optional(v.id('players')) },

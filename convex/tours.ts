@@ -115,7 +115,7 @@ export const recall = mutation({
     if (underway) await ctx.db.patch(troopId, { tour: { ...troop.tour, recalled: true } });
     else {
       await endTour(ctx, troop, Date.now(), 'recalled');
-      /** Sans tournée, le camion n'est plus voilé par Rangoun (#145). */
+      /** Sans tournée, le camion se relève de nouveau à portée entière, Rangoun ou non (#145). */
       await reassessDetection(ctx, seasonId, Date.now(), player._id);
     }
     return null;

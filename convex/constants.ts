@@ -760,6 +760,22 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>, theatre: Theatr
   );
 
 /**
+ * **Rangoun** (ADR 0032) : la part de sa portée à laquelle un détecteur relève une tournée du
+ * teneur.
+ *
+ * @a-mesurer mi-portée de la décision du 20/10 (Q23), jamais joué
+ */
+export const RANGOON_SIGHTING_SHARE = 0.5;
+
+/**
+ * **Ce qu'un détecteur de `radiusKm` relève d'une cible** : sa portée entière, ou sa part de
+ * Rangoun quand la cible est une tournée du teneur. Le calcul complet, le calcul d'un seul joueur
+ * et le cercle que le teneur voit autour de sa tournée la lisent tous ici.
+ */
+export const sightingReachKm = (radiusKm: number, rangoonTour: boolean): number =>
+  rangoonTour ? radiusKm * RANGOON_SIGHTING_SHARE : radiusKm;
+
+/**
  * **How close one has to stand to be found on arrival.** ADR 0019 §1: it replaces the containment
  * the server cannot compute, since it holds no polygons.
  *

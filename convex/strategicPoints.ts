@@ -170,7 +170,7 @@ export async function handOver(
       : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
   });
   await tallyRace(ctx, point.seasonId, now);
-  /** **Rangoun** : le voile des tournées suit le point, donc le brouillard se relit à la prise
+  /** **Rangoun** : la mi-portée des tournées suit le point, donc le brouillard se relit à la prise
    *  comme à la perte. */
   if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
 }

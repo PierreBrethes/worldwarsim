@@ -3,7 +3,7 @@
 **Statut :** acceptée (20/10/2026, retours de la pré-prod, #173) — **précise la règle 1** de
 `WWS/CLAUDE.md` : elle vaut pour les atouts et la recherche ; un point stratégique donne un
 avantage mesuré, plus une règle cassée. Révise les règles de Singapour, de Bakou et de Halifax
-(ADR 0027 §4, #133) ; Narvik et Dakar (#175) sont codés ; Rangoun suit dans #176.
+(ADR 0027 §4, #133) ; Narvik et Dakar (#175), puis Rangoun (#176), sont codés.
 
 ## Contexte
 
@@ -21,7 +21,7 @@ coût des trajets ».
    bonus de deux points tenus s'additionnent sans se multiplier : chaque point touche une variable
    différente. Aucun point ne touche le revenu brut ni le recrutement. Pas de plafond global.
 3. **La course aux points reste la condition de victoire** : quatre points tenus 24 h (ADR 0027 §4).
-4. **Les trois premiers** (chiffres `@a-mesurer`) :
+4. **Les points** (chiffres `@a-mesurer`) :
    - **Singapour** : les camions et les cargos paient 20 % de plein en moins, en crans entiers
      (arrondi au cran supérieur : un trajet d'un cran coûte toujours un cran).
    - **Bakou** : une troupe à l'arrêt, hors de toute ancre, reprend un cran de plein toutes les
@@ -34,12 +34,15 @@ coût des trajets ».
    - **Dakar** : un pillage épargne 600 de chaque ressource au lieu de 400 chez le teneur, et le
      rognage du stockage ne descend pas sous ce plancher (`sparedPerResourceOf`). Le dépôt
      d'avant-poste capturé chez lui brûle toujours.
+   - **Rangoun** : une tournée du teneur se relève à mi-portée de chaque détecteur, au lieu de
+     jamais (`sightingReachKm`). Une pile posée n'en profite que si tout ce qui la compose est en
+     tournée ; le sol national, qui n'a pas de rayon, la relève comme toute autre.
 5. Mondiale seule : la Blitz garde ses règles.
 
 ## Conséquences
 
 - Une seule fonction pure par règle, lue par l'écran et le serveur (`fuelStepsOf`, `bakuRefuel`,
-  `slotsAskedBy`, `outputShareOf`, `sparedPerResourceOf`).
+  `slotsAskedBy`, `outputShareOf`, `sparedPerResourceOf`, `sightingReachKm`).
 - Les textes des points (`fr.points.rules`) disent le chiffre.
 - Le plein repris à Bakou ne débite plus le plateau personnel : `bakuRefuels`, `fuelOnly`,
   `viaBaku`, `isFuelFree` et leurs textes sont retirés.
@@ -49,4 +52,5 @@ coût des trajets ».
 - La règle 1 appliquée aux points stratégiques : un point ne change plus la carte mentale, il
   pèse un peu sur une variable.
 - « Camions et cargos sans plein », « motorisés ravitaillés partout », « flottes hors slot »,
-  « exploitations productives hors réseau », « réserves impillables » : les cinq règles entières.
+  « exploitations productives hors réseau », « réserves impillables », « tournées jamais
+  relevées » : les six règles entières.
