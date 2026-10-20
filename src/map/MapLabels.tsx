@@ -515,28 +515,41 @@ export function MapLabels({
     }
   }, [labels]);
 
+  /**
+   * **Une étiquette qui reste garde son état** (#148) : son nœud est le même (clé `label.id`), ce
+   * que la boucle y a écrit aussi. Seules les nouvelles partent cachées ; une classe qu'un
+   * nouveau `className` a effacée est rendue par `apply`.
+   */
   useLayoutEffect(() => {
+    const was = states.current;
     states.current = new Map(
-      labels.map((label) => [
-        label.id,
-        {
-          visible: false,
-          lod: 'glyph',
-          folded: false,
-          grouped: false,
-          stagger: 0,
-          fade: 1,
-          dressed: 0,
-          drawn: '',
-          plateScale: 1,
-          hang: '',
-          x: 0,
-          y: 0,
-        },
-      ]),
+      labels.map((label) => {
+        const kept = was.get(label.id);
+        if (kept !== undefined) apply(label.id, kept);
+        return [
+          label.id,
+          kept ?? {
+            visible: false,
+            lod: 'glyph',
+            folded: false,
+            grouped: false,
+            stagger: 0,
+            fade: 1,
+            dressed: 0,
+            drawn: '',
+            plateScale: 1,
+            hang: '',
+            x: 0,
+            y: 0,
+          },
+        ];
+      }),
     );
     refreshCountdowns();
-  }, [labels, refreshCountdowns]);
+    // Une étiquette gardée garde son `lod` : le changement qui relançait le repli n'arrive plus,
+    // or son cartouche a pu s'élargir (une troupe arrive) et chevaucher sa voisine.
+    scheduleDegrade();
+  }, [labels, refreshCountdowns, apply, scheduleDegrade]);
 
   // Camera rest is not enough for thread labels: their anchor is a movement head, which
   // advances while nothing moves on screen. Without this lap, two pawns meeting stay

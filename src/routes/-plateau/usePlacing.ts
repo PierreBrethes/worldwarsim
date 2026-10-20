@@ -76,7 +76,7 @@ export function usePlacing(
     const free = new Set(freeIds.split(','));
     return DEPOSIT_POINTS.filter((deposit) => free.has(deposit.id));
   }, [freeIds]);
-  const reaches = useMemo(() => reachesOf(view, outpostReachKm), [view]);
+  const reaches = useMemo(() => reachesOf({ me: view.me }, outpostReachKm), [view.me]);
 
   /**
    * **L'aimant de la clé tenue** : un extracteur saute sur un gisement libre de son espèce — celui

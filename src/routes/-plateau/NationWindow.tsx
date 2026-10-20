@@ -44,7 +44,7 @@ export function NationWindow({
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const standing = useMemo(() => stationGroups(view.me, marching), [view.me, marching]);
-  const names = useMemo(() => stationNames(view), [view]);
+  const names = useMemo(() => stationNames({ me: view.me }), [view.me]);
 
   return (
     <FloatingWindow name="nation" onClose={onClose} {...windowProps} alignment="top" width={420}>

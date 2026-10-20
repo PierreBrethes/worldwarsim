@@ -13,6 +13,7 @@ import type { LonLat } from '@/domain/geo';
 import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
+import { shareUnchanged } from './shareUnchanged';
 
 /** Le nom français d'une ligne de file : un bâtiment porte le sien, une élévation d'avant-poste
  *  porte le mot du point — il n'est dans aucune table de bâtiments (précision du 15/09). */
@@ -29,7 +30,19 @@ export type LootCollectionPreviewed = FunctionReturnType<
   typeof api.movements.previewLootCollection
 >;
 
-export function adaptServerView(world: World, server: ServerView): PlayerView {
+/**
+ * `previous` est la vue rendue juste avant : chaque sous-arbre resté égal en garde l'identité
+ * (`shareUnchanged`), pour que les panneaux ne recalculent que ce que la réponse a changé (#148).
+ */
+export function adaptServerView(
+  world: World,
+  server: ServerView,
+  previous: PlayerView | null = null,
+): PlayerView {
+  return shareUnchanged(previous, adaptedView(world, server));
+}
+
+function adaptedView(world: World, server: ServerView): PlayerView {
   const countryName = isNation(server.me.nation)
     ? COUNTRY_BY_NATION[server.me.nation]
     : server.me.nation;

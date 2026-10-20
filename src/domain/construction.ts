@@ -183,7 +183,7 @@ function reasonFor(key: BuildingKey): BuildReason | null {
  * paid for behind it. Every rule that used to ask "is a construction running" asks this instead.
  */
 export const pledgedWork = (
-  view: PlayerView,
+  view: Pick<PlayerView, 'me'>,
 ): ReadonlyArray<{
   readonly key: BuildCostKey;
   readonly regionId: string;
@@ -198,7 +198,7 @@ export const pledgedWork = (
 
 /** Ce que la file bâtit, l'élévation d'un avant-poste retirée : elle ne pose rien sur un sol
  *  (précision du 15/09) — chaque entrée a son point (ADR 0029). */
-const pledgedBuildings = (view: PlayerView) =>
+const pledgedBuildings = (view: Pick<PlayerView, 'me'>) =>
   pledgedWork(view).flatMap((work) =>
     work.outpostId === null && work.point !== null && work.key !== 'outpost'
       ? [{ key: canonicalBuildingKey(work.key), lonLat: work.point }]
@@ -296,7 +296,7 @@ export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
  * so the fog keeps it unsaid. A deposit absent from the map is free.
  */
 export function depositHolders(
-  view: PlayerView,
+  view: Pick<PlayerView, 'me' | 'surveyedInstallations'>,
 ): ReadonlyMap<string, { readonly mine: boolean; readonly level: number | null }> {
   const holders = new Map<string, { mine: boolean; level: number | null }>();
   const take = (lonLat: LonLat, mine: boolean, level: number | null) => {
@@ -314,7 +314,10 @@ export function depositHolders(
 
 /** The player's standing outposts as the reach reads them. `reachKmOf` comes from the balance
  *  table (`convex/constants.ts`), which the pure domain may not import. */
-export const reachesOf = (view: PlayerView, reachKmOf: (level: number) => number): Reach[] =>
+export const reachesOf = (
+  view: Pick<PlayerView, 'me'>,
+  reachKmOf: (level: number) => number,
+): Reach[] =>
   view.me.outposts
     .filter((outpost) => outpost.standsAt === null)
     .map((outpost) => ({

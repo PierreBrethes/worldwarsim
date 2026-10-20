@@ -317,11 +317,14 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
-  // it on each render would redo the labels and the compass on every keystroke elsewhere.
-  const view = useMemo(
-    () => (server === undefined ? null : adaptServerView(world, server)),
-    [world, server],
-  );
+  // it on each render would redo the labels and the compass on every keystroke elsewhere. The
+  // previous one lends its unchanged subtrees, so a new answer only renews what it changed.
+  const previousView = useRef<PlayerView | null>(null);
+  const view = useMemo(() => {
+    if (server === undefined) return null;
+    previousView.current = adaptServerView(world, server, previousView.current);
+    return previousView.current;
+  }, [world, server]);
   if (view === null) return <Loading />;
   return (
     <>
@@ -349,7 +352,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const blitz = view.mode === 'blitz';
   /** A Blitz shows no ground card on hover alone; a country picked by click keeps its whole card. */
   const quietHover = blitz && country == null;
-  const blitzTheatre = useMemo(() => playedTheatre(view), [view]);
+  const blitzTheatre = useMemo(
+    () => playedTheatre({ mode: view.mode, theatre: view.theatre }),
+    [view.mode, view.theatre],
+  );
   const ending = endingOf(view);
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
@@ -614,13 +620,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  les siennes à regarder. */
       setGarrison({ station, preselect, ...at });
       setGarrisonPicked(preselect);
-      const marker = markerOfStation(view, station);
+      const marker = markerOfStation({ me: view.me }, station);
       /** **Sous le seuil la garnison est une feuille à mi-hauteur** (A7) : la carte remonte le
        *  point au-dessus d'elle plutôt que de le cadrer dessous. */
       if (marker !== null)
         setFocus({ ids: [marker], lift: narrow ? sheetLift('half') : 0, nonce: Date.now() });
     },
-    [view, narrow],
+    [view.me, narrow],
   );
 
   /**
@@ -629,10 +635,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const locateStation = useCallback(
     (station: TroopStation) => {
-      const marker = markerOfStation(view, station);
+      const marker = markerOfStation({ me: view.me }, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
     },
-    [view],
+    [view.me],
   );
 
   /** **En Blitz, une pièce par unité** (15/10) : les unités qui se tiennent à une adresse. */
@@ -847,8 +853,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   /** Ce que la pile armée peut encore charger (`freeCapacityOf`). */
   const freeCapacity = useMemo(
-    () => (column === null ? 0 : freeCapacityOf(view, column.troopIds)),
-    [column, view],
+    () => (column === null ? 0 : freeCapacityOf({ me: view.me }, column.troopIds)),
+    [column, view.me],
   );
 
   const { trace, setTrace, onTour, tourLoops } = useTours(seat, view.me, setOrderError);
@@ -1355,7 +1361,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // Every building stands at the point written at its placement (ADR 0029), and so does the
   // work that will raise it; an outpost carries its own point, because it *is* a point and
   // colours no ground (fiche 03).
-  const holders = useMemo(() => depositHolders(view), [view]);
+  const holders = useMemo(
+    () => depositHolders({ me: view.me, surveyedInstallations: view.surveyedInstallations }),
+    [view.me, view.surveyedInstallations],
+  );
   const markers = useMemo<ReadonlyArray<MapMarker>>(
     () =>
       markersOf(view, { marching, trace, regionAt, toggles, placing, holders, knownRegionById }),
