@@ -679,6 +679,8 @@ export const NOTICE = v.union(
     regionId: v.string(),
     taken: RESOURCE_AMOUNTS,
     storageLost: RESOURCE_AMOUNTS,
+    /** **Dakar** : ce que le pillage a laissé par ressource à son teneur (absent hors Dakar). */
+    spared: v.optional(v.number()),
   }),
   v.object({
     ...NOTICE_HEAD,

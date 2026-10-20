@@ -15,7 +15,7 @@ import {
   refusalOf,
   routeModeOf,
 } from '../src/domain/movement-orders';
-import { carryCapacityOf, sparedPerResourceOf, trimLootToCapacity } from '../src/domain/loot';
+import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
@@ -74,7 +74,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
-import { holdsPoint } from './strategicPoints';
+import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
@@ -767,17 +767,6 @@ const fuelFacts = async (
   return { steps, short, km, roundTrip, eased };
 };
 
-const sparedAtDakar = async (
-  ctx: QueryCtx,
-  buildingId: Id<'buildings'>,
-): Promise<number | null> => {
-  const row = await ctx.db.get(buildingId);
-  if (row === null || canonicalBuildingKey(row.key) !== 'warehouse') return null;
-  return (await holdsPoint(ctx, { _id: row.playerId, seasonId: row.seasonId }, 'dakar'))
-    ? sparedPerResourceOf(true)
-    : null;
-};
-
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
  *  `plunderOrderRefusalOf` l'a laissée passer, la même fonction que la mutation relit. */
 export const previewPlunder = query({
@@ -836,7 +825,9 @@ export const previewPlunder = query({
       disabledHours: PLUNDER_DISABLED_HOURS,
       /** **Dakar** : ce que le pillage laisse par ressource chez son teneur, la fonction même que
        *  `completePresence` applique ; `null` hors Dakar ou pour un site qui ne se vide pas. */
-      spared: await sparedAtDakar(ctx, target._id),
+      spared: await ctx.db
+        .get(target._id)
+        .then((row) => (row === null ? null : dakarSparedAt(ctx, row))),
     };
   },
 });

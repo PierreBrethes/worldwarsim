@@ -142,7 +142,6 @@ export type MovementAim =
       readonly kind: 'building';
       readonly buildingId: string;
       readonly key: BuildingKey;
-      readonly sealed?: boolean;
     }
   /**
    * **Une colonne adverse en vue**, visée en Blitz seulement (B18) : l'attaquant la poursuit et

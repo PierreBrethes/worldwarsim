@@ -14,6 +14,8 @@ import {
   raceLeaderOf,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
+import { canonicalBuildingKey } from '../src/domain/ids';
+import { sparedPerResourceOf } from '../src/domain/loot';
 import { fail } from './errors';
 import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { upkeepOf } from './upkeep';
@@ -152,6 +154,21 @@ export async function pointsView(ctx: QueryCtx, season: Doc<'seasons'>, viewerId
           : { nation: longestNation, heldMs: longest.heldMs },
     };
   });
+}
+
+/**
+ * **Dakar** : ce qu'un pillage laisse par ressource dans un entrepôt de son teneur (`sparedPerResourceOf`),
+ * `null` pour tout autre bâtiment ou tout autre teneur. La seule lecture de la règle : la vue, l'aperçu
+ * et le pillage l'appellent.
+ */
+export async function dakarSparedAt(
+  ctx: QueryCtx,
+  building: Pick<Doc<'buildings'>, 'key' | 'playerId' | 'seasonId'>,
+): Promise<number | null> {
+  if (canonicalBuildingKey(building.key) !== 'warehouse') return null;
+  return (await holdsPoint(ctx, { _id: building.playerId, seasonId: building.seasonId }, 'dakar'))
+    ? sparedPerResourceOf(true)
+    : null;
 }
 
 /** Qui a tenu un point le plus longtemps jusqu'à `end` — personne s'il n'a jamais été tenu. */

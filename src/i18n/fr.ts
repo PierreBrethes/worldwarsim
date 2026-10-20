@@ -129,6 +129,11 @@ type RefusalContext = {
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
 
+/** **Dakar** : ce que le pillage laisse par ressource chez son teneur — la phrase de la rose, de
+ *  l'aperçu et de la dépêche du pillé. */
+const sparedAtDakarWords = (spared: number): string =>
+  `Dakar le garde : ${spared} de chaque ressource restent sur place`;
+
 /** Une part de débit (`outputShareOf`) dite en pourcentage. */
 const percentOf = (share: number): number => Math.round(share * 100);
 
@@ -2470,8 +2475,10 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
-    /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`). */
-    unlinkedAt: (share: number) => `hors réseau · ${percentOf(share)} %`,
+    /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`) ; zéro, le
+     *  tampon commun. La seule lecture : site, affiche. */
+    unlinkedBy: (share: number) =>
+      share > 0 ? `hors réseau · ${percentOf(share)} %` : fr.stamps.unlinked,
     /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
@@ -2585,8 +2592,15 @@ export const fr = {
         loot === 'rien'
           ? `${building} de ${region} neutralisé — rien à prendre.`
           : `${building} de ${region} neutralisé — charge embarquée : ${loot}.`,
-      sitePlundered: (building: string, region: string, taken: string, storageLost: string) =>
-        `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.`,
+      sitePlundered: (
+        building: string,
+        region: string,
+        taken: string,
+        storageLost: string,
+        spared?: number,
+      ) =>
+        `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.` +
+        (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}.`),
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
       /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
@@ -3217,8 +3231,7 @@ export const fr = {
     noRoute: 'Aucune route terrestre vers cette destination.',
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
     /** **Dakar** : ce que le pillage laisse par ressource chez son teneur. */
-    sparedAtDakar: (spared: number) =>
-      `Dakar le garde : ${spared} de chaque ressource restent sur place`,
+    sparedAtDakar: sparedAtDakarWords,
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
@@ -4271,9 +4284,7 @@ export const fr = {
     sabotage: 'saboter',
     plunderConsequence: (verb: string, spared?: number) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.` +
-      (spared === undefined
-        ? ''
-        : ` Dakar le garde : ${spared} de chaque ressource restent sur place, seul le surplus se prend.`),
+      (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}, seul le surplus se prend.`),
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
@@ -4433,8 +4444,6 @@ export const fr = {
     perHour: (amount: string) => `+${amount} / h`,
     network: 'réseau',
     linked: 'relié',
-    unlinked: 'hors réseau',
-    unlinkedAt: (share: number) => `hors réseau · ${percentOf(share)} %`,
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
     worksSite: (region: string) => `chantier · ${region}`,
     raisingSite: (region: string) => `élévation · ${region}`,

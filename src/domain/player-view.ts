@@ -1024,6 +1024,8 @@ type NoticeBody =
       readonly regionName: string;
       readonly taken: ResourceAmounts;
       readonly storageLost: ResourceAmounts;
+      /** Dakar : ce que le pillage lui a laissé par ressource. */
+      readonly spared?: number;
     }
   | {
       readonly kind: 'siteSabotaged';

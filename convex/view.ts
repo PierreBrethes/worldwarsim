@@ -2,7 +2,13 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { heldSinceOf, holdsPoint, pointsView, seasonPoints } from './strategicPoints';
+import {
+  dakarSparedAt,
+  heldSinceOf,
+  holdsPoint,
+  pointsView,
+  seasonPoints,
+} from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -25,7 +31,7 @@ import {
   type ResearchCard,
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
-import { carryCapacityOf, sparedPerResourceOf } from '../src/domain/loot';
+import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
@@ -53,7 +59,6 @@ import {
   OUTPOST_MAX_LEVEL,
   depotCapacity,
   CARRY_CAPACITY_BY_ROLE,
-  BASE_CAP,
   LAST_KNOWN_HOURS,
   isCommanded,
   type Costs,
@@ -230,13 +235,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         installation.key === 'warehouse'
           ? await ctx.db.get(installation.id as Id<'buildings'>)
           : null;
-      const spared =
-        row === null
-          ? BASE_CAP
-          : sparedPerResourceOf(
-              await holdsPoint(ctx, { _id: row.playerId, seasonId: row.seasonId }, 'dakar'),
-            );
-      return spared === BASE_CAP ? installation : { ...installation, spared };
+      const spared = row === null ? null : await dakarSparedAt(ctx, row);
+      return spared === null ? installation : { ...installation, spared };
     }),
   );
   const lootSightings = await ctx.db

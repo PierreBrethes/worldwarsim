@@ -603,6 +603,7 @@ function written(notice: Notice): Written {
           notice.regionName,
           lootWords(notice.taken),
           lootWords(notice.storageLost),
+          notice.spared,
         ),
       };
     case 'siteSabotaged':

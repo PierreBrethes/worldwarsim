@@ -718,6 +718,10 @@ describe('plunder presence', () => {
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     expect(report?.taken).toMatchObject({ food: 100, steel: 0 });
     expect(report?.storageLost).toMatchObject({ food: 0, steel: 0 });
+    const plundered = (await t.query(api.view.playerView, guest)).notices.find(
+      (notice) => notice.kind === 'sitePlundered',
+    );
+    expect(plundered).toMatchObject({ spared: sparedPerResourceOf(true) });
   });
 
   it('records a successful take with nothing available and still disables the warehouse', async () => {

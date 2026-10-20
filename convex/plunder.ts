@@ -12,7 +12,7 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { holdsPoint } from './strategicPoints';
+import { dakarSparedAt } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seats';
@@ -239,9 +239,8 @@ export async function completePresence(
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
   const existingCargo = RESOURCES.reduce((sum, key) => sum + existingAmounts[key], 0);
-  const spared = sparedPerResourceOf(
-    await holdsPoint(ctx, { _id: target.playerId, seasonId: target.seasonId }, 'dakar'),
-  );
+  const dakar = await dakarSparedAt(ctx, target);
+  const spared = dakar ?? sparedPerResourceOf(false);
   const taken = isWarehouse
     ? lootFromSurplus(
         (await economyOf(ctx, target.playerId, now)).stocks,
@@ -306,6 +305,7 @@ export async function completePresence(
           regionId: target.regionId,
           taken,
           storageLost,
+          ...(dakar === null ? {} : { spared: dakar }),
         }
       : {
           playerId: target.playerId,
