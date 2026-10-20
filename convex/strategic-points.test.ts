@@ -564,6 +564,48 @@ describe('the rules the points break', () => {
     ).toBeGreaterThanOrEqual(before);
   });
 
+  it('counts no step for the days a troop waited before its owner took Baku', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const tank = await posted(t, seat, 'armor', FIELD, 0);
+    vi.setSystemTime(new Date(MIDDAY + 3 * 24 * 3_600_000));
+    await holdPoint(t, seat, 'baku');
+    expect((await troopOf(t, seat, tank))!.supplies).toMatchObject({ fuel: 0 });
+    vi.setSystemTime(new Date(MIDDAY + 3 * 24 * 3_600_000 + BAKU_REFUEL_MS + 1));
+    expect((await troopOf(t, seat, tank))!.supplies).toMatchObject({ fuel: 1 });
+  });
+
+  it('writes what the former holder had earned when Baku changes hands', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const tank = await posted(t, seat, 'armor', FIELD, 0);
+    await holdPoint(t, seat, 'baku');
+    vi.setSystemTime(new Date(MIDDAY + 2 * BAKU_REFUEL_MS + 1));
+    await holdPoint(t, seat, 'baku', guest);
+    expect(await fuelOf(t, tank)).toBe(2);
+    vi.setSystemTime(new Date(MIDDAY + 20 * BAKU_REFUEL_MS));
+    expect((await troopOf(t, seat, tank))!.supplies).toMatchObject({ fuel: 2 });
+  });
+
+  it('restarts the clock of every troop of a column, passengers too, at its arrival', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const truck = await posted(t, seat, 'landTransport', FIELD, 4);
+    const rider = await posted(t, seat, 'infantry', FIELD);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: FIELD[0], lat: FIELD[1] } },
+      troopIds: [truck, rider],
+      point: { lon: NEXT[0], lat: NEXT[1] },
+    });
+    const fuelAts = await t.run(async (ctx) => [
+      (await ctx.db.get(truck))!.fuelAt,
+      (await ctx.db.get(rider))!.fuelAt,
+    ]);
+    expect(fuelAts[1]).toBeGreaterThan(MIDDAY);
+    expect(fuelAts[1]).toBe(fuelAts[0]);
+  });
+
   it('stops refuelling the moment Baku is lost', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);

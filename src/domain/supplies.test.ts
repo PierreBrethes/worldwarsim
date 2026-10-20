@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BAKU_REFUEL_MS } from '../../convex/constants';
 import {
+  bakuGainOf,
   bakuRefuel,
   fuelRefusalOf,
   fuelStepsOf,
@@ -191,5 +192,26 @@ describe('what a pile says of its steps', () => {
 
   it('says nothing in Blitz, where nobody counts', () => {
     expect(pileSupplies([{ role: 'infantry' }])).toBeNull();
+  });
+});
+
+describe('who gets Baku’s steps back', () => {
+  const tank = { role: 'armor' as const, fuel: 0, fuelAt: 0, createdAt: 0 };
+  const idle = { heldSince: 0, marching: false, anchored: false };
+  const day = BAKU_REFUEL_MS * 2;
+
+  it('counts from the taking of the point when the troop waited there before', () => {
+    expect(bakuGainOf(tank, { ...idle, heldSince: 10 * day }, 10 * day + 1)?.steps).toBe(0);
+    expect(
+      bakuGainOf(tank, { ...idle, heldSince: 10 * day }, 10 * day + BAKU_REFUEL_MS)?.steps,
+    ).toBe(1);
+    expect(bakuGainOf(tank, idle, 10 * day)?.steps).toBe(3);
+  });
+
+  it('gives nothing to a marching, anchored or point-less owner, nor to a troop without an engine', () => {
+    expect(bakuGainOf(tank, { ...idle, marching: true }, 9 * day)).toBeNull();
+    expect(bakuGainOf(tank, { ...idle, anchored: true }, 9 * day)).toBeNull();
+    expect(bakuGainOf(tank, { ...idle, heldSince: null }, 9 * day)).toBeNull();
+    expect(bakuGainOf({ ...tank, role: 'infantry' }, idle, 9 * day)).toBeNull();
   });
 });

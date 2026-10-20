@@ -15,6 +15,9 @@ import {
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
 import { fail } from './errors';
+import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
+import { upkeepOf } from './upkeep';
+import { movementsOf } from './movement/forces';
 import { emptyStocks } from '../src/domain/economy';
 import { creditToStorage, debit, economyOf } from './resources';
 import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
@@ -79,6 +82,18 @@ export async function holdsPoint(
   return (await seasonPoints(ctx, player.seasonId)).some(
     (point) => point.key === key && point.holderId === player._id,
   );
+}
+
+/** **Depuis quand ce joueur tient un point**, `null` s'il ne le tient pas. */
+export async function heldSinceOf(
+  ctx: QueryCtx,
+  player: Pick<Doc<'players'>, '_id' | 'seasonId'>,
+  key: StrategicPointKey,
+): Promise<number | null> {
+  const point = (await seasonPoints(ctx, player.seasonId)).find(
+    (one) => one.key === key && one.holderId === player._id,
+  );
+  return point === undefined ? null : (point.heldSince ?? 0);
 }
 
 export const seasonPoints = (
@@ -162,6 +177,9 @@ export async function handOver(
   now: number,
 ): Promise<void> {
   const former = point.holderId;
+  /** **Bakou** : ce que l'ancien teneur a gagné jusqu'ici s'écrit avant que le point change de
+   *  main — sa vue le servait, et la perte ne l'efface pas. */
+  if (point.key === 'baku' && former !== null) await settleBaku(ctx, point, former, now);
   await ctx.db.patch(point._id, {
     holderId,
     heldSince: holderId === null ? null : now,
@@ -331,3 +349,37 @@ export const trade = mutation({
     return { gave: TANGIER_LOT.give, got: delivered[get] };
   },
 });
+
+/** **Les crans de Bakou de l'ancien teneur, écrits** : ses moteurs oisifs hors ancre, comme
+ *  `toppedUp` les règle à un ordre. */
+async function settleBaku(
+  ctx: MutationCtx,
+  point: Doc<'strategicPoints'>,
+  holderId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  const { storeOf } = await upkeepOf(ctx, holderId, now);
+  const marching = new Set<string>(
+    (await movementsOf(ctx, holderId)).flatMap((movement) => movement.troopIds),
+  );
+  const troops = await ctx.db
+    .query('troops')
+    .withIndex('byPlayer', (q) => q.eq('playerId', holderId))
+    .collect();
+  for (const troop of troops) {
+    const got = bakuGainOf(
+      { ...troop, createdAt: troop._creationTime },
+      {
+        heldSince: point.heldSince ?? 0,
+        marching: marching.has(troop._id),
+        anchored: storeOf[troop._id] !== undefined,
+      },
+      now,
+    );
+    if (got !== null && got.steps > 0)
+      await ctx.db.patch(troop._id, {
+        fuel: suppliesOf(troop).fuel + got.steps,
+        fuelAt: got.since,
+      });
+  }
+}

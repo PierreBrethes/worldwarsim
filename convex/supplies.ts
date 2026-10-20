@@ -1,7 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
-  bakuRefuel,
+  bakuGainOf,
   suppliesOf,
   topUp,
   type Supplies,
@@ -9,7 +9,7 @@ import {
 } from '../src/domain/supplies';
 import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
-import { holdsPoint } from './strategicPoints';
+import { heldSinceOf } from './strategicPoints';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
 import { upkeepOf, type AnchorStore } from './upkeep';
@@ -45,7 +45,7 @@ export async function toppedUp(
   const marching = new Set<string>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  const baku = await holdsPoint(ctx, player, 'baku');
+  const bakuSince = await heldSinceOf(ctx, player, 'baku');
   const byStore = new Map<AnchorStore, Array<Doc<'troops'>>>();
   const refills = new Map<string, Supplies>();
   const bill = new Map<AnchorStore, SupplyStocks>();
@@ -54,10 +54,13 @@ export async function toppedUp(
     if (marching.has(troop._id)) continue;
     const store = storeOf[troop._id];
     if (store === undefined) {
-      if (!baku) continue;
-      const held = suppliesOf(troop).fuel;
-      const got = bakuRefuel(troop.role, held, bakuSince(troop), at);
-      if (got.steps > 0) refuelled.set(troop._id, { fuel: held + got.steps, fuelAt: got.since });
+      const got = bakuGainOf(
+        { ...troop, createdAt: troop._creationTime },
+        { heldSince: bakuSince, marching: false, anchored: false },
+        at,
+      );
+      if (got !== null && got.steps > 0)
+        refuelled.set(troop._id, { fuel: suppliesOf(troop).fuel + got.steps, fuelAt: got.since });
       continue;
     }
     byStore.set(store, [...(byStore.get(store) ?? []), troop]);
@@ -80,10 +83,6 @@ export async function toppedUp(
     bill,
   };
 }
-
-/** **L'heure d'où se compte un cran de Bakou** : la dernière arrivée ou le dernier gain, à
- *  défaut la formation. */
-export const bakuSince = (troop: Doc<'troops'>): number => troop.fuelAt ?? troop._creationTime;
 
 async function stocksOf(
   ctx: QueryCtx,

@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { holdsPoint, pointsView, seasonPoints } from './strategicPoints';
+import { heldSinceOf, holdsPoint, pointsView, seasonPoints } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -77,8 +77,7 @@ import {
   regionOfOutpost,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { bakuRefuel, fullSupplies, suppliesOf } from '../src/domain/supplies';
-import { bakuSince } from './supplies';
+import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
@@ -249,17 +248,20 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   /** **Bakou** : ses moteurs à l'arrêt, hors ancre, reprennent un cran de plein toutes les 12 h
    *  (`toppedUp`, qui règle le même gain avant tout ordre). */
-  const baku = !blitz && (await holdsPoint(ctx, player, 'baku'));
+  const bakuSince = blitz ? null : await heldSinceOf(ctx, player, 'baku');
   const halifax = !blitz && (await holdsPoint(ctx, player, 'halifax'));
   const slots = await slotsTaken(ctx, player, movements, troops);
   const marching = new Set<string>(movements.flatMap((movement) => movement.troopIds));
   const bakuGain = (troop: Doc<'troops'>) =>
-    baku &&
-    !marching.has(troop._id) &&
-    economy.upkeep.storeOf[troop._id] === undefined &&
-    fullSupplies(troop.role).fuel > 0
-      ? bakuRefuel(troop.role, suppliesOf(troop).fuel, bakuSince(troop), now)
-      : null;
+    bakuGainOf(
+      { ...troop, createdAt: troop._creationTime },
+      {
+        heldSince: bakuSince,
+        marching: marching.has(troop._id),
+        anchored: economy.upkeep.storeOf[troop._id] !== undefined,
+      },
+      now,
+    );
   /** **Rangoun** : ses tournées ne se relèvent qu'à mi-portée (`detectionBoard`). */
   const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {

@@ -195,3 +195,25 @@ export function pileSupplies(
           },
   };
 }
+
+/**
+ * **Qui reprend un cran à Bakou, et depuis quand** : le seul prédicat, lu par le serveur
+ * (`toppedUp`, `handOver`) et par la vue. Un moteur — une troupe sans plein n'a rien à reprendre —,
+ * à l'arrêt, hors de toute ancre, d'un joueur qui tient le point (`heldSince`, `null` sinon).
+ * **L'horloge part du plus tardif** de son dernier arrêt (`fuelAt`, à défaut sa formation) et de la
+ * prise du point : le temps où Bakou n'était pas à lui ne compte pas.
+ */
+export function bakuGainOf(
+  troop: Carrying & { readonly fuelAt?: number; readonly createdAt: number },
+  state: {
+    readonly heldSince: number | null;
+    readonly marching: boolean;
+    readonly anchored: boolean;
+  },
+  now: number,
+): ReturnType<typeof bakuRefuel> | null {
+  if (state.heldSince === null || state.marching || state.anchored) return null;
+  if (fullSupplies(troop.role).fuel === 0) return null;
+  const since = Math.max(troop.fuelAt ?? troop.createdAt, state.heldSince);
+  return bakuRefuel(troop.role, suppliesOf(troop).fuel, since, now);
+}
