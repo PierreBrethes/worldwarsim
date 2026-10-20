@@ -8,6 +8,7 @@ import {
   type MutationCtx,
 } from './_generated/server';
 import { heldOf } from './control';
+import { recordLinkage } from './holding';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
@@ -861,6 +862,9 @@ export const benchScene = internalMutation({
             stationedAt: outpostIds[0],
             load: { ammunition: 90, oil: 50, coal: 20 },
           });
+    /** Des points posés hors du geste de couleur : leur couleur se retient comme après une
+     *  fondation, sans quoi la vue mesurée serait celle d'un sol jamais relevé (#144). */
+    await recordLinkage(ctx, player.seasonId);
     return { squads: placed, reserveIds, outpostIds, truckId };
   },
 });

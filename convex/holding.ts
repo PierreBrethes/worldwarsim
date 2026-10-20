@@ -1,12 +1,15 @@
 import type { Doc, Id } from './_generated/dataModel';
-import type { QueryCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { heldRegions, type Occupation } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
+import { modeOf } from '../src/domain/season-mode';
+import { playerBuildings } from './buildingReads';
 import { outpostReachKm } from './constants';
-import { pointOf, seasonOutposts } from './movement/forces';
+import { outpostsOf, pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
-import { homeCountryOf, type RegionFacts } from './regions';
+import { homeCountryOf, regionFacts, regionsOf, type RegionFacts } from './regions';
 import { isBlitz } from './blitz';
+import { seatsOf } from './seats';
 import { seasonPoints } from './strategicPoints';
 
 /**
@@ -57,6 +60,138 @@ export async function linkingOver(
     return new Map(regions.map((region) => [region.id, player._id as string]));
   }
   return heldOver(ctx, player.seasonId, regions, now);
+}
+
+/**
+ * **Le sol où il peut bâtir** : son pays, toute région qui porte un de ses bâtiments, et **le
+ * cercle entier de chacun de ses avant-postes debout** (ADR 0020 §1 : là où je tiens est là où je
+ * peux bâtir). Ce que la vue lui offre et le sol dont `recordLinkage` retient la couleur : une
+ * seule définition, sans quoi la couleur retenue ne couvrirait pas ce que la vue demande.
+ *
+ * **Le disque, exactement celui de la couleur** (révision du 17/09) : `heldOver` et ce sol lisent
+ * `regionsWithinReach`, la même fonction. La région du point y est toujours, à distance nulle.
+ * **Un point hors service couvre encore** — il ancre toujours (§10) ; **un chantier n'atteint
+ * rien** (révision du 15/09) : il n'ancre rien, donc il n'ouvre aucun sol.
+ *
+ * En Blitz personne ne joue chez soi : le sol est celui de ses bâtiments et de ses points.
+ */
+export function groundOf(
+  player: Doc<'players'>,
+  blitz: boolean,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  outposts: ReadonlyArray<Doc<'outposts'>>,
+  now: number,
+): Map<string, RegionFacts> {
+  const home = blitz ? null : homeCountryOf(player.nation);
+  const ground = new Map((home === null ? [] : regionsOf(home)).map((facts) => [facts.id, facts]));
+  for (const building of buildings) {
+    const facts = regionFacts(building.regionId);
+    if (facts) ground.set(facts.id, facts);
+  }
+  for (const outpost of outposts) {
+    if (!isStanding(outpost, now)) continue;
+    for (const regionId of regionsWithinReach(
+      pointOf(outpost.point),
+      outpostReachKm(outpost.level),
+    ).keys()) {
+      const facts = regionFacts(regionId);
+      if (facts) ground.set(facts.id, facts);
+    }
+  }
+  return ground;
+}
+
+/** L'empreinte d'un sol : la couleur retenue ne répond que pour le sol sur lequel on l'a lue. */
+function footprintOf(ground: ReadonlyMap<string, unknown>): string {
+  let hash = 0x811c9dc5;
+  for (const char of [...ground.keys()].sort().join(','))
+    hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193);
+  return `${String(ground.size)}:${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * **La prochaine heure où la couleur change sans que personne n'écrive** : un chantier qui se
+ * lève, une désactivation qui finit (borne inclusive, `colourReading`). Leurs travaux appellent
+ * `reportChange`, mais une vue lue entre l'heure et le réveil du travail doit déjà voir la
+ * vérité.
+ */
+function nextColourChange(outposts: ReadonlyArray<Doc<'outposts'>>, now: number): number | null {
+  const edges = outposts.flatMap((outpost) => [
+    ...(outpost.standsAt !== undefined && outpost.standsAt > now ? [outpost.standsAt] : []),
+    ...(outpost.disabledUntil !== null && outpost.disabledUntil >= now
+      ? [outpost.disabledUntil + 1]
+      : []),
+  ]);
+  return edges.length === 0 ? null : Math.min(...edges);
+}
+
+/**
+ * **La couleur de chaque siège, retenue au changement de couleur** (#144). La vue la lit au lieu
+ * de relire toute la saison (`linkedOn`) ; elle sort de `linkingOver`, la règle même de la
+ * production, sur le sol de `groundOf`. N'écrit que ce qui a changé : une ligne de siège écrite
+ * réveille toutes les vues qui lisent les sièges.
+ *
+ * **Appelée par tout changement de couleur** : `reportChange` (le geste commun), `handOver` (un
+ * point stratégique change de main) et `leaveTheWar` (un sol national cesse d'être tenu).
+ */
+export async function recordLinkage(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null) return;
+  const now = Date.now();
+  const blitz = modeOf(season.mode) === 'blitz';
+  const until = nextColourChange(await seasonOutposts(ctx, seasonId), now);
+  for (const seat of await seatsOf(ctx, seasonId)) {
+    const ground = groundOf(
+      seat,
+      blitz,
+      await playerBuildings(ctx, seat._id),
+      await outpostsOf(ctx, seat._id),
+      now,
+    );
+    const held = await linkingOver(ctx, seat, [...ground.values()], now);
+    const linkage = {
+      ground: footprintOf(ground),
+      unlinked: [...ground.keys()].filter((regionId) => held.get(regionId) !== seat._id),
+      until,
+    };
+    const kept = seat.linkage;
+    if (
+      kept === undefined ||
+      kept.ground !== linkage.ground ||
+      kept.until !== linkage.until ||
+      kept.unlinked.join() !== linkage.unlinked.join()
+    ) {
+      await ctx.db.patch(seat._id, { linkage });
+    }
+  }
+}
+
+/**
+ * **La couleur de son sol, telle que la vue la sert** : celle que le dernier changement de couleur
+ * a retenue, quand elle a été lue sur ce sol-là et qu'aucune heure n'a passé depuis ; la vérité
+ * sinon (`linkingOver`). Rendue sous la forme que l'économie lit (`isLinked`) : la région, et
+ * lui pour teneur quand elle porte sa couleur.
+ */
+export async function linkedOn(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  ground: ReadonlyMap<string, RegionFacts>,
+  now: number,
+): Promise<ReadonlyMap<string, string>> {
+  const linkage = player.linkage;
+  if (
+    linkage === undefined ||
+    linkage.ground !== footprintOf(ground) ||
+    (linkage.until !== null && now >= linkage.until)
+  ) {
+    return linkingOver(ctx, player, [...ground.values()], now);
+  }
+  const unlinked = new Set(linkage.unlinked);
+  return new Map(
+    [...ground.keys()].flatMap((regionId) =>
+      unlinked.has(regionId) ? [] : [[regionId, player._id as string] as const],
+    ),
+  );
 }
 
 /**

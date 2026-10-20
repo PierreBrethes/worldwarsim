@@ -18,6 +18,7 @@ import {
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
 } from './constants';
 import { heldOver } from './holding';
+import { handOver } from './strategicPoints';
 import { regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf, settle } from './resources';
@@ -460,7 +461,7 @@ describe('a building only produces when its region carries its colour', () => {
     expect(unlinkedProducers(held)).toHaveLength(0);
     expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
 
-    await t.run((ctx) => ctx.db.patch(narvik, { holderId: null, heldSince: null }));
+    await t.run(async (ctx) => handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now()));
     expect(unlinkedProducers(await view(t, seat))).toHaveLength(1);
   });
 

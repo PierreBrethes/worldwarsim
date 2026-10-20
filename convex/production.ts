@@ -7,6 +7,7 @@ import { regionFacts } from './regions';
 import { settle } from './resources';
 import { isAtWar, seatsOf } from './seats';
 import { reassessDetection } from './movement/detection';
+import { recordLinkage } from './holding';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -98,6 +99,8 @@ export async function reportChange(
       });
     }
   }
+  /** La couleur que la vue lira jusqu'au prochain changement (#144). */
+  await recordLinkage(ctx, seasonId);
 }
 
 /**

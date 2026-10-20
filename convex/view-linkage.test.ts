@@ -138,6 +138,18 @@ async function holdsTheContract(t: Bench, seat: Seat): Promise<PlayerView> {
   expect(seen.me.regions.map((region) => region.linked)).toEqual(truth.linked);
   expect(seen.me.extraction).toEqual(truth.extraction);
   expect(seen.me.chains.map((chain) => [chain.by, chain.state])).toEqual(truth.chains);
+
+  /** La vue entière, relue sans la couleur retenue — donc sur la vérité : pas un champ de plus ni
+   *  de moins, pas une valeur qui diffère. La couleur retenue, elle, ne sort jamais. */
+  const kept = await t.run(async (ctx) => {
+    const player = await seatIn(ctx, seat);
+    await ctx.db.patch(player._id, { linkage: undefined });
+    return player.linkage ?? null;
+  });
+  expect(await view(t, seat)).toEqual(seen);
+  if (kept !== null)
+    await t.run(async (ctx) => ctx.db.patch((await seatIn(ctx, seat))._id, { linkage: kept }));
+  expect(JSON.stringify(seen)).not.toContain('linkage');
   return seen;
 }
 
@@ -285,5 +297,36 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
     const seasonId = (await seatDoc(t, seat)).seasonId;
     await changeColour(t, seasonId, (ctx) => ctx.db.patch(outpostId, { level: 2 }));
     await holdsTheContract(t, seat);
+  });
+
+  /**
+   * **La vue ne relit plus la saison** : elle sert la couleur retenue au dernier changement. Un
+   * point adverse écrit hors du geste de couleur — ce que le jeu ne fait jamais — ne s'y voit
+   * pas, et c'est la preuve que les avant-postes des autres ne sont plus lus. Le premier
+   * changement de couleur suivant le fait entrer.
+   */
+  it('sert la couleur retenue, sans relire les avant-postes des autres', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await plant(t, seat, point(PRAHOVA));
+    await raise(t, seat, 'mine', BUZAU);
+    const rival = await seatDoc(t, guest);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('outposts', {
+        seasonId: rival.seasonId,
+        playerId: rival._id,
+        point: { lon: point(BUZAU)[0], lat: point(BUZAU)[1] },
+        hostCountry: 'ROU',
+        level: 1,
+        specialization: 'relay',
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+    expect(linkedAt(await view(t, seat), BUZAU)).toBe(true);
+
+    await changeColour(t, rival.seasonId, async () => {});
+    expect(linkedAt(await holdsTheContract(t, seat), BUZAU)).toBe(false);
   });
 });

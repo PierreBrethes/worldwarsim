@@ -51,7 +51,6 @@ import {
   buildMinutes,
   OUTPOST_MAX_LEVEL,
   depotCapacity,
-  outpostReachKm,
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
   isCommanded,
@@ -64,8 +63,7 @@ import { queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
-import { linkingOver } from './holding';
-import { regionsWithinReach } from './regionGeometry';
+import { groundOf, linkedOn } from './holding';
 import { regionNameAt } from './placeNames';
 import { restHold } from './movements';
 import {
@@ -75,7 +73,6 @@ import {
   homeCountryOf,
   regionFacts,
   regionOfOutpost,
-  regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
 import { isFuelFree, suppliesOf } from '../src/domain/supplies';
@@ -172,8 +169,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const troops = await troopsOf(ctx, player._id);
   const outposts = await outpostsOf(ctx, player._id);
-  const economy = await economyOf(ctx, player._id, now, { troops, outposts });
   const buildings = await playerBuildings(ctx, player._id);
+  const blitz = modeOf(season.mode) === 'blitz';
+  /** The ground a player may build on (`groundOf`, ADR 0020 §1) — not the map, what he may act
+   *  on — and **its colour**, by region because that is where he reads it: a site's modal, a
+   *  chain's column and the "to do now" card ask the same question of the same region. The
+   *  colour is the one the last colour change recorded (`linkedOn`, #144), the truth when that
+   *  record cannot answer; the economy below reads the very same map. */
+  const carrying = groundOf(player, blitz, buildings, outposts, now);
+  const held = await linkedOn(ctx, player, carrying, now);
+  const economy = await economyOf(ctx, player._id, now, { troops, outposts, held });
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
   const worksMinutesAt = (key: Parameters<typeof buildMinutes>[0], level: number) =>
@@ -186,62 +191,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  `constructionQueue`. */
   const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
 
-  /**
-   * The ground a player may build on: his home country, any region already carrying one of his
-   * buildings, and **the whole circle of each of his outposts** — the reach, not its centre.
-   * Not the map — what he may act on, which is the whole point of `PlayerView`. It went from
-   * "the regions carrying a deposit" to the entire home country the day construction moved onto
-   * the map: a barracks needs no deposit, so an empty region is a site now, and the panel
-   * cannot offer what it was never told about.
-   */
-  const blitz = modeOf(season.mode) === 'blitz';
-  /** En Blitz personne ne joue chez soi : le sol qu'on lit est celui de ses bâtiments. */
-  const home = blitz ? null : homeCountryOf(player.nation);
-  const carrying = new Map(
-    (home === null ? [] : regionsOf(home)).map((facts) => [facts.id, facts]),
-  );
-  for (const building of buildings) {
-    const facts = regionFacts(building.regionId);
-    if (facts) carrying.set(facts.id, facts);
-  }
-
   const recruiting = await recruitmentsOf(ctx, player._id);
-  /**
-   * **Le cercle entier d'un avant-poste, pas seulement la région de son point** (ADR 0020 §1 :
-   * là où je tiens est là où je peux bâtir). Servir le seul sol du point laissait le joueur voir
-   * tenu — `heldOver` tient le cercle depuis toujours — ce que la vue ne lui offrait pas :
-   * `siteOf` répond `null` pour une région absente d'ici, et le panneau le lit comme « rien ne
-   * se bâtit là ».
-   *
-   * **Le disque, exactement celui de la couleur** (révision du 17/09 de l'ADR 0020 §1) : une
-   * région dont une cellule tombe dans le rayon est tenue, donc elle se bâtit — `heldOver` et la
-   * vue lisent `regionsWithinReach`, la même fonction, et « là où je tiens est là où je peux
-   * bâtir » cesse d'être une phrase que deux mesures auraient pu démentir. La région du point y
-   * est toujours, à distance nulle, ce qui absorbe la précision du 04/09.
-   *
-   * **Un point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait
-   * ce que la vue refuserait d'offrir. L'ancre d'un bâtiment ne bouge pas pour autant : elle
-   * reste celle du point (`convex/sites.ts`), partagée entre toutes ses régions.
-   */
-  for (const outpost of outposts) {
-    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'ancre rien, donc
-     *  il n'ouvre aucun sol — le serveur refuserait ce que la vue offrirait. */
-    if (!isStanding(outpost, now)) continue;
-    for (const regionId of regionsWithinReach(
-      pointOf(outpost.point),
-      outpostReachKm(outpost.level),
-    ).keys()) {
-      const facts = regionFacts(regionId);
-      if (facts) carrying.set(facts.id, facts);
-    }
-  }
-  /**
-   * **La couleur du sol qu'il peut bâtir**, lue par la fonction unique (`convex/holding.ts`) que
-   * la carte, le classement et le relevé lisent aussi. Elle est servie par région parce que
-   * c'est là que le joueur la lit — la modale d'un site, la colonne d'une filière et la carte
-   * « à faire maintenant » posent toutes la même question sur la même région.
-   */
-  const held = await linkingOver(ctx, player, [...carrying.values()], now);
 
   const locked = await specializationsServed(ctx, season._id, outposts);
   const sealed = outposts.map((outpost) => ({
@@ -404,7 +354,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             concludeOpensAt: opensAt,
           };
 
-  const press = await lastEdition(ctx, season._id, player._id);
+  const press = await lastEdition(ctx, season._id, player._id, seats);
 
   const belligerents = seats.filter((seat) => isAtWar(seat, season));
   const nationOf = new Map(belligerents.map((seat) => [seat._id, seat.nation ?? seat.nickname]));
@@ -1135,7 +1085,13 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
  * industrie d'adversaire ne sort pas du serveur, donc aucun client, aucune capture de requête et
  * aucun bug d'affichage ne peut la révéler — c'est la même défense que les états d'arc.
  */
-async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<'players'>) {
+/** `seats` are the ones the view already read: the same rows, not a second sweep (#144). */
+async function lastEdition(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+  playerId: Id<'players'>,
+  seats: ReadonlyArray<Doc<'players'>>,
+) {
   /** Une édition écrit exactement une ligne par joueur, et le salon plafonne à `MAX_PLAYERS` :
    *  la dernière fenêtre de cette taille contient donc l'édition entière, jamais moins. */
   const recent = await ctx.db
@@ -1157,7 +1113,6 @@ async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<
    *  inventée, et la fenêtre Nation n'imprime alors aucun signe. */
   const before = own[1] ?? null;
 
-  const seats = await seatsOf(ctx, seasonId);
   const seatOf = new Map(seats.map((seat) => [seat._id as string, seat]));
 
   /** Le rang se lit sur le territoire, le premier en haut (79a) — calculé sur l'édition et non
