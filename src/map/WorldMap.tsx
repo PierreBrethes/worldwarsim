@@ -1124,6 +1124,11 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.cover(covered);
   }, [readyEngine, covered]);
+  const holdOver = useCallback(
+    (labelId: string, clientX: number, clientY: number) =>
+      engine.current?.pointerOverLabel(labelId, clientX, clientY),
+    [],
+  );
 
   useEffect(() => {
     const rect = container.current?.getBoundingClientRect();
@@ -1329,9 +1334,7 @@ export function WorldMap({
         onAct={onLabelAct}
         mapping={mapping}
         holding={holding !== null}
-        onHoldOver={(labelId, clientX, clientY) =>
-          engine.current?.pointerOverLabel(labelId, clientX, clientY)
-        }
+        onHoldOver={holdOver}
         muted={placing !== null}
         groupFar={blitz !== null}
         nation={playerNation ?? null}

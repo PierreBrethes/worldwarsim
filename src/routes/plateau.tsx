@@ -10,6 +10,7 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap } from '@/map/WorldMap';
+import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
   readWindows,
@@ -960,6 +961,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     onHold: setCarryingTokens,
   });
+  /** Prendre au dépôt, toujours la même fonction : la carte ne se redessine pas pour une
+   *  identité neuve (#189). La prise lit le glisser du dernier rendu. */
+  const latestTokens = useRef(tokens);
+  useEffect(() => {
+    latestTokens.current = tokens;
+  });
+  const takeDepot = useCallback<TakeDepot>(
+    (outpostId, resource, event) => latestTokens.current.start({ outpostId }, resource, event),
+    [],
+  );
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -1936,8 +1947,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? null
       : () => firstSteps.show('open');
   const cuedLabel = stepCue?.kind === 'map' ? markerOfStation(view, stepCue.station) : null;
-  const mapCue =
-    cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText };
+  /** Le même objet tant que la bulle ne change pas : la carte ne se redessine pas pour un égal. */
+  const mapCue = useMemo(
+    () => (cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText }),
+    [cuedLabel, stepText],
+  );
 
   /**
    * The morning edition: with **unread** critical news, the journal is already on the desk on
@@ -2304,11 +2318,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onLasso={blitz ? undefined : lasso}
               onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
               selectionBar={selectionBar}
-              onTakeDepot={
-                view.me.defeated
-                  ? undefined
-                  : (outpostId, resource, event) => tokens.start({ outpostId }, resource, event)
-              }
+              onTakeDepot={view.me.defeated ? undefined : takeDepot}
               building={buildingSite !== null}
               placing={placingCard}
               onPlacePoint={placeAt}
