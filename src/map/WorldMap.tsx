@@ -268,7 +268,8 @@ type Props = {
   selectionBar?: ReactNode;
   /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
   tourLoops?: ReadonlyArray<TourLoop>;
-  /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
+  /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien, et
+   *  la carte cesse de dessiner (#189). */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
@@ -1120,6 +1121,9 @@ export function WorldMap({
   useEffect(() => {
     if (covered) setRose(null);
   }, [covered]);
+  useEffect(() => {
+    readyEngine?.cover(covered);
+  }, [readyEngine, covered]);
 
   useEffect(() => {
     const rect = container.current?.getBoundingClientRect();

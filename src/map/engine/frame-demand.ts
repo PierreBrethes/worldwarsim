@@ -30,6 +30,7 @@ export class FrameDemand {
   private stirredAt: number;
   private fullAt = Number.NEGATIVE_INFINITY;
   private requested = false;
+  private covered = false;
 
   constructor(now: number) {
     this.stirredAt = now;
@@ -38,6 +39,13 @@ export class FrameDemand {
   /** Quelque chose a bougé, ou va bouger : la carte rend pendant `SETTLE_MS` à compter d'ici. */
   stir(now: number): void {
     this.stirredAt = now;
+  }
+
+  /** **Une feuille couvre toute la carte** (écran étroit, #189) : rien ne se dessine dessous, ni
+   *  remué, ni battement, ni fil ; levée, la carte rend sa fenêtre d'activité. */
+  cover(covered: boolean, now: number): void {
+    if (this.covered && !covered) this.stirredAt = now;
+    this.covered = covered;
   }
 
   /** Une image seule, sans ouvrir la fenêtre : l'ambiance la demande à chaque pas. */
@@ -53,6 +61,7 @@ export class FrameDemand {
   due(now: number, pace: number = HEARTBEAT_MS): FrameReason | null {
     const requested = this.requested;
     this.requested = false;
+    if (this.covered) return null;
     const reason: FrameReason | null =
       now - this.stirredAt <= SETTLE_MS
         ? 'stirred'

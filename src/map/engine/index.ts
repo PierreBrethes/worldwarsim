@@ -704,6 +704,13 @@ export class MapEngine {
     this.demand.stir(performance.now());
   }
 
+  /** **Couverte par une feuille, la carte ne dessine plus** (#189) : au téléphone, sous le
+   *  journal ou une fiche, elle rendait encore 45 images par seconde que personne ne voyait. */
+  cover(covered: boolean): void {
+    this.invalidate();
+    this.demand.cover(covered, performance.now());
+  }
+
   inkBurst(burst: InkBurst): void {
     this.invalidate();
     /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
