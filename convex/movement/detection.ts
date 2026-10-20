@@ -285,7 +285,7 @@ async function detectionBoard(
   const troopById = new Map(troops.map((troop) => [troop._id, troop]));
   /** **Rangoun** : les tournées de son teneur ne se relèvent qu'à la part de portée de
    *  `sightingReachKm`. Relu ici à chaque réévaluation, donc éteint dès que le point change de
-   *  main (`handOver` réévalue). */
+   *  main (`handOver` réévalue s'il y a une tournée chez l'un des teneurs). */
   const rangoonTours = new Set<Id<'troops'>>();
   const keepers = new Map<Id<'players'>, boolean>();
   for (const troop of troops) {
