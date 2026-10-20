@@ -24,7 +24,7 @@ import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
-import { irregularSeat } from './objectives';
+import { endowIrregular, irregularSeat } from './objectives';
 import { handOver, holdsPoint } from './strategicPoints';
 import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
@@ -748,6 +748,9 @@ async function toIrregulars(
   }
   await dropCapturesOf(ctx, loser._id, now);
   await handOverSieges(ctx, fall, irregularId, now);
+  /** Un siège né à cette chute, sans objectif posé avant, reçoit sa dotation comme s'il naissait
+   *  avec ses garnisons (`objectives.ts`) : pillage et recharge lisent son plateau. */
+  await endowIrregular(ctx, irregularId, now);
   return irregularId;
 }
 

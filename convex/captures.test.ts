@@ -919,6 +919,62 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **Chacun peut piller ce que le siège irrégulier hérite** (M16), objectifs neutres posés ou
+   *  non : le siège né à la chute a son plateau, que le pillage lit. */
+  it('lets a third side plunder a warehouse the irregulars inherited', async () => {
+    const t = boot();
+    const { seat, guest, third } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const warehouse = await building(t, guest, PSKOV, 1, 'warehouse');
+    await take(t, seat, hq);
+    await finish(t);
+
+    const raider = await playerOf(t, third);
+    const home = await t.run(
+      async (ctx) =>
+        (
+          await ctx.db
+            .query('buildings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', raider._id))
+            .collect()
+        ).find((held) => held.key === 'hq')!._id,
+    );
+    const infantry = await troop(t, third, 'infantry', home);
+    const to = pointOfRegion(PSKOV);
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: raider.seasonId,
+        playerId: raider._id,
+        type: 'march',
+        fromBuildingId: home,
+        target: { kind: 'building', buildingId: warehouse },
+        from: { lon: to.lon - 1, lat: to.lat },
+        to,
+        hostCountry: 'RUS',
+        points: [{ lon: to.lon - 1, lat: to.lat }, to],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry],
+        departedAt: Date.now() - HOUR,
+        arrivesAt: Date.now(),
+        plunder: { phase: 'outbound', buildingId: warehouse },
+      }),
+    );
+    await t.mutation(internal.movements.arrive, { movementId });
+    const present = (await t.run((ctx) => ctx.db.get(movementId)))!.plunder;
+    if (present?.phase !== 'presence') throw new Error('presence not started');
+    vi.setSystemTime(present.until);
+    await t.mutation(internal.movements.completePlunderPresence, {
+      movementId,
+      expectedAt: present.until,
+    });
+
+    expect((await t.run((ctx) => ctx.db.get(warehouse)))!.disabledUntil).toBeGreaterThan(
+      present.until,
+    );
+  });
+
   /** Le siège irrégulier n'a pas de stock : la station d'écoute qu'il hérite reste muette. */
   it('hands his listening station to the irregulars, who hear nothing without coal', async () => {
     const t = boot();
