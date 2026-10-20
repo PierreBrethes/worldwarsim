@@ -87,13 +87,13 @@ import { producingSites } from '@/domain/producing';
 import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
-  traceCompass,
   type Compass,
   type CompassAction,
   type CompassTarget,
   type OrderAction,
   isOrder,
 } from '@/domain/compass-rose';
+import { traceCompass } from '@/domain/compass-logistics';
 import {
   aimVerdict,
   depositHolders,

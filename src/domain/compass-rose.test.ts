@@ -1,6 +1,7 @@
 import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
-import { compassOf, traceCompass, type CompassTarget } from './compass-rose';
+import { compassOf, type CompassTarget } from './compass-rose';
+import { traceCompass } from './compass-logistics';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
