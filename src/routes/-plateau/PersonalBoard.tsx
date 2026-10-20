@@ -22,6 +22,8 @@ import { bindSpots, centreOf, flightLayer, flyPastille, spent as flySpent } from
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
+import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
+import { DryTag, dryLabelOf, ReserveCell, usePinning } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, upgradeHold } from '@/domain/construction';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
@@ -55,8 +57,9 @@ const DRAG_THRESHOLD_PX = 5;
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
-/** The room the folded band leaves to the protractor's corner, on the phone. */
-const CORNER_ROOM = 'calc(72px + var(--safe-right) / var(--hud-scale))';
+/** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
+const FULL_ROOM =
+  'calc((100dvh - var(--board-top) - var(--safe-bottom) - 26px) / var(--hud-scale))';
 
 /**
  * **Le plateau personnel, en sous-main** (issue #122, maquette B) : une bande sur toute la largeur
@@ -148,8 +151,20 @@ export function PersonalBoard({
   });
   /** La main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
   const folded = !open || research || away;
+  /** **Plein**, sous le seuil : le plateau prend tout ce que la carte lui laisse. Replié, il
+   *  repart à mi-hauteur à la prochaine ouverture. */
+  const [full, setFull] = useState(false);
+  const filled = full && !folded;
+  if (full && folded) setFull(false);
+  const gripLabel = folded
+    ? fr.footBar.grip.open
+    : filled
+      ? fr.footBar.grip.fold
+      : fr.footBar.grip.full;
+  const foot = useFoot();
+  useClaimFoot(narrow ? foot : null, board);
   const handleRef = useRef<HTMLButtonElement>(null);
-  useMatRise(board, `${folded}-${research}-${cue?.text ?? ''}`);
+  useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
@@ -195,28 +210,31 @@ export function PersonalBoard({
   const researchCue = cue?.rack === 'research' ? cue.text : null;
   const unfoldCued = rackCue !== null && folded && !research;
 
-  /** Au téléphone, repliée, la bande tient sur une rangée : la poignée n'y garde que sa flèche. */
-  const compact = narrow && folded;
+  /** La poignée : sous le seuil une languette au-dessus de la barre, qui tire la bande — repliée,
+   *  mi-hauteur, pleine, repliée ; au bureau le titre de la bande, qui la bascule. */
   const handle = (
     <button
       ref={handleRef}
       type="button"
       aria-expanded={!folded}
+      aria-label={narrow ? gripLabel : undefined}
       onClick={() => {
         onResearch(false);
-        onOpen(folded);
+        if (narrow && !folded && !filled) setFull(true);
+        else onOpen(folded);
       }}
-      className={`relative cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
-        compact
-          ? 'shrink-0 self-stretch border-r border-(color:--ink)/35 px-[5px]'
-          : narrow
-            ? 'flex-1 px-3 py-[10px] text-center'
-            : 'self-stretch border-r border-[var(--ink)] px-3'
+      className={`cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
+        narrow
+          ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] text-[10px]'
+          : 'relative self-stretch border-r border-[var(--ink)] px-3'
       } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
     >
-      <span className={compact ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
-      <span aria-hidden className="ml-[6px] font-(family-name:--font-body) text-[11px]">
-        {folded ? '▴' : '▾'}
+      <span className={narrow ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
+      <span
+        aria-hidden
+        className={`font-(family-name:--font-body) text-[11px] ${narrow ? '' : 'ml-[6px]'}`}
+      >
+        {filled ? '▾' : '▴'}
       </span>
       {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
       {unfoldCued && narrow && (
@@ -232,18 +250,26 @@ export function PersonalBoard({
       type="button"
       aria-expanded={research}
       onClick={() => onResearch(!research)}
-      className={`relative shrink-0 cursor-pointer border border-[var(--ink)] py-[5px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-(--ink)/8 ${
+      className={`relative shrink-0 cursor-pointer border border-[var(--ink)] px-[9px] py-[5px] text-[10px] font-semibold tracking-[.14em] uppercase hover:bg-(--ink)/8 ${
         research ? 'bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--ink)]' : ''
-      } ${compact ? 'mr-[2px] px-[3px] text-[9px] tracking-normal' : narrow ? 'mr-2 px-[9px]' : 'px-[9px]'}`}
+      }`}
     >
-      {compact ? fr.personalBoard.researchShort : fr.research.header}
-      {researchCue !== null && !research && (
+      {fr.research.header}
+      {researchCue !== null && !research && !narrow && (
         <CueBubble
           text={researchCue}
           place="first-step-cue--corner absolute right-0 bottom-[calc(100%+9px)]"
         />
       )}
     </button>
+  );
+  /** Les cinq réserves : la ligne repliée, et le haut du plateau tiré. */
+  const reserves = (
+    <div className="flex h-full min-w-0 flex-1">
+      {RESOURCES.map((resource) => (
+        <ReserveCell key={resource} {...bin(resource)} />
+      ))}
+    </div>
   );
 
   return (
@@ -252,15 +278,17 @@ export function PersonalBoard({
         ref={board}
         aria-label={fr.personalBoard.header}
         className={`hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
-          narrow ? 'border-x-0' : ''
+          narrow ? 'border-x-0 border-b-0' : ''
         }`}
         style={
           narrow
             ? {
                 left: 0,
-                right: folded ? CORNER_ROOM : 0,
-                bottom: 'calc(var(--board-bottom) / var(--hud-scale))',
-                maxHeight: 'calc(55dvh / var(--hud-scale))',
+                right: 0,
+                bottom: 'calc(var(--safe-bottom) / var(--hud-scale))',
+                // Mid-height hugs what the band holds, up to this; full takes all the map leaves.
+                maxHeight: filled ? FULL_ROOM : 'calc(55dvh / var(--hud-scale))',
+                ...(filled ? { height: FULL_ROOM } : {}),
                 zIndex: folded ? 'var(--z-band)' : 'var(--z-window)',
               }
             : {
@@ -283,29 +311,37 @@ export function PersonalBoard({
             }
           />
         )}
+        {/* Sous le seuil, la clé des surfaces est la dernière case de la barre : le pas de
+            recherche la désigne, la recherche s'ouvrant depuis son menu. */}
+        {narrow && researchCue !== null && !research && (
+          <CueBubble
+            text={researchCue}
+            place="first-step-cue--corner absolute right-0 bottom-[calc(100%+9px)]"
+          />
+        )}
 
-        {compact ? (
-          <div className="flex h-[56px] shrink-0 items-center gap-[3px]">
+        {narrow ? (
+          <>
             {handle}
-            <div className="flex min-w-0 flex-1 gap-[1px]">
-              {RESOURCES.map((resource) => (
-                <MiniBin key={resource} {...bin(resource)} narrow />
-              ))}
+            <div className="flex shrink-0 items-stretch" style={{ height: FOOT_ROW }}>
+              {folded ? (
+                reserves
+              ) : (
+                <span className="flex min-w-0 flex-1 flex-col justify-center gap-[4px] px-[14px]">
+                  <span className="font-(family-name:--font-display) text-[17px] leading-none font-bold">
+                    {fr.personalBoard.header}
+                  </span>
+                  <span className="truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
+                    <WorkLine view={view} now={now} />
+                  </span>
+                </span>
+              )}
+              {foot?.key}
             </div>
-            {researchButton}
-          </div>
-        ) : narrow ? (
-          <div className="flex shrink-0 flex-col gap-[6px] pb-[6px]">
-            <div className="flex items-center border-b border-(color:--ink)/30">
-              {handle}
-              {researchButton}
-            </div>
-            <div className="flex gap-[3px] px-2">
-              {RESOURCES.map((resource) => (
-                <MiniBin key={resource} {...bin(resource)} narrow />
-              ))}
-            </div>
-          </div>
+            {!folded && (
+              <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
+            )}
+          </>
         ) : (
           <div
             className={`flex shrink-0 items-center gap-[14px] pr-[10px] ${
@@ -313,13 +349,7 @@ export function PersonalBoard({
             }`}
           >
             {handle}
-            {folded && (
-              <div className="flex gap-[4px]">
-                {RESOURCES.map((resource) => (
-                  <MiniBin key={resource} {...bin(resource)} narrow={false} />
-                ))}
-              </div>
-            )}
+            {folded && <div className="flex h-full min-w-[330px] flex-[0_1_460px]">{reserves}</div>}
             <span className="min-w-0 truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
               <WorkLine view={view} now={now} />
             </span>
@@ -360,8 +390,10 @@ export function PersonalBoard({
         )}
 
         <div
-          className="mat-fold grid min-h-0"
-          style={{ gridTemplateRows: folded ? '0px' : narrow ? 'auto' : '156px' }}
+          className={`mat-fold grid min-h-0 ${filled ? 'flex-1' : ''}`}
+          style={{
+            gridTemplateRows: folded ? '0px' : narrow ? (filled ? '1fr' : 'auto') : '156px',
+          }}
           inert={folded}
         >
           <div
@@ -612,62 +644,22 @@ function binReading({ resource, view, now, shown }: BinProps) {
   return { held, stock, share, title };
 }
 
-const takeTokens = (onTake: BinProps['onTake']) =>
-  onTake === null ? {} : { onPointerDown: onTake, 'data-grab': fr.logistics.grab };
-
-/** **Un bac plié**, à la logique du grand : l'icône, la barre, possédé / max, puis le débit. */
-function MiniBin(props: BinProps & { narrow: boolean }) {
-  const { resource, register, onTake, narrow } = props;
-  const { held, stock, share, title } = binReading(props);
-  const color = resourceColor(resource, true);
-  return (
-    <span
-      ref={register}
-      data-bin={resource}
-      title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
-      {...takeTokens(onTake)}
-      className={`flex touch-none flex-col items-center justify-center border border-(color:--ink)/35 font-(family-name:--font-mono) leading-none whitespace-nowrap select-none ${
-        narrow
-          ? 'h-full min-w-0 flex-1 gap-[3px] overflow-hidden px-0 py-[3px] text-[7.5px] tracking-[-.06em]'
-          : 'h-[44px] w-[64px] gap-[3px] py-[3px] text-[9.5px]'
-      } ${onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'}`}
-    >
-      {narrow ? (
-        <ResourcePlate resource={resource} height={11} width={11} />
-      ) : (
-        <ResourcePlate resource={resource} height={14} />
-      )}
-      <span
-        aria-hidden
-        className={`block ${narrow ? 'h-[3px] w-[calc(100%-6px)]' : 'h-[3px] w-[calc(100%-10px)]'}`}
-        style={{
-          background: `linear-gradient(90deg, ${color} ${share}%, color-mix(in srgb, var(--ink) 14%, transparent) ${share}%)`,
-        }}
-      />
-      <span>
-        <b className="font-semibold">{stock}</b>
-        {narrow ? `/${held.cap}` : ` ${fr.personalBoard.ofCap(held.cap)}`}
-      </span>
-      <span style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}>
-        {fr.personalBoard.rate(held.ratePerHour)}
-      </span>
-    </span>
-  );
-}
-
-/** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net, centrés dans la
- *  hauteur de la bande pour que les marges du haut et du bas soient égales. */
+/** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net — ou l'étiquette
+ *  « à sec » qui le remplace, la même que la ligne repliée —, centrés dans la hauteur de la bande
+ *  pour que les marges du haut et du bas soient égales. */
 function GaugeBin(props: BinProps) {
   const { resource, register, onTake } = props;
   const { held, stock, share, title } = binReading(props);
+  const alert = dryLabelOf(stock, held.ratePerHour);
   return (
-    <div
-      ref={register}
+    <button
+      type="button"
+      ref={register as Ref<HTMLButtonElement>}
       data-bin={resource}
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
-      {...takeTokens(onTake)}
+      {...usePinning(resource, onTake)}
       className={`grid touch-none content-center justify-items-center gap-[7px] select-none ${
-        onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/12'
+        onTake === null ? 'cursor-pointer' : 'cursor-grab hover:bg-(--arc-mine)/12'
       }`}
     >
       <ResourcePlate resource={resource} height={22} />
@@ -685,18 +677,27 @@ function GaugeBin(props: BinProps) {
         />
       </span>
       <span className="font-(family-name:--font-mono) text-[11px] leading-none whitespace-nowrap">
-        <b className="text-[13px] font-semibold">{stock}</b>{' '}
+        <b
+          className="text-[13px] font-semibold"
+          style={alert === null ? undefined : { color: 'var(--critical)' }}
+        >
+          {stock}
+        </b>{' '}
         <small className="text-[9.5px] text-[var(--ink-soft)]">
           {fr.personalBoard.ofCap(held.cap)}
         </small>
       </span>
-      <small
-        className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
-        style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
-      >
-        {fr.personalBoard.rate(held.ratePerHour)}
-      </small>
-    </div>
+      {alert === null ? (
+        <small
+          className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
+          style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
+        >
+          {fr.personalBoard.rate(held.ratePerHour)}
+        </small>
+      ) : (
+        <DryTag label={alert} />
+      )}
+    </button>
   );
 }
 

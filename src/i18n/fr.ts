@@ -2031,6 +2031,8 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
+    /** La prochaine édition de la presse, à l'en-tête : « éd. 15:00 ». */
+    edition: 'éd.',
     /** **Halifax** : ce que le compteur n'a pas retenu, dit à côté de lui. */
     halifaxSpared: 'Halifax −1',
     slotsTitle: (
@@ -2071,9 +2073,8 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
-    /** L'étiquette qui pend sous une réserve à sec (réglette), seule encre rouge de la ligne. */
+    /** L'étiquette d'une réserve à sec, seule encre rouge de la ligne, qui prend la place du débit. */
     dry: 'à sec',
-    drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
     slots: 'mouvements',
@@ -2229,8 +2230,9 @@ export const fr = {
   },
 
   /**
-   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplace la barre
-   * de pied, et ses ronds posés sur l'arc. Les titres des ronds sont ceux de `foot`.
+   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplaçait la
+   * barre de pied, et ses ronds posés sur l'arc. Le jeu l'a quitté pour la barre basse (`footBar`,
+   * #179) ; seule la démo de l'accueil le joue encore.
    */
   protractor: {
     label: 'menu du plateau',
@@ -2250,6 +2252,36 @@ export const fr = {
     press: 'presse',
     telegraph: 'télégraphe',
     layersTitle: 'Calques de la carte',
+  },
+
+  /**
+   * **La barre basse du téléphone** (#179) : les réserves, le plateau qu'on tire, et à droite la
+   * clé — « à faire » avec son compte, qui ouvre le menu des surfaces, puis « carte » qui en
+   * ramène. Les noms du menu sont des mots entiers : il y a la place, et un menu ne se devine pas.
+   */
+  footBar: {
+    label: 'barre du plateau',
+    /** La clé, fermée : son compte, puis ce qu'elle ouvre. */
+    openMenu: (waiting: number) =>
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu des surfaces`,
+    map: 'carte',
+    backToMap: 'revenir à la carte',
+    menuLabel: 'surfaces',
+    menu: {
+      todo: 'À faire',
+      nation: 'Nation',
+      research: 'Recherche',
+      gunnery: 'Abaque',
+      journal: 'Journal',
+      press: 'Presse',
+      telegraph: 'Télégraphe',
+    },
+    /** La poignée du plateau : replié → mi-hauteur → plein → replié. */
+    grip: {
+      open: 'déplier le plateau personnel',
+      full: 'agrandir le plateau personnel',
+      fold: 'replier le plateau personnel',
+    },
   },
 
   /**
@@ -3495,6 +3527,8 @@ export const fr = {
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
     ofCap: (cap: number) => `/ ${num(cap)}`,
     rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
+    /** Le débit d'une réserve sur la barre : cinq colonnes sur un téléphone, sans espaces. */
+    rateShort: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))}/h`,
     harvest: (hours: number) =>
       hours < 1
         ? 'Récolte depuis que vous avez quitté le plateau personnel'
@@ -3504,6 +3538,7 @@ export const fr = {
     /** La récolte pliée dans la bande : depuis quand, puis l'écart de chaque bac. */
     harvestSince: (hours: number) => (hours < 1 ? 'depuis peu' : `depuis ${num(hours)} h`),
     harvestReplay: 'revoir la récolte',
+    researchShort: 'rech.',
     harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
@@ -3541,7 +3576,6 @@ export const fr = {
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
     raiseTo: (level: number) => `élever au niv.\u00a0${level}`,
     /** Le bouton de la recherche dans la bande repliée du téléphone. */
-    researchShort: 'rech.',
     starvedChain: (building: string, resource: string) =>
       `${building} à sec de ${lowerFirst(resource)}`,
   },

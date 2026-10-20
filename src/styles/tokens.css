@@ -115,6 +115,9 @@
   --board-top: 0px;
   --board-bottom: 0px;
   --board-left: 0px;
+  /* **Une ligne de la barre basse du téléphone** (#179), en pixels d'écran : la ligne des réserves
+     repliée et sa clé. Les feuilles et les fenêtres se posent au-dessus (`--board-bottom`). */
+  --foot-bar: 66px;
   --dock-w: 430px;
   --panel-ctx-w: 308px;
   --panel-side-w: 250px;
