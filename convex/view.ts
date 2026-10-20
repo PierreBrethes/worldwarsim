@@ -260,7 +260,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     fullSupplies(troop.role).fuel > 0
       ? bakuRefuel(troop.role, suppliesOf(troop).fuel, bakuSince(troop), now)
       : null;
-  /** **Rangoun** : ses tournées ne se relèvent jamais (`detectionBoard`). */
+  /** **Rangoun** : ses tournées ne se relèvent qu'à mi-portée (`detectionBoard`). */
   const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];

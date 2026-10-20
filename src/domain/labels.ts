@@ -276,6 +276,12 @@ export type Reach = {
    * cercle autour d'eux promettrait une allonge qu'aucune règle ne leur donne.
    */
   readonly contactKm: number | null;
+  /**
+   * **Rangoun** : à quelle distance un fantassin relève la tournée du teneur, à mi-portée
+   * (`sightingReachKm`). Le seul détecteur de référence, celui du briefing : la fiche du point dit
+   * que chaque autre la relève à la même part de sa portée.
+   */
+  readonly sightedKm?: number;
   /** **Ce qu'une artillerie atteint** (B20) : l'anneau de portée, et la zone morte hachurée. */
   readonly fire?: { readonly rangeKm: number; readonly deadZoneKm: number };
 };

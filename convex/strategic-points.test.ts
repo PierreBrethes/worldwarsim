@@ -468,8 +468,8 @@ describe('the rules the points break', () => {
     expect((await campsOf())[0]).toMatchObject({ nation: 'ussr' });
   });
 
-  /** Rangoun : la fiche de la tournée dit « invisible » à son maître seul (le voile : `detection.test.ts`). */
-  it('tells the holder of Rangoon his tour is veiled, while he holds it', async () => {
+  /** Rangoun : la fiche de la tournée dit « mi-portée » à son maître seul (la règle : `detection.test.ts`). */
+  it('tells the holder of Rangoon his tour is sighted at half reach, while he holds it', async () => {
     const t = boot();
     const { seat } = await launched(t);
     const truck = await posted(t, seat, 'landTransport', FIELD);

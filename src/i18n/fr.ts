@@ -12,10 +12,12 @@ import {
   BAKU_REFUEL_MS,
   BASE_CAP,
   DAKAR_SPARED_PER_RESOURCE,
+  DETECTION_RANGE_KM,
   NARVIK_UNLINKED_SHARE,
   LISTENING_STATION_RADIUS_KM,
   OUTPOST_REACH_KM_BY_LEVEL,
   SINGAPORE_FUEL_DISCOUNT_PCT,
+  sightingReachKm,
 } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
@@ -539,8 +541,7 @@ export const fr = {
         'Vous seul commercez avec le comptoir neutre : trois d’une ressource contre une d’une autre, une fois par édition.',
       istanbul:
         'Une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs — tamponné « lu à Istanbul » chez eux.',
-      rangoon:
-        'Vos tournées de ravitaillement ne se relèvent jamais : aucune détection ne les voit.',
+      rangoon: `Vos tournées de ravitaillement ne se relèvent qu’à mi-portée : un fantassin les voit à ${sightingReachKm(DETECTION_RANGE_KM.infantry, true)} km au lieu de ${DETECTION_RANGE_KM.infantry}, une station d’écoute à ${sightingReachKm(LISTENING_STATION_RADIUS_KM, true)} au lieu de ${LISTENING_STATION_RADIUS_KM}.`,
       hongKong:
         'Vous lisez la dépêche de chaque capture, où que ce soit — points, bâtiments et avant-postes, même ceux que vous ne voyez pas : qui prend quoi, et où.',
       halifax: 'Un de vos mouvements maritimes à la fois ne prend pas de slot.',
@@ -2830,7 +2831,7 @@ export const fr = {
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
     tourLine: (tour: TagTour): string =>
-      `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · invisible, Rangoun' : ''}`,
+      `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · relevée à mi-portée, Rangoun' : ''}`,
     tourState: ({ state, stops, waiting }: TagTour): string =>
       state === 'tracing'
         ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`

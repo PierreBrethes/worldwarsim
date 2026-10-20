@@ -311,7 +311,8 @@ export type TroopView = {
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
     readonly skipped: ReadonlyArray<string>;
-    /** **Rangoun** : aucune détection ne la relève — la fiche le dit à son seul maître. */
+    /** **Rangoun** : on ne la relève qu'à mi-portée — la fiche et la carte le disent à son seul
+     *  maître. */
     readonly veiled?: true;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */

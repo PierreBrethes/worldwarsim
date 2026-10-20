@@ -31,6 +31,7 @@ import {
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
+  sightingReachKm,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
@@ -2592,8 +2593,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ),
       detectionKm: detectionRangeOf(roles, blitzTheatre),
       contactKm: contactKm(blitzTheatre),
+      /** **Rangoun** : la même règle que le serveur, une colonne toute en tournée. */
+      ...(movement.troopIds.length > 0 &&
+      movement.troopIds.every(
+        (id) => view.me.troops.find((troop) => troop.id === id)?.tour?.veiled === true,
+      )
+        ? { sightedKm: sightingReachKm(detectionRangeOf(['infantry'], blitzTheatre), true) }
+        : {}),
     };
-  }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt, blitzTheatre]);
+  }, [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre]);
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
   const selectedObjectiveView =

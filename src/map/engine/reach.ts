@@ -95,6 +95,9 @@ export class ReachRing {
   private readonly contact = new Ring(false);
   /** **L'artillerie** (B20) : sa portée en plein, sa zone morte à l'encre, hachurée dedans. */
   private readonly range = new Ring(false);
+  /** **Rangoun** : d'où l'on relève la tournée — un tireté à l'encre du plateau, pas à l'ambre :
+   *  ce n'est pas ce qu'elle voit, c'est ce qui la voit. */
+  private readonly sighted = new Ring(true, DEAD_INK, DEAD_THICKNESS);
   /** **Le liseré papier** de l'anneau de destination, même procédé : sous le voile de nuit, l'encre
    *  seule se perd, et le papier dessous lui rend un bord. */
   private readonly deadCasing = new Ring(false, PALETTE.paper, DEAD_THICKNESS + 3);
@@ -121,6 +124,7 @@ export class ReachRing {
       this.detection.line,
       this.contact.line,
       this.range.line,
+      this.sighted.line,
       this.deadCasing.line,
       this.deadZone.line,
       this.deadFill,
@@ -143,6 +147,7 @@ export class ReachRing {
     this.detection.resize(width, height);
     this.contact.resize(width, height);
     this.range.resize(width, height);
+    this.sighted.resize(width, height);
     this.deadCasing.resize(width, height);
     this.deadZone.resize(width, height);
   }
@@ -158,6 +163,7 @@ export class ReachRing {
     this.detection.dispose();
     this.contact.dispose();
     this.range.dispose();
+    this.sighted.dispose();
     this.deadCasing.dispose();
     this.deadZone.dispose();
     this.deadFill.geometry.dispose();
@@ -166,6 +172,9 @@ export class ReachRing {
 
   private write(reach: Reach): void {
     this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
+    this.sighted.line.visible = reach.sightedKm !== undefined;
+    if (reach.sightedKm !== undefined)
+      this.sighted.write(circleAround(this.frame, reach.lonLat, reach.sightedKm));
     const fire = reach.fire ?? null;
     this.range.line.visible = fire !== null;
     this.deadCasing.line.visible = fire !== null;
