@@ -213,8 +213,11 @@ export async function handOver(
   });
   await tallyRace(ctx, point.seasonId, now);
   /** **Rangoun** : la mi-portée des tournées suit le point, donc le brouillard se relit à la prise
-   *  comme à la perte. */
-  if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
+   *  comme à la perte — sur les colonnes de ses deux teneurs, les seules dont la portée change. */
+  if (point.key === 'rangoon') {
+    const holders = [former, holderId].flatMap((id) => (id === null ? [] : [id]));
+    await reassessDetection(ctx, point.seasonId, now, holders);
+  }
 }
 
 /**

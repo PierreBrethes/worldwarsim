@@ -8,7 +8,8 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
-import { foundationOwedBy, regionFacts, pointOfRegion } from './regions';
+import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regions';
+import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
@@ -1111,5 +1112,168 @@ describe('a Mondiale headquarters', () => {
       (await playerOf(t, third))._id,
     );
     expect((await playerOf(t, seat)).defeated).not.toBe(true);
+  });
+});
+
+/**
+ * **La chute d'un QG ne relit que les sièges qu'elle touche** (#171) : le capteur, l'éliminé et le
+ * siège irrégulier. Une table pleine, des colonnes en vol de tous les côtés, Rangoun et deux
+ * autres points au vaincu, une station du capteur muette faute de charbon que la saisie rallume :
+ * après la chute, une réévaluation entière n'a plus rien à changer.
+ */
+describe('a headquarters falling at a full table', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  let seed = 11;
+  const near = (spread: number) => {
+    const shift = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    return { lon: 8 + shift() * spread, lat: 50 + shift() * spread };
+  };
+
+  /** Ce que le brouillard tient, et ce qu'il a dit : relevés, camps et dépêches. */
+  const fog = (t: Bench) =>
+    t.run(async (ctx) => ({
+      sightings: (await ctx.db.query('sightings').collect())
+        .map((row) =>
+          JSON.stringify([
+            row.movementId,
+            row.playerId,
+            row.from,
+            row.to,
+            row.detector,
+            row.detectorId,
+            row.detectorRegion,
+            row.frozen?.closedAt ?? null,
+          ]),
+        )
+        .sort(),
+      camps: (await ctx.db.query('campSightings').collect())
+        .map((row) =>
+          JSON.stringify([
+            row.playerId,
+            row.stationKey,
+            row.ownerId,
+            row.point,
+            row.until,
+            row.detector,
+            row.detectorId,
+          ]),
+        )
+        .sort(),
+      notices: (await ctx.db.query('notices').collect()).length,
+    }));
+
+  it('reads again the seats it touches only, and leaves nothing for a full pass to change', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const seats = [seat];
+    for (const name of ['Léa', 'Marc', 'Inès']) seats.push(await joinSeat(t, code, name));
+    const nations = ['france', 'germany', 'uk', 'italy'] as const;
+    for (const [k, one] of seats.entries()) {
+      await t.mutation(api.players.reserveNation, { ...one, nation: nations[k]! });
+      await t.mutation(api.players.declareReady, { ...one, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    for (const one of seats) await placeHq(t, one);
+    const players = await Promise.all(seats.map(async (one) => (await playerOf(t, one))._id));
+    const [capturerId, loserId] = [players[0]!, players[1]!];
+
+    const scenes = [];
+    for (const [k, playerId] of players.entries()) {
+      scenes.push(
+        await t.mutation(internal.dev.benchScene, {
+          playerId,
+          squads: Array.from({ length: 4 }, () => near(0.8)),
+          reserve: { at: near(0.8), count: 4 },
+          outposts: k === 1 ? [near(0.6), near(0.6)] : [],
+        }),
+      );
+    }
+    /** La station du capteur au cœur du carré, à sec : la saisie du stock la rallume. Le vaincu
+     *  écoute aussi, d'une station et d'un avant-poste, qui passent au siège irrégulier. */
+    const central = allRegions()
+      .filter((region) => region.country === 'DEU')
+      .sort((a, b) => distanceKm(a.point, [8, 50]) - distanceKm(b.point, [8, 50]));
+    await t.run(async (ctx) => {
+      for (const [playerId, regionId] of [
+        [capturerId, central[0]!.id],
+        [loserId, central[1]!.id],
+      ] as const) {
+        await ctx.db.insert('buildings', {
+          seasonId: seat.seasonId,
+          playerId,
+          key: 'listening',
+          regionId,
+          point: pointOfRegion(regionId),
+          level: 1,
+        });
+      }
+      await ctx.db.insert('outposts', {
+        seasonId: seat.seasonId,
+        playerId: loserId,
+        point: near(0.5),
+        hostCountry: 'DEU',
+        level: 1,
+        specialization: 'listening',
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      for (const [playerId, stock] of [
+        [capturerId, 0],
+        [loserId, 5000],
+      ] as const) {
+        for (const row of await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()) {
+          await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+        }
+      }
+    });
+    await holdPoint(t, seats[1]!, 'rangoon');
+    await reassess(t, seat.seasonId);
+    for (let squad = 0; squad < 3; squad += 1) {
+      for (const [k, playerId] of players.entries()) {
+        const { ids, at } = scenes[k]!.squads[squad]!;
+        await t.mutation(internal.dev.benchFlights, {
+          playerId,
+          flights: [{ ids, from: at, to: near(2.5) }],
+        });
+      }
+    }
+    const silent = await t.run(async (ctx) =>
+      (await ctx.db.query('sightings').collect()).filter(
+        (row) => row.playerId === capturerId && row.detector === 'station',
+      ),
+    );
+    expect(silent).toEqual([]);
+
+    const fall = await t.mutation(internal.dev.benchFall, { capturerId, loserId, points: 2 });
+    await t.mutation(internal.captures.complete, fall);
+
+    const after = await t.run(async (ctx) => ({
+      loser: (await ctx.db.get(loserId))!,
+      points: await ctx.db.query('strategicPoints').collect(),
+      irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true)!,
+      troops: await ctx.db.query('troops').collect(),
+      heard: (await ctx.db.query('sightings').collect()).filter(
+        (row) => row.playerId === capturerId && row.detector === 'station',
+      ),
+    }));
+    expect(after.loser.defeated).toBe(true);
+    expect(after.points.filter((point) => point.holderId === loserId)).toEqual([]);
+    expect(after.troops.filter((troop) => troop.playerId === loserId)).toEqual([]);
+    expect(after.troops.some((troop) => troop.playerId === after.irregular._id)).toBe(true);
+    /** La station rallumée relève déjà : le capteur fait partie des sièges relus. */
+    expect(after.heard.length).toBeGreaterThan(0);
+
+    const fallen = await fog(t);
+    await reassess(t, seat.seasonId);
+    expect(await fog(t)).toEqual(fallen);
   });
 });

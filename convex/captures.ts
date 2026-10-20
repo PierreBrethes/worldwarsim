@@ -497,7 +497,6 @@ export const complete = internalMutation({
       return;
     }
     const now = expectedAt;
-    const byPoint = await infantryByPoint(ctx, capture.seasonId);
     const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
     if (site === null || !stillHeldBy(site, capture.defenderId)) {
       await stop(ctx, capture, now, 'gone');
@@ -518,6 +517,9 @@ export const complete = internalMutation({
      *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
      *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
     const falls = isBuilding(site) && site.homeOf === loser._id;
+    /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —,
+     *  le défenseur, et le siège irrégulier qui hérite d'un vaincu. */
+    const touched = [capture.playerId, loser._id];
     if (falls && mode === 'mondiale') {
       await releaseBuilding(ctx, loser, site, now);
       await ctx.db.patch(site._id, {
@@ -528,7 +530,7 @@ export const complete = internalMutation({
       taken.push(site);
       // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
       await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
-      await toIrregulars(ctx, capture, loser, now);
+      touched.push(await toIrregulars(ctx, capture, loser, now));
     } else if (isPoint(site)) {
       await takePoint(ctx, site, capture.playerId, now);
     } else if (isBuilding(site)) {
@@ -563,7 +565,7 @@ export const complete = internalMutation({
       await burnDepotAtDakar(ctx, site, loser, capture.playerId, now);
       /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
        *  raid le trouverait vide et le désactiverait sans combat. */
-      for (const troop of capturersOf(byPoint, capture)) {
+      for (const troop of capturersOf(await infantryByPoint(ctx, capture.seasonId), capture)) {
         await ctx.db.patch(troop._id, { stationedAt: site._id });
       }
     }
@@ -584,7 +586,7 @@ export const complete = internalMutation({
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
     /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
-    await reassessDetection(ctx, capture.seasonId, now);
+    await reassessDetection(ctx, capture.seasonId, now, touched);
     /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
     if (falls && loser.defeated !== true) {
       const capturer = (await ctx.db.get(capture.playerId))!;
@@ -705,7 +707,7 @@ async function toIrregulars(
   fall: Capture,
   loser: Doc<'players'>,
   now: number,
-): Promise<void> {
+): Promise<Id<'players'>> {
   const irregularId = await irregularSeat(ctx, fall.seasonId);
   for (const building of await playerBuildings(ctx, loser._id)) {
     await releaseBuilding(ctx, loser, building, now);
@@ -746,6 +748,7 @@ async function toIrregulars(
   }
   await dropCapturesOf(ctx, loser._id, now);
   await handOverSieges(ctx, fall, irregularId, now);
+  return irregularId;
 }
 
 /**
