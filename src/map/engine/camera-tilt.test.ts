@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
+import { boardHoldOf, steepestTiltAt, tiltShiftOf } from './camera-tilt';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -43,46 +43,23 @@ describe('the tilt-shift blur', () => {
   });
 });
 
-describe('the tilt that keeps the far edge of the board out of the picture', () => {
-  const fov = 40;
-
-  it('puts the top ray of the screen exactly on the edge', () => {
-    const tilt = edgeSafeTiltAt(60, fov, 90);
-    const half = (fov * Math.PI) / 360;
-    const reach = 60 * Math.cos(tilt) * Math.tan(tilt + half) - 60 * Math.sin(tilt);
-    expect(reach).toBeCloseTo(90, 6);
+describe('the gentle hold that keeps the target on the board (#187)', () => {
+  it('leaves a target anywhere on the board alone, edges included', () => {
+    expect(boardHoldOf(0, 104, 0.12)).toBe(0);
+    expect(boardHoldOf(-104, 104, 0.12)).toBe(0);
+    expect(boardHoldOf(199, 200, 0.12)).toBe(0);
   });
 
-  it('leans further when the edge is far, and straightens as it comes close', () => {
-    expect(edgeSafeTiltAt(60, fov, 200)).toBeGreaterThan(edgeSafeTiltAt(60, fov, 90));
-    expect(edgeSafeTiltAt(60, fov, 70)).toBeLessThan(edgeSafeTiltAt(60, fov, 90));
+  it('brings a target past the edge back by a share of its overshoot, not at once', () => {
+    expect(boardHoldOf(-124, 104, 0.12)).toBeCloseTo(20 * 0.12);
+    expect(boardHoldOf(230, 200, 0.12)).toBeCloseTo(-30 * 0.12);
   });
 
-  it('stays upright when even the plumb sees past the edge', () => {
-    expect(edgeSafeTiltAt(300, fov, 100)).toBe(0);
-  });
-});
-
-describe('the pull of the target back toward the middle of the board', () => {
-  const fov = 40;
-  const half = (fov * Math.PI) / 360;
-
-  it('does not move a target whose edge the allowed tilt already hides', () => {
-    const edge = 90;
-    const tilt = edgeSafeTiltAt(60, fov, edge);
-    expect(targetPullOf(60, fov, tilt, edge, 80)).toBeCloseTo(0, 6);
+  it('never carries the target past the edge back onto the board', () => {
+    expect(boardHoldOf(-124, 104, 1)).toBeCloseTo(20);
   });
 
-  it('pulls only what the upright still sees past the edge', () => {
-    expect(targetPullOf(100, fov, 0, 20, 80)).toBeCloseTo(100 * Math.tan(half) - 20, 6);
-  });
-
-  it('measures at the tilt the board allows, not a steeper one that is about to yield', () => {
-    expect(targetPullOf(60, fov, 0, 20, 80)).toBeLessThan(targetPullOf(60, fov, 0.57, 20, 80));
-  });
-
-  it('never carries the target past the middle', () => {
-    expect(targetPullOf(300, fov, 0, 10, 25)).toBe(25);
-    expect(targetPullOf(300, fov, 0, 10, -5)).toBe(0);
+  it('settles the last hair at once, so the loop stops asking for frames', () => {
+    expect(boardHoldOf(104.0005, 104, 0.12)).toBeCloseTo(-0.0005, 6);
   });
 });

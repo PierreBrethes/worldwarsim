@@ -18,6 +18,8 @@
  * une touche ; `tenir=Shift` l'enfonce et `relever=Shift` la relâche (Maj + glisser : le lasso).
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
+ * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
+ * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -120,7 +122,25 @@ try {
     else if (kind === 'relever') await page.keyboard.up(value);
     else if (kind === 'photo') await page.screenshot({ path: value });
     else if (kind === 'pause') await page.waitForTimeout(x);
-    else if (kind === 'ralenti') {
+    else if (kind === 'camera') {
+      // `mapEngine` n'est exposé qu'en dev (`WorldMap.tsx`).
+      const [, , distance = 60, polar = 0, azimuth = 0] = value.split(',').map(Number);
+      await page.evaluate(
+        ([tx, tz, d, p, a]) => {
+          const engine = globalThis.mapEngine;
+          const rad = Math.PI / 180;
+          engine.controls.target.set(tx, 0, tz);
+          engine.camera.position.set(
+            tx + d * Math.sin(p * rad) * Math.sin(a * rad),
+            d * Math.cos(p * rad),
+            tz + d * Math.sin(p * rad) * Math.cos(a * rad),
+          );
+          engine.invalidate();
+        },
+        [x, y, distance, polar, azimuth],
+      );
+      await page.waitForTimeout(1500);
+    } else if (kind === 'ralenti') {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');
       await devtools.send('Animation.setPlaybackRate', { playbackRate: 1 / x });
