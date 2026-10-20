@@ -286,7 +286,11 @@ function buildingPoster(
       lines.push({
         kind: 'chip',
         label: fr.posters.network,
-        chip: linked ? fr.posters.linked : fr.posters.unlinked,
+        chip: linked
+          ? fr.posters.linked
+          : view.me.unlinkedShare > 0
+            ? fr.posters.unlinkedAt(view.me.unlinkedShare)
+            : fr.posters.unlinked,
         tone: linked ? 'ok' : 'cut',
       });
     // Le lot est celui de la chaîne, pas du site : il ne se lit sur un site que s'il en est le seul.

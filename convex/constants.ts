@@ -452,6 +452,14 @@ export const FUEL_STEP_KM = 500;
 export const SINGAPORE_FUEL_DISCOUNT_PCT = 20;
 
 /**
+ * **Narvik** (ADR 0032) : la part de son débit que produit encore une exploitation coupée du réseau
+ * chez le teneur du point. Hors Narvik, une exploitation coupée ne produit rien.
+ *
+ * @a-mesurer 25 % de la décision du 20/10, jamais joué
+ */
+export const NARVIK_UNLINKED_SHARE = 0.25;
+
+/**
  * **Bakou** (ADR 0032) : le temps qu'une troupe à l'arrêt, hors de toute ancre, met à reprendre
  * un cran de plein.
  *

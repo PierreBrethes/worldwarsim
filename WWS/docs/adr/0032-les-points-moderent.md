@@ -3,7 +3,7 @@
 **Statut :** acceptée (20/10/2026, retours de la pré-prod, #173) — **précise la règle 1** de
 `WWS/CLAUDE.md` : elle vaut pour les atouts et la recherche ; un point stratégique donne un
 avantage mesuré, plus une règle cassée. Révise les règles de Singapour, de Bakou et de Halifax
-(ADR 0027 §4, #133) ; Narvik, Dakar et Rangoun suivent dans #175 et #176.
+(ADR 0027 §4, #133) ; Narvik et Dakar (#175) sont codés ; Rangoun suit dans #176.
 
 ## Contexte
 
@@ -28,12 +28,18 @@ coût des trajets ».
      12 h, sans coût de stock. Le gain se calcule à la lecture, depuis l'heure d'arrêt ou du
      dernier gain : aucun job par troupe.
    - **Halifax** : un mouvement maritime à la fois ne prend pas de slot ; le deuxième en prend un.
+   - **Narvik** : une exploitation coupée du réseau produit 25 % de son débit au lieu de rien,
+     chez le seul teneur. Exploitations et chaînes ; la couleur de la carte ne change pas, la
+     région reste coupée (`outputShareOf`).
+   - **Dakar** : un pillage épargne 600 de chaque ressource au lieu de 400 chez le teneur, et le
+     rognage du stockage ne descend pas sous ce plancher (`sparedPerResourceOf`). Le dépôt
+     d'avant-poste capturé chez lui brûle toujours.
 5. Mondiale seule : la Blitz garde ses règles.
 
 ## Conséquences
 
 - Une seule fonction pure par règle, lue par l'écran et le serveur (`fuelStepsOf`, `bakuRefuel`,
-  `slotsAskedBy`).
+  `slotsAskedBy`, `outputShareOf`, `sparedPerResourceOf`).
 - Les textes des points (`fr.points.rules`) disent le chiffre.
 - Le plein repris à Bakou ne débite plus le plateau personnel : `bakuRefuels`, `fuelOnly`,
   `viaBaku`, `isFuelFree` et leurs textes sont retirés.
@@ -42,5 +48,5 @@ coût des trajets ».
 
 - La règle 1 appliquée aux points stratégiques : un point ne change plus la carte mentale, il
   pèse un peu sur une variable.
-- « Camions et cargos sans plein », « motorisés ravitaillés partout », « flottes hors slot » : les
-  trois règles entières.
+- « Camions et cargos sans plein », « motorisés ravitaillés partout », « flottes hors slot »,
+  « exploitations productives hors réseau », « réserves impillables » : les cinq règles entières.

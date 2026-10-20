@@ -233,7 +233,7 @@ function Site({
         {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
             debout, entier, et c'est sa région qui a changé de couleur. Le tampon le constate, et
             il n'ouvre aucun bouton — ce qui se reprend se reprend sur la carte. */}
-        {unlinked && <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />}
+        {unlinked && <Stamp label={unlinkedLabelOf(view)} tone="critical" size="small" />}
         {/* L'élévation passe **après** la fermeture sous le seuil : pleine ligne, elle repoussait
             « fermer » à une troisième ligne et l'en-tête mangeait un tiers du téléphone. */}
         <span className="order-last w-full min-w-0 md:order-none md:w-auto">
@@ -625,6 +625,10 @@ function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: stri
   );
 }
 
+/** Coupé, un site ne produit rien — sauf chez le teneur de Narvik, où le tampon dit la part. */
+const unlinkedLabelOf = (view: PlayerView): string =>
+  view.me.unlinkedShare > 0 ? fr.stamps.unlinkedAt(view.me.unlinkedShare) : fr.stamps.unlinked;
+
 function NarrowSite({
   view,
   seat,
@@ -748,7 +752,7 @@ function NarrowSite({
         {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
         {unlinked && (
           <div className="px-4 pb-2">
-            <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
+            <Stamp label={unlinkedLabelOf(view)} tone="critical" size="small" />
           </div>
         )}
         <UnderCapture view={view} buildingId={building.id} />

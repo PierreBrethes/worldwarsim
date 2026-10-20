@@ -9,6 +9,7 @@ import type { PlayerView } from '../src/domain/player-view';
 import {
   BASE_CAP,
   EXTRACTION_PER_HOUR,
+  NARVIK_UNLINKED_SHARE,
   OUTPOST_DISABLED_HOURS,
   PLUNDER_DISABLED_HOURS,
   STORAGE_CAP_PER_LEVEL,
@@ -446,26 +447,31 @@ describe('a building only produces when its region carries its colour', () => {
     expect(unlinkedProducers(seen)).toHaveLength(1);
   });
 
-  /** **Narvik** (P11) : le teneur produit même hors réseau — le site coupé redevient relié, à
-   *  la vue comme à l'économie, et retombe dès qu'il perd le point. */
-  it('keeps the holder of Narvik linked off the network, and only while he holds it', async () => {
+  /** **Narvik** (ADR 0032) : le site coupé reste coupé — la carte et le tampon le disent —, mais
+   *  son teneur en tire un quart de son débit, et cesse dès qu'il perd le point. */
+  it('lets the holder of Narvik draw a quarter from a cut site, and only while he holds it', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
     const well = await raise(t, seat, 'oilWell', PRAHOVA);
+    const linkedRate = await rateOf(t, seat, 'oil');
+    expect(linkedRate).toBeGreaterThan(0);
     await disable(t, outpostId, MIDDAY);
     expect(unlinkedProducers(await view(t, seat)).map((building) => building.id)).toContain(well);
+    expect(await rateOf(t, seat, 'oil')).toBe(0);
 
     const narvik = await holdPoint(t, seat, 'narvik');
     const held = await view(t, seat);
-    expect(unlinkedProducers(held)).toHaveLength(0);
-    expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
+    expect(unlinkedProducers(held).map((building) => building.id)).toContain(well);
+    expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(false);
+    expect(await rateOf(t, seat, 'oil')).toBe(linkedRate * NARVIK_UNLINKED_SHARE);
+    expect(held.me.resources.oil.ratePerHour).toBeCloseTo(linkedRate * NARVIK_UNLINKED_SHARE);
 
     await t.run(async (ctx) => {
       await handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now());
       await recordLinkage(ctx, (await ctx.db.get(narvik))!.seasonId);
     });
-    expect(unlinkedProducers(await view(t, seat))).toHaveLength(1);
+    expect(await rateOf(t, seat, 'oil')).toBe(0);
   });
 
   /** La carte « à faire maintenant » compte les sites coupés, et mène au premier. */

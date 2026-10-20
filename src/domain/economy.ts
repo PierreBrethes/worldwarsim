@@ -1,3 +1,4 @@
+import { NARVIK_UNLINKED_SHARE } from '../../convex/constants';
 import {
   canonicalBuildingKey,
   RESOURCES,
@@ -304,6 +305,14 @@ export const isLinked = (
   held: ReadonlyMap<string, string>,
   ownerId: string,
 ): boolean => held.get(building.regionId) === ownerId;
+
+/**
+ * **La part du débit qu'une exploitation produit** (ADR 0020 §6, Narvik ADR 0032) : tout si sa
+ * région porte sa couleur ; coupée, rien — sauf chez le teneur de Narvik, qui en garde un quart.
+ * La seule lecture : production réglée, vue et plateau personnel la servent ou la relisent.
+ */
+export const outputShareOf = (linked: boolean, holdsNarvik: boolean): number =>
+  linked ? 1 : holdsNarvik ? NARVIK_UNLINKED_SHARE : 0;
 
 export const emptyStocks = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;

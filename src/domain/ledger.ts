@@ -24,6 +24,7 @@ type LedgerWhat =
       readonly region: string;
       readonly level: number;
       readonly linked: boolean;
+      readonly share: number;
     }
   | { readonly kind: 'chain'; readonly building: BuildingKey; readonly level: number }
   | {
@@ -79,6 +80,7 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
             region: regionName(site.regionId) ?? site.regionId,
             level: site.level,
             linked: site.linked,
+            share: site.share,
           },
           perHour: site.perHour,
         }));

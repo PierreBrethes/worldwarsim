@@ -267,7 +267,13 @@ function noteText(note: LedgerNote): string {
 function rowLabel({ what }: LedgerRow): ReactNode {
   switch (what.kind) {
     case 'site':
-      return fr.ledger.site(fr.buildings[what.building], what.region, what.level, what.linked);
+      return fr.ledger.site(
+        fr.buildings[what.building],
+        what.region,
+        what.level,
+        what.linked,
+        what.share,
+      );
     case 'chain':
       return fr.ledger.chain(fr.buildings[what.building], what.level);
     case 'ranks':

@@ -24,6 +24,7 @@ import {
   type BuildingKey,
   type ResearchCard,
 } from '../src/domain/ids';
+import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf, sparedPerResourceOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
@@ -180,7 +181,13 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  record cannot answer; the economy below reads the very same map. */
   const carrying = groundOf(player, blitz, buildings, outposts, now);
   const held = await linkedOn(ctx, player, carrying, now);
-  const economy = await economyOf(ctx, player._id, now, { troops, outposts, held });
+  const narvik = await holdsPoint(ctx, player, 'narvik');
+  const economy = await economyOf(ctx, player._id, now, {
+    troops,
+    outposts,
+    held,
+    holdsNarvik: narvik,
+  });
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
   const worksMinutesAt = (key: Parameters<typeof buildMinutes>[0], level: number) =>
@@ -514,6 +521,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
        *  which cannot name the mine that sits on nothing. */
       extraction: economy.extraction,
+      /** **Narvik** : la part que produit une exploitation coupée du réseau (`outputShareOf`) — 0
+       *  sans le point. Le site coupé, la ligne d'économie et l'affiche la disent d'elle. */
+      unlinkedShare: outputShareOf(false, narvik),
       // The slots come from research: two at the start, one per Transmissions card.
       slots: {
         total: movementSlots(player.researched ?? []),

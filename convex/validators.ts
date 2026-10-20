@@ -403,6 +403,8 @@ export const NOTICE = v.union(
     kind: v.literal('productionCut'),
     sites: v.number(),
     hostCountry: v.string(),
+    /** Le teneur de Narvik : ses sites coupés produisent encore un quart (ADR 0032). */
+    narvik: v.optional(v.literal(true)),
   }),
   v.object({
     ...NOTICE_HEAD,

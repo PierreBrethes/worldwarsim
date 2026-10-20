@@ -12,6 +12,7 @@ import {
   BAKU_REFUEL_MS,
   BASE_CAP,
   DAKAR_SPARED_PER_RESOURCE,
+  NARVIK_UNLINKED_SHARE,
   LISTENING_STATION_RADIUS_KM,
   OUTPOST_REACH_KM_BY_LEVEL,
   SINGAPORE_FUEL_DISCOUNT_PCT,
@@ -125,6 +126,9 @@ type RefusalContext = {
 };
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
+
+/** Une part de débit (`outputShareOf`) dite en pourcentage. */
+const percentOf = (share: number): number => Math.round(share * 100);
 
 /** `1ᵉʳ`, puis `2ᵉ` — l'exposant est composé en caractères, jamais en balise : ces chaînes
  *  passent aussi par des attributs `title`, où un `<sup>` s'imprimerait tel quel. */
@@ -540,7 +544,7 @@ export const fr = {
       hongKong:
         'Vous lisez la dépêche de chaque capture, où que ce soit — points, bâtiments et avant-postes, même ceux que vous ne voyez pas : qui prend quoi, et où.',
       halifax: 'Un de vos mouvements maritimes à la fois ne prend pas de slot.',
-      narvik: 'Vos exploitations produisent même hors réseau.',
+      narvik: `Vos exploitations coupées du réseau produisent encore ${percentOf(NARVIK_UNLINKED_SHARE)} % de leur débit.`,
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
       baku: `Vos troupes motorisées à l’arrêt, hors de toute ancre, reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
       dakar: `Un pillage laisse ${DAKAR_SPARED_PER_RESOURCE} de chaque ressource dans vos entrepôts, au lieu de ${BASE_CAP}, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.`,
@@ -1924,7 +1928,10 @@ export const fr = {
             'Istanbul',
             'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
           ],
-          narvik: ['Narvik', 'Vos exploitations produisent même hors réseau.'],
+          narvik: [
+            'Narvik',
+            `Vos exploitations coupées du réseau produisent encore ${percentOf(NARVIK_UNLINKED_SHARE)} % de leur débit.`,
+          ],
           baku: [
             'Bakou',
             `Vos motorisés à l’arrêt reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
@@ -2095,8 +2102,10 @@ export const fr = {
       listening: 'Aucune écoute ne brûle.',
       factory: 'Aucune chaîne n’y touche.',
     },
-    site: (building: string, region: string, level: number, linked: boolean) =>
-      `${building} ${ofName(region)} · niv. ${level}${linked ? '' : ' · coupé'}`,
+    site: (building: string, region: string, level: number, linked: boolean, share: number) =>
+      `${building} ${ofName(region)} · niv. ${level}${
+        linked ? '' : share > 0 ? ` · coupé, ${percentOf(share)} % (Narvik)` : ' · coupé'
+      }`,
     chain: (building: string, level: number) => `${building} · niv. ${level}`,
     ranks: (from: number, to: number, rate: number, outside: boolean) =>
       `${from === to ? `Rang ${from}` : `Rangs ${from} à ${to}`}${outside ? ', hors ancrage' : ''}` +
@@ -2460,6 +2469,8 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
+    /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`). */
+    unlinkedAt: (share: number) => `hors réseau · ${percentOf(share)} %`,
     /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
@@ -2690,8 +2701,10 @@ export const fr = {
       captureLifted: (site: string) => `La capture ${ofSite(site)} est levée.`,
       captureVoid: (site: string) =>
         `Capture ${ofSite(site)} sans objet : le site n’est plus à celui qu’on visait.`,
-      productionCut: (sites: number, country: string) =>
-        `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
+      productionCut: (sites: number, country: string, narvik: boolean) =>
+        `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.${
+          narvik ? ` Narvik en garde ${percentOf(NARVIK_UNLINKED_SHARE)} % du débit.` : ''
+        }`,
       productionRestored: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} de nouveau relié${plural(sites, '', 's')} — ${country}.`,
       /**
@@ -4417,6 +4430,7 @@ export const fr = {
     network: 'réseau',
     linked: 'relié',
     unlinked: 'hors réseau',
+    unlinkedAt: (share: number) => `hors réseau · ${percentOf(share)} %`,
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
     worksSite: (region: string) => `chantier · ${region}`,
     raisingSite: (region: string) => `élévation · ${region}`,

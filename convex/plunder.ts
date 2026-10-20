@@ -4,11 +4,7 @@ import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf } from '../src/domain/loot';
-import {
-  CARRY_CAPACITY_BY_ROLE,
-  PLUNDER_DISABLED_HOURS,
-  PLUNDER_HOURS_PRESENT,
-} from './constants';
+import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
@@ -264,7 +260,9 @@ export async function completePresence(
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
   await ctx.db.patch(target._id, { disabledUntil });
-  const storageLost = isWarehouse ? await clipToStorage(ctx, target.playerId, now, spared) : emptyStocks();
+  const storageLost = isWarehouse
+    ? await clipToStorage(ctx, target.playerId, now, spared)
+    : emptyStocks();
   const reportId = await ctx.db.insert('plunderReports', {
     seasonId: movement.seasonId,
     attackerId: movement.playerId,

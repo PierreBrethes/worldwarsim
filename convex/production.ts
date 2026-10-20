@@ -8,6 +8,7 @@ import { settle } from './resources';
 import { isAtWar, seatsOf } from './seats';
 import { reassessDetection } from './movement/detection';
 import { recordLinkage } from './holding';
+import { holdsPoint } from './strategicPoints';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -80,6 +81,8 @@ export async function reportChange(
         kind: 'productionCut',
         sites: cut.length,
         hostCountry: countryOf(cut),
+        /** Narvik : la dépêche dit que le quart du débit reste. */
+        ...((await holdsPoint(ctx, player, 'narvik')) ? { narvik: true as const } : {}),
       });
     }
 

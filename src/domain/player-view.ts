@@ -581,6 +581,8 @@ type ExtractionSiteView = {
   /** Sa région porte-t-elle encore sa couleur (ADR 0020 §6) — coupé, il rend zéro, et c'est un
    *  état, pas une panne : rien ne se répare sur le site, tout se reprend sur la carte. */
   readonly linked: boolean;
+  /** La part de son débit qu'il produit (`outputShareOf`) : 1 relié, 0 ou le quart de Narvik coupé. */
+  readonly share: number;
 };
 
 /**
@@ -868,6 +870,7 @@ type NoticeBody =
       readonly at: number;
       readonly sites: number;
       readonly hostCountry: string;
+      readonly narvik?: true;
     }
   | {
       readonly kind: 'productionRestored';
@@ -1305,6 +1308,9 @@ export type PlayerView = {
     readonly buildings: ReadonlyArray<Building>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
+    /** **Narvik** : la part que produit une exploitation coupée du réseau, 0 sans le point
+     *  (`outputShareOf`). */
+    readonly unlinkedShare: number;
     readonly regions: ReadonlyArray<RegionView>;
     /** The first running site — the one the banner counts down. The ones behind it
      *  wait in `constructionQueue`. */

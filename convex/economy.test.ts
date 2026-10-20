@@ -327,10 +327,19 @@ describe('what the industry window reads', () => {
         deposit: 'food',
         perHour: EXTRACTION_PER_HOUR.food,
         linked: true,
+        share: 1,
       },
       // Le sol national est toujours relié (ADR 0020 §6) : ce zéro-là est celui du gisement
       // absent, et le site le dit à côté — muet n'est pas coupé.
-      { key: 'mine', regionId: ARDENNES, level: 1, deposit: null, perHour: 0, linked: true },
+      {
+        key: 'mine',
+        regionId: ARDENNES,
+        level: 1,
+        deposit: null,
+        perHour: 0,
+        linked: true,
+        share: 1,
+      },
     ]);
     // And the mute mine adds nothing to the national rate it is listed beside.
     expect(view.me.resources.steel.ratePerHour).toBe(0);

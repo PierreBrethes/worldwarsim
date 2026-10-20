@@ -302,7 +302,11 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'productionCut',
-        text: said.productionCut(notice.sites, countryLabel(notice.hostCountry)),
+        text: said.productionCut(
+          notice.sites,
+          countryLabel(notice.hostCountry),
+          notice.narvik === true,
+        ),
       };
     case 'captureStarted':
     case 'captureSucceeded':

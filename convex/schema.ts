@@ -255,7 +255,7 @@ export default defineSchema({
      * **La couleur de son sol, retenue au dernier changement de couleur** (#144). La vue la lit
      * au lieu de relire avant-postes, occupations et sièges de toute la saison : une écriture sur
      * le dépôt d'un point adverse n'invalide plus les huit vues. Écrite par `recordLinkage`
-     * (`convex/holding.ts`) depuis `linkingOver`, donc par la même règle que la production.
+     * (`convex/holding.ts`) depuis `heldOver`, donc par la même règle que la production.
      *
      * `ground` est l'empreinte du sol sur lequel elle a été lue, `unlinked` les régions de ce sol
      * qui ne portent pas sa couleur, `until` l'heure où un chantier se lève ou une désactivation
