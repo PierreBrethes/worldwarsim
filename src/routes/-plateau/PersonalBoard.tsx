@@ -2,6 +2,7 @@ import { useMutation, useQuery } from 'convex/react';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -1423,10 +1424,15 @@ function useHand({
   const chip = useRef<HTMLDivElement>(null);
   const start = useMutation(api.constructions.start);
   const latest = useRef(view);
-  latest.current = view;
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
   const callbacks = useRef({ onHoldTile, onPlaceTile, onSpent });
-  callbacks.current = { onHoldTile, onPlaceTile, onSpent };
+  // Written after the commit and not during the render (#189): a ref written while rendering
+  // keeps the compiler off this hook, and `take` changed identity at every tick of the clock —
+  // the board's eleven tiles rendered again every second.
+  useLayoutEffect(() => {
+    latest.current = view;
+    callbacks.current = { onHoldTile, onPlaceTile, onSpent };
+  });
   const gesture = useRef<{ cancel: () => void } | null>(null);
 
   useEffect(() => () => gesture.current?.cancel(), []);
