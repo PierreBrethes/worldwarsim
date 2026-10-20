@@ -52,9 +52,14 @@ export class FrameDemand {
   }
 
   /** **Une feuille couvre toute la carte** (écran étroit, #189) : rien ne se dessine dessous, ni
-   *  remué, ni battement, ni fil ; levée, la carte rend sa fenêtre d'activité. */
-  cover(covered: boolean, now: number): void {
-    if (this.covered && !covered) this.stirredAt = now;
+   *  remué, ni battement, ni fil. Levée, une image complète montre ce qui a changé dessous, et
+   *  non une fenêtre d'activité : refermer une feuille réveillait la carte une seconde et demie
+   *  à soixante images. Ce qui bouge encore (voyage, inertie) se redemande à chaque tour. */
+  cover(covered: boolean): void {
+    if (this.covered && !covered) {
+      this.stirredAt = Number.NEGATIVE_INFINITY;
+      this.fullAt = Number.NEGATIVE_INFINITY;
+    }
     this.covered = covered;
   }
 

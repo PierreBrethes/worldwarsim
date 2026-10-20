@@ -721,7 +721,7 @@ export class MapEngine {
    *  journal ou une fiche, elle rendait encore 45 images par seconde que personne ne voyait. */
   cover(covered: boolean): void {
     this.invalidate();
-    this.demand.cover(covered, performance.now());
+    this.demand.cover(covered);
   }
 
   inkBurst(burst: InkBurst): void {

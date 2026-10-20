@@ -99,15 +99,18 @@ describe('FrameDemand', () => {
     expect(frames).toBeLessThanOrEqual(10 * 32);
   });
 
-  it('draws nothing under a covering sheet, and wakes stirred when it lifts (#189)', () => {
+  it('draws nothing under a covering sheet, and one whole frame when it lifts (#189)', () => {
     const demand = new FrameDemand(0);
-    demand.cover(true, 0);
+    demand.cover(true);
     demand.stir(100);
     demand.request();
     expect(demand.due(116)).toBeNull();
-    expect(demand.due(SETTLE_MS + HEARTBEAT_MS + 200, FLOW_FULL_MS)).toBeNull();
-    demand.cover(false, SETTLE_MS + HEARTBEAT_MS + 300);
-    expect(demand.due(SETTLE_MS + HEARTBEAT_MS + 316)).toBe('stirred');
+    const lifted = SETTLE_MS + HEARTBEAT_MS + 300;
+    expect(demand.due(lifted - 100, FLOW_FULL_MS)).toBeNull();
+    demand.stir(lifted);
+    demand.cover(false);
+    expect(demand.due(lifted + 16)).toBe('heartbeat');
+    expect(demand.due(lifted + 32)).toBeNull();
   });
 
   it('renders a stirred frame whole even when the ambience asked for it too', () => {
