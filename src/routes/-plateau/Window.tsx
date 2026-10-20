@@ -326,6 +326,7 @@ export function WindowHead({
   title,
   lead,
   heading: Heading = 'h2',
+  dense = false,
   onClose,
   children,
 }: {
@@ -334,9 +335,25 @@ export function WindowHead({
   heading?: 'h1' | 'h2';
   title?: ReactNode;
   lead?: ReactNode;
+  /** **Une ligne** : le titre, puis le surtitre à sa droite, sans le grand corps ni la pile. Les
+   *  surfaces dont la liste doit tenir sur 360 px (journal, presse) y gagnent un rang ou deux. */
+  dense?: boolean;
   onClose: () => void;
   children?: ReactNode;
 }) {
+  if (dense)
+    return (
+      <DragHandle className="flex shrink-0 items-center gap-[10px] border-b-2 border-[var(--ink)] py-[6px] pr-[10px] pl-3">
+        <Heading className="shrink-0 font-(family-name:--font-display) text-[17px] leading-none font-extrabold tracking-[.06em] text-[var(--ink)] uppercase">
+          {title}
+        </Heading>
+        <span className="min-w-0 flex-1 font-(family-name:--font-mono) text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
+          {eyebrow}
+        </span>
+        {children}
+        <CloseButton onClick={onClose} />
+      </DragHandle>
+    );
   return (
     <DragHandle className="flex shrink-0 items-center gap-3 border-b-2 border-[var(--ink)] px-4 py-[10px]">
       {/* « fermer » hors de la rangée qui passe à la ligne : dans le journal en marge, un

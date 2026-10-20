@@ -25,6 +25,7 @@
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
  * ajoute une caserne de niveau 3.
+ * `--edition` publie tout de suite deux éditions de presse : le classement et ses variations.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
@@ -59,6 +60,8 @@ const idleCenter = process.argv.includes('--centre');
 const research = idleCenter || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
+/** `--edition` : deux éditions de presse tout de suite, la seconde avec ses variations (#180). */
+const editions = process.argv.includes('--edition');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
@@ -316,6 +319,12 @@ if (!bare) {
       JSON.stringify({ seasonId, hours: 9, gains: { food: 108, steel: 72, oil: -30 } }),
     ]);
 }
+
+if (editions)
+  for (const round of [0, 1]) {
+    if (round > 0) await pause(1200);
+    cli(['run', 'press:writeEditionJob', JSON.stringify({ seasonId })]);
+  }
 
 writeFileSync(accountsFile, `${JSON.stringify({ ...accounts, code, seasonId }, null, 2)}\n`);
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
