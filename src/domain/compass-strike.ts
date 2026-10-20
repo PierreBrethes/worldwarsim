@@ -1,4 +1,4 @@
-import { slotCost } from './compass-fan';
+import { pileAt, slotCost } from './compass-fan';
 import { fr } from '@/i18n/fr';
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
@@ -15,7 +15,7 @@ import {
   type MovementAim,
   type PlunderAim,
 } from './movement-orders';
-import { carrierIn, marchingTroopIds, stationKeyOf, stationPointOf, troopsAt } from './troops';
+import { carrierIn, marchingTroopIds, stationPointOf } from './troops';
 import { distanceKm } from './geo';
 import { type PlayerView, type TroopStation } from './player-view';
 import type { Compass, CompassAction, CompassTarget } from './compass-rose';
@@ -197,8 +197,7 @@ export function bombardFan(
     reloadUntil: troop.reloadUntil ?? null,
     moving: marching.has(troop.id),
     aboard:
-      (origin.kind === 'point' && origin.afloat) ||
-      carrierIn(troop, troopsAt(view.me, stationKeyOf(origin), marching)) !== null,
+      (origin.kind === 'point' && origin.afloat) || carrierIn(troop, pileAt(origin, view)) !== null,
     outOfRounds: column.outOfRounds === true,
     now,
   };

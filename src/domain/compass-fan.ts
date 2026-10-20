@@ -181,5 +181,5 @@ export const posted = (
 
 /** Ce qui se tient là, une seule lecture pour les deux branches de la pile : elles doivent
  *  parler de la même colonne, sinon « fonder » et « envoyer » n'emportent pas les mêmes troupes. */
-export const heldAt = (station: Extract<TroopStation, { kind: 'point' }>, view: PlayerView) =>
+export const pileAt = (station: TroopStation, view: PlayerView) =>
   troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));

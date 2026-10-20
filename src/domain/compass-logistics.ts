@@ -1,4 +1,4 @@
-import { fanOf, heldAt, marchOf, slotCost } from './compass-fan';
+import { fanOf, pileAt, marchOf, slotCost } from './compass-fan';
 import { fr } from '@/i18n/fr';
 import type { TourTrace } from './cargo-tag';
 import {
@@ -17,15 +17,7 @@ import {
   tourRefusalOf,
   type LoadingPlace,
 } from './logistics';
-import {
-  carrierIn,
-  fareOf,
-  marchingTroopIds,
-  PROJECTION_BY_DOMAIN,
-  seatsOf,
-  stationKeyOf,
-  troopsAt,
-} from './troops';
+import { carrierIn, fareOf, PROJECTION_BY_DOMAIN, seatsOf, stationKeyOf } from './troops';
 import {
   type OutpostView,
   type PlayerView,
@@ -187,8 +179,7 @@ export function boardingAt(
   column: Column,
   heldTroopIds: ReadonlyArray<string>,
 ): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } | null {
-  const marching = marchingTroopIds(view.arcs);
-  const pile = troopsAt(view.me, stationKeyOf(station), marching);
+  const pile = pileAt(station, view);
   const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
   const carriers = pile.filter(
     (troop) => !heldTroopIds.includes(troop.id) && fareOf(troop.role, PROBE, []) !== null,
@@ -356,7 +347,7 @@ function airdropBranch(
     at.kind === 'outpost'
       ? { kind: 'outpost', ...depotOfView(outpost!) }
       : squadTarget(
-          heldAt(at.station, view).map((troop) => ({
+          pileAt(at.station, view).map((troop) => ({
             id: troop.id,
             role: troop.role,
             supplies: troop.supplies,

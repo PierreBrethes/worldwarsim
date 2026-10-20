@@ -1,4 +1,4 @@
-import { heldAt, posted } from './compass-fan';
+import { pileAt, posted } from './compass-fan';
 import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
 import {
   availabilityOf,
@@ -399,7 +399,7 @@ function foundHere(
 ): { readonly action: CompassAction | null; readonly refusal: string | null } {
   const station = posted(target);
   if (station === null) return { action: null, refusal: null };
-  const held = heldAt(station, view).filter(
+  const held = pileAt(station, view).filter(
     (troop) => composition === null || composition.includes(troop.id),
   );
   const onMyGround =
