@@ -1393,19 +1393,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     ],
   );
 
+  const { arcs, loadedAt, captures, mode } = view;
+  const ink = view.me.ink;
   const labels = useMemo(() => {
-    const built = buildLabels(view, markers);
-    return view.mode === 'blitz'
+    const built = buildLabels({ arcs, loadedAt, captures, me: { ink } }, markers);
+    return mode === 'blitz'
       ? ownerFlags(
           built,
           (regionId) => {
             const held = knownRegionById.get(regionId);
             return held === undefined ? null : nationInk(held.nation);
           },
-          view.me.ink,
+          ink,
         )
       : built;
-  }, [view, markers, knownRegionById]);
+  }, [arcs, loadedAt, captures, mode, ink, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment se lève par ses figurines comme une
@@ -1831,10 +1833,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [column, view.me, blitzTheatre],
   );
   const movementReach = useMemo<Reach | null>(
-    () => movementReachOf(view, hoveredMovement, surveyClock, blitzTheatre),
-    // Les champs de `view` que la portée lit, pas la vue entière : elle se réinvalide sans cesse.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre],
+    () =>
+      movementReachOf(
+        { arcs: view.arcs, me: { troops: view.me.troops } },
+        hoveredMovement,
+        surveyClock,
+        blitzTheatre,
+      ),
+    [hoveredMovement, surveyClock, view.arcs, view.me.troops, blitzTheatre],
   );
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
