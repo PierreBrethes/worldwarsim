@@ -67,3 +67,14 @@ export function tiltShiftOf(polarAngle: number, distance: number): number {
   );
   return slope * slope * near;
 }
+
+/**
+ * **De combien la cible revient vers le plateau à ce tour** (#187), sur un axe : rien tant
+ * qu'elle est sur le monde (`|at| ≤ half`), sinon `rate` de ce qui dépasse, jamais plus. Le
+ * dernier cheveu revient d'un coup, pour que la boucle cesse de demander des images.
+ */
+export function boardHoldOf(at: number, half: number, rate: number): number {
+  const over = at - Math.max(-half, Math.min(half, at));
+  if (over === 0) return 0;
+  return Math.abs(over) < 1e-3 ? -over : -over * rate;
+}

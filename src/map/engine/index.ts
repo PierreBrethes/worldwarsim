@@ -62,7 +62,7 @@ import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
+import { boardHoldOf, steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
@@ -242,8 +242,9 @@ const JOURNEY_MS = 500;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
-/** The far edge is taken this share of its true distance: a margin, not a hair (#131). */
-const EDGE_MARGIN = 0.88;
+/** The share of its overshoot a target past the board's edge takes back each frame (#187).
+ *  @a-mesurer */
+const BOARD_HOLD_RATE = 0.12;
 /** Development only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
 function forcedInstant(search: string): number | null {
   const raw = import.meta.env.DEV ? new URLSearchParams(search).get('heure') : null;
@@ -404,8 +405,6 @@ export class MapEngine {
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
   /** Scratch vectors of the loop: it allocates nothing per frame. */
-  private readonly loopEye = new Vector3();
-  private readonly loopAhead = new Vector3();
   private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
@@ -443,7 +442,6 @@ export class MapEngine {
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   /** 0..1, told only when it changes. */
   onTiltShift: (strength: number) => void = () => {};
-  private released = false;
   private tiltShift = -1;
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
@@ -1137,11 +1135,7 @@ export class MapEngine {
         this.controls.minDistance,
       ),
     );
-    const orientation = this.leanedAt(
-      this.camera.position.clone().sub(this.controls.target).normalize(),
-      arrival,
-      arrivalDistance,
-    );
+    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
 
     this.journey = {
       departure: this.controls.target.clone(),
@@ -1436,9 +1430,6 @@ export class MapEngine {
 
   private wireInputs(): void {
     const canvas = this.renderer.domElement;
-    this.controls.addEventListener('start', () => {
-      this.released = true;
-    });
     this.controls.addEventListener('change', () => {
       this.invalidate();
       this.hoverDirty = true;
@@ -2340,7 +2331,6 @@ export class MapEngine {
         this.controls.maxDistance = this.journey.maxDistanceAtEnd;
       }
       this.journey = null;
-      this.released = true;
       this.postponeRest();
     }
   }
@@ -2476,95 +2466,29 @@ export class MapEngine {
   }
 
   /**
-   * The steepest tilt the eye may take at `distance` from `target`, looking along `orientation`
-   * (the offset from the target to the eye): the distance's ceiling, lowered so the board's far
-   * edge stays out of the picture (#131). The edge is the board's rectangle along the way the eye
-   * looks; the upright stays allowed, as ever.
+   * **La cible reste sur le monde, retenue sans à-coup** (#187) : passée le bord du plateau, elle
+   * revient chaque tour d'une part de ce qui dépasse — un glisser au-delà sent une résistance, pas
+   * un mur. L'œil suit la cible : ni la pente ni la distance ne bougent. Mouvement coupé : d'un coup.
    */
-  private tiltCeilingAt(target: Vector3, orientation: Vector3, distance: number): number {
-    const edge = this.edgeAhead(target, orientation);
-    return Math.max(
-      this.controls.minPolarAngle,
-      Math.min(
-        steepestTiltAt(distance),
-        edgeSafeTiltAt(distance, this.camera.fov, edge * EDGE_MARGIN),
-      ),
-    );
-  }
-
-  /** How far the board runs beyond `target`, along the way the eye looks (`orientation` is the
-   *  offset from the target to the eye): its rectangle, the nearest side ahead. */
-  private edgeAhead(target: Vector3, orientation: Vector3): number {
-    const flat = Math.hypot(orientation.x, orientation.z);
-    let edge = Infinity;
-    if (flat < 1e-6) return edge;
-    const sides: Array<[number, number, number]> = [
-      [target.x, -orientation.x / flat, this.frame.width / 2],
-      [target.z, -orientation.z / flat, this.frame.height / 2],
-    ];
-    for (const [at, step, half] of sides) {
-      if (Math.abs(step) < 1e-6) continue;
-      edge = Math.min(edge, Math.max(0, ((step > 0 ? half : -half) - at) / step));
-    }
-    return edge;
-  }
-
-  /**
-   * Where even the upright sees past the far edge (the world view, the target far from the
-   * middle), the target slides back toward the middle of the board — never past it — until the
-   * desk is a frame all round rather than a band on one side (#131).
-   */
-  private pullTargetFromEdge(): void {
+  private holdTargetOnBoard(): void {
     const target = this.controls.target;
-    const eye = this.loopEye.copy(this.camera.position).sub(target);
-    const distance = eye.length();
-    const flat = Math.hypot(eye.x, eye.z);
-    if (flat < 1e-6) return;
-    const ahead = this.loopAhead.set(-eye.x / flat, 0, -eye.z / flat);
-    // The tilt yields first: the pull is measured at the tilt the board will allow, not the
-    // player's current one, which the next controls update is about to lower (#160).
-    const polar = Math.min(
-      this.controls.getPolarAngle(),
-      this.tiltCeilingAt(target, eye, distance),
-    );
-    const pull = targetPullOf(
-      distance,
-      this.camera.fov,
-      polar,
-      this.edgeAhead(target, eye) * EDGE_MARGIN,
-      target.dot(ahead),
-    );
-    if (pull === 0) return;
-    const slide = ahead.multiplyScalar(-pull);
-    target.add(slide);
-    this.camera.position.add(slide);
-  }
-
-  /** A journey arrives at the tilt the board allows there: otherwise the first frame after it
-   *  would snap the eye down by whatever the arrival let through. */
-  private leanedAt(orientation: Vector3, target: Vector3, distance: number): Vector3 {
-    const ceiling = this.tiltCeilingAt(target, orientation, distance);
-    const flat = Math.hypot(orientation.x, orientation.z);
-    if (Math.acos(Math.min(1, orientation.y)) <= ceiling || flat < 1e-6) return orientation;
-    return new Vector3(
-      (orientation.x / flat) * Math.sin(ceiling),
-      Math.cos(ceiling),
-      (orientation.z / flat) * Math.sin(ceiling),
-    );
+    const rate = this.ambience.motion === 'off' ? 1 : BOARD_HOLD_RATE;
+    const dx = boardHoldOf(target.x, this.frame.width / 2, rate);
+    const dz = boardHoldOf(target.z, this.frame.height / 2, rate);
+    if (dx === 0 && dz === 0) return;
+    target.x += dx;
+    target.z += dz;
+    this.camera.position.x += dx;
+    this.camera.position.z += dz;
   }
 
   private loop = (): void => {
     this.animation = requestAnimationFrame(this.loop);
     this.animateJourney();
-    // The ceiling holds from the first journey's end or the first gesture: the opening starts
-    // further out than the orbit allows, and a ceiling there would stand the eye upright for
-    // every journey after it. A journey is programmatic and arrives at its own ceiling.
-    const settled = this.released && this.journey === null;
-    if (settled) this.pullTargetFromEdge();
-    const eye = this.loopEye.copy(this.camera.position).sub(this.controls.target);
-    this.controls.maxPolarAngle = settled
-      ? this.tiltCeilingAt(this.controls.target, eye, eye.length())
-      : steepestTiltAt(eye.length());
+    if (this.journey === null) this.holdTargetOnBoard();
+    this.controls.maxPolarAngle = steepestTiltAt(
+      this.camera.position.distanceTo(this.controls.target),
+    );
     this.controls.update();
     this.syncEye();
     if (this.hoverDirty) {

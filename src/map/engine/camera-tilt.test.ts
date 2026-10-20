@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
+import {
+  boardHoldOf,
+  edgeSafeTiltAt,
+  steepestTiltAt,
+  targetPullOf,
+  tiltShiftOf,
+} from './camera-tilt';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -84,5 +90,26 @@ describe('the pull of the target back toward the middle of the board', () => {
   it('never carries the target past the middle', () => {
     expect(targetPullOf(300, fov, 0, 10, 25)).toBe(25);
     expect(targetPullOf(300, fov, 0, 10, -5)).toBe(0);
+  });
+});
+
+describe('the gentle hold that keeps the target on the board (#187)', () => {
+  it('leaves a target anywhere on the board alone, edges included', () => {
+    expect(boardHoldOf(0, 104, 0.12)).toBe(0);
+    expect(boardHoldOf(-104, 104, 0.12)).toBe(0);
+    expect(boardHoldOf(199, 200, 0.12)).toBe(0);
+  });
+
+  it('brings a target past the edge back by a share of its overshoot, not at once', () => {
+    expect(boardHoldOf(-124, 104, 0.12)).toBeCloseTo(20 * 0.12);
+    expect(boardHoldOf(230, 200, 0.12)).toBeCloseTo(-30 * 0.12);
+  });
+
+  it('never carries the target past the edge back onto the board', () => {
+    expect(boardHoldOf(-124, 104, 1)).toBeCloseTo(20);
+  });
+
+  it('settles the last hair at once, so the loop stops asking for frames', () => {
+    expect(boardHoldOf(104.0005, 104, 0.12)).toBeCloseTo(-0.0005, 6);
   });
 });

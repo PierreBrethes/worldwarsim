@@ -1,5 +1,6 @@
 import {
   BufferGeometry,
+  CanvasTexture,
   Color,
   DoubleSide,
   Float32BufferAttribute,
@@ -10,6 +11,9 @@ import {
   MeshStandardMaterial,
   NormalBlending,
   Object3D,
+  PlaneGeometry,
+  RepeatWrapping,
+  SRGBColorSpace,
 } from 'three';
 import type { World } from '@/domain/world';
 import { seaMaterial, type SeaLayer } from './sea';
@@ -17,6 +21,9 @@ import { PALETTE } from './palette';
 import { PLINTH_HEIGHT, SEA_LEVEL, type WorldFrame } from './frame';
 
 const SURFACE_COLUMNS = 96;
+/** Past the fog's far end from any eye the orbit allows. */
+const TABLE_SIZE = 4000;
+const PLANK_REPEAT = 60;
 
 /**
  * The surface is not an optically masked rectangular plane: it is a grid built ON the
@@ -149,6 +156,43 @@ function buildRim(
   return { band, stroke };
 }
 
+/** Planks of the table's wood, drawn once: streaks of a darker ink along the grain, a seam
+ *  between planks. Repeated every `PLANK_REPEAT` units over the table. */
+function woodGrain(anisotropy: number): CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext('2d')!;
+  context.fillStyle = PALETTE.table;
+  context.fillRect(0, 0, size, size);
+  let seed = 7;
+  const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  for (let k = 0; k < 140; k++) {
+    const y = random() * size;
+    context.strokeStyle = `rgba(30, 18, 8, ${0.08 + random() * 0.18})`;
+    context.lineWidth = 0.5 + random() * 1.5;
+    context.beginPath();
+    context.moveTo(0, y);
+    context.bezierCurveTo(
+      size / 3,
+      y + random() * 6 - 3,
+      (2 * size) / 3,
+      y + random() * 6 - 3,
+      size,
+      y,
+    );
+    context.stroke();
+  }
+  context.fillStyle = 'rgba(20, 12, 5, 0.55)';
+  for (const y of [0, size / 2]) context.fillRect(0, y, size, 1.5);
+  const texture = new CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = RepeatWrapping;
+  texture.repeat.set(TABLE_SIZE / PLANK_REPEAT, TABLE_SIZE / PLANK_REPEAT);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = anisotropy;
+  return texture;
+}
+
 /**
  * The sea comes back apart from the rest because it is the only piece of the board a pointer
  * needs to hit: a right click on open water still names a place, and the plinth and the rim
@@ -192,5 +236,16 @@ export function buildBoard(
     new LineBasicMaterial({ color: PALETTE.rimStroke, transparent: true, opacity: 0.85 }),
   );
 
-  return { surface, decor: [plinth, rim, sharpOutline] };
+  /** **La table sous le plateau** (#187) : la caméra va où elle veut, et au-delà du bord on voit
+   *  le bois sur lequel la carte est posée, qui s'en va dans le brouillard du bureau — plus une
+   *  bande noire. */
+  const table = new Mesh(
+    new PlaneGeometry(TABLE_SIZE, TABLE_SIZE),
+    new MeshStandardMaterial({ map: woodGrain(anisotropy), roughness: 0.85, metalness: 0 }),
+  );
+  table.rotation.x = -Math.PI / 2;
+  table.position.y = -PLINTH_HEIGHT;
+  table.receiveShadow = true;
+
+  return { surface, decor: [table, plinth, rim, sharpOutline] };
 }

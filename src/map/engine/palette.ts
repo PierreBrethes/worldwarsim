@@ -4,6 +4,8 @@ import { FADED_WASH } from '@/domain/control';
  *  `src/styles/colors.test.ts` fails when the two drift. */
 export const PALETTE = {
   desk: '#171208',
+  /** The wood under the board, past its edge (#187); the fog takes it back to `desk`. Engine-only. */
+  table: '#5a4128',
   paper: '#e4d8bd',
   sea: '#a9c5cd',
   seaInk: '#2c5063',
