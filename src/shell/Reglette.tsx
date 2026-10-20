@@ -14,17 +14,26 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Odometer, ReserveTag, useAnnouncedStock } from './ReserveCell';
 import { Stamp } from './Stamp';
+import { SurfaceTabs } from './SurfaceColumn';
 import { useClock } from './clock';
 
 /**
  * **La réglette** (table plein écran, décision de Pierre du 13/10) : une bande de papier posée en
  * haut de la carte, avec sa marge et son ombre, à la place du bandeau sombre et de la ligne des
- * ressources. Qui je suis, ce qui se bâtit, les mouvements libres, la prochaine édition. Le journal
- * en est parti : il a son carré dans la colonne. **Les réserves en sont parties aussi** (#179) :
+ * ressources. Qui je suis, ce qui se bâtit, les mouvements libres, la prochaine édition, et à droite
+ * le journal, la presse et le télégraphe (`SurfaceTabs`, 20/10). **Les réserves en sont parties aussi** (#179) :
  * elles vivent dans la ligne repliée du plateau personnel (`ReserveCell`), qui porte l'alerte
  * « à sec » ; la réglette garde les fonds de la Blitz.
  */
-export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElement> }) {
+export function Reglette({
+  view,
+  telegraphUnread,
+  ref,
+}: {
+  view: PlayerView;
+  telegraphUnread: number;
+  ref?: Ref<HTMLElement>;
+}) {
   const { me } = view;
   const search = useSearch({ strict: false }) as BoardSearch;
   const now = useClock();
@@ -121,6 +130,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
         {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
         <EditionMark view={view} />
       </div>
+      <SurfaceTabs view={view} telegraphUnread={telegraphUnread} />
     </header>
   );
 }

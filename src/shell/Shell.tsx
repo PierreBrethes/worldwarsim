@@ -94,9 +94,9 @@ export function Shell({
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           <PinContext.Provider value={{ pinned, onPin: togglePin }}>
             {children}
-            <Reglette view={view} ref={top} />
+            <Reglette view={view} telegraphUnread={telegraphUnread} ref={top} />
             {tickets}
-            <SurfaceColumn view={view} telegraphUnread={telegraphUnread} todo={todo} ref={side} />
+            <SurfaceColumn todo={todo} ref={side} />
           </PinContext.Provider>
         </main>
       </div>
