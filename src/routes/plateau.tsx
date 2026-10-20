@@ -317,11 +317,14 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
-  // it on each render would redo the labels and the compass on every keystroke elsewhere.
-  const view = useMemo(
-    () => (server === undefined ? null : adaptServerView(world, server)),
-    [world, server],
-  );
+  // it on each render would redo the labels and the compass on every keystroke elsewhere. The
+  // previous one lends its unchanged subtrees, so a new answer only renews what it changed.
+  const previousView = useRef<PlayerView | null>(null);
+  const view = useMemo(() => {
+    if (server === undefined) return null;
+    previousView.current = adaptServerView(world, server, previousView.current);
+    return previousView.current;
+  }, [world, server]);
   if (view === null) return <Loading />;
   return (
     <>
