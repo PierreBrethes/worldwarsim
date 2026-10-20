@@ -83,7 +83,8 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   `this.invalidate()` (sinon `READ_ONLY` du test) ; une animation plus longue que `SETTLE_MS` se
   déclare à la boucle ; une ambiance sans fin est une couche d'`Ambience` qui demande une image
   par pas, jamais `invalidate()` ; un composant qui place ses nœuds depuis `onLabels`/`onEdges`
-  appelle `engine.invalidate()` après chaque rendu. Toute animation suit le réglage
+  appelle `engine.invalidate()` dans un effet dont les dépendances sont tout ce qui fait naître
+  ou change un nœud (chaque `invalidate()` coûte 1,5 s d'images). Toute animation suit le réglage
   `actives / réduites / coupées` (`src/domain/map-motion.ts`).
 - **Données générées.** `world.json`, `regions.json`, `region-types.json`, `grid.json` sortent de
   `scripts/generate-*.mjs`, jamais retouchés à la main. `buildGrid` ne tourne jamais dans une

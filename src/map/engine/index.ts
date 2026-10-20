@@ -46,7 +46,7 @@ import {
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
-import { FLOW_FULL_MS, FLOW_REDUCED_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { flowPaceOf, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -71,7 +71,7 @@ import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import { AimRibbon } from './aim';
-import { playTableSound } from '../table-sound';
+import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
@@ -79,7 +79,7 @@ import { buildCoastalWash } from './coastal-wash';
 import { HELD_OPACITY, nationShades, PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
-import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
+import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
@@ -405,6 +405,8 @@ export class MapEngine {
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
   private readonly ambience = new Ambience(parseFx(location.search));
+  /** Un écran qu'on touche : la carte y dessine moins de pixels et fait couler ses fils moins vite. */
+  private readonly touch = matchMedia('(pointer: coarse)').matches;
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -439,8 +441,8 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
-  /** 0..1, told only when it changes. */
-  onTiltShift: (strength: number) => void = () => {};
+  /** 0..1, told only when it changes (`watchTiltShift`). */
+  private onTiltShift: (strength: number) => void = () => {};
   private tiltShift = -1;
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
@@ -532,7 +534,10 @@ export class MapEngine {
     // The stencil serves the coastal wash, whose ribbons overlap: without it, three opens
     // the context without a stencil buffer since r163 and the material would plead in vain.
     this.renderer = new WebGLRenderer({ antialias: true, stencil: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.setPixelRatio(
+      Math.min(devicePixelRatio, this.touch ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO),
+    );
+    TRAME_SCALE.value = this.renderer.getPixelRatio();
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     // Redrawn on whole frames only (`FrameDemand`): an ambient step moves no piece.
@@ -697,11 +702,28 @@ export class MapEngine {
    * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
    * publique qui change ce qu'on voit commence par cet appel — `frame-demand.test.ts` le vérifie
    * sur la source —, et un composant qui pose ses propres nœuds sur la carte (étiquettes,
-   * indicateurs de bord) l'appelle après chaque rendu : ses nœuds naissent cachés et c'est la
-   * prochaine image qui les place.
+   * indicateurs de bord) l'appelle dans un effet dont les dépendances sont tout ce qui fait naître
+   * ou change un nœud : ses nœuds naissent cachés et c'est la prochaine image qui les place.
+   * Chaque appel coûte `SETTLE_MS` d'images.
    */
   invalidate(): void {
     this.demand.stir(performance.now());
+  }
+
+  /** **Le flou de bascule se dit dès la prochaine image** (#189) : la valeur déjà calculée avant
+   *  qu'on l'écoute n'était redite qu'au premier changement de pente — au téléphone, jamais tant
+   *  que le joueur n'inclinait pas la carte. */
+  watchTiltShift(listener: (strength: number) => void): void {
+    this.invalidate();
+    this.onTiltShift = listener;
+    this.tiltShift = -1;
+  }
+
+  /** **Couverte par une feuille, la carte ne dessine plus** (#189) : au téléphone, sous le
+   *  journal ou une fiche, elle rendait encore 45 images par seconde que personne ne voyait. */
+  cover(covered: boolean): void {
+    this.invalidate();
+    this.demand.cover(covered);
   }
 
   inkBurst(burst: InkBurst): void {
@@ -1516,6 +1538,7 @@ export class MapEngine {
     addEventListener('keyup', this.onKeyUp);
     // A window switch swallows the release: without this, space would stay held on return.
     addEventListener('blur', this.onFocusLost);
+    warmTableSoundOnFirstPress();
   }
 
   private trackGesture = (event: PointerEvent): void => {
@@ -1759,11 +1782,13 @@ export class MapEngine {
     if (gesture?.hold != null) clearTimeout(gesture.hold);
     if (gesture !== null) this.endDetach(gesture);
     this.releaseOrbit();
-    // A press hides the piece under the pointer: released, it is there again.
-    this.hoverDirty = true;
     this.applyMapping();
     this.refreshCursor();
+    // A tap on a card, a sheet's « fermer », lands here too (#189): it pressed nothing on the
+    // board, and marking the hover dirty woke the map for a second and a half at sixty frames.
     if (gesture === null) return;
+    // A press hides the piece under the pointer: released, it is there again.
+    this.hoverDirty = true;
     if (gesture.lasso !== undefined) {
       this.endLasso(gesture as Gesture & { lasso: Array<[number, number]> });
       if (gesture.lasso.length > 2) return;
@@ -2368,7 +2393,12 @@ export class MapEngine {
      *  close, a ray cast outside the frame still lands on a country, and the dock would announce
      *  a hover nobody made — on a phone, from the first frame. */
     const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
-    const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
+    /** **A finger has no hover** (#189): under it, the country is only read for a tap. Cast at
+     *  every frame of a pinch, the ray through every coast cost the phone a second in nine. */
+    const hit =
+      onScreen && (!this.fingerOnBoard || this.regionTapped)
+        ? this.ray.intersectObjects(this.countries, false)[0]
+        : undefined;
     const touched = hit?.object as CountryMesh | undefined;
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
@@ -2517,7 +2547,7 @@ export class MapEngine {
     // Un fil affiché coule (tirets, pion qui marche), un anneau bat : une image complète au pas
     // du mouvement, 30 par seconde en actif, 10 en réduit. Onglet caché : rien que le remué.
     const flowing = this.arcs.isFlowing || this.standing.ringing || this.camps.ringing;
-    const flowPace = this.ambience.motion === 'reduced' ? FLOW_REDUCED_MS : FLOW_FULL_MS;
+    const flowPace = flowPaceOf(this.ambience.motion, this.touch);
     const reason = this.demand.due(
       now,
       document.hidden ? Number.POSITIVE_INFINITY : flowing ? flowPace : HEARTBEAT_MS,
@@ -2617,6 +2647,13 @@ export class MapEngine {
   };
 }
 
+const DESK_PIXEL_RATIO = 2;
+/** **Au doigt, un pixel et demi par point** (#189) : un téléphone à 3 dessinait la carte en
+ *  780×1688 avec MSAA ×4, 1,3 million de pixels à chaque image pour un écran qu'on tient à
+ *  bout de bras. À 1,5, 44 % de pixels en moins ; les étiquettes, en HTML, restent nettes, le
+ *  trait de côte et les courbes de niveau s'adoucissent à peine. @a-mesurer : le gain réel se lit
+ *  au GPU d'un vrai téléphone, que le banc n'a pas. */
+const TOUCH_PIXEL_RATIO = 1.5;
 const FOG_NEAR = 460;
 const FOG_FAR = 950;
 /** The prototype's exposure under ACES (P:456). */

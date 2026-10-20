@@ -7,6 +7,7 @@ import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
 import { SiteModal } from './SiteModal';
+import { SheetCount } from './Window';
 
 /**
  * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : former, la file et la
@@ -144,6 +145,50 @@ const mount = () =>
       />
     </ConvexProvider>,
   );
+
+/**
+ * **La carte couverte est celle qu'une feuille montée couvre** (#189), pas celle que l'URL
+ * nomme : la fiche d'une caserne tombée ne rend rien, et la carte doit continuer de dessiner.
+ */
+describe('the sheets that cover the map', () => {
+  const covering = (buildingId: string) => {
+    let count = 0;
+    const tally = (delta: 1 | -1) => {
+      count += delta;
+    };
+    const { unmount } = render(
+      <ConvexProvider client={client}>
+        <SheetCount.Provider value={tally}>
+          <SiteModal
+            view={view}
+            seat={SEAT}
+            buildingId={buildingId}
+            rank={0}
+            inFront
+            onBringForward={() => {}}
+            onOpenGunnery={() => {}}
+            onPrepare={() => {}}
+            onClose={() => {}}
+          />
+        </SheetCount.Provider>
+      </ConvexProvider>,
+    );
+    return { count: () => count, unmount };
+  };
+
+  it('counts a site sheet while it stands, and no more once it leaves', () => {
+    workshop = workshopWith([]);
+    const sheet = covering('B-1');
+    expect(sheet.count()).toBe(1);
+    sheet.unmount();
+    expect(sheet.count()).toBe(0);
+  });
+
+  it('counts nothing for the sheet of a fallen building that the URL still names', () => {
+    workshop = workshopWith([]);
+    expect(covering('B-gone').count()).toBe(0);
+  });
+});
 
 describe('a site sheet on a phone', () => {
   it('forms what is open and sends what a card holds below, naming the card', () => {

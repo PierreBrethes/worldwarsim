@@ -268,7 +268,8 @@ type Props = {
   selectionBar?: ReactNode;
   /** **Les boucles de mes tournées**, tracées à l'encre (ADR 0028) : celle qu'on trace aussi. */
   tourLoops?: ReadonlyArray<TourLoop>;
-  /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
+  /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien, et
+   *  la carte cesse de dessiner (#189). */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
@@ -428,7 +429,8 @@ export function WorldMap({
     const instance = new MapEngine(container.current, world);
     engine.current = instance;
     setReadyEngine(instance);
-    if (import.meta.env.DEV) (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
+    if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
+      (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
 
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
@@ -461,11 +463,10 @@ export function WorldMap({
 
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onTiltShift = (strength) =>
-      container.current?.style.setProperty('--tilt-shift', String(strength));
-    return () => {
-      readyEngine.onTiltShift = () => {};
-    };
+    readyEngine.watchTiltShift((strength) =>
+      container.current?.style.setProperty('--tilt-shift', String(strength)),
+    );
+    return () => readyEngine.watchTiltShift(() => {});
   }, [readyEngine]);
 
   useEffect(() => {
@@ -1119,6 +1120,14 @@ export function WorldMap({
   useEffect(() => {
     if (covered) setRose(null);
   }, [covered]);
+  useEffect(() => {
+    readyEngine?.cover(covered);
+  }, [readyEngine, covered]);
+  const holdOver = useCallback(
+    (labelId: string, clientX: number, clientY: number) =>
+      engine.current?.pointerOverLabel(labelId, clientX, clientY),
+    [],
+  );
 
   useEffect(() => {
     const rect = container.current?.getBoundingClientRect();
@@ -1324,9 +1333,7 @@ export function WorldMap({
         onAct={onLabelAct}
         mapping={mapping}
         holding={holding !== null}
-        onHoldOver={(labelId, clientX, clientY) =>
-          engine.current?.pointerOverLabel(labelId, clientX, clientY)
-        }
+        onHoldOver={holdOver}
         muted={placing !== null}
         groupFar={blitz !== null}
         nation={playerNation ?? null}

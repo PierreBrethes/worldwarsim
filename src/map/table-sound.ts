@@ -96,15 +96,50 @@ const SOUNDS: Readonly<Record<Sound, (a: AudioContext, t: number) => void>> = {
   },
 };
 
+function contextOf(): AudioContext {
+  if (audio === null) {
+    audio = new AudioContext();
+    noise = audio.createBuffer(1, audio.sampleRate * 0.5, audio.sampleRate);
+    const wave = noise.getChannelData(0);
+    for (let i = 0; i < wave.length; i++) wave[i] = Math.random() * 2 - 1;
+  }
+  return audio;
+}
+
+/**
+ * **Le contexte audio naît au premier geste, au repos** (#189) : créé au premier son, il coûtait
+ * jusqu'à 340 ms au téléphone ralenti, dans le toucher même qui ouvre une fiche. Un son demandé
+ * avant que le repos vienne le crée lui-même : il n'est jamais perdu.
+ */
+export function warmTableSoundOnFirstPress(): void {
+  addEventListener(
+    'pointerdown',
+    () => {
+      const warm = () => {
+        try {
+          if (!tableSoundOn() || document.hidden) return;
+          const audio = contextOf();
+          // Né hors d'un geste, il démarre suspendu sur iOS : le prochain geste le réveille.
+          const resume = () => {
+            if (audio.state === 'suspended') void audio.resume();
+          };
+          for (const type of ['pointerup', 'touchend', 'click'])
+            addEventListener(type, resume, { once: true, capture: true });
+        } catch {
+          // Le son est une politesse : un navigateur qui le refuse n'a rien à dire au joueur.
+        }
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 1000 });
+      else setTimeout(warm, 0);
+    },
+    { once: true, capture: true },
+  );
+}
+
 export function playTableSound(name: Sound): void {
   try {
     if (!tableSoundOn() || document.hidden) return;
-    if (audio === null) {
-      audio = new AudioContext();
-      noise = audio.createBuffer(1, audio.sampleRate * 0.5, audio.sampleRate);
-      const wave = noise.getChannelData(0);
-      for (let i = 0; i < wave.length; i++) wave[i] = Math.random() * 2 - 1;
-    }
+    const audio = contextOf();
     if (audio.state === 'suspended') void audio.resume();
     SOUNDS[name](audio, audio.currentTime + 0.005);
   } catch {

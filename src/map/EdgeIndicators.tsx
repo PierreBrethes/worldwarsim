@@ -177,11 +177,11 @@ export function EdgeIndicators({
   }, [engine, groups, sums, membership, size]);
 
   // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
-  // rend plus sans raison (`engine/frame-demand.ts`) : chaque rendu de ce composant en demande
-  // donc une — sans dépendances, exprès, pour qu'aucun changement de la liste ne passe à côté.
+  // rend plus sans raison (`engine/frame-demand.ts`) : des groupes ou des noms neufs en demandent
+  // une ; un rendu qui n'en change aucun, non (#189).
   useEffect(() => {
     engine?.invalidate();
-  });
+  }, [engine, groups, destinations]);
 
   // The alert mark falls at the due time, not per frame: a one-second beat suffices and it
   // is the same cadence as the labels' countdowns.
