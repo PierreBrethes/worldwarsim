@@ -39,3 +39,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0029](0029-placement-libre-et-gisements-ponctuels.md) | Le placement libre des bâtiments, et les gisements ponctuels | acceptée — révise 0013, 0015 (une bâtisse et un gisement par région) |
 | [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a ; §2 révisé par 0031 ; §3 : le QG forme l'infanterie en Blitz seulement |
 | [0031](0031-les-niveaux-accelerent.md) | Les niveaux accélèrent, la recherche ouvre des files | acceptée — précise la règle 1, révise 0028 §5 et 0030 §2 |
+| [0032](0032-les-points-moderent.md) | Les points modèrent | acceptée — précise la règle 1 (points stratégiques), révise les règles de Singapour, Bakou et Halifax |

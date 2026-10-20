@@ -37,8 +37,9 @@ l'atelier des pièces ; le cap et ses raisons : ADR 0027.
 
 1. **Les bonus cassent une règle**, ils ne modifient jamais un pourcentage. « +15 % de dégâts »
    ne change aucune décision ; « je réoriente mes troupes en vol » change la carte mentale. Un
-   bonus, c'est un atout, un point stratégique ou une recherche. Le niveau d'un bâtiment n'en est
-   pas un : il accélère ce que fait le bâtiment, en pourcentage (ADR 0031).
+   bonus, c'est un atout ou une recherche. Un point stratégique donne un avantage mesuré, souvent
+   un pourcentage, qui s'additionne aux autres sans se multiplier (ADR 0032). Le niveau d'un
+   bâtiment n'en est pas un : il accélère ce que fait le bâtiment, en pourcentage (ADR 0031).
 2. **Ce qui est joli à l'écran est une ressource qu'on achète.** Le rendu est un résultat, pas
    un décor : ce qu'on voit de l'adversaire, on l'a relevé.
 3. **En Mondiale, un joueur écrasé reste nuisible, par la parole** : éliminé, il garde le
