@@ -107,6 +107,12 @@ const server = spawn(
   { cwd: root, stdio: 'ignore' },
 );
 process.on('exit', () => server.kill());
+// Interrompu (Ctrl-C, un `kill`), le banc ne laisse pas :4173 occupé pour le suivant.
+for (const signal of ['SIGINT', 'SIGTERM'])
+  process.on(signal, () => {
+    server.kill();
+    process.exit(1);
+  });
 for (let k = 0; ; k++) {
   if (
     await fetch(origin).then(

@@ -117,7 +117,14 @@ export function warmTableSoundOnFirstPress(): void {
     () => {
       const warm = () => {
         try {
-          if (tableSoundOn() && !document.hidden) contextOf();
+          if (!tableSoundOn() || document.hidden) return;
+          const audio = contextOf();
+          // Né hors d'un geste, il démarre suspendu sur iOS : le prochain geste le réveille.
+          const resume = () => {
+            if (audio.state === 'suspended') void audio.resume();
+          };
+          for (const type of ['pointerup', 'touchend', 'click'])
+            addEventListener(type, resume, { once: true, capture: true });
         } catch {
           // Le son est une politesse : un navigateur qui le refuse n'a rien à dire au joueur.
         }

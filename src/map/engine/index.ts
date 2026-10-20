@@ -702,8 +702,9 @@ export class MapEngine {
    * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
    * publique qui change ce qu'on voit commence par cet appel — `frame-demand.test.ts` le vérifie
    * sur la source —, et un composant qui pose ses propres nœuds sur la carte (étiquettes,
-   * indicateurs de bord) l'appelle après chaque rendu : ses nœuds naissent cachés et c'est la
-   * prochaine image qui les place.
+   * indicateurs de bord) l'appelle dans un effet dont les dépendances sont tout ce qui fait naître
+   * ou change un nœud : ses nœuds naissent cachés et c'est la prochaine image qui les place.
+   * Chaque appel coûte `SETTLE_MS` d'images.
    */
   invalidate(): void {
     this.demand.stir(performance.now());

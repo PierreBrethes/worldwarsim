@@ -149,6 +149,9 @@ contact selon les positions tirées).
 
 ## Banc client (#189)
 
+Réservé au Mac : il lance le Chromium en cache de `~/Library/Caches/ms-playwright` (Metal) et lit
+le temps CPU par `ps` à la manière de macOS ; il ne tourne pas sous Windows+WSL.
+
 Même prérequis que la capture, plus une démo chargée (`npm run demo:mondiale -- --niveaux --edition
 --points --artillerie` : bâtiments, presse, journal qui défile, colonnes en vol).
 
