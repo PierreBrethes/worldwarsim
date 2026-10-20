@@ -20,7 +20,7 @@ import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
-import { layPoint } from './strategicPoints';
+import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -866,6 +866,45 @@ export const benchScene = internalMutation({
      *  fondation, sans quoi la vue mesurée serait celle d'un sol jamais relevé (#144). */
     await recordLinkage(ctx, player.seasonId);
     return { squads: placed, reserveIds, outpostIds, truckId };
+  },
+});
+
+/** La couleur retenue des huit sièges, seule : ce que chaque changement de couleur paie (#144). */
+export const benchRecord = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: (ctx, { seasonId }) => recordLinkage(ctx, seasonId),
+});
+
+/**
+ * **La chute d'un QG, prête à aboutir** : le pire geste de couleur du banc (#144). `loserId`
+ * tient `points` points stratégiques et son QG, `capturerId` l'a pris ; le banc appelle
+ * `captures.complete`, qui règle, rapporte, rend les points et retient la couleur.
+ */
+export const benchFall = internalMutation({
+  args: { capturerId: v.id('players'), loserId: v.id('players'), points: v.number() },
+  handler: async (ctx, { capturerId, loserId, points }) => {
+    const loser = await ctx.db.get(loserId);
+    if (loser === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const point of (await seasonPoints(ctx, loser.seasonId)).slice(0, points))
+      await handOver(ctx, point, loserId, now);
+    await recordLinkage(ctx, loser.seasonId);
+    const hq = (await headquartersOf(ctx, loser))!;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId: loser.seasonId,
+      playerId: capturerId,
+      defenderId: loserId,
+      target: { kind: 'building', buildingId: hq._id },
+      site: { kind: 'building', building: 'hq', regionId: hq.regionId },
+      point: hq.point ?? { lon: 0, lat: 0 },
+      progress: 1,
+      progressAt: now,
+      rate: 1,
+      durationMs: 1,
+      rest: null,
+      completesAt: now,
+    });
+    return { captureId, expectedAt: now };
   },
 });
 

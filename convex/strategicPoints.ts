@@ -22,7 +22,6 @@ import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
 import { reassessDetection } from './movement/detection';
-import { recordLinkage } from './holding';
 
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
@@ -185,8 +184,6 @@ export async function handOver(
   /** **Rangoun** : le voile des tournées suit le point, donc le brouillard se relit à la prise
    *  comme à la perte. */
   if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
-  /** Un point colore sa région pour son teneur, et Narvik relie tout son sol (#144). */
-  await recordLinkage(ctx, point.seasonId);
 }
 
 /**

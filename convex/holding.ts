@@ -5,7 +5,7 @@ import { isStanding } from '../src/domain/outposts';
 import { modeOf } from '../src/domain/season-mode';
 import { playerBuildings } from './buildingReads';
 import { outpostReachKm } from './constants';
-import { outpostsOf, pointOf, seasonOutposts } from './movement/forces';
+import { pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, regionFacts, regionsOf, type RegionFacts } from './regions';
 import { isBlitz } from './blitz';
@@ -35,13 +35,39 @@ export async function heldOver(
   now: number,
 ): Promise<ReadonlyMap<string, string>> {
   if (regions.length === 0) return new Map();
-  return heldRegions({
-    regions,
-    outposts: (await seasonOutposts(ctx, seasonId)).map((outpost) => colourReading(outpost, now)),
-    homeGrounds: await homeGroundsOf(ctx, seasonId),
-    occupations: await occupationsOf(ctx, seasonId),
-  });
+  return colourOver(await seasonColour(ctx, seasonId), regions, now);
 }
+
+/** Ce que la couleur lit de la saison, lu une fois : `recordLinkage` le rend à huit sièges. */
+async function seasonColour(ctx: QueryCtx, seasonId: Id<'seasons'>) {
+  const points = await seasonPoints(ctx, seasonId);
+  return {
+    outposts: await seasonOutposts(ctx, seasonId),
+    points,
+    homeGrounds: await homeGroundsOf(ctx, seasonId),
+    occupations: await occupationsOf(ctx, seasonId, points),
+  };
+}
+
+const colourOver = (
+  colour: Awaited<ReturnType<typeof seasonColour>>,
+  regions: ReadonlyArray<RegionFacts>,
+  now: number,
+): ReadonlyMap<string, string> =>
+  heldRegions({
+    regions,
+    outposts: colour.outposts.map((outpost) => colourReading(outpost, now)),
+    homeGrounds: colour.homeGrounds,
+    occupations: colour.occupations,
+  });
+
+/** Le teneur de Narvik, `null` s'il n'est à personne. */
+const narvikHolderOf = (points: ReadonlyArray<Doc<'strategicPoints'>>) =>
+  points.find((point) => point.key === 'narvik')?.holderId ?? null;
+
+/** Toutes les régions demandées, à lui : ce que Narvik rend à son teneur (P11). */
+const everywhere = (player: Doc<'players'>, regions: ReadonlyArray<RegionFacts>) =>
+  new Map(regions.map((region) => [region.id, player._id as string]));
 
 /**
  * **La couleur que la production lit** (ADR 0020 §6) : celle de la carte, sauf pour le teneur de
@@ -55,9 +81,8 @@ export async function linkingOver(
   regions: ReadonlyArray<RegionFacts>,
   now: number,
 ): Promise<ReadonlyMap<string, string>> {
-  const narvik = (await seasonPoints(ctx, player.seasonId)).find((point) => point.key === 'narvik');
-  if (narvik?.holderId === player._id) {
-    return new Map(regions.map((region) => [region.id, player._id as string]));
+  if (narvikHolderOf(await seasonPoints(ctx, player.seasonId)) === player._id) {
+    return everywhere(player, regions);
   }
   return heldOver(ctx, player.seasonId, regions, now);
 }
@@ -127,28 +152,34 @@ function nextColourChange(outposts: ReadonlyArray<Doc<'outposts'>>, now: number)
 
 /**
  * **La couleur de chaque siège, retenue au changement de couleur** (#144). La vue la lit au lieu
- * de relire toute la saison (`linkedOn`) ; elle sort de `linkingOver`, la règle même de la
- * production, sur le sol de `groundOf`. N'écrit que ce qui a changé : une ligne de siège écrite
- * réveille toutes les vues qui lisent les sièges.
+ * de relire toute la saison (`linkedOn`) ; elle sort des mêmes lectures que `linkingOver`, la
+ * règle même de la production, sur le sol de `groundOf` — la saison lue **une fois**, puis
+ * `heldRegions` siège par siège. N'écrit que ce qui a changé : une ligne de siège écrite réveille
+ * toutes les vues qui lisent les sièges.
  *
- * **Appelée par tout changement de couleur** : `reportChange` (le geste commun), `handOver` (un
- * point stratégique change de main) et `leaveTheWar` (un sol national cesse d'être tenu).
+ * **Appelée par tout changement de couleur** : `reportChange` (le geste commun, derrière lequel
+ * `takePoint` passe un point de main) et `leaveTheWar` (ses points rendus, son sol perdu) ; et
+ * par ce qui déplace l'heure du prochain changement (`until`) : une fondation, un chantier
+ * effondré.
  */
 export async function recordLinkage(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return;
   const now = Date.now();
   const blitz = modeOf(season.mode) === 'blitz';
-  const until = nextColourChange(await seasonOutposts(ctx, seasonId), now);
+  const colour = await seasonColour(ctx, seasonId);
+  const narvik = narvikHolderOf(colour.points);
+  const until = nextColourChange(colour.outposts, now);
   for (const seat of await seatsOf(ctx, seasonId)) {
     const ground = groundOf(
       seat,
       blitz,
       await playerBuildings(ctx, seat._id),
-      await outpostsOf(ctx, seat._id),
+      colour.outposts.filter((outpost) => outpost.playerId === seat._id),
       now,
     );
-    const held = await linkingOver(ctx, seat, [...ground.values()], now);
+    const regions = [...ground.values()];
+    const held = narvik === seat._id ? everywhere(seat, regions) : colourOver(colour, regions, now);
     const linkage = {
       ground: footprintOf(ground),
       unlinked: [...ground.keys()].filter((regionId) => held.get(regionId) !== seat._id),
@@ -202,6 +233,8 @@ export async function linkedOn(
 export async function occupationsOf(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
+  /** Les points, quand l'appelant les a déjà lus. */
+  points?: ReadonlyArray<Doc<'strategicPoints'>>,
 ): Promise<ReadonlyArray<Occupation>> {
   const captured = (
     await ctx.db
@@ -209,7 +242,7 @@ export async function occupationsOf(
       .withIndex('bySeasonCaptured', (q) => q.eq('seasonId', seasonId).gt('capturedAt', 0))
       .collect()
   ).map((building) => ({ regionId: building.regionId, owner: building.playerId as string }));
-  const held = (await seasonPoints(ctx, seasonId)).flatMap((point) =>
+  const held = (points ?? (await seasonPoints(ctx, seasonId))).flatMap((point) =>
     point.holderId === null ? [] : [{ regionId: point.regionId, owner: point.holderId as string }],
   );
   return [...captured, ...held];

@@ -139,8 +139,9 @@ npm run banc:mondiale   # 8 joueurs, ~150 troupes chacun, 161 mouvements en vol,
 
 Il fonde une nouvelle saison à chaque passage (comptes `Banc1`..`Banc8` dans
 `scripts/banc-mondiale.accounts.json`, ignoré par git), puis imprime : `playerView` d'un joueur,
-`reassessDetection`, `marchTo` sous charge, jobs planifiés en attente, et une montée en charge
-(20 à 161 mouvements). Durées et documents lus viennent du backend lui-même, par
+`reassessDetection`, `marchTo` sous charge, `recordLinkage` (la couleur retenue, #144), la chute
+d'un QG tenant trois points (`captures.complete`, le pire geste de couleur, joué en dernier), jobs
+planifiés en attente, et une montée en charge (20 à 161 mouvements). Durées et documents lus viennent du backend lui-même, par
 `/api/stream_function_logs` (`executionTime`, `usageStats.databaseReadDocuments`) : pas le temps
 client, réseau compris. Une exécution coupée à la seconde permise est marquée « coupée à 1 s » et
 ne rend que ce qu'elle avait lu. Le nombre de jobs varie d'un passage à l'autre (rendez-vous de

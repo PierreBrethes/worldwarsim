@@ -272,6 +272,22 @@ const busy = await measured('dev:benchFlights', () =>
   }),
 );
 
+/** Et le pire geste de couleur (#144) : le QG d'un joueur qui tient trois points tombe — le
+ *  règlement, le rapport, les points rendus et la couleur retenue de huit sièges, à la fois. */
+const record = await passes('dev:benchRecord', () =>
+  admin.mutation(internal('dev:benchRecord'), { seasonId }),
+);
+const FALLS = 6;
+const POINTS_HELD = 3;
+const fallen = await admin.mutation(internal('dev:benchFall'), {
+  capturerId: playerOf(MEASURED),
+  loserId: playerOf(FALLS),
+  points: POINTS_HELD,
+});
+const fall = await measured('captures:complete', () =>
+  admin.mutation(internal('captures:complete'), fallen),
+);
+
 const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
 const cell = (run) => (run.timedOut ? `${fixed(run.ms)} (coupée à 1 s)` : fixed(run.ms));
@@ -295,6 +311,12 @@ for (const [k, run] of marches.entries())
   );
 console.log(
   `| \`march\` d'un joueur aux 23 colonnes en vol | ${cell(busy)} | ${String(busy.read)} | ${String(busy.written)} |`,
+);
+console.log(
+  `| \`recordLinkage\` (saison) | ${cell(record)} | ${String(record.read)} | ${String(record.written)} |`,
+);
+console.log(
+  `| chute d'un QG tenant ${String(POINTS_HELD)} points (\`captures.complete\`) | ${cell(fall)} | ${String(fall.read)} | ${String(fall.written)} |`,
 );
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
 for (const [name, count] of stats.pendingByName)

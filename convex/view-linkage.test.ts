@@ -7,7 +7,7 @@ import type { LonLat } from '../src/domain/geo';
 import type { BuildingKey } from '../src/domain/ids';
 import type { PlayerView } from '../src/domain/player-view';
 import { outpostReachKm } from './constants';
-import { linkingOver } from './holding';
+import { linkingOver, recordLinkage } from './holding';
 import { leaveTheWar } from './players';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf } from './resources';
@@ -240,12 +240,16 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
     const narvik = await t.run(async (ctx) => {
       const laid = await neutralPoint(ctx, player.seasonId, 'narvik');
       await handOver(ctx, laid, player._id, Date.now());
+      await recordLinkage(ctx, player.seasonId);
       return laid._id;
     });
     expect(linkedAt(await holdsTheContract(t, seat), PRAHOVA)).toBe(true);
     await holdsTheContract(t, guest);
 
-    await t.run(async (ctx) => handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now()));
+    await t.run(async (ctx) => {
+      await handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now());
+      await recordLinkage(ctx, player.seasonId);
+    });
     expect(linkedAt(await holdsTheContract(t, seat), PRAHOVA)).toBe(false);
   });
 

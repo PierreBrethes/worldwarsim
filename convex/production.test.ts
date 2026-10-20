@@ -17,7 +17,7 @@ import {
   outpostReachKm,
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
 } from './constants';
-import { heldOver } from './holding';
+import { heldOver, recordLinkage } from './holding';
 import { handOver } from './strategicPoints';
 import { regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
@@ -461,7 +461,10 @@ describe('a building only produces when its region carries its colour', () => {
     expect(unlinkedProducers(held)).toHaveLength(0);
     expect(held.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
 
-    await t.run(async (ctx) => handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now()));
+    await t.run(async (ctx) => {
+      await handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now());
+      await recordLinkage(ctx, (await ctx.db.get(narvik))!.seasonId);
+    });
     expect(unlinkedProducers(await view(t, seat))).toHaveLength(1);
   });
 
