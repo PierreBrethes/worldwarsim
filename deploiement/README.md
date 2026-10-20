@@ -147,6 +147,27 @@ client, réseau compris. Une exécution coupée à la seconde permise est marqu�
 ne rend que ce qu'elle avait lu. Le nombre de jobs varie d'un passage à l'autre (rendez-vous de
 contact selon les positions tirées).
 
+## Banc client (#189)
+
+Même prérequis que la capture, plus une démo chargée (`npm run demo:mondiale -- --niveaux --edition
+--points --artillerie` : bâtiments, presse, journal qui défile, colonnes en vol).
+
+```bash
+PLAYWRIGHT_DIR=/chemin/pw npm run banc:client   # build de prod VITE_BANC=1, ~8 min pour 2 profils × 3 passes
+```
+
+Il construit le front avec `VITE_BANC=1` (React de profilage, noms gardés, moteur en
+`window.mapEngine`) dans `--sortie` (par défaut `$TMPDIR/banc-client`), le sert sur :4173, puis
+joue le même parcours au téléphone (390×844, ×3, toucher, CPU ralenti ×4) et au bureau
+(1440×900) : chaque surface ouverte puis fermée, le journal défilé, le plateau personnel tiré, la
+fiche d'un bâtiment, la carte déplacée, zoomée, inclinée, puis 10 s de repos. Par geste : images
+(médiane, p95), tâches longues, délai jusqu'à l'image, commits et composants React, images de
+carte par seconde, temps JS et GPU d'une image, appels de dessin, CPU du processus GPU. Médiane
+de 3 passes (`--passes`), dans `banc-client.json` et `banc-client.txt`. `--profil telephone`
+n'en joue qu'un, `--sans-build` reprend le dernier build, `--photos` capture chaque geste, `--cpu
+'motif'` enregistre le profil CPU des gestes qui y répondent et en imprime les fonctions les plus
+chères. Il imprime le haut de `ps` d'abord : un vérifieur ou des captures à côté faussent tout.
+
 ## VPS (Hostinger) — mise en prod initiale
 
 En prod, le compose de dev est complété par

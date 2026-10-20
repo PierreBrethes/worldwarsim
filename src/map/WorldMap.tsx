@@ -428,7 +428,8 @@ export function WorldMap({
     const instance = new MapEngine(container.current, world);
     engine.current = instance;
     setReadyEngine(instance);
-    if (import.meta.env.DEV) (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
+    if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
+      (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
 
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);

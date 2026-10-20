@@ -14,6 +14,10 @@ process.env.TZ = 'UTC';
 // absente laisserait `%VITE_PUBLIC_ORIGIN%` en clair dans la page servie.
 process.env.VITE_PUBLIC_ORIGIN ||= 'https://wws.pierrebrethes.cloud';
 
+// `npm run banc:client` (#189) : le build de profilage de React, qui chronomètre chaque rendu, et
+// les noms de fonctions gardés, pour lire quel composant a rendu.
+const bench = process.env.VITE_BANC === '1';
+
 export default defineConfig({
   plugins: [
     // Un `*.test.tsx` sous src/routes/ n'est pas une route : le plugin le signale à chaque
@@ -26,11 +30,15 @@ export default defineConfig({
   // Les figurines sculptées dans Claude Design arrivent en GLB, importées comme les planches.
   assetsInclude: ['**/*.glb'],
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      ...(bench && { 'react-dom/client': 'react-dom/profiling' }),
+    },
   },
   build: {
     rollupOptions: {
       output: {
+        keepNames: bench,
         // three pèse plus que tout le reste de la route : seul, il se met en cache entre deux
         // livraisons du jeu, qui ne le changent pas.
         manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
