@@ -231,7 +231,7 @@ export function StatLines({
       {scaled && (
         <div className="flex justify-between pl-[96px] text-[8.5px] tracking-[.1em] whitespace-nowrap text-[var(--ink-soft)] uppercase">
           <span>{fr.stats.scaleKey.low}</span>
-          <span>
+          <span className="max-md:hidden">
             {scale === 'levels' ? fr.stats.scaleKey.levels(MAX_HQ_LEVEL) : fr.stats.scaleKey.range}
           </span>
           <span>{fr.stats.scaleKey.high}</span>

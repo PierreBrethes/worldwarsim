@@ -192,6 +192,12 @@
     width: 210px;
   }
 
+  /* Après la règle de base : à largeur de téléphone elle l'emportait, et le bloc de statistiques
+     débordait d'une affiche de 160 px. */
+  .map-poster--stats {
+    width: 270px;
+  }
+
   .map-poster h3 {
     font-size: 15px;
   }
