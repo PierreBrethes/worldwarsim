@@ -2558,8 +2558,6 @@ export const fr = {
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
-    masthead: 'LE JOURNAL DES OPÉRATIONS',
-    dispatches: (count: number) => `${count} dépêche${plural(count, '', 's')}`,
     title: 'Journal',
     none: 'Aucune dépêche pour l’instant.',
     dispatchLabel: 'dépêche',
@@ -2573,8 +2571,6 @@ export const fr = {
     noneStalled: 'Aucun mouvement immobilisé par une plage de repos.',
     slotsEngaged: 'slots engagés',
     resolutionAt: (time: string) => `résolution à ${time}`,
-    unreadLabel: (count: number) => `non lue${plural(count, '', 's')}`,
-    allRead: 'tout est lu',
     /** **Cinq cases égales, le compte au-dessus du mot** : le même télex sous 390 px et en marge
      *  du bureau, sans défilement latéral. */
     filters: {
@@ -2584,13 +2580,9 @@ export const fr = {
       notable: 'notables',
       routine: 'routine',
     },
-    sinceLastVisit: 'depuis votre dernière visite',
-    earlier: 'plus tôt — déjà lues',
     noneFiltered: 'Aucune dépêche de cette sorte.',
     showOnMap: 'voir sur la carte',
     /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalLines`). */
-    locate: 'localiser',
-    fold: { show: 'afficher', hide: 'masquer' },
     earlierEditions: (count: number) =>
       `et ${count} édition${plural(count, '', 's')} précédente${plural(count, '', 's')}`,
     worldEvents: {
