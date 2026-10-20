@@ -1,4 +1,3 @@
-import type { TourAct, TourTrace } from '@/domain/cargo-tag';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
@@ -19,7 +18,7 @@ import { contactKm, outpostReachKm } from '../../convex/constants';
 import { aimRefusalText, fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { WorldMap, type PlacingBuilding, type TourLoop } from '@/map/WorldMap';
+import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import type { PieceClick, PlacingMagnet, PlacingSpot } from '@/map/engine';
 import {
   readWindows,
@@ -33,6 +32,7 @@ import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { useHeldRegions } from './-plateau/useHeldRegions';
 import { useOrderPreview } from './-plateau/useOrderPreview';
+import { useTours } from './-plateau/useTours';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
@@ -918,9 +918,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [column, view],
   );
 
-  /** **La tournée que la main trace** (ADR 0028) : son transport et ses dépôts dans l'ordre ;
-   *  l'étiquette du transport la lance ou l'efface. */
-  const [trace, setTrace] = useState<TourTrace | null>(null);
+  const { trace, setTrace, onTour, tourLoops } = useTours(seat, view.me, setOrderError);
   /** **La rose d'une pile de la sélection**, lue comme si elle était en main. */
   const pileCompass = useCallback(
     (target: CompassTarget, station: MarchStation, troopIds: ReadonlyArray<string>) =>
@@ -1023,63 +1021,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     onHold: setCarryingTokens,
   });
-  const startTour = useMutation(api.tours.start);
-  const recallTour = useMutation(api.tours.recall);
-  /** **La tournée depuis l'étiquette** : lancer celle qu'on a tracée, l'effacer, la rappeler. */
-  const onTour = useCallback(
-    (carrierId: string, act: TourAct) => {
-      setOrderError(null);
-      const refused = (problem: unknown) => handleError(problem, setOrderError);
-      if (act === 'recall') {
-        recallTour({ ...seat, troopId: carrierId as Id<'troops'> }).catch(refused);
-        return;
-      }
-      const traced = trace;
-      setTrace(null);
-      if (act === 'clear' || traced === null || traced.carrierId !== carrierId) return;
-      startTour({
-        ...seat,
-        troopId: carrierId as Id<'troops'>,
-        stops: traced.stops.map((stop) => stop as Id<'outposts'>),
-      }).then(() => notify(fr.logistics.tourStarted, 'info'), refused);
-    },
-    [recallTour, startTour, seat, trace],
-  );
-  /** **Les boucles à l'encre** : chaque tournée, et celle qu'on trace, du chargement au
-   *  chargement par ses dépôts ; un dépôt que ce tour saute, plein, en pointillé. */
-  const tourLoops = useMemo((): ReadonlyArray<TourLoop> => {
-    const pointOfStation = (id: string) =>
-      view.me.buildings.find((building) => building.id === id)?.point ??
-      view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
-    const loopOf = (
-      baseId: string,
-      stops: ReadonlyArray<string>,
-      skipped: ReadonlyArray<string>,
-      tracing: boolean,
-    ): ReadonlyArray<TourLoop> => {
-      const base = pointOfStation(baseId);
-      const points = stops.flatMap((stop) => {
-        const at = pointOfStation(stop);
-        return at === undefined ? [] : [{ at, skipped: skipped.includes(stop) }];
-      });
-      return base === undefined ? [] : [{ base, stops: points, tracing }];
-    };
-    const tracedFrom = view.me.troops.find((troop) => troop.id === trace?.carrierId)?.stationedAt;
-    return [
-      ...view.me.troops.flatMap((troop) =>
-        troop.tour === undefined
-          ? []
-          : loopOf(troop.tour.baseId, troop.tour.stops, troop.tour.skipped, false),
-      ),
-      ...(trace === null || tracedFrom === undefined
-        ? []
-        : tracedFrom.kind === 'building'
-          ? loopOf(tracedFrom.buildingId, trace.stops, [], true)
-          : tracedFrom.kind === 'outpost'
-            ? loopOf(tracedFrom.outpostId, trace.stops, [], true)
-            : []),
-    ];
-  }, [view.me.troops, view.me.buildings, view.me.outposts, trace]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */
@@ -1346,6 +1287,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       afterSent,
       settle,
       grouped,
+      setTrace,
     ],
   );
 
