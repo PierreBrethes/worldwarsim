@@ -5,7 +5,6 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { CATEGORIES } from '@/domain/indicators';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
-import { HalifaxMark } from './HalifaxMark';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
@@ -51,24 +50,27 @@ export function NarrowBand({
       className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <div className="flex h-[40px] items-center gap-[10px] px-[12px]">
+      <div className="flex h-[40px] items-center gap-[10px] overflow-hidden px-[12px]">
         <button
           type="button"
           aria-expanded={surface === 'dossier'}
           title={fr.dossier.open(nationLabel(me.nation))}
           onClick={() => setSurface((open) => (open === 'dossier' ? null : 'dossier'))}
-          className="-ml-[6px] flex min-h-[40px] shrink-0 cursor-pointer items-center gap-[10px] px-[6px]"
+          className="-ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[10px] px-[6px]"
         >
           <Flag nation={me.nation} width={27} onPaper />
-          <span className="font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
+          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
-          <span aria-hidden className="-ml-[4px] text-[11px] leading-none text-[var(--ink-soft)]">
+          <span
+            aria-hidden
+            className="-ml-[4px] shrink-0 text-[11px] leading-none text-[var(--ink-soft)]"
+          >
             ▾
           </span>
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
-        <span className="flex-1" />
+        <span className="min-w-0 flex-1" />
         {view.mode === 'blitz' ? (
           <BlitzClock view={view} now={now} openEnding={search} />
         ) : (
@@ -81,11 +83,13 @@ export function NarrowBand({
               halifaxNoteOf(me.slots),
             )}
           >
-            <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            {/* Under 380 px the count alone: the edition keeps the room (Halifax's sentence stays in the title). */}
+            <span className="flex max-[380px]:hidden">
+              <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            </span>
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
-            <HalifaxMark slots={me.slots} />
           </span>
         )}
         <EditionMark view={view} />

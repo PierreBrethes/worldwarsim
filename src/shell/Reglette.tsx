@@ -143,7 +143,7 @@ export function EditionMark({ view }: { view: PlayerView }) {
   return (
     <span
       title={fr.press.next(asClockTime(next))}
-      className="flex items-baseline gap-[5px] border-l border-(color:--ink)/25 pl-[10px] whitespace-nowrap"
+      className="flex shrink-0 items-baseline gap-[5px] border-l border-(color:--ink)/25 pl-[10px] whitespace-nowrap"
     >
       <em className="font-(family-name:--font-display) text-[12px] text-[var(--ink-soft)]">
         {fr.banner.edition}
