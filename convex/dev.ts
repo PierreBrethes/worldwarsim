@@ -19,6 +19,8 @@ import { LON_LAT, UNIT_ROLE } from './validators';
 import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
+import { fileSurvey } from './surveys';
+import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
@@ -695,7 +697,9 @@ export const artilleryScene = internalMutation({
 });
 
 /**
- * **Bakou, Dakar, Singapour et Halifax tenus** : le joueur tient les quatre. Un blindé à sec en
+ * **Bakou, Narvik, Singapour et Halifax tenus** par le joueur, **Dakar par l'adversaire**. Un puits
+ * de pétrole du joueur en Prahova, coupé du réseau (Narvik : il produit un quart) ; un entrepôt de
+ * l'adversaire en Pologne, relevé (le pillage y laisse 600 par ressource). Un blindé à sec en
  * Basse-Saxe, arrêté depuis 5 h (à Bakou son prochain cran vient dans 7 h) ; un camion plein et son
  * fantassin à Coblence (−20 % de plein à Singapour) ; une escorte en Atlantique, que la démo envoie
  * en mer (Halifax : ce mouvement ne prend pas de slot) ; les deux dépêches du dépôt qui brûle à Dakar.
@@ -706,11 +710,40 @@ export const pointsScene = internalMutation({
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
-    for (const key of ['baku', 'dakar', 'singapore', 'halifax'] as const) {
+    for (const [key, holder] of [
+      ['baku', player._id],
+      ['narvik', player._id],
+      ['singapore', player._id],
+      ['halifax', player._id],
+      ['dakar', enemyId],
+    ] as const) {
       const point = await layPoint(ctx, player.seasonId, key);
       if (point === null) throw new Error(`no region under ${key}`);
-      await ctx.db.patch(point._id, { holderId: player._id, heldSince: now - 3 * 3_600_000 });
+      await ctx.db.patch(point._id, { holderId: holder, heldSince: now - 3 * 3_600_000 });
     }
+    /** L'entrepôt de l'adversaire loin du puits, en Pologne : visé seul, sans cliquer le puits. */
+    const warehouseRegion = nearestRegion([20, 52]);
+    if (warehouseRegion === null) throw new Error('no region in Poland');
+    for (const [owner, key, regionId] of [
+      [playerId, 'oilWell', 'ROU-310'],
+      [enemyId, 'warehouse', warehouseRegion.id],
+    ] as const) {
+      /** Un puits se pose sur son gisement : la région seule ne dit pas où il tient. */
+      const deposit = DEPOSIT_POINTS.find((candidate) => candidate.regionId === regionId);
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        key,
+        regionId,
+        point:
+          deposit === undefined
+            ? pointOfRegion(regionId)
+            : { lon: deposit.lonLat[0], lat: deposit.lonLat[1] },
+        level: 1,
+      });
+    }
+    await fileSurvey(ctx, playerId, [{ point: warehouseRegion.point, radiusKm: 1 }], now);
+    await recordLinkage(ctx, player.seasonId);
     /** Chaque pile à son point : le camion marche avec son fantassin (un transport seul ne fait
      *  qu'un raid). */
     for (const [role, fuel, at] of [
@@ -731,7 +764,7 @@ export const pointsScene = internalMutation({
       });
     const lost = { ammunition: 40, oil: 20, coal: 0 };
     await ctx.db.insert('notices', {
-      playerId,
+      playerId: enemyId,
       at: now,
       kind: 'depotBurned',
       side: 'holder',
@@ -739,7 +772,7 @@ export const pointsScene = internalMutation({
       lost,
     });
     await ctx.db.insert('notices', {
-      playerId: enemyId,
+      playerId,
       at: now,
       kind: 'depotBurned',
       side: 'capturer',

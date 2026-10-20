@@ -15,7 +15,7 @@
  * et le blindé en cours sur le Centre (#123) ; `--centre`, le même Centre sans carte posée. `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
- * tenir à la France Bakou, Dakar, Singapour et Halifax, avec un blindé au plein vide, un camion
+ * tenir à la France Bakou, Narvik, Singapour et Halifax (Dakar va à l'adversaire, avec un entrepôt relevé), avec un blindé au plein vide, un camion
  * au plein et une escorte envoyée en mer, et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
@@ -245,7 +245,7 @@ if (!bare) {
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
-  /** Bakou, Dakar, Singapour et Halifax tenus par la France, de quoi lire leurs règles. */
+  /** Bakou, Narvik, Singapour et Halifax tenus par la France, Dakar par l'adversaire, de quoi lire leurs règles. */
   if (points && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
     /** L'escorte prend la mer : sous Halifax, ce mouvement maritime ne prend pas de slot. */

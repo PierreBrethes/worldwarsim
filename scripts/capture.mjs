@@ -11,7 +11,7 @@
  *
  * `--geste` se répète et se joue dans l'ordre, après l'attente et avant la capture, pour voir un
  * état qu'il faut provoquer (le fantôme d'une pose) : `texte=Mine — charbon` clique le premier
- * élément qui porte ce texte, `clic=x,y` clique en un point, `molette=x,y,dy` tourne la molette,
+ * élément qui porte ce texte, `clic=x,y` clique en un point, `toucher=x,y` (avec `--tactile`) tape du doigt, `clicdroit=x,y` et `clicmilieu=x,y` y cliquent du bouton droit ou du milieu (la rose des vents), `molette=x,y,dy` tourne la molette,
  * `survol=x,y` y mène la souris, `pause=ms` attend. `presser=x,y` enfonce le bouton en un point et
  * `lacher` le relâche : entre les deux, des `survol` font un glisser (une tuile du plateau personnel
  * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
@@ -30,6 +30,8 @@ const option = (name, fallback) => {
   return at < 0 ? fallback : args[at + 1];
 };
 const flags = new Set(['--compte', '--largeur', '--hauteur', '--attendre', '--geste']);
+/** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
+const touch = args.includes('--tactile');
 const gestures = args.flatMap((arg, k) => (args[k - 1] === '--geste' ? [arg] : []));
 const positional = args.filter((arg, k) => !arg.startsWith('--') && !flags.has(args[k - 1]));
 const [target, out] = positional;
@@ -72,6 +74,7 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({
   viewport: { width: Number(option('largeur', 1440)), height: Number(option('hauteur', 900)) },
+  hasTouch: touch,
 });
 page.on('console', (message) => {
   if (message.type() === 'error') console.log(`[console.error] ${message.text()}`);
@@ -105,6 +108,9 @@ try {
       await page.mouse.wheel(0, dy);
     } else if (kind === 'survol') await page.mouse.move(x, y, { steps: 8 });
     else if (kind === 'clic') await page.mouse.click(x, y);
+    else if (kind === 'toucher') await page.touchscreen.tap(x, y);
+    else if (kind === 'clicdroit') await page.mouse.click(x, y, { button: 'right' });
+    else if (kind === 'clicmilieu') await page.mouse.click(x, y, { button: 'middle' });
     else if (kind === 'presser') {
       await page.mouse.move(x, y);
       await page.mouse.down();
