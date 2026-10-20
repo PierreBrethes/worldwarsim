@@ -28,7 +28,7 @@
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
- * relèverait sans Rangoun (#176).
+ * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  *
  *     npm run demo:mondiale
  *
@@ -294,6 +294,20 @@ if (!bare) {
       client.mutation(api.tours.start, { token: tokenA, seasonId, troopId: truck.id, stops });
     await start(truckAt('building'), [lille.id, brussels.id]);
     await start(truckAt('outpost'), [lille.id]);
+    /** Sous Rangoun, un camion de tournée seul à l'arrêt en Picardie : son mât montre la mi-portée. */
+    if (rangoon && scene.b !== null)
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({
+          playerId: scene.a,
+          role: 'landTransport',
+          count: 1,
+          lon: 2.3,
+          lat: 49.9,
+          tourBase: lille.id,
+        }),
+      ]);
   }
   if (harvest)
     cli([

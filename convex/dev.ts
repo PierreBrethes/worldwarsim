@@ -329,8 +329,10 @@ export const spawnTroops = internalMutation({
     /** Ses crans déjà entamés (coups et plein, ADR 0028 §3) ; absents, pleins. */
     rounds: v.optional(v.number()),
     fuel: v.optional(v.number()),
+    /** **En tournée depuis ce dépôt**, à l'arrêt : la pile de Rangoun d'une démo (#176). */
+    tourBase: v.optional(v.id('outposts')),
   },
-  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel }) => {
+  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel, tourBase }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const strength = nominalStrength(role, 1);
@@ -348,6 +350,16 @@ export const spawnTroops = internalMutation({
           ...(carriedBy === undefined ? {} : { carriedBy }),
           ...(rounds === undefined ? {} : { rounds }),
           ...(fuel === undefined ? {} : { fuel }),
+          ...(tourBase === undefined
+            ? {}
+            : {
+                tour: {
+                  base: tourBase,
+                  stops: [],
+                  consigne: { ammunition: 0, oil: 0, coal: 0 },
+                  next: 0,
+                },
+              }),
         }),
       );
     return ids;
