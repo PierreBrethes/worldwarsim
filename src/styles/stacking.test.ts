@@ -22,7 +22,6 @@ const LADDER = [
   '--z-window',
   '--z-popin',
   '--z-rose',
-  '--z-hovercard',
   '--z-veil',
   '--z-notice',
 ] as const;

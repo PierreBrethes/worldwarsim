@@ -317,13 +317,6 @@ body {
     font-size: max(16px, calc(17px / var(--hud-scale)));
   }
 
-  /* Une popin de survol reste dans l'écran : bornée à ce qui reste à droite de son ancre, et
-     autorisée à passer à la ligne pour cela. Au bureau elle tient sur une ligne, comme avant. */
-  .hover-card {
-    max-width: calc(100dvw / var(--hud-scale) - var(--hover-left, 0px) - 10px);
-    white-space: normal;
-  }
-
   /* Une surface qui ne se redimensionne plus n'a pas de poignée à offrir. */
   .resize-corner {
     display: none;

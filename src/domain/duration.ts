@@ -68,3 +68,21 @@ export const reloadClock = (ms: number): string => {
   const seconds = Math.ceil(ms / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 };
+
+/**
+ * **Une durée qu'on lit, sans qu'elle batte** : « 45 s », « 1 min 30 », « 2 h 48 ». Celle d'une
+ * statistique (allure, formation, capture) — le compte à rebours, lui, garde `asDuration`.
+ */
+export const asSpan = (minutes: number): string => {
+  if (minutes < 1) return `${Math.round(minutes * 60)} s`;
+  if (minutes < 10 && minutes % 1 !== 0) {
+    const whole = Math.floor(minutes);
+    const seconds = Math.round((minutes - whole) * 60);
+    if (seconds === 60) return `${whole + 1} min`;
+    return seconds === 0 ? `${whole} min` : `${whole} min ${String(seconds).padStart(2, '0')}`;
+  }
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const total = Math.round(minutes);
+  const [hours, rest] = [Math.floor(total / 60), total % 60];
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')}`;
+};

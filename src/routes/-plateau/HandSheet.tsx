@@ -1,10 +1,11 @@
-import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
+import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import type { CompassAction } from '@/domain/compass-rose';
 import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
-import { playedTheatre } from '@/domain/theatres';
+import { pileStatsOf } from '@/domain/stat-sheet';
+import { StatLines } from '@/shell/StatLines';
 import { useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
@@ -161,6 +162,7 @@ export function HandSheet({
           observing={false}
           onPickedChange={onCompose}
           onDisembark={onDisembark}
+          statsBelow
         />
       </div>
       {!supplied && (
@@ -168,14 +170,11 @@ export function HandSheet({
           {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </p>
       )}
-      <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-        {fr.hand.scouting(
-          detectionRangeOf(
-            inHand.map((troop) => troop.role),
-            playedTheatre(view),
-          ),
-        )}
-      </p>
+      {inHand.length > 0 && (
+        <div className="mt-[8px]">
+          <StatLines rows={pileStatsOf(view, inHand)} />
+        </div>
+      )}
       {!narrow && (
         <>
           {found}

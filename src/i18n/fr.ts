@@ -33,8 +33,8 @@ import type { RacePoint } from '../domain/landing';
 import type { StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
+import type { StatKey } from '../domain/stat-sheet';
 import { PROFILE_UNITS } from '../domain/gunnery';
-import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
 import type { LandPace } from '../domain/routing';
 import type {
@@ -2844,8 +2844,6 @@ export const fr = {
       `Coups : ${held} sur ${full} — un cran par passe tirée ; à sec, ni attaque ni riposte`,
     fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
       `Plein : ${held} sur ${full} crans de ${coal ? 'charbon' : 'pétrole'}, ≈ ${km} km de route — payé au départ`,
-    reload:
-      'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
     /** **Bakou** : le prochain cran de plein d'une troupe à l'arrêt hors de toute ancre. */
     refuelIn: (ms: number) => {
@@ -2926,10 +2924,6 @@ export const fr = {
     sheetKicker: (troops: number, worn: boolean) =>
       troops > 1 ? `pile · ${troops} troupes` : worn ? 'troupe seule · entamée' : 'troupe seule',
     sheetHealth: (health: number) => `${health} / 100`,
-    sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
-    sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
-    /** La charge de butin, pas les passagers : ceux-là ont leur jeton (15/10). */
-    sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
     /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
   },
@@ -2941,7 +2935,6 @@ export const fr = {
    */
   hand: {
     kicker: (place: string) => `en main · ${place}`,
-    scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
@@ -3316,6 +3309,114 @@ export const fr = {
    * *frappe* est faible. Jamais « DPS », jamais « ratio » — et jamais « tour de combat » : ce
    * que la case chiffre est une **passe de résolution** (`WWS/CONTEXT.md`).
    */
+  /**
+   * **Le bloc de statistiques** (#191) : une ligne par statistique, un nom, une réglette graduée
+   * sur toutes les pièces du jeu, une valeur. Les phrases du survol ne portent aucun chiffre :
+   * les nombres viennent des constantes du jeu (`src/domain/stat-sheet.ts`), jamais d'ici.
+   */
+  stats: {
+    scaleKey: {
+      low: 'le moins',
+      range: 'toutes les pièces',
+      levels: (max: number) => `jusqu’au niveau ${max}`,
+      high: 'le plus',
+    },
+    rubrics: {
+      move: 'mouvement',
+      fight: 'combat',
+      carry: 'transport',
+      form: 'formation',
+      site: 'bâtiment',
+    },
+    names: {
+      strength: 'effectif',
+      pace: 'allure',
+      fuel: 'plein',
+      detection: 'détection',
+      rounds: 'coups',
+      reach: 'portée',
+      reload: 'recharge',
+      seats: 'places',
+      boarding: 'à bord',
+      load: 'charge',
+      loot: 'butin',
+      cost: 'coût',
+      training: 'formation',
+      upkeep: 'entretien',
+      levelGain: 'niveau',
+      production: 'production',
+      storage: 'stock',
+      listening: 'écoute',
+      consumption: 'consomme',
+      protection: 'protection',
+      capture: 'capture',
+      garrison: 'garnison',
+      forms: 'forme',
+      raise: 'niveau suivant',
+    } satisfies Record<StatKey, string>,
+    notes: {
+      strength:
+        'La vie de la troupe : la part de l’abaque se prend sur elle, et une troupe entamée tire au prorata de ce qui lui reste.',
+      pace: 'Le temps d’un mouvement de 1 000 km. Une pile va au pas de son élément le plus lent ; un relais d’avant-poste l’accélère.',
+      fuel: 'Les crans de plein : ce que ses moteurs couvrent encore. Un cran couvre une part de route et se refait à l’ancre.',
+      detection:
+        'Ce que la troupe relève autour d’elle. Une pile voit aussi loin que son meilleur détecteur, jamais la somme.',
+      rounds: 'Les passes de résolution qu’elle peut encore tirer avant de se réarmer.',
+      reach:
+        'Hors artillerie, une troupe ne frappe qu’au contact, le même pour toutes. L’artillerie frappe de loin une unité en vue, sauf dans sa zone morte.',
+      reload: 'Le délai sans attaquer après une frappe ; la riposte ne le déclenche pas.',
+      seats:
+        'Ce qu’il assoit. Une troupe s’assoit dans un seul transport : les places ne s’additionnent pas.',
+      boarding:
+        'Les places qu’elle prend à bord d’un cargo, d’un porte-avions ou d’un transport aérien.',
+      load: 'Ce qu’il emporte en tournée vers les dépôts : munitions, pétrole et charbon, partagés librement.',
+      loot: 'Ce qu’elle rapporte d’un pillage ou d’une caisse, au prorata de son effectif.',
+      cost: 'Payé à la pose du lot, rendu si on l’annule.',
+      training:
+        'Le temps de la chaîne à la livrer, au niveau 1 du site qui la forme ; chaque niveau en retire une part.',
+      upkeep:
+        'Ce que la pile mange par heure : chaque troupe paie le taux de son rang dans l’armée, plus cher hors de toute ancre.',
+      levelGain: 'Chaque niveau retire une part de la durée de ce que le bâtiment fait.',
+      production: 'Ce que le site verse par heure, au niveau où il est.',
+      storage: 'Ce que le niveau ajoute au plafond de chaque ressource.',
+      listening: 'Il entend ce qui bouge dans ce rayon, il n’attrape rien.',
+      consumption: 'Il brûle ce charbon tant qu’il écoute.',
+      protection: 'La part des coups qu’une garnison encaisse : le bâtiment la protège.',
+      capture: 'Le temps qu’une infanterie à plein effectif met à le prendre.',
+      garrison: 'Les troupes qui y entrent en garnison.',
+      forms: 'Les troupes qu’on y forme.',
+      raise:
+        'Le prix et la durée du niveau suivant. Un bâtiment ne passe jamais le niveau du quartier général.',
+    } satisfies Record<StatKey, string>,
+    km: (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`,
+    range: (from: number, to: number) => `${from}–${to} km`,
+    count: (value: number) => value.toLocaleString('fr-FR', { maximumFractionDigits: 1 }),
+    of: (held: number, ceiling: number) => `${held} / ${ceiling}`,
+    crans: (held: number, ceiling: number | undefined) =>
+      ceiling === undefined ? `${held} crans` : `${held} / ${ceiling} crans`,
+    passes: (held: number, ceiling?: number) =>
+      `${ceiling === undefined ? held : `${held} / ${ceiling}`} passe${plural(ceiling ?? held, '', 's')}`,
+    places: (held: number, ceiling?: number) =>
+      `${ceiling === undefined ? held : `${held} / ${ceiling}`} place${plural(ceiling ?? held, '', 's')}`,
+    perHour: (value: string, resource?: ResourceKey) =>
+      `${value}${resource === undefined ? '' : ` ${fr.resources[resource]}`} / h`,
+    foodPerHour: (value: number) => `${value} vivres / h`,
+    coalPerHour: (value: number) => `${value} charbon / h`,
+    percent: (value: number) => `${value} %`,
+    gainOfLevel: (value: number) => `−${value} %`,
+    words: {
+      /** Le contact est le même pour tous : le tableau le dit sans le chiffre (`short`). */
+      contact: (km?: number) => (km === undefined ? 'au contact' : `au contact · ${km} km`),
+      walks: 'marche',
+      noFire: 'ne tire pas',
+      cappedByHq: 'après le quartier général',
+    } satisfies Record<string, string | ((km?: number) => string)>,
+    foggedPierced: 'Les types sont classés à l’abaque.',
+    toGunnery: 'Ce que valent les types du jeu se lit à l’abaque.',
+    seeGunnery: 'les types, à l’abaque',
+    siteHeader: 'fiche du site',
+  },
+
   gunnery: {
     header: 'abaque de tir',
     /** Le bouton qui l'ouvre, là où l'information sert : au recrutement, et sur la popin de
@@ -3328,6 +3429,30 @@ export const fr = {
     before: (garrisonDamageTaken: number, blitz: boolean) =>
       `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups.${blitz ? '' : ' Chaque passe tirée coûte un cran de coups : une troupe à sec n’attaque ni ne riposte.'}`,
     piece: 'la pièce',
+    pieces: 'les pièces',
+    /** **La barre place la pièce entre la pire et la meilleure du jeu**, et un titre trie : la
+     *  seule chose à apprendre, dite une fois. */
+    rankingLead:
+      'La barre place chaque pièce entre la pire et la meilleure du jeu. Touchez un titre de colonne pour classer, la meilleure en haut ; pliez une ligne pour la fiche de la pièce.',
+    rankingLeadPhone:
+      'Choisissez une statistique : les pièces s’alignent en barres, la meilleure en haut. Touchez une ligne pour sa fiche.',
+    sortMenu: 'statistique à classer',
+    sortBy: (name: string) => `classer par : ${name}`,
+    whoBeatsWho: 'qui bat qui',
+    whoBeatsWhoNote: 'part détruite en une passe',
+    /** **L'entretien est le même pour toutes les pièces** : il se lit par rang dans l'armée, pas par
+     *  rôle, donc ici une fois plutôt qu'en colonne. */
+    upkeepNote: (
+      steps: ReadonlyArray<{ readonly rate: number; readonly upTo: number | null }>,
+      unsupplied: number,
+    ) =>
+      `Entretien, le même pour toutes : ${steps
+        .map(({ rate, upTo }) =>
+          upTo === null
+            ? `${rate} vivres/h au-delà`
+            : `${rate} vivres/h jusqu’à la ${upTo}ᵉ troupe`,
+        )
+        .join(', ')}, ×${unsupplied} hors ancre.`,
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
      *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */
     transports: (names: string) =>
@@ -3343,62 +3468,10 @@ export const fr = {
       none: 'hors de portée',
     } satisfies Record<'strong' | 'even' | 'weak' | 'none', string>,
     reading: 'lecture',
-    /** Le pli est la seule chose que l'abaque ait jamais demandé d'apprendre : il faut le dire. */
-    foldHint: 'pliez une ligne pour la fiche du rôle',
-    /**
-     * **Le pictogramme porte la valeur, la popin porte le nom** (68a, contrat 06 P2). Les trois
-     * libellés de la fiche ne s'impriment plus : un lingot, une horloge, un cœur, et le nom de la
-     * donnée ne revient qu'au survol — avec la phrase qui dit ce que le moteur en fait.
-     *
-     * La phrase de l'effectif est vérifiée contre `resolveEngagement` : la frappe vaut
-     * `part × (effectif engagé / nominal) × modificateur × nominal de la cible`, donc une troupe
-     * entamée tire bien au prorata de ce qui lui reste.
-     */
-    stats: {
-      cost: {
-        name: 'coût',
-        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot : de l’acier, plus la ressource de sa famille — vivres pour les hommes, pétrole pour les machines de terre et les avions, charbon pour les navires.',
-      },
-      training: {
-        name: 'formation',
-        note: 'Le temps que la chaîne met à la livrer, à la vitesse de votre quartier général.',
-      },
-      strength: {
-        name: 'effectif nominal',
-        note: 'L’effectif est la vie : la part de l’abaque se prend sur lui, et une troupe à 32 / 50 tire à 32 / 50.',
-      },
-      range: {
-        name: 'portée de détection',
-        note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
-      },
-    } satisfies Record<'cost' | 'training' | 'strength' | 'range', { name: string; note: string }>,
-    /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
-     *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
-     *  carte lève. */
-    detectionRange: (km: number) => `détection ${num(km)} km`,
     /** **Une seule fois, en tête, jamais par rôle** : le contact est une constante du jeu et non
      *  une qualité de la pièce — le mettre sur chaque fiche en ferait une statistique de rôle. */
     contactRange: (km: number) =>
       `Portée de contact : ${num(km)} km — ce qu’un ordre trouve debout là où il arrive, quel que soit le rôle.`,
-    nominalLootCapacity: (capacity: number) => `capacité nominale de butin : ${num(capacity)}`,
-    /** ADR 0025 : ce qu'un transport emporte, ce qu'une troupe terrestre occupe — en places. */
-    liftCapacity: (places: number) => `emporte ${places} places de troupes`,
-    liftCost: (places: number) => `occupe ${places} place${plural(places, '', 's')} à bord`,
-    movementRule: ({ mode, pace, costs }: MovementSheet) => {
-      const route = {
-        land: 'par terre',
-        naval: 'par mer',
-        air: 'par air',
-        combined: 'terre et mer',
-      }[mode];
-      const parts = [route];
-      if (pace !== undefined) parts.push(fr.aim.paces[pace]);
-      const indices = [costs.land, costs.sea]
-        .filter((cost): cost is number => cost !== undefined)
-        .map((cost) => String(cost).replace('.', ','));
-      if (indices.length > 0) parts.push(`indice ${indices.join(' / ')}`);
-      return parts.join(' · ');
-    },
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,
@@ -3416,7 +3489,7 @@ export const fr = {
      * sous eux. Ce qu'une carte de recherche tient encore descend dessous avec elle.
      */
     sheet: {
-      tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
+      tabs: { form: 'former', queue: 'file', garrison: 'garnison', site: 'fiche' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
       formHeader: 'former ici',
