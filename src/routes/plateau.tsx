@@ -990,6 +990,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const previewNow = useRef<{ aim: OrderChoice['aim']; preview: Previewed } | undefined>(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
+      /** **Un ordre de colonne en vol, une fois** : le second lâcher n'envoie pas les mêmes troupes
+       *  deux fois, et la main ne se repose qu'à l'issue (refus compris). */
+      const sendColumn = (send: () => Promise<Sent>, label: string) => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        setOrderError(null);
+        send().then(
+          (filed) => {
+            settle();
+            afterSent(filed, label);
+          },
+          (problem: unknown) => {
+            settle();
+            handleError(problem, setOrderError);
+            dropHand();
+          },
+        );
+      };
       switch (action.key) {
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
@@ -1080,36 +1098,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
          *  l'avion part de même, paie l'aller-retour et rentre seul. */
         case 'deliver':
         case 'airdrop': {
-          if (column === null || inFlight.current) return;
-          inFlight.current = true;
-          setOrderError(null);
+          if (column === null) return;
           const order = {
             ...seat,
             origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
           };
-          (action.key === 'deliver'
-            ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
-            : airdrop({
-                ...order,
-                target:
-                  action.target.kind === 'outpost'
-                    ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
-                    : {
-                        kind: 'squad',
-                        point: { lon: action.target.point[0], lat: action.target.point[1] },
-                      },
-              })
-          ).then(
-            (filed) => {
-              settle();
-              afterSent({ ...filed, destination: action.destination }, action.label);
-            },
-            (problem: unknown) => {
-              settle();
-              handleError(problem, setOrderError);
-              dropHand();
-            },
+          sendColumn(
+            () =>
+              (action.key === 'deliver'
+                ? deliver({ ...order, outpostId: action.outpostId as Id<'outposts'> })
+                : airdrop({
+                    ...order,
+                    target:
+                      action.target.kind === 'outpost'
+                        ? { kind: 'outpost', outpostId: action.target.outpostId as Id<'outposts'> }
+                        : {
+                            kind: 'squad',
+                            point: { lon: action.target.point[0], lat: action.target.point[1] },
+                          },
+                  })
+              ).then((filed) => ({ ...filed, destination: action.destination })),
+            action.label,
           );
           return;
         }
@@ -1154,30 +1164,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             } else groupSend.current(reads, action);
             return;
           }
-          if (column === null || inFlight.current) return;
-          inFlight.current = true;
-          setOrderError(null);
-          const chosen = choiceOf(action);
-          const seen = previewNow.current;
-          sendOrder(
-            column.station,
-            column.troopIds,
-            chosen,
-            // The stop the server measured may be another target than the one let go on.
-            seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
-              ? seen.preview
-              : undefined,
-          ).then(
-            (filed) => {
-              settle();
-              afterSent(filed, action.label);
-            },
-            (problem: unknown) => {
-              settle();
-              handleError(problem, setOrderError);
-              dropHand();
-            },
-          );
+          if (column === null) return;
+          sendColumn(() => {
+            const chosen = choiceOf(action);
+            const seen = previewNow.current;
+            return sendOrder(
+              column.station,
+              column.troopIds,
+              chosen,
+              // The stop the server measured may be another target than the one let go on.
+              seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
+                ? seen.preview
+                : undefined,
+            );
+          }, action.label);
           return;
         }
         /**
