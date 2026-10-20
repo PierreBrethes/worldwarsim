@@ -2,16 +2,7 @@ import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
@@ -34,6 +25,7 @@ import { useHeldRegions } from './-plateau/useHeldRegions';
 import { useOrderPreview } from './-plateau/useOrderPreview';
 import { useTours } from './-plateau/useTours';
 import { usePlacing } from './-plateau/usePlacing';
+import { BoardWindows } from './-plateau/BoardWindows';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
@@ -213,32 +205,8 @@ const pileIdOf = (station: MarchStation): string =>
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
 
-const JournalWindow = lazy(() =>
-  import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
-);
-const SiteModal = lazy(() =>
-  import('./-plateau/SiteModal').then((module) => ({ default: module.SiteModal })),
-);
 const PersonalBoard = lazy(() =>
   import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
-);
-const NationWindow = lazy(() =>
-  import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
-);
-const SettingsWindow = lazy(() =>
-  import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
-);
-const TelegraphWindow = lazy(() =>
-  import('./-plateau/TelegraphWindow').then((module) => ({ default: module.TelegraphWindow })),
-);
-const GunneryWindow = lazy(() =>
-  import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
-);
-const ResearchWindow = lazy(() =>
-  import('./-plateau/ResearchWindow').then((module) => ({ default: module.ResearchWindow })),
-);
-const PressWindow = lazy(() =>
-  import('./-plateau/PressWindow').then((module) => ({ default: module.PressWindow })),
 );
 
 /**
@@ -2224,86 +2192,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     />
   );
 
-  /** Une fenêtre de la pile, montée dans sa propre frontière de chargement (plus bas). */
-  const surface = (name: Exclude<BoardWindow, 'personalBoard'>, rank: number): ReactNode => {
-    const windowProps = {
-      rank,
-      inFront: rank === surfaces.length - 1,
-      onBringForward: () => bringForward(name),
-      onClose: () => {
-        /** La manchette d'une notification ne survit pas au journal qui la portait. */
-        if (name === 'journal') setJournalLead(null);
-        closeWindow(name);
-      },
-    };
-    switch (name) {
-      case 'journal':
-        return (
-          <JournalWindow
-            key={name}
-            view={view}
-            seat={seat}
-            leadReport={journalLead}
-            rumors={lootRumors}
-            selectedRumorId={selectedRumorId}
-            onSelectRumor={selectRumor}
-            garrisonAt={garrisonAtCombat}
-            onShowCombat={showCombat}
-            onLocate={locate}
-            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
-            {...windowProps}
-          />
-        );
-      case 'telegraph':
-        return <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />;
-      case 'site':
-        /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
-         *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
-        return focused === undefined ? null : (
-          <SiteModal
-            key={name}
-            view={view}
-            seat={seat}
-            buildingId={focused}
-            onOpenGunnery={() => openWindow('gunnery')}
-            onPrepare={prepareColumn}
-            {...windowProps}
-          />
-        );
-      case 'nation':
-        return <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />;
-      case 'gunnery':
-        return <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />;
-      case 'press':
-        return (
-          <PressWindow
-            key={name}
-            press={view.press}
-            verdict={view.season.verdict}
-            ending={ending.facts}
-            blitz={blitz}
-            points={view.strategicPoints}
-            race={view.season.race}
-            {...windowProps}
-          />
-        );
-      case 'research':
-        return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
-      case 'settings':
-        return (
-          <SettingsWindow
-            key={name}
-            seat={seat}
-            mayConclude={view.me.mayConclude}
-            defeated={view.me.defeated}
-            blitz={blitz}
-            onShowBriefing={showBriefing}
-            {...windowProps}
-          />
-        );
-    }
-  };
-
   return (
     <Shell
       view={view}
@@ -2750,11 +2638,34 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           )}
           {/* **Une frontière par fenêtre** (#161) : la fenêtre qu'on ouvre pour la première fois
               se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
-          {surfaces.map((name, rank) => (
-            <Suspense key={name} fallback={null}>
-              {surface(name, rank)}
-            </Suspense>
-          ))}
+          <BoardWindows
+            surfaces={surfaces}
+            view={view}
+            seat={seat}
+            telegraph={telegraph}
+            theatre={blitzTheatre}
+            ending={ending.facts}
+            blitz={blitz}
+            focused={focused}
+            journalLead={journalLead}
+            rumors={lootRumors}
+            selectedRumorId={selectedRumorId}
+            onSelectRumor={selectRumor}
+            garrisonAt={garrisonAtCombat}
+            onShowCombat={showCombat}
+            onLocate={locate}
+            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
+            onOpenWindow={openWindow}
+            onPrepare={prepareColumn}
+            onLocateStation={locateStation}
+            onShowBriefing={showBriefing}
+            onBringForward={bringForward}
+            onClose={(name) => {
+              /** La manchette d'une notification ne survit pas au journal qui la portait. */
+              if (name === 'journal') setJournalLead(null);
+              closeWindow(name);
+            }}
+          />
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}
