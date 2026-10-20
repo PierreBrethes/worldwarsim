@@ -656,10 +656,6 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
-  /** Daté : il monte sur la seconde file (Chantier double, ADR 0031), `null` : il attend sa file. */
-  readonly minutesLeft?: number | null;
-  /** Sa durée datée, quand il monte (`RunningWork.minutes`). */
-  readonly minutes?: number;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -1283,6 +1279,8 @@ export type PlayerView = {
     readonly research: {
       readonly researched: ReadonlyArray<ResearchCard>;
       readonly running: RunningResearch | null;
+      /** Les cartes qui attendent leur tour derrière `running`, deux au plus. */
+      readonly queue: ReadonlyArray<ResearchCard>;
     };
     /**
      * The buildings the season still owes, in placement order — placed for nothing and at
@@ -1301,13 +1299,11 @@ export type PlayerView = {
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
-    /** The first running site — the one the banner counts down. The others that rise beside it
-     *  are in `constructionQueue` with a `minutesLeft`. */
+    /** The first running site — the one the banner counts down. The ones behind it
+     *  wait in `constructionQueue`. */
     readonly construction: RunningWork | null;
-    /** The rest of the queue in build order: running ones (`minutesLeft`) and waiting ones. */
+    /** The rest of the queue in build order, all waiting. */
     readonly constructionQueue: ReadonlyArray<QueuedWork>;
-    /** How many works rise at once: one, two with the Chantier double card (`laneCount`). */
-    readonly buildLanes: number;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
     readonly troops: ReadonlyArray<TroopView>;
@@ -1426,6 +1422,8 @@ export function currentStock(resource: Resource, loadedAt: number, now: number):
    * settlement applies, so the strip never counts down past empty.
    */
   const held = Math.max(resource.cap, resource.stock);
+  /** **Le seul arrondi d'un stock affiché** (#167) : la réglette, la bande, les tickets et les
+   *  prix lisent ce chiffre-ci, sans le rarrondir. */
   return Math.max(0, Math.floor(Math.min(held, raw)));
 }
 

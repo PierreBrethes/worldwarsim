@@ -124,7 +124,7 @@ PLAYWRIGHT_DIR=/chemin/pw npm run capture -- '/plateau?season={saison}' plateau.
 Le premier écrit `scripts/demo-mondiale.accounts.json` (ignoré par git : comptes, code et saison) et
 refuse tout backend non local ; le second s'y connecte par `/connexion`, tamponne la notice d'entrée
 et relève les erreurs de console. `--nu` au premier saute stocks et troupes. `--geste` (répétable :
-`texte=…`, `clic=x,y`, `survol=x,y`, `molette=x,y,dy`, `pause=ms`) provoque un état avant la
+`texte=…`, `clic=x,y`, `survol=x,y`, `molette=x,y,dy`, `pause=ms`, `ralenti=10` pour voir une animation à mi-course) provoque un état avant la
 capture — par exemple `--geste 'clic=1392,660' --geste 'texte=Mine — charbon' --geste 'survol=995,425'`
 pour voir le fantôme d'une pose.
 
@@ -139,8 +139,9 @@ npm run banc:mondiale   # 8 joueurs, ~150 troupes chacun, 161 mouvements en vol,
 
 Il fonde une nouvelle saison à chaque passage (comptes `Banc1`..`Banc8` dans
 `scripts/banc-mondiale.accounts.json`, ignoré par git), puis imprime : `playerView` d'un joueur,
-`reassessDetection`, `marchTo` sous charge, jobs planifiés en attente, et une montée en charge
-(20 à 161 mouvements). Durées et documents lus viennent du backend lui-même, par
+`reassessDetection`, `marchTo` sous charge, `recordLinkage` (la couleur retenue, #144), la chute
+d'un QG tenant trois points (`captures.complete`, le pire geste de couleur, joué en dernier), jobs
+planifiés en attente, et une montée en charge (20 à 161 mouvements). Durées et documents lus viennent du backend lui-même, par
 `/api/stream_function_logs` (`executionTime`, `usageStats.databaseReadDocuments`) : pas le temps
 client, réseau compris. Une exécution coupée à la seconde permise est marquée « coupée à 1 s » et
 ne rend que ce qu'elle avait lu. Le nombre de jobs varie d'un passage à l'autre (rendez-vous de

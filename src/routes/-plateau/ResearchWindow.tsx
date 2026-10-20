@@ -6,6 +6,7 @@ import { cardName, fr } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
 import { RESEARCH_CARDS, RESOURCES, type ResearchCard, type ResourceKey } from '@/domain/ids';
+import { asDayAndTime } from '@/domain/duration';
 import { currentStock, type PlayerView } from '@/domain/player-view';
 import {
   RESEARCH_TREE,
@@ -14,6 +15,8 @@ import {
   researchMs,
   researchProgressOf,
   researchRefusalOf,
+  researchScheduleOf,
+  researchUnqueueRefusalOf,
   searcherLevel,
   searcherOf,
 } from '@/domain/research';
@@ -27,7 +30,7 @@ import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 /**
  * **Où chaque carte tient dans l'arbre** (maquette A, « l'éventail ») : sa colonne et sa
  * génération. Une mise en page, pas une règle : les « après » vivent dans `RESEARCH_TREE`, et les
- * traits se tirent d'eux. Les cartes de slot et de file ont leur colonne, à part de l'industrie.
+ * traits se tirent d'eux. Les cartes de slot ont leur colonne, à part de l'industrie.
  */
 const PLACE: Readonly<Record<ResearchCard, readonly [column: number, row: number]>> = {
   infantryMk2: [0, 0],
@@ -44,13 +47,12 @@ const PLACE: Readonly<Record<ResearchCard, readonly [column: number, row: number
   transmissions1: [6, 0],
   transmissions2: [6, 1],
   transmissions3: [6, 2],
-  doubleWorks: [7, 2],
-  // Sous l'industrie, sa branche : le trait qui la relie passe entre les rangées, pas à travers.
-  doubleTraining: [5, 2],
 };
 
 const HEADS: ReadonlyArray<{
   readonly label: string;
+  /** Le nom qui tient au-dessus d'une carte, à côté de sa durée. */
+  readonly short?: string;
   readonly from: number;
   readonly span: number;
 }> = [
@@ -58,7 +60,7 @@ const HEADS: ReadonlyArray<{
   { label: fr.research.branches.sea, from: 2, span: 1 },
   { label: fr.research.branches.air, from: 3, span: 2 },
   { label: fr.research.branches.industry, from: 5, span: 1 },
-  { label: fr.research.transmissions, from: 6, span: 2 },
+  { label: fr.research.transmissions, short: fr.research.transmissionsShort, from: 6, span: 1 },
 ];
 
 const headOf = (card: ResearchCard) =>
@@ -91,12 +93,14 @@ export function ResearchWindow({
   const narrow = useNarrowScreen();
   const now = useClock(30_000);
   const start = useMutation(api.research.start);
+  const dequeue = useMutation(api.research.dequeue);
   const level = searcherLevel(view.me.buildings);
   const center = searcherOf(view.me.buildings) ?? undefined;
   const place = view.me.regions.find((region) => region.id === center?.regionId)?.name;
   const situation = {
     researched: view.me.research.researched,
     running: view.me.research.running?.card ?? null,
+    queued: view.me.research.queue,
     centerLevel: level,
     stocks: stocksOf(view, now),
   };
@@ -106,6 +110,15 @@ export function ResearchWindow({
       : (card: ResearchCard) =>
           start({ ...seat, card }).then(
             () => notify(fr.research.started(cardName(card)), 'info'),
+            (problem: unknown) => handleError(problem, (said) => notify(said)),
+          );
+
+  const remove =
+    view.me.defeated === true
+      ? null
+      : (card: ResearchCard) =>
+          dequeue({ ...seat, card }).then(
+            () => notify(fr.research.removed(cardName(card)), 'info'),
             (problem: unknown) => handleError(problem, (said) => notify(said)),
           );
 
@@ -141,7 +154,7 @@ export function ResearchWindow({
         <div
           className={`grid min-h-0 flex-1 ${narrow ? 'grid-rows-[auto_1fr]' : 'grid-cols-[170px_1fr]'}`}
         >
-          <Margin view={view} level={level} now={now} narrow={narrow} />
+          <Margin view={view} level={level} now={now} narrow={narrow} remove={remove} />
           <main className="min-h-0 overflow-auto px-[14px] pt-[14px] pb-[18px]">
             {narrow && (
               <p className="mb-2 font-(family-name:--font-text) text-[13px] text-[var(--ink-soft)] italic">
@@ -168,20 +181,26 @@ export function ResearchWindow({
   );
 }
 
-/** **Le poste du Centre**, et ce que donne son niveau : la marge de la maquette. */
-function Margin({
+/** **Le poste du Centre**, et ce que donne son niveau : la marge de la maquette. Une carte en
+ *  attente se retire, ou dit pourquoi elle ne se retire pas — le refus que `research.dequeue`
+ *  rendrait, lu à la même fonction (ADR 0015). */
+export function Margin({
   view,
   level,
   now,
   narrow,
+  remove,
 }: {
   view: PlayerView;
   level: number | null;
   now: number;
   narrow: boolean;
+  remove: ((card: ResearchCard) => Promise<void>) | null;
 }) {
   const running = view.me.research.running;
   const progress = running === null ? null : researchProgressOf(running, now);
+  const queue = view.me.research.queue;
+  const ends = running === null ? [] : researchScheduleOf(running, queue, level, now);
   const levels = Array.from({ length: Math.max(3, (level ?? 1) + 2) }, (_, rank) => rank + 1);
   return (
     <aside
@@ -215,6 +234,46 @@ function Margin({
           </span>
         )}
       </div>
+      {queue.map((waiting, index) => {
+        const refusal = researchUnqueueRefusalOf(waiting, {
+          running: running?.card ?? null,
+          queued: queue,
+        });
+        return (
+          <div
+            key={waiting}
+            data-testid="research-waiting"
+            className="grid content-start gap-[2px] border border-dashed border-(color:--ink)/45 p-[6px]"
+          >
+            <span className="text-[9px] leading-[1.2] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+              {fr.research.waitingRank(index + 2)}
+            </span>
+            <b className="font-(family-name:--font-display) text-[12.5px] leading-[1.1] font-bold">
+              {fr.research.names[waiting]}
+            </b>
+            <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
+              {ends[index] == null
+                ? fr.research.waiting
+                : fr.research.expectedEnd(asDayAndTime(ends[index]))}
+            </span>
+            {remove !== null && refusal !== null && (
+              <span className="text-[11px] leading-[1.25] text-[var(--critical)]">
+                {(({ code, ...details }) => fr.errors[code](details))(refusal)}
+              </span>
+            )}
+            {remove !== null && refusal === null && (
+              <button
+                type="button"
+                title={fr.research.removeTitle(cardName(waiting))}
+                onClick={() => void remove(waiting)}
+                className="mt-[2px] cursor-pointer justify-self-start border border-[var(--ink)] bg-transparent px-[8px] py-[3px] text-[10px] font-semibold tracking-[.14em] text-[var(--ink)] uppercase hover:bg-(--ink)/10"
+              >
+                {fr.research.remove}
+              </button>
+            )}
+          </div>
+        );
+      })}
       {!narrow && (
         <>
           <span className="text-[11px] leading-[1.3] text-[var(--ink-soft)]">
@@ -382,7 +441,7 @@ function Tree({
       ) : (
         <div
           className="grid justify-start gap-x-[10px] gap-y-[22px]"
-          style={{ gridTemplateColumns: 'repeat(8, minmax(100px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(7, minmax(100px, 1fr))' }}
         >
           {HEADS.map((head) => (
             <BranchHead key={head.label} label={head.label} span={head.span} from={head.from} />
@@ -432,8 +491,14 @@ function ResearchCardView({
   const done = researched.includes(card);
   const running = view.me.research.running?.card === card ? view.me.research.running : null;
   const progress = running === null ? null : researchProgressOf(running, now);
-  const missing = RESEARCH_TREE[card].after.filter((first) => !researched.includes(first));
-  const locked = !done && running === null && missing.length > 0;
+  const rank = view.me.research.queue.indexOf(card);
+  const inFile = (one: ResearchCard) =>
+    view.me.research.running?.card === one || view.me.research.queue.includes(one);
+  const missing = RESEARCH_TREE[card].after.filter(
+    (first) => !researched.includes(first) && !inFile(first),
+  );
+  const locked = !done && running === null && rank < 0 && missing.length > 0;
+  const busy = view.me.research.running !== null;
   const name = fr.research.names[card];
   const counter = counterOf(card);
   const counters = countersOf(card);
@@ -447,7 +512,10 @@ function ResearchCardView({
     .filter(Boolean)
     .join(' · ');
   const refusalText =
-    refusal === null || refusal.code === 'RESEARCH_AFTER' || refusal.code === 'RESEARCH_DONE'
+    refusal === null ||
+    refusal.code === 'RESEARCH_AFTER' ||
+    refusal.code === 'RESEARCH_DONE' ||
+    refusal.code === 'RESEARCH_QUEUED'
       ? null
       : (({ code, ...details }) => fr.errors[code](details))(refusal);
 
@@ -458,7 +526,7 @@ function ResearchCardView({
       className={`relative z-[1] grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-[3px] border border-[var(--ink)] px-[7px] pt-[7px] pb-2 ${
         done
           ? 'bg-[var(--paper)] pb-6 shadow-[0_2px_0_var(--ink)]'
-          : running !== null
+          : running !== null || rank >= 0
             ? 'bg-[var(--paper-hi)] shadow-[0_2px_0_var(--ink),0_0_0_2px_var(--arc-mine)]'
             : locked
               ? 'border-dashed bg-[color-mix(in_srgb,var(--paper-hi)_70%,var(--paper))]'
@@ -468,7 +536,7 @@ function ResearchCardView({
     >
       <span className="flex items-baseline justify-between gap-1">
         <span className="min-w-0 truncate text-[8.5px] leading-none font-semibold tracking-[.08em] text-[var(--ink-soft)] uppercase">
-          {headOf(card).label}
+          {headOf(card).short ?? headOf(card).label}
         </span>
         <span className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap text-[var(--ink-soft)]">
           {durationOf(running?.totalMs ?? researchMs(card, level ?? 1))}
@@ -492,6 +560,8 @@ function ResearchCardView({
               {progressText(progress, now)}
             </span>
           </>
+        ) : rank >= 0 ? (
+          <span className="text-[var(--ink-soft)]">{fr.research.inQueue(rank + 2)}</span>
         ) : locked ? (
           <span className="text-[var(--critical)]">
             {fr.research.missing(
@@ -524,7 +594,7 @@ function ResearchCardView({
                   onClick={() => void pose(card)}
                   className="mt-[2px] cursor-pointer justify-self-start border border-[var(--ink)] bg-[var(--ink)] px-[9px] py-[4px] text-[10px] font-semibold tracking-[.14em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)]"
                 >
-                  {fr.research.search}
+                  {busy ? fr.research.enqueue : fr.research.search}
                 </button>
               )
             )}

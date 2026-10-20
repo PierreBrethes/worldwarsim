@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
-import { BottomSheet } from '@/shell/BottomSheet';
+import { BottomSheet, type SheetHeight } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Draggable, DragHandle } from './Draggable';
 
@@ -20,6 +20,7 @@ export function MapCard({
   gap,
   width,
   hug = true,
+  initial = 'peek',
   onClose,
   children,
 }: {
@@ -32,6 +33,8 @@ export function MapCard({
   width: number;
   /** Au doigt, l'aperçu épouse la fiche (`BottomSheet.hug`) ; sans, il garde son tiers. */
   hug?: boolean;
+  /** Le cran où la feuille s'ouvre au doigt. */
+  initial?: SheetHeight;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -42,7 +45,7 @@ export function MapCard({
         title={kicker}
         aside={aside}
         onClose={onClose}
-        initial="peek"
+        initial={initial}
         kicker
         hug={hug}
         keepsSelection

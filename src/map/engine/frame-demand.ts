@@ -8,8 +8,8 @@
  * - **la fenêtre d'activité** : ce qui remue la carte ne demande pas *une* image mais
  *   `SETTLE_MS` d'images. L'inertie de la caméra, la plume du terrain survolé, une
  *   texture qui arrive juste après : rien de cela n'a à se déclarer, la fenêtre le couvre ;
- * - **le battement** : même sans rien, une image toutes les `HEARTBEAT_MS`. Un oubli se lit
- *   alors comme un retard d'une demi-seconde, jamais comme une carte gelée.
+ * - **le battement** : même sans rien, une image toutes les `HEARTBEAT_MS` (rien, onglet caché). Un oubli se lit
+ *   alors comme un retard d'une seconde, jamais comme une carte gelée.
  *
  * Pure et sans horloge propre — l'instant est donné — pour se tester sans navigateur.
  *
@@ -19,7 +19,10 @@
  * depuis la dernière image complète, sans quoi l'ambiance le repousserait sans fin.
  */
 export const SETTLE_MS = 1500;
-export const HEARTBEAT_MS = 500;
+export const HEARTBEAT_MS = 1000;
+/** A thread that flows (dashes, marching piece) asks a whole frame this often. */
+export const FLOW_FULL_MS = 32; // @a-mesurer: 30 frames a second, invisible on a drifting dash?
+export const FLOW_REDUCED_MS = 100;
 
 export type FrameReason = 'stirred' | 'heartbeat' | 'ambient';
 
@@ -42,14 +45,15 @@ export class FrameDemand {
     this.requested = true;
   }
 
-  /** Pourquoi cette image est due, ou `null` ; une image remuée ou de battement compte comme complète. */
-  due(now: number): FrameReason | null {
+  /** Pourquoi cette image est due, ou `null` ; `pace` est l'écart voulu entre deux images complètes
+   *  au repos (battement, fil qui coule, `Infinity` onglet caché) ; une image remuée ou de battement compte comme complète. */
+  due(now: number, pace: number = HEARTBEAT_MS): FrameReason | null {
     const requested = this.requested;
     this.requested = false;
     const reason: FrameReason | null =
       now - this.stirredAt <= SETTLE_MS
         ? 'stirred'
-        : now - this.fullAt >= HEARTBEAT_MS
+        : now - this.fullAt >= pace
           ? 'heartbeat'
           : requested
             ? 'ambient'

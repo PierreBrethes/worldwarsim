@@ -33,4 +33,10 @@ describe('the board’s search state', () => {
     expect(windowOpen(toggled, 'site')).toBe(false);
     expect(toggled.building).toBeUndefined();
   });
+
+  it('keeps one surface of the column at a time, and leaves the band alone', () => {
+    const open = withWindow(withWindow(withWindow({}, 'personalBoard'), 'journal'), 'nation');
+    expect(open.windows).toEqual(['personalBoard', 'nation']);
+    expect(withWindow(open, 'site').windows).toEqual(['personalBoard', 'nation', 'site']);
+  });
 });

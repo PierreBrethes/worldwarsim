@@ -246,11 +246,14 @@ export async function economyOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   now: number,
+  /** What the caller already read for this player (`viewOf`), the colour of his ground included
+   *  (`linkedOn`): the same answer, not a second reading of the season. */
+  read?: Parameters<typeof upkeepOf>[3] & { held?: ReadonlyMap<string, string> },
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
   const active = activeBuildings(buildings, now);
-  const held = await heldFor(ctx, playerId, active, now);
+  const held = read?.held ?? (await heldFor(ctx, playerId, active, now));
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -273,7 +276,7 @@ export async function economyOf(
    * is at risk. Food feeds no chain today, so the ordering costs nothing yet — it is written
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
-  const upkeep = await upkeepOf(ctx, playerId, now);
+  const upkeep = await upkeepOf(ctx, playerId, now, read);
   const ratePerHour = extractionRates(active, held, playerId);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
@@ -354,12 +357,10 @@ export async function economyOf(
  * portent un bâtiment — une poignée — et mesurer les 4 589 à chaque débit serait payer un
  * dépouillement pour une adresse. Même fonction (`linkingOver`, qui lit `heldOver`), moins de sol.
  *
- * **Ce que ça coûte au fan-out, dit une fois** (`technique/brouillard-et-fanout.md`) : la table
- * des avant-postes de la saison entre dans la dépendance de `playerView`, qui se réinvalide donc
- * désormais à **chaque fondation** de n'importe qui. C'est inévitable — la production dépend des
- * points des autres, c'est toute la règle du §6 — et c'est le petit côté du marché : la vue se
- * recalcule déjà au moindre pas d'une colonne, alors qu'une fondation est un événement rare.
- * `control.held`, lui, reste hors de ce couplage : c'est là que le piège était.
+ * **Ce que ça coûte au fan-out** (`technique/brouillard-et-fanout.md`) : la production dépend des
+ * points des autres, c'est toute la règle du §6, donc cette lecture balaie la saison. Les
+ * règlements la paient ; `playerView` non : elle lit la couleur retenue au dernier changement de
+ * couleur (`linkedOn`, #144), et une écriture sur le dépôt d'un point adverse ne la réveille plus.
  */
 async function heldFor(
   ctx: QueryCtx,

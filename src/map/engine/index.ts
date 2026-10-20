@@ -46,7 +46,7 @@ import {
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
-import { FrameDemand } from './frame-demand';
+import { FLOW_FULL_MS, FLOW_REDUCED_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -62,7 +62,7 @@ import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { edgeSafeTiltAt, steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { edgeSafeTiltAt, steepestTiltAt, targetPullOf, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
@@ -403,6 +403,9 @@ export class MapEngine {
   private hoverDirty = true;
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
+  /** Scratch vectors of the loop: it allocates nothing per frame. */
+  private readonly loopEye = new Vector3();
+  private readonly loopAhead = new Vector3();
   private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
@@ -421,6 +424,8 @@ export class MapEngine {
    * country would answer two questions where the player asked one.
    */
   onPlacePoint: (spot: PlacingSpot) => void = () => {};
+  /** The acting button, pressed while a building is held, puts it back (#162). */
+  onPlacingDismiss: () => void = () => {};
   /** The ghost moved onto another point — what the board reads its refusal off, before the click. */
   onPlacingAim: (spot: PlacingSpot | null) => void = () => {};
   onAct: (click: MapActClick) => void = () => {};
@@ -1798,6 +1803,7 @@ export class MapEngine {
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt();
+    if (press.acts && !press.reads && this.placing !== null) return this.onPlacingDismiss();
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
 
@@ -2510,17 +2516,26 @@ export class MapEngine {
    */
   private pullTargetFromEdge(): void {
     const target = this.controls.target;
-    const eye = this.camera.position.clone().sub(target);
+    const eye = this.loopEye.copy(this.camera.position).sub(target);
     const distance = eye.length();
-    const half = (this.camera.fov * Math.PI) / 360;
-    const reach = Math.cos(this.controls.getPolarAngle() + half);
-    const need = reach <= 0.05 ? Infinity : (distance * Math.sin(half)) / reach;
-    const edge = this.edgeAhead(target, eye) * EDGE_MARGIN;
     const flat = Math.hypot(eye.x, eye.z);
-    if (edge >= need || flat < 1e-6) return;
-    const ahead = new Vector3(-eye.x / flat, 0, -eye.z / flat);
-    const toMiddle = Math.max(0, target.dot(ahead));
-    const slide = ahead.multiplyScalar(-Math.min(need - edge, toMiddle));
+    if (flat < 1e-6) return;
+    const ahead = this.loopAhead.set(-eye.x / flat, 0, -eye.z / flat);
+    // The tilt yields first: the pull is measured at the tilt the board will allow, not the
+    // player's current one, which the next controls update is about to lower (#160).
+    const polar = Math.min(
+      this.controls.getPolarAngle(),
+      this.tiltCeilingAt(target, eye, distance),
+    );
+    const pull = targetPullOf(
+      distance,
+      this.camera.fov,
+      polar,
+      this.edgeAhead(target, eye) * EDGE_MARGIN,
+      target.dot(ahead),
+    );
+    if (pull === 0) return;
+    const slide = ahead.multiplyScalar(-pull);
     target.add(slide);
     this.camera.position.add(slide);
   }
@@ -2546,7 +2561,7 @@ export class MapEngine {
     // every journey after it. A journey is programmatic and arrives at its own ceiling.
     const settled = this.released && this.journey === null;
     if (settled) this.pullTargetFromEdge();
-    const eye = this.camera.position.clone().sub(this.controls.target);
+    const eye = this.loopEye.copy(this.camera.position).sub(this.controls.target);
     this.controls.maxPolarAngle = settled
       ? this.tiltCeilingAt(this.controls.target, eye, eye.length())
       : steepestTiltAt(eye.length());
@@ -2558,17 +2573,14 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image — et la plume
-    // trace le terrain survolé tant qu'elle n'a pas fini.
+    // La plume trace le terrain survolé tant qu'elle n'a pas fini, le pion porté suit la main : à
+    // chaque image. Un fil qui coule ou un anneau qui bat n'en demande qu'au pas de `flowPace`.
     if (
-      this.arcs.isFlowing ||
       this.ink.active ||
       this.parachutes.active ||
       this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isCarrying ||
-      this.standing.ringing ||
-      this.camps.ringing ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
     )
@@ -2577,7 +2589,14 @@ export class MapEngine {
     this.advanceReplay(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
-    const reason = this.demand.due(now);
+    // Un fil affiché coule (tirets, pion qui marche), un anneau bat : une image complète au pas
+    // du mouvement, 30 par seconde en actif, 10 en réduit. Onglet caché : rien que le remué.
+    const flowing = this.arcs.isFlowing || this.standing.ringing || this.camps.ringing;
+    const flowPace = this.ambience.motion === 'reduced' ? FLOW_REDUCED_MS : FLOW_FULL_MS;
+    const reason = this.demand.due(
+      now,
+      document.hidden ? Number.POSITIVE_INFINITY : flowing ? flowPace : HEARTBEAT_MS,
+    );
     if (reason === null) return;
     const whole = reason !== 'ambient';
     this.ambience.frame();

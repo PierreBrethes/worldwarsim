@@ -1,8 +1,14 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from './_generated/server';
 import { heldOf } from './control';
+import { recordLinkage } from './holding';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
@@ -14,7 +20,7 @@ import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { isNation } from '../src/domain/nations';
-import { layPoint } from './strategicPoints';
+import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -64,23 +70,60 @@ export const IDENTITY_TABLES = [
   'authThrottle',
 ] as const;
 
+/** Documents per transaction: well under the system-operation cap of a single mutation. */
+const WIPE_BATCH = 200;
+
+/** Jobs per transaction: each cancel is a system operation, and 200 overran the cap on a loaded base. */
+const JOBS_PAGE = 50;
+
+/** One batch of one game table; `more` says whether the table still holds documents. */
+export const wipeBatch = internalMutation({
+  args: { table: v.string() },
+  handler: async (ctx, { table }) => {
+    if (!(GAME_TABLES as readonly string[]).includes(table)) throw new Error('not a game table');
+    const name = table as (typeof GAME_TABLES)[number];
+    const docs = await ctx.db.query(name).take(WIPE_BATCH);
+    for (const doc of docs) await ctx.db.delete(doc._id);
+    return { more: docs.length === WIPE_BATCH };
+  },
+});
+
+/** One page of the scheduled-job table, its pending jobs cancelled: every job targets game tables. */
+export const cancelJobsPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.system
+      .query('_scheduled_functions')
+      .paginate({ cursor, numItems: JOBS_PAGE });
+    for (const job of page.page)
+      if (job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+    return { cursor: page.isDone ? null : page.continueCursor, done: page.isDone };
+  },
+});
+
 /**
- * **Wipes every game table.** A season is disposable by design — 48 hours to 7 days, then a
+ * **Wipes every game table**, a batch per transaction (a single mutation hit "too many system
+ * operations" on a loaded base). A season is disposable by design — 48 hours to 7 days, then a
  * full reset (ADR 0001) — so a schema slice that lands mid-season is not migrated, it is
- * emptied: the old documents describe an economy that no longer exists. Accounts and sessions
- * are durable identity and deliberately stay outside `GAME_TABLES`.
+ * emptied. Accounts and sessions are durable identity and stay outside `GAME_TABLES`.
+ * Pending scheduled jobs are cancelled first, so none wakes up on a wiped table.
  *
- * `internalMutation`, so no client can reach it. Run it by hand:
- * `npx convex run dev:reset`.
+ * `internalAction`, so no client can reach it. Run it by hand: `npx convex run dev:reset`.
  */
-export const reset = internalMutation({
+export const reset = internalAction({
   args: {},
   handler: async (ctx) => {
-    for (const table of GAME_TABLES) {
-      for (const doc of await ctx.db.query(table).collect()) {
-        await ctx.db.delete(doc._id);
-      }
+    let cursor: string | null = null;
+    for (;;) {
+      const page: { cursor: string | null; done: boolean } = await ctx.runMutation(
+        internal.dev.cancelJobsPage,
+        { cursor },
+      );
+      if (page.done) break;
+      cursor = page.cursor;
     }
+    for (const table of GAME_TABLES)
+      while ((await ctx.runMutation(internal.dev.wipeBatch, { table })).more);
   },
 });
 
@@ -508,7 +551,7 @@ export const airdropScene = internalMutation({
 /**
  * **Une recherche en cours** (ADR 0028 §5, #123) : un Centre de recherche de niveau 2 au sud de la
  * capitale, l'infanterie MK2 et l'aviation acquises, le blindé posé il y a six heures sur le
- * Centre — le reste de sa durée, raccourcie au niveau 2, à courir.
+ * Centre — le reste de sa durée, raccourcie au niveau 2, à courir —, et deux cartes en file.
  */
 export const researchScene = internalMutation({
   /** `idle` : le Centre debout et rien de posé, pour poser une carte depuis l'arbre. */
@@ -539,6 +582,7 @@ export const researchScene = internalMutation({
     await ctx.db.patch(playerId, {
       researched: ['infantryMk2', 'aviation'],
       research: { card: 'armor', totalMs, remainingMs: totalMs, since: now - 6 * hour },
+      researchQueue: ['escort', 'carrier'],
     });
     await ctx.scheduler.runAt(now + remainingMs, internal.research.finish, {
       playerId,
@@ -549,7 +593,7 @@ export const researchScene = internalMutation({
 
 /**
  * **Les niveaux qui accélèrent** (ADR 0031), pour la démo : une caserne de niveau 3 à la capitale
- * et la carte Chantier double acquise, la seconde file de chantier ouverte.
+ * et deux cartes Transmissions acquises.
  */
 export const levelsScene = internalMutation({
   args: { playerId: v.id('players') },
@@ -566,7 +610,7 @@ export const levelsScene = internalMutation({
       level: 3,
     });
     await ctx.db.patch(playerId, {
-      researched: ['transmissions1', 'transmissions2', 'doubleWorks'],
+      researched: ['transmissions1', 'transmissions2'],
     });
   },
 });
@@ -818,7 +862,49 @@ export const benchScene = internalMutation({
             stationedAt: outpostIds[0],
             load: { ammunition: 90, oil: 50, coal: 20 },
           });
+    /** Des points posés hors du geste de couleur : leur couleur se retient comme après une
+     *  fondation, sans quoi la vue mesurée serait celle d'un sol jamais relevé (#144). */
+    await recordLinkage(ctx, player.seasonId);
     return { squads: placed, reserveIds, outpostIds, truckId };
+  },
+});
+
+/** La couleur retenue des huit sièges, seule : ce que chaque changement de couleur paie (#144). */
+export const benchRecord = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: (ctx, { seasonId }) => recordLinkage(ctx, seasonId),
+});
+
+/**
+ * **La chute d'un QG, prête à aboutir** : le pire geste de couleur du banc (#144). `loserId`
+ * tient `points` points stratégiques et son QG, `capturerId` l'a pris ; le banc appelle
+ * `captures.complete`, qui règle, rapporte, rend les points et retient la couleur.
+ */
+export const benchFall = internalMutation({
+  args: { capturerId: v.id('players'), loserId: v.id('players'), points: v.number() },
+  handler: async (ctx, { capturerId, loserId, points }) => {
+    const loser = await ctx.db.get(loserId);
+    if (loser === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const point of (await seasonPoints(ctx, loser.seasonId)).slice(0, points))
+      await handOver(ctx, point, loserId, now);
+    await recordLinkage(ctx, loser.seasonId);
+    const hq = (await headquartersOf(ctx, loser))!;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId: loser.seasonId,
+      playerId: capturerId,
+      defenderId: loserId,
+      target: { kind: 'building', buildingId: hq._id },
+      site: { kind: 'building', building: 'hq', regionId: hq.regionId },
+      point: hq.point ?? { lon: 0, lat: 0 },
+      progress: 1,
+      progressAt: now,
+      rate: 1,
+      durationMs: 1,
+      rest: null,
+      completesAt: now,
+    });
+    return { captureId, expectedAt: now };
   },
 });
 

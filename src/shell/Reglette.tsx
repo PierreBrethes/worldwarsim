@@ -13,7 +13,13 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
 import { slotCardsOf } from '@/domain/research';
 import { currentMinutes, currentStock, type PlayerView, type Resource } from '@/domain/player-view';
-import { announceOf, nextAnnounceIn, onNewView, type Announcement } from '@/domain/reserve-counter';
+import {
+  announceOf,
+  displayedStock,
+  nextAnnounceIn,
+  onNewView,
+  type Announcement,
+} from '@/domain/reserve-counter';
 import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
 import { asDuration } from '@/domain/duration';
 import { drynessOf, marksOf, sourceOf, type Dryness, type Mark } from '@/domain/resource-band';
@@ -296,7 +302,10 @@ export function ResourceCell({
         className="relative inline-flex font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums"
         style={{ color: ink }}
       >
-        <Odometer value={still ? stock : shown} roll={motion === 'full' && !still} />
+        <Odometer
+          value={still ? stock : displayedStock(shown, stock)}
+          roll={motion === 'full' && !still}
+        />
         {tag !== null && !stacked && (
           <ReserveTag
             gain={tag.gain}
@@ -419,7 +428,10 @@ export function FundsCell({
         aria-hidden
         className="relative inline-flex font-(family-name:--font-mono) text-[17px] leading-none font-medium tabular-nums"
       >
-        <Odometer value={still ? stock : shown} roll={motion === 'full' && !still} />
+        <Odometer
+          value={still ? stock : displayedStock(shown, stock)}
+          roll={motion === 'full' && !still}
+        />
         {tag !== null && (
           <ReserveTag
             gain={tag.gain}

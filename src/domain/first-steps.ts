@@ -1,7 +1,8 @@
 import { searcherLevel } from './research';
 import { loadCapacityOf } from './logistics';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
-import { PROJECTION_BY_DOMAIN, marchingTroopIds } from './troops';
+import type { BuildingKey } from './ids';
+import { isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
 
 /**
  * **Les premiers pas** (ADR 0027 §2) : cinq gestes à faire dans la vraie partie, pas une partie
@@ -28,11 +29,11 @@ export type FirstSteps = {
 type CueSay =
   'hq' | 'move' | 'tiles' | 'pieces' | 'center' | 'research' | 'truck' | 'load' | 'outpost';
 
-/** Where the bubble stands — over a rack of the personal board, or under a piece on the map —
- *  and what it says there. */
+/** Where the bubble stands — over a rack of the personal board, or on the map under a piece or
+ *  a mast — and what it says there. */
 export type FirstStepCue =
-  | { readonly kind: 'rack'; readonly rack: 'tiles' | 'pieces' | 'research'; readonly say: CueSay }
-  | { readonly kind: 'piece'; readonly station: TroopStation; readonly say: CueSay };
+  | { readonly kind: 'rack'; readonly rack: 'tiles' | 'research'; readonly say: CueSay }
+  | { readonly kind: 'map'; readonly station: TroopStation; readonly say: CueSay };
 
 const filled = (load: Readonly<Record<string, number>> | undefined): boolean =>
   load !== undefined && Object.values(load).some((amount) => amount > 0);
@@ -88,8 +89,6 @@ export const shownStepOf = (view: PlayerView): FirstStep | null =>
 /** Without an outpost of mine, the delivery begins by founding one. */
 export const outpostFirst = (view: PlayerView): boolean => view.me.outposts.length === 0;
 
-const PROJECTION_KEYS: ReadonlySet<string> = new Set(Object.values(PROJECTION_BY_DOMAIN));
-
 /** Where the gesture of a step is made, as this view allows it; `null` when nothing on the
  *  board can take it yet (no troop to lift). */
 export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
@@ -99,7 +98,14 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
       (troop) => wanted(troop) && !marching.has(troop.id) && troop.stationedAt.kind !== 'home',
     );
   const onPiece = (troop: TroopView | undefined, say: CueSay): FirstStepCue | null =>
-    troop === undefined ? null : { kind: 'piece', station: troop.stationedAt, say };
+    troop === undefined ? null : { kind: 'map', station: troop.stationedAt, say };
+  /** A troop is formed by selecting its site on the map (#163): the bubble stands on its mast. */
+  const onSite = (wanted: (key: BuildingKey) => boolean, say: CueSay): FirstStepCue => {
+    const site = view.me.buildings.find((building) => wanted(building.key));
+    return site === undefined
+      ? { kind: 'rack', rack: 'tiles', say: 'tiles' }
+      : { kind: 'map', station: { kind: 'building', buildingId: site.id }, say };
+  };
   switch (step) {
     case 'hq':
       return { kind: 'rack', rack: 'tiles', say: 'hq' };
@@ -109,9 +115,7 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
         'move',
       );
     case 'form':
-      return view.me.buildings.some((building) => PROJECTION_KEYS.has(building.key))
-        ? { kind: 'rack', rack: 'pieces', say: 'pieces' }
-        : { kind: 'rack', rack: 'tiles', say: 'tiles' };
+      return onSite(isProjectionKey, 'pieces');
     case 'research':
       return searcherLevel(view.me.buildings) !== null
         ? { kind: 'rack', rack: 'research', say: 'research' }
@@ -124,7 +128,7 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
         );
       const truck = standing((troop) => loadCapacityOf(troop.role) > 0);
       return truck === undefined
-        ? { kind: 'rack', rack: 'pieces', say: 'truck' }
+        ? onSite((key) => key === projectionKeyOf('landTransport'), 'truck')
         : onPiece(truck, 'load');
     }
   }

@@ -565,10 +565,11 @@ body {
   right: 22px;
   translate: none;
 }
-/* **Le sous-main** (#122) : la bande qui se plie, la tuile qui se lève au survol, la jauge qui
-   monte. Réduites, rien ne glisse ; coupées, la tuile ne se lève pas non plus. */
+/* **Le sous-main** (#122) : la bande qui se plie au pas des fenêtres (#161), la tuile qui se lève
+   au survol, la jauge qui monte. Réduites, rien ne glisse et la bande paraît en fondu bref ;
+   coupées, la tuile ne se lève pas non plus. */
 .mat-fold {
-  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+  transition: grid-template-rows var(--dur-base) var(--ease-out);
 }
 .mat-tile {
   transition:
@@ -584,6 +585,12 @@ body {
 }
 :root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile, .mat-gauge) {
   transition: none;
+}
+:root[data-motion='reduced'] .mat-fold > * {
+  transition: opacity var(--dur-quick) var(--ease-out);
+}
+:root[data-motion='reduced'] .mat-fold[inert] > * {
+  opacity: 0;
 }
 :root[data-motion='off'] .mat-tile:hover {
   transform: none;
@@ -609,11 +616,10 @@ body {
   animation: none;
 }
 
-/* **Ce qui s'ouvre se pose** : fenêtre, feuille et panneau arrivent en fondu, de quelques pixels
-   plus bas, au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter.
-   Réduites, le fondu reste sur place ; coupées, rien ne bouge. Pas de sortie : elle obligerait
-   à retenir le démontage. `translate` et non `transform`, que la fenêtre poussée et la feuille
-   tirée écrivent déjà. */
+/* **Ce qui s'ouvre se pose** : panneau et carte arrivent en fondu, de quelques pixels plus bas,
+   au lieu de surgir ; la feuille lâchée avant le seuil remonte au lieu de sauter. Réduites, le
+   fondu reste sur place ; coupées, rien ne bouge. `translate` et non `transform`, que la fenêtre
+   poussée et la feuille tirée écrivent déjà. Fenêtres et feuilles : `.paper-unfold` plus bas. */
 @keyframes surface-in {
   from {
     opacity: 0;
@@ -645,6 +651,90 @@ body {
 
 :root:is([data-motion='reduced'], [data-motion='off']) .sheet-return {
   transition: none;
+}
+
+/* **Une feuille se déplie, une feuille se pose** (#161). Au bureau, la fenêtre se déroule de son
+   bord haut et descend de quelques pixels, son ombre découverte avec elle ; au téléphone, la
+   feuille monte du pied. Chacune repart par où elle est venue, plus vite qu'elle n'est arrivée
+   (`useLeaveGhost`). `clip-path` et `translate` seuls : rien ne se remet en page à chaque image.
+   L'encart déborde de l'élément pour ne pas couper l'ombre ; `backwards` le retire à la fin,
+   sans quoi il couperait pour toujours ce qui dépasse. Réduites, un fondu bref ; coupées, rien. */
+@keyframes paper-unfold {
+  from {
+    clip-path: inset(var(--overhang) var(--overhang) 100% var(--overhang));
+    translate: 0 -8px;
+  }
+  to {
+    clip-path: inset(var(--overhang));
+    translate: 0 0;
+  }
+}
+
+@keyframes paper-fold {
+  from {
+    clip-path: inset(var(--overhang));
+  }
+  to {
+    clip-path: inset(var(--overhang) var(--overhang) 100% var(--overhang));
+    translate: 0 -8px;
+  }
+}
+
+@keyframes sheet-rise {
+  from {
+    translate: 0 100%;
+  }
+}
+
+@keyframes sheet-sink {
+  to {
+    translate: 0 100%;
+  }
+}
+
+@keyframes surface-unfade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* La fiche de l'abaque n'a pas d'ombre, et son bord doit aller du pas des lignes qu'elle pousse :
+   l'encart qui déborde le ferait courir devant elles. */
+.paper-unfold,
+.paper-fold {
+  --overhang: -100px;
+}
+
+.paper-unfold.flush {
+  --overhang: 0px;
+}
+
+.paper-unfold {
+  animation: paper-unfold var(--dur-base) var(--ease-out) backwards;
+}
+
+.paper-fold {
+  animation: paper-fold var(--dur-quick) var(--ease-out) forwards;
+}
+
+.sheet-rise {
+  animation: sheet-rise var(--dur-slow) var(--ease-out) backwards;
+}
+
+.sheet-sink {
+  animation: sheet-sink var(--dur-base) var(--ease-out) forwards;
+}
+
+:root[data-motion='reduced'] :is(.paper-unfold, .sheet-rise) {
+  animation: surface-fade var(--dur-quick) var(--ease-out) backwards;
+}
+
+:root[data-motion='reduced'] :is(.paper-fold, .sheet-sink) {
+  animation: surface-unfade var(--dur-quick) var(--ease-out) forwards;
+}
+
+:root[data-motion='off'] :is(.paper-unfold, .paper-fold, .sheet-rise, .sheet-sink) {
+  animation: none;
 }
 
 /* G2: one keyboard focus for every paper button of the board. In the base layer, so that a

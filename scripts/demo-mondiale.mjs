@@ -24,7 +24,7 @@
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
- * ajoute une caserne de niveau 3 et la carte Chantier double : deux montent ensemble.
+ * ajoute une caserne de niveau 3.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
  *
  *     npm run demo:mondiale
@@ -57,7 +57,7 @@ const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
-/** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 et Chantier double (ADR 0031). */
+/** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
 const levels = process.argv.includes('--niveaux');
 const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire');

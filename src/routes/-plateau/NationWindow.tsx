@@ -263,7 +263,7 @@ function Census({ view }: { view: PlayerView }) {
         <p key={building.id} className="mt-[3px] text-[12px] leading-[1.35]">
           <span className="font-semibold">{fr.buildings[building.key]}</span>{' '}
           <span className="font-(family-name:--font-mono) text-[11px]">
-            {fr.common.levelShort(building.level)}
+            {fr.common.level(building.level)}
           </span>{' '}
           <span className="text-[var(--ink-soft)]">· {region(building.regionId)} · </span>
           {building.key === 'listening' ? (

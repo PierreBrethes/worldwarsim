@@ -17,6 +17,7 @@
  * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
  * une touche ; `tenir=Shift` l'enfonce et `relever=Shift` la relâche (Maj + glisser : le lasso).
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
+ * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -113,7 +114,11 @@ try {
     else if (kind === 'relever') await page.keyboard.up(value);
     else if (kind === 'photo') await page.screenshot({ path: value });
     else if (kind === 'pause') await page.waitForTimeout(x);
-    else throw new Error(`--geste inconnu : ${gesture}`);
+    else if (kind === 'ralenti') {
+      const devtools = await page.context().newCDPSession(page);
+      await devtools.send('Animation.enable');
+      await devtools.send('Animation.setPlaybackRate', { playbackRate: 1 / x });
+    } else throw new Error(`--geste inconnu : ${gesture}`);
     await page.waitForTimeout(400);
   }
   await page.screenshot({ path: out });

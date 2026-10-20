@@ -131,7 +131,7 @@ export function FirstStepsList({
                     {labelOf(step)}
                   </span>
                   <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
-                    {steps.cue?.kind === 'piece'
+                    {steps.cue?.kind === 'map'
                       ? fr.nextActions.toMap
                       : fr.nextActions.toPersonalBoard}{' '}
                     ›

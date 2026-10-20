@@ -23,7 +23,7 @@ import {
   nominalStrength,
   recruitmentCost,
 } from './constants';
-import { laneCount, roleLockOf } from '../src/domain/research';
+import { roleLockOf } from '../src/domain/research';
 import { spedMinutes } from '../src/domain/level-speed';
 import type { ResearchCard } from '../src/domain/ids';
 import { fail } from './errors';
@@ -81,7 +81,6 @@ export const workshop = query({
           waiting.filter((batch) => batch.buildingId === building._id).sort(byRank),
           building,
           blitz,
-          lanesOf(player, blitz),
           now,
         ),
       }));
@@ -331,8 +330,7 @@ export async function startLanes(
   const player = await ctx.db.get(head.playerId);
   const blitz = player !== null && (await isBlitz(ctx, player.seasonId));
   const building = await ctx.db.get(buildingId);
-  const lanes = lanesOf(player, blitz);
-  const idle = queue.slice(0, lanes).filter((batch) => batch.finishesAt === null);
+  const idle = queue.slice(0, 1).filter((batch) => batch.finishesAt === null);
   if (idle.length === 0) return;
   /**
    * **A hungry nation forms nothing** (`consommation-continue.md` D3). The queue *stops*, it is
@@ -355,11 +353,6 @@ export async function startLanes(
     await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: batch._id });
   }
 }
-
-/** **Une troupe à la fois par site, deux avec Formation double** (ADR 0031). La Blitz forme une
- *  unité par bâtiment. */
-const lanesOf = (player: Doc<'players'> | null, blitz: boolean): number =>
-  player === null ? 1 : laneCount(player.researched ?? [], 'training', blitz);
 
 /** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site. La Blitz
  *  forme en `BLITZ.recruitMinutes`, sans niveau. */
@@ -413,16 +406,13 @@ function dateQueue(
   building: Doc<'buildings'>,
   /** En Blitz une recrue sort en `BLITZ.recruitMinutes`, sans marque. */
   blitz: boolean,
-  /** Ce que le site forme à la fois (`lanesOf`) : chaque lot prend le premier banc libre. */
-  lanes: number,
   now: number,
 ) {
-  const free = Array.from({ length: lanes }, () => now);
+  let free = now;
   return queue.map((batch) => {
     const minutes = trainingMinutes(batch, building, blitz);
-    const bench = free.indexOf(Math.min(...free));
-    const finishesAt = batch.finishesAt ?? (free[bench] ?? now) + minutes * 60_000;
-    free[bench] = finishesAt;
+    const finishesAt = batch.finishesAt ?? free + minutes * 60_000;
+    free = finishesAt;
     return {
       id: batch._id,
       role: batch.role,

@@ -211,6 +211,8 @@ type Props = {
    */
   placing?: PlacingBuilding | null;
   onPlacePoint?: (spot: PlacingSpot) => void;
+  /** The acting button over the map while a building is held: it goes back (#162). */
+  onPlacingDismiss?: () => void;
   onPlacingAim?: (spot: PlacingSpot | null) => void;
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
@@ -371,6 +373,7 @@ export function WorldMap({
   building = false,
   placing = null,
   onPlacePoint,
+  onPlacingDismiss,
   onPlacingAim,
   aiming = false,
   focus = null,
@@ -433,16 +436,22 @@ export function WorldMap({
     // The board does not wait for these 500 KB, and their failure is mute — but the possession
     // colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
-    loadRegions()
-      .then((data) => {
-        if (abandoned) return;
-        instance.displayRegions(data);
-        regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
-      })
-      .catch(() => {});
+    // Two frames on: the sea and the countries are drawn before the 2.6 MB are asked for.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        loadRegions()
+          .then((data) => {
+            if (abandoned) return;
+            instance.displayRegions(data);
+            regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
+          })
+          .catch(() => {});
+      });
+    });
 
     return () => {
       abandoned = true;
+      cancelAnimationFrame(frame);
       observer.disconnect();
       instance.dispose();
       engine.current = null;
@@ -1027,6 +1036,10 @@ export function WorldMap({
   useEffect(() => {
     if (engine.current) engine.current.onPlacingAim = onPlacingAim ?? (() => {});
   }, [onPlacingAim]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onPlacingDismiss = onPlacingDismiss ?? (() => {});
+  }, [onPlacingDismiss]);
 
   /**
    * **Sous le doigt, un voyage referme la rose** : le toucher qui l'a ouverte a aussi ouvert une

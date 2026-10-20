@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { announceOf, nextAnnounceIn, onNewView } from './reserve-counter';
+import { announceOf, displayedStock, nextAnnounceIn, onNewView } from './reserve-counter';
 
 const AT = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -70,5 +70,10 @@ describe('the reserve counter', () => {
       shown: 50,
       gain: 0,
     });
+  });
+
+  it('reads the same stock as the strip when it falls, and lags only when it rises', () => {
+    expect(displayedStock(399, 398)).toBe(398);
+    expect(displayedStock(395, 398)).toBe(395);
   });
 });

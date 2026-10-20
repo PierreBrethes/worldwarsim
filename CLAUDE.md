@@ -65,7 +65,8 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
 - **Couleur des régions.** Un seul calcul, `heldRegions` (`src/domain/control.ts`) servi par
   `heldOver` (`convex/holding.ts`), lu par carte, production, classement et relevé. Avant tout
   changement de couleur, `settleBeforeChange` règle les stocks à l'ancienne couleur, puis
-  `reportChange` (`convex/production.ts`).
+  `reportChange` (`convex/production.ts`). La vue lit la couleur retenue (`players.linkage`) :
+  un changement de couleur hors de `reportChange` appelle `recordLinkage` (`convex/holding.ts`).
 - **Porte serveur.** Chaque fonction de jeu prend `{ token, seasonId }` et passe par `playerOf`
   puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
   (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :

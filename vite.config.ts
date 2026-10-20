@@ -28,6 +28,15 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // three pèse plus que tout le reste de la route : seul, il se met en cache entre deux
+        // livraisons du jeu, qui ne le changent pas.
+        manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
+      },
+    },
+  },
   // Le dépôt vit sur /mnt/c : inotify ne traverse pas le pont WSL2, aucun événement de
   // fichier n'arrive. Sans scrutation, le HMR est muet et il faut relancer le serveur.
   // Ailleurs (macOS, ext4 natif) les événements arrivent, et scruter tout le dépôt toutes les

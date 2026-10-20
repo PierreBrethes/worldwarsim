@@ -36,7 +36,7 @@ describe('industry', () => {
   });
 
   /** L'annexe du contrat de vue 07 chiffre la France de la maquette à 393, fonderie (50) et
-   *  filature (20) comprises : le barème doit tomber sur ce qu'il en reste depuis l'ADR 0028,
+   *  filature (20) comprises : le barème tombe sur ce qu'il en reste depuis l'ADR 0028 (+12 au QG 2 depuis le facteur 2,0, #159),
    *  sans quoi la planche validée montre un nombre que le jeu ne produit pas. */
   it('matches the mock-up’s own French nation, to the steel', () => {
     const standing: ReadonlyArray<[BuildingKey, number]> = [
@@ -47,7 +47,7 @@ describe('industry', () => {
       ['port', 1],
     ];
     const buildings = standing.map(([key, level]) => ({ key, level, disabled: false }));
-    expect(scores({ buildings }).industry).toBe(393 - 50 - 20);
+    expect(scores({ buildings }).industry).toBe(393 - 50 - 20 + 12);
   });
 
   /** Un avant-poste désactivé par un raid éteint ce qui pend à lui — tant qu'il l'est, et pas

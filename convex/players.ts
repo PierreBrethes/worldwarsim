@@ -6,6 +6,7 @@ import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
 import { isAtWar, playerOf, requirePlayable, seatsOf } from './seats';
+import { recordLinkage } from './holding';
 import { handOver, seasonPoints } from './strategicPoints';
 import { refreshSession } from './sessions';
 
@@ -178,6 +179,9 @@ export async function leaveTheWar(
   for (const point of await seasonPoints(ctx, season._id)) {
     if (point.holderId === player._id) await handOver(ctx, point, null, now);
   }
+  /** Ses points rendus, et son sol perdu s'il est éliminé (`homeGroundsOf`) : la couleur que la
+   *  vue lira change (#144). */
+  await recordLinkage(ctx, season._id);
 
   const present = await seatsOf(ctx, season._id);
   const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);

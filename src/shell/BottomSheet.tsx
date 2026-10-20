@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { fr } from '@/i18n/fr';
+import { useLeaveGhost } from './paper-motion';
 import { useSoleSurface } from './sole-surface';
 
 const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
@@ -103,6 +104,7 @@ export function BottomSheet({
    *  belongs, and a glide from the finger's offset would carry it the wrong way first. */
   const [glide, setGlide] = useState(false);
   const sheet = useRef<HTMLElement>(null);
+  useLeaveGhost(sheet, 'sheet-rise', 'sheet-sink');
   /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
    *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
    *  toujours. */
@@ -153,7 +155,7 @@ export function BottomSheet({
         aria-label={title}
         data-height={height}
         data-hug={hug ? '' : undefined}
-        className={`hud board-sheet paper-grain surface-in z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)] ${
+        className={`hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)] ${
           glide ? 'sheet-return' : ''
         }`}
         style={

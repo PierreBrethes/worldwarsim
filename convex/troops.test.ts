@@ -187,7 +187,7 @@ describe('a queue per projection building', () => {
     expect(queue[1]!.minutesLeft).toBeGreaterThan(queue[0]!.minutesLeft);
   });
 
-  /** **Un niveau accélère** (ADR 0031) : une troupe à la fois, 15 % plus vite au niveau 2. */
+  /** **Un niveau accélère** (ADR 0031) : une troupe à la fois, 20 % plus vite au niveau 2. */
   it('forms one troop at a time, faster with each level of its site', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
@@ -205,40 +205,9 @@ describe('a queue per projection building', () => {
     const workshop = await t.query(api.troops.workshop, seat);
     const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
     expect(queue.map((batch) => batch.started)).toEqual([true, false]);
-    const minutes = Math.round(recruitmentCost('infantry', 1).minutes * 0.85);
+    const minutes = Math.round(recruitmentCost('infantry', 1).minutes * 0.8);
     expect(queue[0]!.minutesLeft).toBeCloseTo(minutes, 0);
     expect(queue[1]!.minutesLeft).toBeCloseTo(2 * minutes, 0);
-  });
-
-  /** **Formation double** (ADR 0031) : la carte acquise date tout de suite le lot qui attendait. */
-  it('forms a second troop at once in each site once Formation double is researched', async () => {
-    vi.useFakeTimers();
-    const t = boot();
-    const seat = await launchedSeason(t);
-    await credit(t, seat, 4000);
-    const barracks = await raise(t, seat, 'barracks', MARNE);
-    for (let batch = 0; batch < 3; batch += 1)
-      await t.mutation(api.troops.recruit, {
-        ...seat,
-        buildingId: barracks,
-        role: 'infantry',
-        tier: 1,
-      });
-    const playerId = await playerOf(t, seat);
-    await t.run((ctx) =>
-      ctx.db.patch(playerId, {
-        researched: ['transmissions1', 'transmissions2'],
-        research: { card: 'doubleTraining', remainingMs: 0, since: Date.now() },
-      }),
-    );
-    await t.mutation(internal.research.finish, { playerId, finishesAt: Date.now() });
-    vi.advanceTimersByTime(1);
-    await t.finishInProgressScheduledFunctions();
-    vi.useRealTimers();
-
-    const workshop = await t.query(api.troops.workshop, seat);
-    const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
-    expect(queue.map((batch) => batch.started)).toEqual([true, true, false]);
   });
 
   /** Le gain vaut pour la suite : le lot en cours garde sa date, le suivant ne part pas plus tôt. */

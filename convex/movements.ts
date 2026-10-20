@@ -38,6 +38,7 @@ import {
   routeMinutes,
 } from './constants';
 import { scheduleStand } from './outposts';
+import { recordLinkage } from './holding';
 import { foundationMinutes } from '../src/domain/level-speed';
 import { debit } from './resources';
 import { fail } from './errors';
@@ -234,6 +235,9 @@ export const foundOutpostHere = mutation({
       specialization,
     });
     await scheduleStand(ctx, outpostId, standsAt);
+    /** Rien ne change de couleur, mais l'heure du lever en est une : la couleur retenue la porte
+     *  (`until`), sans quoi la vue la servirait encore passé ce lever (#144). */
+    await recordLinkage(ctx, season._id);
     /** La garnison a changé d'adresse : ce qu'elle voit et ce qu'on voit d'elle bouge, même si
      *  le point, lui, ne voit encore rien. */
     await reassessDetection(ctx, season._id, founded);

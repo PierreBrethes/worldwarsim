@@ -132,6 +132,8 @@ export async function upkeepOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   now: number,
+  /** What the caller already read for this player (`viewOf`): the same rows, not a second read. */
+  read?: { troops: Array<Doc<'troops'>>; outposts: Array<Doc<'outposts'>> },
 ): Promise<Upkeep> {
   const player = await ctx.db.get(playerId);
   /**
@@ -157,10 +159,12 @@ export async function upkeepOf(
   }
   const home = homeCountryOf(player?.nation ?? null);
 
-  const outposts = await ctx.db
-    .query('outposts')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
+  const outposts =
+    read?.outposts ??
+    (await ctx.db
+      .query('outposts')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect());
 
   /** **A site under construction already feeds**: what raising it opens is the ground (colour,
    *  slots, reach, survey), never the cooking pot. The column that founds it camps in place, and
@@ -173,10 +177,12 @@ export async function upkeepOf(
       standing: isStanding(outpost, now),
     }));
 
-  const troops = await ctx.db
-    .query('troops')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
+  const troops =
+    read?.troops ??
+    (await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect());
 
   /** Vingt troupes logent dans trois casernes : l'adresse se lit une fois, pas une fois par
    *  troupe — ce calcul passe à chaque vue, à chaque règlement et à chaque débit. */

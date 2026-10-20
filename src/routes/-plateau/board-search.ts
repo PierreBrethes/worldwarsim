@@ -62,8 +62,22 @@ export type BoardSearch = {
  *  nation sheet left the list with its census: it names no building any more. */
 const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['personalBoard', 'site'];
 
+/** **Une seule de ces fenêtres à la fois** (décision du 19/10) : en ouvrir une ferme celle qui
+ *  était ouverte. La bande du plateau, la modale d'un site et les réglages n'en sont pas. */
+const ONE_AT_A_TIME: ReadonlyArray<BoardWindow> = [
+  'journal',
+  'research',
+  'nation',
+  'gunnery',
+  'press',
+  'telegraph',
+];
+
 export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
-  const others = (search.windows ?? []).filter((open) => open !== name);
+  const replaced = ONE_AT_A_TIME.includes(name);
+  const others = (search.windows ?? []).filter(
+    (open) => open !== name && !(replaced && ONE_AT_A_TIME.includes(open)),
+  );
   return { ...search, windows: [...others, name] };
 }
 

@@ -32,6 +32,26 @@ export function edgeSafeTiltAt(distance: number, fovDegrees: number, edgeAhead: 
 }
 
 /**
+ * **De combien la cible recule vers le milieu du plateau** (#160) : seulement ce que même la
+ * pente retenue (`polarAngle`, déjà abaissée par `edgeSafeTiltAt` : l'inclinaison cède d'abord)
+ * ne suffit pas à cacher du bord lointain, sans jamais dépasser `toMiddle`, la distance de la
+ * cible au milieu. Mesurée à la pente courante du joueur, elle reculait la cible pour un bord que
+ * l'aplomb à venir cachait très bien : le nord ne s'atteignait plus.
+ */
+export function targetPullOf(
+  distance: number,
+  fovDegrees: number,
+  polarAngle: number,
+  edgeAhead: number,
+  toMiddle: number,
+): number {
+  const half = (fovDegrees * Math.PI) / 360;
+  const reach = Math.cos(polarAngle + half);
+  const need = reach <= 0.05 ? Infinity : (distance * Math.sin(half)) / reach;
+  return Math.min(Math.max(0, need - edgeAhead), Math.max(0, toMiddle));
+}
+
+/**
  * **Le flou de la table penchée, 0..1** : nul à l'aplomb, plein à la pente la plus rasante que la
  * distance permet, et nul au-delà du fondu des régions — la vue monde est lue de haut et ne
  * s'estompe pas. Le carré garde le début de l'inclinaison nette.

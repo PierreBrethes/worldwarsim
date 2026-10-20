@@ -13,10 +13,8 @@ import {
 
 /**
  * **La recherche débloque, elle ne bonifie jamais** (ADR 0028 §5, décision 44a) : une carte ouvre
- * une unité, une tuile, une ligne d'usine, un slot de mouvement ou une seconde file de chantier
- * ou de formation (décision révisée le 19/10, ADR 0031 : une capacité entière, jamais un
- * pourcentage), et ne touche à aucun chiffre. Tout ce qu'aucune carte
- * ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
+ * une unité, une tuile, une ligne d'usine, un slot de mouvement, et ne touche à aucun
+ * chiffre. Tout ce qu'aucune carte ne nomme est ouvert au départ. Mondiale seule : la Blitz garde son catalogue.
  */
 type Unlock =
   | { readonly kind: 'role'; readonly role: UnitRole; readonly tier: UnitTier }
@@ -24,11 +22,7 @@ type Unlock =
   /** Une ligne de l'usine, nommée par ce qu'elle fait : le pétrole synthétique. */
   | { readonly kind: 'line'; readonly output: 'oil' }
   /** Un slot de mouvement de plus (`movementSlots`). */
-  | { readonly kind: 'slot' }
-  /** Une file de plus : un chantier de plus en même temps, ou une troupe de plus par site. */
-  | { readonly kind: 'lane'; readonly of: Lane };
-
-export type Lane = 'works' | 'training';
+  | { readonly kind: 'slot' };
 
 type Branch = 'land' | 'sea' | 'air' | 'industry';
 
@@ -76,32 +70,7 @@ export const RESEARCH_TREE: Readonly<Record<ResearchCard, CardSpec>> = {
   transmissions1: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: [] },
   transmissions2: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions1'] },
   transmissions3: { branch: 'industry', unlocks: [{ kind: 'slot' }], after: ['transmissions2'] },
-  doubleWorks: {
-    branch: 'industry',
-    unlocks: [{ kind: 'lane', of: 'works' }],
-    after: ['transmissions2'],
-  },
-  doubleTraining: {
-    branch: 'industry',
-    unlocks: [{ kind: 'lane', of: 'training' }],
-    after: ['transmissions2'],
-  },
 };
-
-/** **Les files qui avancent en même temps** (ADR 0031) : une par défaut, une de plus par carte
- *  acquise qui l'ouvre ; la Blitz n'a pas de recherche, donc une seule. Lu par l'écran et par le
- *  serveur. */
-export const laneCount = (
-  researched: ReadonlyArray<ResearchCard>,
-  of: Lane,
-  blitz: boolean,
-): number =>
-  blitz
-    ? 1
-    : 1 +
-      researched.filter((card) =>
-        RESEARCH_TREE[card].unlocks.some((unlock) => unlock.kind === 'lane' && unlock.of === of),
-      ).length;
 
 /** Les slots de mouvement qu'ouvrent ces cartes : un par carte Transmissions acquise. */
 export const slotCardsOf = (researched: ReadonlyArray<ResearchCard>): ReadonlyArray<ResearchCard> =>
@@ -151,11 +120,15 @@ export const buildingLockOf = (
 ): ResearchCard | null =>
   lockOf((unlock) => unlock.kind === 'building' && unlock.key === key, researched);
 
+/** **Trois cartes au plus sur le Centre** (#165) : la carte qui court et deux qui attendent. */
+export const RESEARCH_QUEUE_MAX = 3;
+
 export type ResearchRefusal =
   | {
-      readonly code: 'RESEARCH_DONE' | 'RESEARCH_AFTER' | 'RESEARCH_BUSY';
+      readonly code: 'RESEARCH_DONE' | 'RESEARCH_QUEUED' | 'RESEARCH_AFTER';
       readonly card: ResearchCard;
     }
+  | { readonly code: 'RESEARCH_FULL' }
   | { readonly code: 'RESEARCH_NEEDS_CENTER' }
   | {
       readonly code: 'INSUFFICIENT_RESOURCE';
@@ -166,26 +139,33 @@ export type ResearchRefusal =
 
 export type ResearchSituation = {
   readonly researched: ReadonlyArray<ResearchCard>;
-  /** La carte posée, qu'elle avance ou qu'elle attende son Centre : une seule à la fois. */
+  /** La carte qui court, qu'elle avance ou qu'elle attende son Centre. */
   readonly running: ResearchCard | null;
+  /** Les cartes qui attendent leur tour, dans l'ordre. */
+  readonly queued: ReadonlyArray<ResearchCard>;
   /** Le niveau de son Centre de recherche (`searcherLevel`), `null` sans Centre. */
   readonly centerLevel: number | null;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
 };
 
 /**
- * **Ce que le Centre de recherche refuse de chercher**, lu par la fenêtre de l'arbre avant le geste
- * et par `research.start` après : déjà acquise, une carte d'abord, une autre en cours, pas de
- * Centre, puis le prix. Chaque refus nomme la carte que sa phrase dit.
+ * **Ce que le Centre de recherche refuse de poser**, lu par la fenêtre de l'arbre avant le geste
+ * et par `research.start` après : déjà acquise, déjà dans la file, une carte d'abord (acquise ou
+ * devant elle dans la file), file pleine, pas de Centre, puis le prix. Chaque refus nomme la
+ * carte que sa phrase dit.
  */
 export function researchRefusalOf(
   card: ResearchCard,
   situation: ResearchSituation,
 ): ResearchRefusal | null {
   if (situation.researched.includes(card)) return { code: 'RESEARCH_DONE', card };
-  const missing = RESEARCH_TREE[card].after.find((first) => !situation.researched.includes(first));
+  const inFile = [...(situation.running === null ? [] : [situation.running]), ...situation.queued];
+  if (inFile.includes(card)) return { code: 'RESEARCH_QUEUED', card };
+  const missing = RESEARCH_TREE[card].after.find(
+    (first) => !situation.researched.includes(first) && !inFile.includes(first),
+  );
   if (missing !== undefined) return { code: 'RESEARCH_AFTER', card: missing };
-  if (situation.running !== null) return { code: 'RESEARCH_BUSY', card: situation.running };
+  if (inFile.length >= RESEARCH_QUEUE_MAX) return { code: 'RESEARCH_FULL' };
   if (situation.centerLevel === null) return { code: 'RESEARCH_NEEDS_CENTER' };
   const short = shortfallOf(RESEARCH_SPEC[card].cost, (resource) => situation.stocks[resource]);
   if (short === null) return null;
@@ -196,6 +176,26 @@ export function researchRefusalOf(
     needed: available + short.missing,
     available,
   };
+}
+
+export type ResearchUnqueueRefusal = {
+  readonly code: 'RESEARCH_RUNNING' | 'RESEARCH_NOT_QUEUED' | 'RESEARCH_NEEDED';
+  readonly card: ResearchCard;
+};
+
+/**
+ * **Ce qui empêche de retirer une carte de la file** : celle qui court ne se retire pas, une
+ * carte absente non plus, ni celle qu'une carte en attente derrière elle demande (`card` nomme
+ * alors cette dernière).
+ */
+export function researchUnqueueRefusalOf(
+  card: ResearchCard,
+  file: { readonly running: ResearchCard | null; readonly queued: ReadonlyArray<ResearchCard> },
+): ResearchUnqueueRefusal | null {
+  if (file.running === card) return { code: 'RESEARCH_RUNNING', card };
+  if (!file.queued.includes(card)) return { code: 'RESEARCH_NOT_QUEUED', card };
+  const needing = file.queued.find((other) => RESEARCH_TREE[other].after.includes(card));
+  return needing === undefined ? null : { code: 'RESEARCH_NEEDED', card: needing };
 }
 
 /**
@@ -214,6 +214,25 @@ export type RunningResearch = {
  *  se fixe à la pose : élever le Centre accélère la carte suivante. */
 export const researchMs = (card: ResearchCard, centerLevel = 1): number =>
   RESEARCH_SPEC[card].hours * 3_600_000 * levelSpeed(centerLevel);
+
+/**
+ * **L'heure de fin prévue des cartes qui attendent** : chacune court après la précédente, à la
+ * durée du niveau du Centre d'aujourd'hui (la vraie se fixe à son démarrage). `null` tant que la
+ * carte en cours attend son Centre.
+ */
+export const researchScheduleOf = (
+  running: RunningResearch,
+  queued: ReadonlyArray<ResearchCard>,
+  centerLevel: number | null,
+  now: number,
+): ReadonlyArray<number | null> => {
+  let at = researchProgressOf(running, now).finishesAt;
+  return queued.map((card) => {
+    if (at === null) return null;
+    at += researchMs(card, centerLevel ?? 1);
+    return at;
+  });
+};
 
 export function researchProgressOf(
   running: RunningResearch,

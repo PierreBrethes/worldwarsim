@@ -252,6 +252,23 @@ export default defineSchema({
     /** **L'heure où son QG de départ est tombé** (Blitz) : jamais écrite par une capitulation. */
     eliminatedAt: v.optional(v.number()),
     /**
+     * **La couleur de son sol, retenue au dernier changement de couleur** (#144). La vue la lit
+     * au lieu de relire avant-postes, occupations et sièges de toute la saison : une écriture sur
+     * le dépôt d'un point adverse n'invalide plus les huit vues. Écrite par `recordLinkage`
+     * (`convex/holding.ts`) depuis `linkingOver`, donc par la même règle que la production.
+     *
+     * `ground` est l'empreinte du sol sur lequel elle a été lue, `unlinked` les régions de ce sol
+     * qui ne portent pas sa couleur, `until` l'heure où un chantier se lève ou une désactivation
+     * finit. Absente, d'une autre empreinte ou échue : la vue relit la vérité. Jamais servie.
+     */
+    linkage: v.optional(
+      v.object({
+        ground: v.string(),
+        unlinked: v.array(v.string()),
+        until: v.union(v.number(), v.null()),
+      }),
+    ),
+    /**
      * **Les dettes du socle qu'un bâtiment rasé avait acquittées** (décision 6a du 15/09). Le
      * socle se lit sur le sol — `foundationOwed` retranche de la liste due ce qui est debout —,
      * donc sans cette trace une mine de fondation rasée serait redemandée, et le socle
@@ -270,7 +287,7 @@ export default defineSchema({
      *  Absent vaut « aucune ». Jamais servi qu'à son joueur. */
     researched: v.optional(v.array(RESEARCH_CARD)),
     /**
-     * **La carte posée sur le Centre de recherche**, une seule à la fois : sa durée au niveau du
+     * **La carte qui court sur le Centre de recherche** : sa durée au niveau du
      * Centre qui l'a prise, ce qu'il lui reste à courir, et depuis quand — `null` quand son Centre
      * manque et qu'elle attend (`research.ts`). Absent : aucune.
      */
@@ -283,6 +300,12 @@ export default defineSchema({
         since: v.union(v.number(), v.null()),
       }),
     ),
+    /**
+     * **Les cartes qui attendent leur tour sur le Centre** (#165), dans l'ordre, deux au plus
+     * derrière `research` : payées à la pose, remboursées en entier si on les retire. Absent :
+     * aucune.
+     */
+    researchQueue: v.optional(v.array(RESEARCH_CARD)),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
@@ -1006,8 +1029,8 @@ export default defineSchema({
   /**
    * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`
    * above, and deliberately the same one: a second model of queue would be a second set of
-   * rules to remember. One entry advances at once, two with the Chantier double card
-   * (`laneCount`, ADR 0031); the queue behind them is unbounded and **already paid for**.
+   * rules to remember. One entry advances at once (ADR 0031);
+   * the queue behind it is unbounded and **already paid for**.
    *
    * Only the entries that advance carry a `finishesAt`. The followers have not started, they
    * are dated nowhere, and they are exactly the ones a cancellation refunds in full without

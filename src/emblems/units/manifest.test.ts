@@ -96,7 +96,9 @@ describe('unit sprite manifest', () => {
     const urls = (
       ['france', 'uk', 'usa', 'ussr', 'germany', 'china', 'italy', 'japan'] as const
     ).flatMap((nation) =>
-      ROLES.map((role) => spriteUrl(nation, role, 1)).filter((url) => url !== null),
+      ROLES.filter((role) => !(nation === 'france' && role === 'cargo')) // lent by the UK
+        .map((role) => spriteUrl(nation, role, 1))
+        .filter((url) => url !== null),
     );
     expect(new Set(urls).size).toBe(urls.length);
   });
@@ -104,7 +106,7 @@ describe('unit sprite manifest', () => {
   it('serves one image per tier, and nothing where the visual is missing', () => {
     expect(spriteUrl('france', 'infantry', 1)).not.toBe(spriteUrl('france', 'infantry', 2));
     expect(spriteUrl('france', 'carrier', 1)).toBe(spriteUrl('france', 'carrier', 2));
-    expect(spriteUrl('france', 'cargo', 1)).toBeNull();
+    expect(spriteUrl('france', 'cargo', 1)).toBe(spriteUrl('uk', 'cargo', 1));
     expect(spriteUrl('japan', 'airTransport', 1)).toBeNull();
     expect(spriteUrl('atlantis', 'fighter', 1)).toBeNull();
     expect(spriteUrl(null, 'fighter', 1)).toBeNull();
@@ -144,9 +146,8 @@ describe('movementSprites', () => {
     const faces = movementSprites(embarked, 'france');
     expect(faces?.land).toBe(spriteUrl('france', 'infantry', 1));
     expect(faces?.air).toBe(spriteUrl('france', 'fighter', 1));
-    // La France n'a pas de cargo dessiné : le milieu retombe sur la silhouette, pas sur un
-    // rôle d'un autre domaine.
-    expect(faces?.sea).toBeNull();
+    // Le cargo français emprunte la planche britannique, jamais un rôle d'un autre domaine.
+    expect(faces?.sea).toBe(spriteUrl('uk', 'cargo', 1));
     expect(movementSprites(embarked, 'uk')?.sea).toBe(spriteUrl('uk', 'cargo', 1));
   });
 

@@ -122,7 +122,7 @@ describe('the damage table holds no absolute counter', () => {
 });
 
 /**
- * **Les contres voulus** (décision du 19/10, #126) : X contre Y quand X fait à Y plus de dégâts
+ * **Les contres voulus** (décision du 19/10, #126 ; l'escorte sur le chasseur, #158) : X contre Y quand X fait à Y plus de dégâts
  * qu'il n'en reçoit — la définition que la recherche lit (`counterOf`).
  */
 describe('the damage table says the counters that were meant', () => {
@@ -132,6 +132,7 @@ describe('the damage table says the counters that were meant', () => {
   it.each([
     ['infantry2', 'armor1'],
     ['fighter', 'bomber'],
+    ['escort', 'fighter'],
     ['escort', 'carrier'],
     ['fighter', 'carrier'],
   ] as const)('%s counters %s', (x, y) => {

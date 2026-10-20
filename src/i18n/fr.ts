@@ -82,8 +82,6 @@ const RESEARCH_NAMES: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'Transmissions I',
   transmissions2: 'Transmissions II',
   transmissions3: 'Transmissions III',
-  doubleWorks: 'Chantier double',
-  doubleTraining: 'Formation double',
 };
 
 /** Ce que chaque carte ouvre, dans les mots de l'artefact du 18/10. */
@@ -102,8 +100,6 @@ const RESEARCH_UNLOCKS: Readonly<Record<ResearchCard, string>> = {
   transmissions1: 'un slot de mouvement de plus',
   transmissions2: 'un slot de mouvement de plus',
   transmissions3: 'un slot de mouvement de plus',
-  doubleWorks: 'une seconde file de chantier',
-  doubleTraining: 'une seconde file de formation dans chaque site',
 };
 
 /** **Une pièce ou une tuile derrière sa carte**, une seule phrase partout : le refus du serveur,
@@ -746,7 +742,11 @@ export const fr = {
     RESEARCH_REQUIRED: (d) => researchRequired(d.card as ResearchCard),
     RESEARCH_DONE: (d) => `${cardName(d.card)} est déjà acquise`,
     RESEARCH_AFTER: (d) => `cherchez d’abord ${cardName(d.card)}`,
-    RESEARCH_BUSY: (d) => `${cardName(d.card)} est en cours — une carte à la fois`,
+    RESEARCH_QUEUED: (d) => `${cardName(d.card)} est déjà dans la file du Centre`,
+    RESEARCH_FULL: () => 'la file du Centre est pleine — trois cartes au plus',
+    RESEARCH_RUNNING: (d) => `${cardName(d.card)} est en cours — elle ne se retire pas`,
+    RESEARCH_NOT_QUEUED: (d) => `${cardName(d.card)} n’attend pas dans la file`,
+    RESEARCH_NEEDED: (d) => `${cardName(d.card)} attend celle-ci dans la file — retirez-la d’abord`,
     RESEARCH_NEEDS_CENTER: () => 'bâtissez d’abord un Centre de recherche — c’est lui qui cherche',
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
@@ -985,6 +985,7 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    level: (level: number) => `niveau ${level}`,
     /** **Ce qu'un niveau rend** (ADR 0031), sur la fiche et sur l'aperçu d'élévation :
      *  « niveau 3 : −28 % ». Le premier niveau dure ce que dit le barème. */
     levelSpeed: (level: number) =>
@@ -2879,7 +2880,7 @@ export const fr = {
     steps: {
       hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
       move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
-      form: 'Former une pièce : la lâcher sur une caserne',
+      form: 'Former une pièce : cliquer une caserne, puis sa carte dans la bande',
       research: 'Bâtir un Centre de recherche, puis y poser une carte',
       deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
       /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
@@ -2889,13 +2890,13 @@ export const fr = {
     cue: {
       /** La bande repliée : on la déplie d'abord. */
       unfold: 'Dépliez le plateau personnel',
-      hq: 'La tuile du QG, lâchée sur votre sol',
+      hq: 'Cliquez la tuile du QG, puis votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
-      pieces: 'Une pièce, lâchée sur la caserne',
+      pieces: 'Cliquez ce site : ses troupes viennent dans la bande',
       center: 'D’abord un Centre de recherche : sa tuile sur la carte',
       research: 'Ouvrez l’arbre : une carte sur le Centre',
       move: 'Levez-la, posez-la plus loin',
-      truck: 'Un camion, lâché sur la caserne',
+      truck: 'Cliquez la caserne, puis la carte du camion',
       load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
       outpost: 'Envoyez-la fonder un avant-poste',
     },
@@ -3428,8 +3429,6 @@ export const fr = {
    */
   personalBoard: {
     header: 'Plateau personnel',
-    /** Les deux onglets du plateau à tuiles, et ce que fait chacun au survol. */
-    tabs: { buildings: 'Bâtiments', troops: 'Troupes' },
     previous: 'précédentes',
     next: 'suivantes',
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
@@ -3447,25 +3446,24 @@ export const fr = {
     harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
-    tilesNote: 'glissez une tuile sur la carte pour bâtir, sur sa pareille pour l’élever',
+    tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
-    piecesNote: 'glissez une pièce sur une caserne, un port ou un aérodrome',
-    piecesNone: 'Aucun site de projection debout : bâtissez une caserne pour former.',
-    /** Où une pièce se forme. */
-    pieceSite: (building: string) => `sur ${lowerFirst(building)}`,
+    /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
+    siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
+    siteSheet: 'fiche du site',
+    siteLeave: 'bâtiments',
+    siteLeaveTitle: 'Revenir aux tuiles de bâtiments (Échap)',
+    siteQueue: 'en formation',
+    siteQueueEmpty: 'Rien en formation : cliquez une carte.',
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
     raiseSped: (building: string, level: number) =>
       `Élever ${lowerFirst(building)} — ${fr.common.levelSpeed(level)}`,
-    form: (role: string, building: string) =>
-      `Former ${lowerFirst(role)} — ${lowerFirst(building)}`,
-    dropOnSite: 'Lâchez sur une caserne, un port ou un aérodrome',
     dropBack: 'Relâchée ici, elle rentre',
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
-    worksHeader: (lanes: number) =>
-      lanes > 1 ? `chantiers · ${lanes} files` : 'chantiers · une file',
+    worksHeader: 'chantiers',
     /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
@@ -3473,14 +3471,14 @@ export const fr = {
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
     work: (name: string, level: number) => `${name} niv. ${level}`,
     workAt: (name: string, level: number, region: string) => `${name} niv. ${level} · ${region}`,
-    workTail: (time: string, running: number, queued: number) =>
-      ` · reste ${time}${running > 1 ? ` · ${running} en cours` : ''}${queued > 0 ? ` · ${queued} en file` : ''}`,
+    workTail: (time: string, queued: number) =>
+      ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
     left: (time: string) => `reste ${time}`,
     queuedLine: (time: string) => `${time}, en file`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
-    raiseTo: (level: number) => `élever au niv. ${level}`,
+    raiseTo: (level: number) => `élever au niv.\u00a0${level}`,
     /** Le bouton de la recherche dans la bande repliée du téléphone. */
     researchShort: 'rech.',
     starvedChain: (building: string, resource: string) =>
@@ -3493,21 +3491,29 @@ export const fr = {
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */
     title: 'Centre de recherche',
-    subtitle: (place: string, level: number) => `${place} · niveau ${level} · une carte à la fois`,
+    subtitle: (place: string, level: number) =>
+      `${place} · niveau ${level} · trois cartes d’avance`,
     noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',
     captured:
       'un Centre pris à un autre ne cherche pas pour vous — la carte attend un Centre à vous',
     names: RESEARCH_NAMES,
     unlocks: RESEARCH_UNLOCKS,
     branches: { land: 'terre', sea: 'mer', air: 'air', industry: 'industrie' },
-    /** La colonne des cartes qui ouvrent un slot ou une file, à part de l'industrie. */
+    /** La colonne des cartes qui ouvrent un slot, à part de l'industrie. */
     transmissions: 'transmissions',
+    transmissionsShort: 'transm.',
     benchesHeader: 'le poste du centre',
     bench: 'poste 1',
+    waitingRank: (rank: number) => `file · carte ${rank}`,
+    inQueue: (rank: number) => `en file · carte ${rank}`,
+    expectedEnd: (time: string) => `fin prévue ${time}`,
+    remove: 'retirer',
+    removeTitle: (card: string) => `Retirer ${card} de la file — remboursée en entier`,
+    removed: (card: string) => `${card} retirée de la file, remboursée`,
+    enqueue: 'mettre en file',
     benchFree: 'libre — posez une carte de l’arbre',
     benchNone: 'bâtissez un Centre de recherche pour l’ouvrir',
-    /** Une seconde file de recherche n'existe pas encore : une carte l'ouvrira peut-être. */
-    benchMore: 'une seule carte à la fois',
+    benchMore: 'trois cartes au plus : celle qui court et deux qui attendent',
     levelHeader: 'ce que donne le niveau',
     hours: (hours: number) => `${num(hours)} h`,
     /** « 6 h 05 » : ce qui reste à une carte, à la minute. */
@@ -3528,11 +3534,11 @@ export const fr = {
     atStart: (role: UnitRole) => `${fr.roles[role].one}, au départ`,
     done: 'acquise',
     search: 'chercher',
-    searchTitle: (card: string, time: string) => `Chercher ${card} — ${time}, payée à la pose`,
+    searchTitle: (card: string, time: string) => `${card} — ${time}, payée à la pose`,
     started: (card: string) => `${card} posée sur le Centre de recherche`,
     legendDone: '— trait plein : après une carte acquise',
     legendAhead: '- - pointillé : après une carte à venir',
-    legendHow: 'Une carte se paie à la pose ; elle avance en heures de jeu.',
+    legendHow: 'Une carte se paie à la pose, même en file ; elle avance en heures de jeu.',
     /** La ligne du mât du Centre de recherche, et celle de « en cours ». */
     onCenter: (card: string) => `recherche ${card}`,
   },

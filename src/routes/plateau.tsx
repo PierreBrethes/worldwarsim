@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from 'react';
 import { api } from '../../convex/_generated/api';
@@ -137,6 +138,7 @@ import {
   carrierIn,
   PROJECTION_BY_DOMAIN,
   hasSiteSheet,
+  isProjectionKey,
   marchingTroopIds,
   representativeRole,
   stationAtCombat,
@@ -817,6 +819,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           liftHand({ kind: 'held', station, troopIds: unit });
           return;
         }
+      }
+      /** **En Mondiale, un site de projection se sélectionne** (#163, comme dans Warcraft III) :
+       *  l'anneau sur son mât, et la bande du plateau personnel montre ce qu'il forme. Sa fiche
+       *  s'ouvre depuis la bande. */
+      if (!blitz && isProjectionKey(standing.key)) {
+        setGarrison(null);
+        setHand(EMPTY_HAND);
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        void navigate({
+          search: (previous) => {
+            const windows = (previous.windows ?? []).filter((open) => open !== 'site');
+            return {
+              ...withWindow({ ...previous, windows }, 'personalBoard'),
+              building: buildingId,
+            };
+          },
+        });
+        return;
       }
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
@@ -1553,6 +1573,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     setPlacingAim(null);
     setPlacing(held);
   }, []);
+  const dismissPlacing = useCallback(() => hold(null), [hold]);
 
   /**
    * **Le clic sur la carte commande le chantier**, par la mutation qui commande tous les
@@ -2295,13 +2316,47 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', onKey);
   }, [chosen.length, picking, hand.kind, clearSelection, formSquad, disbandSquad]);
 
+  /** Échap lâche aussi le pays lu, sauf quand une fenêtre est devant : c'est elle qu'il ferme. */
+  const surfaceOpen = windows.some((name) => name !== 'personalBoard');
+  useEffect(() => {
+    if (country == null || surfaceOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && hand.kind === 'empty' && !isTyping()) select(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [country, surfaceOpen, hand.kind, select]);
+
   /** Un clic net sur le plateau, main vide, défait la sélection — sauf au doigt qui choisit. */
+  /** **Le site de projection sélectionné** (#163) : celui que la bande fait former, tant
+   *  qu'elle est dépliée et que sa fiche n'est pas devant. */
+  const selectedSite =
+    blitz || !windows.includes('personalBoard') || windows.includes('site')
+      ? null
+      : (view.me.buildings.find(
+          (building) => building.id === focused && isProjectionKey(building.key),
+        ) ?? null);
+  /** Un clic dans le vide désélectionne le site : la bande revient aux tuiles. */
+  const deselectSite = useCallback(
+    () =>
+      void navigate({
+        search: ({ building: _dropped, ...rest }) => rest,
+      }),
+    [navigate],
+  );
   const readGround = useCallback(
     (name: string | null) => {
       if (!picking && hand.kind === 'empty') clearSelection();
-      select(name);
+      void navigate({
+        search: ({ country: _country, building, ...rest }) => ({
+          ...rest,
+          ...(building === undefined || building === selectedSite?.id ? {} : { building }),
+          ...(name ? { country: name } : {}),
+        }),
+        replace: true,
+      });
     },
-    [picking, hand.kind, clearSelection, select],
+    [picking, hand.kind, clearSelection, navigate, selectedSite?.id],
   );
   const startPicking = useCallback(() => {
     dropHand();
@@ -2631,7 +2686,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     firstSteps === null || firstSteps.lit === null || firstSteps.shown === 'open'
       ? null
       : () => firstSteps.show('open');
-  const cuedLabel = stepCue?.kind === 'piece' ? markerOfStation(view, stepCue.station) : null;
+  const cuedLabel = stepCue?.kind === 'map' ? markerOfStation(view, stepCue.station) : null;
   const mapCue =
     cuedLabel === null || stepText === null ? null : { labelId: cuedLabel, text: stepText };
 
@@ -2894,7 +2949,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
-        /** Avec Formation double, deux lots montent à la fois : la ligne tombe au plus proche. */
         const started = facility.queue.filter((batch) => batch.started);
         if (started.length === 0) return [];
         const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
@@ -2983,7 +3037,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           <FirstStepsList
             steps={firstSteps}
             onLead={() => {
-              if (stepCue?.kind === 'piece') locateStation(stepCue.station);
+              if (stepCue?.kind === 'map') locateStation(stepCue.station);
               else openWindow('personalBoard');
             }}
           />
@@ -2991,6 +3045,86 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
     />
   );
+
+  /** Une fenêtre de la pile, montée dans sa propre frontière de chargement (plus bas). */
+  const surface = (name: Exclude<BoardWindow, 'personalBoard'>, rank: number): ReactNode => {
+    const windowProps = {
+      rank,
+      inFront: rank === surfaces.length - 1,
+      onBringForward: () => bringForward(name),
+      onClose: () => {
+        /** La manchette d'une notification ne survit pas au journal qui la portait. */
+        if (name === 'journal') setJournalLead(null);
+        closeWindow(name);
+      },
+    };
+    switch (name) {
+      case 'journal':
+        return (
+          <JournalWindow
+            key={name}
+            view={view}
+            seat={seat}
+            leadReport={journalLead}
+            rumors={lootRumors}
+            selectedRumorId={selectedRumorId}
+            onSelectRumor={selectRumor}
+            garrisonAt={garrisonAtCombat}
+            onShowCombat={showCombat}
+            onLocate={locate}
+            onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
+            {...windowProps}
+          />
+        );
+      case 'telegraph':
+        return <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />;
+      case 'site':
+        /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
+         *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
+        return focused === undefined ? null : (
+          <SiteModal
+            key={name}
+            view={view}
+            seat={seat}
+            buildingId={focused}
+            onOpenGunnery={() => openWindow('gunnery')}
+            onPrepare={prepareColumn}
+            {...windowProps}
+          />
+        );
+      case 'nation':
+        return <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />;
+      case 'gunnery':
+        return <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />;
+      case 'press':
+        return (
+          <PressWindow
+            key={name}
+            press={view.press}
+            verdict={view.season.verdict}
+            ending={ending.facts}
+            blitz={blitz}
+            points={view.strategicPoints}
+            race={view.season.race}
+            {...windowProps}
+          />
+        );
+      case 'research':
+        return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
+      case 'settings':
+        return (
+          <SettingsWindow
+            key={name}
+            seat={seat}
+            mayConclude={view.me.mayConclude}
+            defeated={view.me.defeated}
+            blitz={blitz}
+            onShowBriefing={showBriefing}
+            {...windowProps}
+          />
+        );
+    }
+  };
 
   return (
     <Shell
@@ -3055,7 +3189,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenCamp={openCamp}
               onOpenObjective={openObjective}
               onOpenStrategic={openStrategic}
-              selectedLabel={highlight?.labelId ?? null}
+              selectedLabel={
+                highlight?.labelId ?? (selectedSite === null ? null : buildingLabelId(selectedSite))
+              }
               selectedPlate={highlightPlate}
               selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
               reach={handReach ?? movementReach}
@@ -3089,6 +3225,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               building={buildingSite !== null}
               placing={placingCard}
               onPlacePoint={placeAt}
+              onPlacingDismiss={dismissPlacing}
               onPlacingAim={setPlacingAim}
               aiming={column !== null}
               focus={focus}
@@ -3418,7 +3555,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   open ? openWindow('personalBoard') : closeWindow('personalBoard')
                 }
                 focused={boardOpen ? (focused ?? null) : null}
+                site={selectedSite}
+                onDeselectSite={deselectSite}
+                onOpenSiteSheet={() => openWindow('site')}
                 onHoldTile={holdTile}
+                placing={placing?.key ?? null}
                 onPlaceTile={placeTile}
                 onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
                 cue={
@@ -3429,102 +3570,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               />
             </Suspense>
           )}
-          <Suspense fallback={null}>
-            {surfaces.map((name, rank) => {
-              const windowProps = {
-                rank,
-                inFront: rank === surfaces.length - 1,
-                onBringForward: () => bringForward(name),
-                onClose: () => {
-                  /** La manchette d'une notification ne survit pas au journal qui la portait. */
-                  if (name === 'journal') setJournalLead(null);
-                  closeWindow(name);
-                },
-              };
-              switch (name) {
-                case 'journal':
-                  return (
-                    <JournalWindow
-                      key={name}
-                      view={view}
-                      seat={seat}
-                      leadReport={journalLead}
-                      rumors={lootRumors}
-                      selectedRumorId={selectedRumorId}
-                      onSelectRumor={selectRumor}
-                      garrisonAt={garrisonAtCombat}
-                      onShowCombat={showCombat}
-                      onLocate={locate}
-                      onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
-                      {...windowProps}
-                    />
-                  );
-                case 'telegraph':
-                  return (
-                    <TelegraphWindow
-                      key={name}
-                      telegraph={telegraph}
-                      seat={seat}
-                      {...windowProps}
-                    />
-                  );
-                case 'site':
-                  /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
-                   *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
-                  return focused === undefined ? null : (
-                    <SiteModal
-                      key={name}
-                      view={view}
-                      seat={seat}
-                      buildingId={focused}
-                      onOpenGunnery={() => openWindow('gunnery')}
-                      onPrepare={prepareColumn}
-                      {...windowProps}
-                    />
-                  );
-                case 'nation':
-                  return (
-                    <NationWindow
-                      key={name}
-                      view={view}
-                      onLocate={locateStation}
-                      {...windowProps}
-                    />
-                  );
-                case 'gunnery':
-                  return (
-                    <GunneryWindow key={name} seat={seat} theatre={blitzTheatre} {...windowProps} />
-                  );
-                case 'press':
-                  return (
-                    <PressWindow
-                      key={name}
-                      press={view.press}
-                      verdict={view.season.verdict}
-                      ending={ending.facts}
-                      blitz={blitz}
-                      points={view.strategicPoints}
-                      race={view.season.race}
-                      {...windowProps}
-                    />
-                  );
-                case 'research':
-                  return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
-                case 'settings':
-                  return (
-                    <SettingsWindow
-                      key={name}
-                      seat={seat}
-                      mayConclude={view.me.mayConclude}
-                      defeated={view.me.defeated}
-                      blitz={blitz}
-                      onShowBriefing={showBriefing}
-                      {...windowProps}
-                    />
-                  );
-              }
-            })}
-          </Suspense>
+          {/* **Une frontière par fenêtre** (#161) : la fenêtre qu'on ouvre pour la première fois
+              se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
+          {surfaces.map((name, rank) => (
+            <Suspense key={name} fallback={null}>
+              {surface(name, rank)}
+            </Suspense>
+          ))}
           {briefing && (
             <BriefingSheet
               theatre={blitzTheatre}

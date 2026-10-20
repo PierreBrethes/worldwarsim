@@ -189,8 +189,8 @@ export const pledgedWork = (
   readonly regionId: string;
   readonly outpostId: string | null;
   readonly point: LonLat | null;
-  /** Daté : il monte déjà (sur une file de chantier) ; absent ou `null` : il attend. */
-  readonly minutesLeft?: number | null;
+  /** Seule la tête de file en porte un : elle monte, les autres attendent. */
+  readonly minutesLeft?: number;
 }> =>
   view.me.construction === null
     ? view.me.constructionQueue
@@ -691,7 +691,7 @@ export function workSitesOf(
   loadedAt: number,
 ): WorkSite[] {
   const sites: WorkSite[] = [];
-  /** Un chantier qui monte, sur n'importe laquelle des files de chantier (ADR 0031). */
+  /** Le chantier de tête, seul à monter. */
   const rising = (work: RisingWork, rank: number) => {
     if (work.outpostId !== null || work.key === 'outpost') return;
     const key = work.key;
@@ -716,10 +716,6 @@ export function workSitesOf(
   };
   if (me.construction !== null) rising(me.construction, 0);
   me.constructionQueue.forEach((queued, k) => {
-    if (queued.minutesLeft != null) {
-      rising({ ...queued, minutesLeft: queued.minutesLeft }, k + 1);
-      return;
-    }
     if (queued.outpostId !== null || queued.key === 'outpost' || queued.level !== 1) return;
     sites.push({
       phase: 'queued',
@@ -734,17 +730,4 @@ export function workSitesOf(
     });
   });
   return sites;
-}
-
-/**
- * **La file redatée** : pour chaque entrée dans l'ordre de la file (vrai = elle monte), celles qui
- * démarrent — les premières en attente, tant qu'une file est libre (ADR 0031 : une, deux avec
- * Chantier double). Les files ne rétrécissent jamais : une carte acquise le reste.
- */
-export function lanesPlan(running: ReadonlyArray<boolean>, lanes: number): number[] {
-  const rising = running.filter(Boolean).length;
-  return running
-    .map((_, index) => index)
-    .filter((index) => !running[index])
-    .slice(0, Math.max(0, lanes - rising));
 }

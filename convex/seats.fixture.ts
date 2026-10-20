@@ -9,7 +9,8 @@ import { DEPOSIT_POINTS } from '../src/domain/world';
 import { capitalRegionOf, pointOfRegion } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
-import { layPoint } from './strategicPoints';
+import { handOver, layPoint } from './strategicPoints';
+import { recordLinkage } from './holding';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -291,7 +292,8 @@ export const neutralPoint = async (
   key: Doc<'strategicPoints'>['key'],
 ) => (await layPoint(ctx, seasonId, key))!;
 
-/** Un point tenu par une place, posé s'il manquait. */
+/** Un point tenu par une place, posé s'il manquait — par la porte du jeu (`handOver`), puis la
+ *  couleur retenue comme après une prise (`recordLinkage`, #144). */
 export const holdPoint = (
   t: Bench,
   seat: Seat,
@@ -301,6 +303,7 @@ export const holdPoint = (
   t.run(async (ctx) => {
     const player = await seatIn(ctx, holder);
     const point = await neutralPoint(ctx, seat.seasonId, key);
-    await ctx.db.patch(point._id, { holderId: player._id, heldSince: Date.now() });
+    await handOver(ctx, point, player._id, Date.now());
+    await recordLinkage(ctx, seat.seasonId);
     return point._id;
   });

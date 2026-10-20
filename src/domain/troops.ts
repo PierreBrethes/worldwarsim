@@ -52,7 +52,11 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
  * came (#155).
  */
 export const hasSiteSheet = (mode: PlayerView['mode'], key: BuildingKey): boolean =>
-  mode === 'blitz' || Object.values(PROJECTION_BY_DOMAIN).includes(key);
+  mode === 'blitz' || isProjectionKey(key);
+
+/** A barracks, a port or an aerodrome: a building that forms troops. */
+export const isProjectionKey = (key: BuildingKey): boolean =>
+  Object.values(PROJECTION_BY_DOMAIN).includes(key);
 
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
