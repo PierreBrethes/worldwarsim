@@ -13,6 +13,7 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
+import { HalifaxMark } from './HalifaxMark';
 import { currentMinutes, currentStock, type PlayerView, type Resource } from '@/domain/player-view';
 import {
   announceOf,
@@ -145,11 +146,7 @@ export function Reglette({
           >
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
-          {halifaxNoteOf(me.slots)?.sparing === true && (
-            <span className="text-[10px] leading-none font-semibold tracking-[.08em] text-[var(--ink-soft)] uppercase">
-              {fr.banner.halifaxSpared}
-            </span>
-          )}
+          <HalifaxMark slots={me.slots} />
         </div>
       )}
 
