@@ -886,9 +886,10 @@ export async function march(
   const minutes = await pacedMinutes(ctx, playerId, route, now);
   const arrivesAt = now + minutes * 60_000;
   /** Le plein se débite ici, l'arrivée connue : le cran de Bakou se compte depuis l'arrêt. */
-  for (const troop of fuel.drivers)
+  const paying = new Set(fuel.drivers.map((troop) => troop._id));
+  for (const troop of troops)
     await ctx.db.patch(troop._id, {
-      fuel: suppliesOf(troop).fuel - fuel.stepsOf(troop),
+      ...(paying.has(troop._id) ? { fuel: suppliesOf(troop).fuel - fuel.stepsOf(troop) } : {}),
       fuelAt: arrivesAt,
     });
   const cargo = await takeStationedCargo(ctx, {
