@@ -78,8 +78,20 @@ export function FloatingWindow(props: FrameProps) {
  * **Elle est la seule surface ouverte** : en montant, elle ferme la feuille ou le panneau qui
  * l'était (`useSoleSurface`), et une fenêtre qu'une autre recouvre se ferme d'elle-même.
  */
+/**
+ * **Les feuilles qui couvrent la carte, celles qui sont montées** (#189) : chacune s'y compte à
+ * son montage et s'en retire au démontage. L'URL ne suffit pas — elle nomme encore la fiche d'un
+ * bâtiment tombé, qui ne rend rien — et une carte crue couverte ne dessine plus.
+ */
+export const SheetCount = createContext<((delta: 1 | -1) => void) | null>(null);
+
 function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
   const container = useRef<HTMLDivElement>(null);
+  const count = useContext(SheetCount);
+  useEffect(() => {
+    count?.(1);
+    return () => count?.(-1);
+  }, [count]);
   useOpeningFocus(container);
   useEscapeToClose(onClose, inFront);
   useSoleSurface(onClose, inFront);
