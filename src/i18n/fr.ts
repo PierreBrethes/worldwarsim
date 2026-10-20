@@ -2017,6 +2017,8 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
+    /** **Halifax** : ce que le compteur n'a pas retenu, dit à côté de lui. */
+    halifaxSpared: 'Halifax −1',
     slotsTitle: (
       used: number,
       total: number,
@@ -2798,7 +2800,7 @@ export const fr = {
       `Bakou : un cran de plein repris toutes les ${BAKU_REFUEL_MS / 3_600_000} h hors ancre — le prochain dans ${when}`,
     /** **Singapour** : le plein des camions et des cargos de la colonne, réduit de 20 %. */
     easedBySingapore: (from: number, to: number) =>
-      `camions et cargos : ${to} cran${plural(to, '', 's')} au lieu de ${from} (Singapour, −${SINGAPORE_FUEL_DISCOUNT_PCT} %)`,
+      `Singapour −${SINGAPORE_FUEL_DISCOUNT_PCT} % : ${to} cran${plural(to, '', 's')} au lieu de ${from}`,
     route: (steps: number, roundTrip = false) =>
       `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
   },

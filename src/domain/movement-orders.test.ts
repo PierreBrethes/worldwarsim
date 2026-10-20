@@ -246,7 +246,7 @@ describe('an empty manifest', () => {
     expect(movementSlots(['transmissions1', 'transmissions2', 'transmissions3'])).toBe(5);
   });
 
-  /** **Halifax** (P11) : les mouvements maritimes de son teneur ne prennent pas de slot. Est
+  /** **Halifax** (ADR 0032) : un mouvement maritime à la fois ne prend pas de slot. Est
    *  maritime ce qui navigue : des coques, et ce qu'elles portent. */
   it('calls maritime a column of hulls and what they carry, and nothing that walks or flies', () => {
     expect(

@@ -759,10 +759,27 @@ export function WorldMap({
   const [detaching, setDetaching] = useState<{ x: number; y: number; done: boolean } | null>(null);
   const hintNode = useRef<HTMLDivElement>(null);
   const hintAt = useRef('');
-  /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur. */
+  const hintPointer = useRef<{ x: number; y: number } | null>(null);
+  /** La place de la puce par rapport au pointeur : sous la main à droite, retournée contre les
+   *  bords. Elle se mesure sur la puce telle qu'elle est — et se refait quand ses notes arrivent. */
+  const placeHint = (clientX: number, clientY: number) => {
+    const chip = hintNode.current;
+    const width = chip?.offsetWidth ?? 0;
+    const height = chip?.offsetHeight ?? 0;
+    const x = clientX + 26 + width > innerWidth - 12 ? clientX - width - 22 : clientX + 26;
+    const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
+    /** Ni retournée ni à droite elle ne tient sur un écran étroit : elle reste alors dans le cadre. */
+    hintAt.current = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
+    if (chip !== null) chip.style.transform = hintAt.current;
+  };
+  /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur ;
+   *  les notes de la route, qui l'élargissent après l'arrêt, la replacent. */
   useLayoutEffect(() => {
-    if (hintNode.current !== null) hintNode.current.style.transform = hintAt.current;
-  }, [hint, rose]);
+    if (hintNode.current === null) return;
+    if (hintPointer.current !== null && dropNotes !== undefined)
+      placeHint(hintPointer.current.x, hintPointer.current.y);
+    hintNode.current.style.transform = hintAt.current;
+  }, [hint, rose, dropNotes]);
   useEffect(() => {
     if (!readyEngine) return;
     const read = (
@@ -822,13 +839,8 @@ export function WorldMap({
     readyEngine.onCarryCancel = onDropRefused;
     readyEngine.onCarryOver = (target, clientX, clientY) => {
       // The prototype's place: below right of the hand, flipped against the screen's edges.
-      const chip = hintNode.current;
-      const width = chip?.offsetWidth ?? 0;
-      const height = chip?.offsetHeight ?? 0;
-      const x = clientX + 26 + width > innerWidth - 12 ? clientX - width - 22 : clientX + 26;
-      const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
-      hintAt.current = `translate(${x}px, ${y}px)`;
-      if (chip !== null) chip.style.transform = hintAt.current;
+      hintPointer.current = { x: clientX, y: clientY };
+      placeHint(clientX, clientY);
       const over =
         target === null || target.kind === 'ground'
           ? null

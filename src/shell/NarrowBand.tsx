@@ -90,6 +90,11 @@ export function NarrowBand({
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
+            {halifaxNoteOf(me.slots)?.sparing === true && (
+              <span className="text-[10px] leading-none font-semibold tracking-[.08em] text-[var(--ink-soft)] uppercase">
+                {fr.banner.halifaxSpared}
+              </span>
+            )}
           </span>
         )}
       </div>

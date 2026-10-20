@@ -145,6 +145,11 @@ export function Reglette({
           >
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
+          {halifaxNoteOf(me.slots)?.sparing === true && (
+            <span className="text-[10px] leading-none font-semibold tracking-[.08em] text-[var(--ink-soft)] uppercase">
+              {fr.banner.halifaxSpared}
+            </span>
+          )}
         </div>
       )}
 

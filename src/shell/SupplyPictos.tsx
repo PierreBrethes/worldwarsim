@@ -31,7 +31,7 @@ export function SupplyPictos({
     </span>
   );
   return (
-    <span className="supply-pictos inline-flex items-center gap-[8px] font-(family-name:--font-mono)">
+    <span className="supply-pictos inline-flex flex-wrap items-center gap-x-[8px] font-(family-name:--font-mono)">
       {rounds !== null && (
         <span
           className="inline-flex items-center gap-[2px]"
@@ -76,7 +76,7 @@ export function SupplyPictos({
           {count(fuel.held, fuel.full)}
           {fuel.refuelAt !== null && (
             <span
-              className="text-[var(--ink-soft)]"
+              className="whitespace-nowrap text-[var(--ink-soft)]"
               title={fr.supplies.refuelTitle(fr.supplies.refuelIn(fuel.refuelAt - Date.now()))}
             >
               {' '}

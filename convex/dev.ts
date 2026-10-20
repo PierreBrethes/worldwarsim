@@ -695,9 +695,10 @@ export const artilleryScene = internalMutation({
 });
 
 /**
- * **Bakou, Dakar, Singapour et Halifax tenus** : le joueur tient les quatre, un blindé au plein vide
- * en Rhénanie (arrêté depuis 5 h : à Bakou son prochain cran vient dans 7 h), un camion au plein de
- * quatre crans (−20 % à Singapour), et les deux dépêches du dépôt qui brûle à Dakar.
+ * **Bakou, Dakar, Singapour et Halifax tenus** : le joueur tient les quatre. Un blindé à sec en
+ * Basse-Saxe, arrêté depuis 5 h (à Bakou son prochain cran vient dans 7 h) ; un camion plein et son
+ * fantassin à Coblence (−20 % de plein à Singapour) ; une escorte en Atlantique, que la démo envoie
+ * en mer (Halifax : ce mouvement ne prend pas de slot) ; les deux dépêches du dépôt qui brûle à Dakar.
  */
 export const pointsScene = internalMutation({
   args: { playerId: v.id('players'), enemyId: v.id('players') },
@@ -710,9 +711,13 @@ export const pointsScene = internalMutation({
       if (point === null) throw new Error(`no region under ${key}`);
       await ctx.db.patch(point._id, { holderId: player._id, heldSince: now - 3 * 3_600_000 });
     }
-    for (const [role, fuel] of [
-      ['armor', 0],
-      ['landTransport', 4],
+    /** Chaque pile à son point : le camion marche avec son fantassin (un transport seul ne fait
+     *  qu'un raid). */
+    for (const [role, fuel, at] of [
+      ['armor', 0, { lon: 9.7, lat: 52.4 }],
+      ['escort', undefined, { lon: -30, lat: 45 }],
+      ['landTransport', 4, { lon: 7.6, lat: 50.35 }],
+      ['infantry', undefined, { lon: 7.6, lat: 50.35 }],
     ] as const)
       await ctx.db.insert('troops', {
         seasonId: player.seasonId,
@@ -721,9 +726,8 @@ export const pointsScene = internalMutation({
         tier: 1,
         nominalStrength: nominalStrength(role, 1),
         currentStrength: nominalStrength(role, 1),
-        stationedAt: { lon: 7.1, lat: 50.4 },
-        fuel,
-        fuelAt: now - 5 * 3_600_000,
+        stationedAt: at,
+        ...(fuel === undefined ? {} : { fuel, fuelAt: now - 5 * 3_600_000 }),
       });
     const lost = { ammunition: 40, oil: 20, coal: 0 };
     await ctx.db.insert('notices', {
