@@ -26,13 +26,7 @@ import {
 } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import {
-  contactKm,
-  LISTENING_STATION_RADIUS_KM,
-  outpostReachKm,
-  detectionRangeOf,
-  SURVEY_FADED_HOURS,
-} from '../../convex/constants';
+import { contactKm, outpostReachKm, SURVEY_FADED_HOURS } from '../../convex/constants';
 import { aimRefusalText, cardName, fr, nationLabel } from '@/i18n/fr';
 import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { isRangoonColumn } from '@/domain/strategic-points';
@@ -68,7 +62,7 @@ import {
   type Reach,
 } from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
-import { type BuildingKey, type UnitRole } from '@/domain/ids';
+import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation, nationInk } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -78,7 +72,6 @@ import { objectiveSprite } from '@/emblems/objectives/manifest';
 import { lootWords } from '@/domain/journal';
 import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
-import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
 import { DEPOSIT_POINTS, type HoveredRegion, type World } from '@/domain/world';
@@ -92,6 +85,12 @@ import {
 } from '@/domain/compass-rose';
 import { traceCompass } from '@/domain/compass-logistics';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
+import {
+  handReachOf,
+  movementReachOf,
+  reachOfStation,
+  withRangoonPile,
+} from '@/domain/board-reach';
 import {
   aimVerdict,
   depositHolders,
@@ -123,7 +122,6 @@ import {
   slotsAskedBy,
 } from '@/domain/movement-orders';
 import {
-  type ArcView,
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
@@ -142,13 +140,11 @@ import {
   representativeRole,
   stationAtCombat,
   stationKeyOf,
-  stationPointOf,
   seatsOf,
   troopsAt,
   unitsOf,
   type MarchStation,
 } from '@/domain/troops';
-import { fireReachOf, firesIndirect } from '@/domain/indirect-fire';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
@@ -2522,64 +2518,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
    * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il part avec la main.
    */
-  const handReach = useMemo<Reach | null>(() => {
-    if (column === null) return null;
-    /** **L'artillerie levée montre où elle tire** (B20) : la portée et la zone morte, de sa
-     *  batterie — un bâtiment compris, d'où elle tire aussi. */
-    const firing = column.rule.roles.some(firesIndirect);
-    if (!firing && column.station.kind !== 'point') return null;
-    const at = stationPointOf(view.me, column.station);
-    if (at === null) return null;
-    return {
-      lonLat: at,
-      detectionKm: detectionRangeOf(column.rule.roles, blitzTheatre),
-      /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
-       *  une seule règle, celle que l'arrivée lit pour trouver qui se tient là. */
-      contactKm: firing ? null : contactKm(blitzTheatre),
-      ...(firing ? { fire: fireReachOf(blitzTheatre) } : {}),
-    };
-  }, [column, view.me, blitzTheatre]);
-  const movementReach = useMemo<Reach | null>(() => {
-    const movement = view.arcs.find(
-      (arc): arc is Extract<ArcView, { state: 'mine' }> =>
-        arc.state === 'mine' && arc.id === hoveredMovement,
-    );
-    if (movement === undefined) return null;
-    const roles = (Object.entries(movement.stack) as ReadonlyArray<[UnitRole, number | undefined]>)
-      .filter(([, count]) => (count ?? 0) > 0)
-      .map(([role]) => role);
-    const elapsed = Math.max(0, surveyClock - view.loadedAt);
-    const progress =
-      movement.progress >= 1 || movement.minutesLeft <= 0
-        ? 1
-        : Math.min(
-            1,
-            movement.progress +
-              ((1 - movement.progress) * elapsed) / (movement.minutesLeft * 60_000),
-          );
-    const lonLat = positionAt(
-      {
-        id: movement.id,
-        points: movement.route.points,
-        legs: movement.route.legs,
-        distanceUnits: movement.route.distanceUnits,
-        landCost: movement.route.landCost,
-        departedAt: 0,
-        arrivesAt: 1,
-      },
-      progress,
-    );
-    return isRangoonColumn(
-      movement.troopIds,
-      (id) => view.me.troops.find((troop) => troop.id === id)?.tour?.veiled === true,
-    )
-      ? rangoonReachOf(lonLat)
-      : {
-          lonLat,
-          detectionKm: detectionRangeOf(roles, blitzTheatre),
-          contactKm: contactKm(blitzTheatre),
-        };
-  }, [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre]);
+  const handReach = useMemo<Reach | null>(
+    () => handReachOf(view.me, column, blitzTheatre),
+    [column, view.me, blitzTheatre],
+  );
+  const movementReach = useMemo<Reach | null>(
+    () => movementReachOf(view, hoveredMovement, surveyClock, blitzTheatre),
+    // Les champs de `view` que la portée lit, pas la vue entière : elle se réinvalide sans cesse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hoveredMovement, surveyClock, view.arcs, view.me.troops, view.loadedAt, blitzTheatre],
+  );
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
   const selectedObjectiveView =
@@ -3966,28 +3914,3 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
  *  le panneau qui portait ce nom en titre. */
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
-
-/** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
- *  other one covers nothing, and a region the view does not carry has no point to draw around. */
-/**
- * **Une tournée de Rangoun à l'arrêt** montre au survol de son mât l'anneau d'où on la relève,
- * comme en route : la pile entière en tournée, la même règle que le serveur (`isRangoonColumn`).
- */
-const withRangoonPile = (
-  me: PlayerView['me'],
-  station: TroopStation,
-  marching: ReadonlySet<string>,
-  lonLat: LonLat,
-  reach: Reach | null,
-): Reach | null =>
-  isRangoonColumn(
-    troopsAt(me, stationKeyOf(station), marching),
-    (troop) => troop.tour?.veiled === true,
-  )
-    ? rangoonReachOf(lonLat, reach)
-    : reach;
-
-const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | null =>
-  key === 'listening' && point !== undefined
-    ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
-    : null;
