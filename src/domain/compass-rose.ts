@@ -847,6 +847,8 @@ function plunderFan(
   column: Column,
 ): Compass {
   const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
+  const spared = view.surveyedInstallations.find((installation) => installation.id === target.id)
+    ?.spared;
   const isMine = view.me.buildings.some((standing) => standing.id === target.id);
   const refused = notInBlitz(view.mode) ?? plunderOrderRefusalOf(aimed, column, isMine);
   const label =
@@ -867,7 +869,7 @@ function plunderFan(
             pictogram: 'sabotage' as const,
             label,
             cost: slotCost(view),
-            consequence: fr.compass.plunderConsequence(label),
+            consequence: fr.compass.plunderConsequence(label, spared),
             buildingId: target.id,
             aim: aimed,
           },

@@ -539,9 +539,15 @@ export async function clipToStorage(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   now: number,
+  /** Ce qu'un pillage laisse par ressource (`sparedPerResourceOf`) : le plafond ne coupe pas en
+   *  dessous, sans quoi Dakar épargnerait 600 puis les perdrait au rognage. */
+  spared = 0,
 ): Promise<Record<ResourceKey, number>> {
   const economy = await settle(ctx, playerId, now);
-  const { stocks, lost } = clipToCapacity(economy.stocks, economy.cap);
+  const cap = Object.fromEntries(
+    RESOURCES.map((key) => [key, Math.max(economy.cap[key], spared)]),
+  ) as Record<ResourceKey, number>;
+  const { stocks, lost } = clipToCapacity(economy.stocks, cap);
   if (RESOURCES.every((key) => lost[key] === 0)) return lost;
   await writeStocks(ctx, economy, stocks, now);
   return lost;

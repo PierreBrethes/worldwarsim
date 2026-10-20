@@ -11,11 +11,12 @@ import {
   PLUNDER_HOURS_PRESENT,
 } from './constants';
 import { regionFacts, pointOfRegion } from './regions';
+import { sparedPerResourceOf } from '../src/domain/loot';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { attacking, foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -668,6 +669,33 @@ describe('plunder presence', () => {
     const [back] = await returnsOf(t, seat);
     expect(back?.loot).toEqual(report?.taken);
     expect(back?.plunderReportId).toBe(report?._id);
+  });
+
+  /** **Dakar** (ADR 0032) : le pillage laisse 600 par ressource au teneur, pas 400. */
+  it('leaves 600 per resource to the holder of Dakar, and takes only what stands above', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const transport = await troop(t, seat, 'landTransport', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await holdPoint(t, seat, 'dakar', guest);
+    await setStocks(t, guest, { food: 702, steel: 500 });
+    await observe(t, seat);
+    expect(
+      ((await t.query(api.view.playerView, seat)).surveyedInstallations[0] as { spared?: number })
+        .spared,
+    ).toBe(sparedPerResourceOf(true));
+    const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
+
+    await completePresence(t, movementId);
+
+    const stocks = await stocksOf(t, guest);
+    expect(stocks.food).toBe(600);
+    expect(stocks.steel).toBe(500);
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
+    expect(report?.taken).toMatchObject({ food: 100, steel: 0 });
+    expect(report?.storageLost).toMatchObject({ food: 0, steel: 0 });
   });
 
   it('records a successful take with nothing available and still disables the warehouse', async () => {

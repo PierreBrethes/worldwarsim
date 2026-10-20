@@ -726,6 +726,26 @@ describe('in aim', () => {
     expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
   });
 
+  it('tells the plunderer what the warehouse of the holder of Dakar spares', () => {
+    const dakar = {
+      ...view,
+      surveyedInstallations: [
+        { id: 'warehouse-dakar', key: 'warehouse', regionId: 'ROU-310', spared: 600 },
+      ],
+    } as unknown as PlayerView;
+    const fan = (id: string, source: PlayerView) =>
+      compassOf(
+        { kind: 'installation', id, key: 'warehouse', regionId: 'ROU-310', name: 'Entrepôt' },
+        source,
+        column,
+      )?.actions[0];
+    expect(fan('warehouse-dakar', dakar)).toMatchObject({
+      key: 'plunder',
+      consequence: expect.stringContaining('600'),
+    });
+    expect(fan('warehouse-enemy', dakar)?.consequence).not.toContain('Dakar');
+  });
+
   it('offers capture but no plunder on a Blitz neutral', () => {
     const city = compassOf(
       { kind: 'installation', id: 'city-1', key: 'city', regionId: 'ROU-310', name: 'Ville' },

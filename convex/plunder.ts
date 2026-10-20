@@ -3,9 +3,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
-import { carryCapacityOf, lootFromSurplus } from '../src/domain/loot';
+import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf } from '../src/domain/loot';
 import {
-  BASE_CAP,
   CARRY_CAPACITY_BY_ROLE,
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
@@ -17,6 +16,7 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
+import { holdsPoint } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seats';
@@ -243,10 +243,13 @@ export async function completePresence(
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
   const existingCargo = RESOURCES.reduce((sum, key) => sum + existingAmounts[key], 0);
+  const spared = sparedPerResourceOf(
+    await holdsPoint(ctx, { _id: target.playerId, seasonId: target.seasonId }, 'dakar'),
+  );
   const taken = isWarehouse
     ? lootFromSurplus(
         (await economyOf(ctx, target.playerId, now)).stocks,
-        BASE_CAP,
+        spared,
         carryCapacityOf(
           troops.map((troop) => ({
             role: troop.role,
@@ -261,7 +264,7 @@ export async function completePresence(
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
   await ctx.db.patch(target._id, { disabledUntil });
-  const storageLost = isWarehouse ? await clipToStorage(ctx, target.playerId, now) : emptyStocks();
+  const storageLost = isWarehouse ? await clipToStorage(ctx, target.playerId, now, spared) : emptyStocks();
   const reportId = await ctx.db.insert('plunderReports', {
     seasonId: movement.seasonId,
     attackerId: movement.playerId,

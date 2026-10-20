@@ -24,7 +24,7 @@ import {
   type BuildingKey,
   type ResearchCard,
 } from '../src/domain/ids';
-import { carryCapacityOf } from '../src/domain/loot';
+import { carryCapacityOf, sparedPerResourceOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
@@ -52,6 +52,7 @@ import {
   OUTPOST_MAX_LEVEL,
   depotCapacity,
   CARRY_CAPACITY_BY_ROLE,
+  BASE_CAP,
   LAST_KNOWN_HOURS,
   isCommanded,
   type Costs,
@@ -200,7 +201,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     specializationLocked: locked.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyedInstallations = (
+  const surveyed = (
     await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerHasInstallations', (q) =>
@@ -214,6 +215,23 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       regionId: survey.regionId,
       point: pointOfBuilding(installation),
     })),
+  );
+  /** **Dakar** : ce que le pillage d'un entrepôt de son teneur laisse par ressource, de la fonction
+   *  même que le serveur applique (`sparedPerResourceOf`). Absent quand c'est le plancher commun. */
+  const surveyedInstallations = await Promise.all(
+    surveyed.map(async (installation) => {
+      const row =
+        installation.key === 'warehouse'
+          ? await ctx.db.get(installation.id as Id<'buildings'>)
+          : null;
+      const spared =
+        row === null
+          ? BASE_CAP
+          : sparedPerResourceOf(
+              await holdsPoint(ctx, { _id: row.playerId, seasonId: row.seasonId }, 'dakar'),
+            );
+      return spared === BASE_CAP ? installation : { ...installation, spared };
+    }),
   );
   const lootSightings = await ctx.db
     .query('lootCrateSightings')

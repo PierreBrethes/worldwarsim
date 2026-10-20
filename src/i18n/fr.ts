@@ -10,6 +10,8 @@ import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import {
   BAKU_REFUEL_MS,
+  BASE_CAP,
+  DAKAR_SPARED_PER_RESOURCE,
   LISTENING_STATION_RADIUS_KM,
   OUTPOST_REACH_KM_BY_LEVEL,
   SINGAPORE_FUEL_DISCOUNT_PCT,
@@ -541,8 +543,7 @@ export const fr = {
       narvik: 'Vos exploitations produisent même hors réseau.',
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
       baku: `Vos troupes motorisées à l’arrêt, hors de toute ancre, reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
-      dakar:
-        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
+      dakar: `Un pillage laisse ${DAKAR_SPARED_PER_RESOURCE} de chaque ressource dans vos entrepôts, au lieu de ${BASE_CAP}, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.`,
       singapore: `Vos camions et vos cargos paient ${SINGAPORE_FUEL_DISCOUNT_PCT} % de plein en moins, au cran près.`,
     } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
@@ -2585,7 +2586,7 @@ export const fr = {
         reason === 'gone'
           ? `Expédition bredouille — ${region} : ${building} relevé n’est plus debout. La colonne rentre à vide.`
           : reason === 'sealed'
-            ? `Expédition bredouille — ${region} : ${building} est gardé par Dakar, ses réserves ne se pillent pas. La colonne rentre à vide.`
+            ? `Expédition bredouille — ${region} : ${building} était scellé par Dakar (ancienne règle). La colonne rentre à vide.`
             : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
@@ -4251,8 +4252,11 @@ export const fr = {
      *  comme les marches, parce que c'en est une. */
     plunder: 'piller',
     sabotage: 'saboter',
-    plunderConsequence: (verb: string) =>
-      `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
+    plunderConsequence: (verb: string, spared?: number) =>
+      `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.` +
+      (spared === undefined
+        ? ''
+        : ` Dakar le garde : ${spared} de chaque ressource restent sur place, seul le surplus se prend.`),
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',

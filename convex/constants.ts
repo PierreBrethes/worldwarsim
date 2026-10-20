@@ -94,6 +94,13 @@ export const isCommanded = (key: BuildingKey): boolean =>
  * Each level raises all five ceilings; legacy depots count as warehouses.
  */
 export const BASE_CAP = 400;
+
+/**
+ * **Dakar** (ADR 0032) : ce qu'un pillage laisse par ressource à son teneur, au lieu de `BASE_CAP`.
+ *
+ * @a-mesurer 600 de la décision du 20/10, jamais joué
+ */
+export const DAKAR_SPARED_PER_RESOURCE = 600;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
 /**
