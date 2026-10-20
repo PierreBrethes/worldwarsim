@@ -46,7 +46,10 @@ export class FrameDemand {
   }
 
   /** Pourquoi cette image est due, ou `null` ; `pace` est l'écart voulu entre deux images complètes
-   *  au repos (battement, fil qui coule, `Infinity` onglet caché) ; une image remuée ou de battement compte comme complète. */
+   *  au repos (battement, fil qui coule, `Infinity` onglet caché) ; une image remuée ou de battement compte comme complète.
+   *  **Un fil qui coule porte l'ambiance** (#189) : ses images complètes jouent aussi le pas de la mer
+   *  et du vent, qui n'en demande plus d'autre entre elles — 45 à 60 images par seconde au repos
+   *  au lieu de 30, pour la même mer à 32 ms près. */
   due(now: number, pace: number = HEARTBEAT_MS): FrameReason | null {
     const requested = this.requested;
     this.requested = false;
@@ -55,7 +58,7 @@ export class FrameDemand {
         ? 'stirred'
         : now - this.fullAt >= pace
           ? 'heartbeat'
-          : requested
+          : requested && pace >= HEARTBEAT_MS
             ? 'ambient'
             : null;
     if (reason === 'stirred' || reason === 'heartbeat') this.fullAt = now;

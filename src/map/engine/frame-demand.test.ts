@@ -78,6 +78,17 @@ describe('FrameDemand', () => {
     expect(wholeFrames(Number.POSITIVE_INFINITY)).toBe(0);
   });
 
+  it('folds the ambience into a flowing thread: no more frames than the flow asks (#189)', () => {
+    const demand = new FrameDemand(0);
+    demand.due(SETTLE_MS);
+    let frames = 0;
+    for (let now = SETTLE_MS + 16; now <= SETTLE_MS + 10_000; now += 16) {
+      demand.request();
+      if (demand.due(now, FLOW_FULL_MS) !== null) frames += 1;
+    }
+    expect(frames).toBeLessThanOrEqual(10 * 32);
+  });
+
   it('renders a stirred frame whole even when the ambience asked for it too', () => {
     const demand = new FrameDemand(0);
     demand.request();
