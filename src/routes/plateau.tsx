@@ -84,6 +84,7 @@ import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import {
   groupCompassOf,
+  groupSlotsOf,
   holds,
   matchingOrder,
   squadLeadOf,
@@ -99,8 +100,6 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandRefusalOf,
-  freeSlotsOf,
-  slotsAskedBy,
 } from '@/domain/movement-orders';
 import {
   type CombatReport,
@@ -957,23 +956,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ].map((pile) => ({ ...pile, compass: pileCompass(target, pile.station, pile.troopIds) }));
       const group = groupCompassOf(
         reads.map((read) => read.compass),
-        view.mode === 'blitz'
-          ? null
-          : {
-              free: freeSlotsOf(view.me.slots),
-              asked: slotsAskedBy(
-                reads.map((read) =>
-                  read.troopIds.flatMap((id) => {
-                    const troop = view.me.troops.find((one) => one.id === id);
-                    return troop === undefined
-                      ? []
-                      : [{ role: troop.role, carried: troop.carriedBy !== undefined }];
-                  }),
-                ),
-                view.strategicPoints.some((point) => point.key === 'halifax' && point.mine),
-                view.me.slots.maritime ?? 0,
-              ),
-            },
+        groupSlotsOf(
+          view,
+          reads.map((read) => read.troopIds),
+        ),
       );
       for (const action of group?.actions ?? [])
         if (isOrder(action)) groupReads.current.set(groupKeyOf(action), reads);

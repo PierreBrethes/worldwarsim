@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Compass, CompassAction } from './compass-rose';
-import { groupCompassOf, insideStroke, matchingOrder, squadLeadOf, toggleIn } from './selection';
+import {
+  groupCompassOf,
+  groupSlotsOf,
+  insideStroke,
+  matchingOrder,
+  squadLeadOf,
+  toggleIn,
+} from './selection';
+import type { PlayerView } from './player-view';
 import { slotsAskedBy } from './movement-orders';
 import type { MarchStation } from './troops';
 
@@ -121,5 +129,32 @@ describe('forming a squad', () => {
       ]),
     ).toEqual(at(2));
     expect(squadLeadOf([{ station: garrison, troops: 9 }])).toBeNull();
+  });
+});
+
+describe('the slots a selection asks for', () => {
+  const view = (mode: string, halifax: boolean): PlayerView =>
+    ({
+      mode,
+      me: {
+        slots: { total: 3, used: 1 },
+        troops: [
+          { id: 'a', role: 'infantry' },
+          { id: 'b', role: 'escort' },
+        ],
+      },
+      strategicPoints: halifax ? [{ key: 'halifax', mine: true }] : [],
+    }) as unknown as PlayerView;
+
+  it('asks one slot per pile against the free ones', () => {
+    expect(groupSlotsOf(view('mondiale', false), [['a'], ['b']])).toEqual({ free: 2, asked: 2 });
+  });
+
+  it('spares one maritime pile to the holder of Halifax', () => {
+    expect(groupSlotsOf(view('mondiale', true), [['a'], ['b']])).toEqual({ free: 2, asked: 1 });
+  });
+
+  it('counts nothing in Blitz', () => {
+    expect(groupSlotsOf(view('blitz', false), [['a']])).toBeNull();
   });
 });
