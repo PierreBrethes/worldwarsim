@@ -3342,14 +3342,6 @@ function Loading() {
   );
 }
 
-/**
- * The column as the shared rule reads it, built from what the player is allowed to see. It is
- * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
- * two callers.
- *
- * `station` is the address the garrison panel was opened on, whichever of its two doors — the
- * ground under it is only consulted for the domain gates, and a point carries none.
- */
 /** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
 function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
   if (fuel.short !== null)
