@@ -532,7 +532,12 @@ export class MapEngine {
     // The stencil serves the coastal wash, whose ribbons overlap: without it, three opens
     // the context without a stencil buffer since r163 and the material would plead in vain.
     this.renderer = new WebGLRenderer({ antialias: true, stencil: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.setPixelRatio(
+      Math.min(
+        devicePixelRatio,
+        matchMedia('(pointer: coarse)').matches ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO,
+      ),
+    );
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     // Redrawn on whole frames only (`FrameDemand`): an ambient step moves no piece.
@@ -2629,6 +2634,13 @@ export class MapEngine {
   };
 }
 
+const DESK_PIXEL_RATIO = 2;
+/** **Au doigt, un pixel et demi par point** (#189) : un téléphone à 3 dessinait la carte en
+ *  780×1688 avec MSAA ×4, 1,3 million de pixels à chaque image pour un écran qu'on tient à
+ *  bout de bras. À 1,5, 44 % de pixels en moins ; les étiquettes, en HTML, restent nettes, le
+ *  trait de côte et les courbes de niveau s'adoucissent à peine. @a-mesurer : le gain réel se lit
+ *  au GPU d'un vrai téléphone, que le banc n'a pas. */
+const TOUCH_PIXEL_RATIO = 1.5;
 const FOG_NEAR = 460;
 const FOG_FAR = 950;
 /** The prototype's exposure under ACES (P:456). */
