@@ -2628,7 +2628,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
           </div>
           {/* **Le sous-main** (#122) : en Mondiale, la bande du plateau personnel est toujours sur
-          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire, et la barre des
+          la table, repliée tant que sa languette ne la déplie pas ; le rejeu la retire, et la barre des
           réserves et de la clé la remplace, comme le temps que le plateau se charge. */}
           {!blitz && replay !== null && <FootBar view={view} />}
           {!blitz && replay === null && (

@@ -93,7 +93,7 @@ export function PersonalBoard({
 }: {
   view: PlayerView;
   seat: Seat;
-  /** Dépliée : la fenêtre `personalBoard` de l'adresse, que « Écon. » bascule. */
+  /** Dépliée : la fenêtre `personalBoard` de l'adresse, que sa languette bascule. */
   open: boolean;
   onOpen: (open: boolean) => void;
   /** **La fenêtre de l'arbre ouverte** (#123) : la bande se replie devant elle. */

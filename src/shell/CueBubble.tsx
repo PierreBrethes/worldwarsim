@@ -1,6 +1,6 @@
 /**
  * **La bulle** : où faire le geste du pas allumé, posée sur ce qu'elle désigne — une étagère du
- * plateau personnel, une pièce de la carte, l'entrée « Écon. ». Elle ne prend pas la main : le
+ * plateau personnel, une pièce de la carte, la languette du plateau. Elle ne prend pas la main : le
  * geste se fait à travers elle. `place` la pose, au-dessus et au milieu par défaut.
  */
 export function CueBubble({

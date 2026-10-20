@@ -3764,7 +3764,7 @@ export const fr = {
   nationSheet: {
     kicker: 'fiche de nation',
     readOnly:
-      'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans Économie.',
+      'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans le plateau personnel.',
     powerHeader: 'pouvoir national',
     /**
      * The counterpart of the power, and it belongs beside it: the ADR 0015 gap is a design
@@ -4036,11 +4036,11 @@ export const fr = {
                 ...(blitz
                   ? []
                   : [
-                      'Économie, dans la colonne de gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
+                      'Le plateau personnel, en bas : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
                     ]),
                 `« À faire maintenant », au carré « N à faire » en tête de la colonne de gauche : tout ce qui attend un ordre${blitz ? '' : ', l’ordre de mobilisation en tête'} — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.`,
-                'Journal, dans la colonne de gauche : tout ce qui s’est passé depuis votre dernier passage.',
-                'Télégraphe, dans la colonne de gauche : le canal général de la saison — tout le monde y lit tout le monde.',
+                'Journal, dans l’en-tête : tout ce qui s’est passé depuis votre dernier passage.',
+                'Télégraphe, dans l’en-tête : le canal général de la saison — tout le monde y lit tout le monde.',
               ],
             },
       ];
@@ -4445,7 +4445,7 @@ export const fr = {
      *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le
      *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
      *  le premier de la file démarre, et l'avis ne doit pas mentir sur le cas le plus courant. */
-    queued: (building: string) => `${building} : chantier commandé — voir Économie.`,
+    queued: (building: string) => `${building} : chantier commandé — voir le plateau personnel.`,
     free: 'offert',
     immediate: 'immédiat',
     /** The rest of the catalogue, below the offer: what the nation cannot order yet. */
