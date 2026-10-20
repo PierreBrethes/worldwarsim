@@ -519,7 +519,7 @@ describe('identity persistence across game purges', () => {
     expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre' });
     expect(await t.query(api.accounts.seats, session)).toEqual([]);
 
-    await t.mutation(internal.dev.reset, {});
+    await t.action(internal.dev.reset, {});
     expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre' });
     expect(await t.query(api.accounts.seats, session)).toEqual([]);
   });

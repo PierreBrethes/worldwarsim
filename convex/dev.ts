@@ -1,7 +1,12 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, internalQuery, type MutationCtx } from './_generated/server';
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from './_generated/server';
 import { heldOf } from './control';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
@@ -64,23 +69,57 @@ export const IDENTITY_TABLES = [
   'authThrottle',
 ] as const;
 
+/** Documents per transaction: well under the system-operation cap of a single mutation. */
+const WIPE_BATCH = 200;
+
+/** One batch of one game table; `more` says whether the table still holds documents. */
+export const wipeBatch = internalMutation({
+  args: { table: v.string() },
+  handler: async (ctx, { table }) => {
+    if (!(GAME_TABLES as readonly string[]).includes(table)) throw new Error('not a game table');
+    const name = table as (typeof GAME_TABLES)[number];
+    const docs = await ctx.db.query(name).take(WIPE_BATCH);
+    for (const doc of docs) await ctx.db.delete(doc._id);
+    return { more: docs.length === WIPE_BATCH };
+  },
+});
+
+/** One page of the scheduled-job table, its pending jobs cancelled: every job targets game tables. */
+export const cancelJobsPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.system
+      .query('_scheduled_functions')
+      .paginate({ cursor, numItems: WIPE_BATCH });
+    for (const job of page.page)
+      if (job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+    return { cursor: page.isDone ? null : page.continueCursor, done: page.isDone };
+  },
+});
+
 /**
- * **Wipes every game table.** A season is disposable by design — 48 hours to 7 days, then a
+ * **Wipes every game table**, a batch per transaction (a single mutation hit "too many system
+ * operations" on a loaded base). A season is disposable by design — 48 hours to 7 days, then a
  * full reset (ADR 0001) — so a schema slice that lands mid-season is not migrated, it is
- * emptied: the old documents describe an economy that no longer exists. Accounts and sessions
- * are durable identity and deliberately stay outside `GAME_TABLES`.
+ * emptied. Accounts and sessions are durable identity and stay outside `GAME_TABLES`.
+ * Pending scheduled jobs are cancelled first, so none wakes up on a wiped table.
  *
- * `internalMutation`, so no client can reach it. Run it by hand:
- * `npx convex run dev:reset`.
+ * `internalAction`, so no client can reach it. Run it by hand: `npx convex run dev:reset`.
  */
-export const reset = internalMutation({
+export const reset = internalAction({
   args: {},
   handler: async (ctx) => {
-    for (const table of GAME_TABLES) {
-      for (const doc of await ctx.db.query(table).collect()) {
-        await ctx.db.delete(doc._id);
-      }
+    let cursor: string | null = null;
+    for (;;) {
+      const page: { cursor: string | null; done: boolean } = await ctx.runMutation(
+        internal.dev.cancelJobsPage,
+        { cursor },
+      );
+      if (page.done) break;
+      cursor = page.cursor;
     }
+    for (const table of GAME_TABLES)
+      while ((await ctx.runMutation(internal.dev.wipeBatch, { table })).more);
   },
 });
 
