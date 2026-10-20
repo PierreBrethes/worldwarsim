@@ -2375,7 +2375,12 @@ export class MapEngine {
      *  close, a ray cast outside the frame still lands on a country, and the dock would announce
      *  a hover nobody made — on a phone, from the first frame. */
     const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
-    const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
+    /** **A finger has no hover** (#189): under it, the country is only read for a tap. Cast at
+     *  every frame of a pinch, the ray through every coast cost the phone a second in nine. */
+    const hit =
+      onScreen && (!this.fingerOnBoard || this.regionTapped)
+        ? this.ray.intersectObjects(this.countries, false)[0]
+        : undefined;
     const touched = hit?.object as CountryMesh | undefined;
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
