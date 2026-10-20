@@ -15,9 +15,13 @@ import {
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
 import { canonicalBuildingKey } from '../src/domain/ids';
+import { sparedPerResourceOf } from '../src/domain/loot';
 import { fail } from './errors';
+import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
+import { upkeepOf } from './upkeep';
+import { movementsOf } from './movement/forces';
 import { emptyStocks } from '../src/domain/economy';
-import { creditToStorage, debit, economyOf } from './resources';
+import { creditToStorage, debit, economyOf, settle } from './resources';
 import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
@@ -82,14 +86,16 @@ export async function holdsPoint(
   );
 }
 
-/** **Dakar** : un entrepôt du teneur du point, dont les réserves ne se pillent pas. */
-export async function sealedByDakar(
+/** **Depuis quand ce joueur tient un point**, `null` s'il ne le tient pas. */
+export async function heldSinceOf(
   ctx: QueryCtx,
-  building: Pick<Doc<'buildings'>, 'key' | 'playerId'>,
-): Promise<boolean> {
-  if (canonicalBuildingKey(building.key) !== 'warehouse') return false;
-  const owner = await ctx.db.get(building.playerId);
-  return owner !== null && (await holdsPoint(ctx, owner, 'dakar'));
+  player: Pick<Doc<'players'>, '_id' | 'seasonId'>,
+  key: StrategicPointKey,
+): Promise<number | null> {
+  const point = (await seasonPoints(ctx, player.seasonId)).find(
+    (one) => one.key === key && one.holderId === player._id,
+  );
+  return point === undefined ? null : (point.heldSince ?? 0);
 }
 
 export const seasonPoints = (
@@ -150,6 +156,21 @@ export async function pointsView(ctx: QueryCtx, season: Doc<'seasons'>, viewerId
   });
 }
 
+/**
+ * **Dakar** : ce qu'un pillage laisse par ressource dans un entrepôt de son teneur (`sparedPerResourceOf`),
+ * `null` pour tout autre bâtiment ou tout autre teneur. La seule lecture de la règle : la vue, l'aperçu
+ * et le pillage l'appellent.
+ */
+export async function dakarSparedAt(
+  ctx: QueryCtx,
+  building: Pick<Doc<'buildings'>, 'key' | 'playerId' | 'seasonId'>,
+): Promise<number | null> {
+  if (canonicalBuildingKey(building.key) !== 'warehouse') return null;
+  return (await holdsPoint(ctx, { _id: building.playerId, seasonId: building.seasonId }, 'dakar'))
+    ? sparedPerResourceOf(true)
+    : null;
+}
+
 /** Qui a tenu un point le plus longtemps jusqu'à `end` — personne s'il n'a jamais été tenu. */
 const longestOn = (point: Doc<'strategicPoints'>, end: number) =>
   [
@@ -173,6 +194,16 @@ export async function handOver(
   now: number,
 ): Promise<void> {
   const former = point.holderId;
+  /** **Bakou** : ce que l'ancien teneur a gagné jusqu'ici s'écrit avant que le point change de
+   *  main — sa vue le servait, et la perte ne l'efface pas. */
+  if (point.key === 'baku' && former !== null) await settleBaku(ctx, point, former, now);
+  /** **Narvik** : le quart des sites coupés change de main. Les stocks se règlent au débit d'avant
+   *  chez les deux, et l'ancien teneur lit ce qu'il perd. */
+  if (point.key === 'narvik') {
+    for (const id of [former, holderId]) if (id !== null) await settle(ctx, id, now);
+    if (former !== null && holderId !== null)
+      await ctx.db.insert('notices', { playerId: former, at: now, kind: 'narvikLost' });
+  }
   await ctx.db.patch(point._id, {
     holderId,
     heldSince: holderId === null ? null : now,
@@ -181,7 +212,7 @@ export async function handOver(
       : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
   });
   await tallyRace(ctx, point.seasonId, now);
-  /** **Rangoun** : le voile des tournées suit le point, donc le brouillard se relit à la prise
+  /** **Rangoun** : la mi-portée des tournées suit le point, donc le brouillard se relit à la prise
    *  comme à la perte. */
   if (point.key === 'rangoon') await reassessDetection(ctx, point.seasonId, now);
 }
@@ -342,3 +373,37 @@ export const trade = mutation({
     return { gave: TANGIER_LOT.give, got: delivered[get] };
   },
 });
+
+/** **Les crans de Bakou de l'ancien teneur, écrits** : ses moteurs oisifs hors ancre, comme
+ *  `toppedUp` les règle à un ordre. */
+async function settleBaku(
+  ctx: MutationCtx,
+  point: Doc<'strategicPoints'>,
+  holderId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  const { storeOf } = await upkeepOf(ctx, holderId, now);
+  const marching = new Set<string>(
+    (await movementsOf(ctx, holderId)).flatMap((movement) => movement.troopIds),
+  );
+  const troops = await ctx.db
+    .query('troops')
+    .withIndex('byPlayer', (q) => q.eq('playerId', holderId))
+    .collect();
+  for (const troop of troops) {
+    const got = bakuGainOf(
+      { ...troop, createdAt: troop._creationTime },
+      {
+        heldSince: point.heldSince ?? 0,
+        marching: marching.has(troop._id),
+        anchored: storeOf[troop._id] !== undefined,
+      },
+      now,
+    );
+    if (got !== null && got.steps > 0)
+      await ctx.db.patch(troop._id, {
+        fuel: suppliesOf(troop).fuel + got.steps,
+        fuelAt: got.since,
+      });
+  }
+}

@@ -94,6 +94,13 @@ export const isCommanded = (key: BuildingKey): boolean =>
  * Each level raises all five ceilings; legacy depots count as warehouses.
  */
 export const BASE_CAP = 400;
+
+/**
+ * **Dakar** (ADR 0032) : ce qu'un pillage laisse par ressource à son teneur, au lieu de `BASE_CAP`.
+ *
+ * @a-mesurer 600 de la décision du 20/10, jamais joué
+ */
+export const DAKAR_SPARED_PER_RESOURCE = 600;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
 /**
@@ -438,6 +445,29 @@ export const SUPPLY_STEP_COST = 10;
 export const FUEL_STEP_KM = 500;
 
 /**
+ * **Singapour** (ADR 0032) : la part de plein que ses camions et ses cargos ne paient pas.
+ *
+ * @a-mesurer −20 % de la décision du 20/10, jamais joué
+ */
+export const SINGAPORE_FUEL_DISCOUNT_PCT = 20;
+
+/**
+ * **Narvik** (ADR 0032) : la part de son débit que produit encore une exploitation coupée du réseau
+ * chez le teneur du point. Hors Narvik, une exploitation coupée ne produit rien.
+ *
+ * @a-mesurer 25 % de la décision du 20/10, jamais joué
+ */
+export const NARVIK_UNLINKED_SHARE = 0.25;
+
+/**
+ * **Bakou** (ADR 0032) : le temps qu'une troupe à l'arrêt, hors de toute ancre, met à reprendre
+ * un cran de plein.
+ *
+ * @a-mesurer 12 h de la décision du 20/10, jamais joué
+ */
+export const BAKU_REFUEL_MS = 12 * 3_600_000;
+
+/**
  * **Le dépôt d'avant-poste** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon, au total et
  * partagés librement, par niveau du point.
  *
@@ -728,6 +758,22 @@ export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>, theatre: Theatr
       ),
     0,
   );
+
+/**
+ * **Rangoun** (ADR 0032) : la part de sa portée à laquelle un détecteur relève une tournée du
+ * teneur.
+ *
+ * @a-mesurer mi-portée de la décision du 20/10 (Q23), jamais joué
+ */
+export const RANGOON_SIGHTING_SHARE = 0.5;
+
+/**
+ * **Ce qu'un détecteur de `radiusKm` relève d'une cible** : sa portée entière, ou sa part de
+ * Rangoun quand la cible est une tournée du teneur. Le calcul complet, le calcul d'un seul joueur
+ * et le cercle que le teneur voit autour de sa tournée la lisent tous ici.
+ */
+export const sightingReachKm = (radiusKm: number, rangoonTour: boolean): number =>
+  rangoonTour ? radiusKm * RANGOON_SIGHTING_SHARE : radiusKm;
 
 /**
  * **How close one has to stand to be found on arrival.** ADR 0019 §1: it replaces the containment

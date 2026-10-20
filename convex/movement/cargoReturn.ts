@@ -127,6 +127,8 @@ export async function startCargoReturn(
     lootDelivery: { regionId: plan.regionId, point: plan.point },
     ...cargoFields,
   });
+  /** Le plein de Bakou se recompte depuis l'arrivée du retour. */
+  for (const troopId of troopIds) await ctx.db.patch(troopId, { fuelAt: arrivesAt });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   return movementId;
 }

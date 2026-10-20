@@ -280,6 +280,22 @@ describe('the journal', () => {
     expect(theirs!.text).toContain('Dakar le garde');
   });
 
+  it('tells the plundered holder of Dakar what the plunder left him', () => {
+    const none = { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 };
+    const [line] = journalDispatches([], null, [
+      {
+        kind: 'sitePlundered',
+        at: NOON,
+        building: 'warehouse',
+        regionName: 'Marne',
+        taken: none,
+        storageLost: none,
+        spared: 600,
+      },
+    ]);
+    expect(line!.text).toContain('Dakar le garde : 600');
+  });
+
   /** **La course se lit par toute la table** (P2) : qui prend quel point, là où il est. */
   it('says who takes which strategic point, where it stands', () => {
     const [taken] = journalDispatches([], null, [

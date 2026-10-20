@@ -1,7 +1,13 @@
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from '../src/domain/ids';
+import {
+  RESOURCES,
+  canonicalBuildingKey,
+  type BuildingKey,
+  type DepositKey,
+  type ResourceKey,
+} from '../src/domain/ids';
 import {
   EXPLOITED_DEPOSITS,
   YIELD_OF,
@@ -9,6 +15,7 @@ import {
   emptyStocks,
   exploits,
   isLinked,
+  outputShareOf,
   produces,
   settleStocks,
   shortfallOf,
@@ -29,7 +36,8 @@ import {
 } from './constants';
 import { fail } from './errors';
 import { isPending } from './scheduledJobs';
-import { linkingOver } from './holding';
+import { heldOver } from './holding';
+import { holdsPoint } from './strategicPoints';
 import { pointOfBuilding, regionFacts } from './regions';
 import { depositAt } from '../src/domain/world';
 import { upkeepOf, type Upkeep } from './upkeep';
@@ -64,6 +72,9 @@ export type ExtractionSite = {
    * réparent par des gestes opposés — l'une se déplace, l'autre se reprend sur la carte.
    */
   readonly linked: boolean;
+  /** La part de son débit qu'elle produit (`outputShareOf`) : 1 reliée ; coupée, 0 ou le quart de
+   *  Narvik. Servie à côté de `linked` pour dire pourquoi un site coupé produit encore. */
+  readonly share: number;
 };
 
 /**
@@ -75,6 +86,7 @@ export function extractionSites(
   buildings: ReadonlyArray<Doc<'buildings'>>,
   held: ReadonlyMap<string, string>,
   ownerId: string,
+  holdsNarvik: boolean,
 ): ReadonlyArray<ExtractionSite> {
   return buildings
     .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
@@ -83,13 +95,15 @@ export function extractionSites(
       const deposit = depositAt(pointOfBuilding(building))?.deposit ?? null;
       const yielding = deposit !== null && exploits(building.key, deposit);
       const linked = isLinked(building, held, ownerId);
+      const share = outputShareOf(linked, holdsNarvik);
       return {
         key: building.key,
         regionId: building.regionId,
         level: building.level,
         deposit,
-        perHour: yielding && linked ? EXTRACTION_PER_HOUR[deposit] * building.level : 0,
+        perHour: yielding ? EXTRACTION_PER_HOUR[deposit] * building.level * share : 0,
         linked,
+        share,
       };
     });
 }
@@ -107,9 +121,10 @@ export function extractionRates(
   buildings: ReadonlyArray<Doc<'buildings'>>,
   held: ReadonlyMap<string, string>,
   ownerId: string,
+  holdsNarvik: boolean,
 ): Record<ResourceKey, number> {
   const rates = emptyStocks();
-  for (const site of extractionSites(buildings, held, ownerId)) {
+  for (const site of extractionSites(buildings, held, ownerId, holdsNarvik)) {
     if (site.deposit !== null) rates[YIELD_OF[site.deposit]] += site.perHour;
   }
   return rates;
@@ -146,13 +161,22 @@ export function chainsOf(
   orders: ReadonlyArray<OrderState>,
   held: ReadonlyMap<string, string>,
   ownerId: string,
+  holdsNarvik: boolean,
 ): ReadonlyArray<Conversion> {
   /**
-   * **Le niveau qui compte est celui des exemplaires reliés** (ADR 0020 §6). Deux fonderies, une
-   * chez soi et une sous un avant-poste que le raid vient de couper : la vitesse tombe à celle
-   * qui reste, elle ne tombe pas à zéro. C'est la même somme qu'avant, sur une liste plus courte.
+   * **Le niveau qui compte est celui des exemplaires reliés** (ADR 0020 §6), un exemplaire coupé
+   * comptant pour sa part (`outputShareOf`, Narvik). Deux fonderies, une chez soi et une sous un
+   * avant-poste que le raid vient de couper : la vitesse tombe à celle qui reste, elle ne tombe
+   * pas à zéro.
    */
-  const linked = buildings.filter((building) => isLinked(building, held, ownerId));
+  const workedLevelOf = (key: BuildingKey) =>
+    buildings.reduce(
+      (sum, building) =>
+        canonicalBuildingKey(building.key) === canonicalBuildingKey(key)
+          ? sum + building.level * outputShareOf(isLinked(building, held, ownerId), holdsNarvik)
+          : sum,
+      0,
+    );
 
   return COMMANDED_CHAINS.map((key) => {
     const lot = orders.find((order) => order.chain === key);
@@ -164,12 +188,12 @@ export function chainsOf(
       by: key,
       output,
       inputs,
-      level: totalLevelOf(linked, key),
-      perHour: perHourPerLevel * totalLevelOf(linked, key),
+      level: workedLevelOf(key),
+      perHour: perHourPerLevel * workedLevelOf(key),
       quota: isCommanded(key) ? Math.max(0, (lot?.ordered ?? 0) - (lot?.produced ?? 0)) : null,
       /** Bâtie et entièrement coupée : c'est ça, `unlinked`. Rien de bâti reste `off` — il n'y a
        *  pas de réseau à reprendre pour une chaîne qui n'existe pas. */
-      linked: standing === 0 || totalLevelOf(linked, key) > 0,
+      linked: standing === 0 || workedLevelOf(key) > 0,
     };
   });
 }
@@ -248,12 +272,19 @@ export async function economyOf(
   now: number,
   /** What the caller already read for this player (`viewOf`), the colour of his ground included
    *  (`linkedOn`): the same answer, not a second reading of the season. */
-  read?: Parameters<typeof upkeepOf>[3] & { held?: ReadonlyMap<string, string> },
+  read?: Parameters<typeof upkeepOf>[3] & {
+    held?: ReadonlyMap<string, string>;
+    holdsNarvik?: boolean;
+  },
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
   const active = activeBuildings(buildings, now);
-  const held = read?.held ?? (await heldFor(ctx, playerId, active, now));
+  const player = await ctx.db.get(playerId);
+  const held = read?.held ?? (await heldFor(ctx, player, active, now));
+  /** **Narvik** (ADR 0032) : ses exploitations coupées produisent un quart, au lieu de rien. */
+  const holdsNarvik =
+    read?.holdsNarvik ?? (player !== null && (await holdsPoint(ctx, player, 'narvik')));
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -277,7 +308,7 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now, read);
-  const ratePerHour = extractionRates(active, held, playerId);
+  const ratePerHour = extractionRates(active, held, playerId, holdsNarvik);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
   ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
@@ -288,7 +319,7 @@ export async function economyOf(
     stocks: stored,
     ratePerHour,
     cap,
-    conversions: chainsOf(active, orderRows, held, playerId),
+    conversions: chainsOf(active, orderRows, held, playerId, holdsNarvik),
     hours: (now - updatedAt) / 3_600_000,
   });
 
@@ -314,7 +345,7 @@ export async function economyOf(
     stocks: settled.stocks,
     ratePerHour,
     cap,
-    conversions: chainsOf(active, orders, held, playerId),
+    conversions: chainsOf(active, orders, held, playerId, holdsNarvik),
     hours: OUTLOOK_HOURS,
   });
 
@@ -347,7 +378,7 @@ export async function economyOf(
     unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(active, held, playerId),
+    extraction: extractionSites(active, held, playerId, holdsNarvik),
   };
 }
 
@@ -355,7 +386,7 @@ export async function economyOf(
  * **La couleur, sur le sol que ce joueur-là a bâti, et rien de plus.** Le classement dépouille le
  * planisphère parce que c'est sa question ; un règlement de stock n'a besoin que des régions qui
  * portent un bâtiment — une poignée — et mesurer les 4 589 à chaque débit serait payer un
- * dépouillement pour une adresse. Même fonction (`linkingOver`, qui lit `heldOver`), moins de sol.
+ * dépouillement pour une adresse. Même fonction (`heldOver`), moins de sol.
  *
  * **Ce que ça coûte au fan-out** (`technique/brouillard-et-fanout.md`) : la production dépend des
  * points des autres, c'est toute la règle du §6, donc cette lecture balaie la saison. Les
@@ -364,11 +395,10 @@ export async function economyOf(
  */
 async function heldFor(
   ctx: QueryCtx,
-  playerId: Id<'players'>,
+  player: Doc<'players'> | null,
   buildings: ReadonlyArray<Doc<'buildings'>>,
   now: number,
 ): Promise<ReadonlyMap<string, string>> {
-  const player = await ctx.db.get(playerId);
   if (player === null) return new Map();
   const regions = new Map(
     buildings.flatMap((building) => {
@@ -376,7 +406,7 @@ async function heldFor(
       return facts === null ? [] : [[facts.id, facts] as const];
     }),
   );
-  return linkingOver(ctx, player, [...regions.values()], now);
+  return heldOver(ctx, player.seasonId, [...regions.values()], now);
 }
 
 export async function ordersOf(
@@ -539,9 +569,15 @@ export async function clipToStorage(
   ctx: MutationCtx,
   playerId: Id<'players'>,
   now: number,
+  /** Ce qu'un pillage laisse par ressource (`sparedPerResourceOf`) : le plafond ne coupe pas en
+   *  dessous, sans quoi Dakar épargnerait 600 puis les perdrait au rognage. */
+  spared = 0,
 ): Promise<Record<ResourceKey, number>> {
   const economy = await settle(ctx, playerId, now);
-  const { stocks, lost } = clipToCapacity(economy.stocks, economy.cap);
+  const cap = Object.fromEntries(
+    RESOURCES.map((key) => [key, Math.max(economy.cap[key], spared)]),
+  ) as Record<ResourceKey, number>;
+  const { stocks, lost } = clipToCapacity(economy.stocks, cap);
   if (RESOURCES.every((key) => lost[key] === 0)) return lost;
   await writeStocks(ctx, economy, stocks, now);
   return lost;

@@ -6,12 +6,14 @@ import {
   siteOfPoint,
   emptyStocks,
   isLinked,
+  outputShareOf,
   produces,
   shortfallOf,
   settleStocks,
   type Conversion,
   type Stocks,
 } from './economy';
+import { NARVIK_UNLINKED_SHARE } from '../../convex/constants';
 import { RESOURCES, type ResourceKey } from './ids';
 import type { LonLat } from './geo';
 
@@ -111,6 +113,14 @@ describe('a building only produces when its region carries its colour', () => {
     ['FRA-5323', 'pierre'],
     ['ROU-310', 'lea'],
   ]);
+
+  /** **Narvik** (ADR 0032) : coupée, une exploitation ne produit rien — sauf chez son teneur. */
+  it('lets Narvik keep a quarter of a cut site, and changes nothing for a linked one', () => {
+    expect(outputShareOf(true, false)).toBe(1);
+    expect(outputShareOf(true, true)).toBe(1);
+    expect(outputShareOf(false, false)).toBe(0);
+    expect(outputShareOf(false, true)).toBe(NARVIK_UNLINKED_SHARE);
+  });
 
   it('links a region its owner holds, and nothing else', () => {
     expect(isLinked({ regionId: 'FRA-5323' }, held, 'pierre')).toBe(true);

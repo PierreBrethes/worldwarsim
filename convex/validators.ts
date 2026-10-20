@@ -403,6 +403,8 @@ export const NOTICE = v.union(
     kind: v.literal('productionCut'),
     sites: v.number(),
     hostCountry: v.string(),
+    /** Le teneur de Narvik : ses sites coupés produisent encore un quart (ADR 0032). */
+    narvik: v.optional(v.literal(true)),
   }),
   v.object({
     ...NOTICE_HEAD,
@@ -633,6 +635,9 @@ export const NOTICE = v.union(
     /** Absent sur les notices d'avant le tirage : les sept du premier vivier. */
     keys: v.optional(v.array(STRATEGIC_POINT_KEY)),
   }),
+  /** **Narvik perdu** (ADR 0032) : l'ancien teneur apprend que ses sites coupés ne produisent
+   *  plus rien — la dépêche de la prise, elle, ne dit que le nom. */
+  v.object({ ...NOTICE_HEAD, kind: v.literal('narvikLost') }),
   /** **Dakar brûle le dépôt** (P11) : un avant-poste pris à son teneur ne livre pas son dépôt. */
   v.object({
     ...NOTICE_HEAD,
@@ -677,6 +682,8 @@ export const NOTICE = v.union(
     regionId: v.string(),
     taken: RESOURCE_AMOUNTS,
     storageLost: RESOURCE_AMOUNTS,
+    /** **Dakar** : ce que le pillage a laissé par ressource à son teneur (absent hors Dakar). */
+    spared: v.optional(v.number()),
   }),
   v.object({
     ...NOTICE_HEAD,
@@ -695,6 +702,7 @@ export const NOTICE = v.union(
     kind: v.literal('expeditionFoundNothing'),
     building: BUILDING_KEY,
     regionId: v.string(),
+    // 'sealed' ne s'écrit plus (Dakar ne scelle plus) : il reste pour les lignes déjà au journal.
     reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('sealed')),
   }),
   /**

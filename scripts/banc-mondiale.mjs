@@ -168,6 +168,9 @@ for (let k = 0; k < PLAYERS; k++) {
     })),
   });
 }
+/** Un joueur en tournée tient Rangoun : ses tournées se relèvent à mi-portée (#176). */
+const RANGOON = 1;
+await admin.mutation(internal('dev:holdPoint'), { playerId: playerOf(RANGOON), key: 'rangoon' });
 let tours = 0;
 for (let k = 0; k < PLAYERS; k++) {
   if (k === MEASURED) continue;

@@ -5,6 +5,8 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { CATEGORIES } from '@/domain/indicators';
 import { slotCardsOf } from '@/domain/research';
+import { halifaxNoteOf } from '@/domain/movement-orders';
+import { HalifaxMark } from './HalifaxMark';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
@@ -82,12 +84,14 @@ export function NarrowBand({
               me.slots.used,
               me.slots.total,
               slotCardsOf(me.research.researched),
+              halifaxNoteOf(me.slots),
             )}
           >
             <SlotBoxes used={me.slots.used} total={me.slots.total} />
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
+            <HalifaxMark slots={me.slots} />
           </span>
         )}
       </div>

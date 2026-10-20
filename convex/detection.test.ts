@@ -14,7 +14,9 @@ import {
   detectionRangeOf,
   outpostReachKm,
   nominalStrength,
+  RANGOON_SIGHTING_SHARE,
   routeMinutes,
+  sightingReachKm,
 } from './constants';
 import { allRegions, regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
@@ -375,46 +377,59 @@ describe('what sees a movement go past', () => {
   });
 
   /**
-   * **Rangoun : vos tournées ne se relèvent jamais.** Un transport en tournée, en marche ou
-   * posé, n'est relevé par aucune détection tant que son maître tient le point — et l'est de
-   * nouveau dès qu'il le perd.
+   * **Rangoun : vos tournées se relèvent à mi-portée** (ADR 0032). Un transport en tournée, en
+   * marche ou posé, n'est relevé par un détecteur qu'à sa part de portée tant que son maître tient
+   * le point — et de nouveau à portée entière dès qu'il le perd.
    */
   describe('Rangoon', () => {
-    /** Une colonne qui traverse le sol soviétique, puis déclarée en tournée du marcheur. */
-    async function touringAcrossSovietSoil() {
+    const R = LISTENING_STATION_RADIUS_KM;
+
+    /** Un camion de tournée qui passe à `km` au nord de la station soviétique de Prahova. */
+    async function touringPast(km: number, holdsRangoon: boolean) {
       const t = boot();
       const { seat, guest } = await launchedSeason(t);
-      const soviet = pointOf('RUS-2335');
-      const { troopIds, origin } = await column(t, seat, eastOf(soviet, -250));
-      await t.mutation(api.movements.marchTo, {
-        ...seat,
-        origin,
-        troopIds,
-        point: asPoint(eastOf(soviet, 300)),
-      });
-      const base = await outpost(t, seat, soviet, 'listening');
-      await t.run(async (ctx) => {
-        await ctx.db.patch(troopIds[0]!, {
+      await station(t, guest, PRAHOVA);
+      if (holdsRangoon) await holdPoint(t, seat, 'rangoon');
+      const here = pointOf(PRAHOVA);
+      const base = await outpost(t, seat, eastOf(here, -600), 'relay');
+      const truck = await form(t, seat, 'landTransport', null);
+      await t.run((ctx) =>
+        ctx.db.patch(truck, {
           tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
-        });
-        const [movement] = await ctx.db.query('movements').collect();
-        await ctx.db.patch(movement!._id, { tourLeg: 'stop' });
-      });
-      return { t, seat, guest, troopIds };
+        }),
+      );
+      const road = northOf(here, km);
+      await moving(t, seat, truck, 'march', eastOf(road, -150), eastOf(road, 150), 3_600_000);
+      return { t, seat, guest };
     }
-    const reassess = (t: ReturnType<typeof boot>) =>
-      t.run(async (ctx) => {
-        await reassessDetection(ctx, (await ctx.db.query('seasons').first())!._id);
-      });
     const open = async (t: ReturnType<typeof boot>, seat: Seat) =>
       (await sightingsOf(t, seat)).filter((row) => row.to > Date.now());
 
-    it('hides a tour from every detector while its master holds the point, and shows it again once lost', async () => {
-      const { t, seat, guest } = await touringAcrossSovietSoil();
-      await reassess(t);
+    it('reads half a detector’s reach against a tour of the holder, and the whole of it otherwise', () => {
+      expect(sightingReachKm(R, true)).toBe(R * RANGOON_SIGHTING_SHARE);
+      expect(RANGOON_SIGHTING_SHARE).toBe(0.5);
+      expect(sightingReachKm(R, false)).toBe(R);
+    });
+
+    it('sights a tour passing inside half the reach', async () => {
+      const { t, guest } = await touringPast(R * 0.25, true);
+      expect(await open(t, guest)).toMatchObject([{ detector: 'station' }]);
+    });
+
+    it('does not sight a tour passing between half the reach and the whole of it', async () => {
+      const { t, guest } = await touringPast(R * 0.75, true);
+      expect(await sightingsOf(t, guest)).toEqual([]);
+    });
+
+    it('sights the same tour at full reach when nobody holds the point', async () => {
+      const { t, guest } = await touringPast(R * 0.75, false);
+      expect(await open(t, guest)).toHaveLength(1);
+    });
+
+    it('re-reads the tour under way when the point changes hands, with no reassessment by hand', async () => {
+      const { t, seat, guest } = await touringPast(R * 0.75, false);
       expect(await open(t, guest)).toHaveLength(1);
 
-      // Taking and losing the point re-reads the fog by itself: no reassessment by hand.
       const give = (to: Seat | null) =>
         t.run(async (ctx) => {
           const holder = to === null ? null : (await seatIn(ctx, to))._id;
@@ -432,41 +447,40 @@ describe('what sees a movement go past', () => {
       expect(await open(t, guest)).toHaveLength(1);
     });
 
-    it('does not hide a column that is not on tour', async () => {
-      const { t, seat, guest, troopIds } = await touringAcrossSovietSoil();
-      await t.run(async (ctx) => {
-        await ctx.db.patch(troopIds[0]!, { tour: undefined });
-        const [movement] = await ctx.db.query('movements').collect();
-        await ctx.db.patch(movement!._id, { tourLeg: undefined });
-      });
+    it('does not shorten the reach against a column that is not on tour', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      await station(t, guest, PRAHOVA);
       await holdPoint(t, seat, 'rangoon');
-      await reassess(t);
+      const road = northOf(pointOf(PRAHOVA), R * 0.75);
+      const truck = await form(t, seat, 'landTransport', null);
+      await moving(t, seat, truck, 'march', eastOf(road, -150), eastOf(road, 150), 3_600_000);
       expect(await open(t, guest)).toHaveLength(1);
     });
 
-    it('files no camp for a tour waiting at its base', async () => {
-      const t = boot();
-      const { seat, guest } = await launchedSeason(t);
-      const here = pointOf(PRAHOVA);
-      await outpost(t, guest, here, 'listening');
-      const base = await outpost(t, seat, here, 'listening');
-      const truck = await form(t, seat, 'landTransport', null);
-      await t.run((ctx) => ctx.db.patch(truck, { stationedAt: asPoint(here) }));
-      const camps = () =>
-        t
+    it('files a camp for a tour waiting at a stop only inside half the reach', async () => {
+      const camps = async (km: number) => {
+        const t = boot();
+        const { seat, guest } = await launchedSeason(t);
+        const here = pointOf(PRAHOVA);
+        await outpost(t, guest, here, 'listening');
+        const at = northOf(here, km);
+        const base = await outpost(t, seat, at, 'relay');
+        const truck = await form(t, seat, 'landTransport', null);
+        await t.run((ctx) =>
+          ctx.db.patch(truck, {
+            stationedAt: asPoint(at),
+            tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
+          }),
+        );
+        await holdPoint(t, seat, 'rangoon');
+        return t
           .run((ctx) => ctx.db.query('campSightings').collect())
           .then((rows) => rows.filter((row) => row.until === null));
-      await reassess(t);
-      expect(await camps()).toHaveLength(1);
-
-      await t.run((ctx) =>
-        ctx.db.patch(truck, {
-          tour: { base, stops: [], consigne: { ammunition: 0, oil: 0, coal: 0 }, next: 0 },
-        }),
-      );
-      await holdPoint(t, seat, 'rangoon');
-      await reassess(t);
-      expect(await camps()).toEqual([]);
+      };
+      const reach = outpostReachKm(1);
+      expect(await camps(reach * 0.75)).toEqual([]);
+      expect(await camps(reach * 0.25)).toHaveLength(1);
     });
   });
 
@@ -1171,127 +1185,146 @@ describe('a one-player event reassesses what the whole pass would', () => {
   const wholePass = (t: ReturnType<typeof boot>, seasonId: Id<'seasons'>) =>
     t.run(async (ctx) => reassessDetection(ctx, seasonId, Date.now()));
 
-  it('leaves nothing for a full pass to change, with no full pass in between', async () => {
-    const t = boot();
-    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
-    const seats = [seat];
-    for (const name of ['Léa', 'Marc', 'Inès']) seats.push(await joinSeat(t, code, name));
-    /** L'Allemagne est jouée : les colonnes du carré roulent sur son sol, et son territoire relève. */
-    const nations = ['france', 'germany', 'uk', 'italy'] as const;
-    for (const [k, one] of seats.entries()) {
-      await t.mutation(api.players.reserveNation, { ...one, nation: nations[k]! });
-      await t.mutation(api.players.declareReady, { ...one, ready: true });
-    }
-    await t.mutation(api.seasons.launch, seat);
-    const players = await Promise.all(seats.map((one) => playerOf(t, one)));
-    const scenes = [];
-    for (const [k, playerId] of players.entries()) {
-      scenes.push(
-        await t.mutation(internal.dev.benchScene, {
-          playerId,
-          squads: Array.from({ length: 5 }, () => near(0.8)),
-          reserve: { at: near(0.8), count: 4 },
-          /** Le premier joueur tient quatre dépôts et un camion : de quoi lancer une tournée. */
-          outposts: k === 0 ? Array.from({ length: 4 }, () => near(0.6)) : [],
+  /** Rangoun tenu par le joueur de la tournée : la mi-portée passe par la même fonction dans
+   *  les deux calculs, et la prise du point réévalue en entier. */
+  it.each([
+    ['', false],
+    [', Rangoon held by the touring player', true],
+  ])(
+    'leaves nothing for a full pass to change, with no full pass in between%s',
+    async (_, rangoon) => {
+      const t = boot();
+      const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+      const seats = [seat];
+      for (const name of ['Léa', 'Marc', 'Inès']) seats.push(await joinSeat(t, code, name));
+      /** L'Allemagne est jouée : les colonnes du carré roulent sur son sol, et son territoire relève. */
+      const nations = ['france', 'germany', 'uk', 'italy'] as const;
+      for (const [k, one] of seats.entries()) {
+        await t.mutation(api.players.reserveNation, { ...one, nation: nations[k]! });
+        await t.mutation(api.players.declareReady, { ...one, ready: true });
+      }
+      await t.mutation(api.seasons.launch, seat);
+      if (rangoon) await holdPoint(t, seat, 'rangoon');
+      const players = await Promise.all(seats.map((one) => playerOf(t, one)));
+      const scenes = [];
+      for (const [k, playerId] of players.entries()) {
+        scenes.push(
+          await t.mutation(internal.dev.benchScene, {
+            playerId,
+            squads: Array.from({ length: 5 }, () => near(0.8)),
+            reserve: { at: near(0.8), count: 4 },
+            /** Le premier joueur tient quatre dépôts et un camion : de quoi lancer une tournée. */
+            outposts: k === 0 ? Array.from({ length: 4 }, () => near(0.6)) : [],
+          }),
+        );
+      }
+      /** Une station d'écoute anglaise sur sol allemand, un avant-poste écouteur italien, une
+       *  caserne française pour la recrue — posés à la main, donc relus une fois en entier. */
+      const german = allRegions()
+        .filter((region) => region.country === 'DEU')
+        .sort((a, b) => distanceKm(a.point, [8.3, 50.2]) - distanceKm(b.point, [8.3, 50.2]));
+      const barracks = await t.run(async (ctx) => {
+        await ctx.db.insert('buildings', {
+          seasonId: seat.seasonId,
+          playerId: players[2]!,
+          key: 'listening',
+          regionId: german[0]!.id,
+          point: pointOfRegion(german[0]!.id),
+          level: 1,
+        });
+        await ctx.db.insert('outposts', {
+          seasonId: seat.seasonId,
+          playerId: players[3]!,
+          point: near(0.5),
+          hostCountry: 'DEU',
+          level: 1,
+          specialization: 'listening',
+          foundedAt: Date.now() - 1,
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+        return ctx.db.insert('buildings', {
+          seasonId: seat.seasonId,
+          playerId: players[0]!,
+          key: 'barracks',
+          regionId: german[1]!.id,
+          point: pointOfRegion(german[1]!.id),
+          level: 1,
+        });
+      });
+      await wholePass(t, seat.seasonId);
+      /** La tournée prend son slot avant que les escouades ne remplissent le ciel. */
+      await t.mutation(api.tours.start, {
+        ...seat,
+        troopId: scenes[0]!.truckId!,
+        stops: scenes[0]!.outpostIds.slice(1),
+      });
+
+      for (let squad = 0; squad < 4; squad += 1) {
+        for (const [k, playerId] of players.entries()) {
+          const { ids, at } = scenes[k]!.squads[squad]!;
+          const { filed } = await t.mutation(internal.dev.benchFlights, {
+            playerId,
+            flights: [{ ids, from: at, to: near(2.5) }],
+          });
+          expect(filed).toBe(1);
+        }
+      }
+      const departed = await ledger(t);
+      /** La tournée passe sous une portée qui se mesure : la mi-portée est bien en jeu. */
+      const tourSeenBy = await t.run(async (ctx) => {
+        const leg = (await ctx.db.query('movements').collect()).find(
+          (movement) => movement.tourLeg !== undefined,
+        );
+        return (await ctx.db.query('sightings').collect())
+          .filter((row) => row.movementId === leg?._id)
+          .map((row) => row.detector);
+      });
+      expect(tourSeenBy).toEqual(expect.arrayContaining(['station', 'outpost']));
+      expect(new Set(departed.map((row) => JSON.parse(row)[4]))).toEqual(
+        new Set(['territory', 'station', 'outpost', 'troop']),
+      );
+
+      /** Les arrivées tombent à leur heure, le pas de tournée arrive, une recrue sort : chaque
+       *  événement ne relit que son joueur, et rien ne relit tout entre-temps. */
+      const { leg, firstLanding } = await t.run(async (ctx) => {
+        const flying = await ctx.db.query('movements').collect();
+        return {
+          leg: flying.find((movement) => movement.tourLeg !== undefined),
+          firstLanding: Math.min(
+            ...flying.filter((one) => one.tourLeg === undefined).map((one) => one.arrivesAt),
+          ),
+        };
+      });
+      expect(leg).toBeDefined();
+      vi.advanceTimersByTime(Math.max(leg!.arrivesAt, firstLanding) - Date.now() + 1_000);
+      await t.finishInProgressScheduledFunctions();
+      const recruitmentId = await t.run(async (ctx) =>
+        ctx.db.insert('recruitments', {
+          playerId: players[0]!,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+          rank: 0,
+          finishesAt: Date.now(),
         }),
       );
-    }
-    /** Une station d'écoute anglaise sur sol allemand, un avant-poste écouteur italien, une
-     *  caserne française pour la recrue — posés à la main, donc relus une fois en entier. */
-    const german = allRegions()
-      .filter((region) => region.country === 'DEU')
-      .sort((a, b) => distanceKm(a.point, [8.3, 50.2]) - distanceKm(b.point, [8.3, 50.2]));
-    const barracks = await t.run(async (ctx) => {
-      await ctx.db.insert('buildings', {
-        seasonId: seat.seasonId,
-        playerId: players[2]!,
-        key: 'listening',
-        regionId: german[0]!.id,
-        point: pointOfRegion(german[0]!.id),
-        level: 1,
-      });
-      await ctx.db.insert('outposts', {
-        seasonId: seat.seasonId,
-        playerId: players[3]!,
-        point: near(0.5),
-        hostCountry: 'DEU',
-        level: 1,
-        specialization: 'listening',
-        foundedAt: Date.now() - 1,
-        disabledUntil: null,
-        immuneUntil: null,
-      });
-      return ctx.db.insert('buildings', {
-        seasonId: seat.seasonId,
-        playerId: players[0]!,
-        key: 'barracks',
-        regionId: german[1]!.id,
-        point: pointOfRegion(german[1]!.id),
-        level: 1,
-      });
-    });
-    await wholePass(t, seat.seasonId);
-    /** La tournée prend son slot avant que les escouades ne remplissent le ciel. */
-    await t.mutation(api.tours.start, {
-      ...seat,
-      troopId: scenes[0]!.truckId!,
-      stops: scenes[0]!.outpostIds.slice(1),
-    });
+      await t.mutation(internal.troops.deliver, { recruitmentId });
+      const arrived = await t.run(async (ctx) => ({
+        leg: await ctx.db.get(leg!._id),
+        landed: (await ctx.db.query('notices').collect()).filter(
+          (notice) => notice.kind === 'columnArrived',
+        ).length,
+      }));
+      expect(arrived.leg).toBeNull();
+      expect(arrived.landed).toBeGreaterThan(0);
 
-    for (let squad = 0; squad < 4; squad += 1) {
-      for (const [k, playerId] of players.entries()) {
-        const { ids, at } = scenes[k]!.squads[squad]!;
-        const { filed } = await t.mutation(internal.dev.benchFlights, {
-          playerId,
-          flights: [{ ids, from: at, to: near(2.5) }],
-        });
-        expect(filed).toBe(1);
-      }
-    }
-    const departed = await ledger(t);
-    expect(new Set(departed.map((row) => JSON.parse(row)[4]))).toEqual(
-      new Set(['territory', 'station', 'outpost', 'troop']),
-    );
-
-    /** Les arrivées tombent à leur heure, le pas de tournée arrive, une recrue sort : chaque
-     *  événement ne relit que son joueur, et rien ne relit tout entre-temps. */
-    const { leg, firstLanding } = await t.run(async (ctx) => {
-      const flying = await ctx.db.query('movements').collect();
-      return {
-        leg: flying.find((movement) => movement.tourLeg !== undefined),
-        firstLanding: Math.min(
-          ...flying.filter((one) => one.tourLeg === undefined).map((one) => one.arrivesAt),
-        ),
-      };
-    });
-    expect(leg).toBeDefined();
-    vi.advanceTimersByTime(Math.max(leg!.arrivesAt, firstLanding) - Date.now() + 1_000);
-    await t.finishInProgressScheduledFunctions();
-    const recruitmentId = await t.run(async (ctx) =>
-      ctx.db.insert('recruitments', {
-        playerId: players[0]!,
-        buildingId: barracks,
-        role: 'infantry',
-        tier: 1,
-        rank: 0,
-        finishesAt: Date.now(),
-      }),
-    );
-    await t.mutation(internal.troops.deliver, { recruitmentId });
-    const arrived = await t.run(async (ctx) => ({
-      leg: await ctx.db.get(leg!._id),
-      landed: (await ctx.db.query('notices').collect()).filter(
-        (notice) => notice.kind === 'columnArrived',
-      ).length,
-    }));
-    expect(arrived.leg).toBeNull();
-    expect(arrived.landed).toBeGreaterThan(0);
-
-    const relit = await ledger(t);
-    expect(relit).not.toEqual(departed);
-    await wholePass(t, seat.seasonId);
-    expect(await ledger(t)).toEqual(relit);
-  });
+      const relit = await ledger(t);
+      expect(relit).not.toEqual(departed);
+      await wholePass(t, seat.seasonId);
+      expect(await ledger(t)).toEqual(relit);
+    },
+  );
 
   /** Un camion voit à quarante kilomètres, un fantassin à soixante (le blindé aussi, d'où le
    *  camion) : la même paire, deux fenêtres. */

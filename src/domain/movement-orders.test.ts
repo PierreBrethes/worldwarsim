@@ -124,15 +124,6 @@ describe('what an attack may be aimed at', () => {
       plunderOrderRefusalOf({ kind: 'building', buildingId: 'w', key: 'warehouse' }, dry, false),
     ).toBe('NO_ROUNDS');
   });
-
-  /** Dakar : le teneur est public, donc le refus se dit avant le geste. */
-  it('refuses to plunder the warehouse of the holder of Dakar', () => {
-    const aim = { kind: 'building' as const, buildingId: 'w', key: 'warehouse' as const };
-    expect(plunderOrderRefusalOf({ ...aim, sealed: true }, column(['infantry']), false)).toBe(
-      'SEALED',
-    );
-    expect(plunderOrderRefusalOf(aim, column(['infantry']), false)).toBeNull();
-  });
 });
 
 describe('what a column may ask for', () => {
@@ -246,7 +237,7 @@ describe('an empty manifest', () => {
     expect(movementSlots(['transmissions1', 'transmissions2', 'transmissions3'])).toBe(5);
   });
 
-  /** **Halifax** (P11) : les mouvements maritimes de son teneur ne prennent pas de slot. Est
+  /** **Halifax** (ADR 0032) : un mouvement maritime à la fois ne prend pas de slot. Est
    *  maritime ce qui navigue : des coques, et ce qu'elles portent. */
   it('calls maritime a column of hulls and what they carry, and nothing that walks or flies', () => {
     expect(

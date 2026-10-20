@@ -74,7 +74,7 @@ import {
   fuelBill,
 } from './movement/orders';
 import { resupply, toppedUp } from './supplies';
-import { holdsPoint } from './strategicPoints';
+import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { pacedMinutes } from './movement/pace';
@@ -660,7 +660,7 @@ export const preview = query({
 
     const now = Date.now();
     /** L'aperçu lit la troupe comme le départ la lira : rechargée si elle est ancrée. */
-    const { troops, viaBaku } = await toppedUp(
+    const { troops } = await toppedUp(
       ctx,
       player._id,
       await troopsAmong(ctx, player._id, troopIds),
@@ -690,7 +690,7 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -755,18 +755,16 @@ const fuelFacts = async (
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
-  viaBaku: number,
 ) => {
-  const { steps, short, km, freed } = fuelBill(
+  const { steps, short, km, eased } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
     roundTrip,
     await holdsPoint(ctx, player, 'singapore'),
   );
-  /** **Bakou** et **Singapour** se disent à la carte : le plein repris sur le plateau personnel,
-   *  les camions et cargos qui roulent sans. */
-  return { steps, short, km, roundTrip, freed, viaBaku: viaBaku > 0 };
+  /** **Singapour** se dit à la carte : le plein des camions et cargos, de tant à tant de crans. */
+  return { steps, short, km, roundTrip, eased };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -785,12 +783,12 @@ export const previewPlunder = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const target = await surveyedPlunderTarget(ctx, player, buildingId);
     if (
       plunderRefusalOf(
-        { kind: 'building', buildingId: target._id, key: target.key, sealed: target.sealed },
+        { kind: 'building', buildingId: target._id, key: target.key },
         column.roles,
         false,
       ) !== null
@@ -817,7 +815,7 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -825,6 +823,11 @@ export const previewPlunder = query({
           : ('sabotage' as const),
       presenceHours: PLUNDER_HOURS_PRESENT,
       disabledHours: PLUNDER_DISABLED_HOURS,
+      /** **Dakar** : ce que le pillage laisse par ressource chez son teneur, la fonction même que
+       *  `completePresence` applique ; `null` hors Dakar ou pour un site qui ne se vide pas. */
+      spared: await ctx.db
+        .get(target._id)
+        .then((row) => (row === null ? null : dakarSparedAt(ctx, row))),
     };
   },
 });
@@ -845,7 +848,7 @@ export const previewCapture = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await captureAimOf(ctx, player, target);
     const route = routeBetween(
@@ -865,7 +868,7 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -907,7 +910,7 @@ export const previewLootCollection = query({
     if (departure === null) return null;
     const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
     if (topped === null) return null;
-    const { troops, viaBaku } = topped;
+    const { troops } = topped;
     const column = await columnOf(ctx, player._id, troops, departure);
     const aimed = await aimOf(ctx, player._id, { kind: 'point', point: sighting.point });
     if (refusalOf('march', aimed.aim, column) !== null) return null;
@@ -930,7 +933,7 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, viaBaku),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,
@@ -964,6 +967,8 @@ export const arrive = internalMutation({
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
+      /** Retenue par le repos, la colonne ne s'arrête qu'à `held` : le plein se compte d'alors. */
+      for (const troopId of movement.troopIds) await ctx.db.patch(troopId, { fuelAt: held });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId });
       /** Fiche 11 §4.1. Filed at the hold, once — the reschedule lands past the window, so it
        *  cannot file a second. */

@@ -79,16 +79,24 @@ describe('a selection let go on a place', () => {
     expect(group?.refusal).toBe('2 mouvements pour 1 slot libre');
   });
 
-  it("lets Halifax's holder drop two fleets with no slot free", () => {
-    const crews = [
-      [{ role: 'escort' as const, carried: false }],
-      [{ role: 'escort' as const, carried: false }],
-    ];
-    const asked = slotsAskedBy(crews, true);
-    expect(asked).toBe(0);
-    const group = groupCompassOf([compass([march()]), compass([march()])], { free: 0, asked });
+  it("lets Halifax's holder send one fleet with no slot, and the second takes one", () => {
+    const fleet = [{ role: 'escort' as const, carried: false }];
+    const march_ = [{ role: 'infantry' as const, carried: false }];
+    expect(slotsAskedBy([fleet], true)).toBe(0);
+    expect(slotsAskedBy([fleet, fleet], true)).toBe(1);
+    expect(slotsAskedBy([fleet, march_], true)).toBe(1);
+    // One is already at sea: the next one pays.
+    expect(slotsAskedBy([fleet], true, 1)).toBe(1);
+    expect(slotsAskedBy([fleet], false)).toBe(1);
+    const asked = slotsAskedBy([fleet], true);
+    const group = groupCompassOf([compass([march()])], { free: 0, asked });
     expect(group?.refusal).toBeNull();
     expect(group?.actions).toHaveLength(1);
+    const refused = groupCompassOf([compass([march()]), compass([march()])], {
+      free: 0,
+      asked: slotsAskedBy([fleet, fleet], true),
+    });
+    expect(refused?.refusal).toContain('pour 0 slot libre');
   });
 
   it('leaves a single-pile order out: one transport, one delivery', () => {

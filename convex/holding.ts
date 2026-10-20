@@ -61,32 +61,6 @@ const colourOver = (
     occupations: colour.occupations,
   });
 
-/** Le teneur de Narvik, `null` s'il n'est à personne. */
-const narvikHolderOf = (points: ReadonlyArray<Doc<'strategicPoints'>>) =>
-  points.find((point) => point.key === 'narvik')?.holderId ?? null;
-
-/** Toutes les régions demandées, à lui : ce que Narvik rend à son teneur (P11). */
-const everywhere = (player: Doc<'players'>, regions: ReadonlyArray<RegionFacts>) =>
-  new Map(regions.map((region) => [region.id, player._id as string]));
-
-/**
- * **La couleur que la production lit** (ADR 0020 §6) : celle de la carte, sauf pour le teneur de
- * **Narvik**, dont les exploitations produisent même hors réseau (P11) — chacune des régions
- * demandées lui revient alors. Un seul lecteur pour l'économie (`resources.heldFor`) et pour le
- * tampon « relié » de la vue : la règle cassée ne peut pas l'être d'un côté seulement.
- */
-export async function linkingOver(
-  ctx: QueryCtx,
-  player: Doc<'players'>,
-  regions: ReadonlyArray<RegionFacts>,
-  now: number,
-): Promise<ReadonlyMap<string, string>> {
-  if (narvikHolderOf(await seasonPoints(ctx, player.seasonId)) === player._id) {
-    return everywhere(player, regions);
-  }
-  return heldOver(ctx, player.seasonId, regions, now);
-}
-
 /**
  * **Le sol où il peut bâtir** : son pays, toute région qui porte un de ses bâtiments, et **le
  * cercle entier de chacun de ses avant-postes debout** (ADR 0020 §1 : là où je tiens est là où je
@@ -152,7 +126,7 @@ function nextColourChange(outposts: ReadonlyArray<Doc<'outposts'>>, now: number)
 
 /**
  * **La couleur de chaque siège, retenue au changement de couleur** (#144). La vue la lit au lieu
- * de relire toute la saison (`linkedOn`) ; elle sort des mêmes lectures que `linkingOver`, la
+ * de relire toute la saison (`linkedOn`) ; elle sort des mêmes lectures que `heldOver`, la
  * règle même de la production, sur le sol de `groundOf` — la saison lue **une fois**, puis
  * `heldRegions` siège par siège. N'écrit que ce qui a changé : une ligne de siège écrite réveille
  * toutes les vues qui lisent les sièges.
@@ -168,7 +142,6 @@ export async function recordLinkage(ctx: MutationCtx, seasonId: Id<'seasons'>): 
   const now = Date.now();
   const blitz = modeOf(season.mode) === 'blitz';
   const colour = await seasonColour(ctx, seasonId);
-  const narvik = narvikHolderOf(colour.points);
   const until = nextColourChange(colour.outposts, now);
   for (const seat of await seatsOf(ctx, seasonId)) {
     const ground = groundOf(
@@ -179,7 +152,7 @@ export async function recordLinkage(ctx: MutationCtx, seasonId: Id<'seasons'>): 
       now,
     );
     const regions = [...ground.values()];
-    const held = narvik === seat._id ? everywhere(seat, regions) : colourOver(colour, regions, now);
+    const held = colourOver(colour, regions, now);
     const linkage = {
       ground: footprintOf(ground),
       unlinked: [...ground.keys()].filter((regionId) => held.get(regionId) !== seat._id),
@@ -200,7 +173,7 @@ export async function recordLinkage(ctx: MutationCtx, seasonId: Id<'seasons'>): 
 /**
  * **La couleur de son sol, telle que la vue la sert** : celle que le dernier changement de couleur
  * a retenue, quand elle a été lue sur ce sol-là et qu'aucune heure n'a passé depuis ; la vérité
- * sinon (`linkingOver`). Rendue sous la forme que l'économie lit (`isLinked`) : la région, et
+ * sinon (`heldOver`). Rendue sous la forme que l'économie lit (`isLinked`) : la région, et
  * lui pour teneur quand elle porte sa couleur.
  */
 export async function linkedOn(
@@ -215,7 +188,7 @@ export async function linkedOn(
     linkage.ground !== footprintOf(ground) ||
     (linkage.until !== null && now >= linkage.until)
   ) {
-    return linkingOver(ctx, player, [...ground.values()], now);
+    return heldOver(ctx, player.seasonId, [...ground.values()], now);
   }
   const unlinked = new Set(linkage.unlinked);
   return new Map(

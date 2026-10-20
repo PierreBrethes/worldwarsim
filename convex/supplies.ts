@@ -1,7 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
-  bakuRefuels,
+  bakuGainOf,
   suppliesOf,
   topUp,
   type Supplies,
@@ -9,7 +9,7 @@ import {
 } from '../src/domain/supplies';
 import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
-import { holdsPoint } from './strategicPoints';
+import { heldSinceOf } from './strategicPoints';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
 import { upkeepOf, type AnchorStore } from './upkeep';
@@ -23,6 +23,10 @@ type Bill = ReadonlyMap<AnchorStore, SupplyStocks>;
  * ancrée nulle part. Sur le sol national elle se sert au plateau personnel ; dans le rayon d'un
  * avant-poste, à son dépôt (`storeOf`). Chaque ancre se partage dans l'ordre des identifiants.
  *
+ * **Bakou** (ADR 0032) : le teneur voit ses moteurs à l'arrêt, hors de toute ancre, reprendre un
+ * cran de plein toutes les 12 h (`bakuRefuel`), à `at` — le gain se règle ici, avant toute
+ * lecture ou écriture qui dépend du plein.
+ *
  * La Blitz ne compte rien : elle tire et roule sans compter.
  */
 export async function toppedUp(
@@ -33,42 +37,38 @@ export async function toppedUp(
 ): Promise<{
   readonly troops: Array<Doc<'troops'>>;
   readonly bill: Bill;
-  /** Combien de troupes ont repris leur plein à Bakou, hors de toute ancre. */
-  readonly viaBaku: number;
 }> {
-  const none = { troops: [...troops], bill: new Map(), viaBaku: 0 };
+  const none = { troops: [...troops], bill: new Map() };
   const player = await ctx.db.get(playerId);
   if (player === null || troops.length === 0 || (await isBlitz(ctx, player.seasonId))) return none;
   const { storeOf } = await upkeepOf(ctx, playerId, at);
   const marching = new Set<string>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
-  /** **Bakou** : le teneur fait le plein où qu'il soit — une troupe à l'arrêt, hors de toute
-   *  ancre, reprend son plein sur le plateau personnel. */
-  const baku = await holdsPoint(ctx, player, 'baku');
+  const bakuSince = await heldSinceOf(ctx, player, 'baku');
   const byStore = new Map<AnchorStore, Array<Doc<'troops'>>>();
-  const unanchored = new Set<string>();
-  for (const troop of troops) {
-    if (marching.has(troop._id)) continue;
-    let store = storeOf[troop._id];
-    if (bakuRefuels(troop.role, baku, store !== undefined)) {
-      store = 'board';
-      unanchored.add(troop._id);
-    }
-    if (store === undefined) continue;
-    byStore.set(store, [...(byStore.get(store) ?? []), troop]);
-  }
-  if (byStore.size === 0) return none;
   const refills = new Map<string, Supplies>();
   const bill = new Map<AnchorStore, SupplyStocks>();
+  const refuelled = new Map<string, { readonly fuel: number; readonly fuelAt: number }>();
+  for (const troop of troops) {
+    if (marching.has(troop._id)) continue;
+    const store = storeOf[troop._id];
+    if (store === undefined) {
+      const got = bakuGainOf(
+        { ...troop, createdAt: troop._creationTime },
+        { heldSince: bakuSince, marching: false, anchored: false },
+        at,
+      );
+      if (got !== null && got.steps > 0)
+        refuelled.set(troop._id, { fuel: suppliesOf(troop).fuel + got.steps, fuelAt: got.since });
+      continue;
+    }
+    byStore.set(store, [...(byStore.get(store) ?? []), troop]);
+  }
+  if (byStore.size === 0 && refuelled.size === 0) return none;
   for (const [store, group] of byStore) {
     const { supplies, cost } = topUp(
-      group.map((troop) => ({
-        ...troop,
-        id: troop._id,
-        anchored: !unanchored.has(troop._id),
-        fuelOnly: unanchored.has(troop._id),
-      })),
+      group.map((troop) => ({ ...troop, id: troop._id, anchored: true })),
       await stocksOf(ctx, playerId, store, at),
     );
     for (const [id, refill] of supplies) refills.set(id, refill);
@@ -77,12 +77,10 @@ export async function toppedUp(
   return {
     troops: troops.map((troop) => {
       const refill = refills.get(troop._id);
-      return refill === undefined ? troop : { ...troop, ...refill };
+      const gained = refuelled.get(troop._id);
+      return { ...troop, ...refill, ...gained };
     }),
     bill,
-    viaBaku: [...unanchored].filter(
-      (id) => refills.get(id)!.fuel > suppliesOf(troops.find((troop) => troop._id === id)!).fuel,
-    ).length,
   };
 }
 
@@ -110,8 +108,16 @@ export async function resupply(
     else await takeFromDepot(ctx, store, cost);
   }
   for (const [index, troop] of next.entries())
-    if (troop.rounds !== troops[index]!.rounds || troop.fuel !== troops[index]!.fuel)
-      await ctx.db.patch(troop._id, { rounds: troop.rounds, fuel: troop.fuel });
+    if (
+      troop.rounds !== troops[index]!.rounds ||
+      troop.fuel !== troops[index]!.fuel ||
+      troop.fuelAt !== troops[index]!.fuelAt
+    )
+      await ctx.db.patch(troop._id, {
+        rounds: troop.rounds,
+        fuel: troop.fuel,
+        fuelAt: troop.fuelAt,
+      });
   return next;
 }
 

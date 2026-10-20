@@ -6,9 +6,9 @@ import type { MutationCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import type { BuildingKey } from '../src/domain/ids';
 import type { PlayerView } from '../src/domain/player-view';
-import { nominalStrength, outpostReachKm } from './constants';
+import { NARVIK_UNLINKED_SHARE, nominalStrength, outpostReachKm } from './constants';
 import { collapseIfAbandoned } from './outposts';
-import { linkingOver, recordLinkage } from './holding';
+import { heldOver, recordLinkage } from './holding';
 import { leaveTheWar } from './players';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf } from './resources';
@@ -22,7 +22,7 @@ import type { Seat } from './seats.fixture';
 /**
  * **Le contrat de la vue sur la couleur** (#144) : ce que `playerView` dit de la production
  * reliée — `regions[].linked`, les sites d'extraction, les filières — est exactement ce que la
- * vérité (`linkingOver`) et l'économie (`economyOf`) rendent à l'instant, sur des parties variées,
+ * vérité (`heldOver`) et l'économie (`economyOf`) rendent à l'instant, sur des parties variées,
  * y compris un adversaire qui plante ou perd un point hors de la vue du joueur. Ce contrat a été
  * écrit avant que la vue cesse de relire toute la saison : il doit tenir des deux côtés.
  */
@@ -115,7 +115,7 @@ const view = async (t: Bench, seat: Seat): Promise<PlayerView> =>
 
 /**
  * **Le contrat lui-même.** La vue de `seat`, comparée à la vérité lue à la même milliseconde :
- * chaque région servie est reliée si et seulement si `linkingOver` la donne au joueur, et
+ * chaque région servie est reliée si et seulement si `heldOver` la donne au joueur, et
  * l'extraction et les filières sont celles qu'`economyOf` règle.
  */
 async function holdsTheContract(t: Bench, seat: Seat): Promise<PlayerView> {
@@ -123,9 +123,9 @@ async function holdsTheContract(t: Bench, seat: Seat): Promise<PlayerView> {
   const truth = await t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
     const now = Date.now();
-    const held = await linkingOver(
+    const held = await heldOver(
       ctx,
-      player,
+      player.seasonId,
       seen.me.regions.map((region) => regionFacts(region.id)!),
       now,
     );
@@ -244,14 +244,21 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
       await recordLinkage(ctx, player.seasonId);
       return laid._id;
     });
-    expect(linkedAt(await holdsTheContract(t, seat), PRAHOVA)).toBe(true);
+    /** Narvik ne recolore rien : la région reste coupée, et l'exploitation y produit un quart. */
+    const held = await holdsTheContract(t, seat);
+    expect(linkedAt(held, PRAHOVA)).toBe(false);
+    expect(held.me.unlinkedShare).toBe(NARVIK_UNLINKED_SHARE);
+    expect(held.me.extraction.map((site) => site.share)).toEqual([NARVIK_UNLINKED_SHARE]);
+    expect(held.me.extraction[0]!.perHour).toBeGreaterThan(0);
     await holdsTheContract(t, guest);
 
     await t.run(async (ctx) => {
       await handOver(ctx, (await ctx.db.get(narvik))!, null, Date.now());
       await recordLinkage(ctx, player.seasonId);
     });
-    expect(linkedAt(await holdsTheContract(t, seat), PRAHOVA)).toBe(false);
+    const lost = await holdsTheContract(t, seat);
+    expect(lost.me.unlinkedShare).toBe(0);
+    expect(lost.me.extraction.map((site) => site.perHour)).toEqual([0]);
   });
 
   it('quand un bâtiment capturé occupe un sol national', async () => {

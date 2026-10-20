@@ -2,7 +2,13 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
-import { holdsPoint, pointsView, sealedByDakar, seasonPoints } from './strategicPoints';
+import {
+  dakarSparedAt,
+  heldSinceOf,
+  holdsPoint,
+  pointsView,
+  seasonPoints,
+} from './strategicPoints';
 import { slotsTaken } from './movement/orders';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
@@ -24,6 +30,7 @@ import {
   type BuildingKey,
   type ResearchCard,
 } from '../src/domain/ids';
+import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
@@ -75,7 +82,7 @@ import {
   regionOfOutpost,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { isFuelFree, suppliesOf } from '../src/domain/supplies';
+import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
@@ -178,7 +185,13 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  record cannot answer; the economy below reads the very same map. */
   const carrying = groundOf(player, blitz, buildings, outposts, now);
   const held = await linkedOn(ctx, player, carrying, now);
-  const economy = await economyOf(ctx, player._id, now, { troops, outposts, held });
+  const narvik = await holdsPoint(ctx, player, 'narvik');
+  const economy = await economyOf(ctx, player._id, now, {
+    troops,
+    outposts,
+    held,
+    holdsNarvik: narvik,
+  });
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
   const worksMinutesAt = (key: Parameters<typeof buildMinutes>[0], level: number) =>
@@ -214,16 +227,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       point: pointOfBuilding(installation),
     })),
   );
-  /** Dakar : les entrepôts de son teneur, que l'ordre refusera de piller. */
+  /** **Dakar** : ce que le pillage d'un entrepôt de son teneur laisse par ressource, de la fonction
+   *  même que le serveur applique (`sparedPerResourceOf`). Absent quand c'est le plancher commun. */
   const surveyedInstallations = await Promise.all(
     surveyed.map(async (installation) => {
       const row =
         installation.key === 'warehouse'
           ? await ctx.db.get(installation.id as Id<'buildings'>)
           : null;
-      return row !== null && (await sealedByDakar(ctx, row))
-        ? { ...installation, sealed: true as const }
-        : installation;
+      const spared = row === null ? null : await dakarSparedAt(ctx, row);
+      return spared === null ? installation : { ...installation, spared };
     }),
   );
   const lootSightings = await ctx.db
@@ -233,9 +246,23 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
-  /** **Singapour** : ses camions et ses cargos roulent sans plein (`fuelBill`). */
-  const singapore = !blitz && (await holdsPoint(ctx, player, 'singapore'));
-  /** **Rangoun** : ses tournées ne se relèvent jamais (`detectionBoard`). */
+  /** **Bakou** : ses moteurs à l'arrêt, hors ancre, reprennent un cran de plein toutes les 12 h
+   *  (`toppedUp`, qui règle le même gain avant tout ordre). */
+  const bakuSince = blitz ? null : await heldSinceOf(ctx, player, 'baku');
+  const halifax = !blitz && (await holdsPoint(ctx, player, 'halifax'));
+  const slots = await slotsTaken(ctx, player, movements, troops);
+  const marching = new Set<string>(movements.flatMap((movement) => movement.troopIds));
+  const bakuGain = (troop: Doc<'troops'>) =>
+    bakuGainOf(
+      { ...troop, createdAt: troop._creationTime },
+      {
+        heldSince: bakuSince,
+        marching: marching.has(troop._id),
+        anchored: economy.upkeep.storeOf[troop._id] !== undefined,
+      },
+      now,
+    );
+  /** **Rangoun** : ses tournées ne se relèvent qu'à mi-portée (`detectionBoard`). */
   const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];
@@ -496,12 +523,17 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
        *  which cannot name the mine that sits on nothing. */
       extraction: economy.extraction,
+      /** **Narvik** : la part que produit une exploitation coupée du réseau (`outputShareOf`) — 0
+       *  sans le point. Le site coupé, la ligne d'économie et l'affiche la disent d'elle. */
+      unlinkedShare: outputShareOf(false, narvik),
       // The slots come from research: two at the start, one per Transmissions card.
       slots: {
         total: movementSlots(player.researched ?? []),
-        // A return holds nothing, nor a fleet of the holder of Halifax; a resting tour holds one
-        // (`slotsTaken`).
-        used: await slotsTaken(ctx, player, movements, troops),
+        // A return holds nothing, nor the one fleet at a time of the holder of Halifax; a resting
+        // tour holds one (`slotsTaken`).
+        used: slots.used,
+        /** **Halifax** : son teneur ne paie pas un mouvement maritime à la fois (`slotsAskedBy`). */
+        ...(halifax ? { halifax: true as const, maritime: slots.maritime } : {}),
       },
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
@@ -656,8 +688,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         supplied: !unsupplied.has(troop._id),
         ...(depotOf(troop._id) === null ? {} : { depotId: depotOf(troop._id)! }),
         /** **Coups et plein** (ADR 0028 §3) : chez son propriétaire seulement, et en Mondiale. */
-        ...(blitz ? {} : { supplies: suppliesOf(troop) }),
-        ...(isFuelFree(troop.role, singapore) ? { fuelFree: true as const } : {}),
+        ...(blitz
+          ? {}
+          : {
+              supplies: {
+                ...suppliesOf(troop),
+                fuel: suppliesOf(troop).fuel + (bakuGain(troop)?.steps ?? 0),
+              },
+            }),
+        /** **Bakou** : l'heure du prochain cran de plein, tant qu'il en manque. */
+        ...(bakuGain(troop)?.nextAt == null ? {} : { refuelAt: bakuGain(troop)!.nextAt! }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
         /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
          *  isolée, que seul un largage ravitaille. */

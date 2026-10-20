@@ -11,6 +11,7 @@ import {
   PLUNDER_HOURS_PRESENT,
 } from './constants';
 import { regionFacts, pointOfRegion } from './regions';
+import { sparedPerResourceOf } from '../src/domain/loot';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
@@ -554,25 +555,6 @@ describe('plunder presence', () => {
     expect(theirs.notices.some((notice) => notice.kind === 'expeditionFoundNothing')).toBe(false);
   });
 
-  /** **Dakar** (P11) : les réserves de son teneur ne se pillent pas. */
-  it('finds the warehouse of the holder of Dakar sealed, and walks home empty', async () => {
-    const t = boot();
-    const { seat, guest } = await launchedSeason(t);
-    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
-    const infantry = await troop(t, seat, 'infantry', barracks);
-    const warehouseId = await building(t, guest, 'warehouse');
-    await holdPoint(t, seat, 'dakar', guest);
-
-    await plunderArrival(t, seat, warehouseId, [infantry], barracks);
-
-    expect(await t.run((ctx) => ctx.db.query('plunderReports').collect())).toEqual([]);
-    expect((await t.run((ctx) => ctx.db.get(warehouseId)))!.disabledUntil).toBeUndefined();
-    const view = await t.query(api.view.playerView, seat);
-    expect(view.notices.filter((notice) => notice.kind === 'expeditionFoundNothing')).toMatchObject(
-      [{ building: 'warehouse', reason: 'sealed' }],
-    );
-  });
-
   it('marches on a surveyed warehouse razed since, and reports it gone on arrival', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
@@ -600,6 +582,28 @@ describe('plunder presence', () => {
       [{ building: 'warehouse', reason: 'gone', regionName: regionFacts(PRAHOVA)!.name }],
     );
     expect((await t.run((ctx) => ctx.db.get(infantry)))?.stationedAt).toBe(barracks);
+  });
+
+  /** **Dakar** : le pilleur lit, avant l'ordre, ce que le pillage laissera — la fonction du serveur. */
+  it('says before the order what the warehouse of the holder of Dakar keeps', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, seat);
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [infantry],
+      buildingId: warehouseId,
+    };
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({ spared: null });
+
+    await holdPoint(t, seat, 'dakar', guest);
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({
+      spared: sparedPerResourceOf(true),
+    });
   });
 
   /** ADR 0028 §3 : le plein se dit avant l'ordre, ici comme sur une marche. */
@@ -687,6 +691,37 @@ describe('plunder presence', () => {
     const [back] = await returnsOf(t, seat);
     expect(back?.loot).toEqual(report?.taken);
     expect(back?.plunderReportId).toBe(report?._id);
+  });
+
+  /** **Dakar** (ADR 0032) : le pillage laisse 600 par ressource au teneur, pas 400. */
+  it('leaves 600 per resource to the holder of Dakar, and takes only what stands above', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const transport = await troop(t, seat, 'landTransport', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await holdPoint(t, seat, 'dakar', guest);
+    await setStocks(t, guest, { food: 702, steel: 500 });
+    await observe(t, seat);
+    expect(
+      ((await t.query(api.view.playerView, seat)).surveyedInstallations[0] as { spared?: number })
+        .spared,
+    ).toBe(sparedPerResourceOf(true));
+    const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
+
+    await completePresence(t, movementId);
+
+    const stocks = await stocksOf(t, guest);
+    expect(stocks.food).toBe(600);
+    expect(stocks.steel).toBe(500);
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
+    expect(report?.taken).toMatchObject({ food: 100, steel: 0 });
+    expect(report?.storageLost).toMatchObject({ food: 0, steel: 0 });
+    const plundered = (await t.query(api.view.playerView, guest)).notices.find(
+      (notice) => notice.kind === 'sitePlundered',
+    );
+    expect(plundered).toMatchObject({ spared: sparedPerResourceOf(true) });
   });
 
   it('records a successful take with nothing available and still disables the warehouse', async () => {

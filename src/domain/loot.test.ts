@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
+import { BASE_CAP, CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import type { ResourceKey, UnitRole } from './ids';
-import { carryCapacityOf, lootFromSurplus, trimLootToCapacity } from './loot';
+import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf, trimLootToCapacity } from './loot';
 
 const capacities: Readonly<Record<UnitRole, number>> = CARRY_CAPACITY_BY_ROLE;
 
@@ -99,5 +99,15 @@ describe('trimLootToCapacity', () => {
     const loot = resources({ oil: 12.5, ammunition: 4 });
 
     expect(trimLootToCapacity(loot, 20)).toEqual(loot);
+  });
+
+  it('spares more at the holder of Dakar, and lets that floor set what a column takes', () => {
+    expect(sparedPerResourceOf(false)).toBe(BASE_CAP);
+    expect(sparedPerResourceOf(true)).toBeGreaterThan(BASE_CAP);
+    const stocks = resources({ food: 700 });
+    const taken = (holdsDakar: boolean) =>
+      lootFromSurplus(stocks, sparedPerResourceOf(holdsDakar), 1000).food;
+    expect(taken(false)).toBe(700 - BASE_CAP);
+    expect(taken(true)).toBe(700 - sparedPerResourceOf(true));
   });
 });

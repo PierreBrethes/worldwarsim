@@ -12,6 +12,8 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
 import { slotCardsOf } from '@/domain/research';
+import { halifaxNoteOf } from '@/domain/movement-orders';
+import { HalifaxMark } from './HalifaxMark';
 import { currentMinutes, currentStock, type PlayerView, type Resource } from '@/domain/player-view';
 import {
   announceOf,
@@ -124,6 +126,7 @@ export function Reglette({
             me.slots.used,
             me.slots.total,
             slotCardsOf(me.research.researched),
+            halifaxNoteOf(me.slots),
           )}
         >
           <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
@@ -138,10 +141,12 @@ export function Reglette({
               me.slots.used,
               me.slots.total,
               slotCardsOf(me.research.researched),
+              halifaxNoteOf(me.slots),
             )}
           >
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
+          <HalifaxMark slots={me.slots} />
         </div>
       )}
 

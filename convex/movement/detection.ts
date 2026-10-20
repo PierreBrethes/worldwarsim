@@ -31,11 +31,13 @@ import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { economyOf } from '../resources';
 import { holdsPoint } from '../strategicPoints';
+import { isRangoonColumn } from '../../src/domain/strategic-points';
 import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
+  sightingReachKm,
 } from '../constants';
 import { seasonTheatre } from './theatre';
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
@@ -48,6 +50,8 @@ type Mobile = {
   readonly movement: Doc<'movements'>;
   readonly force: MarchingForce;
   readonly rangeKm: number;
+  /** **Rangoun** : une tournée de son teneur, que chaque détecteur ne relève qu'à sa part. */
+  readonly rangoonTour: boolean;
 };
 
 const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
@@ -101,10 +105,7 @@ export async function reassessDetection(
     const watchedBy =
       changed === undefined || target.playerId === changed ? null : new Set([changed]);
     const mobile = board.mobileById.get(target._id);
-    const desired =
-      mobile === undefined || target.troopIds.some((id) => board.veiled.has(id))
-        ? []
-        : sightingsFor(mobile, board, now, watchedBy);
+    const desired = mobile === undefined ? [] : sightingsFor(mobile, board, now, watchedBy);
     await syncSightings(
       ctx,
       target,
@@ -281,9 +282,10 @@ async function detectionBoard(
       .collect(),
   ]);
   const troopById = new Map(troops.map((troop) => [troop._id, troop]));
-  /** **Rangoun** : les tournées de son teneur ne se relèvent par aucun détecteur. Relu ici à
-   *  chaque réévaluation, donc éteint dès que le point change de main. */
-  const veiled = new Set<Id<'troops'>>();
+  /** **Rangoun** : les tournées de son teneur ne se relèvent qu'à la part de portée de
+   *  `sightingReachKm`. Relu ici à chaque réévaluation, donc éteint dès que le point change de
+   *  main (`handOver` réévalue). */
+  const rangoonTours = new Set<Id<'troops'>>();
   const keepers = new Map<Id<'players'>, boolean>();
   for (const troop of troops) {
     if (troop.tour === undefined) continue;
@@ -293,8 +295,10 @@ async function detectionBoard(
         await holdsPoint(ctx, { _id: troop.playerId, seasonId }, 'rangoon'),
       );
     }
-    if (keepers.get(troop.playerId)) veiled.add(troop._id);
+    if (keepers.get(troop.playerId)) rangoonTours.add(troop._id);
   }
+  const allOnRangoonTour = (troopIds: ReadonlyArray<Id<'troops'>>) =>
+    isRangoonColumn(troopIds, (id) => rangoonTours.has(id));
   const mobileById = new Map<Id<'movements'>, Mobile>();
   for (const movement of movements) {
     const roles = movement.troopIds.flatMap((troopId) => {
@@ -305,6 +309,7 @@ async function detectionBoard(
       movement,
       force: marchingForce(movement),
       rangeKm: detectionRangeOf(roles, theatre),
+      rangoonTour: allOnRangoonTour(movement.troopIds),
     });
   }
 
@@ -318,13 +323,14 @@ async function detectionBoard(
       playerId: Id<'players'>;
       point: LonLat;
       roles: Array<Doc<'troops'>['role']>;
+      troopIds: Array<Id<'troops'>>;
       detectorHostCountry: string;
       detectorRegion: string | null;
     }
   >();
 
   for (const troop of troops) {
-    if (moving.has(troop._id) || veiled.has(troop._id)) continue;
+    if (moving.has(troop._id)) continue;
     const station = stationOf(troop, playerById, buildingById, outpostById);
     if (station === null) continue;
     const key = `${troop.playerId}@${station.point[0]},${station.point[1]}`;
@@ -332,10 +338,12 @@ async function detectionBoard(
       playerId: troop.playerId,
       point: station.point,
       roles: [],
+      troopIds: [],
       detectorHostCountry: station.hostCountry,
       detectorRegion: station.region,
     };
     held.roles.push(troop.role);
+    held.troopIds.push(troop._id);
     posted.set(key, held);
   }
 
@@ -413,7 +421,7 @@ async function detectionBoard(
   }
 
   const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
-  return { mobileById, watchers, players, posted, veiled, mutualWindows };
+  return { mobileById, watchers, players, posted, allOnRangoonTour, mutualWindows };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
@@ -567,10 +575,15 @@ async function syncCampSightings(
     if (home !== null) soils.set(home, player._id);
   }
 
-  const caughtBy = (playerId: Id<'players'>, point: LonLat): CampDetector | null => {
+  const caughtBy = (
+    playerId: Id<'players'>,
+    point: LonLat,
+    rangoonTour: boolean,
+  ): CampDetector | null => {
     const home = soils.get(hostAmongCountries(point, new Set(soils.keys())));
     const found = (detectors.get(playerId) ?? []).filter(
-      (detector) => distanceKm(detector.point, point) <= detector.radiusKm,
+      (detector) =>
+        distanceKm(detector.point, point) <= sightingReachKm(detector.radiusKm, rangoonTour),
     );
     if (home === playerId) {
       found.push({
@@ -597,7 +610,7 @@ async function syncCampSightings(
 
     for (const [stationKey, camp] of board.posted) {
       if (camp.playerId === player._id) continue;
-      const caught = caughtBy(player._id, camp.point);
+      const caught = caughtBy(player._id, camp.point, board.allOnRangoonTour(camp.troopIds));
       const row = byStation.get(stationKey);
       if (caught === null) {
         if (row !== undefined && row.until === null) await ctx.db.patch(row._id, { until: now });
@@ -897,7 +910,11 @@ async function sightingsFor(
   const caught: Caught[] = [];
   const watching = (playerId: Id<'players'>) =>
     playerId !== target.movement.playerId && (watchedBy === null || watchedBy.has(playerId));
-  const watchers = board.watchers.filter((watcher) => watching(watcher.playerId));
+  const watchers = board.watchers.flatMap((watcher) =>
+    watching(watcher.playerId)
+      ? [{ ...watcher, radiusKm: sightingReachKm(watcher.radiusKm, target.rangoonTour) }]
+      : [],
+  );
   for (const sighting of sightingsAlong({ mine: target.force, watchers, after: now })) {
     const watcher = watchers.find((candidate) => candidate.id === sighting.id);
     if (watcher !== undefined) caught.push({ ...watcher, from: sighting.from, to: sighting.to });
@@ -931,22 +948,24 @@ async function sightingsFor(
 /**
  * **Deux colonnes au même rayon se voient pendant la même fenêtre** : la distance, le milieu et
  * l'intervalle commun ne dépendent pas de qui regarde. La fenêtre se calcule une fois par paire et
- * sert les deux sens (#145) ; à rayons différents, chacun garde la sienne.
+ * par rayon, et sert les deux sens quand ils lisent le même (#145) ; à rayons différents — ou
+ * quand l'une est une tournée de Rangoun —, chacun garde la sienne.
  */
 function mutualWindow(board: DetectionBoard, observer: Mobile, target: Mobile, now: number) {
-  const mutual = observer.rangeKm === target.rangeKm;
-  const key =
+  const radiusKm = sightingReachKm(observer.rangeKm, target.rangoonTour);
+  const pair =
     observer.movement._id < target.movement._id
       ? `${observer.movement._id}|${target.movement._id}`
       : `${target.movement._id}|${observer.movement._id}`;
-  if (mutual && board.mutualWindows.has(key)) return board.mutualWindows.get(key)!;
+  const key = `${pair}|${radiusKm}`;
+  if (board.mutualWindows.has(key)) return board.mutualWindows.get(key)!;
   const window = mobileSighting({
     observer: observer.force,
     target: target.force,
-    radiusKm: observer.rangeKm,
+    radiusKm,
     after: now,
   });
-  if (mutual) board.mutualWindows.set(key, window);
+  board.mutualWindows.set(key, window);
   return window;
 }
 

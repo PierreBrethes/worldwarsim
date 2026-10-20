@@ -8,7 +8,17 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
-import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
+import {
+  BAKU_REFUEL_MS,
+  BASE_CAP,
+  DAKAR_SPARED_PER_RESOURCE,
+  DETECTION_RANGE_KM,
+  NARVIK_UNLINKED_SHARE,
+  LISTENING_STATION_RADIUS_KM,
+  OUTPOST_REACH_KM_BY_LEVEL,
+  SINGAPORE_FUEL_DISCOUNT_PCT,
+  sightingReachKm,
+} from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
@@ -118,6 +128,14 @@ type RefusalContext = {
 };
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
+
+/** **Dakar** : ce que le pillage laisse par ressource chez son teneur — la phrase de la rose, de
+ *  l'aperçu et de la dépêche du pillé. */
+const sparedAtDakarWords = (spared: number): string =>
+  `Dakar le garde : ${spared} de chaque ressource restent sur place`;
+
+/** Une part de débit (`outputShareOf`) dite en pourcentage. */
+const percentOf = (share: number): number => Math.round(share * 100);
 
 /** `1ᵉʳ`, puis `2ᵉ` — l'exposant est composé en caractères, jamais en balise : ces chaînes
  *  passent aussi par des attributs `title`, où un `<sup>` s'imprimerait tel quel. */
@@ -528,17 +546,15 @@ export const fr = {
         'Vous seul commercez avec le comptoir neutre : trois d’une ressource contre une d’une autre, une fois par édition.',
       istanbul:
         'Une fois par jour, vous lisez le dernier télégramme privé entre deux joueurs — tamponné « lu à Istanbul » chez eux.',
-      rangoon:
-        'Vos tournées de ravitaillement ne se relèvent jamais : aucune détection ne les voit.',
+      rangoon: `Vos tournées de ravitaillement ne se relèvent qu’à mi-portée : un fantassin les voit à ${sightingReachKm(DETECTION_RANGE_KM.infantry, true)} km au lieu de ${DETECTION_RANGE_KM.infantry}, une station d’écoute à ${sightingReachKm(LISTENING_STATION_RADIUS_KM, true)} au lieu de ${LISTENING_STATION_RADIUS_KM}.`,
       hongKong:
         'Vous lisez la dépêche de chaque capture, où que ce soit — points, bâtiments et avant-postes, même ceux que vous ne voyez pas : qui prend quoi, et où.',
-      halifax: 'Vos mouvements maritimes ne prennent pas de slot.',
-      narvik: 'Vos exploitations produisent même hors réseau.',
+      halifax: 'Un de vos mouvements maritimes à la fois ne prend pas de slot.',
+      narvik: `Vos exploitations coupées du réseau produisent encore ${percentOf(NARVIK_UNLINKED_SHARE)} % de leur débit.`,
       lisbon: 'Vous lisez la nation de tout ce que vous relevez.',
-      baku: 'Vos troupes à l’arrêt font le plein sur le plateau personnel, où qu’elles soient : comme si elles étaient ancrées.',
-      dakar:
-        'Vos réserves ne se pillent pas, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.',
-      singapore: 'Vos camions et vos cargos roulent sans plein.',
+      baku: `Vos troupes motorisées à l’arrêt, hors de toute ancre, reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
+      dakar: `Un pillage laisse ${DAKAR_SPARED_PER_RESOURCE} de chaque ressource dans vos entrepôts, au lieu de ${BASE_CAP}, et un dépôt d’avant-poste capturé chez vous brûle avec son contenu.`,
+      singapore: `Vos camions et vos cargos paient ${SINGAPORE_FUEL_DISCOUNT_PCT} % de plein en moins, au cran près.`,
     } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
@@ -596,6 +612,7 @@ export const fr = {
       return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
     /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
+    narvikLost: `Narvik est perdu : vos exploitations coupées du réseau ne produisent plus.`,
     depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
       side === 'capturer'
         ? `Le dépôt d’avant-poste de ${country} a brûlé à la capture, Dakar le garde : ${lost} perdu.`
@@ -841,7 +858,6 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
-    SEALED: () => 'Dakar garde ces réserves : elles ne se pillent pas',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     INSUFFICIENT_FUNDS: (d) =>
@@ -1919,8 +1935,14 @@ export const fr = {
             'Istanbul',
             'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
           ],
-          narvik: ['Narvik', 'Vos exploitations produisent même hors réseau.'],
-          baku: ['Bakou', 'Vos motorisés font le plein partout.'],
+          narvik: [
+            'Narvik',
+            `Vos exploitations coupées du réseau produisent encore ${percentOf(NARVIK_UNLINKED_SHARE)} % de leur débit.`,
+          ],
+          baku: [
+            'Bakou',
+            `Vos motorisés à l’arrêt reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
+          ],
           lisbon: ['Lisbonne', 'Vous lisez la nation de tout ce que vous relevez.'],
         } satisfies Record<RacePoint, readonly [string, string]>,
       },
@@ -2009,8 +2031,22 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
-    slotsTitle: (used: number, total: number, cards: ReadonlyArray<ResearchCard> = []) =>
-      `mouvements en vol : ${used} / ${total}. Deux slots au départ, un de plus par carte Transmissions.${cards.map((card) => ` ${RESEARCH_NAMES[card]} : +1.`).join('')}`,
+    /** **Halifax** : ce que le compteur n'a pas retenu, dit à côté de lui. */
+    halifaxSpared: 'Halifax −1',
+    slotsTitle: (
+      used: number,
+      total: number,
+      cards: ReadonlyArray<ResearchCard> = [],
+      /** **Halifax** : le teneur, et s'il a un mouvement maritime en vol que le compte n'a pas retenu. */
+      halifax: { readonly sparing: boolean } | null = null,
+    ) =>
+      `mouvements en vol : ${used} / ${total}. Deux slots au départ, un de plus par carte Transmissions.${cards.map((card) => ` ${RESEARCH_NAMES[card]} : +1.`).join('')}${
+        halifax === null
+          ? ''
+          : halifax.sparing
+            ? ' Halifax : un mouvement maritime en vol ne compte pas.'
+            : ' Halifax : votre premier mouvement maritime ne prendra pas de slot.'
+      }`,
     counter: (label: string, stock: number, cap: number, rate: number) =>
       `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
@@ -2073,8 +2109,10 @@ export const fr = {
       listening: 'Aucune écoute ne brûle.',
       factory: 'Aucune chaîne n’y touche.',
     },
-    site: (building: string, region: string, level: number, linked: boolean) =>
-      `${building} ${ofName(region)} · niv. ${level}${linked ? '' : ' · coupé'}`,
+    site: (building: string, region: string, level: number, linked: boolean, share: number) =>
+      `${building} ${ofName(region)} · niv. ${level}${
+        linked ? '' : share > 0 ? ` · coupé, ${percentOf(share)} % (Narvik)` : ' · coupé'
+      }`,
     chain: (building: string, level: number) => `${building} · niv. ${level}`,
     ranks: (from: number, to: number, rate: number, outside: boolean) =>
       `${from === to ? `Rang ${from}` : `Rangs ${from} à ${to}`}${outside ? ', hors ancrage' : ''}` +
@@ -2438,6 +2476,10 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
+    /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`) ; zéro, le
+     *  tampon commun. La seule lecture : site, affiche. */
+    unlinkedBy: (share: number) =>
+      share > 0 ? `hors réseau · ${percentOf(share)} %` : fr.stamps.unlinked,
     /** **Les cachets de la carte** (table d'état-major) : posés à plat à côté de la pièce, à la
      *  dépêche que le joueur reçoit déjà, et effacés trois secondes plus tard. */
     arrived: 'arrivé',
@@ -2551,8 +2593,15 @@ export const fr = {
         loot === 'rien'
           ? `${building} de ${region} neutralisé — rien à prendre.`
           : `${building} de ${region} neutralisé — charge embarquée : ${loot}.`,
-      sitePlundered: (building: string, region: string, taken: string, storageLost: string) =>
-        `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.`,
+      sitePlundered: (
+        building: string,
+        region: string,
+        taken: string,
+        storageLost: string,
+        spared?: number,
+      ) =>
+        `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.` +
+        (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}.`),
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
       /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
@@ -2564,7 +2613,7 @@ export const fr = {
         reason === 'gone'
           ? `Expédition bredouille — ${region} : ${building} relevé n’est plus debout. La colonne rentre à vide.`
           : reason === 'sealed'
-            ? `Expédition bredouille — ${region} : ${building} est gardé par Dakar, ses réserves ne se pillent pas. La colonne rentre à vide.`
+            ? `Expédition bredouille — ${region} : ${building} était scellé par Dakar (ancienne règle). La colonne rentre à vide.`
             : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
@@ -2668,8 +2717,10 @@ export const fr = {
       captureLifted: (site: string) => `La capture ${ofSite(site)} est levée.`,
       captureVoid: (site: string) =>
         `Capture ${ofSite(site)} sans objet : le site n’est plus à celui qu’on visait.`,
-      productionCut: (sites: number, country: string) =>
-        `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
+      productionCut: (sites: number, country: string, narvik: boolean) =>
+        `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.${
+          narvik ? ` Narvik en garde ${percentOf(NARVIK_UNLINKED_SHARE)} % du débit.` : ''
+        }`,
       productionRestored: (sites: number, country: string) =>
         `${sites} site${plural(sites, '', 's')} de nouveau relié${plural(sites, '', 's')} — ${country}.`,
       /**
@@ -2767,10 +2818,18 @@ export const fr = {
     reload:
       'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
-    /** **Bakou** : le plein repris hors de toute ancre, sur le plateau personnel. */
-    viaBaku: 'plein repris à Bakou, sur le plateau personnel',
-    /** **Singapour** : les camions et les cargos de la colonne ne consomment rien. */
-    freedBySingapore: 'camions et cargos sans plein (Singapour)',
+    /** **Bakou** : le prochain cran de plein d'une troupe à l'arrêt hors de toute ancre. */
+    refuelIn: (ms: number) => {
+      const minutes = Math.max(1, Math.ceil(ms / 60_000));
+      return minutes < 60
+        ? `${minutes} min`
+        : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
+    refuelTitle: (when: string) =>
+      `Bakou : un cran de plein repris toutes les ${BAKU_REFUEL_MS / 3_600_000} h hors ancre — le prochain dans ${when}`,
+    /** **Singapour** : le plein des camions et des cargos de la colonne, réduit de 20 %. */
+    easedBySingapore: (from: number, to: number) =>
+      `Singapour −${SINGAPORE_FUEL_DISCOUNT_PCT} % : ${to} cran${plural(to, '', 's')} au lieu de ${from}`,
     route: (steps: number, roundTrip = false) =>
       `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
   },
@@ -2787,7 +2846,7 @@ export const fr = {
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
     grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
     tourLine: (tour: TagTour): string =>
-      `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · invisible, Rangoun' : ''}`,
+      `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · relevée à mi-portée, Rangoun' : ''}`,
     tourState: ({ state, stops, waiting }: TagTour): string =>
       state === 'tracing'
         ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
@@ -3172,6 +3231,8 @@ export const fr = {
     paces: { motorized: 'motorisé', foot: 'à pied' } satisfies Record<LandPace, string>,
     noRoute: 'Aucune route terrestre vers cette destination.',
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
+    /** **Dakar** : ce que le pillage laisse par ressource chez son teneur. */
+    sparedAtDakar: sparedAtDakarWords,
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
@@ -4222,8 +4283,9 @@ export const fr = {
      *  comme les marches, parce que c'en est une. */
     plunder: 'piller',
     sabotage: 'saboter',
-    plunderConsequence: (verb: string) =>
-      `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
+    plunderConsequence: (verb: string, spared?: number) =>
+      `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.` +
+      (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}, seul le surplus se prend.`),
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
@@ -4383,7 +4445,6 @@ export const fr = {
     perHour: (amount: string) => `+${amount} / h`,
     network: 'réseau',
     linked: 'relié',
-    unlinked: 'hors réseau',
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
     worksSite: (region: string) => `chantier · ${region}`,
     raisingSite: (region: string) => `élévation · ${region}`,

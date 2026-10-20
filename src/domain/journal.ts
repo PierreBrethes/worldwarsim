@@ -302,7 +302,11 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'productionCut',
-        text: said.productionCut(notice.sites, countryLabel(notice.hostCountry)),
+        text: said.productionCut(
+          notice.sites,
+          countryLabel(notice.hostCountry),
+          notice.narvik === true,
+        ),
       };
     case 'captureStarted':
     case 'captureSucceeded':
@@ -545,6 +549,13 @@ function written(notice: Notice): Written {
         kind: 'pointTaken',
         text: fr.points.drawn(notice.keys ?? FIRST_SEVEN),
       };
+    case 'narvikLost':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.narvikLost,
+      };
     case 'depotBurned':
       return {
         at: notice.at,
@@ -599,6 +610,7 @@ function written(notice: Notice): Written {
           notice.regionName,
           lootWords(notice.taken),
           lootWords(notice.storageLost),
+          notice.spared,
         ),
       };
     case 'siteSabotaged':

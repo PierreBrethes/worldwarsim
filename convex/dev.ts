@@ -15,10 +15,12 @@ import { viewOf } from './view';
 import { reassessDetection } from './movement/detection';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
-import { LON_LAT, UNIT_ROLE } from './validators';
+import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE } from './validators';
 import { aimOf, march } from './movement/orders';
 import { nominalStrength } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
+import { fileSurvey } from './surveys';
+import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
@@ -327,8 +329,10 @@ export const spawnTroops = internalMutation({
     /** Ses crans déjà entamés (coups et plein, ADR 0028 §3) ; absents, pleins. */
     rounds: v.optional(v.number()),
     fuel: v.optional(v.number()),
+    /** **En tournée depuis ce dépôt**, à l'arrêt : la pile de Rangoun d'une démo (#176). */
+    tourBase: v.optional(v.id('outposts')),
   },
-  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel }) => {
+  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel, tourBase }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const strength = nominalStrength(role, 1);
@@ -346,6 +350,16 @@ export const spawnTroops = internalMutation({
           ...(carriedBy === undefined ? {} : { carriedBy }),
           ...(rounds === undefined ? {} : { rounds }),
           ...(fuel === undefined ? {} : { fuel }),
+          ...(tourBase === undefined
+            ? {}
+            : {
+                tour: {
+                  base: tourBase,
+                  stops: [],
+                  consigne: { ammunition: 0, oil: 0, coal: 0 },
+                  next: 0,
+                },
+              }),
         }),
       );
     return ids;
@@ -695,9 +709,12 @@ export const artilleryScene = internalMutation({
 });
 
 /**
- * **Bakou, Dakar et Singapour tenus** : le joueur tient les trois, un blindé et un camion au plein
- * vide en Rhénanie (le blindé reprend le sien à Bakou, le camion roule sans), et les deux dépêches
- * du dépôt qui brûle à Dakar.
+ * **Bakou, Narvik, Singapour et Halifax tenus** par le joueur, **Dakar par l'adversaire**. Un puits
+ * de pétrole du joueur en Prahova, coupé du réseau (Narvik : il produit un quart) ; un entrepôt de
+ * l'adversaire en Pologne, relevé (le pillage y laisse 600 par ressource). Un blindé à sec en
+ * Basse-Saxe, arrêté depuis 5 h (à Bakou son prochain cran vient dans 7 h) ; un camion plein et son
+ * fantassin à Coblence (−20 % de plein à Singapour) ; une escorte en Atlantique, que la démo envoie
+ * en mer (Halifax : ce mouvement ne prend pas de slot) ; les deux dépêches du dépôt qui brûle à Dakar.
  */
 export const pointsScene = internalMutation({
   args: { playerId: v.id('players'), enemyId: v.id('players') },
@@ -705,14 +722,47 @@ export const pointsScene = internalMutation({
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
-    for (const key of ['baku', 'dakar', 'singapore'] as const) {
+    for (const [key, holder] of [
+      ['baku', player._id],
+      ['narvik', player._id],
+      ['singapore', player._id],
+      ['halifax', player._id],
+      ['dakar', enemyId],
+    ] as const) {
       const point = await layPoint(ctx, player.seasonId, key);
       if (point === null) throw new Error(`no region under ${key}`);
-      await ctx.db.patch(point._id, { holderId: player._id, heldSince: now - 3 * 3_600_000 });
+      await ctx.db.patch(point._id, { holderId: holder, heldSince: now - 3 * 3_600_000 });
     }
-    for (const [role, fuel] of [
-      ['armor', 0],
-      ['landTransport', 0],
+    /** L'entrepôt de l'adversaire loin du puits, en Pologne : visé seul, sans cliquer le puits. */
+    const warehouseRegion = nearestRegion([20, 52]);
+    if (warehouseRegion === null) throw new Error('no region in Poland');
+    for (const [owner, key, regionId] of [
+      [playerId, 'oilWell', 'ROU-310'],
+      [enemyId, 'warehouse', warehouseRegion.id],
+    ] as const) {
+      /** Un puits se pose sur son gisement : la région seule ne dit pas où il tient. */
+      const deposit = DEPOSIT_POINTS.find((candidate) => candidate.regionId === regionId);
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        key,
+        regionId,
+        point:
+          deposit === undefined
+            ? pointOfRegion(regionId)
+            : { lon: deposit.lonLat[0], lat: deposit.lonLat[1] },
+        level: 1,
+      });
+    }
+    await fileSurvey(ctx, playerId, [{ point: warehouseRegion.point, radiusKm: 1 }], now);
+    await recordLinkage(ctx, player.seasonId);
+    /** Chaque pile à son point : le camion marche avec son fantassin (un transport seul ne fait
+     *  qu'un raid). */
+    for (const [role, fuel, at] of [
+      ['armor', 0, { lon: 9.7, lat: 52.4 }],
+      ['escort', undefined, { lon: -30, lat: 45 }],
+      ['landTransport', 4, { lon: 7.6, lat: 50.35 }],
+      ['infantry', undefined, { lon: 7.6, lat: 50.35 }],
     ] as const)
       await ctx.db.insert('troops', {
         seasonId: player.seasonId,
@@ -721,12 +771,12 @@ export const pointsScene = internalMutation({
         tier: 1,
         nominalStrength: nominalStrength(role, 1),
         currentStrength: nominalStrength(role, 1),
-        stationedAt: { lon: 7.1, lat: 50.4 },
-        fuel,
+        stationedAt: at,
+        ...(fuel === undefined ? {} : { fuel, fuelAt: now - 5 * 3_600_000 }),
       });
     const lost = { ammunition: 40, oil: 20, coal: 0 };
     await ctx.db.insert('notices', {
-      playerId,
+      playerId: enemyId,
       at: now,
       kind: 'depotBurned',
       side: 'holder',
@@ -734,7 +784,7 @@ export const pointsScene = internalMutation({
       lost,
     });
     await ctx.db.insert('notices', {
-      playerId: enemyId,
+      playerId,
       at: now,
       kind: 'depotBurned',
       side: 'capturer',
@@ -936,6 +986,18 @@ export const benchFlights = internalMutation({
     /** `keepsSlot` laisse la relecture à l'appelant, comme un pas de tournée. */
     await reassessDetection(ctx, season._id, Date.now(), playerId);
     return { filed: flights.length - failedAt.length, failedAt };
+  },
+});
+
+/** **Un point tenu par la porte du jeu** (`handOver`) : Rangoun au banc et à la démo (#176). */
+export const holdPoint = internalMutation({
+  args: { playerId: v.id('players'), key: STRATEGIC_POINT_KEY },
+  handler: async (ctx, { playerId, key }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = await layPoint(ctx, player.seasonId, key);
+    if (point === null) throw new Error(`no region under ${key}`);
+    await handOver(ctx, point, playerId, Date.now());
   },
 });
 

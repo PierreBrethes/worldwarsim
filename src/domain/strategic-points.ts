@@ -159,3 +159,13 @@ export function powerReady(
   const period = (at: number) => Math.floor((at - launchedAt) / (periodHours * 3_600_000));
   return period(now) > period(usedAt);
 }
+
+/**
+ * **Rangoun : une pile ou une colonne n'a la mi-portée que si tout ce qui la compose est en
+ * tournée du teneur.** Une armée posée à côté d'un camion de tournée ne s'en couvre pas. Le
+ * brouillard du serveur et l'anneau du teneur lisent ce seul prédicat.
+ */
+export const isRangoonColumn = <T>(
+  members: ReadonlyArray<T>,
+  onRangoonTour: (member: T) => boolean,
+): boolean => members.length > 0 && members.every(onRangoonTour);

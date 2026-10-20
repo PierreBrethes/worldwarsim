@@ -154,6 +154,7 @@ Les codes `1a` (terrain) et `2a` (retranchement) du 16/09 et le `2a` du 17/09 so
 | `pierre-2026-09-18-cargo-en-mer` | 2026-09-18 | Un cargo peut rester en mer avec des unités dedans (révise `72a-2026-09-04`). | en vigueur | [rester-en-mer](prompts/code/done/rester-en-mer.md), [ADR 0019](adr/0019-mouvement-libre-et-troupes-posees.md) |
 | `pierre-2026-10-14-deux-modes` | 2026-10-14 | Deux modes sur un même support : Blitz (1-2 h, à la Advance Wars) et Mondiale (7 jours) ; capture à l'infanterie, combat à l'initiative, six ressources, points stratégiques. | Blitz codée, Mondiale non codée | [gameplay-deux-modes](design/propositions/gameplay-deux-modes-2026-10-14.md) |
 | `pierre-2026-10-17-vision` | 2026-10-17 | La Mondiale est le jeu, la Blitz l'atelier des pièces ; boussole réécrite ; plus de plafonds de troupes ni d'emplacements, l'économie seul frein ; durée de saison au salon ; pas de prod avant le domaine. | décidé, non codé | [ADR 0027](adr/0027-la-mondiale-au-centre.md) |
+| `pierre-2026-10-20-points-moderent` | 2026-10-20 | Un point stratégique donne un avantage mesuré (−20 % de plein à Singapour, 1 cran de plein par 12 h à Bakou, un mouvement maritime hors slot à Halifax), jamais une règle annulée ; additif, sans boule de neige. | en vigueur | [ADR 0032](adr/0032-les-points-moderent.md) |
 
 ## Les ADR et leurs révisions
 

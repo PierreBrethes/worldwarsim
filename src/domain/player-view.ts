@@ -292,9 +292,9 @@ export type TroopView = {
   /** **Ses coups et son plein, en crans** (ADR 0028 §3) : absents en Blitz, où rien ne se
    *  compte. Repris à l'ancre ; ailleurs, elle vit sur ce qu'elle porte. */
   readonly supplies?: Supplies;
-  /** **Son plein est gratuit** (Singapour) : un camion ou un cargo de celui qui tient le point ;
-   *  la pièce ne montre alors pas de jerrican. */
-  readonly fuelFree?: true;
+  /** **Bakou** : l'heure où cette troupe, à l'arrêt hors de toute ancre, reprend son prochain
+   *  cran de plein ; absente si elle est ancrée, en route, pleine, ou si Bakou n'est pas à moi. */
+  readonly refuelAt?: number;
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
@@ -311,7 +311,8 @@ export type TroopView = {
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
     readonly skipped: ReadonlyArray<string>;
-    /** **Rangoun** : aucune détection ne la relève — la fiche le dit à son seul maître. */
+    /** **Rangoun** : on ne la relève qu'à mi-portée — la fiche et la carte le disent à son seul
+     *  maître. */
     readonly veiled?: true;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
@@ -581,6 +582,8 @@ type ExtractionSiteView = {
   /** Sa région porte-t-elle encore sa couleur (ADR 0020 §6) — coupé, il rend zéro, et c'est un
    *  état, pas une panne : rien ne se répare sur le site, tout se reprend sur la carte. */
   readonly linked: boolean;
+  /** La part de son débit qu'il produit (`outputShareOf`) : 1 relié, 0 ou le quart de Narvik coupé. */
+  readonly share: number;
 };
 
 /**
@@ -868,6 +871,7 @@ type NoticeBody =
       readonly at: number;
       readonly sites: number;
       readonly hostCountry: string;
+      readonly narvik?: true;
     }
   | {
       readonly kind: 'productionRestored';
@@ -987,6 +991,7 @@ type NoticeBody =
       readonly at: number;
       readonly keys?: ReadonlyArray<StrategicPointKey>;
     }
+  | { readonly kind: 'narvikLost'; readonly at: number }
   /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
   | {
       readonly kind: 'depotBurned';
@@ -1020,6 +1025,8 @@ type NoticeBody =
       readonly regionName: string;
       readonly taken: ResourceAmounts;
       readonly storageLost: ResourceAmounts;
+      /** Dakar : ce que le pillage lui a laissé par ressource. */
+      readonly spared?: number;
     }
   | {
       readonly kind: 'siteSabotaged';
@@ -1268,7 +1275,14 @@ export type PlayerView = {
     readonly resources: Readonly<Record<ResourceKey, Resource>>;
     /** **Les fonds de la Blitz** à `loadedAt`, et leur débit par minute ; `null` en Mondiale. */
     readonly funds: { readonly stock: number; readonly perMinute: number } | null;
-    readonly slots: { readonly total: number; readonly used: number };
+    readonly slots: {
+      readonly total: number;
+      readonly used: number;
+      /** Combien de mouvements maritimes tiennent un slot ou en tiendraient un sans **Halifax**. */
+      readonly maritime?: number;
+      /** **Halifax** est à moi : un mouvement maritime à la fois ne prend pas de slot. */
+      readonly halifax?: boolean;
+    };
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
     /**
@@ -1298,6 +1312,9 @@ export type PlayerView = {
     readonly buildings: ReadonlyArray<Building>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
+    /** **Narvik** : la part que produit une exploitation coupée du réseau, 0 sans le point
+     *  (`outputShareOf`). */
+    readonly unlinkedShare: number;
     readonly regions: ReadonlyArray<RegionView>;
     /** The first running site — the one the banner counts down. The ones behind it
      *  wait in `constructionQueue`. */
@@ -1359,8 +1376,9 @@ export type PlayerView = {
     readonly regionId: string;
     /** Where it stood when seen (ADR 0029): its mast, and the point a capture marches at. */
     readonly point: LonLat;
-    /** Un entrepôt du teneur de Dakar : ses réserves ne se pillent pas (`SEALED`). */
-    readonly sealed?: true;
+    /** Entrepôt du teneur de Dakar : ce qu'un pillage laisse par ressource (`sparedPerResourceOf`),
+     *  absent quand c'est le plancher commun. Le stock lui-même ne se relève pas. */
+    readonly spared?: number;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{

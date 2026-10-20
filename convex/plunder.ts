@@ -3,13 +3,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
-import { carryCapacityOf, lootFromSurplus } from '../src/domain/loot';
-import {
-  BASE_CAP,
-  CARRY_CAPACITY_BY_ROLE,
-  PLUNDER_DISABLED_HOURS,
-  PLUNDER_HOURS_PRESENT,
-} from './constants';
+import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf } from '../src/domain/loot';
+import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
@@ -17,7 +12,7 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { sealedByDakar } from './strategicPoints';
+import { dakarSparedAt } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seats';
@@ -86,29 +81,6 @@ async function reportNothingFound(
     regionId,
     reason: standing === null ? 'gone' : 'disabled',
   });
-}
-
-/**
- * **Dakar** (P11) : les réserves du teneur ne se pillent pas. La colonne arrive devant un entrepôt
- * qu'elle ne peut pas vider, l'apprend sur place (`expeditionFoundNothing`) et rentre à vide ; le
- * bâtiment n'est ni mis à l'arrêt ni pillé. Un autre bâtiment reste saboté comme avant.
- */
-async function sealedAtDakar(
-  ctx: MutationCtx,
-  target: Doc<'buildings'>,
-  now: number,
-  movement: Doc<'movements'>,
-): Promise<boolean> {
-  if (!(await sealedByDakar(ctx, target))) return false;
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'expeditionFoundNothing',
-    building: target.key,
-    regionId: target.regionId,
-    reason: 'sealed',
-  });
-  return true;
 }
 
 async function startPresence(
@@ -205,11 +177,6 @@ export async function arriveForPlunder(
     return;
   }
 
-  if (await sealedAtDakar(ctx, target, now, movement)) {
-    await returnEmpty(ctx, movement, troops, now);
-    return;
-  }
-
   const defence = await defenceOf(ctx, movement);
   if (defence !== null) {
     const { engagementId, engagement, routed, routedCargo } = await resolveContact(ctx, {
@@ -267,20 +234,17 @@ export async function completePresence(
     return;
   }
 
-  if (await sealedAtDakar(ctx, target, now, movement)) {
-    await returnEmpty(ctx, movement, troops, now);
-    return;
-  }
-
   await settleBeforeChange(ctx, movement.seasonId, now);
   const isWarehouse = canonicalBuildingKey(target.key) === 'warehouse';
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
   const existingCargo = RESOURCES.reduce((sum, key) => sum + existingAmounts[key], 0);
+  const dakar = await dakarSparedAt(ctx, target);
+  const spared = dakar ?? sparedPerResourceOf(false);
   const taken = isWarehouse
     ? lootFromSurplus(
         (await economyOf(ctx, target.playerId, now)).stocks,
-        BASE_CAP,
+        spared,
         carryCapacityOf(
           troops.map((troop) => ({
             role: troop.role,
@@ -295,7 +259,9 @@ export async function completePresence(
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
   await ctx.db.patch(target._id, { disabledUntil });
-  const storageLost = isWarehouse ? await clipToStorage(ctx, target.playerId, now) : emptyStocks();
+  const storageLost = isWarehouse
+    ? await clipToStorage(ctx, target.playerId, now, spared)
+    : emptyStocks();
   const reportId = await ctx.db.insert('plunderReports', {
     seasonId: movement.seasonId,
     attackerId: movement.playerId,
@@ -339,6 +305,7 @@ export async function completePresence(
           regionId: target.regionId,
           taken,
           storageLost,
+          ...(dakar === null ? {} : { spared: dakar }),
         }
       : {
           playerId: target.playerId,

@@ -1,3 +1,4 @@
+import { BASE_CAP, DAKAR_SPARED_PER_RESOURCE } from '../../convex/constants';
 import { RESOURCES, type ResourceKey, type UnitRole } from './ids';
 
 export type ResourceAmounts = Readonly<Record<ResourceKey, number>>;
@@ -53,6 +54,14 @@ function proportionalShare(
   }
   return result;
 }
+
+/**
+ * **Ce qu'un pillage laisse par ressource** (Dakar, ADR 0032) : le plancher de base, relevé pour le
+ * teneur du point. La seule lecture : le pilleur la lit avant l'ordre (`surveyedInstallations`),
+ * le serveur l'applique à l'arrivée (`completePresence`).
+ */
+export const sparedPerResourceOf = (holdsDakar: boolean): number =>
+  holdsDakar ? DAKAR_SPARED_PER_RESOURCE : BASE_CAP;
 
 export function lootFromSurplus(
   stocks: ResourceAmounts,

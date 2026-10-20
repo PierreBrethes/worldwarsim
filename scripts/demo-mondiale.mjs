@@ -15,8 +15,8 @@
  * et le blindé en cours sur le Centre (#123) ; `--centre`, le même Centre sans carte posée. `--artillerie` lui donne l'artillerie, une pièce au nord de Paris et une escouade
  * de quatorze troupes à Reims, pose seize troupes britanniques à Amiens, et les bombarde une fois
  * la pièce en batterie : la salve bornée et le fanion qui compte (ADR 0028 §6). `--points` fait
- * tenir à la France Bakou, Dakar et Singapour, avec un blindé et un camion au plein vide en
- * Rhénanie et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
+ * tenir à la France Bakou, Narvik, Singapour et Halifax (Dakar va à l'adversaire, avec un entrepôt relevé), avec un blindé au plein vide, un camion
+ * au plein et une escorte envoyée en mer, et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
@@ -25,7 +25,10 @@
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
  * ajoute une caserne de niveau 3.
- * `--tournee --sans-depart` pose la scène des tournées sans les lancer.
+ * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
+ * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
+ * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
+ * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  *
  *     npm run demo:mondiale
  *
@@ -49,6 +52,7 @@ const harvest = process.argv.includes('--recolte');
 const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
+const rangoon = process.argv.includes('--rangoun');
 const airdrops = process.argv.includes('--largage');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
@@ -245,9 +249,33 @@ if (!bare) {
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
-  /** Bakou, Dakar et Singapour tenus par la France, de quoi lire leurs trois règles. */
-  if (points && scene.a !== null && scene.b !== null)
+  /** Bakou, Narvik, Singapour et Halifax tenus par la France, Dakar par l'adversaire, de quoi lire leurs règles. */
+  if (points && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    /** L'escorte prend la mer : sous Halifax, ce mouvement maritime ne prend pas de slot. */
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const fleet = me.troops.find((troop) => troop.role === 'escort');
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: { lon: -30, lat: 45 } },
+      troopIds: [fleet.id],
+      point: { lon: -34, lat: 47 },
+    });
+  }
+  /** Rangoun à la France, et deux guetteurs de l'adversaire de part et d'autre de la mi-portée. */
+  if (tours && rangoon && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'rangoon' })]);
+    for (const [lon, lat] of [
+      [3.47, 50.46],
+      [3.11, 50.65],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.b, role: 'infantry', count: 1, lon, lat }),
+      ]);
+  }
   /** Deux tournées : l'une saute un dépôt plein et roule, l'autre attend (ADR 0028). */
   if (tours && !held && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
@@ -266,6 +294,20 @@ if (!bare) {
       client.mutation(api.tours.start, { token: tokenA, seasonId, troopId: truck.id, stops });
     await start(truckAt('building'), [lille.id, brussels.id]);
     await start(truckAt('outpost'), [lille.id]);
+    /** Sous Rangoun, un camion de tournée seul à l'arrêt en Picardie : son mât montre la mi-portée. */
+    if (rangoon && scene.b !== null)
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({
+          playerId: scene.a,
+          role: 'landTransport',
+          count: 1,
+          lon: 2.3,
+          lat: 49.9,
+          tourBase: lille.id,
+        }),
+      ]);
   }
   if (harvest)
     cli([

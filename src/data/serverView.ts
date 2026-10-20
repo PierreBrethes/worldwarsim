@@ -80,7 +80,12 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         name: fr.buildings[building.key],
       })),
       chains: server.me.chains,
-      extraction: server.me.extraction,
+      /** Une version de retard ne sert pas la part : un site coupé ne produit rien, comme avant Narvik. */
+      extraction: server.me.extraction.map((site) => ({
+        ...site,
+        share: site.share ?? (site.linked ? 1 : 0),
+      })),
+      unlinkedShare: server.me.unlinkedShare ?? 0,
       /** A region served by a deployment one version behind carries no site: it reads as ground
        *  nothing reaches, which offers nothing rather than offering what the server refuses. */
       regions: server.me.regions.map((region) => ({ ...region, site: region.site ?? null })),

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { rangoonReachOf } from './labels';
 import {
   DRAW_RULES,
   POINTS_DRAWN,
@@ -9,6 +10,7 @@ import {
   clockVerdictOf,
   drawHolds,
   drawPoints,
+  isRangoonColumn,
   powerReady,
   raceLeaderOf,
 } from './strategic-points';
@@ -138,5 +140,27 @@ describe('the draw of the Seven', () => {
       const keys = drawPoints(seed);
       expect(keys.includes('lisbon') && keys.includes('tangier')).toBe(false);
     }
+  });
+});
+
+describe('Rangoon', () => {
+  const onTour = (troop: { tour: boolean }) => troop.tour;
+
+  it('gives the half reach to a pile or a column wholly on tour, and to nothing else', () => {
+    expect(isRangoonColumn([{ tour: true }, { tour: true }], onTour)).toBe(true);
+    expect(isRangoonColumn([{ tour: true }, { tour: false }], onTour)).toBe(false);
+    expect(isRangoonColumn([], onTour)).toBe(false);
+  });
+
+  it('draws only the ring an infantry sights the tour from, or adds it to a reach already drawn', () => {
+    expect(rangoonReachOf([2, 48])).toEqual({
+      lonLat: [2, 48],
+      detectionKm: 0,
+      contactKm: null,
+      sightedKm: 30,
+    });
+    expect(
+      rangoonReachOf([2, 48], { lonLat: [2, 48], detectionKm: 120, contactKm: null }),
+    ).toMatchObject({ detectionKm: 120, sightedKm: 30 });
   });
 });
