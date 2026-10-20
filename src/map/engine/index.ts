@@ -1780,11 +1780,13 @@ export class MapEngine {
     if (gesture?.hold != null) clearTimeout(gesture.hold);
     if (gesture !== null) this.endDetach(gesture);
     this.releaseOrbit();
-    // A press hides the piece under the pointer: released, it is there again.
-    this.hoverDirty = true;
     this.applyMapping();
     this.refreshCursor();
+    // A tap on a card, a sheet's « fermer », lands here too (#189): it pressed nothing on the
+    // board, and marking the hover dirty woke the map for a second and a half at sixty frames.
     if (gesture === null) return;
+    // A press hides the piece under the pointer: released, it is there again.
+    this.hoverDirty = true;
     if (gesture.lasso !== undefined) {
       this.endLasso(gesture as Gesture & { lasso: Array<[number, number]> });
       if (gesture.lasso.length > 2) return;
