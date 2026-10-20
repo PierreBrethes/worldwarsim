@@ -169,7 +169,7 @@ function woodGrain(anisotropy: number): CanvasTexture {
   const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   for (let k = 0; k < 140; k++) {
     const y = random() * size;
-    context.strokeStyle = `rgba(30, 18, 8, ${0.08 + random() * 0.18})`;
+    context.strokeStyle = `rgba(10, 7, 3, ${0.02 + random() * 0.05})`;
     context.lineWidth = 0.5 + random() * 1.5;
     context.beginPath();
     context.moveTo(0, y);
@@ -183,8 +183,8 @@ function woodGrain(anisotropy: number): CanvasTexture {
     );
     context.stroke();
   }
-  context.fillStyle = 'rgba(20, 12, 5, 0.55)';
-  for (const y of [0, size / 2]) context.fillRect(0, y, size, 1.5);
+  context.fillStyle = 'rgba(10, 7, 3, 0.1)';
+  for (const y of [0, size / 2]) context.fillRect(0, y, size, 1);
   const texture = new CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = RepeatWrapping;
   texture.repeat.set(TABLE_SIZE / PLANK_REPEAT, TABLE_SIZE / PLANK_REPEAT);
@@ -239,13 +239,15 @@ export function buildBoard(
   /** **La table sous le plateau** (#187) : la caméra va où elle veut, et au-delà du bord on voit
    *  le bois sur lequel la carte est posée, qui s'en va dans le brouillard du bureau — plus une
    *  bande noire. */
-  const table = new Mesh(
-    new PlaneGeometry(TABLE_SIZE, TABLE_SIZE),
-    new MeshStandardMaterial({ map: woodGrain(anisotropy), roughness: 0.85, metalness: 0 }),
-  );
+  const tableMaterial = new MeshStandardMaterial({
+    map: woodGrain(anisotropy),
+    roughness: 0.85,
+    metalness: 0,
+  });
+  tableMaterial.userData.ownsMap = true;
+  const table = new Mesh(new PlaneGeometry(TABLE_SIZE, TABLE_SIZE), tableMaterial);
   table.rotation.x = -Math.PI / 2;
   table.position.y = -PLINTH_HEIGHT;
-  table.receiveShadow = true;
 
   return { surface, decor: [table, plinth, rim, sharpOutline] };
 }
