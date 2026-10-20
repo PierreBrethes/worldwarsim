@@ -2213,7 +2213,6 @@ export const fr = {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
-    economy: { title: 'Plateau personnel — stocks, tuiles et pièces', label: 'écon.' },
     research: { title: 'Centre de recherche — l’arbre des cartes', label: 'rech.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
