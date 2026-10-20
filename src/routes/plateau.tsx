@@ -986,6 +986,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const carryEnded = useCallback(() => {
     if (!inFlight.current) setDragged(null);
   }, []);
+  /** **La pile en main monte à bord d'un transport** : l'embarquement de la rose et celui d'une
+   *  pièce lâchée sur sa pile partent du même appel. */
+  const boardHand = useCallback(
+    (troopIds: ReadonlyArray<string>, carrierId: string) => {
+      setOrderError(null);
+      return boardTransport({
+        ...seat,
+        troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+        carrierId: carrierId as Id<'troops'>,
+      });
+    },
+    [boardTransport, seat],
+  );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
   const previewNow = useRef<{ aim: OrderChoice['aim']; preview: Previewed } | undefined>(undefined);
   const actOnCompass = useCallback(
@@ -1087,12 +1100,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
          *  d'aperçu ni de slot, la pile armée monte à bord et la visée se referme. */
         case 'board':
           if (column === null) return;
-          setOrderError(null);
-          boardTransport({
-            ...seat,
-            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-            carrierId: action.carrierId as Id<'troops'>,
-          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
+          boardHand(column.troopIds, action.carrierId).then(dropHand, (problem: unknown) =>
+            handleError(problem, setOrderError),
+          );
           return;
         /** **Livrer** (ADR 0028 §4) : la pastille l'a dit, le transport part au lâcher. **Larguer** :
          *  l'avion part de même, paie l'aller-retour et rentre seul. */
@@ -1207,7 +1217,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       startConstruction,
       raiseOutpost,
       respecialize,
-      boardTransport,
+      boardHand,
       bombard,
       deliver,
       airdrop,
@@ -1694,12 +1704,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       }
       if (inFlight.current) return 'board';
       inFlight.current = true;
-      setOrderError(null);
-      boardTransport({
-        ...seat,
-        troopIds: hand.troopIds.map((troopId) => troopId as Id<'troops'>),
-        carrierId: drop.carrierId as Id<'troops'>,
-      }).then(
+      boardHand(hand.troopIds, drop.carrierId).then(
         () => {
           settle();
           dropHand();
@@ -1711,7 +1716,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       );
       return 'board';
     },
-    [clickOfFrom, hand, unitsAt, dropHand, boardTransport, seat, settle],
+    [clickOfFrom, hand, unitsAt, dropHand, boardHand, settle],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
