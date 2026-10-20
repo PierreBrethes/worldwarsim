@@ -590,6 +590,7 @@ export const fr = {
       chapo:
         'Sept lieux réels de 1940. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
       waiting: 'Les Sept attendent leurs teneurs.',
+      nobody: 'personne',
       count: (held: number) => `${num(held)} sur 7`,
       countdown: (nation: string, left: string) =>
         `${nation} tient quatre des Sept : victoire dans ${left} si rien ne bouge.`,
@@ -2031,6 +2032,8 @@ export const fr = {
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
+    /** La prochaine édition de la presse, à l'en-tête : « éd. 15:00 ». */
+    edition: 'éd.',
     /** **Halifax** : ce que le compteur n'a pas retenu, dit à côté de lui. */
     halifaxSpared: 'Halifax −1',
     slotsTitle: (
@@ -2071,9 +2074,8 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
-    /** L'étiquette qui pend sous une réserve à sec (réglette), seule encre rouge de la ligne. */
+    /** L'étiquette d'une réserve à sec, seule encre rouge de la ligne, qui prend la place du débit. */
     dry: 'à sec',
-    drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
     slots: 'mouvements',
@@ -2164,6 +2166,8 @@ export const fr = {
       general: 'score général',
       deeds: 'faits d’armes',
     },
+    /** Les mêmes titres sous 576 px, où la colonne n'a pas la place des longs. */
+    columnsShort: { territory: 'territ.', general: 'score', deeds: 'faits' },
     /** Le tri est une lecture, jamais un ordre : la page n'envoie rien, et l'ordre servi reste
      *  celui du territoire — le but de la saison (79a). */
     sortBy: (column: string) => `trier par ${column}, du plus grand au plus petit`,
@@ -2229,8 +2233,9 @@ export const fr = {
   },
 
   /**
-   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplace la barre
-   * de pied, et ses ronds posés sur l'arc. Les titres des ronds sont ceux de `foot`.
+   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplaçait la
+   * barre de pied, et ses ronds posés sur l'arc. Le jeu l'a quitté pour la barre basse (`footBar`,
+   * #179) ; seule la démo de l'accueil le joue encore.
    */
   protractor: {
     label: 'menu du plateau',
@@ -2238,7 +2243,6 @@ export const fr = {
       `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, ${blitz ? '' : 'presse, '}télégraphe, réglages`,
     close: 'refermer le menu',
     closeShort: 'fermer',
-    works: 'chant.',
   },
 
   /** Les entrées du téléphone, que portaient la barre de pied et que portent les ronds du
@@ -2248,8 +2252,37 @@ export const fr = {
     journal: 'journal',
     todo: 'à faire',
     press: 'presse',
-    telegraph: 'télégraphe',
     layersTitle: 'Calques de la carte',
+  },
+
+  /**
+   * **La barre basse du téléphone** (#179) : les réserves, le plateau qu'on tire, et à droite la
+   * clé — « à faire » avec son compte, qui ouvre le menu des surfaces, puis « carte » qui en
+   * ramène. Les noms du menu sont des mots entiers : il y a la place, et un menu ne se devine pas.
+   */
+  footBar: {
+    label: 'barre du plateau',
+    /** La clé, fermée : son compte, puis ce qu'elle ouvre. */
+    openMenu: (waiting: number) =>
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu des surfaces`,
+    map: 'carte',
+    backToMap: 'revenir à la carte',
+    menuLabel: 'surfaces',
+    menu: {
+      todo: 'À faire',
+      nation: 'Nation',
+      research: 'Recherche',
+      gunnery: 'Abaque',
+      journal: 'Journal',
+      press: 'Presse',
+      telegraph: 'Télégraphe',
+    },
+    /** La poignée du plateau : replié → mi-hauteur → plein → replié. */
+    grip: {
+      open: 'déplier le plateau personnel',
+      full: 'agrandir le plateau personnel',
+      fold: 'replier le plateau personnel',
+    },
   },
 
   /**
@@ -2524,34 +2557,31 @@ export const fr = {
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
-    masthead: 'LE JOURNAL DES OPÉRATIONS',
-    dispatches: (count: number) => `${count} dépêche${plural(count, '', 's')}`,
+    title: 'Journal',
+    none: 'Aucune dépêche pour l’instant.',
+    dispatchLabel: 'dépêche',
+    sheetKicker: (time: string, rank: number, total: number) =>
+      `dépêche · ${time} · ${rank} sur ${total}`,
+    previous: 'dépêche précédente',
+    next: 'dépêche suivante',
     severities: { critical: 'critique', notable: 'notable', routine: 'routine' },
     atWaking: 'au réveil',
     stalledResolution: '. Résolution à ',
     noneStalled: 'Aucun mouvement immobilisé par une plage de repos.',
     slotsEngaged: 'slots engagés',
     resolutionAt: (time: string) => `résolution à ${time}`,
-    /** **Le chiffre est rendu à part, en gros** : la manchette du journal pose le compte de
-     *  non-lues en numéral et ne garde ici que le mot qui l'accorde. */
-    unreadLabel: (count: number) => `non lue${plural(count, '', 's')}`,
-    allRead: 'tout est lu',
-    /** **Sous le seuil, des filtres et non des colonnes** (refonte mobile, 1h) : trois colonnes ne
-     *  tiennent pas dans 390 px, et un défilement par colonne serait trois défilements. */
+    /** **Cinq cases égales, le compte au-dessus du mot** : le même télex sous 390 px et en marge
+     *  du bureau, sans défilement latéral. */
     filters: {
       all: 'tout',
-      unread: (count: number) => `non lues ${count}`,
+      unread: 'non lues',
       critical: 'alertes',
       notable: 'notables',
       routine: 'routine',
     },
-    sinceLastVisit: 'depuis votre dernière visite',
-    earlier: 'plus tôt — déjà lues',
     noneFiltered: 'Aucune dépêche de cette sorte.',
     showOnMap: 'voir sur la carte',
-    locate: 'localiser',
-    fold: { show: 'afficher', hide: 'masquer' },
-    /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalSections`). */
+    /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalLines`). */
     earlierEditions: (count: number) =>
       `et ${count} édition${plural(count, '', 's')} précédente${plural(count, '', 's')}`,
     worldEvents: {
@@ -3495,6 +3525,8 @@ export const fr = {
     /** Un bac : son nombre exact sur son plafond, et son débit réel. */
     ofCap: (cap: number) => `/ ${num(cap)}`,
     rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
+    /** Le débit d'une réserve sur la barre : cinq colonnes sur un téléphone, sans espaces. */
+    rateShort: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))}/h`,
     harvest: (hours: number) =>
       hours < 1
         ? 'Récolte depuis que vous avez quitté le plateau personnel'
@@ -3540,8 +3572,6 @@ export const fr = {
     queuedLine: (time: string) => `${time}, en file`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
     raiseTo: (level: number) => `élever au niv.\u00a0${level}`,
-    /** Le bouton de la recherche dans la bande repliée du téléphone. */
-    researchShort: 'rech.',
     starvedChain: (building: string, resource: string) =>
       `${building} à sec de ${lowerFirst(resource)}`,
   },

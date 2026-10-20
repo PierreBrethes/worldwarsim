@@ -2,11 +2,9 @@ import { useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
-import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { CATEGORIES } from '@/domain/indicators';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
-import { HalifaxMark } from './HalifaxMark';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
@@ -15,33 +13,26 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
-import { BlitzClock, FundsCell, ResourceCell, SlotBoxes } from './Reglette';
+import { BlitzClock, EditionMark, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
 
 /**
- * **La réglette du téléphone** (table plein écran, 13/10, qui reprend la refonte mobile du 04/10) :
- * la bande de papier du bureau sur deux lignes, posée sur la carte — la nation et les mouvements,
- * puis les huit réserves en colonnes, icône, chiffre et jauge. L'alerte y est la même qu'au bureau
- * (`drynessOf`), sans le cercle : le chiffre rouge et l'étiquette qui pend.
+ * **L'en-tête du téléphone** (#179, qui reprend la table plein écran du 13/10) : une seule ligne
+ * de papier posée sur la carte — la nation, les mouvements en vol, la prochaine édition. Les
+ * réserves en sont descendues : elles vivent dans la barre basse (`ReserveCell`). En Blitz, qui n'a
+ * ni slots ni édition, la ligne porte l'horloge, et les fonds sont dans la barre.
  *
- * **Le drapeau ouvre le dossier de la nation** (1s), où vit ce qu'on cherche à froid. **Le détail
- * d'une réserve s'ouvre au toucher**, jamais au survol (M1) : son registre, en feuille basse
- * (`ConsumptionTickets`).
+ * **Le drapeau ouvre le dossier de la nation** (1s), où vit ce qu'on cherche à froid.
  */
 export function NarrowBand({
   view,
   onShowBriefing,
   onResumeSteps = null,
-  pinned,
-  onPin,
   ref,
 }: {
   view: PlayerView;
-  /** Les réserves dont le registre est ouvert, et le toucher qui l'ouvre en feuille (#121). */
-  pinned: ReadonlyArray<ResourceKey>;
-  onPin: (resource: ResourceKey) => void;
   /** L'aide-mémoire est un état du plateau, qui le sert aussi à la première arrivée. */
   onShowBriefing: () => void;
   /** Les premiers pas repliés ou passés : le dossier les reprend. */
@@ -59,25 +50,30 @@ export function NarrowBand({
       className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <div className="flex h-[40px] items-center gap-[10px] border-b border-(color:--ink)/25 px-[12px]">
+      <div className="flex h-[40px] items-center gap-[10px] overflow-hidden px-[12px]">
         <button
           type="button"
           aria-expanded={surface === 'dossier'}
           title={fr.dossier.open(nationLabel(me.nation))}
           onClick={() => setSurface((open) => (open === 'dossier' ? null : 'dossier'))}
-          className="-ml-[6px] flex min-h-[40px] shrink-0 cursor-pointer items-center gap-[10px] px-[6px]"
+          className="-ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[10px] px-[6px]"
         >
           <Flag nation={me.nation} width={27} onPaper />
-          <span className="font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
+          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
-          <span aria-hidden className="-ml-[4px] text-[11px] leading-none text-[var(--ink-soft)]">
+          <span
+            aria-hidden
+            className="-ml-[4px] shrink-0 text-[11px] leading-none text-[var(--ink-soft)]"
+          >
             ▾
           </span>
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
-        <span className="flex-1" />
-        {view.mode !== 'blitz' && (
+        <span className="min-w-0 flex-1" />
+        {view.mode === 'blitz' ? (
+          <BlitzClock view={view} now={now} openEnding={search} />
+        ) : (
           <span
             className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
             title={fr.banner.slotsTitle(
@@ -87,35 +83,17 @@ export function NarrowBand({
               halifaxNoteOf(me.slots),
             )}
           >
-            <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            {/* Under 420 px the count alone: the edition keeps the room (Halifax's sentence stays in the title). */}
+            <span className="flex max-[420px]:hidden">
+              <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            </span>
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
-            <HalifaxMark slots={me.slots} />
           </span>
         )}
+        <EditionMark view={view} />
       </div>
-
-      {me.funds !== null ? (
-        <div className="flex h-[38px] items-center justify-between px-[12px]">
-          <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} stacked />
-          <BlitzClock view={view} now={now} openEnding={search} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-8 px-[4px] py-[4px]">
-          {RESOURCES.map((resource) => (
-            <ResourceCell
-              key={resource}
-              resource={resource}
-              view={view}
-              now={now}
-              stacked
-              pressed={pinned.includes(resource)}
-              onClick={() => onPin(resource)}
-            />
-          ))}
-        </div>
-      )}
 
       {surface === 'dossier' && (
         <NationDossier

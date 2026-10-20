@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
 
 /**
  * **Une seule surface ouverte à la fois sous le seuil** (piste A, passe 2) : feuille ou fenêtre,
@@ -9,7 +17,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
  */
 type Claim = (close: () => void) => () => void;
 
-const SoleSurfaceContext = createContext<Claim | null>(null);
+type Sole = { readonly claim: Claim; readonly closeCurrent: () => boolean };
+
+const SoleSurfaceContext = createContext<Sole | null>(null);
 
 export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
   const current = useRef<{ close: () => void } | null>(null);
@@ -22,12 +32,19 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
       if (current.current === mine) current.current = null;
     };
   }, []);
-  return <SoleSurfaceContext.Provider value={claim}>{children}</SoleSurfaceContext.Provider>;
+  /** Ferme la surface qui tient la place, par son propre geste : `false` s'il n'y en a pas. */
+  const closeCurrent = useCallback(() => {
+    const held = current.current;
+    held?.close();
+    return held !== null;
+  }, []);
+  const value = useMemo(() => ({ claim, closeCurrent }), [claim, closeCurrent]);
+  return <SoleSurfaceContext.Provider value={value}>{children}</SoleSurfaceContext.Provider>;
 }
 
 /** Réclame la place au montage. Sans fournisseur — au bureau, dans un test — rien ne se passe. */
 export function useSoleSurface(close: () => void, enabled = true): void {
-  const claim = useContext(SoleSurfaceContext);
+  const claim = useContext(SoleSurfaceContext)?.claim ?? null;
   const latest = useRef(close);
   useEffect(() => {
     latest.current = close;
@@ -37,3 +54,8 @@ export function useSoleSurface(close: () => void, enabled = true): void {
     return claim(() => latest.current());
   }, [claim, enabled]);
 }
+
+/** « Carte » : ferme la surface ouverte par son propre `onClose`, celui qui date la lecture du
+ *  journal ou quitte le télégraphe. `false` : aucune n'est ouverte ici, l'adresse décide. */
+export const useCloseSoleSurface = (): (() => boolean) =>
+  useContext(SoleSurfaceContext)?.closeCurrent ?? (() => false);

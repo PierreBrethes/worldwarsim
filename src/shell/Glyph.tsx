@@ -154,3 +154,22 @@ export function EyeGlyph({ size = 15, label }: SolidGlyphProps) {
     </SolidGlyph>
   );
 }
+
+/** **Une liste** : trois lignes, la première en retrait — ce qui attend. Tracée, comme les autres. */
+export function TodoGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M3 5h14M3 10h14M3 15h8" />
+    </Glyph>
+  );
+}
+
+/** **Une carte dépliée** : trois pans et leurs plis — là où ramène la clé. */
+export function MapGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M3 5.5 7.5 4l5 1.5L17 4v10.5L12.5 16l-5-1.5L3 16z" />
+      <path d="M7.5 4v10.5M12.5 5.5V16" />
+    </Glyph>
+  );
+}

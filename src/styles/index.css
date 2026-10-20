@@ -210,8 +210,9 @@ body {
   overflow-y: auto;
 }
 
-/* **Le rapporteur** (téléphone, table plein écran, 13/10) : un quart de cercle d'encre dans le coin
-   bas droit, sous le pouce, qui remplace la barre de pied. Il descend sous la barre d'accueil et
+/* **Le rapporteur** (téléphone, table plein écran, 13/10) — que le jeu a quitté pour la barre basse
+   (#179) et que la démo de l'accueil joue encore : un quart de cercle d'encre dans le coin
+   bas droit, sous le pouce, qui remplaçait la barre de pied. Il descend sous la barre d'accueil et
    dans l'arrondi de l'écran, comme la barre le faisait : le coin est le seul endroit de l'écran
    que rien d'autre ne réclame. Ouvert, ses ronds sortent en éventail le long de l'arc, décalés ;
    fermé, ils rentrent plus vite, dans l'ordre inverse. Rien qu'une transition CSS : la carte n'a

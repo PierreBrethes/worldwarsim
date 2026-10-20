@@ -146,6 +146,7 @@ import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
+import { FootBar } from '@/shell/foot';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
@@ -2515,7 +2516,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             {/* **Bas-droite, une rangée** (table plein écran, 13/10) : la fiche du survol posée à
             gauche de la pile des boutons, bas alignés, au même écart et à la même marge que la
             colonne des surfaces en face (`--table-gap`, `--table-margin`). Sous le seuil, les
-            boutons passent en bas à gauche : le coin droit est au rapporteur. */}
+            boutons passent en bas à gauche, au-dessus de la barre basse. */}
             <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
               {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
@@ -2612,9 +2613,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
           </div>
           {/* **Le sous-main** (#122) : en Mondiale, la bande du plateau personnel est toujours sur
-          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire. */}
+          la table, repliée tant que « Écon. » ne la déplie pas ; le rejeu la retire, et la barre des
+          réserves et de la clé la remplace, comme le temps que le plateau se charge. */}
+          {!blitz && replay !== null && <FootBar view={view} />}
           {!blitz && replay === null && (
-            <Suspense fallback={null}>
+            <Suspense fallback={<FootBar view={view} />}>
               <PersonalBoard
                 view={view}
                 seat={seat}

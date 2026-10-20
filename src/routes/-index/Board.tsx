@@ -14,7 +14,7 @@ import { MapPoster } from '@/routes/-plateau/MapPoster';
 import { useClock } from '@/shell/clock';
 import { PressGlyph, TelegraphGlyph } from '@/shell/Glyph';
 import { IndustryGlyph, Pictogram } from '@/shell/IndicatorGlyph';
-import { ARC, ARC_INNER, ARC_OUTER, LABEL, ROUND, roundAt } from '@/shell/Protractor';
+import { ARC, ARC_INNER, ARC_OUTER, LABEL, ROUND, roundAt } from './protractor-geometry';
 import { FundsCell, SlotBoxes } from '@/shell/Reglette';
 import { SQUARE } from '@/shell/SurfaceColumn';
 import { buildCost, buildMinutes } from '../../../convex/constants';

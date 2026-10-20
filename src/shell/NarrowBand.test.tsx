@@ -16,9 +16,9 @@ import { NarrowBand } from './NarrowBand';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
- * **La réglette du téléphone** (refonte mobile, 1a et 1s ; table plein écran) : la ligne de la
- * nation et des mouvements, huit colonnes dessous, et le drapeau qui ouvre le dossier de la nation — ce qu'on
- * cherche à froid, une ligne par porte. Il ne se replie plus.
+ * **L'en-tête du téléphone** (#179, après la refonte mobile 1a et 1s) : une ligne — la nation, les
+ * mouvements, la prochaine édition — et le drapeau qui ouvre le dossier de la nation : ce qu'on
+ * cherche à froid, une ligne par porte. Les réserves n'y sont plus (`ReserveCell`).
  */
 vi.stubGlobal('matchMedia', (query: string) => ({
   matches: false,
@@ -49,21 +49,14 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const columns = () =>
-  RESOURCES.flatMap((resource) => screen.queryAllByTitle(fr.resources[resource]));
-
-async function mount(
-  onShowBriefing = () => {},
-  shown = view,
-  onPin: (resource: string) => void = () => {},
-): Promise<AnyRouter> {
+async function mount(onShowBriefing = () => {}, shown = view): Promise<AnyRouter> {
   const root = createRootRoute();
   const board = createRoute({
     getParentRoute: () => root,
     path: '/plateau',
     component: () => (
       <SoleSurfaceProvider>
-        <NarrowBand view={shown} onShowBriefing={onShowBriefing} pinned={[]} onPin={onPin} />
+        <NarrowBand view={shown} onShowBriefing={onShowBriefing} />
       </SoleSurfaceProvider>
     ),
   });
@@ -72,37 +65,19 @@ async function mount(
     history: createMemoryHistory({ initialEntries: ['/plateau'] }),
   });
   render(<RouterProvider router={router} />);
-  await screen.findAllByTitle(fr.resources.coal);
+  await screen.findByTitle(fr.dossier.open(nationLabel('france')));
   return router;
 }
 
 const dossierButton = () => screen.getByTitle(fr.dossier.open(nationLabel('france')));
 
 describe('the narrow band', () => {
-  it('reads five columns under the nation line, and the slots beside it', async () => {
-    await mount();
-    expect(columns()).toHaveLength(5);
+  it('reads the nation, the slots and the next edition on one line, and no reserve', async () => {
+    const edition = new Date(2026, 9, 20, 15, 0).getTime();
+    await mount(() => {}, { ...view, press: { ...view.press, next: edition } } as PlayerView);
     expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
-  });
-
-  it('hangs the alert under a dry reserve, never under a full one', async () => {
-    const resources = {
-      ...view.me.resources,
-      coal: { ...view.me.resources.coal, stock: 400 },
-      oil: { ...view.me.resources.oil, stock: 0, ratePerHour: 0 },
-      steel: { ...view.me.resources.steel, stock: 30, ratePerHour: -2.9 },
-    };
-    await mount(() => {}, { ...view, me: { ...view.me, resources } } as PlayerView);
-    expect(screen.getByText(fr.resourceBand.dry)).toBeTruthy();
-    expect(screen.getByText(fr.resourceBand.drySoonShort(10))).toBeTruthy();
-    expect(screen.queryAllByText(/à sec/)).toHaveLength(2);
-  });
-
-  it('asks for a resource’s ledger on a touch, never on a hover', async () => {
-    const onPin = vi.fn();
-    await mount(() => {}, view, onPin);
-    act(() => screen.getByTitle(fr.resources.coal).click());
-    expect(onPin).toHaveBeenCalledWith('coal');
+    expect(screen.getByText('15:00')).toBeTruthy();
+    expect(screen.queryByTitle(fr.resources.coal)).toBeNull();
   });
 
   it('opens the nation’s dossier from its flag, one line per door', async () => {
