@@ -71,7 +71,7 @@ import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import { AimRibbon } from './aim';
-import { playTableSound } from '../table-sound';
+import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
@@ -1527,6 +1527,7 @@ export class MapEngine {
     addEventListener('keyup', this.onKeyUp);
     // A window switch swallows the release: without this, space would stay held on return.
     addEventListener('blur', this.onFocusLost);
+    warmTableSoundOnFirstPress();
   }
 
   private trackGesture = (event: PointerEvent): void => {
