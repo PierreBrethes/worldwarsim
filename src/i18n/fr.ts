@@ -35,7 +35,6 @@ import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import type { StatKey } from '../domain/stat-sheet';
 import { PROFILE_UNITS } from '../domain/gunnery';
-import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
 import type { LandPace } from '../domain/routing';
 import type {
@@ -2845,8 +2844,6 @@ export const fr = {
       `Coups : ${held} sur ${full} — un cran par passe tirée ; à sec, ni attaque ni riposte`,
     fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
       `Plein : ${held} sur ${full} crans de ${coal ? 'charbon' : 'pétrole'}, ≈ ${km} km de route — payé au départ`,
-    reload:
-      'Ancrée, elle se recharge (10 par cran) : sur le plateau personnel chez soi, au dépôt dans le rayon d’un avant-poste ; ailleurs, elle vit sur ce qu’elle porte.',
     formed: 'Part pleine, coups et plein.',
     /** **Bakou** : le prochain cran de plein d'une troupe à l'arrêt hors de toute ancre. */
     refuelIn: (ms: number) => {
@@ -2927,10 +2924,6 @@ export const fr = {
     sheetKicker: (troops: number, worn: boolean) =>
       troops > 1 ? `pile · ${troops} troupes` : worn ? 'troupe seule · entamée' : 'troupe seule',
     sheetHealth: (health: number) => `${health} / 100`,
-    sheetLoad: (carried: number) => (carried > 0 ? 'charge' : 'à vide'),
-    sheetLoadOf: (carried: number, capacity: number) => `${num(carried)} / ${num(capacity)}`,
-    /** La charge de butin, pas les passagers : ceux-là ont leur jeton (15/10). */
-    sheetNothingAboard: 'aucun butin',
     sheetCount: (troops: number) => `×${troops}`,
     /** Le jeton d'un transport chargé (15/10) : ses passagers ne se dessinent pas. */
   },
@@ -2942,7 +2935,6 @@ export const fr = {
    */
   hand: {
     kicker: (place: string) => `en main · ${place}`,
-    scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
@@ -3477,62 +3469,10 @@ export const fr = {
       none: 'hors de portée',
     } satisfies Record<'strong' | 'even' | 'weak' | 'none', string>,
     reading: 'lecture',
-    /** Le pli est la seule chose que l'abaque ait jamais demandé d'apprendre : il faut le dire. */
-    foldHint: 'pliez une ligne pour la fiche du rôle',
-    /**
-     * **Le pictogramme porte la valeur, la popin porte le nom** (68a, contrat 06 P2). Les trois
-     * libellés de la fiche ne s'impriment plus : un lingot, une horloge, un cœur, et le nom de la
-     * donnée ne revient qu'au survol — avec la phrase qui dit ce que le moteur en fait.
-     *
-     * La phrase de l'effectif est vérifiée contre `resolveEngagement` : la frappe vaut
-     * `part × (effectif engagé / nominal) × modificateur × nominal de la cible`, donc une troupe
-     * entamée tire bien au prorata de ce qui lui reste.
-     */
-    stats: {
-      cost: {
-        name: 'coût',
-        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot : de l’acier, plus la ressource de sa famille — vivres pour les hommes, pétrole pour les machines de terre et les avions, charbon pour les navires.',
-      },
-      training: {
-        name: 'formation',
-        note: 'Le temps que la chaîne met à la livrer, à la vitesse de votre quartier général.',
-      },
-      strength: {
-        name: 'effectif nominal',
-        note: 'L’effectif est la vie : la part de l’abaque se prend sur lui, et une troupe à 32 / 50 tire à 32 / 50.',
-      },
-      range: {
-        name: 'portée de détection',
-        note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
-      },
-    } satisfies Record<'cost' | 'training' | 'strength' | 'range', { name: string; note: string }>,
-    /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
-     *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
-     *  carte lève. */
-    detectionRange: (km: number) => `détection ${num(km)} km`,
     /** **Une seule fois, en tête, jamais par rôle** : le contact est une constante du jeu et non
      *  une qualité de la pièce — le mettre sur chaque fiche en ferait une statistique de rôle. */
     contactRange: (km: number) =>
       `Portée de contact : ${num(km)} km — ce qu’un ordre trouve debout là où il arrive, quel que soit le rôle.`,
-    nominalLootCapacity: (capacity: number) => `capacité nominale de butin : ${num(capacity)}`,
-    /** ADR 0025 : ce qu'un transport emporte, ce qu'une troupe terrestre occupe — en places. */
-    liftCapacity: (places: number) => `emporte ${places} places de troupes`,
-    liftCost: (places: number) => `occupe ${places} place${plural(places, '', 's')} à bord`,
-    movementRule: ({ mode, pace, costs }: MovementSheet) => {
-      const route = {
-        land: 'par terre',
-        naval: 'par mer',
-        air: 'par air',
-        combined: 'terre et mer',
-      }[mode];
-      const parts = [route];
-      if (pace !== undefined) parts.push(fr.aim.paces[pace]);
-      const indices = [costs.land, costs.sea]
-        .filter((cost): cost is number => cost !== undefined)
-        .map((cost) => String(cost).replace('.', ','));
-      if (indices.length > 0) parts.push(`indice ${indices.join(' / ')}`);
-      return parts.join(' · ');
-    },
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,

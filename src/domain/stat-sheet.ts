@@ -86,7 +86,7 @@ export type BuildingStatKey =
 export type StatKey = TroopStatKey | PileStatKey | BuildingStatKey;
 
 /** Ce qui se dit en toutes lettres, faute d'échelle. */
-export type StatWord = 'contact' | 'walks' | 'noFire' | 'cappedByHq';
+type StatWord = 'contact' | 'walks' | 'noFire' | 'cappedByHq';
 
 export type StatReading =
   /** `share` : 0 au pire du jeu, 1 au meilleur (le plus rapide, le plus fort, le moins cher).
@@ -244,7 +244,7 @@ export function troopStats(
 }
 
 /** Les colonnes de l'abaque, dans l'ordre où la fiche les lit. */
-export const STAT_COLUMNS: ReadonlyArray<TroopStatKey> = [
+const STAT_COLUMNS: ReadonlyArray<TroopStatKey> = [
   'strength',
   'pace',
   'fuel',

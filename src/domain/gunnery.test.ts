@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DAMAGE_TABLE } from '../../convex/constants';
 import { COMBAT_PROFILES, profileOf, TRANSPORT_PROFILES } from './combat';
-import {
-  bandOf,
-  gunneryRows,
-  movementSheetOf,
-  PROFILE_UNITS,
-  STRONG_SHARE,
-  WEAK_SHARE,
-} from './gunnery';
+import { bandOf, gunneryRows, PROFILE_UNITS, STRONG_SHARE, WEAK_SHARE } from './gunnery';
 
 /** **La vraie table, jamais une copie** (ADR 0018 §4) : ces cas mesurent l'abaque contre le
  *  chiffrage que le jeu joue, sinon ils mesureraient une fiction. */
@@ -105,36 +98,5 @@ describe('a profile back to its role and its mark', () => {
   it('marks only the roles that carry two marks', () => {
     expect(PROFILE_UNITS.infantry2).toEqual({ role: 'infantry', tier: 2, marked: true });
     expect(PROFILE_UNITS.cargo).toEqual({ role: 'cargo', tier: 1, marked: false });
-  });
-});
-
-describe('the movement rule printed on a unit sheet', () => {
-  it('reads a foot role through the same composition rules as an order', () => {
-    expect(movementSheetOf(['infantry'])).toEqual({
-      mode: 'land',
-      pace: 'foot',
-      costs: { land: 1.6 },
-    });
-  });
-
-  it('reads a truck as motorized rather than assigning it a vehicle speed', () => {
-    expect(movementSheetOf(['landTransport'])).toEqual({
-      mode: 'land',
-      pace: 'motorized',
-      costs: { land: 1.15 },
-    });
-  });
-
-  it('reads hulls and wings through their route medium', () => {
-    expect(movementSheetOf(['cargo'])).toEqual({ mode: 'naval', costs: { sea: 1 } });
-    expect(movementSheetOf(['fighter'])).toEqual({ mode: 'air', costs: {} });
-  });
-
-  it('prices both media from one mixed composition', () => {
-    expect(movementSheetOf(['infantry', 'cargo'])).toEqual({
-      mode: 'combined',
-      pace: 'foot',
-      costs: { land: 1.6, sea: 1 },
-    });
   });
 });

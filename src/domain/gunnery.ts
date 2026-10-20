@@ -1,7 +1,5 @@
 import { COMBAT_PROFILES, profileOf, type CombatProfile, type DamageTable } from './combat';
 import type { UnitRole, UnitTier } from './ids';
-import { landCostOf, motorized, routeModeOf } from './movement-orders';
-import { COST_BY_MEDIUM, type LandPace, type RouteMode } from './routing';
 import { ROLE_ORDER, TIERS_BY_ROLE } from './troops';
 
 /**
@@ -35,27 +33,6 @@ export const PROFILE_UNITS: Readonly<Record<CombatProfile, ProfileUnit>> = (() =
   }
   return units;
 })();
-
-export type MovementSheet = {
-  readonly mode: RouteMode;
-  readonly pace?: LandPace;
-  readonly costs: Readonly<Partial<Record<'land' | 'sea', number>>>;
-};
-
-/** The catalogue reads the same composition rules as an order. Costs describe route edges, not
- * a vehicle statistic: changing the selected roles can change both the permitted media and the
- * land pace. Air has no multiplier in the current engine, so no separate number is invented. */
-export function movementSheetOf(roles: ReadonlyArray<UnitRole>): MovementSheet {
-  const mode = routeModeOf(roles);
-  if (mode === 'air') return { mode, costs: {} };
-  if (mode === 'naval') return { mode, costs: { sea: COST_BY_MEDIUM.sea } };
-
-  const pace = motorized(roles) ? 'motorized' : 'foot';
-  const land = landCostOf(roles);
-  return mode === 'combined'
-    ? { mode, pace, costs: { land, sea: COST_BY_MEDIUM.sea } }
-    : { mode, pace, costs: { land } };
-}
 
 /**
  * **Trois bandes, et l'encre les dit avant les chiffres.** Une grille de quatre-vingt-treize
