@@ -22,11 +22,12 @@ import type { ResourceKey } from './ids';
 import {
   currentStock,
   type Building,
+  type Cost,
   type OutpostView,
   type PlayerView,
   type TroopView,
 } from './player-view';
-import type { Compass, CompassAction, CompassTarget } from './compass-rose';
+import type { BillLine, Compass, CompassAction, CompassTarget } from './compass-rose';
 
 type Allegiance = 'mine' | 'enemy' | 'neutral';
 
@@ -95,6 +96,18 @@ const specializationBranches = (outpost: OutpostView): ReadonlyArray<CompassActi
     sealed: outpost.specializationLocked ? fr.errors.SPECIALIZATION_SEALED() : null,
   }));
 
+/** La facture d'une dépense, une ligne par matière due ; `lacking` nomme celle qui manque. */
+const billOf = (cost: Cost, view: PlayerView, lacking?: ResourceKey): ReadonlyArray<BillLine> =>
+  RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0).map((resource) => ({
+    resource,
+    text: fr.compass.upgradeBill(
+      fr.resources[resource],
+      cost[resource] ?? 0,
+      currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
+    ),
+    lacking: lacking === resource,
+  }));
+
 /**
  * **La branche « élever » d'un point, ou le motif qui la remplace** — mot pour mot le contrat
  * d'`upgradeBranch` sur un bâtiment, et pour la même raison : `outpostRaiseHold` est l'arbitre
@@ -126,7 +139,6 @@ function outpostRaiseBranch(
   if (hold !== null && hold.kind !== 'materials')
     return { action: null, refusal: raiseHoldText(hold) };
 
-  const due = RESOURCES.filter((resource) => (outpost.nextLevelCost[resource] ?? 0) > 0);
   return {
     action: {
       key: 'raiseOutpost',
@@ -136,15 +148,7 @@ function outpostRaiseBranch(
       consequence: fr.compass.raiseConsequence(outpost.level + 1),
       outpostId: outpost.id,
       figure: outpost.nextLevelCost,
-      bill: due.map((resource) => ({
-        resource,
-        text: fr.compass.upgradeBill(
-          fr.resources[resource],
-          outpost.nextLevelCost[resource] ?? 0,
-          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
-        ),
-        lacking: hold?.resource === resource,
-      })),
+      bill: billOf(outpost.nextLevelCost, view, hold?.resource),
       duration: asDuration(outpost.nextLevelMinutes),
       hold:
         hold === null
@@ -443,7 +447,6 @@ function foundHere(
   }
 
   const cost = view.outpostFoundation.cost;
-  const due = RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0);
   return {
     action: {
       key: 'found',
@@ -455,15 +458,7 @@ function foundHere(
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
       figure: cost,
-      bill: due.map((resource) => ({
-        resource,
-        text: fr.compass.upgradeBill(
-          fr.resources[resource],
-          cost[resource] ?? 0,
-          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
-        ),
-        lacking: false,
-      })),
+      bill: billOf(cost, view),
       duration: asDuration(view.outpostFoundation.minutes),
     },
     refusal: null,
@@ -492,7 +487,6 @@ function upgradeBranch(
   if (hold !== null && hold.kind !== 'materials')
     return { action: null, refusal: upgradeHoldText(hold) };
 
-  const due = RESOURCES.filter((resource) => (building.nextLevelCost[resource] ?? 0) > 0);
   return {
     action: {
       key: 'upgrade',
@@ -504,15 +498,7 @@ function upgradeBranch(
       regionId: building.regionId,
       point: building.point,
       figure: building.nextLevelCost,
-      bill: due.map((resource) => ({
-        resource,
-        text: fr.compass.upgradeBill(
-          fr.resources[resource],
-          building.nextLevelCost[resource] ?? 0,
-          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
-        ),
-        lacking: hold?.resource === resource,
-      })),
+      bill: billOf(building.nextLevelCost, view, hold?.resource),
       duration: asDuration(building.nextLevelMinutes),
       hold:
         hold === null
