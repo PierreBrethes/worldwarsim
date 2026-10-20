@@ -23,7 +23,7 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
-import { DryTag, dryLabelOf, ReserveCell, usePinning } from '@/shell/ReserveCell';
+import { DryTag, ReserveCell, reserveReading, usePinning } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, upgradeHold } from '@/domain/construction';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
@@ -634,23 +634,19 @@ type BinProps = {
   onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
 };
 
-/** Ce qu'un bac dit au survol : son nombre sur son plafond, et son débit. Ce qui l'arrête se lit
- *  dans son ticket (`ledgerNotesOf`). */
-function binReading({ resource, view, now, shown }: BinProps) {
-  const held = view.me.resources[resource];
-  const stock = Math.floor(shown ?? currentStock(held, view.loadedAt, now));
-  const share = held.cap > 0 ? Math.min(100, (stock / held.cap) * 100) : 0;
-  const title = `${fr.resources[resource]} : ${stock} ${fr.personalBoard.ofCap(held.cap)} · ${fr.personalBoard.rate(held.ratePerHour)}`;
-  return { held, stock, share, title };
-}
-
 /** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net — ou l'étiquette
  *  « à sec » qui le remplace, la même que la ligne repliée —, centrés dans la hauteur de la bande
  *  pour que les marges du haut et du bas soient égales. */
 function GaugeBin(props: BinProps) {
   const { resource, register, onTake } = props;
-  const { held, stock, share, title } = binReading(props);
-  const alert = dryLabelOf(stock, held.ratePerHour);
+  const { view, now, shown } = props;
+  const {
+    reserve: held,
+    displayed: stock,
+    share,
+    alert,
+    title,
+  } = reserveReading(view, resource, now, shown);
   return (
     <button
       type="button"
@@ -673,7 +669,7 @@ function GaugeBin(props: BinProps) {
       >
         <i
           className="mat-gauge absolute inset-x-0 bottom-0"
-          style={{ height: `${share}%`, background: resourceColor(resource, true) }}
+          style={{ height: `${share * 100}%`, background: resourceColor(resource, true) }}
         />
       </span>
       <span className="font-(family-name:--font-mono) text-[11px] leading-none whitespace-nowrap">

@@ -88,6 +88,35 @@ export function DryTag({ label }: { label: string }) {
   );
 }
 
+/**
+ * **La seule lecture d'une réserve** : le stock réel, ce qu'on en montre (`shown`, le chiffre que la
+ * récolte rejoue, sinon le stock), la part du plafond que la jauge remplit, l'alerte — qui se dit
+ * sur le stock réel, jamais sur le chiffre rejoué — et la phrase du survol. La cellule de la ligne et
+ * la jauge du plateau tiré la lisent.
+ */
+export function reserveReading(
+  view: PlayerView,
+  resource: ResourceKey,
+  now: number,
+  shown: number | null = null,
+) {
+  const reserve = view.me.resources[resource];
+  const stock = currentStock(reserve, view.loadedAt, now);
+  const displayed = Math.floor(shown ?? stock);
+  const share = reserve.cap > 0 ? Math.min(1, displayed / reserve.cap) : 0;
+  const alert = dryLabelOf(stock, reserve.ratePerHour);
+  const source = sourceOf(view, resource);
+  const full = marksOf(view, now)[resource];
+  const title = [
+    fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
+    source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
+    full?.diagnosis ?? null,
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
+  return { reserve, stock, displayed, share, alert, title };
+}
+
 const PLATE = 16;
 
 /**
@@ -116,24 +145,12 @@ export function ReserveCell({
   onTake?: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
   register?: Ref<HTMLElement>;
 }) {
-  const reserve = view.me.resources[resource];
-  const stock = currentStock(reserve, view.loadedAt, now);
-  const fill = reserve.cap > 0 ? Math.min(1, stock / reserve.cap) : 0;
-  const alert = dryLabelOf(stock, reserve.ratePerHour);
+  const { reserve, stock, share: fill, alert, title } = reserveReading(view, resource, now, shown);
   const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
   const motion = useMapMotion();
   const reduced = usePrefersReducedMotion();
   const still = motion === 'off' || reduced;
   const announced = useAnnouncedStock(reserve, view.loadedAt, still);
-  const source = sourceOf(view, resource);
-  const full = marksOf(view, now)[resource];
-  const title = [
-    fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
-    source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
-    full?.diagnosis ?? null,
-  ]
-    .filter((part) => part !== null)
-    .join(' · ');
   return (
     <button
       ref={register as Ref<HTMLButtonElement>}
