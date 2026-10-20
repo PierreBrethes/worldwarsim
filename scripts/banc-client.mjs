@@ -495,37 +495,43 @@ async function play(profileName, pass) {
     await gesture('plateau replié', () => button(/^Plateau personnel$/).click());
   }
 
-  // La fiche d'un bâtiment : une pièce peut se tenir devant, on essaie les suivants.
-  const sites = await page.evaluate(() => {
+  // La fiche d'un bâtiment : son étiquette quand la carte la montre (de loin, au téléphone),
+  // sinon le point de l'écran où le rayon du moteur trouve la maquette et non une pièce devant.
+  const at = await page.evaluate(() => {
     const engine = window.mapEngine;
-    const canvas = engine.renderer.domElement.getBoundingClientRect();
-    return [...engine.maquettes.byId]
-      .filter(([id]) => engine.maquettes.drawnAt(id) !== null)
-      .map(([id, { item }]) => {
-        const at = item.at.clone().project(engine.eye);
-        const x = canvas.x + ((at.x + 1) / 2) * canvas.width;
-        const y = canvas.y + ((1 - at.y) / 2) * canvas.height;
-        return { id, x, y };
-      })
-      .filter(
-        ({ x, y }) =>
-          x > 40 && x < innerWidth - 40 && y > innerHeight * 0.2 && y < innerHeight * 0.65,
-      );
+    const canvas = engine.renderer.domElement;
+    const inside = (x, y) => y > innerHeight * 0.15 && y < innerHeight * 0.7;
+    for (const label of document.querySelectorAll('.label--building')) {
+      const rect = label.getBoundingClientRect();
+      const [x, y] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+      if (inside(x, y) && label.contains(document.elementFromPoint(x, y))) return [x, y];
+    }
+    const box = canvas.getBoundingClientRect();
+    for (const id of engine.maquettes.byId.keys()) {
+      const rect = id.startsWith('building-') ? engine.pieceRect(id) : null;
+      if (rect === null) continue;
+      for (let i = 1; i < 6; i++)
+        for (let j = 1; j < 6; j++) {
+          const x = box.left + rect.left + ((rect.right - rect.left) * i) / 6;
+          const y = box.top + rect.top + ((rect.bottom - rect.top) * j) / 6;
+          if (
+            inside(x, y) &&
+            document.elementFromPoint(x, y) === canvas &&
+            engine.castAt(x, y) &&
+            engine.pieceUnder()?.id === id
+          )
+            return [x, y];
+        }
+    }
+    return null;
   });
-  let opened = false;
-  for (const site of sites) {
-    await gesture('ouvrir fiche bâtiment', () =>
-      phone ? page.touchscreen.tap(site.x, site.y) : page.mouse.click(site.x, site.y),
-    );
-    opened = page.url().includes('building');
-    if (opened) break;
-    await close();
-    await page.waitForTimeout(800);
-  }
-  if (opened) await gesture('fermer fiche bâtiment', close);
+  if (at === null) console.log('aucun bâtiment dégagé à l’écran : fiche non mesurée');
   else {
-    delete results['ouvrir fiche bâtiment'];
-    console.log('aucun bâtiment ouvert : fiche non mesurée');
+    await gesture('ouvrir fiche bâtiment', () =>
+      phone ? page.touchscreen.tap(...at) : page.mouse.click(...at),
+    );
+    if (page.url().includes('building')) await gesture('fermer fiche bâtiment', close);
+    else console.log(`fiche restée fermée : ${page.url()}`);
   }
 
   // La carte : déplacer, zoomer, incliner, d'un point de mer en haut à gauche.
