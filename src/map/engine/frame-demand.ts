@@ -38,6 +38,8 @@ export type FrameReason = 'stirred' | 'heartbeat' | 'ambient';
 
 export class FrameDemand {
   private stirredAt: number;
+  /** The stir before the last one: lifting a sheet undoes its own, never another's. */
+  private stirredBefore = Number.NEGATIVE_INFINITY;
   private fullAt = Number.NEGATIVE_INFINITY;
   private requested = false;
   private covered = false;
@@ -48,16 +50,19 @@ export class FrameDemand {
 
   /** Quelque chose a bougé, ou va bouger : la carte rend pendant `SETTLE_MS` à compter d'ici. */
   stir(now: number): void {
+    this.stirredBefore = this.stirredAt;
     this.stirredAt = now;
   }
 
   /** **Une feuille couvre toute la carte** (écran étroit, #189) : rien ne se dessine dessous, ni
    *  remué, ni battement, ni fil. Levée, une image complète montre ce qui a changé dessous, et
    *  non une fenêtre d'activité : refermer une feuille réveillait la carte une seconde et demie
-   *  à soixante images. Ce qui bouge encore (voyage, inertie) se redemande à chaque tour. */
+   *  à soixante images. Ce qui bouge encore (voyage, inertie) se redemande à chaque tour, et un
+   *  remuement venu avec la levée (une plume lancée dans le même rendu) garde sa fenêtre : seul
+   *  celui que `MapEngine.cover` vient de demander est repris. */
   cover(covered: boolean): void {
     if (this.covered && !covered) {
-      this.stirredAt = Number.NEGATIVE_INFINITY;
+      this.stirredAt = this.stirredBefore;
       this.fullAt = Number.NEGATIVE_INFINITY;
     }
     this.covered = covered;

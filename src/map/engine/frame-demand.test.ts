@@ -113,6 +113,18 @@ describe('FrameDemand', () => {
     expect(demand.due(lifted + 32)).toBeNull();
   });
 
+  it('keeps the settle window of a stir asked with the lifting, before the engine’s own (#189)', () => {
+    const demand = new FrameDemand(0);
+    demand.cover(true);
+    const lifted = SETTLE_MS + HEARTBEAT_MS + 300;
+    expect(demand.due(lifted - 100)).toBeNull();
+    demand.stir(lifted); // an ink burst, sent in the commit that closes the sheet
+    demand.stir(lifted); // `cover()` asks its own frame first
+    demand.cover(false);
+    expect(demand.due(lifted + 16)).toBe('stirred');
+    expect(demand.due(lifted + SETTLE_MS - 16)).toBe('stirred');
+  });
+
   it('renders a stirred frame whole even when the ambience asked for it too', () => {
     const demand = new FrameDemand(0);
     demand.request();
