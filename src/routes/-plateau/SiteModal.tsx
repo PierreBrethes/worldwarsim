@@ -573,9 +573,8 @@ const lackOf = (
   now: number,
   costs: GridEntry['unit']['costs'],
 ): ResourceKey | null =>
-  shortfallOf(costs, (resource) =>
-    Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now)),
-  )?.resource ?? null;
+  shortfallOf(costs, (resource) => currentStock(view.me.resources[resource], view.loadedAt, now))
+    ?.resource ?? null;
 
 function roleTermsOf(entry: GridEntry, tier: UnitTier) {
   const cost = pieceAt(entry, tier);
@@ -679,7 +678,7 @@ function NarrowSite({
   const queue = facility?.queue ?? [];
   const nation = view.me.nation;
   const stockOf = (resource: ResourceKey) =>
-    Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
+    currentStock(view.me.resources[resource], view.loadedAt, now);
   const siteLevel = facility?.level ?? building.level;
   const termsOf = (entry: GridEntry) => roleTermsOf(entry, tiers[entry.role] ?? 1);
   const open = roles.filter((entry) => !termsOf(entry).roleLocked);

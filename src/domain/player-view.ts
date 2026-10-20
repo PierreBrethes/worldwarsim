@@ -1422,6 +1422,8 @@ export function currentStock(resource: Resource, loadedAt: number, now: number):
    * settlement applies, so the strip never counts down past empty.
    */
   const held = Math.max(resource.cap, resource.stock);
+  /** **Le seul arrondi d'un stock affiché** (#167) : la réglette, la bande, les tickets et les
+   *  prix lisent ce chiffre-ci, sans le rarrondir. */
   return Math.max(0, Math.floor(Math.min(held, raw)));
 }
 

@@ -86,7 +86,7 @@ function Ticket({
 }) {
   const now = useClock();
   const reserve = view.me.resources[resource];
-  const stock = Math.round(currentStock(reserve, view.loadedAt, now));
+  const stock = currentStock(reserve, view.loadedAt, now);
   return (
     <section
       aria-label={fr.ledger.title(fr.resources[resource])}
