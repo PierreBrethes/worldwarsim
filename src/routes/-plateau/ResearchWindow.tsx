@@ -16,6 +16,7 @@ import {
   researchProgressOf,
   researchRefusalOf,
   researchScheduleOf,
+  researchUnqueueRefusalOf,
   searcherLevel,
   searcherOf,
 } from '@/domain/research';
@@ -180,8 +181,10 @@ export function ResearchWindow({
   );
 }
 
-/** **Le poste du Centre**, et ce que donne son niveau : la marge de la maquette. */
-function Margin({
+/** **Le poste du Centre**, et ce que donne son niveau : la marge de la maquette. Une carte en
+ *  attente se retire, ou dit pourquoi elle ne se retire pas — le refus que `research.dequeue`
+ *  rendrait, lu à la même fonction (ADR 0015). */
+export function Margin({
   view,
   level,
   now,
@@ -231,35 +234,46 @@ function Margin({
           </span>
         )}
       </div>
-      {queue.map((waiting, index) => (
-        <div
-          key={waiting}
-          data-testid="research-waiting"
-          className="grid content-start gap-[2px] border border-dashed border-(color:--ink)/45 p-[6px]"
-        >
-          <span className="text-[9px] leading-[1.2] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
-            {fr.research.waitingRank(index + 2)}
-          </span>
-          <b className="font-(family-name:--font-display) text-[12.5px] leading-[1.1] font-bold">
-            {fr.research.names[waiting]}
-          </b>
-          <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
-            {ends[index] == null
-              ? fr.research.waiting
-              : fr.research.expectedEnd(asDayAndTime(ends[index]))}
-          </span>
-          {remove !== null && (
-            <button
-              type="button"
-              title={fr.research.removeTitle(cardName(waiting))}
-              onClick={() => void remove(waiting)}
-              className="mt-[2px] cursor-pointer justify-self-start border border-[var(--ink)] bg-transparent px-[8px] py-[3px] text-[10px] font-semibold tracking-[.14em] text-[var(--ink)] uppercase hover:bg-(--ink)/10"
-            >
-              {fr.research.remove}
-            </button>
-          )}
-        </div>
-      ))}
+      {queue.map((waiting, index) => {
+        const refusal = researchUnqueueRefusalOf(waiting, {
+          running: running?.card ?? null,
+          queued: queue,
+        });
+        return (
+          <div
+            key={waiting}
+            data-testid="research-waiting"
+            className="grid content-start gap-[2px] border border-dashed border-(color:--ink)/45 p-[6px]"
+          >
+            <span className="text-[9px] leading-[1.2] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+              {fr.research.waitingRank(index + 2)}
+            </span>
+            <b className="font-(family-name:--font-display) text-[12.5px] leading-[1.1] font-bold">
+              {fr.research.names[waiting]}
+            </b>
+            <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
+              {ends[index] == null
+                ? fr.research.waiting
+                : fr.research.expectedEnd(asDayAndTime(ends[index]))}
+            </span>
+            {remove !== null && refusal !== null && (
+              <span className="text-[11px] leading-[1.25] text-[var(--critical)]">
+                {(({ code, ...details }) => fr.errors[code](details))(refusal)}
+              </span>
+            )}
+            {remove !== null && refusal === null && (
+              <button
+                type="button"
+                title={fr.research.removeTitle(cardName(waiting))}
+                onClick={() => void remove(waiting)}
+                className="mt-[2px] cursor-pointer justify-self-start border border-[var(--ink)] bg-transparent px-[8px] py-[3px] text-[10px] font-semibold tracking-[.14em] text-[var(--ink)] uppercase hover:bg-(--ink)/10"
+              >
+                {fr.research.remove}
+              </button>
+            )}
+          </div>
+        );
+      })}
       {!narrow && (
         <>
           <span className="text-[11px] leading-[1.3] text-[var(--ink-soft)]">
