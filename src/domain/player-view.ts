@@ -991,6 +991,7 @@ type NoticeBody =
       readonly at: number;
       readonly keys?: ReadonlyArray<StrategicPointKey>;
     }
+  | { readonly kind: 'narvikLost'; readonly at: number }
   /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
   | {
       readonly kind: 'depotBurned';

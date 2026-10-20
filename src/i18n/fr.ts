@@ -612,6 +612,7 @@ export const fr = {
       return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
     /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
+    narvikLost: `Narvik est perdu : vos exploitations coupées du réseau ne produisent plus.`,
     depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
       side === 'capturer'
         ? `Le dépôt d’avant-poste de ${country} a brûlé à la capture, Dakar le garde : ${lost} perdu.`

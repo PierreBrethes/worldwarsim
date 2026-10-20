@@ -474,6 +474,19 @@ describe('a building only produces when its region carries its colour', () => {
     expect(await rateOf(t, seat, 'oil')).toBe(0);
   });
 
+  /** **Narvik perdu** : l'ancien teneur lit ce qu'il perd, le nouveau ne lit rien. */
+  it('tells the former holder of Narvik that his cut sites stop producing', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const narvik = await holdPoint(t, seat, 'narvik');
+    await t.run(async (ctx) => {
+      const taker = (await ctx.db.query('players').collect()).find((p) => p.nickname === 'Léa')!;
+      await handOver(ctx, (await ctx.db.get(narvik))!, taker._id, Date.now());
+    });
+    expect(await noticesOf(t, seat, 'narvikLost')).toHaveLength(1);
+    expect(await noticesOf(t, guest, 'narvikLost')).toHaveLength(0);
+  });
+
   /** La carte « à faire maintenant » compte les sites coupés, et mène au premier. */
   it('raises one line for the cut sites, whatever their number', async () => {
     const t = boot();

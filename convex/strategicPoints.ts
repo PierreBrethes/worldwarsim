@@ -21,7 +21,7 @@ import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { upkeepOf } from './upkeep';
 import { movementsOf } from './movement/forces';
 import { emptyStocks } from '../src/domain/economy';
-import { creditToStorage, debit, economyOf } from './resources';
+import { creditToStorage, debit, economyOf, settle } from './resources';
 import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtRoutePoint } from './regionGeometry';
@@ -197,6 +197,13 @@ export async function handOver(
   /** **Bakou** : ce que l'ancien teneur a gagné jusqu'ici s'écrit avant que le point change de
    *  main — sa vue le servait, et la perte ne l'efface pas. */
   if (point.key === 'baku' && former !== null) await settleBaku(ctx, point, former, now);
+  /** **Narvik** : le quart des sites coupés change de main. Les stocks se règlent au débit d'avant
+   *  chez les deux, et l'ancien teneur lit ce qu'il perd. */
+  if (point.key === 'narvik') {
+    for (const id of [former, holderId]) if (id !== null) await settle(ctx, id, now);
+    if (former !== null && holderId !== null)
+      await ctx.db.insert('notices', { playerId: former, at: now, kind: 'narvikLost' });
+  }
   await ctx.db.patch(point._id, {
     holderId,
     heldSince: holderId === null ? null : now,

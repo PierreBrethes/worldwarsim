@@ -549,6 +549,13 @@ function written(notice: Notice): Written {
         kind: 'pointTaken',
         text: fr.points.drawn(notice.keys ?? FIRST_SEVEN),
       };
+    case 'narvikLost':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.narvikLost,
+      };
     case 'depotBurned':
       return {
         at: notice.at,
