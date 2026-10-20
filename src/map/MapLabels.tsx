@@ -37,6 +37,7 @@ import {
   NEUTRAL_FLAG,
   URGENCY_MS,
   cartoucheShown,
+  isAge,
   isCountdown,
   type MapLabel,
   type LabelPictogram,
@@ -100,7 +101,7 @@ export type TakeDepot = (
 const NO_LABELS: ReadonlySet<string> = new Set();
 
 export function MapLabels({
-  labels,
+  labels: served,
   engine,
   selected,
   selectedPlate,
@@ -197,10 +198,12 @@ export function MapLabels({
    *  (Blitz, retours du 15/10) : les neutres d'une Blitz couvraient l'Espagne. */
   groupFar?: boolean;
 }) {
+  const labels = useSameLabels(served);
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
   const countdowns = useRef(new Map<string, HTMLElement>());
+  const ages = useRef(new Map<string, HTMLElement>());
   const tethers = useRef(new Map<string, HTMLElement>());
   const motion = useMapMotion();
   const states = useRef(new Map<string, RenderState>());
@@ -517,6 +520,12 @@ export function MapLabels({
             : ''
           : `${countdown.prefix}${asDuration(left / 60_000)}`;
       roots.current.get(label.id)?.classList.toggle('label--urgent', left < URGENCY_MS);
+    }
+    for (const label of labels) {
+      const age = label.lines.find(isAge);
+      const node = ages.current.get(label.id);
+      if (age === undefined || node === undefined) continue;
+      node.textContent = fr.camps.lastKnown(asDuration(Math.max(0, now - age.since) / 60_000));
     }
   }, [labels]);
 
@@ -927,7 +936,7 @@ export function MapLabels({
     (carrierId: string, act: TourAct) => gestures.current.tour(carrierId, act),
     [],
   );
-  const nodes = useMemo(() => ({ anchors, tethers, roots, blocks, countdowns }), []);
+  const nodes = useMemo(() => ({ anchors, tethers, roots, blocks, countdowns, ages }), []);
 
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
@@ -1051,9 +1060,27 @@ export function MapLabels({
   );
 }
 
+/**
+ * **Une liste rebâtie mais égale reste la même liste** (#183) : le plateau rebâtit ses étiquettes
+ * à chaque réponse, et chaque effet de la couche — repli des chevauchements, ancres, comptes à
+ * rebours — se relancerait pour une carte qui n'a pas changé. Le repli mesure six cents cartouches.
+ */
+function useSameLabels(labels: ReadonlyArray<MapLabel>): ReadonlyArray<MapLabel> {
+  const last = useRef(labels);
+  const kept = last.current;
+  const same =
+    kept === labels ||
+    (kept.length === labels.length &&
+      labels.every((label, rank) => shareUnchanged(kept[rank], label) === kept[rank]));
+  useLayoutEffect(() => {
+    if (!same) last.current = labels;
+  });
+  return same ? kept : labels;
+}
+
 type LabelNodes = Readonly<
   Record<
-    'anchors' | 'tethers' | 'roots' | 'blocks' | 'countdowns',
+    'anchors' | 'tethers' | 'roots' | 'blocks' | 'countdowns' | 'ages',
     RefObject<Map<string, HTMLElement>>
   >
 >;
@@ -1239,6 +1266,14 @@ const LabelNode = memo(function LabelNode({
                   />
                   {line.since !== undefined && <MarchGauge since={line.since} dueAt={line.dueAt} />}
                 </Fragment>
+              ) : line.role === 'age' ? (
+                <div
+                  key={rank}
+                  className="label-line label-line--mention"
+                  ref={(node) => {
+                    register(nodes.ages.current, label.id, node);
+                  }}
+                />
               ) : line.role === 'research' ? (
                 <ResearchLine
                   key={rank}

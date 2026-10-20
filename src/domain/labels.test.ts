@@ -330,7 +330,8 @@ describe('buildLabels', () => {
     const labels = buildLabels(viewWith(arcs), []);
     expect(labels).toHaveLength(1);
     expect(labels[0]).toMatchObject({ type: 'intel', washed: true });
-    expect(labels[0]!.lines[0]).toMatchObject({ role: 'mention' });
+    // Its age runs on the label's own clock, from the instant it was last seen (#183).
+    expect(labels[0]!.lines[0]).toEqual({ role: 'age', since: LOADED_AT - 5 * MINUTE });
   });
 
   it('anchors a movement head on no fixed position', () => {

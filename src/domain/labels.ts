@@ -1,7 +1,7 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asDuration, asLocalTime } from '@/domain/duration';
+import { asLocalTime } from '@/domain/duration';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
@@ -334,6 +334,10 @@ export type LabelLine =
       /** À la seconde (« 0:42 ») plutôt qu'en durée, et muet une fois échu : un rechargement. */
       readonly clock?: true;
     }
+  /** **Une dernière position connue, et son âge qui court** (#183) : « il y a … » depuis
+   *  `since`, réécrit chaque seconde comme un compte à rebours — un texte figé à l'heure de la
+   *  réponse rendait chaque relevé à chaque réponse. */
+  | { readonly role: 'age'; readonly since: number }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number }
   /** **Coups et plein** de ma pile (ADR 0028 §3) : la cartouche et le jerrican sous la figurine. */
@@ -492,6 +496,9 @@ export type MapLabel = {
 
 export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role: 'countdown' }> =>
   line.role === 'countdown';
+
+export const isAge = (line: LabelLine): line is Extract<LabelLine, { role: 'age' }> =>
+  line.role === 'age';
 
 /**
  * **Les pièces se nomment au pointeur** (retours de Pierre du 13/10) : la planche, la figurine,
@@ -835,13 +842,9 @@ function markerLabel(marker: MapMarker): MapLabel {
         hostCountry: null,
         lines: [
           { role: 'nature', text: fr.camps.marker },
-          {
-            role: 'mention',
-            text:
-              marker.seenMinutesAgo === null
-                ? fr.camps.seenAt(asLocalTime(marker.since))
-                : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
-          },
+          marker.lastSeenAt === null
+            ? { role: 'mention', text: fr.camps.seenAt(asLocalTime(marker.since)) }
+            : { role: 'age', since: marker.lastSeenAt },
           ...lisbonLine(marker.nation),
         ],
       };
@@ -1132,13 +1135,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       force: null,
-      lines: [
-        {
-          role: 'mention',
-          text: fr.camps.lastKnown(asDuration(Math.max(0, loadedAt - arc.lastSeenAt) / 60_000)),
-        },
-        ...lisbonLine(arc.nation),
-      ],
+      lines: [{ role: 'age', since: arc.lastSeenAt }, ...lisbonLine(arc.nation)],
     };
   }
   if (arc.state !== 'enemyDetected') return null;

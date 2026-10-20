@@ -97,4 +97,19 @@ describe('MapLabels', () => {
     expect(screen.getByText('Arras · 2')).toBeTruthy();
     expect(screen.getByText('Lille')).toBeTruthy();
   });
+
+  /** **Un relevé perdu de vue vieillit sous les yeux** : son âge court sur l'horloge de la
+   *  couche, sans attendre la réponse suivante (#183). */
+  it('runs the age of a last known position on its own clock', () => {
+    vi.useFakeTimers({ now: 10 * 60_000 });
+    const camp = {
+      ...outpost('c', 'camp'),
+      lines: [{ role: 'age', since: 5 * 60_000 }],
+    } as MapLabel;
+    render(layer([camp]));
+    expect(screen.getByText(/il y a 00:05:00/)).toBeTruthy();
+    vi.advanceTimersByTime(60_000);
+    expect(screen.getByText(/il y a 00:06:00/)).toBeTruthy();
+    vi.useRealTimers();
+  });
 });
