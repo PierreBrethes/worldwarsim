@@ -2353,6 +2353,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   key={selectedCamp.id}
                   camp={selectedCampView}
                   at={selectedCamp}
+                  onOpenGunnery={() => openWindow('gunnery')}
                   onClose={() => setSelectedCamp(null)}
                 />
               )}

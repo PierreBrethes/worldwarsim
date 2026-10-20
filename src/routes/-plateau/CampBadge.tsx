@@ -18,10 +18,13 @@ import { MapCard } from './MapCard';
 export function CampBadge({
   camp,
   at,
+  onOpenGunnery,
   onClose,
 }: {
   camp: CampView;
   at: { x: number; y: number };
+  /** Un relevé ne dit rien de la pièce : le type, s'il est percé un jour, se lit à l'abaque. */
+  onOpenGunnery: () => void;
   onClose: () => void;
 }) {
   return (
@@ -65,6 +68,14 @@ export function CampBadge({
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
         {fr.camps.unknown}
       </p>
+
+      <button
+        type="button"
+        onClick={onOpenGunnery}
+        className="mt-[6px] cursor-pointer text-[11px] text-[var(--interaction)] underline underline-offset-2 max-md:min-h-[44px]"
+      >
+        {fr.stats.seeGunnery}
+      </button>
     </MapCard>
   );
 }

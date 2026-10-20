@@ -47,7 +47,11 @@ describe('HandSheet', () => {
     const held = [troop('inf', 'infantry'), troop('tank', 'armor')];
     render(
       <HandSheet
-        view={{ me: { nation: 'france', stationedCargo: [], troops: [] } } as unknown as PlayerView}
+        view={
+          {
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
+          } as unknown as PlayerView
+        }
         station={station}
         place="Saône-et-Loire"
         held={held}
@@ -66,6 +70,33 @@ describe('HandSheet', () => {
     expect(onCompose).toHaveBeenLastCalledWith(['inf']);
     expect(screen.queryByText(fr.garrison.prepare)).toBeNull();
   });
+
+  it('reads the statistics of the troops it holds, and no longer a bare detection range', () => {
+    const held = [troop('inf', 'infantry'), troop('tank', 'armor')];
+    const { container } = render(
+      <HandSheet
+        view={
+          {
+            mode: 'mondiale',
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
+          } as unknown as PlayerView
+        }
+        station={station}
+        place="Saône-et-Loire"
+        held={held}
+        troopIds={['inf']}
+        onCompose={() => {}}
+        onDisembark={() => {}}
+        founding={null}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+      />,
+    );
+    const stat = (key: string) => container.querySelector(`[data-stat="${key}"]`);
+    expect(stat('pace')).not.toBeNull();
+    expect(stat('detection')?.textContent).toContain('60 km');
+    expect(stat('fuel')?.textContent).toContain('marche');
+  });
 });
 
 describe('HandSheet in a Blitz', () => {
@@ -75,7 +106,7 @@ describe('HandSheet in a Blitz', () => {
         view={
           {
             mode: 'blitz',
-            me: { nation: 'france', stationedCargo: [], troops: [] },
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
           } as unknown as PlayerView
         }
         station={station}
@@ -101,7 +132,7 @@ describe('HandSheet in a Blitz', () => {
         view={
           {
             mode: 'blitz',
-            me: { nation: 'france', stationedCargo: [], troops: [] },
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
           } as unknown as PlayerView
         }
         station={station}
@@ -128,7 +159,11 @@ describe('HandSheet founding', () => {
   const sheet = (founding: Parameters<typeof HandSheet>[0]['founding']) =>
     render(
       <HandSheet
-        view={{ me: { nation: 'france', stationedCargo: [], troops: [] } } as unknown as PlayerView}
+        view={
+          {
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
+          } as unknown as PlayerView
+        }
         station={station}
         place="Saône-et-Loire"
         held={[troop('inf', 'infantry')]}

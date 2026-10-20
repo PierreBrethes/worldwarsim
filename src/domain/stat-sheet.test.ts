@@ -13,7 +13,17 @@ import { fireReachOf } from './indirect-fire';
 import { levelGain } from './level-speed';
 import { minutesPer1000KmOf } from './pace';
 import type { TroopView } from './player-view';
-import { buildingStats, PIECES, pileStats, scaleOf, shareOn, troopStats } from './stat-sheet';
+import {
+  buildingStats,
+  columnsOf,
+  PIECES,
+  pieceRows,
+  pileStats,
+  rankedBy,
+  scaleOf,
+  shareOn,
+  troopStats,
+} from './stat-sheet';
 import { THEATRES } from './theatres';
 
 const europe = THEATRES[0];
@@ -183,7 +193,7 @@ describe('pileStats', () => {
 
 describe('buildingStats', () => {
   const base = { level: 2, nextLevelCost: { steel: 80 }, nextLevelMinutes: 40, cappedByHq: false };
-  const mondiale = { mode: 'mondiale', perHour: null } as const;
+  const mondiale = { mode: 'mondiale', production: null } as const;
 
   it('gives a forming site the effect of its level and what it forms', () => {
     const rows = buildingStats({ ...base, key: 'barracks' }, mondiale);
@@ -213,12 +223,19 @@ describe('buildingStats', () => {
   });
 
   it('scales a production against the best level of the best deposit', () => {
-    const rows = buildingStats({ ...base, key: 'farm' }, { ...mondiale, perHour: 24 });
-    expect(rowOf(rows, 'production')).toMatchObject({ value: 24, share: 24 / (12 * MAX_HQ_LEVEL) });
+    const rows = buildingStats(
+      { ...base, key: 'farm' },
+      { ...mondiale, production: { resource: 'food', perHour: 24 } },
+    );
+    expect(rowOf(rows, 'production')).toMatchObject({
+      value: 24,
+      share: 24 / (12 * MAX_HQ_LEVEL),
+      resource: 'food',
+    });
   });
 
   it('asks nothing of a Blitz site but its capture', () => {
-    const keys = buildingStats({ ...base, key: 'hq' }, { mode: 'blitz', perHour: null }).map(
+    const keys = buildingStats({ ...base, key: 'hq' }, { mode: 'blitz', production: null }).map(
       (row) => row.key,
     );
     expect(keys).not.toContain('raise');
@@ -229,5 +246,39 @@ describe('buildingStats', () => {
     expect(buildingStats({ ...base, key: 'listening' }, mondiale).map((row) => row.key)).toEqual(
       expect.arrayContaining(['listening', 'consumption']),
     );
+  });
+});
+
+describe('the table of pieces', () => {
+  it('holds every piece of the game, one row each', () => {
+    expect(pieceRows(null)).toHaveLength(PIECES.length);
+  });
+
+  it('ranks the best of the game first, the fastest then the slowest', () => {
+    const ranked = rankedBy(pieceRows(null), 'pace');
+    expect(ranked[0]!.role).not.toBe('infantry');
+    expect(ranked.at(-1)!.role).toBe('infantry');
+  });
+
+  it('ranks the cheapest first, and the strongest first', () => {
+    expect(rankedBy(pieceRows(null), 'cost')[0]!.role).toBe('infantry');
+    expect(rankedBy(pieceRows(null), 'strength')[0]!.role).toBe('infantry');
+  });
+
+  it('sinks what has no scale to the bottom, in the order of the game', () => {
+    const ranked = rankedBy(pieceRows(null), 'seats');
+    const seated = ranked.filter((row) => row.readings.seats !== undefined);
+    expect(ranked.slice(0, seated.length)).toEqual(seated);
+    expect(ranked.slice(seated.length).map((row) => row.role)).toEqual(
+      PIECES.filter((piece) => !seated.some((row) => row.role === piece.role)).map(
+        (piece) => piece.role,
+      ),
+    );
+  });
+
+  it('drops the columns the mode does not have', () => {
+    expect(columnsOf(pieceRows(null))).toContain('fuel');
+    expect(columnsOf(pieceRows(europe))).not.toContain('fuel');
+    expect(columnsOf(pieceRows(europe))).toContain('reload');
   });
 });

@@ -21,10 +21,17 @@ import { levelGain, speedsUp } from './level-speed';
 import { carryCapacityOf } from './loot';
 import { loadTotal } from './logistics';
 import { minutesPer1000KmOf } from './pace';
-import type { BuildingKey, UnitRole, UnitTier } from './ids';
-import type { Building, Cost, TroopView } from './player-view';
+import {
+  BUILDINGS,
+  RESOURCES,
+  type BuildingKey,
+  type ResourceKey,
+  type UnitRole,
+  type UnitTier,
+} from './ids';
+import type { Building, Cost, PlayerView, TroopView } from './player-view';
 import type { SeasonMode } from './season-mode';
-import type { Theatre } from './theatres';
+import { playedTheatre, type Theatre } from './theatres';
 import {
   garrisons,
   LIFT_COST,
@@ -34,8 +41,8 @@ import {
   seatsLeft,
   TIERS_BY_ROLE,
 } from './troops';
+import { YIELD_OF, produces } from './economy';
 import { cumulative } from './upkeep';
-import { BUILDINGS } from './ids';
 
 /**
  * **Toutes les statistiques d'une pièce, lues là où le serveur les lit** (#191). Ce module ne
@@ -91,6 +98,8 @@ export type StatReading =
       readonly share: number;
       readonly of?: number;
       readonly floor?: number;
+      /** Ce que le débit verse : « 16 acier / h ». */
+      readonly resource?: ResourceKey;
     }
   | { readonly kind: 'figure'; readonly value: number }
   | { readonly kind: 'word'; readonly word: StatWord; readonly km?: number }
@@ -234,6 +243,58 @@ export function troopStats(
   return rows;
 }
 
+/** Les colonnes de l'abaque, dans l'ordre où la fiche les lit. */
+export const STAT_COLUMNS: ReadonlyArray<TroopStatKey> = [
+  'strength',
+  'pace',
+  'fuel',
+  'detection',
+  'rounds',
+  'reach',
+  'reload',
+  'seats',
+  'boarding',
+  'load',
+  'loot',
+  'cost',
+  'training',
+];
+
+export type PieceRow = Piece & {
+  readonly readings: Readonly<Partial<Record<TroopStatKey, StatReading>>>;
+};
+
+/** **Toutes les pièces du jeu, chacune avec ses statistiques** : le tableau de l'abaque. Une case
+ *  absente est une statistique que la pièce n'a pas — un tiret, jamais un zéro. */
+export const pieceRows = (theatre: Theatre | null): ReadonlyArray<PieceRow> =>
+  PIECES.map((piece) => ({
+    ...piece,
+    readings: Object.fromEntries(
+      troopStats(piece.role, piece.tier, theatre).map((row) => [row.key, row.reading]),
+    ),
+  }));
+
+/** Les colonnes que le mode a : la Blitz ne compte ni crans ni butin, et n'en imprime pas. */
+export const columnsOf = (rows: ReadonlyArray<PieceRow>): ReadonlyArray<TroopStatKey> =>
+  STAT_COLUMNS.filter((key) => rows.some((row) => row.readings[key] !== undefined));
+
+/** La part qu'une lecture prend sur l'échelle, `null` d'une valeur sans échelle. */
+export const shareOfReading = (reading: StatReading | undefined): number | null =>
+  reading !== undefined &&
+  (reading.kind === 'scaled' || reading.kind === 'price' || reading.kind === 'funds')
+    ? reading.share
+    : null;
+
+/** **Classer par une statistique : le meilleur du jeu d'abord** (le plus rapide, le plus fort, le
+ *  moins cher). Ce qui n'a pas d'échelle — un mot, un tiret — passe après, dans l'ordre du jeu. */
+export const rankedBy = (
+  rows: ReadonlyArray<PieceRow>,
+  key: TroopStatKey,
+): ReadonlyArray<PieceRow> =>
+  [...rows].sort(
+    (a, b) => (shareOfReading(b.readings[key]) ?? -1) - (shareOfReading(a.readings[key]) ?? -1),
+  );
+
 /** Une pile se lit sur les échelles des pièces : sa vitesse est celle de son élément le plus
  *  lent, sa vue celle de son meilleur guetteur, son plein le plus petit (`pileSupplies`). */
 export function pileStats(
@@ -331,6 +392,24 @@ export function pileStats(
   return rows;
 }
 
+/** **La pile telle que la vue la sert** : ce qu'elle porte vient de ses troupes et de leur
+ *  cargaison, le rang de son entretien de l'armée entière. */
+export const pileStatsOf = (view: PlayerView, troops: ReadonlyArray<TroopView>) => {
+  const ids = new Set(troops.map((troop) => troop.id));
+  const lootCarried = view.me.stationedCargo
+    .filter((group) => group.troopIds.some((id) => ids.has(id)))
+    .reduce(
+      (sum, group) => sum + RESOURCES.reduce((total, r) => total + (group.cargo.loot[r] ?? 0), 0),
+      0,
+    );
+  return pileStats(troops, {
+    mode: view.mode,
+    theatre: playedTheatre(view),
+    armyTroops: view.me.upkeep.troops,
+    lootCarried,
+  });
+};
+
 const FORMING_BUILDINGS: ReadonlyArray<BuildingKey> = BUILDINGS.filter((key) =>
   ROLE_ORDER.some((role) => projectionKeyOf(role) === key),
 );
@@ -340,28 +419,34 @@ const rolesOf = (pick: (role: UnitRole) => boolean): ReadonlyArray<UnitRole> =>
 
 /**
  * **Un bâtiment, ses chiffres** : l'effet de son niveau, ce qu'il verse, ce qu'il loge, ce que son
- * niveau suivant coûte. `perHour` est le débit que la vue sert pour ce site (le gisement sous lui,
+ * niveau suivant coûte. `production` est le débit que la vue sert pour ce site (le gisement sous lui,
  * la chaîne qu'il tient) : la fiche ne le devine pas.
  */
 export function buildingStats(
   building: Pick<Building, 'key' | 'level' | 'nextLevelCost' | 'nextLevelMinutes' | 'cappedByHq'>,
-  context: { readonly mode: SeasonMode; readonly perHour: number | null },
+  context: {
+    readonly mode: SeasonMode;
+    readonly production: { readonly resource: ResourceKey; readonly perHour: number } | null;
+  },
 ): ReadonlyArray<StatRow<BuildingStatKey>> {
   const { key, level } = building;
   const rows: StatRow<BuildingStatKey>[] = [];
   const add = (stat: BuildingStatKey, reading: StatReading) => rows.push({ key: stat, reading });
-  const ceiling = (value: number, max: number): StatReading => ({
-    kind: 'scaled',
+  const ceiling = (value: number, max: number) => ({
+    kind: 'scaled' as const,
     value,
     share: max === 0 ? 1 : Math.min(1, value / max),
   });
 
   if (speedsUp(key)) add('levelGain', ceiling(levelGain(level), levelGain(MAX_HQ_LEVEL)));
-  if (context.perHour !== null)
-    add(
-      'production',
-      ceiling(context.perHour, Math.max(...Object.values(EXTRACTION_PER_HOUR)) * MAX_HQ_LEVEL),
-    );
+  if (context.production !== null)
+    add('production', {
+      ...ceiling(
+        context.production.perHour,
+        Math.max(...Object.values(EXTRACTION_PER_HOUR)) * MAX_HQ_LEVEL,
+      ),
+      resource: context.production.resource,
+    });
   if (key === 'warehouse' || key === 'depot')
     add('storage', ceiling(STORAGE_CAP_PER_LEVEL * level, STORAGE_CAP_PER_LEVEL * MAX_HQ_LEVEL));
   if (key === 'listening') {
@@ -391,4 +476,45 @@ export function buildingStats(
         : { kind: 'raise', costs: building.nextLevelCost, minutes: building.nextLevelMinutes },
     );
   return rows;
+}
+
+/**
+ * An extractor reads its own site. A chain is served summed over its sites, and its rate is
+ * linear in the level (« deux arsenaux au niveau 1 convertissent ce qu'un au niveau 2 ») — so
+ * a site's share is its level's.
+ */
+function rateOf(
+  building: { readonly key: BuildingKey; readonly regionId: string; readonly level: number },
+  view: PlayerView,
+): { readonly resource: ResourceKey; readonly perHour: number } | null {
+  const site = view.me.extraction.find(
+    (candidate) => candidate.key === building.key && candidate.regionId === building.regionId,
+  );
+  if (site !== undefined)
+    return site.deposit === null
+      ? null
+      : { resource: YIELD_OF[site.deposit], perHour: site.perHour };
+  const chain = view.me.chains.find((candidate) => candidate.by === building.key);
+  if (chain === undefined || chain.level === 0) return null;
+  return { resource: chain.output, perHour: (chain.perHour * building.level) / chain.level };
+}
+
+/** **Un bâtiment à moi tel que la vue le sert** : son niveau suivant, son plafond, et le débit
+ *  que ce site verse. `null` d'un site que la vue ne connaît pas. */
+export function buildingStatsOf(
+  view: PlayerView,
+  site: {
+    readonly id: string;
+    readonly key: BuildingKey;
+    readonly regionId: string;
+    readonly level: number;
+  },
+): ReadonlyArray<StatRow<BuildingStatKey>> | null {
+  const built = view.me.buildings.find((candidate) => candidate.id === site.id);
+  if (built === undefined) return null;
+  const rate = produces(site.key) ? rateOf(site, view) : null;
+  return buildingStats(built, {
+    mode: view.mode,
+    production: rate === null ? null : { resource: rate.resource, perHour: rate.perHour },
+  });
 }

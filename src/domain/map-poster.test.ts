@@ -24,6 +24,7 @@ const me = {
     },
   ],
   stationedCargo: [],
+  upkeep: { troops: 1 },
   buildings: [
     { id: 'b-mine', key: 'mine', regionId: 'r-coal', level: 2, nextLevelMinutes: 60 },
     { id: 'b-arsenal', key: 'arsenal', regionId: 'r-plain', level: 1, nextLevelMinutes: 60 },
@@ -48,7 +49,15 @@ const me = {
 } as unknown as PlayerView['me'];
 
 const view = (override: Partial<PlayerView> = {}): PlayerView =>
-  ({ arcs: [], camps: [], captures: [], loadedAt: LOADED_AT, me, ...override }) as PlayerView;
+  ({
+    mode: 'mondiale',
+    arcs: [],
+    camps: [],
+    captures: [],
+    loadedAt: LOADED_AT,
+    me,
+    ...override,
+  }) as PlayerView;
 
 const building = (
   id: string,
@@ -151,8 +160,12 @@ describe('posterOf', () => {
     const poster = posterFor(view(), [pile], 'pile');
     expect(poster?.title).toBe('Marne · 1');
     expect(poster?.eyebrow).toBe('troupe seule · entamée');
-    expect(poster?.pile?.capacity).toBe(20);
-    expect(posterFor(view({ mode: 'blitz' }), [pile], 'pile')?.pile?.capacity).toBeNull();
+    expect(poster?.stats?.map((row) => row.key)).toEqual(
+      expect.arrayContaining(['pace', 'fuel', 'detection', 'rounds', 'reach', 'loot', 'upkeep']),
+    );
+    expect(
+      posterFor(view({ mode: 'blitz' }), [pile], 'pile')?.stats?.map((row) => row.key),
+    ).toEqual(['pace', 'detection', 'reach']);
     expect(poster?.pile?.lines).toEqual([
       expect.objectContaining({ role: 'infantry', troops: 1, health: 50, notches: 5 }),
     ]);
@@ -276,10 +289,11 @@ describe('posterOf', () => {
   it('gives a producer its rate and says whether its region still carries its colour', () => {
     const mine = posterFor(view(), [building('b-mine', 'mine', 'r-coal')], 'm-b-mine');
     expect(mine).toMatchObject({ eyebrow: 'site · Marne', title: 'Mine, niv. 2', bar: null });
-    expect(mine?.lines).toEqual([
-      { kind: 'row', label: 'charbon', value: '+12 / h' },
-      { kind: 'chip', label: 'réseau', chip: 'relié', tone: 'ok' },
-    ]);
+    expect(mine?.lines).toEqual([{ kind: 'chip', label: 'réseau', chip: 'relié', tone: 'ok' }]);
+    expect(mine?.stats).toContainEqual({
+      key: 'production',
+      reading: expect.objectContaining({ value: 12, resource: 'coal' }),
+    });
 
     // Le seul arsenal de la chaîne tient son débit et son lot, et sa région est coupée.
     const arsenal = posterFor(
@@ -287,7 +301,10 @@ describe('posterOf', () => {
       [building('b-arsenal', 'arsenal', 'r-plain', null, 1)],
       'm-b-arsenal',
     );
-    expect(arsenal?.lines).toContainEqual({ kind: 'row', label: 'munitions', value: '+3 / h' });
+    expect(arsenal?.stats).toContainEqual({
+      key: 'production',
+      reading: expect.objectContaining({ value: 3, resource: 'ammunition' }),
+    });
     expect(arsenal?.lines).toContainEqual({
       kind: 'chip',
       label: 'réseau',
@@ -400,12 +417,39 @@ describe('posterOf', () => {
       pile: null,
       bar: null,
     });
+    expect(poster?.stats ?? null).toBeNull();
     expect(poster?.lines).toEqual([
       { kind: 'text', text: 'composition inconnue, nation inconnue' },
       { kind: 'row', label: 'arrivée estimée', value: `~${asClockTime(LOADED_AT + 30 * 60_000)}` },
       { kind: 'chip', label: 'cap', chip: 'sur nous · estimé', tone: 'cut' },
+      { kind: 'text', text: 'Ce que valent les types du jeu se lit à l’abaque.' },
     ]);
     expect(texts(poster)).not.toMatch(/marche|attaque|raid/);
+  });
+
+  it('names the types of a pierced movement and sends to the gunnery, with no statistic of the piece', () => {
+    const arc = {
+      state: 'enemyDetected',
+      id: 'foe',
+      from: [0, 0],
+      to: [1, 1],
+      route,
+      detector: 'troop',
+      detectorRegion: null,
+      headingDegrees: 90,
+      headingAtMe: false,
+      identification: { pierced: true, type: 'march', stack: { infantry: 2 } },
+      arrivesAt: LOADED_AT + 30 * 60_000,
+      seenTo: LOADED_AT + 10 * 60_000,
+      since: LOADED_AT - 40 * 60_000,
+    } as unknown as ArcView;
+    const poster = posterFor(view({ arcs: [arc] }), [], 'foe');
+    expect(poster?.lines).toContainEqual({
+      kind: 'text',
+      text: 'Les types sont classés à l’abaque.',
+    });
+    expect(poster?.stats ?? null).toBeNull();
+    expect(poster?.pile).toBeNull();
   });
 
   it('dates a last known position and a camp by the hour they were seen', () => {

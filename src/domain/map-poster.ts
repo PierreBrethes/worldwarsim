@@ -1,5 +1,4 @@
-import { pileSupplies, type PileSupplies } from './supplies';
-import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
+import { pileSupplies } from './supplies';
 import { cardName, fr, stackLabel } from '@/i18n/fr';
 import { researchProgressOf, searcherOf } from './research';
 import { incomePerMinute } from './blitz';
@@ -7,12 +6,12 @@ import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
 import { capturingAt, isHqSite, progressAt } from './capture';
 import { asClockTime, asDuration, reloadClock } from './duration';
-import { YIELD_OF, produces } from './economy';
+import { produces } from './economy';
 import { loadingUntilOf } from './loading';
 import { arcProgressAt } from './arc-timing';
-import { carryCapacityOf } from './loot';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
+import { buildingStatsOf, pileStatsOf, type StatRow } from './stat-sheet';
 import type { CargoView, PlayerView, TroopView } from './player-view';
 import { surveyedAt } from './survey-ink';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
@@ -44,15 +43,19 @@ export type Poster = {
   readonly pile: {
     readonly lines: ReadonlyArray<SheetLine>;
     readonly cargo: ReadonlyArray<CargoView>;
-    /** What the pile can carry, empty or not; `null` (or absent, on the landing's table) where
-     *  nothing is carried, as in Blitz. */
-    readonly capacity?: number | null;
   } | null;
-  /** **Coups et plein** de ma pile (ADR 0028 §3), absents en Blitz et ailleurs. */
-  readonly supplies?: PileSupplies | null;
+  /** **Toutes les statistiques de la pièce** (#191), lues sur l'échelle du jeu : seulement pour
+   *  ce qui est à moi. Une force relevée n'en a structurellement pas (brouillard). */
+  readonly stats?: ReadonlyArray<StatRow> | null;
 };
 
-const plain = { washed: false, lines: [], bar: null, loading: null, pile: null } as const;
+const plain = {
+  washed: false,
+  lines: [],
+  bar: null,
+  loading: null,
+  pile: null,
+} as const;
 
 /**
  * **Une capture se lit aussi à l'affiche** (14/10) : sur le site qu'elle vise, chez ses deux
@@ -99,8 +102,8 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         held.some((troop) => troop.strength < troop.nominalStrength),
       ),
       title: natureOf(label),
-      supplies: pileSupplies(held),
       lines: [
+        ...refuelChip(held, now),
         ...waitingChips(held, now),
         ...(mending === 0
           ? []
@@ -118,9 +121,8 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         cargo: view.me.stationedCargo
           .filter((group) => group.troopIds.some((id) => ids.has(id)))
           .map((group) => group.cargo),
-        capacity:
-          view.mode === 'blitz' ? null : Math.floor(carryCapacityOf(held, CARRY_CAPACITY_BY_ROLE)),
       },
+      stats: pileStatsOf(view, held),
     };
   }
   if (label.works !== null && label.works.phase !== 'raising') return worksPoster(label.works, now);
@@ -184,39 +186,69 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
       ]);
     case 'enemyDetected': {
       const known = arc.identification;
-      return sighting(fr.posters.surveyed(asClockTime(arc.since)), fr.posters.moving, [
-        {
-          kind: 'text',
-          text: known.pierced
-            ? fr.posters.pierced(fr.movementTypes[known.type], stackLabel(known.stack))
-            : fr.posters.unknown,
-        },
-        {
-          kind: 'row',
-          label: fr.posters.estimatedArrival,
-          value: fr.posters.estimatedTime(asClockTime(arc.arrivesAt)),
-        },
-        ...(arc.headingAtMe
-          ? [
-              {
-                kind: 'chip',
-                label: fr.posters.heading,
-                chip: fr.posters.headingAtMe,
-                tone: 'cut',
-              } as const,
-            ]
-          : []),
-      ]);
+      return sighting(
+        fr.posters.surveyed(asClockTime(arc.since)),
+        fr.posters.moving,
+        [
+          {
+            kind: 'text',
+            text: known.pierced
+              ? fr.posters.pierced(fr.movementTypes[known.type], stackLabel(known.stack))
+              : fr.posters.unknown,
+          },
+          {
+            kind: 'row',
+            label: fr.posters.estimatedArrival,
+            value: fr.posters.estimatedTime(asClockTime(arc.arrivesAt)),
+          },
+          ...(arc.headingAtMe
+            ? [
+                {
+                  kind: 'chip',
+                  label: fr.posters.heading,
+                  chip: fr.posters.headingAtMe,
+                  tone: 'cut',
+                } as const,
+              ]
+            : []),
+        ],
+        known.pierced,
+      );
     }
     default:
       return null;
   }
 }
 
-function sighting(eyebrow: string, title: string, lines: ReadonlyArray<PosterLine>): Poster {
+function sighting(
+  eyebrow: string,
+  title: string,
+  lines: ReadonlyArray<PosterLine>,
+  pierced = false,
+): Poster {
   // Un camp ne se compose jamais, même percé : la phrase le dit une fois.
   const said = lines.length === 0 ? [{ kind: 'text', text: fr.posters.unknown } as const] : lines;
-  return { ...plain, eyebrow, title, washed: true, lines: said };
+  // Une force relevée n'a aucune statistique de la pièce (brouillard) : elle renvoie à l'abaque,
+  // qui range les types du jeu — ceux qu'un relevé percé nomme, et tous les autres.
+  const toGunnery = {
+    kind: 'text',
+    text: pierced ? fr.stats.foggedPierced : fr.stats.toGunnery,
+  } as const;
+  return { ...plain, eyebrow, title, washed: true, lines: [...said, toGunnery] };
+}
+
+/** **Bakou** : le prochain cran de plein de la pile, quand elle en reprend un hors de toute ancre. */
+function refuelChip(held: ReadonlyArray<TroopView>, now: number): PosterLine[] {
+  const refuelAt = pileSupplies(held)?.fuel?.refuelAt ?? null;
+  return refuelAt === null
+    ? []
+    : [
+        {
+          kind: 'row',
+          label: fr.supplies.fuel,
+          value: `+1 · ${fr.supplies.refuelIn(refuelAt - now)}`,
+        },
+      ];
 }
 
 /** Ce que la pile attend, posée ou en garnison, à la seconde : la plus longue recharge (B19), et
@@ -266,15 +298,6 @@ function buildingPoster(
   let bar: number | null = null;
 
   if (produces(building.key)) {
-    const rate = rateOf(building, view);
-    if (rate !== null)
-      lines.push({
-        kind: 'row',
-        label: fr.resources[rate.resource],
-        value: fr.posters.perHour(
-          rate.perHour.toLocaleString('fr-FR', { maximumFractionDigits: 1 }),
-        ),
-      });
     // Rien n'est dit plutôt qu'un « relié » supposé.
     const linked = view.me.regions.find((region) => region.id === building.regionId)?.linked;
     if (linked !== undefined)
@@ -329,6 +352,7 @@ function buildingPoster(
         : fr.posters.raising(fr.buildings[building.key], building.level, works.level),
     lines,
     bar,
+    stats: buildingStatsOf(view, building),
   };
 }
 
@@ -356,27 +380,6 @@ const left = (dueAt: number, now: number): PosterLine => ({
   label: fr.posters.left,
   value: asDuration((dueAt - now) / 60_000),
 });
-
-/**
- * An extractor reads its own site. A chain is served summed over its sites, and its rate is
- * linear in the level (« deux arsenaux au niveau 1 convertissent ce qu'un au niveau 2 ») — so
- * a site's share is its level's.
- */
-function rateOf(
-  building: NonNullable<MapLabel['building']>,
-  view: PlayerView,
-): { readonly resource: keyof typeof fr.resources; readonly perHour: number } | null {
-  const site = view.me.extraction.find(
-    (candidate) => candidate.key === building.key && candidate.regionId === building.regionId,
-  );
-  if (site !== undefined)
-    return site.deposit === null
-      ? null
-      : { resource: YIELD_OF[site.deposit], perHour: site.perHour };
-  const chain = view.me.chains.find((candidate) => candidate.by === building.key);
-  if (chain === undefined || chain.level === 0) return null;
-  return { resource: chain.output, perHour: (chain.perHour * building.level) / chain.level };
-}
 
 const natureOf = (label: MapLabel): string =>
   label.lines.flatMap((line) => (line.role === 'nature' ? [line.text] : []))[0] ?? '';

@@ -7,7 +7,6 @@ describe('PileSheet', () => {
     const markup = renderToStaticMarkup(
       <PileSheet
         cargo={[]}
-        capacity={40}
         lines={[
           {
             role: 'infantry',
@@ -28,7 +27,7 @@ describe('PileSheet', () => {
     ).toHaveLength(3);
   });
 
-  it('always shows the load, empty or not, and none in Blitz where nothing is carried', () => {
+  it('names what the pile carries, and nothing when it carries nothing', () => {
     const line = {
       role: 'infantry',
       troops: 1,
@@ -37,16 +36,6 @@ describe('PileSheet', () => {
       notches: 10,
       ink: 'ink',
     } as const;
-    const empty = renderToStaticMarkup(<PileSheet cargo={[]} capacity={40} lines={[line]} />);
-    expect(empty).toContain('à vide');
-    expect(empty).toContain('0 / 40');
-    expect(empty).toContain('aucun butin');
-    expect(
-      renderToStaticMarkup(<PileSheet cargo={[]} capacity={null} lines={[line]} />),
-    ).not.toContain('à vide');
-    // fighters, armour: a pile that can never load has no load to show
-    expect(
-      renderToStaticMarkup(<PileSheet cargo={[]} capacity={0} lines={[line]} />),
-    ).not.toContain('à vide');
+    expect(renderToStaticMarkup(<PileSheet cargo={[]} lines={[line]} />)).not.toContain('butin');
   });
 });

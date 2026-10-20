@@ -9,6 +9,8 @@ import { pieceAt } from '@/domain/research';
 import { useClock } from '@/shell/clock';
 import { Stamp } from '@/shell/Stamp';
 import { Price } from '@/shell/Price';
+import { StatLines } from '@/shell/StatLines';
+import { buildingStatsOf } from '@/domain/stat-sheet';
 import { handleError } from '@/data/errors';
 import type { ResourceKey } from '@/emblems/ResourceIcon';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -322,6 +324,7 @@ function Site({
             </div>
 
             <aside className="flex w-full min-w-0 flex-col border-t border-(color:--ink)/35 @4xl:min-h-0 @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
+              <SiteStats view={view} building={building} />
               <div className="shrink-0 border-b border-(color:--ink)/35 px-4 py-[10px]">
                 <span className="eyebrow">{fr.production.queueHeader}</span>
               </div>
@@ -370,6 +373,21 @@ function Site({
         <span className="h-px flex-1 bg-(--ink)/20" />
       </div>
     </>
+  );
+}
+
+/** **Les statistiques du bâtiment** (#191) : ce qu'il verse, ce qu'il loge, ce que son niveau
+ *  suivant coûte, lues sur la vue comme la fiche au survol. */
+function SiteStats({ view, building }: { view: PlayerView; building: Building }) {
+  const rows = buildingStatsOf(view, building);
+  if (rows === null) return null;
+  return (
+    <section className="border-b border-(color:--ink)/35 px-4 py-3">
+      <span className="eyebrow">{fr.stats.siteHeader}</span>
+      <div className="mt-[6px]">
+        <StatLines rows={rows} grouped={false} scale="levels" />
+      </div>
+    </section>
   );
 }
 
@@ -503,6 +521,8 @@ function BlitzSite({
           </div>
         )}
 
+        <SiteStats view={view} building={building} />
+
         {facility !== null && facility.queue.length > 0 && (
           <section className="border-b border-(color:--ink)/35">
             <div className="border-b border-(color:--ink)/35 px-4 py-[9px]">
@@ -593,7 +613,7 @@ function roleTermsOf(entry: GridEntry, tier: UnitTier) {
   };
 }
 
-type SheetTab = 'form' | 'queue' | 'garrison';
+type SheetTab = 'form' | 'queue' | 'garrison' | 'site';
 
 /** Le temps qu'on laisse au cartouche pour se lire, et à son « annuler » pour servir. */
 const RECRUITED_NOTICE_MS = 8_000;
@@ -715,6 +735,7 @@ function NarrowSite({
     form: '',
     queue: String(queue.length),
     garrison: String(held.length),
+    site: '',
   };
   /** Une tête que la famine a laissée sans date n'a pas commencé : elle attend, et se rembourse. */
   const running = queue.filter((batch) => batch.started);
@@ -758,8 +779,8 @@ function NarrowSite({
           </div>
         )}
         <UnderCapture view={view} buildingId={building.id} />
-        <div role="tablist" className="grid h-[40px] grid-cols-3">
-          {(['form', 'queue', 'garrison'] as const).map((id) => (
+        <div role="tablist" className="grid h-[40px] grid-cols-4">
+          {(['form', 'queue', 'garrison', 'site'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -897,6 +918,8 @@ function NarrowSite({
             <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
           </div>
         </>
+      ) : tab === 'site' ? (
+        <SiteStats view={view} building={building} />
       ) : held.length === 0 ? (
         <div className="px-4 pt-7 pb-6">
           <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">

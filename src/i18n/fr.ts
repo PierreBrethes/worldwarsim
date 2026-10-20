@@ -33,6 +33,7 @@ import type { RacePoint } from '../domain/landing';
 import type { StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
+import type { StatKey } from '../domain/stat-sheet';
 import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
 import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
@@ -3316,6 +3317,115 @@ export const fr = {
    * *frappe* est faible. Jamais « DPS », jamais « ratio » — et jamais « tour de combat » : ce
    * que la case chiffre est une **passe de résolution** (`WWS/CONTEXT.md`).
    */
+  /**
+   * **Le bloc de statistiques** (#191) : une ligne par statistique, un nom, une réglette graduée
+   * sur toutes les pièces du jeu, une valeur. Les phrases du survol ne portent aucun chiffre :
+   * les nombres viennent des constantes du jeu (`src/domain/stat-sheet.ts`), jamais d'ici.
+   */
+  stats: {
+    scaleKey: {
+      low: 'le moins',
+      range: 'toutes les pièces',
+      levels: (max: number) => `jusqu’au niveau ${max}`,
+      high: 'le plus',
+    },
+    rubrics: {
+      move: 'mouvement',
+      fight: 'combat',
+      carry: 'transport',
+      form: 'formation',
+      site: 'bâtiment',
+    },
+    names: {
+      strength: 'effectif',
+      pace: 'allure',
+      fuel: 'plein',
+      detection: 'détection',
+      rounds: 'coups',
+      reach: 'portée',
+      reload: 'recharge',
+      seats: 'places',
+      boarding: 'à bord',
+      load: 'charge',
+      loot: 'butin',
+      cost: 'coût',
+      training: 'formation',
+      upkeep: 'entretien',
+      levelGain: 'niveau',
+      production: 'production',
+      storage: 'stock',
+      listening: 'écoute',
+      consumption: 'consomme',
+      protection: 'protection',
+      capture: 'capture',
+      garrison: 'garnison',
+      forms: 'forme',
+      raise: 'niveau suivant',
+    } satisfies Record<StatKey, string>,
+    notes: {
+      strength:
+        'La vie de la troupe : la part de l’abaque se prend sur elle, et une troupe entamée tire au prorata de ce qui lui reste.',
+      pace: 'Le temps d’un mouvement de 1 000 km. Une pile va au pas de son élément le plus lent ; un relais d’avant-poste l’accélère.',
+      fuel: 'Les crans de plein : ce que ses moteurs couvrent encore. Un cran couvre une part de route et se refait à l’ancre.',
+      detection:
+        'Ce que la troupe relève autour d’elle. Une pile voit aussi loin que son meilleur détecteur, jamais la somme.',
+      rounds: 'Les passes de résolution qu’elle peut encore tirer avant de se réarmer.',
+      reach:
+        'Hors artillerie, une troupe ne frappe qu’au contact, le même pour toutes. L’artillerie frappe de loin une unité en vue, sauf dans sa zone morte.',
+      reload: 'Le délai sans attaquer après une frappe ; la riposte ne le déclenche pas.',
+      seats:
+        'Ce qu’il assoit. Une troupe s’assoit dans un seul transport : les places ne s’additionnent pas.',
+      boarding:
+        'Les places qu’elle prend à bord d’un cargo, d’un porte-avions ou d’un transport aérien.',
+      load: 'Ce qu’il emporte en tournée vers les dépôts : munitions, pétrole et charbon, partagés librement.',
+      loot: 'Ce qu’elle rapporte d’un pillage ou d’une caisse, au prorata de son effectif.',
+      cost: 'Payé à la pose du lot, rendu si on l’annule.',
+      training: 'Le temps de la chaîne à la livrer, au niveau du site qui la forme.',
+      upkeep:
+        'Ce que la pile mange par heure : chaque troupe paie le taux de son rang dans l’armée, plus cher hors de toute ancre.',
+      levelGain: 'Chaque niveau retire une part de la durée de ce que le bâtiment fait.',
+      production: 'Ce que le site verse par heure, au niveau où il est.',
+      storage: 'Ce que le niveau ajoute au plafond de chaque ressource.',
+      listening: 'Il entend ce qui bouge dans ce rayon, il n’attrape rien.',
+      consumption: 'Il brûle ce charbon tant qu’il écoute.',
+      protection: 'La part des coups qu’une garnison encaisse : le bâtiment la protège.',
+      capture: 'Le temps qu’une infanterie à plein effectif met à le prendre.',
+      garrison: 'Les troupes qui y entrent en garnison.',
+      forms: 'Les troupes qu’on y forme.',
+      raise:
+        'Le prix et la durée du niveau suivant. Un bâtiment ne passe jamais le niveau du quartier général.',
+    } satisfies Record<StatKey, string>,
+    km: (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`,
+    range: (from: number, to: number) => `${from}–${to} km`,
+    count: (value: number) => value.toLocaleString('fr-FR', { maximumFractionDigits: 1 }),
+    of: (held: number, ceiling: number) => `${held} / ${ceiling}`,
+    crans: (held: number, ceiling: number | undefined) =>
+      ceiling === undefined ? `${held} crans` : `${held} / ${ceiling} crans`,
+    passes: (held: number, ceiling?: number) =>
+      `${ceiling === undefined ? held : `${held} / ${ceiling}`} passe${plural(ceiling ?? held, '', 's')}`,
+    places: (held: number, ceiling?: number) =>
+      `${ceiling === undefined ? held : `${held} / ${ceiling}`} place${plural(ceiling ?? held, '', 's')}`,
+    perHour: (value: string, resource?: ResourceKey) =>
+      `${value}${resource === undefined ? '' : ` ${fr.resources[resource]}`} / h`,
+    foodPerHour: (value: number) => `${value} vivres / h`,
+    coalPerHour: (value: number) => `${value} charbon / h`,
+    percent: (value: number) => `${value} %`,
+    gainOfLevel: (value: number) => `−${value} %`,
+    words: {
+      /** Le contact est le même pour tous : le tableau le dit sans le chiffre (`short`). */
+      contact: (km?: number) => (km === undefined ? 'au contact' : `au contact · ${km} km`),
+      walks: 'marche',
+      noFire: 'ne tire pas',
+      cappedByHq: 'après le quartier général',
+    } satisfies Record<string, string | ((km?: number) => string)>,
+    fogged:
+      'Le relevé ne dit ni force, ni composition, ni nation : aucune statistique de la pièce.',
+    foggedPierced: 'Les types sont classés à l’abaque.',
+    toGunnery: 'Ce que valent les types du jeu se lit à l’abaque.',
+    seeGunnery: 'les types, à l’abaque',
+    siteHeader: 'fiche du site',
+  },
+
   gunnery: {
     header: 'abaque de tir',
     /** Le bouton qui l'ouvre, là où l'information sert : au recrutement, et sur la popin de
@@ -3328,6 +3438,30 @@ export const fr = {
     before: (garrisonDamageTaken: number, blitz: boolean) =>
       `L’attaquant frappe en premier, le défenseur riposte avec ce qui lui reste — au moins un abattu s’il touche ; une garnison n’encaisse que ×${factor(garrisonDamageTaken)} des coups.${blitz ? '' : ' Chaque passe tirée coûte un cran de coups : une troupe à sec n’attaque ni ne riposte.'}`,
     piece: 'la pièce',
+    pieces: 'les pièces',
+    /** **La barre place la pièce entre la pire et la meilleure du jeu**, et un titre trie : la
+     *  seule chose à apprendre, dite une fois. */
+    rankingLead:
+      'La barre place chaque pièce entre la pire et la meilleure du jeu. Touchez un titre de colonne pour classer, la meilleure en haut ; pliez une ligne pour la fiche de la pièce.',
+    rankingLeadPhone:
+      'Choisissez une statistique : les pièces s’alignent en barres, la meilleure en haut. Touchez une ligne pour sa fiche.',
+    sortMenu: 'statistique à classer',
+    sortBy: (name: string) => `classer par : ${name}`,
+    whoBeatsWho: 'qui bat qui',
+    whoBeatsWhoNote: 'part détruite en une passe',
+    /** **L'entretien est le même pour toutes les pièces** : il se lit par rang dans l'armée, pas par
+     *  rôle, donc ici une fois plutôt qu'en colonne. */
+    upkeepNote: (
+      steps: ReadonlyArray<{ readonly rate: number; readonly upTo: number | null }>,
+      unsupplied: number,
+    ) =>
+      `Entretien, le même pour toutes : ${steps
+        .map(({ rate, upTo }) =>
+          upTo === null
+            ? `${rate} vivres/h au-delà`
+            : `${rate} vivres/h jusqu’à la ${upTo}ᵉ troupe`,
+        )
+        .join(', ')}, ×${unsupplied} hors ancre.`,
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
      *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */
     transports: (names: string) =>
@@ -3416,7 +3550,7 @@ export const fr = {
      * sous eux. Ce qu'une carte de recherche tient encore descend dessous avec elle.
      */
     sheet: {
-      tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
+      tabs: { form: 'former', queue: 'file', garrison: 'garnison', site: 'fiche' },
       capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
       siteKicker: (level: number) => `le site · niveau ${level}`,
       formHeader: 'former ici',

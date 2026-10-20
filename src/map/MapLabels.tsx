@@ -706,7 +706,15 @@ export function MapLabels({
           side = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX ? 'below' : 'above';
           const half = place.width / 2 + POSTER_MARGIN_PX;
           x = Math.min(Math.max(under.x + place.shift, half), layerSize.current.width - half);
-          y = side === 'below' ? under.y : top;
+          // Held on screen even if it then covers its label: a pile of three roles, with all its
+          // statistics, is taller than what remains under it.
+          const lowest =
+            layerSize.current.height -
+            place.insetBottom -
+            POSTER_MARGIN_PX -
+            place.height -
+            POSTER_STEM_PX;
+          y = side === 'below' ? Math.min(under.y, lowest) : top;
         }
         for (const each of POSTER_SIDES)
           poster.classList.toggle(`map-poster-anchor--${each}`, each === side);
@@ -1454,8 +1462,11 @@ function PosterLayer({
       shift: drawn ? face.left + face.width / 2 - origin.left : 0,
       width: card?.width ?? 0,
       height: card?.height ?? 0,
+      // The personal board's band covers the map: a tall poster stands above it, not under it.
       insetBottom: Math.max(
-        0,
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--mat-rise'),
+        ) || 0,
         (Number.parseFloat(
           getComputedStyle(document.documentElement).getPropertyValue('--board-bottom'),
         ) || 0) -

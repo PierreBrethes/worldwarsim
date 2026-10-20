@@ -88,7 +88,7 @@ export function LayersGlyph({ size = 19 }: { size?: number }) {
  * Il porte un nom, jamais `aria-hidden` : dans la fiche de l'abaque le libellé ne s'imprime plus,
  * donc le dessin *est* le nom de la donnée — le cacher au lecteur d'écran laisserait « 18 » nu.
  */
-function SolidGlyph({
+export function SolidGlyph({
   children,
   size,
   label,
