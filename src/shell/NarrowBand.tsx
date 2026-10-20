@@ -83,8 +83,8 @@ export function NarrowBand({
               halifaxNoteOf(me.slots),
             )}
           >
-            {/* Under 380 px the count alone: the edition keeps the room (Halifax's sentence stays in the title). */}
-            <span className="flex max-[380px]:hidden">
+            {/* Under 420 px the count alone: the edition keeps the room (Halifax's sentence stays in the title). */}
+            <span className="flex max-[420px]:hidden">
               <SlotBoxes used={me.slots.used} total={me.slots.total} />
             </span>
             <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">

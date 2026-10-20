@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
+import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { FootBar, FootContext, type Foot } from './foot';
 
@@ -41,5 +42,25 @@ describe('the Blitz foot bar', () => {
 
     unmount();
     expect(claim).toHaveBeenLastCalledWith(null);
+  });
+
+  it('stands in for the personal board in a Mondiale: the five reserves, the dry alert, the key', () => {
+    const resources = Object.fromEntries(
+      RESOURCES.map((key) => [key, { stock: key === 'oil' ? 0 : 40, ratePerHour: 0, cap: 400 }]),
+    );
+    const mondiale = {
+      loadedAt: Date.now(),
+      me: { funds: null, chains: [], resources },
+    } as unknown as PlayerView;
+    const foot: Foot = { key: <button type="button">la clé</button>, claim: vi.fn() };
+    render(
+      <FootContext.Provider value={foot}>
+        <FootBar view={mondiale} />
+      </FootContext.Provider>,
+    );
+
+    expect(document.querySelectorAll('[data-bin]')).toHaveLength(RESOURCES.length);
+    expect(screen.getByText(fr.resourceBand.dry)).toBeTruthy();
+    expect(screen.getByText('la clé')).toBeTruthy();
   });
 });
