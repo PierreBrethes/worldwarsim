@@ -21,8 +21,7 @@ describe('buildNearSheet', () => {
     expect(sheet.lines.near.attributes.position!.array.length).toBeGreaterThan(
       sheet.lines.far.attributes.position!.array.length,
     );
-    expect(sheet.terrain.washes.near.index!.length).toBeGreaterThan(0);
-    expect(sheet.terrain.types).toBeNull();
+    expect(sheet.types).toBeNull();
     expect(() => structuredClone(sheet, { transfer: buffersOf(sheet) })).not.toThrow();
   });
 });

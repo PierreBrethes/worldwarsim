@@ -374,7 +374,7 @@ export class MapEngine {
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
    *  and the eye comes close enough to tell them apart (`levelAt`, ADR 0034); the region lines
-   *  and the terrain's wash follow. */
+   *  follow. */
   private readonly sheet: CountrySheet;
   private readonly farLevel: SheetLevel;
   private nearLevel: SheetLevel | null = null;
@@ -1038,11 +1038,7 @@ export class MapEngine {
       far: fromGeometryData(sheet.lines.far),
       near: fromGeometryData(sheet.lines.near),
     });
-    if (sheet.terrain.types !== null)
-      this.drawings.display(sheet.terrain.types, {
-        far: fromGeometryData(sheet.terrain.washes.far),
-        near: fromGeometryData(sheet.terrain.washes.near),
-      });
+    if (sheet.types !== null) this.drawings.display(sheet.types);
   }
 
   /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
@@ -2729,7 +2725,6 @@ export class MapEngine {
       this.detail = detail;
       showLevel(this.sheet, detail === 'near' ? this.nearLevel! : this.farLevel);
       this.regions.showLines(detail);
-      this.drawings.showWash(detail);
     }
 
     this.renderer.render(this.scene, this.eye);

@@ -36,7 +36,7 @@ export type NearAtlas = { readonly atlas: Atlas; readonly sheet: NearSheet };
 export const loadNearAtlas = once(async (): Promise<NearAtlas> => {
   const [file, sheet] = await Promise.all([farFile(), nearSheet()]);
   const atlas = decodeAtlas(file, sheet.arcs);
-  if (sheet.terrain.types !== null) return { atlas, sheet };
+  if (sheet.types !== null) return { atlas, sheet };
   // No `OffscreenCanvas` in the worker: the type map is painted here, once per tab.
   const massifs = atlas.shapes(drawnOf(await loadRegionTypes()), 'far');
   const types = typeTexels(
@@ -44,7 +44,7 @@ export const loadNearAtlas = once(async (): Promise<NearAtlas> => {
     new WorldFrame(projection as unknown as Projection),
     pageCanvas,
   );
-  return { atlas, sheet: { ...sheet, terrain: { ...sheet.terrain, types } } };
+  return { atlas, sheet: { ...sheet, types } };
 });
 
 function nearSheet(): Promise<NearSheet> {
