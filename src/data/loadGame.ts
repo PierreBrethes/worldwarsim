@@ -1,4 +1,6 @@
 import type { Atlas } from '@/domain/atlas';
+import { PROJECTION } from '@/map/engine/frame';
+import { loadShore, type Shore } from '@/map/engine/sea';
 import { loadAtlas } from './atlas';
 import { convexClient } from './convexClient';
 import { readSeat, type Seat } from './session';
@@ -10,10 +12,13 @@ import { readSeat, type Seat } from './session';
  * once over the subscription, cost a second round trip to serve a value that was replaced
  * immediately.
  */
-export type GameEntry = { state: 'active'; atlas: Atlas; seat: Seat } | { state: 'none' };
+export type GameEntry =
+  { state: 'active'; atlas: Atlas; shore: Shore; seat: Seat } | { state: 'none' };
 
 export async function loadGame(): Promise<GameEntry> {
   const seat = readSeat();
   if (!seat || !convexClient) return { state: 'none' };
-  return { state: 'active', atlas: await loadAtlas(), seat };
+  /** La grille vient avec l'atlas : sans elle, la visée lirait toute la terre comme de la mer. */
+  const [atlas, shore] = await Promise.all([loadAtlas(), loadShore(PROJECTION)]);
+  return { state: 'active', atlas, shore, seat };
 }

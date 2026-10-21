@@ -47,6 +47,7 @@ import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
+import type { Shore } from '@/map/engine/sea';
 import { type HoveredRegion } from '@/domain/world';
 import {
   compassOf,
@@ -290,7 +291,7 @@ function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
 function Board() {
   const entry = Route.useLoaderData();
   if (entry.state === 'none') return <NoGame />;
-  return <LiveBoard atlas={entry.atlas} seat={entry.seat} />;
+  return <LiveBoard atlas={entry.atlas} shore={entry.shore} seat={entry.seat} />;
 }
 
 function NoGame() {
@@ -317,7 +318,7 @@ function NoGame() {
   );
 }
 
-function LiveBoard({ atlas, seat }: { atlas: Atlas; seat: Seat }) {
+function LiveBoard({ atlas, shore, seat }: { atlas: Atlas; shore: Shore; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
@@ -340,12 +341,22 @@ function LiveBoard({ atlas, seat }: { atlas: Atlas; seat: Seat }) {
           {fr.board.linkLost}
         </div>
       )}
-      <BoardContent atlas={atlas} view={view} seat={seat} />
+      <BoardContent atlas={atlas} shore={shore} view={view} seat={seat} />
     </>
   );
 }
 
-function BoardContent({ atlas, view, seat }: { atlas: Atlas; view: PlayerView; seat: Seat }) {
+function BoardContent({
+  atlas,
+  shore,
+  view,
+  seat,
+}: {
+  atlas: Atlas;
+  shore: Shore;
+  view: PlayerView;
+  seat: Seat;
+}) {
   const { country, windows = [], building: focused, report } = Route.useSearch();
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
@@ -2247,6 +2258,7 @@ function BoardContent({ atlas, view, seat }: { atlas: Atlas; view: PlayerView; s
               <WorldMap
                 blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
                 atlas={atlas}
+                shore={shore}
                 arcs={view.arcs}
                 troops={view.me.troops}
                 journal={view.journal}

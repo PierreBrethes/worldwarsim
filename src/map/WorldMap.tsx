@@ -24,6 +24,7 @@ import {
 import type { LonLat } from '@/domain/geo';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
+import type { Shore } from './engine/sea';
 import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
@@ -96,6 +97,8 @@ import {
 type Props = {
   /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
   atlas: Atlas;
+  /** La grille de routage, chargée avec l'atlas : la visée la lit dès le premier clic. */
+  shore: Shore;
   arcs: ReadonlyArray<ArcView>;
   /** My troops: a movement's wear is read on them, the arc does not carry strength. */
   troops: ReadonlyArray<TroopView>;
@@ -341,6 +344,7 @@ const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
   atlas,
+  shore,
   arcs,
   troops,
   journal,
@@ -452,7 +456,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (!container.current) return;
-    const instance = new MapEngine(container.current, atlas);
+    const instance = new MapEngine(container.current, atlas, shore);
     engine.current = instance;
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
@@ -490,7 +494,7 @@ export function WorldMap({
       engine.current = null;
       setReadyEngine(null);
     };
-  }, [atlas]);
+  }, [atlas, shore]);
 
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;

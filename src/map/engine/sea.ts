@@ -347,12 +347,13 @@ export class SeaLayer implements AmbientLayer {
   }
 }
 
-type Shore = { readonly grid: RouteGrid; readonly bytes: Uint8Array<ArrayBuffer> };
-let shoreField: Promise<Shore | null> | null = null;
+export type Shore = { readonly grid: RouteGrid; readonly bytes: Uint8Array<ArrayBuffer> };
+let shoreField: Promise<Shore> | null = null;
 
 /** One download and one transform per page, whatever the engines: a remounted board reuses them.
- *  Without the grid there is simply no surf — the sea is not worth an error. */
-export function loadShore(projection: Projection, url = '/grid.json'): Promise<Shore | null> {
+ *  A failure is forgotten, so the next load tries afresh: without the grid the land would read
+ *  as sea, which is worth an error. */
+export function loadShore(projection: Projection, url = '/grid.json'): Promise<Shore> {
   shoreField ??= fetch(url)
     .then((response) => {
       if (!response.ok) throw new Error(`grid not found: ${url}`);
@@ -363,9 +364,9 @@ export function loadShore(projection: Projection, url = '/grid.json'): Promise<S
       const distance = distanceToLand(landMaskOf(grid), grid.width, grid.height);
       return { grid, bytes: coastBytes(distance, grid.width) };
     })
-    .catch((): null => {
+    .catch((error: unknown) => {
       shoreField = null;
-      return null;
+      throw error;
     });
   return shoreField;
 }

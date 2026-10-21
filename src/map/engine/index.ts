@@ -98,7 +98,7 @@ import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
-import { loadShore, SeaLayer } from './sea';
+import { SeaLayer, type Shore } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
 import {
   StandingLayer,
@@ -407,11 +407,11 @@ export class MapEngine {
   private readonly ghost: PlacingGhost;
   private placingRefused = false;
   /**
-   * The routing grid, `grid.json` decoded after the board: the raster the server routes and
-   * refuses on (`convex/routes.ts`), read off the same atlas. `null` until it lands: no quay to
-   * leap to, no coast, no land.
+   * The routing grid, `grid.json` loaded with the atlas (`loadGame`): the raster the server
+   * routes and refuses on (`convex/routes.ts`). Here from the constructor on, so the land never
+   * reads as sea while it downloads.
    */
-  private routeGrid: RouteGrid | null = null;
+  private readonly routeGrid: RouteGrid;
   private screenWidth = 1;
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -542,7 +542,9 @@ export class MapEngine {
   constructor(
     private readonly container: HTMLElement,
     atlas: Atlas,
+    shore: Shore,
   ) {
+    this.routeGrid = shore.grid;
     this.frame = new WorldFrame(PROJECTION);
     this.tourInk = new TourInk(this.frame);
 
@@ -607,14 +609,7 @@ export class MapEngine {
       this.sea,
     );
     if (this.sea) this.ambience.add(this.sea);
-    // The server's own raster (`grid.json`): the quay the ghost leaps to is the one it accepts.
-    void loadShore(PROJECTION).then((shore) => {
-      if (shore === null) return;
-      this.routeGrid = shore.grid;
-      this.sea?.shore(this.frame, shore);
-      if (this.veil.needsGround) this.veil.ground(shore.grid, this.frame);
-      this.invalidate();
-    });
+    this.sea?.shore(this.frame, shore);
     this.surface = board.surface;
     this.night = new NightSky(this.scene, this.frame, this.sea, board.surface.geometry);
     this.halos = new Halos();
@@ -643,9 +638,7 @@ export class MapEngine {
       this.ambience.add(
         new RibbonLayer(this.scene, this.eye, this.renderer, this.frame, {
           ...CURRENT_RIBBONS,
-          // Until the surf's grid lands, no current is born: building it here would cost a
-          // second copy of the same raster on the first ambient step.
-          afloat: (lonLat) => this.routeGrid !== null && !this.landAt(lonLat),
+          afloat: (lonLat) => !this.landAt(lonLat),
         }),
       );
     }
@@ -903,8 +896,7 @@ export class MapEngine {
       this.onCarryEnd?.();
     }
     this.veil.show(held?.forbidden ?? null, performance.now());
-    if (this.veil.needsGround && this.routeGrid !== null)
-      this.veil.ground(this.routeGrid, this.frame);
+    if (this.veil.needsGround) this.veil.ground(this.routeGrid, this.frame);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     if (held === null) this.carryOver = null;
@@ -2230,7 +2222,6 @@ export class MapEngine {
   private snapFor(magnet: PlacingMagnet, pointer: LonLat): LonLat {
     if (magnet.kind === 'free') return pointer;
     if (magnet.kind === 'points') return snapTo(pointer, magnet.points);
-    if (this.routeGrid === null) return pointer;
     const at = this.frame.projectLonLat(pointer);
     const [x, y] = [at.x + this.frame.centerX, at.z + this.frame.centerY];
     const reach = PLACING_SNAP_KM / KM_PER_UNIT;
@@ -2252,7 +2243,7 @@ export class MapEngine {
    * question et se garde ensuite, comme pour la pose d'un port.
    */
   coastAt(lonLat: LonLat): boolean {
-    return this.routeGrid !== null && isCoastCell(this.routeGrid, lonLat);
+    return isCoastCell(this.routeGrid, lonLat);
   }
 
   landAt(lonLat: LonLat): boolean {
@@ -2261,7 +2252,7 @@ export class MapEngine {
 
   /** Terre, mer ou lac, sur la grille que le serveur lit avec `groundAtPoint`. */
   groundAt(lonLat: LonLat): Ground {
-    return this.routeGrid === null ? 'sea' : groundAt(this.routeGrid, lonLat);
+    return groundAt(this.routeGrid, lonLat);
   }
 
   /**
