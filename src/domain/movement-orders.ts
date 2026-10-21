@@ -5,7 +5,7 @@ import { produces } from './economy';
 import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
 import { slotCardsOf } from './research';
-import type { RouteMode } from './routing';
+import type { Ground, RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
 import type { UnitDomain } from './troops';
 import {
@@ -59,7 +59,7 @@ export type MovementAim =
        * était une cible qu'aucune flotte ne pouvait viser — `SEA_TARGET_REQUIRED` sur une
        * position qui *est* de la mer — donc la règle 4 n'avait aucune passe où s'appliquer.
        */
-      readonly onLand: boolean;
+      readonly ground: Ground;
       readonly coastal: boolean;
     }
   /**
@@ -109,8 +109,9 @@ export type MovementAim =
       readonly kind: 'point';
       readonly lon: number;
       readonly lat: number;
-      /** Read on the routing grid, so an offshore click cannot become a walk on another coast. */
-      readonly onLand: boolean;
+      /** Read on the routing grid (`groundAt`), so an offshore click cannot become a walk on
+       *  another coast, nor a lake a sea. */
+      readonly ground: Ground;
       /**
        * **Le sol porte-t-il quelque chose que j'ai relevé ?** (ADR 0024 §4) — une installation
        * adverse relevée. C'est ce qui ouvre « attaquer » sur du sol, et rien d'autre : on
@@ -154,7 +155,7 @@ export type MovementAim =
       readonly lon: number;
       readonly lat: number;
       readonly hostCountry: string;
-      readonly onLand: boolean;
+      readonly ground: Ground;
       readonly coastal: boolean;
     };
 
@@ -175,7 +176,7 @@ export type Column = {
   readonly departureBuildings: ReadonlySet<BuildingKey>;
   /**
    * **Whether the column is already in the water it would be asked to embark on.** Read off the
-   * departure point and nowhere else, **on the routing grid** — the same cell the aim's `onLand`
+   * departure point and nowhere else, **on the routing grid** — the same cell the aim's `ground`
    * was read on, so a point the fan accepted as water is water when the column leaves it again.
    * It was read off the polygon (`hostAtPoint === ''`) until 09/09, and the two geometries
    * disagree on every shore narrower than half a cell: a hull sent there sailed in and never
@@ -222,6 +223,9 @@ export type OrderRefusal =
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
   | 'SEA_TARGET_REQUIRED'
+  /** **Un lac n'est ni la terre ni le large** (ADR 0034) : aucune coque n'en part, aucune botte
+   *  ne s'y pose. Sans ce mot, la règle le prenait pour la mer et la route le refusait ensuite. */
+  | 'LAKE_TARGET'
   /**
    * **Une pile en mer part par sa coque, ou elle ne part pas** (règle 3 du 18/09). Depuis que
    * rester en mer est un ordre, une troupe terrestre peut avoir une adresse sur l'eau et plus
@@ -684,6 +688,7 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
     !(aim.kind === 'building' && aim.key === PROJECTION_BY_DOMAIN.air)
   )
     return 'AIRFIELD_TARGET_REQUIRED';
+  if (mode !== 'air' && onLake(aim)) return 'LAKE_TARGET';
   if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
   if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
   return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
@@ -695,8 +700,10 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
  * avant-poste et un mât sont sur la terre par construction — et c'est ce qui laisse les deux
  * modes de mer le lire du même mot.
  */
-const atSea = (aim: MovementAim): boolean =>
-  (aim.kind === 'point' || aim.kind === 'camp' || aim.kind === 'track') && !aim.onLand;
+const groundOf = (aim: MovementAim): Ground =>
+  aim.kind === 'point' || aim.kind === 'camp' || aim.kind === 'track' ? aim.ground : 'land';
+const atSea = (aim: MovementAim): boolean => groundOf(aim) === 'sea';
+const onLake = (aim: MovementAim): boolean => groundOf(aim) === 'lake';
 
 /** Ce qu'une visée porte de coordonnées ; un mât, une région et un point d'appui n'en portent pas. */
 const pointOfAim = (aim: MovementAim): readonly [number, number] | null =>

@@ -13,9 +13,9 @@ import { fail } from './errors';
  * since decision 65a: the ground is public, and one file says it to both ends —
  * `region-index.json` names it, says which country it belongs to, whether it
  * touches the sea, and **where it stands** — one lon/lat point per region, the pole of
- * inaccessibility of its largest ring. Placement never loads `regions.json`: its 2.5 MB of
- * contours only enter the separate plunder return crossing module, where the exact admin-1
- * boundary is the rule rather than a proximity check.
+ * inaccessibility of its largest ring. Placement never loads a contour: the exact admin-1 boundary
+ * is the rule only where the plunder return crosses a border, and that module reads the baked
+ * region raster.
  *
  * The point is what makes a region a place rather than a name: an outpost's reach is measured
  * in kilometres from it (ADR 0015), and a land movement leaves from the point of the region
@@ -257,7 +257,7 @@ const lonLatOf = (point: { readonly lon: number; readonly lat: number }): LonLat
 ];
 
 /**
- * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges
+ * **The board names a country in English, every rule keys on its `adm0_a3`, and this bridges
  * the two — for the eight playable nations only.** It answers the empty string everywhere else,
  * which is why it must never be asked about a point: a point in Arabia is not a point in no
  * country. `hostAtPoint` in `routes.ts` is the function for that, and it reads the code off the

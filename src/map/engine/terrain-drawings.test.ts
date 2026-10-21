@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
-import { codesFromMasks, depthsFromCodes, terrainCode } from './terrain-drawings';
+import { codesFromMasks, depthsFromCodes, terrainCode, texelsOf } from './terrain-drawings';
 
 describe('terrainCode', () => {
   it('leaves the plain bare and gives each drawn type its own code', () => {
@@ -40,5 +40,28 @@ describe('depthsFromCodes', () => {
   it('measures a diagonal at its length, not in steps', () => {
     const codes = [0, 40, 40, 40, 40, 40, 40, 40, 40];
     expect(depthsFromCodes(codes, 3, 3)[8]).toBeCloseTo(2 * Math.SQRT2, 5);
+  });
+});
+
+describe('texelsOf', () => {
+  // A forest, then a mountain, then twelve plain cells: one massif of two types.
+  const codes = new Uint8Array([40, 40, 40, 120, 120, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const texels = texelsOf(codes, codes.length, 1);
+  const red = [...texels].filter((_, i) => i % 2 === 0);
+  const green = [...texels].filter((_, i) => i % 2 === 1);
+
+  it('keeps each code, and tells how many cells away another code is', () => {
+    expect(red.map((byte) => Math.round(byte / 40) * 40)).toEqual([...codes]);
+    expect(red.map((byte, i) => byte - codes[i]!)).toEqual([
+      3, 2, 1, 1, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
+  });
+
+  it('gives the massif one depth across its types, above the plain and falling all the way', () => {
+    const steps = green.slice(1).map((byte, i) => byte - green[i]!);
+    expect(steps.slice(2).every((step) => step < 0)).toBe(true);
+    expect(green[2]).toBeGreaterThan(green[5]!);
+    expect(green[5]).toBeGreaterThan(128);
+    expect(green[6]).toBeLessThan(128);
   });
 });

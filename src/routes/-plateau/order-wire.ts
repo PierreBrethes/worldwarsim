@@ -272,7 +272,7 @@ export function choiceOf(action: OrderAction): OrderChoice {
           kind: 'point',
           lon: action.point[0],
           lat: action.point[1],
-          onLand: true,
+          ground: 'land',
           coastal: false,
           surveyed: false,
         },

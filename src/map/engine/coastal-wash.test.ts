@@ -1,31 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import type { World } from '@/domain/world';
-import { buildCoastalWash } from './coastal-wash';
-import { WorldFrame } from './frame';
+import { washGeometry } from './coastal-wash';
 
-/** A square of land whose north coast is cut by a bay narrower than the coarsening step. */
-const bayed = [
-  [200, 104],
-  [204, 104],
-  [204, 108],
-  [202.1, 108],
-  [202, 107.8],
-  [201.9, 108],
-  [200, 108],
-] as const;
-
-const world = {
-  sphere: { minX: 0, maxX: 400, minY: 0, maxY: 208 },
-  outline: [],
-  countries: [
-    { name: 'T', adm0: 'T', representativePoint: [202, 106], lonLat: [0, 0], rings: [bayed] },
-  ],
-} as unknown as World;
+/** A square of land whose north coast is cut by a bay narrower than the coarsening step, and
+ *  with a lake at its heart. */
+const bayed = Float32Array.of(
+  200,
+  104,
+  204,
+  104,
+  204,
+  108,
+  202.1,
+  108,
+  202,
+  107.8,
+  201.9,
+  108,
+  200,
+  108,
+);
+const lake = Float32Array.of(201.5, 105.5, 201.5, 106.5, 202.5, 106.5, 202.5, 105.5);
+const frame = { centerX: 200, centerY: 104 } as const;
 
 /** The wash's ink at a point of the sea, read off its triangles; 0 where no triangle lies. */
 function inkAt(x: number, y: number): number {
-  const frame = new WorldFrame(world);
-  const geometry = buildCoastalWash(world, frame).geometry;
+  const geometry = washGeometry([{ outer: bayed, holes: [lake] }], frame);
   const position = geometry.getAttribute('position');
   const color = geometry.getAttribute('color');
   const index = geometry.getIndex()!;
@@ -56,6 +55,10 @@ describe('the coastal wash', () => {
    */
   it('inks the water of a bay the coarsened trace cuts across', () => {
     expect(inkAt(202, 107.95)).toBeGreaterThan(0.1);
+  });
+
+  it('turns into a lake, onto its water', () => {
+    expect(inkAt(201.6, 106)).toBeGreaterThan(0.1);
   });
 
   it('still fades out to sea', () => {

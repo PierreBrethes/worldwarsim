@@ -132,7 +132,14 @@ describe('a capture on the poster', () => {
     };
     const held = {
       ...pile,
-      station: { kind: 'point', lonLat: [0, 0], country: 'FRA', afloat: false, coastal: false },
+      station: {
+        kind: 'point',
+        lonLat: [0, 0],
+        country: 'FRA',
+        afloat: false,
+        ground: 'land',
+        coastal: false,
+      },
     } as MapMarker;
     const troops = [{ ...me.troops[0]!, stationedAt: (held as { station: unknown }).station }];
     const poster = posterFor(

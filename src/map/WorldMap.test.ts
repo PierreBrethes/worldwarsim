@@ -33,7 +33,7 @@ describe('targetOfLabel', () => {
       'FRA',
       null,
       () => false,
-      () => true,
+      () => 'land',
     );
 
     expect(target).toMatchObject({ kind: 'outpost', id: 'o1' });

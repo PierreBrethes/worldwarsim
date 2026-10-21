@@ -888,6 +888,8 @@ export const fr = {
     LAND_TARGET_REQUIRED: () =>
       'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
     SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
+    /** Le lac se dit pour ce qu'il est : ni la terre d'une botte, ni le large d'une coque. */
+    LAKE_TARGET: () => 'un lac ne se navigue pas et ne se foule pas — visez la terre ou la mer',
     /** The stack's footer prints this **before** the aim, not after the refusal: it says how
      *  many berths are short, because "il manque du transport" leaves the player counting — or,
      *  berths enough but scattered, that a troop sits in one transport only (ADR 0025 §2). */
@@ -1036,7 +1038,7 @@ export const fr = {
     sources: [
       {
         name: 'Natural Earth',
-        use: 'Littoraux (via le paquet world-atlas, ISC), frontières et régions admin-1 de la carte.',
+        use: 'Littoraux, frontières et régions admin-1 de la carte.',
         licence: 'Domaine public.',
         attribution:
           'Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.',
@@ -4307,6 +4309,7 @@ export const fr = {
     neutralHeld: 'pays neutre · avant-poste tenu',
     neutralFree: 'pays neutre · sans avant-poste',
     openWater: 'haute mer',
+    lake: 'lac',
     myTerritory: 'mon territoire',
     enemyNation: 'nation adverse',
     outpostAt: (name: string) => `avant-poste · ${name}`,

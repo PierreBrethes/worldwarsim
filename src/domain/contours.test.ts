@@ -1,60 +1,91 @@
 import { describe, expect, it } from 'vitest';
+import { decodeAtlas, type AtlasFile } from './atlas';
 import { contourLines } from './contours';
 
-// Two unit squares side by side, sharing the edge x = 1 (y down, as in `world.json`).
-const west = {
-  id: 'W',
-  rings: [
+/**
+ * Two unit squares side by side, W and E, sharing the arc x = 1; the sea all round.
+ *
+ *   (0,1)───(1,1)───(2,1)
+ *     │  W    │   E   │
+ *   (0,0)───(1,0)───(2,0)
+ */
+const FILE: AtlasFile = {
+  type: 'Topology',
+  transform: { scale: [1, 1], translate: [0, 0] },
+  objects: {
+    regions: {
+      type: 'GeometryCollection',
+      geometries: [
+        { type: 'Polygon', arcs: [[0, 1]], id: 'W', properties: { country: 'X', name: 'W' } },
+        { type: 'Polygon', arcs: [[~0, 2]], id: 'E', properties: { country: 'X', name: 'E' } },
+      ],
+    },
+  },
+  // Absolute points, written as deltas.
+  arcs: [
     [
-      [0, 0],
       [1, 0],
-      [1, 1],
       [0, 1],
-      [0, 0],
-    ] as const,
-  ],
-};
-const east = {
-  id: 'E',
-  rings: [
+    ],
+    [
+      [1, 1],
+      [-1, 0],
+      [0, -1],
+      [1, 0],
+    ],
     [
       [1, 0],
-      [2, 0],
-      [2, 1],
-      [1, 1],
       [1, 0],
-    ] as const,
+      [0, 1],
+      [-1, 0],
+    ],
   ],
 };
+const atlas = decodeAtlas(FILE);
+const area = (line: Float32Array) => {
+  let sum = 0;
+  for (let i = 2; i < line.length; i += 2)
+    sum += line[i - 2]! * line[i + 1]! - line[i]! * line[i - 1]!;
+  return sum / 2;
+};
+const points = (line: Float32Array) => line.length / 2;
 
 describe('contourLines', () => {
-  it('draws one closed loop round a territory, and a thin line between its own regions', () => {
-    const { outlines, inner } = contourLines([west, east], () => 'fr');
+  it('draws one closed loop on the coast round a territory, and a thin line between its own regions', () => {
+    const { outlines, inner } = contourLines(atlas, () => 'fr', 'far');
     const loops = outlines.get('fr')!;
     expect(loops).toHaveLength(1);
-    expect(loops[0]).toHaveLength(7);
-    expect(loops[0]![0]).toEqual(loops[0]!.at(-1));
+    expect(loops[0]!.inset).toBe(false);
+    expect(points(loops[0]!.points)).toBe(7);
+    expect(loops[0]!.points.slice(0, 2)).toEqual(loops[0]!.points.slice(-2));
     expect(inner).toHaveLength(1);
   });
 
-  it('gives each of two nations its own line along their border', () => {
-    const { outlines, inner } = contourLines([west, east], (id) => id);
-    expect(outlines.get('W')!.flat()).toHaveLength(5);
-    expect(outlines.get('E')!.flat()).toHaveLength(5);
+  it('keeps two neighbouring territories side by side on their shared border, each set back at home', () => {
+    const { outlines, inner } = contourLines(atlas, (id) => id, 'far');
+    for (const territory of ['W', 'E']) {
+      const shared = outlines.get(territory)!.filter(({ inset }) => inset);
+      expect(shared).toHaveLength(1);
+      expect(points(shared[0]!.points)).toBe(2);
+      expect(outlines.get(territory)!.filter(({ inset }) => !inset)).toHaveLength(1);
+    }
     expect(inner).toHaveLength(0);
   });
 
-  it('keeps every territory turning the same way, whichever way its rings were baked', () => {
-    const reversed = { id: 'E', rings: [[...east.rings[0]!].reverse()] };
-    const area = (loop: ReadonlyArray<readonly [number, number]>) =>
-      loop.slice(1).reduce((sum, [x, y], i) => sum + loop[i]![0] * y - x * loop[i]![1], 0);
-    const { outlines } = contourLines([west, reversed], (id) => id);
-    expect(Math.sign(area(outlines.get('E')![0]!))).toBe(Math.sign(area(outlines.get('W')![0]!)));
+  it('lays the line on the border itself where the other side is held by no one', () => {
+    const { outlines } = contourLines(atlas, (id) => (id === 'W' ? 'fr' : undefined), 'far');
+    expect([...outlines.keys()]).toEqual(['fr']);
+    expect(outlines.get('fr')!.map(({ inset, points: line }) => [inset, points(line)])).toEqual([
+      [false, 5],
+    ]);
   });
 
-  it('leaves a region out of every territory without a line', () => {
-    const { outlines } = contourLines([west, east], (id) => (id === 'W' ? 'fr' : undefined));
-    expect([...outlines.keys()]).toEqual(['fr']);
-    expect(outlines.get('fr')![0]).toHaveLength(5);
+  it('keeps the inside of every territory on the left, so all the dashes turn one way', () => {
+    const { outlines } = contourLines(atlas, (id) => id, 'far');
+    // Each territory's lines, laid end to end, close round it: the sign of their area is its side.
+    const sides = ['W', 'E'].map((territory) =>
+      Math.sign(outlines.get(territory)!.reduce((sum, { points: line }) => sum + area(line), 0)),
+    );
+    expect(sides).toEqual([1, 1]);
   });
 });

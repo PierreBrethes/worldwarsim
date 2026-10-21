@@ -1,7 +1,7 @@
 # ADR 0033 — La carte sans aplat
 
-**Statut :** acceptée (21/10/2026, #196, lot 3 de la refonte de la carte #193) — **révise
-l'ADR 0020** sur le rendu de la couleur (§1 « qui tient quoi » en aplat, §5 « un relevé ancien est
+**Statut :** acceptée (21/10/2026, #196, lot 3 de la refonte de la carte #193), §2 amendé le
+21/10/2026 (#217) — **révise l'ADR 0020** sur le rendu de la couleur (§1 « qui tient quoi » en aplat, §5 « un relevé ancien est
 délavé »). La règle de la couleur ne change pas : `heldRegions`, `knownRegions` et `control.held`
 calculent la même chose, seul leur dessin change.
 
@@ -95,3 +95,21 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
 - **Les encres s'éclaircissent la nuit** (contours, #196) pour rester lisibles ; les fins traits
   gris s'assombrissent avec la carte. Les dessins de terrain (#197) restent visibles, sous la même
   lumière que la feuille.
+
+## Amendée le 21/10/2026 (#217) : le contour posé sur la frontière face au vide
+
+Décision de Pierre, prise sur l'enquête de #209 : le contour était dessiné partout en retrait de
+1,5 à 6 px chez son territoire, sur les anneaux de `regions.json` (Natural Earth 10m simplifié à
+6 %) alors que la côte et l'encre venaient de `world.json` (50m). Au zoom le plus proche, cela
+faisait 4 à 15 px d'écart sur terre et plus de 100 px sur une côte découpée.
+
+- **Le §2 change ainsi** : le contour d'un territoire est posé **sur la frontière elle-même** face
+  à la mer, à un lac, au vide ou à une région que personne ne tient (pour ce joueur). Il ne reste
+  côte à côte, chacun en retrait chez lui, **qu'entre deux territoires** — deux nations, ou le
+  sol à jour et le sol relevé d'une même nation.
+- **Il suit les arcs de l'atlas** (ADR 0034) : `contourLines` (`src/domain/contours.ts`) lit
+  `borders(T(a) ≠ T(b))` au niveau que montre la feuille (« près » sous 35, « loin » au-dessus de
+  37), comme la côte et l'encre ; il se refait au changement de niveau. Il ne reste plus d'écart
+  entre le contour, la côte et l'encre.
+- Rien d'autre ne change : la couleur, les relevés, le réglage fins / épais, les tirets et leur
+  sens (intérieur à gauche), l'absence de contour sur une région jamais vue.

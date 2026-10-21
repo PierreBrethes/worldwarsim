@@ -250,7 +250,7 @@ export class LandingTable {
     private readonly onStory: (story: Story) => void,
   ) {
     this.still = motion !== 'full';
-    this.frame = new WorldFrame({ sphere: sheet.sphere, outline: sheet.outline, countries: [] });
+    this.frame = new WorldFrame({ sphere: sheet.sphere, outline: sheet.outline });
     this.isLand = landMask(sheet);
     const narrow = innerWidth <= 760;
     this.renderer = new WebGLRenderer({ canvas, antialias: true });

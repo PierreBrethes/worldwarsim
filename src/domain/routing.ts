@@ -1,6 +1,6 @@
 import { distanceKm, type LonLat } from './geo.ts';
 import type { Medium } from './ids';
-import type { ProjectedCountry, World } from './world';
+import type { ProjectedCountry, Projection, World } from './world';
 
 /**
  * Land, naval, air or combined route computation on a grid derived from the projected world
@@ -109,6 +109,12 @@ const SEA = 2;
  * Suez en 1940 — là où un détroit naturel reste de la mer et rien d'autre.
  */
 const CANAL = 3;
+/**
+ * **Un lac est de l'eau qu'on ne navigue pas** (ADR 0034) : ni terre qu'on foule, ni mer d'où
+ * une coque part. Un lac à moins d'une cellule de la côte se fondait dans la mer ouverte à cette
+ * maille — le Nicaragua, l'IJsselmeer devenaient des ports.
+ */
+const LAKE = 4;
 
 /** Ce que la recherche a le droit de fouler, par mode. Un canal est des deux côtés. */
 const ALLOWED_BY_MODE: Readonly<Record<'land' | 'naval' | 'combined', ReadonlyArray<number>>> = {
@@ -221,6 +227,12 @@ export type RouteGrid = {
   readonly outline: World['outline'];
 };
 
+/** Ce que la grille lit d'un monde : son cadre, les anneaux de ses terres et ses lacs. */
+export type GridWorld = Projection & {
+  readonly countries: ReadonlyArray<Pick<ProjectedCountry, 'rings'>>;
+  readonly lakes?: ProjectedCountry['rings'];
+};
+
 /**
  * **Les portes se donnent** parce qu'un raster sans elles est une question qu'on pose : une porte
  * de détroit ajoute de l'eau *là où il y en a* et ne peut donc jamais séparer deux terres qui se
@@ -228,7 +240,7 @@ export type RouteGrid = {
  * Malacca, tracée dans les terres, a détaché Kuala Lumpur de la péninsule.
  */
 export function buildGrid(
-  world: World,
+  world: GridWorld,
   step = 0.25,
   gates: typeof SEA_GATES = SEA_GATES,
 ): RouteGrid {
@@ -246,7 +258,18 @@ export function buildGrid(
     }
   }
 
-  fillLand(world, step, width, height, cells);
+  scanFill(
+    world.countries.flatMap((country) => country.rings),
+    world,
+    step,
+    width,
+    height,
+    (cell) => (cells[cell] = LAND),
+  );
+  for (const lake of world.lakes ?? [])
+    scanFill([lake], world, step, width, height, (cell) => {
+      if (cells[cell] === SEA) cells[cell] = LAKE;
+    });
 
   for (const gate of gates) {
     engravePassage(
@@ -331,7 +354,7 @@ export function landComponentCount(grid: RouteGrid, canalIsLand = false): number
  * is a handful of `fill` calls.
  *
  * `buildGrid` stays the reference: the bake is checked against it byte for byte in the verifier,
- * so a changed `SEA_GATES` or a regenerated `world.json` breaks the build rather than lying in
+ * so a changed `SEA_GATES` or a regenerated atlas breaks the build rather than lying in
  * production.
  */
 export type GridAsset = {
@@ -367,7 +390,11 @@ export function encodeGrid(grid: RouteGrid): GridAsset {
 export const landMaskOf = (grid: RouteGrid): Uint8Array =>
   grid.cells.map((cell) => (cell === LAND ? 1 : 0));
 
-export function decodeGrid(asset: GridAsset, world: World): RouteGrid {
+/** The lake cells as 1: water a hull is refused, which the carry veil darkens with the inland. */
+export const lakeMaskOf = (grid: RouteGrid): Uint8Array =>
+  grid.cells.map((cell) => (cell === LAKE ? 1 : 0));
+
+export function decodeGrid(asset: GridAsset, world: Projection): RouteGrid {
   const cells = new Uint8Array(asset.width * asset.height);
   let at = 0;
   for (let run = 0; run < asset.cells.length; run += 2) {
@@ -413,10 +440,11 @@ export function computeRoute(
   // with another shore: the arrival records the point the player actually chose.
   const allowed = ALLOWED_BY_MODE[mode];
   if (mode === 'land' && !allowed.includes(grid.cells[projectOnGrid(grid, to)]!)) return null;
+  if (grid.cells[projectOnGrid(grid, to)] === LAKE) return null;
   if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
 
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
-  const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
+  const goal = nearestCell(grid, projectOnGrid(grid, to), mode);
   if (start === null || goal === null) return null;
 
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
@@ -453,7 +481,7 @@ export function routeDistanceKmField(
 ): Float64Array {
   const allowed = ALLOWED_BY_MODE[mode];
   const kilometres = new Float64Array(grid.cells.length).fill(Number.POSITIVE_INFINITY);
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
   if (start === null) return kilometres;
 
   const heap = new BinaryHeap();
@@ -553,7 +581,7 @@ export function routeDistanceKmAt(
   point: LonLat,
   mode: 'land' | 'combined',
 ): number | null {
-  const cell = nearestCell(grid, projectOnGrid(grid, point), ALLOWED_BY_MODE[mode]);
+  const cell = nearestCell(grid, projectOnGrid(grid, point), mode);
   if (cell === null) return null;
   const kilometres = field[cell]!;
   return Number.isFinite(kilometres) ? kilometres : null;
@@ -594,7 +622,7 @@ export function computeRouteToAny(
   const allowed = ALLOWED_BY_MODE[mode];
   const usableGoals = new Set([...goalCells].filter((cell) => allowed.includes(grid.cells[cell]!)));
   if (usableGoals.size === 0) return null;
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
   if (start === null) return null;
   const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), mode, landCost);
   return path === null ? null : routeSearchOf(grid, path, mode, landCost);
@@ -810,11 +838,24 @@ function airRoute(grid: RouteGrid, from: LonLat, to: LonLat): ComputedRoute {
   };
 }
 
+/**
+ * **Le sol d'un point, en trois mots** : la terre qu'on foule, la mer qu'on navigue (un canal en
+ * est), et le lac, qui n'est ni l'un ni l'autre. La visée et le serveur le lisent ici tous deux,
+ * pour que la règle partagée refuse le lac avant la route qui n'y mènerait pas (ADR 0015).
+ */
+export type Ground = 'land' | 'sea' | 'lake';
+
+export function groundAt(grid: RouteGrid, lonLat: LonLat): Ground {
+  const cell = grid.cells[projectOnGrid(grid, lonLat)];
+  return cell === LAND ? 'land' : cell === LAKE ? 'lake' : 'sea';
+}
+
 export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
-  grid.cells[projectOnGrid(grid, lonLat)] === LAND;
+  groundAt(grid, lonLat) === 'land';
 
 /**
- * **A coast, as the routing knows one** — a land cell touching water, and nothing else. A canal
+ * **A coast, as the routing knows one** — a land cell touching the open sea (`openWaterOf`), and
+ * nothing else: the shore of a lake or of the Caspian is no quay, a hull could not leave it. A canal
  * counts as that water: Colón, Balboa, Port-Saïd and Suez are ports, and a hull sails from them
  * on this very grid. It is the only definition that can hold: a port is put up so that a ship leaves from it, and what a
  * ship knows of geography is this grid. A coastline read off another source would say "coastal"
@@ -826,11 +867,10 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
 export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   const cell = projectOnGrid(grid, lonLat);
   if (grid.cells[cell] !== LAND) return false;
+  const open = openWaterOf(grid);
   const around: number[] = [];
   const count = neighbors(grid, cell, around);
-  for (let i = 0; i < count; i++) {
-    if (isWaterType(grid.cells[around[i]!]!)) return true;
-  }
+  for (let i = 0; i < count; i++) if (open[around[i]!] === 1) return true;
   return false;
 }
 
@@ -854,6 +894,7 @@ export function coastCellsIn(
   const lastRow = Math.min(grid.height - 1, Math.ceil((maxY - grid.sphere.minY) / grid.step));
 
   const found: Array<{ x: number; y: number; lonLat: LonLat }> = [];
+  const open = openWaterOf(grid);
   const around: number[] = [];
   for (let row = firstRow; row <= lastRow; row++) {
     for (let column = firstColumn; column <= lastColumn; column++) {
@@ -861,8 +902,7 @@ export function coastCellsIn(
       if (grid.cells[cell] !== LAND) continue;
       const count = neighbors(grid, cell, around);
       let touchesSea = false;
-      for (let i = 0; i < count && !touchesSea; i++)
-        touchesSea = isWaterType(grid.cells[around[i]!]!);
+      for (let i = 0; i < count && !touchesSea; i++) touchesSea = open[around[i]!] === 1;
       if (!touchesSea) continue;
       found.push({
         x: grid.sphere.minX + (column + 0.5) * grid.step,
@@ -895,54 +935,6 @@ export function directRoute(
     legs: [{ medium, distanceUnits }],
     landCost: COST_BY_MEDIUM.land,
   };
-}
-
-/**
- * **Which country a point stands in**, straight off the rings the world already carries — as an
- * `adm0_a3`, the code every rule keys on.
- *
- * **Containment, never proximity.** The nearest region's point used to stand in for this, and it
- * answered the wrong country five times out of six along a border: Menton fell to Monaco,
- * Aix-la-Chapelle to Belgium, Saint-Louis to Switzerland. A pole of inaccessibility is not a
- * border, so nothing that keys on a host may be read off a distance to one.
- *
- * **The server does not call it any more** (ADR 0023): it walks every ring of every country, and
- * the rings alone weighed eleven megabytes of isolate heap. The answer is baked per cell into
- * `region-grid.json` — from this very containment, one projection away — and read there. What is
- * left here is the reference the bake is cut from, and the reading the map layer may still want.
- */
-export function countryAt(world: World, lonLat: LonLat): string | null {
-  return countryAtPlanePoint(world.countries, projectLonLat(world.outline, world.sphere, lonLat));
-}
-
-/**
- * **La même containment, sur le plan et sans projeter** — ce dont la cuisson du raster a besoin
- * (`scripts/generate-region-grid.mjs`) : elle interroge des centres de cellule, qui sont déjà des
- * points du plan, et un aller-retour par la lon/lat lui ferait répondre à côté de la question
- * qu'elle pose. L'ordre de la table décide en cas de chevauchement : c'est le **premier** pays
- * qui contient le point, jamais le plus petit — l'inverse de la règle d'enclave des régions.
- */
-export const countryAtPlanePoint = (
-  countries: ReadonlyArray<ProjectedCountry>,
-  point: readonly [x: number, y: number],
-): string | null =>
-  countries.find((country) => ringsContainPoint(country.rings, point))?.adm0 ?? null;
-
-function ringsContainPoint(
-  rings: ProjectedCountry['rings'],
-  [x, y]: readonly [x: number, y: number],
-): boolean {
-  let inside = false;
-  for (const ring of rings) {
-    for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {
-      const a = ring[i]!;
-      const b = ring[previous]!;
-      if (a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) {
-        inside = !inside;
-      }
-    }
-  }
-  return inside;
 }
 
 /* ------------------------------ projection ------------------------------ */
@@ -1029,7 +1021,7 @@ function projectedDistance(grid: RouteGrid, a: LonLat, b: LonLat): number {
 
 /* ------------------------------ construction ----------------------------- */
 
-function sphereEdges(world: World, step: number, height: number): Array<[number, number]> {
+function sphereEdges(world: Projection, step: number, height: number): Array<[number, number]> {
   const edges: Array<[number, number]> = [];
   const byY = [...world.outline].sort((a, b) => a[3] - b[3]);
   let index = 0;
@@ -1045,30 +1037,30 @@ function sphereEdges(world: World, step: number, height: number): Array<[number,
 }
 
 /** Even-odd scanline fill: countries are disjoint, global parity suffices. */
-function fillLand(
-  world: World,
+/** The cells whose centre lies inside `rings`, even-odd, handed to `paint`. */
+function scanFill(
+  rings: ProjectedCountry['rings'],
+  world: Projection,
   step: number,
   width: number,
   height: number,
-  cells: Uint8Array,
+  paint: (cell: number) => void,
 ): void {
   const crossingsByRow: number[][] = Array.from({ length: height }, () => []);
-  for (const country of world.countries) {
-    for (const ring of country.rings) {
-      for (let i = 0; i < ring.length; i++) {
-        const [ax, ay] = ring[i]!;
-        const [bx, by] = ring[(i + 1) % ring.length]!;
-        if (ay === by) continue;
-        const rowMin = Math.max(0, Math.ceil((Math.min(ay, by) - world.sphere.minY) / step - 0.5));
-        const rowMax = Math.min(
-          height - 1,
-          Math.floor((Math.max(ay, by) - world.sphere.minY) / step - 0.5),
-        );
-        for (let row = rowMin; row <= rowMax; row++) {
-          const y = world.sphere.minY + (row + 0.5) * step;
-          if (y < Math.min(ay, by) || y >= Math.max(ay, by)) continue;
-          crossingsByRow[row]!.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
-        }
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i++) {
+      const [ax, ay] = ring[i]!;
+      const [bx, by] = ring[(i + 1) % ring.length]!;
+      if (ay === by) continue;
+      const rowMin = Math.max(0, Math.ceil((Math.min(ay, by) - world.sphere.minY) / step - 0.5));
+      const rowMax = Math.min(
+        height - 1,
+        Math.floor((Math.max(ay, by) - world.sphere.minY) / step - 0.5),
+      );
+      for (let row = rowMin; row <= rowMax; row++) {
+        const y = world.sphere.minY + (row + 0.5) * step;
+        if (y < Math.min(ay, by) || y >= Math.max(ay, by)) continue;
+        crossingsByRow[row]!.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
       }
     }
   }
@@ -1077,9 +1069,7 @@ function fillLand(
     for (let i = 0; i + 1 < xs.length; i += 2) {
       const start = Math.max(0, Math.ceil((xs[i]! - world.sphere.minX) / step - 0.5));
       const end = Math.min(width - 1, Math.floor((xs[i + 1]! - world.sphere.minX) / step - 0.5));
-      for (let column = start; column <= end; column++) {
-        cells[row * width + column] = LAND;
-      }
+      for (let column = start; column <= end; column++) paint(row * width + column);
     }
   }
 }
@@ -1087,7 +1077,7 @@ function fillLand(
 function engravePassage(
   passage: ReadonlyArray<LonLat>,
   value: number,
-  world: World,
+  world: Projection,
   step: number,
   width: number,
   height: number,
@@ -1115,12 +1105,59 @@ function engravePassage(
 
 /* -------------------------------- traversal ------------------------------- */
 
+/**
+ * **The water a ship can leave from is the open sea**, never a pond or a fjord narrower than a
+ * cell: the largest water component, gates included. Computed once per grid. Without it
+ * `nearestCell` took the closest water cell, found it cut off from the sea, and the trip had no
+ * path (Murmansk, on the 10m coast).
+ */
+const openWaters = new WeakMap<RouteGrid, Uint8Array>();
+
+function openWaterOf(grid: RouteGrid): Uint8Array {
+  const known = openWaters.get(grid);
+  if (known !== undefined) return known;
+  const component = new Int32Array(grid.cells.length);
+  const around: number[] = [];
+  const stack: number[] = [];
+  let largest = 0;
+  let largestSize = 0;
+  let label = 0;
+  for (let cell = 0; cell < grid.cells.length; cell++) {
+    if (component[cell] !== 0 || !isWaterType(grid.cells[cell]!)) continue;
+    label += 1;
+    let size = 0;
+    component[cell] = label;
+    stack.push(cell);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      size += 1;
+      const count = neighbors(grid, current, around);
+      for (let i = 0; i < count; i++) {
+        const next = around[i]!;
+        if (component[next] !== 0 || !isWaterType(grid.cells[next]!)) continue;
+        component[next] = label;
+        stack.push(next);
+      }
+    }
+    if (size > largestSize) {
+      largestSize = size;
+      largest = label;
+    }
+  }
+  const open = new Uint8Array(grid.cells.length);
+  for (let cell = 0; cell < open.length; cell++) if (component[cell] === largest) open[cell] = 1;
+  openWaters.set(grid, open);
+  return open;
+}
+
 function nearestCell(
   grid: RouteGrid,
   origin: number,
-  allowed: ReadonlyArray<number>,
+  mode: 'land' | 'naval' | 'combined',
   maxRadius = 24,
 ): number | null {
+  const allowed = ALLOWED_BY_MODE[mode];
+  const open = mode === 'land' ? null : openWaterOf(grid);
   const column0 = origin % grid.width;
   const row0 = Math.floor(origin / grid.width);
   for (let radius = 0; radius <= maxRadius; radius++) {
@@ -1134,6 +1171,7 @@ function nearestCell(
         if (row < 0 || column < 0 || row >= grid.height || column >= grid.width) continue;
         const cell = row * grid.width + column;
         if (!allowed.includes(grid.cells[cell]!)) continue;
+        if (open !== null && isWaterType(grid.cells[cell]!) && open[cell] === 0) continue;
         const distance = dr * dr + dc * dc;
         if (distance < bestDistance) {
           bestDistance = distance;

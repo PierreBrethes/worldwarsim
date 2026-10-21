@@ -411,8 +411,8 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 31. **Découper les régions géantes à la cuisson** (17/09, 2a) — Ontario, Québec, les oblasts
     sibériens, les États américains, Amazonas : espacement de pôles cible ~80 km, pièces en
     « secteurs » droits sur la carte, id d'origine gardé par la pièce qui porte le gisement.
-    Chaîne complète à recuire (`generate-regions` → `region-index` → `world` → `region-grid` →
-    `deposits`). **Au prochain wipe** : des ids stockés changent.
+    Chaîne complète à recuire : `deploiement/README.md`, section « L'atlas ». **Au prochain
+    wipe** : des ids stockés changent.
 30. **Retranchement** (16/09, 2a) — bonus de position du défenseur, plafonné à **5-10 % au
     plus**, affiché sur la fiche de la troupe sélectionnée avec le temps posé ; à chiffrer avec
     le terrain (plafond cumulé à fixer).

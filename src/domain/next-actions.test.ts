@@ -48,6 +48,7 @@ const posted = (country: string, lonLat: [number, number]): TroopStation => ({
   lonLat,
   country,
   afloat: false,
+  ground: 'land',
   coastal: false,
 });
 

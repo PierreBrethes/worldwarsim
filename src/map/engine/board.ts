@@ -15,7 +15,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
 } from 'three';
-import type { World } from '@/domain/world';
+import type { Projection } from '@/domain/world';
 import { seaMaterial, type SeaLayer } from './sea';
 import { PALETTE } from './palette';
 import { PLINTH_HEIGHT, SEA_LEVEL, type WorldFrame } from './frame';
@@ -30,7 +30,7 @@ const PLANK_REPEAT = 60;
  * projected sphere's outline. The silhouette is therefore exact, and the plinth and the rim
  * align with it to the vertex.
  */
-function buildSurface(world: World, frame: WorldFrame): BufferGeometry {
+function buildSurface(world: Projection, frame: WorldFrame): BufferGeometry {
   const positions: number[] = [];
   const uv: number[] = [];
   const lonLat: number[] = [];
@@ -66,7 +66,7 @@ function buildSurface(world: World, frame: WorldFrame): BufferGeometry {
   return geometry;
 }
 
-function buildPlinth(world: World, frame: WorldFrame): BufferGeometry {
+function buildPlinth(world: Projection, frame: WorldFrame): BufferGeometry {
   const loop: Array<[number, number]> = [];
   for (const [, , eastX, y] of world.outline) loop.push([eastX, y]);
   for (let i = world.outline.length - 1; i >= 0; i--) {
@@ -119,7 +119,7 @@ function buildPlinth(world: World, frame: WorldFrame): BufferGeometry {
 }
 
 function buildRim(
-  world: World,
+  world: Projection,
   frame: WorldFrame,
 ): { band: BufferGeometry; stroke: BufferGeometry } {
   const INSET = 0.996;
@@ -199,7 +199,7 @@ function woodGrain(anisotropy: number): CanvasTexture {
  * are decoration a ray must go straight through.
  */
 export function buildBoard(
-  world: World,
+  world: Projection,
   frame: WorldFrame,
   anisotropy: number,
   swell: SeaLayer | null,

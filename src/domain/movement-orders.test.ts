@@ -56,7 +56,7 @@ const point: MovementAim = {
   lon: 11.2,
   lat: 36.4,
   coastal: false,
-  onLand: true,
+  ground: 'land',
   surveyed: true,
 };
 /** Le même sol, sans rien de relevé dessus : la marche y va, l'assaut n'a rien à viser. */
@@ -68,7 +68,7 @@ const camp: MovementAim = {
   lon: 11.2,
   lat: 36.4,
   hostCountry: 'Tunisia',
-  onLand: true,
+  ground: 'land',
   coastal: false,
 };
 /** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
@@ -77,7 +77,7 @@ const shore: MovementAim = {
   lon: 10.3,
   lat: 36.8,
   coastal: true,
-  onLand: true,
+  ground: 'land',
   surveyed: true,
 };
 const sea: MovementAim = {
@@ -85,7 +85,7 @@ const sea: MovementAim = {
   lon: -30,
   lat: 40,
   coastal: false,
-  onLand: false,
+  ground: 'sea',
   surveyed: true,
 };
 
@@ -215,7 +215,7 @@ describe('an empty manifest', () => {
     lon: 25.2,
     lat: 44.6,
     coastal: false,
-    onLand: true,
+    ground: 'land',
     surveyed: true,
   };
 
@@ -458,6 +458,20 @@ describe('where a landing column may put its boots down', () => {
     expect(refusalOf('march', point, boots)).toBeNull();
   });
 
+  /**
+   * **Un lac n'est ni la terre ni le large** (ADR 0034) : aucune coque n'y entre et aucune botte
+   * ne s'y pose. Le refus dit le lac, à la flotte comme à la colonne, avant la route que le
+   * serveur ne trouverait pas.
+   */
+  it('refuses a lake to every column that would go by land or by sea', () => {
+    const lake: MovementAim = { ...sea, lon: 50, lat: 42, ground: 'lake' };
+    const cargo = column(['cargo'], { departureBuildings: new Set<BuildingKey>(['port']) });
+    expect(refusalOf('march', lake, cargo)).toBe('LAKE_TARGET');
+    expect(refusalOf('march', lake, landing())).toBe('LAKE_TARGET');
+    expect(refusalOf('march', lake, column(['infantry']))).toBe('LAKE_TARGET');
+    expect(legalMovementTypes(lake, cargo)).toEqual([]);
+  });
+
   /** Un port ami *est* la côte : la colonne y entre en garnison, coques et passagers ensemble. */
   it('takes a port of its own, and no other mast', () => {
     const port: MovementAim = { kind: 'building', buildingId: 'B-1', key: 'port' };
@@ -626,7 +640,7 @@ describe('a point as a destination', () => {
     lon: 25.2,
     lat: 44.6,
     coastal: false,
-    onLand: true,
+    ground: 'land',
     surveyed: true,
   };
 
@@ -888,7 +902,7 @@ describe('a Blitz order (lot 5)', () => {
     lon: 4,
     lat: 50,
     hostCountry: 'BEL',
-    onLand: true,
+    ground: 'land',
     coastal: false,
   };
   const enemyCamp: MovementAim = { ...camp, lon: 4, lat: 50 };

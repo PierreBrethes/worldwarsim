@@ -358,7 +358,12 @@ export function build(
      */
     case 'point':
       return target.country === null
-        ? { kicker: fr.compass.openWater, name: target.name, actions: [], refusal: null }
+        ? {
+            kicker: target.ground === 'lake' ? fr.compass.lake : fr.compass.openWater,
+            name: target.name,
+            actions: [],
+            refusal: null,
+          }
         : build({ kind: 'country', country: target.country }, view, null);
   }
 }
@@ -423,7 +428,7 @@ function foundHere(
   const refusal = foundingRefusal(
     held.map((troop) => troop.role),
     onMyGround,
-    target.onLand,
+    target.ground === 'land',
   );
   if (refusal !== null) {
     return { action: null, refusal: foundingMotive(refusal, held, target, view) };

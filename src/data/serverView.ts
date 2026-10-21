@@ -3,8 +3,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { RESOURCES, type BuildCostKey, type BuildingKey, type UnitRole } from '@/domain/ids';
-import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
-import type { World } from '@/domain/world';
+import { HOME_BY_NATION, isNation } from '@/domain/nations';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
 import { placeLabel } from '@/domain/station-name';
@@ -34,19 +33,16 @@ export type LootCollectionPreviewed = FunctionReturnType<
  * (`shareUnchanged`), pour que les panneaux ne recalculent que ce que la réponse a changé (#148).
  */
 export function adaptServerView(
-  world: World,
   server: ServerView,
   previous: PlayerView | null = null,
 ): PlayerView {
-  return shareUnchanged(previous, adaptedView(world, server));
+  return shareUnchanged(previous, adaptedView(server));
 }
 
-function adaptedView(world: World, server: ServerView): PlayerView {
-  const countryName = isNation(server.me.nation)
-    ? COUNTRY_BY_NATION[server.me.nation]
-    : server.me.nation;
-  const homePosition = world.countries.find((country) => country.name === countryName)?.lonLat;
-  if (!homePosition) throw new Error(`nation without a position: ${server.me.nation}`);
+function adaptedView(server: ServerView): PlayerView {
+  if (!isNation(server.me.nation))
+    throw new Error(`nation without a position: ${server.me.nation}`);
+  const homePosition = HOME_BY_NATION[server.me.nation];
 
   return {
     season: {

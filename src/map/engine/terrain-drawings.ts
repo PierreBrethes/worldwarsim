@@ -1,8 +1,5 @@
 import {
-  BufferGeometry,
   Color,
-  DoubleSide,
-  Float32BufferAttribute,
   Group,
   DataTexture,
   LinearFilter,
@@ -11,16 +8,15 @@ import {
   PlaneGeometry,
   RedFormat,
   RGFormat,
-  ShapeUtils,
   ShaderMaterial,
   UnsignedByteType,
   Vector2,
 } from 'three';
+import type { Atlas } from '@/domain/atlas';
 import type { RegionType } from '@/domain/ids';
-import type { DisplayedRegion } from '@/domain/world';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
-import { spansTheFrame, TRAME_SCALE } from './regions';
+import { TRAME_SCALE } from './regions';
 
 /**
  * **Les dessins généraux de terrain** (#197, maquette `WWS/prototypes/carte-refonte/sheet.js`) :
@@ -52,6 +48,8 @@ export const terrainCode = (type: RegionType): number => {
 const TYPES_PER_UNIT = 5.12;
 /** The depth's byte: 1/32 u a step, so 8 u at most, far past where a massif is full. */
 const DEPTH_PER_UNIT = 32;
+/** The depth's byte at the land's turn from drawn to plain: below, the plain's side. */
+const DEPTH_ZERO = 128;
 /** A massif is bare up to `BARE_AT` from its edge, full from `FULL_AT`, in units (1 u ≈ 100 km);
  *  the edge wobbles by ±`EDGE_WOBBLE` on a noise `EDGE_GRAIN` wide, so no region's border shows
  *  through. @a-mesurer */
@@ -63,6 +61,8 @@ const EDGE_GRAIN = 1.5;
  *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
 const CLEARING_GRAIN = 4;
 const CLEARING_KEEP = 0.5;
+/** Past this many cells from another code, the four cells around a point share its code. */
+const FAST_CELLS = 3;
 const ATLAS_CELL = 128;
 const VARIANTS = 4;
 /** One pen for every glyph, in atlas pixels: the stroke must not follow the glyph's size. */
@@ -313,13 +313,39 @@ export function depthsFromCodes(
   return depths;
 }
 
-function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame): DataTexture {
+/** The regions of each drawn type merged (`Atlas.shapes`): a massif is one shape, its edge the
+ *  arcs between two types. */
+type Massifs = ReturnType<Atlas['shapes']>;
+
+/** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
+ *  that its contours are smooth (`texelsOf`). */
+export type TypesData = {
+  readonly texels: Uint8Array<ArrayBuffer>;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** A 2D canvas: an `OffscreenCanvas` in the worker, a page's canvas where there is none. */
+export type CanvasOf = (
+  width: number,
+  height: number,
+) => { getContext(id: '2d', options: { willReadFrequently: boolean }): Paint | null };
+type Paint = Pick<
+  CanvasRenderingContext2D,
+  | 'setTransform'
+  | 'fillRect'
+  | 'beginPath'
+  | 'moveTo'
+  | 'lineTo'
+  | 'closePath'
+  | 'fill'
+  | 'getImageData'
+> & { fillStyle: string | CanvasGradient | CanvasPattern };
+
+export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: CanvasOf): TypesData {
   const width = Math.round(frame.width * TYPES_PER_UNIT);
   const height = Math.round(frame.height * TYPES_PER_UNIT);
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  const g = canvasOf(width, height).getContext('2d', { willReadFrequently: true })!;
   const masks = DRAWN.map((type) => {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000';
@@ -333,28 +359,64 @@ function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame):
       (frame.height / 2 - frame.centerY) * TYPES_PER_UNIT,
     );
     g.fillStyle = '#fff';
-    for (const region of regions) {
-      if (region.type !== type) continue;
-      for (const ring of region.rings) {
-        g.beginPath();
-        ring.forEach(([x, y], index) => (index === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
+    g.beginPath();
+    for (const { outer, holes } of massifs.get(type) ?? [])
+      for (const ring of [outer, ...holes]) {
+        g.moveTo(ring[0]!, ring[1]!);
+        for (let i = 2; i < ring.length; i += 2) g.lineTo(ring[i]!, ring[i + 1]!);
         g.closePath();
-        g.fill();
       }
-    }
+    g.fill('evenodd');
     const pixels = g.getImageData(0, 0, width, height).data;
     const mask = new Uint8Array(width * height);
     for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
     return mask;
   });
-  const codes = codesFromMasks(masks, width * height);
-  const depths = depthsFromCodes(codes, width, height);
-  // Code in red, read by texel; depth in green, read filtered so that its contours are smooth.
+  return { texels: texelsOf(codesFromMasks(masks, width * height), width, height), width, height };
+}
+
+/** Under half a code step, a code byte still reads as its code. */
+const OTHER_MAX = CODE_STEP / 2 - 1;
+
+/**
+ * Each cell's code, and two depths (#219). The code byte also carries, in whole cells up to
+ * `OTHER_MAX`, how far the nearest cell of another code is: the wash reads one cell rather than
+ * four where it is far enough. The depth is the massif's, all drawn types as one (a forest that
+ * meets a mountain is no edge), signed: from the nearest plain cell inside, from the nearest drawn
+ * one outside, so that its filtered contours cross zero where the land turns plain.
+ */
+export function texelsOf(
+  codes: Uint8Array<ArrayBuffer>,
+  width: number,
+  height: number,
+): Uint8Array<ArrayBuffer> {
+  const other = depthsFromCodes(codes, width, height);
+  const inside = depthsFromCodes(
+    codes.map((code) => (code === 0 ? 0 : 1)),
+    width,
+    height,
+  );
+  const outside = depthsFromCodes(
+    codes.map((code) => (code === 0 ? 1 : 0)),
+    width,
+    height,
+  );
   const texels = new Uint8Array(width * height * 2);
   for (let i = 0; i < codes.length; i++) {
-    texels[i * 2] = codes[i]!;
-    texels[i * 2 + 1] = Math.min(255, Math.round((depths[i]! / TYPES_PER_UNIT) * DEPTH_PER_UNIT));
+    const depth = (inside[i]! - outside[i]!) / TYPES_PER_UNIT;
+    // `depthsFromCodes` leaves the plain at 0: its own distance to another code is `outside`.
+    const away = codes[i] === 0 ? outside[i]! : other[i]!;
+    texels[i * 2] = codes[i]! + Math.min(OTHER_MAX, Math.round(away));
+    texels[i * 2 + 1] = Math.max(0, Math.min(255, Math.round(DEPTH_ZERO + depth * DEPTH_PER_UNIT)));
   }
+  return texels;
+}
+
+/** A page's canvas, where the worker had no `OffscreenCanvas`. */
+export const pageCanvas: CanvasOf = (width, height) =>
+  Object.assign(document.createElement('canvas'), { width, height });
+
+function typesTexture({ texels, width, height }: TypesData): DataTexture {
   const texture = new DataTexture(texels, width, height, RGFormat, UnsignedByteType);
   texture.unpackAlignment = 1;
   texture.generateMipmaps = false;
@@ -380,9 +442,8 @@ const OPACITY = 0.36;
 const NIGHT_INK = 0.25;
 /** Over the washes and the hatch, under the contours and the hover's stroke. */
 const LIFT = 0.0025;
-/** The terrain's wash, under the drawings: the maquette's `TINT` (`sheet.js`), by type. Laid from
- *  the regions' own outlines, not from the type map, whose cells would make stairs of its edges.
- *  @a-mesurer */
+/** The terrain's wash, under the drawings: the maquette's `TINT` (`sheet.js`), by type, whole at
+ *  the massif's heart (#219). @a-mesurer */
 const WASH: Record<DrawnType, { color: string; alpha: number }> = {
   forest: { color: 'rgb(110,128,70)', alpha: 0.16 },
   mountain: { color: 'rgb(140,106,66)', alpha: 0.15 },
@@ -390,7 +451,6 @@ const WASH: Record<DrawnType, { color: string; alpha: number }> = {
   tundra: { color: 'rgb(170,180,182)', alpha: 0.22 },
   jungle: { color: 'rgb(90,120,60)', alpha: 0.16 },
 };
-const WASH_LIFT = 0.002;
 
 const VERTEX = `
 varying vec2 vWorld;
@@ -405,7 +465,8 @@ uniform sampler2D uTypes, uAtlas;
 uniform vec2 uWorld;
 uniform vec3 uInk;
 uniform float uOpacity, uMinCellPx, uPixelRatio;
-uniform float uKeep[6], uJitter[6], uWeight[6];
+uniform float uKeep[6], uJitter[6], uWeight[6], uWashAlpha[6];
+uniform vec3 uWashColor[6];
 varying vec2 vWorld;
 
 float hash(vec2 p) {
@@ -419,6 +480,11 @@ float noise(vec2 p) {
   vec2 f = smoothstep(0.0, 1.0, fract(p));
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
              mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
+}
+
+// The massif's depth, in units: below zero on the plain's side.
+float depthAt(vec2 uv) {
+  return (textureLod(uTypes, uv, 0.0).g * 255.0 - ${DEPTH_ZERO.toFixed(1)}) / ${DEPTH_PER_UNIT.toFixed(1)};
 }
 
 // One grid of drawings: every other row shifted by half a cell, each cell asking the type map for
@@ -438,7 +504,7 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   float code = floor(texelFetch(uTypes, texel, 0).r * 255.0 / ${CODE_STEP.toFixed(1)} + 0.5);
   if (code < 0.5 || code > 5.5 || (code == ${MOUNTAIN_CODE}.0) != mountains) return 0.0;
   // Dense at the massif's heart, thinning out to bare at its wobbled edge.
-  float depth = textureLod(uTypes, uv, 0.0).g * ${(255 / DEPTH_PER_UNIT).toFixed(4)};
+  float depth = depthAt(uv);
   depth += (noise(middle / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
   vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
   float dense = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth);
@@ -457,6 +523,43 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   return textureGrad(uAtlas, glyph, dx * step, dy * step).r * uWeight[int(code)];
 }
 
+// The wash (#219), on the drawings' mask: nil where the land turns plain, its wobble reaching
+// out a cell inside only, never spilling onto the plain. Each type takes its share of the four
+// nearest drawn cells, so that two massifs that meet blend over a cell. Premultiplied.
+vec4 wash(vec2 p) {
+  ivec2 grid = textureSize(uTypes, 0);
+  vec2 at = (p / uWorld + 0.5) * vec2(grid) - 0.5;
+  float red = texelFetch(uTypes, clamp(ivec2(floor(at + 0.5)), ivec2(0), grid - 1), 0).r * 255.0;
+  float only = floor(red / ${CODE_STEP.toFixed(1)} + 0.5);
+  // Three cells from any other code, the four nearest share this one's.
+  bool alone = red - only * ${CODE_STEP.toFixed(1)} >= ${FAST_CELLS.toFixed(1)};
+  if (alone && only < 0.5) return vec4(0.0);
+  float depth = depthAt((at + 0.5) / vec2(grid));
+  float wobble = (noise(p / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
+  if (wobble > 0.0) wobble *= smoothstep(0.0, ${(1 / TYPES_PER_UNIT).toFixed(4)}, depth);
+  float ramp = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth + wobble);
+  if (ramp <= 0.0) return vec4(0.0);
+  if (alone) {
+    int kind = int(only);
+    return vec4(uWashColor[kind], 1.0) * uWashAlpha[kind] * ramp;
+  }
+  vec2 f = fract(at);
+  ivec2 base = ivec2(floor(at));
+  vec4 sum = vec4(0.0);
+  float drawn = 0.0;
+  for (int k = 0; k < 4; k++) {
+    ivec2 offset = ivec2(k % 2, k / 2);
+    float code = floor(texelFetch(uTypes, clamp(base + offset, ivec2(0), grid - 1), 0).r * 255.0
+      / ${CODE_STEP.toFixed(1)} + 0.5);
+    if (code < 0.5) continue;
+    float weight = (offset.x == 1 ? f.x : 1.0 - f.x) * (offset.y == 1 ? f.y : 1.0 - f.y);
+    int kind = int(code);
+    sum += vec4(uWashColor[kind], 1.0) * uWashAlpha[kind] * weight;
+    drawn += weight;
+  }
+  return drawn > 0.0 ? sum * ramp / drawn : vec4(0.0);
+}
+
 float level(vec2 p, float cell, vec2 dx, vec2 dy) {
   return layer(p, cell, dx, dy, false) + layer(p, cell * 2.0, dx, dy, true);
 }
@@ -466,156 +569,95 @@ void main() {
   vec2 dy = dFdy(vWorld);
   float unitsPerPixel = max(length(dx), length(dy));
   float wanted = log2(uMinCellPx * uPixelRatio * unitsPerPixel / ${CELL.toFixed(2)});
-  if (wanted > ${GONE_AT.toFixed(1)}) discard;
-  float doublings = clamp(wanted, 0.0, ${MAX_DOUBLINGS.toFixed(1)});
-  float whole = floor(doublings);
-  float share = smoothstep(0.3, 0.7, doublings - whole);
-  float cell = ${CELL.toFixed(2)} * exp2(whole);
-  float ink = level(vWorld, cell, dx, dy) * (1.0 - share);
-  if (share > 0.001) ink += level(vWorld, cell * 2.0, dx, dy) * share;
-  ink *= 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
-  ink *= uOpacity;
-  if (ink < 0.003) discard;
-  gl_FragColor = vec4(uInk * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), min(ink, 1.0));
-  #include <colorspace_fragment>
-}`;
-
-const WASH_VERTEX = `
-attribute vec4 wash;
-varying vec4 vWash;
-varying vec2 vWorld;
-void main() {
-  vWash = wash;
-  vWorld = position.xz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`;
-
-const WASH_FRAGMENT = `
-${NIGHT_HERE_GLSL}
-varying vec4 vWash;
-varying vec2 vWorld;
-void main() {
-  gl_FragColor = vec4(vWash.rgb * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), vWash.a);
-  #include <colorspace_fragment>
-}`;
-
-/** The regions of the drawn types, triangulated flat, each vertex carrying its type's wash. */
-function washGeometry(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame): BufferGeometry {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const index: number[] = [];
-  const color = new Color();
-  for (const region of regions) {
-    if (terrainCode(region.type) === 0) continue;
-    const { color: css, alpha } = WASH[region.type as DrawnType];
-    color.set(css);
-    for (const ring of region.rings) {
-      if (spansTheFrame(ring, frame)) continue;
-      const contour = ring.map(([x, y]) => new Vector2(x - frame.centerX, y - frame.centerY));
-      const base = positions.length / 3;
-      for (const point of contour) {
-        positions.push(point.x, COUNTRY_THICKNESS + WASH_LIFT, point.y);
-        colors.push(color.r, color.g, color.b, alpha);
-      }
-      for (const [a, b, c] of ShapeUtils.triangulateShape(contour, []))
-        index.push(base + a!, base + b!, base + c!);
-    }
+  float ink = 0.0;
+  if (wanted < ${GONE_AT.toFixed(1)}) {
+    float doublings = clamp(wanted, 0.0, ${MAX_DOUBLINGS.toFixed(1)});
+    float whole = floor(doublings);
+    float share = smoothstep(0.3, 0.7, doublings - whole);
+    float cell = ${CELL.toFixed(2)} * exp2(whole);
+    ink = level(vWorld, cell, dx, dy) * (1.0 - share);
+    if (share > 0.001) ink += level(vWorld, cell * 2.0, dx, dy) * share;
+    ink *= 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
+    ink = min(ink * uOpacity, 1.0);
   }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('wash', new Float32BufferAttribute(colors, 4));
-  geometry.setIndex(index);
-  return geometry;
-}
+  // The ink laid over the wash.
+  vec4 under = wash(vWorld);
+  float alpha = ink + under.a * (1.0 - ink);
+  if (alpha < 0.003) discard;
+  vec3 color = (uInk * ink + under.rgb * (1.0 - ink)) / alpha;
+  gl_FragColor = vec4(color * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), alpha);
+  #include <colorspace_fragment>
+}`;
+
+export const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
+  const type = types.get(region.id) ?? 'plain';
+  return terrainCode(type) === 0 ? null : type;
+};
 
 export class TerrainDrawings {
   readonly object = new Group();
   private readonly drawing: Mesh<PlaneGeometry, ShaderMaterial>;
-  private readonly wash: Mesh<BufferGeometry, ShaderMaterial>;
   private types: DataTexture | null = null;
   private readonly atlas = paintAtlas();
 
   constructor(
-    private readonly frame: WorldFrame,
+    frame: WorldFrame,
     anisotropy: number,
     /** At the finger the cell is read from nearer. */
     touch: boolean,
-    private readonly night: NightUniforms,
+    night: NightUniforms,
   ) {
     this.atlas.anisotropy = anisotropy;
-    const byCode = (pick: (type: DrawnType) => number) => [0, ...DRAWN.map(pick)];
-    const onTheLand = (material: ShaderMaterial): ShaderMaterial => {
-      material.transparent = true;
-      material.depthWrite = false;
-      material.polygonOffset = true;
-      material.polygonOffsetFactor = -2;
-      material.polygonOffsetUnits = -4;
-      return onLand(material);
-    };
-    this.drawing = new Mesh(
-      new PlaneGeometry(frame.width, frame.height),
-      onTheLand(
-        new ShaderMaterial({
-          vertexShader: VERTEX,
-          fragmentShader: FRAGMENT,
-          uniforms: {
-            uTypes: { value: null },
-            uAtlas: { value: this.atlas },
-            uWorld: { value: new Vector2(frame.width, frame.height) },
-            uInk: { value: new Color(INK) },
-            uOpacity: { value: OPACITY },
-            ...this.night,
-            uMinCellPx: { value: touch ? MIN_CELL_PX_AT_THE_FINGER : MIN_CELL_PX },
-            uPixelRatio: TRAME_SCALE,
-            uKeep: { value: byCode((type) => GLYPHS[type].keep) },
-            uJitter: { value: byCode((type) => jitterOf(GLYPHS[type].fill)) },
-            uWeight: { value: byCode((type) => OPACITY_BY_TYPE[type]) },
-          },
-        }),
-      ),
-    );
+    const byCode = <T>(pick: (type: DrawnType) => T, none: T) => [none, ...DRAWN.map(pick)];
+    const material = new ShaderMaterial({
+      vertexShader: VERTEX,
+      fragmentShader: FRAGMENT,
+      uniforms: {
+        uTypes: { value: null },
+        uAtlas: { value: this.atlas },
+        uWorld: { value: new Vector2(frame.width, frame.height) },
+        uInk: { value: new Color(INK) },
+        uOpacity: { value: OPACITY },
+        ...night,
+        uMinCellPx: { value: touch ? MIN_CELL_PX_AT_THE_FINGER : MIN_CELL_PX },
+        uPixelRatio: TRAME_SCALE,
+        uKeep: { value: byCode((type) => GLYPHS[type].keep, 0) },
+        uJitter: { value: byCode((type) => jitterOf(GLYPHS[type].fill), 0) },
+        uWeight: { value: byCode((type) => OPACITY_BY_TYPE[type], 0) },
+        uWashColor: { value: byCode((type) => new Color(WASH[type].color), new Color()) },
+        uWashAlpha: { value: byCode((type) => WASH[type].alpha, 0) },
+      },
+    });
+    material.transparent = true;
+    material.depthWrite = false;
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = -2;
+    material.polygonOffsetUnits = -4;
+    this.drawing = new Mesh(new PlaneGeometry(frame.width, frame.height), onLand(material));
     this.drawing.geometry.rotateX(-Math.PI / 2);
     this.drawing.geometry.translate(0, COUNTRY_THICKNESS + LIFT, 0);
-    this.wash = new Mesh(
-      new BufferGeometry(),
-      onTheLand(
-        new ShaderMaterial({
-          vertexShader: WASH_VERTEX,
-          fragmentShader: WASH_FRAGMENT,
-          side: DoubleSide,
-          uniforms: { ...this.night },
-        }),
-      ),
-    );
-    // Over the washed ground, the wash under the drawings, both under the contours (0.5 and up).
-    this.wash.renderOrder = 0.1;
+    // Over the washed ground, under the contours (0.5 and up).
     this.drawing.renderOrder = 0.2;
-    for (const mesh of [this.wash, this.drawing]) {
-      mesh.frustumCulled = false;
-      // Decor: neither picked nor aimed at.
-      mesh.raycast = () => {};
-      this.object.add(mesh);
-    }
+    this.drawing.frustumCulled = false;
+    // Decor: neither picked nor aimed at.
+    this.drawing.raycast = () => {};
+    this.object.add(this.drawing);
     this.object.visible = false;
   }
 
-  /** Bakes the type map and the wash of the regions that came. */
-  display(regions: ReadonlyArray<DisplayedRegion>): void {
+  /** The type map, built off the main thread with the near level. */
+  display(types: TypesData): void {
     this.types?.dispose();
-    this.types = paintTypes(regions, this.frame);
+    this.types = typesTexture(types);
     this.drawing.material.uniforms.uTypes!.value = this.types;
-    this.wash.geometry.dispose();
-    this.wash.geometry = washGeometry(regions, this.frame);
     this.object.visible = true;
   }
 
   dispose(): void {
     this.types?.dispose();
     this.atlas.dispose();
-    for (const mesh of [this.wash, this.drawing]) {
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-    }
+    this.drawing.geometry.dispose();
+    this.drawing.material.dispose();
     this.object.removeFromParent();
   }
 }

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from '@/domain/world';
-import worldAsset from '../../../public/world.json';
+import projectionAsset from '../../../public/projection.json';
 import { WorldFrame, framingDistanceOf } from './frame';
 
 const world = {
-  sphere: worldAsset.meta.sphere,
-  outline: worldAsset.meta.outline,
+  sphere: projectionAsset.sphere,
+  outline: projectionAsset.outline,
   countries: [],
 } as unknown as World;
 

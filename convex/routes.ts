@@ -1,10 +1,13 @@
 import type { LonLat } from '../src/domain/geo';
-import type { ComputedRoute, RouteMode } from '../src/domain/routing';
+import type { ComputedRoute, Ground, RouteMode } from '../src/domain/routing';
+import { distanceKm } from '../src/domain/geo';
 import {
+  coastCellsIn,
   computeRoute,
   computeRouteToAny,
   decodeGrid,
   isCoastCell,
+  groundAt,
   isLandCell,
   extendRouteSearch,
   routeDistanceKmAt,
@@ -12,7 +15,7 @@ import {
   truncateRouteSearch,
   KM_PER_UNIT,
 } from '../src/domain/routing';
-import type { World } from '../src/domain/world';
+import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
 import projectionAsset from '../public/projection.json';
 import {
@@ -21,15 +24,14 @@ import {
   hostAmongAtRoutePoint,
   hostAtRoutePoint,
   regionAtRoutePoint,
-  regionNearRoutePoint,
+  pointInRouteRegion,
 } from './regionGeometry';
-import { distanceKm } from '../src/domain/geo';
 
 /**
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
  * calculation lives: a client that computes its own routes also picks its own speeds.
  *
- * **No polygon enters this bundle any more** (ADR 0023): `world.json` weighed 1.27 MB of country
+ * **No polygon enters this bundle any more** (ADR 0023): the old `world.json` weighed 1.27 MB of country
  * rings and 11,5 MiB of isolate heap, for the one question `hostAtPoint` asks. That question is
  * answered off the baked region raster now, on the very cells this grid is made of, and what is
  * left of the world here is its frame — `projection.json`, 4 Ko, enough to project a lon/lat.
@@ -43,11 +45,7 @@ import { distanceKm } from '../src/domain/geo';
  * handful of `fill` calls instead, and the first movement of the season still pays for it rather
  * than the import: most mutations never route anything.
  */
-const world = {
-  sphere: projectionAsset.sphere,
-  outline: projectionAsset.outline,
-  countries: [],
-} as unknown as World;
+const projection = projectionAsset as unknown as Projection;
 
 let grid: ReturnType<typeof decodeGrid> | null = null;
 
@@ -65,7 +63,7 @@ export function routeBetween(
   mode: RouteMode,
   landCost?: number,
 ): ComputedRoute | null {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   return computeRoute(grid, from, to, mode, landCost);
 }
 
@@ -88,7 +86,7 @@ export function routeToRegions(
   if (here !== null && regionIds.has(here))
     return { kind: 'standing', regionId: here, point: from };
 
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   const goals = goalCellsForRegions(regions);
   const search = computeRouteToAny(grid, from, new Set(goals.keys()), mode, landCost);
   if (search === null) return null;
@@ -134,38 +132,56 @@ export function routeToRegions(
  * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
  */
 export function coastAtPoint(point: LonLat): boolean {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   return isCoastCell(grid, point);
 }
 
 /**
- * **Le quai le plus proche d'un point**, cherché par anneaux d'un dixième de degré : la carte de
- * départ d'une Blitz pose ses ports sans joueur pour choisir la côte (`blitz.place`).
+ * **Le quai d'une région, chez elle** : sa cellule côtière la plus proche de son point, lue sur la
+ * grille de routage, et dont le raster dit qu'elle est de cette région. Un quai cherché autour du
+ * point sans cette garde tombait chez le voisin, souvent dans un autre pays. `null` : la région
+ * n'a pas de cellule côtière à elle (`blitz.place`).
  */
-export function coastPointNear(point: LonLat): LonLat | null {
-  const step = 0.1;
-  for (let ring = 0; ring * step <= 2; ring += 1) {
-    for (let dx = -ring; dx <= ring; dx += 1) {
-      for (let dy = -ring; dy <= ring; dy += 1) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-        const candidate: LonLat = [point[0] + dx * step, point[1] + dy * step];
-        if (coastAtPoint(candidate)) return candidate;
-      }
-    }
+export function quayOfRegion(regionId: string, point: LonLat): LonLat | null {
+  let best: LonLat | null = null;
+  let bestKm = Infinity;
+  for (const quay of quaysByRegion().get(regionId) ?? []) {
+    const km = distanceKm(point, quay);
+    if (km < bestKm) [best, bestKm] = [quay, km];
   }
-  return null;
+  return best;
+}
+
+let quays: ReadonlyMap<string, ReadonlyArray<LonLat>> | null = null;
+function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
+  if (quays !== null) return quays;
+  grid ??= decodeGrid(gridAsset, projection);
+  const { minX, minY, maxX, maxY } = grid.sphere;
+  const found = new Map<string, LonLat[]>();
+  for (const { lonLat } of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
+    const regionId = regionAtRoutePoint(lonLat);
+    if (regionId === null) continue;
+    const list = found.get(regionId);
+    if (list === undefined) found.set(regionId, [lonLat]);
+    else list.push(lonLat);
+  }
+  return (quays = found);
 }
 
 export function landAtPoint(point: LonLat): boolean {
-  grid ??= decodeGrid(gridAsset, world);
-  return isLandCell(grid, point);
+  return groundAtPoint(point) === 'land';
+}
+
+/** Le sol que la visée a lu (`MapEngine.groundAt`), sur la même grille. */
+export function groundAtPoint(point: LonLat): Ground {
+  grid ??= decodeGrid(gridAsset, projection);
+  return groundAt(grid, point);
 }
 
 /**
  * **The country hosting a point, as every rule keys it**: an `adm0_a3`, or the empty string on
- * the open sea and nowhere else. One asset, one reading — `world.json` carries the rings and,
- * since `nommer-les-pays`, the code that goes with them, so the containment and the name come
- * out of the same polygon and cannot disagree.
+ * the open sea and nowhere else. One asset, one reading — the region raster carries the region and
+ * its host country on the same cell, so the containment and the code cannot disagree.
  *
  * The empty string used to swallow both "this is the high sea" and "this is a country nobody
  * plays", which made Arabia, Romania and Bolivia one and the same host. They are the ordinary
@@ -183,25 +199,11 @@ export function hostAtPoint(point: LonLat): string {
   return hostAtRoutePoint(point) ?? '';
 }
 
-/**
- * **Does this point lie in the region the client named?** The region comes from the board's
- * polygons, which the server does not hold: it checks the raster two cells around the point
- * (±55 km, which takes 4597 region poles out of 4600), and for the three regions the raster
- * misses at that ring (UGA-5616, IND-3262, PRT-735), the region's own point within
- * `REGION_POINT_SLACK_KM`. A region claimed hundreds of kilometres away — to colour it, or to
- * hide from a survey — is refused.
- */
-const REGION_RING = 2;
-const REGION_POINT_SLACK_KM = 60;
-
 export function pointInRegion(
   point: LonLat,
   region: { readonly id: string; readonly point: LonLat },
 ): boolean {
-  return (
-    regionNearRoutePoint(point, region.id, REGION_RING) ||
-    distanceKm(point, region.point) <= REGION_POINT_SLACK_KM
-  );
+  return pointInRouteRegion(point, region);
 }
 
 /**
@@ -235,7 +237,7 @@ export function routeKmFrom(
    *  d'une mutation parce que son appelant sait toujours jusqu'où il a besoin de voir. */
   maxKm?: number,
 ): ReadonlyMap<string, number> {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   const field = routeDistanceKmField(grid, from, mode, maxKm);
   const measured = new Map<string, number>();
   for (const place of places) {

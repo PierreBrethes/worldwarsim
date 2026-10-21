@@ -17,9 +17,9 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE } from './validators';
 import { aimOf, march } from './movement/orders';
-import { nominalStrength } from './constants';
+import { nominalStrength, outpostReachKm } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
-import { fileSurvey } from './surveys';
+import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
@@ -791,6 +791,33 @@ export const pointsScene = internalMutation({
       country: 'BEL',
       lost,
     });
+  },
+});
+
+/**
+ * **Deux nations côte à côte** (#217), pour la démo : un avant-poste britannique en Hainaut, contre
+ * le Nord français, de quoi voir deux contours voisins chacun en retrait chez lui.
+ *
+ * `npx convex run dev:neighbourScene '{"playerId":"…"}'`
+ */
+export const neighbourScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 3.95, lat: 50.45 },
+      hostCountry: 'BEL',
+      level: 2,
+      specialization: 'relay',
+      foundedAt: Date.now() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    await recordLinkage(ctx, player.seasonId);
+    await surveyFoundation(ctx, player.seasonId, [3.95, 50.45], outpostReachKm(2), Date.now());
   },
 });
 

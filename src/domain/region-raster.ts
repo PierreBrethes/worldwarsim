@@ -1,14 +1,15 @@
 import type { LonLat } from './geo';
-import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo';
+import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo.ts';
 import type { PlanePoint } from './region-crossing';
-import { lonLatAtProjected, projectLonLat } from './routing';
-import type { World } from './world';
+import { lonLatAtProjected, projectLonLat } from './routing.ts';
+import type { Projection } from './world';
 
 /**
  * **La géographie du serveur, à la maille de la grille de routage.** Les contours admin-1 et les
  * polygones de pays entraient dans le bundle Convex par `import` : 22,6 Mio de tas pour
- * `regions.json`, 11,5 pour `world.json`, payés par **tout** module qui touche à une règle de
- * carte, et retenus tant que l'isolat vit. C'est ce que la production recyclait en boucle.
+ * l'ancien `regions.json`, 11,5 pour l'ancien `world.json`, payés par **tout** module qui touche
+ * à une règle de carte, et retenus tant que l'isolat vit. C'est ce que la production recyclait
+ * en boucle.
  *
  * Ici la géométrie est cuite hors ligne, une fois, aux cellules mêmes que Dijkstra parcourt :
  * chaque cellule porte la région qui la contient et le pays qui l'héberge. Ce que le raster perd,
@@ -16,9 +17,9 @@ import type { World } from './world';
  * hors tas. **La cellule devient le modèle** — un point est dans la région de sa cellule, et deux
  * points d'une même cellule ne peuvent plus être de deux côtés d'une frontière (ADR 0023).
  *
- * Les deux canaux sont cuits avec les fonctions polygonales elles-mêmes — `regionAtPlanePoint`
- * pour la région, `countryAtPlanePoint` pour l'hôte — de sorte que la bascule ne change aucune
- * règle : à la demi-cellule près, le raster répond ce que le polygone répondait.
+ * Les deux canaux sont cuits sur l'atlas (`regionRaster`, `scripts/atlas-base.mjs`) : la région
+ * d'une cellule est celle qu'`atlas.regionAt` répond en son centre au niveau près, l'hôte est le
+ * pays de cette région. À la demi-cellule près, le raster répond ce que le survol nomme.
  */
 export type RegionRasterAsset = {
   readonly step: number;
@@ -52,8 +53,8 @@ export type RegionRaster = {
    *  y est, ou elle est dans le canal. Les deux ne se recouvrent jamais, ce qui fait de
    *  `cellsOfRegion` une bascule et non un arbitrage. */
   readonly anchorOfRegion: ReadonlyMap<string, number>;
-  readonly sphere: World['sphere'];
-  readonly outline: World['outline'];
+  readonly sphere: Projection['sphere'];
+  readonly outline: Projection['outline'];
 };
 
 /**
@@ -61,7 +62,7 @@ export type RegionRaster = {
  * ils sont déjà dans le bundle pour projeter un point, et deux copies du même cadre pourraient
  * diverger.
  */
-export function decodeRegionRaster(asset: RegionRasterAsset, world: World): RegionRaster {
+export function decodeRegionRaster(asset: RegionRasterAsset, world: Projection): RegionRaster {
   const regions = fill(asset.regionRuns, asset.width * asset.height);
   const countries = fill(asset.hostRuns, asset.width * asset.height);
   return {
@@ -187,12 +188,7 @@ function memberOf(raster: RegionRaster, regionId: string): (cell: number) => boo
  * maille près. Le carré de (2·ring+1)² cellules absorbe l'écart entre le polygone et le raster ;
  * une région revendiquée à des centaines de kilomètres n'y entre pas.
  */
-export function regionNear(
-  raster: RegionRaster,
-  lonLat: LonLat,
-  regionId: string,
-  ring: number,
-): boolean {
+function regionNear(raster: RegionRaster, lonLat: LonLat, regionId: string, ring: number): boolean {
   const isMember = memberOf(raster, regionId);
   const cell = cellAt(raster, lonLat);
   const column = cell % raster.width;
@@ -206,6 +202,28 @@ export function regionNear(
     }
   }
   return false;
+}
+
+/**
+ * **Does this point lie in the region named with it?** The region comes from the board's
+ * polygons, which the server does not hold: the raster two cells around the point (±55 km, which
+ * takes 4597 region poles out of 4600), and for the regions the raster misses at that ring, the
+ * region's own point within `REGION_POINT_SLACK_KM`. A region claimed hundreds of kilometres away
+ * — to colour it, or to hide from a survey — is refused. The server reads it before a building
+ * (`convex/routes.ts`), the region index before saying a region is coastal.
+ */
+const REGION_RING = 2;
+const REGION_POINT_SLACK_KM = 60;
+
+export function pointInRegion(
+  raster: RegionRaster,
+  point: LonLat,
+  region: { readonly id: string; readonly point: LonLat },
+): boolean {
+  return (
+    regionNear(raster, point, region.id, REGION_RING) ||
+    distanceKm(point, region.point) <= REGION_POINT_SLACK_KM
+  );
 }
 
 /**

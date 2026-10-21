@@ -1,6 +1,6 @@
 /**
  * Reads the Regierungsbezirke of the BKG's VG2500 (`VG2500_RBZ.shp`, licence dl-de/by-2-0,
- * © GeoBasis-DE / BKG) as lon/lat GeoJSON, for `generate-regions.mjs` to cut a Land into.
+ * © GeoBasis-DE / BKG) as lon/lat GeoJSON, for `generate-atlas.mjs` to cut a Land into.
  *
  * Natural Earth stops at the sixteen Länder, the coarsest admin-1 of any playable nation —
  * Bavaria alone is twelve French departments, and one building stands per region. The
@@ -9,8 +9,6 @@
  * The shapefile is read by hand rather than through a dependency: polygons and a flat
  * attribute table are all VG2500 holds, and the inverse projection is the textbook series.
  */
-import { readFileSync } from 'node:fs';
-
 /**
  * The Länder cut, keyed by their BKG code, to the `adm1_code` Natural Earth gives them. The
  * five Länder that have districts and are left whole are left whole on purpose: Nordrhein-
@@ -147,9 +145,9 @@ const polygonsOf = (rings) => {
  * The id is the district's NUTS 2 code under the country prefix every admin-1 id carries:
  * stable, official, and readable in a test.
  */
-export function germanDistricts(shpPath) {
-  const shapes = ringsOf(readFileSync(shpPath));
-  const rows = attributesOf(readFileSync(shpPath.replace(/\.shp$/i, '.dbf')));
+export function germanDistricts(shp, dbf) {
+  const shapes = ringsOf(shp);
+  const rows = attributesOf(dbf);
   if (shapes.length !== rows.length) throw new Error('VG2500_RBZ: .shp and .dbf disagree');
   const features = rows.flatMap((row, i) => {
     const land = SPLIT_LÄNDER[row.SN_L];

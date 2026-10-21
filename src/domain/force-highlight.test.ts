@@ -7,6 +7,7 @@ const point = (lon: number): Extract<TroopStation, { kind: 'point' }> => ({
   lonLat: [lon, 45],
   country: 'Italy',
   afloat: false,
+  ground: 'land',
   coastal: false,
 });
 const ROME = point(12.5);

@@ -284,6 +284,27 @@ sont liés à la clé publique) : ils devront réactiver la case des Réglages.
   **401** sans identifiants et **200** avec — un 200 tout court voudrait dire que le middleware
   BasicAuth n'est pas attaché au routeur.
 
+## L'atlas (#213, ADR 0034)
+
+`public/atlas.json` et `public/atlas-near.json` se cuisent depuis trois sources hors du dépôt,
+épinglées par SHA-256 dans le script (qui dit où les télécharger) :
+
+```bash
+node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> \
+  <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson>
+```
+
+Natural Earth 10m admin-1 et lacs v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE / BKG »,
+dl-de/by-2-0). Puis, dans cet ordre : `generate-grid`, `generate-region-index`,
+`generate-region-grid`, `generate-europe-sheet`, `generate-region-types <dossier des rasters>`,
+`generate-deposits`.
+**Déployer le socle de l'atlas vide la base** (ADR 0034), en pré-production comme en
+production : le sol, les points des régions, les gisements et la côte changent sous une saison
+en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions déployées ensuite.
+
+Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
+capitale, un gisement ou une saison en cours.
+
 ## Médias
 
 Les films ne sont pas dans le dépôt (plan-4b-2026-10-02) : le conteneur `front` monte

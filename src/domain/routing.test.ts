@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { decodeAtlas } from './atlas';
+import { atlasWorld } from './atlas-world';
 import type { World } from './world';
+import { refusalOf, type Column, type MovementAim } from './movement-orders';
 import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
@@ -7,7 +10,8 @@ import {
   buildGrid,
   coastCellsIn,
   computeRoute,
-  countryAt,
+  type GridWorld,
+  groundAt,
   isCoastCell,
   isLandCell,
   landComponentCount,
@@ -79,30 +83,15 @@ describe('landMaskOf', () => {
   });
 });
 
-/** Le monde cuit, tel que le serveur le lit : ce que le jouet ne peut pas dire — un isthme. */
-const realWorld = async (): Promise<World> => {
+/** Le monde cuit, tel que le serveur le lit : l'atlas (ADR 0034), ce que le jouet ne peut pas
+ *  dire — un isthme. */
+const realWorld = async () => {
   const { readFileSync } = await import('node:fs');
-  const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
-    meta: { sphere: World['sphere']; outline: World['outline'] };
-    countries: Array<{
-      n: string;
-      a: string;
-      c: [number, number];
-      ll: [number, number];
-      p: [number, number][][];
-    }>;
-  };
-  return {
-    sphere: raw.meta.sphere,
-    outline: raw.meta.outline,
-    countries: raw.countries.map((c) => ({
-      name: c.n,
-      adm0: c.a,
-      representativePoint: c.c,
-      lonLat: c.ll,
-      rings: c.p,
-    })),
-  };
+  const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
+  return atlasWorld(
+    decodeAtlas(read('public/atlas.json'), read('public/atlas-near.json')),
+    read('public/projection.json'),
+  );
 };
 
 describe('buildGrid', () => {
@@ -124,6 +113,85 @@ describe('a coast cell', () => {
 
   it('is not the inland of the same island', () => {
     expect(isCoastCell(grid, toLonLat(20.5, 25.5))).toBe(false);
+  });
+
+  /** A lake is water a hull cannot sail away on: no quay on its shore, Constance's included. */
+  it('is not the shore of a lake', () => {
+    const world = toyWorld();
+    const lake = [
+      [15, 23],
+      [20, 23],
+      [20, 27],
+      [15, 27],
+    ] as const;
+    const westland = world.countries[0]!;
+    const withLake = buildGrid(
+      { ...world, countries: [{ ...westland, rings: [...westland.rings, lake] }] },
+      1,
+    );
+    expect(withLake.cells[25 * withLake.width + 17]).toBe(2);
+    expect(isCoastCell(withLake, toLonLat(14.5, 25.5))).toBe(false);
+    expect(coastCellsIn(withLake, [12, 23, 23, 26])).toEqual([]);
+  });
+
+  /** A lagoon on the shore, cut out of the land as the atlas cuts it, would join the sea at this
+   *  mesh: its cells are lake, never sea. */
+  it('is not the shore of a lake that touches the sea', () => {
+    const lagoon = [
+      [10, 22],
+      [15, 22],
+      [15, 28],
+      [10, 28],
+    ] as const;
+    const world = toyWorld();
+    const westland = world.countries[0]!;
+    const withLagoon = buildGrid(
+      {
+        ...world,
+        countries: [{ ...westland, rings: [...westland.rings, lagoon] }],
+        lakes: [lagoon],
+      },
+      1,
+    );
+    expect(isLandCell(withLagoon, toLonLat(12.5, 25.5))).toBe(false);
+    expect(isCoastCell(withLagoon, toLonLat(15.5, 25.5))).toBe(false);
+    expect(computeRoute(withLagoon, toLonLat(5.5, 25.5), toLonLat(12.5, 25.5), 'naval')).toBeNull();
+  });
+
+  /** **Une règle, une fonction** (ADR 0015) : la visée et le serveur lisent le même sol, et la
+   *  règle partagée refuse le lac avant la route qui n'existe pas. */
+  it('reads a lake as a lake, so the order is refused before any route is sought', () => {
+    const lagoon = [
+      [10, 22],
+      [15, 22],
+      [15, 28],
+      [10, 28],
+    ] as const;
+    const world = toyWorld();
+    const westland = world.countries[0]!;
+    const withLagoon = buildGrid(
+      {
+        ...world,
+        countries: [{ ...westland, rings: [...westland.rings, lagoon] }],
+        lakes: [lagoon],
+      },
+      1,
+    );
+    const [lon, lat] = toLonLat(12.5, 25.5);
+    expect(groundAt(withLagoon, toLonLat(5.5, 25.5))).toBe('sea');
+    expect(groundAt(withLagoon, toLonLat(20.5, 25.5))).toBe('land');
+    const ground = groundAt(withLagoon, [lon, lat]);
+    expect(ground).toBe('lake');
+    const fleet: Column = {
+      roles: ['cargo'],
+      myRegionIds: new Set(),
+      myOutpostIds: new Set(),
+      departureBuildings: new Set(['port']),
+      afloat: true,
+      coastal: false,
+    };
+    const aim: MovementAim = { kind: 'point', lon, lat, ground, coastal: false, surveyed: false };
+    expect(refusalOf('march', aim, fleet)).toBe('LAKE_TARGET');
   });
 
   it('is not the water off it — a quay stands on the ground', () => {
@@ -218,29 +286,16 @@ describe('east-west wrapping', () => {
 });
 
 describe('on the real world', () => {
+  /** Murmansk's point falls in a fjord narrower than a cell: the ship leaves from the open sea. */
+  it('sails from Murmansk, whose nearest water is cut off from the sea', async () => {
+    const route = computeRoute(buildGrid(await realWorld()), [33.0, 69.05], [-1.1, 50.8], 'naval');
+    expect(route).not.toBeNull();
+    expect(route!.costUnits).toBeGreaterThan(45.32 * 0.99);
+    expect(route!.costUnits).toBeLessThan(45.32 * 1.01);
+  });
+
   it('engraves the sea gates: Gibraltar stays open', async () => {
-    const { readFileSync } = await import('node:fs');
-    const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
-      meta: { sphere: World['sphere']; outline: World['outline'] };
-      countries: Array<{
-        n: string;
-        a: string;
-        c: [number, number];
-        ll: [number, number];
-        p: [number, number][][];
-      }>;
-    };
-    const world: World = {
-      sphere: raw.meta.sphere,
-      outline: raw.meta.outline,
-      countries: raw.countries.map((c) => ({
-        name: c.n,
-        adm0: c.a,
-        representativePoint: c.c,
-        lonLat: c.ll,
-        rings: c.p,
-      })),
-    };
+    const world = await realWorld();
     const worldGrid = buildGrid(world);
 
     // Marseille → Casablanca by sea: without the Gibraltar gate, no path exists.
@@ -331,7 +386,7 @@ describe('les canaux gravés', () => {
  * Les portes se relisent une par une pour que l'échec dise laquelle.
  */
 describe('les portes maritimes', () => {
-  let world: World | null = null;
+  let world: GridWorld | null = null;
   const worldOf = async () => (world ??= await realWorld());
 
   it('laisse à la terre exactement les morceaux qu’elle avait', async () => {
@@ -363,19 +418,6 @@ describe('les portes maritimes', () => {
     expect(route!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
     expect(Math.min(...route!.points.map(([, lat]) => lat))).toBeGreaterThan(0);
   }, 120000);
-});
-
-/**
- * The one question a lon/lat cannot answer alone, and the reason the rings are on the server at
- * all: a destination owes a rest window to whoever holds the ground it lands on.
- */
-describe('the country under a point', () => {
-  it('codes the land, and answers nothing at sea', async () => {
-    const world = await realWorld();
-    expect(countryAt(world, [25.2, 44.6])).toBe('ROU');
-    expect(countryAt(world, [2.35, 48.86])).toBe('FRA');
-    expect(countryAt(world, [-30, 40])).toBeNull();
-  });
 });
 
 /**

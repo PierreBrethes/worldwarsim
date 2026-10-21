@@ -10,26 +10,20 @@
  * reimplementing it, and the verifier compares the bake to it byte for byte. Node strips the
  * types of the module on its own (24.x), so no build step stands between the two.
  *
- * Usage: node scripts/generate-grid.mjs — also chained at the end of generate-world.mjs, because
- * a regenerated world with a stale grid is exactly what the equality test exists to refuse.
+ * The land is the atlas (ADR 0034): the countries merged from the `near` arcs of
+ * `public/atlas.json` and `public/atlas-near.json`, the very coast the hover reads. A new atlas
+ * leaves a stale grid, which is what the equality test refuses: run this script after
+ * `generate-atlas.mjs`, then `generate-region-grid.mjs`.
+ *
+ * Usage: node scripts/generate-grid.mjs
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { buildGrid, encodeGrid } from '../src/domain/routing.ts';
+import { atlasWorld, STEP } from './atlas-base.mjs';
 
-const asset = JSON.parse(readFileSync('public/world.json', 'utf8'));
-const world = {
-  sphere: asset.meta.sphere,
-  outline: asset.meta.outline,
-  countries: asset.countries.map((country) => ({
-    name: country.n,
-    adm0: country.a,
-    representativePoint: country.c,
-    lonLat: country.ll,
-    rings: country.p,
-  })),
-};
+const world = atlasWorld();
 
-const grid = buildGrid(world);
+const grid = buildGrid(world, STEP);
 const encoded = encodeGrid(grid);
 const baked = JSON.stringify(encoded);
 writeFileSync('public/grid.json', baked);

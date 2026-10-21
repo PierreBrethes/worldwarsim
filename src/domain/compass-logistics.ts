@@ -299,7 +299,7 @@ export function towardsMyPile(
     lon: station.lonLat[0],
     lat: station.lonLat[1],
     coastal: station.coastal,
-    onLand: target.onLand,
+    ground: target.ground,
     /** Rejoindre est une marche, jamais un assaut : le relevé n'y décide de rien. */
     surveyed: false,
   };

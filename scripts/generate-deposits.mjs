@@ -1,7 +1,7 @@
 /**
  * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) as **points** on
  * the map (ADR 0029 §3): `{ id, deposit, regionId, country, lon, lat }`, one per deposit. The
- * draw still chooses admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as
+ * draw still chooses admin-1 regions, keyed by the `adm1_code` that the atlas carries as
  * `id`; coal, iron and oil then stand on their site of 1940, food at random inside its region.
  *
  * Run after `generate-region-grid.mjs`: a point's region is the one its cell carries.
@@ -36,6 +36,7 @@ import { geoNaturalEarth1 } from 'd3-geo';
 import polylabel from 'polylabel';
 import { distanceKm } from '../src/domain/geo.ts';
 import { lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
+import { atlas } from './atlas-base.mjs';
 
 const WIDTH = 400;
 const HEIGHT = 208;
@@ -506,20 +507,28 @@ function ringArea(ring) {
   return Math.abs(sum / 2);
 }
 
-const raw = JSON.parse(readFileSync('public/regions.json', 'utf8'));
-const regions = raw.regions.map((region) => {
-  const largest = region.p.reduce((a, b) => (ringArea(a) >= ringArea(b) ? a : b));
+const shapes = atlas.shapes((region) => region.id, 'near');
+const regions = atlas.regions.flatMap(({ id, country, name }) => {
+  const rings = (shapes.get(id) ?? []).map((shape) => shape.outer);
+  if (rings.length === 0) return [];
+  const polygons = rings.map((flat) =>
+    Array.from({ length: flat.length / 2 }, (_, i) => [flat[2 * i], flat[2 * i + 1]]),
+  );
+  const closed = polygons.map((ring) => [...ring, ring[0]]);
+  const largest = closed.reduce((a, b) => (ringArea(a) >= ringArea(b) ? a : b));
   const point = polylabel([largest], 0.5);
   const lonLat = projection.invert(point);
-  return {
-    id: region.id,
-    country: region.country,
-    name: region.n,
-    area: region.p.reduce((sum, ring) => sum + ringArea(ring), 0),
-    point,
-    longitude: lonLat[0],
-    latitude: lonLat[1],
-  };
+  return [
+    {
+      id,
+      country,
+      name,
+      area: closed.reduce((sum, ring) => sum + ringArea(ring), 0),
+      point,
+      longitude: lonLat[0],
+      latitude: lonLat[1],
+    },
+  ];
 });
 
 const byId = new Map(regions.map((region) => [region.id, region]));
@@ -684,9 +693,19 @@ const lonLatIn = (cell, dx = 0.5, dy = 0.5) =>
   ]);
 const rounded = ([lon, lat]) => [Math.round(lon * 1000) / 1000, Math.round(lat * 1000) / 1000];
 
+/**
+ * **A point is in its region twice over**: on the server's cell, and on the atlas the hover reads
+ * (`regionAt`, near level). One without the other puts a deposit at sea under the pointer, or in
+ * the neighbour's region, and the building there is refused (`NO_GROUND`).
+ */
+const inRegion = (lonLat, regionId) =>
+  regionId !== undefined &&
+  regionOfCell(cellOf(lonLat)) === regionId &&
+  atlas.regionAt(projectLonLat(outline, sphere, lonLat), 'near')?.id === regionId;
+
 function landed(site, country) {
   const start = cellOf(site);
-  if (hostOfCell(start) === country && regionOfCell(start)) return site;
+  if (hostOfCell(start) === country && inRegion(rounded(site), regionOfCell(start))) return site;
   const column = start % raster.width;
   const row = Math.floor(start / raster.width);
   for (let ring = 1; ring <= 20; ring++) {
@@ -698,8 +717,9 @@ function landed(site, country) {
         const c = (column + dx + raster.width) % raster.width;
         if (r < 0 || r >= raster.height) continue;
         const cell = r * raster.width + c;
-        if (hostOfCell(cell) !== country || !regionOfCell(cell)) continue;
+        if (hostOfCell(cell) !== country) continue;
         const at = lonLatIn(cell);
+        if (!inRegion(rounded(at), regionOfCell(cell))) continue;
         const km = distanceKm(at, site);
         if (best === null || km < best.km) best = { at, km };
       }
@@ -737,9 +757,34 @@ const nearest = (at) =>
     { km: Infinity, other: null },
   );
 
-/** Sites first, so a field never takes the ground a mine of 1940 stands on. */
+/**
+ * **A deposit keeps its point** while it is still in its region: a rebake after a change of the
+ * map moves only the points that fell out, never a whole country's fields drawn afresh.
+ */
+const previous = new Map(
+  JSON.parse(readFileSync('public/deposits.json', 'utf8')).map((point) => [point.id, point]),
+);
 const drawn = [...deposits].sort(([a], [b]) => (a < b ? -1 : 1));
-for (const [drawnId, deposit] of drawn.filter(([id]) => SITES.has(id))) {
+const kept = new Set();
+for (const [drawnId, deposit] of drawn) {
+  const before = previous.get(`${deposit}-${drawnId}`);
+  if (before === undefined || !inRegion([before.lon, before.lat], before.regionId)) continue;
+  const home = SITES.has(drawnId)
+    ? index.country[before.regionId] === byId.get(drawnId).country
+    : before.regionId === drawnId;
+  if (!home) continue;
+  kept.add(drawnId);
+  placed.push({
+    id: before.id,
+    deposit,
+    regionId: before.regionId,
+    lonLat: [before.lon, before.lat],
+    site: SITES.has(drawnId),
+  });
+}
+
+/** Sites first, so a field never takes the ground a mine of 1940 stands on. */
+for (const [drawnId, deposit] of drawn.filter(([id]) => SITES.has(id) && !kept.has(id))) {
   const country = byId.get(drawnId).country;
   const found = landed(SITES.get(drawnId), country);
   if (found === null) {
@@ -748,7 +793,7 @@ for (const [drawnId, deposit] of drawn.filter(([id]) => SITES.has(id))) {
   }
   const lonLat = rounded(found);
   const regionId = regionOfCell(cellOf(lonLat));
-  if (index.country[regionId] !== country)
+  if (index.country[regionId] !== country || !inRegion(lonLat, regionId))
     strayed.push(`${deposit} ${drawnId}: its site lands in ${regionId}, outside ${country}`);
   const { km, other } = nearest(lonLat);
   if (km < SPACING_KM)
@@ -756,14 +801,14 @@ for (const [drawnId, deposit] of drawn.filter(([id]) => SITES.has(id))) {
   placed.push({ id: `${deposit}-${drawnId}`, deposit, regionId, lonLat, site: true });
 }
 
-for (const [regionId, deposit] of drawn.filter(([id]) => !SITES.has(id))) {
+for (const [regionId, deposit] of drawn.filter(([id]) => !SITES.has(id) && !kept.has(id))) {
   const random = mulberry(SEED + hash(`point:${regionId}`));
   const cells = cellsOfRegion.get(regionId) ?? [];
   let lonLat = null;
   for (let attempt = 0; attempt < FOOD_TRIES && cells.length > 0 && lonLat === null; attempt++) {
     const cell = cells[Math.floor(random() * cells.length)];
     const at = rounded(lonLatIn(cell, random(), random()));
-    if (regionOfCell(cellOf(at)) === regionId && nearest(at).km >= SPACING_KM) lonLat = at;
+    if (inRegion(at, regionId) && nearest(at).km >= SPACING_KM) lonLat = at;
   }
   if (lonLat === null) {
     crowded.push(`${deposit} ${regionId}: no point of its region ${SPACING_KM} km clear`);
@@ -771,6 +816,7 @@ for (const [regionId, deposit] of drawn.filter(([id]) => !SITES.has(id))) {
   }
   placed.push({ id: `${deposit}-${regionId}`, deposit, regionId, lonLat, site: false });
 }
+console.log(`${kept.size} points kept, ${placed.length - kept.size} placed afresh`);
 
 const output = placed
   .sort((a, b) => (a.id < b.id ? -1 : 1))
