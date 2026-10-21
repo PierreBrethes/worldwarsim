@@ -43,6 +43,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
 import { pressRail } from './rail-gesture';
@@ -88,6 +89,7 @@ export function PersonalBoard({
   onResearch,
   onHoldTile,
   onPlaceTile,
+  maquetteAt,
   placing,
   onTakeTokens,
   cue = null,
@@ -118,6 +120,8 @@ export function PersonalBoard({
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
   onPlaceTile: () => boolean;
+  /** The maquette the map draws under a point (`MapEngine.maquetteAtPoint`), once the map is ready. */
+  maquetteAt: MaquetteAt | null;
   /** The building whose ghost the map holds: its tile is lit, and Échap is the ghost's. */
   placing: BuildingKey | null;
 }) {
@@ -149,6 +153,7 @@ export function PersonalBoard({
     motion,
     onHoldTile,
     onPlaceTile,
+    maquetteAt,
   });
   /** La main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
   const folded = !open || research || away;
@@ -1407,6 +1412,7 @@ function useHand({
   motion,
   onHoldTile,
   onPlaceTile,
+  maquetteAt,
 }: {
   view: PlayerView;
   /** A spend made from the board: its reading is renewed, so the next harvest does not bill it. */
@@ -1416,6 +1422,7 @@ function useHand({
   motion: MapMotion;
   onHoldTile: (key: BuildingKey | null) => void;
   onPlaceTile: () => boolean;
+  maquetteAt: MaquetteAt | null;
 }) {
   const [held, setHeld] = useState<BuildingKey | null>(null);
   const [hint, setHint] = useState<Hint>(null);
@@ -1425,13 +1432,13 @@ function useHand({
   const start = useMutation(api.constructions.start);
   const latest = useRef(view);
   // The release reads the board's callbacks as they are then: the ghost's point is not known at the grab.
-  const callbacks = useRef({ onHoldTile, onPlaceTile, onSpent });
+  const callbacks = useRef({ onHoldTile, onPlaceTile, onSpent, maquetteAt });
   // Written after the commit and not during the render (#189): a ref written while rendering
   // keeps the compiler off this hook, and `take` changed identity at every tick of the clock —
   // the board's eleven tiles rendered again every second.
   useLayoutEffect(() => {
     latest.current = view;
-    callbacks.current = { onHoldTile, onPlaceTile, onSpent };
+    callbacks.current = { onHoldTile, onPlaceTile, onSpent, maquetteAt };
   });
   const gesture = useRef<{ cancel: () => void } | null>(null);
 
@@ -1473,7 +1480,11 @@ function useHand({
     const hover = (x: number, y: number) => {
       follow(x, y);
       if (refusal !== null) return;
-      const reading = readingOf(key, targetAt(x, y, board.current, latest.current), latest.current);
+      const reading = readingOf(
+        key,
+        targetAt(x, y, board.current, latest.current, callbacks.current.maquetteAt),
+        latest.current,
+      );
       arm(reading.kind === 'map');
       say(reading.hint);
       if (reading.kind !== 'board') leave();
@@ -1524,7 +1535,7 @@ function useHand({
       }
       const reading = readingOf(
         key,
-        targetAt(at.x, at.y, board.current, latest.current),
+        targetAt(at.x, at.y, board.current, latest.current, callbacks.current.maquetteAt),
         latest.current,
       );
       if (reading.kind === 'map') {
@@ -1604,7 +1615,13 @@ type Target =
   | { readonly kind: 'buildings'; readonly buildings: ReadonlyArray<Building> }
   | { readonly kind: 'map' };
 
-function targetAt(x: number, y: number, board: HTMLElement | null, view: PlayerView): Target {
+function targetAt(
+  x: number,
+  y: number,
+  board: HTMLElement | null,
+  view: PlayerView,
+  maquetteAt: MaquetteAt | null,
+): Target {
   const under = document.elementsFromPoint(x, y);
   if (board !== null && under.some((element) => board.contains(element))) return { kind: 'board' };
   for (const element of under) {
@@ -1612,7 +1629,8 @@ function targetAt(x: number, y: number, board: HTMLElement | null, view: PlayerV
     const buildings = view.me.buildings.filter((one) => ids?.includes(one.id) === true);
     if (buildings.length > 0) return { kind: 'buildings', buildings };
   }
-  return { kind: 'map' };
+  const drawn = buildingsOfMaquette(view.me.buildings, maquetteAt?.(x, y) ?? null);
+  return drawn.length > 0 ? { kind: 'buildings', buildings: drawn } : { kind: 'map' };
 }
 
 /**

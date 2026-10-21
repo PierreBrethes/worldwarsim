@@ -184,6 +184,9 @@ type Props = {
    * au plateau, pas ici.
    */
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
+  /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
+   *  tuile du plateau personnel se lâche sur une maquette (#205). */
+  onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
   /** The press card a hovered piece wears; the map places it, the board writes it. */
@@ -368,6 +371,7 @@ export function WorldMap({
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
+  onMaquetteLookup,
   onArcHover,
   onLabelHover,
   poster,
@@ -433,6 +437,9 @@ export function WorldMap({
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
+  useEffect(() => {
+    if (readyEngine) onMaquetteLookup?.((x, y) => readyEngine.maquetteAtPoint(x, y));
+  }, [readyEngine, onMaquetteLookup]);
 
   useEffect(() => {
     if (!container.current) return;

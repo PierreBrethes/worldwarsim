@@ -1375,6 +1375,14 @@ export class MapEngine {
     return this.regions.regionAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
   }
 
+  /** **The maquette under a screen point**, by its label's id: what a tile from the personal
+   *  board lets go on (#205). Its mast, folded, takes no pointer, and the garrison standing at its
+   *  foot does not hide it — a tile only ever acts on a building. */
+  maquetteAtPoint(clientX: number, clientY: number): string | null {
+    if (!this.castAt(clientX, clientY)) return null;
+    return this.maquettes.under(this.ray)?.id ?? null;
+  }
+
   private aimAt(clientX: number, clientY: number, includeSea = false): Intersection | undefined {
     if (!this.castAt(clientX, clientY)) return undefined;
     return this.ray.intersectObjects(includeSea ? this.aimable : this.countries, false)[0];
