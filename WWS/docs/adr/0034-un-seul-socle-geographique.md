@@ -3,6 +3,17 @@
 **Statut :** acceptée (21/10/2026, #213, lot 1 du socle #209). Le générateur, le module et les
 fichiers sont livrés ; le moteur, le serveur et les grilles s'y branchent aux lots 2 à 5.
 
+**Précisée le 21/10/2026 (#214, lot 2).** `grid.json`, `region-index.json`, `region-grid.json`,
+`projection.json` et `europe-sheet.json` sortent de l'atlas au niveau « près », par
+`generate-grid`, `generate-region-index`, `generate-region-grid` et `generate-europe-sheet`, dans
+cet ordre, après `generate-atlas` ; `generate-world` ne les enchaîne plus. La maille reste de
+0,25 u. La région d'une cellule est celle de `regionAt` au centre (le test l'échantillonne),
+son hôte le pays de cette région ; la côte d'une région est un arc dont l'autre côté est la mer.
+Une région que la simplification réduit à un point n'a pas de cellule : elle est ancrée, comme
+toute région plus petite qu'une cellule. Les quatre portes de Calais, Gibraltar, Ormuz et
+Bab-el-Mandeb ne servent plus à rien sur la côte 10 m ; elles sont gardées (aucune ne coupe de
+terre), leur retrait est une décision à part.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :
