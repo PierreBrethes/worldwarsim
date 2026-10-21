@@ -21,15 +21,28 @@ type AtlasGeometry = { id: string; properties: { country: string; name: string }
 export type AtlasFile = {
   type: 'Topology';
   transform: { scale: [number, number]; translate: [number, number] };
-  objects: { regions: { type: 'GeometryCollection'; geometries: AtlasGeometry[] } };
+  objects: {
+    regions: { type: 'GeometryCollection'; geometries: AtlasGeometry[] };
+    /** The great lakes cut out of the regions: water, as the sea is, but no coast to sail from. */
+    lakes?: {
+      type: 'GeometryCollection';
+      geometries: Array<
+        { type: 'Polygon'; arcs: ArcRefs[] } | { type: 'MultiPolygon'; arcs: ArcRefs[][] }
+      >;
+    };
+  };
   arcs: number[][][];
 };
 
-/** One arc; `left` lies on the left hand of whoever walks its points in order. `null` is the sea. */
+/**
+ * One arc; `left` lies on the left hand of whoever walks its points in order. `null` is water:
+ * the sea, or a great lake when `lake` says so.
+ */
 type Border = {
   readonly points: Float32Array;
   readonly left: AtlasRegion | null;
   readonly right: AtlasRegion | null;
+  readonly lake: boolean;
 };
 
 type Shape = { readonly outer: Float32Array; readonly holes: readonly Float32Array[] };
@@ -114,6 +127,9 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
       break findWinding;
     }
   const regionOf = (owner: number) => (owner < 0 ? null : regions[owner]!);
+  const lakeArcs = new Set(
+    (file.objects.lakes?.geometries ?? []).flatMap(({ arcs }) => arcs.flat(2).map(arcIndex)),
+  );
   const ownerOf = new Map(regions.map(({ id }, owner) => [id, owner]));
   // The arcs each region walks, each once: what `regionAt`, `outline` and `shapes(among)` read.
   const arcsOfRegion = polygons.map((list) => new Int32Array(new Set(list.flat(2).map(arcIndex))));
@@ -142,7 +158,7 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
         const forward = regionOf(forwardOwner[arc]!);
         const backward = regionOf(backwardOwner[arc]!);
         const [left, right] = insideOnLeft ? [forward, backward] : [backward, forward];
-        if (differ(left, right)) out.push({ points, left, right });
+        if (differ(left, right)) out.push({ points, left, right, lake: lakeArcs.has(arc) });
       });
       return out;
     },

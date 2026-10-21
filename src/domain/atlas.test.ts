@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import projectionAsset from '../../public/projection.json';
+import { projectLonLat } from './routing';
 import {
   decodeAtlas,
   findCrossings,
@@ -64,6 +66,7 @@ const FILE: AtlasFile = {
         { type: 'MultiPolygon', arcs: [[[3]]], id: 'C', properties: { country: 'Y', name: 'Cc' } },
       ],
     },
+    lakes: { type: 'GeometryCollection', geometries: [{ type: 'Polygon', arcs: [[~4]] }] },
   },
   arcs: deltas(ABSOLUTE),
 };
@@ -107,6 +110,11 @@ describe('decodeAtlas', () => {
       'far',
     );
     expect(regionBorders).toHaveLength(1);
+  });
+
+  it('tells a lake shore from the sea', () => {
+    const shores = atlas.borders((left, right) => (left === null) !== (right === null), 'far');
+    expect(shores.map(({ lake }) => lake)).toEqual([false, false, false, true]);
   });
 
   it('puts the left region on the left hand of the line', () => {
@@ -294,15 +302,39 @@ describe('public/atlas.json', () => {
   });
 
   /**
-   * A gap between two regions would be a hole in the land. There are two, and both are in
-   * Natural Earth: the Caspian, and the Southern Patagonian Ice Field Chile and Argentina
-   * never finished dividing.
+   * A gap between two regions would be a hole in the land, a sliver of a few hectares. The
+   * land's holes are the great lakes (400 km² and more, ~0.03 u², a few tens of km² for a
+   * lake's last fragment once simplified), the Caspian, and the Southern Patagonian Ice Field
+   * Chile and Argentina never finished dividing.
    */
-  it('leaves no gap between regions', () => {
+  it.each(['far', 'near'] as const)('leaves no gap between regions at the %s level', (detail) => {
     const land = decodeAtlas(file, near)
-      .shapes(() => 'land', 'near')
+      .shapes(() => 'land', detail)
       .get('land')!;
-    const holes = land.flatMap(({ holes }) => holes).map((hole) => area(hole));
-    expect(holes.sort((a, b) => a - b)).toEqual([expect.closeTo(0.21, 2), expect.closeTo(55.9, 1)]);
+    const slivers = land.flatMap(({ holes }) => holes).filter((hole) => area(hole) < 0.0005);
+    expect(slivers.map((hole) => [hole[0], hole[1]])).toEqual([]);
+  });
+
+  /** The great lakes are water: no region, no deposit, no march across Constance. */
+  it.each([
+    ['Constance', 9.38, 47.62],
+    ['Léman', 6.55, 46.43],
+    ['Ladoga', 31.5, 61],
+    ['Onega', 35.4, 61.7],
+    ['Supérieur', -87.5, 47.7],
+    ['Michigan', -87, 43.5],
+    ['Huron', -82.5, 44.8],
+    ['Érié', -81.3, 42.2],
+    ['Ontario', -77.8, 43.6],
+    ['Victoria', 33, -1],
+    ['Tanganyika', 29.6, -6.2],
+    ['Baïkal', 108, 53.3],
+  ])('holds no region in lake %s', (_, lon, lat) => {
+    const atlas = decodeAtlas(file, near);
+    const point = projectLonLat(projectionAsset.outline as never, projectionAsset.sphere, [
+      lon,
+      lat,
+    ]);
+    expect([atlas.regionAt(point, 'near'), atlas.regionAt(point, 'far')]).toEqual([null, null]);
   });
 });

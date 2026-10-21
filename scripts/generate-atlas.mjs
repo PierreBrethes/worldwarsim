@@ -6,6 +6,7 @@
  * 1. Natural Earth 10m admin-1, Antarctica left out as `world.json` leaves it, three German
  *    Länder cut into their Regierungsbezirke (BKG VG2500), in lon/lat.
  * 2. One topology with shared arcs, cleaned by mapshaper: no gap, no overlap between regions.
+ *    The great lakes are cut out of it: their water is no region's.
  * 3. Each arc projected in Natural Earth 1 over 400 × 208 u, then weighted by Visvalingam on
  *    the sheet. Two levels keep the same arcs and objects: near (30 % of the points) and far
  *    (6 %), quantized at 0.001 u (~110 m). Each level is repaired until no arc crosses
@@ -14,17 +15,18 @@
  *    a capital, a deposit or a saved season.
  *
  * Usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson>
- *   <vg2500_12-31.utm32s.shape.zip>
+ *   <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson>
  * Sources, pinned by SHA-256 below:
  * - Natural Earth v5.1.2, github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/
  *   ne_10m_admin_1_states_provinces.geojson
+ * - Natural Earth v5.1.2, same folder, ne_10m_lakes.geojson
  * - BKG VG2500 (© GeoBasis-DE / BKG, dl-de/by-2-0), daten.gdz.bkg.bund.de/produkte/vg/vg2500/
  *   aktuell/vg2500_12-31.utm32s.shape.zip
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync, inflateRawSync } from 'node:zlib';
-import { geoNaturalEarth1 } from 'd3-geo';
+import { geoArea, geoNaturalEarth1 } from 'd3-geo';
 import mapshaper from 'mapshaper';
 import { presimplify } from 'topojson-simplify';
 import { findCrossings } from '../src/domain/atlas.ts';
@@ -33,6 +35,7 @@ import { germanDistricts } from './german-districts.mjs';
 const SOURCES = [
   ['Natural Earth admin-1', '22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5'],
   ['BKG VG2500', '2782060b2e518fc60cce2f8b1201334cd783d3225e6c7552655aa0b33b056d05'],
+  ['Natural Earth lakes', '2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9'],
 ];
 const WIDTH = 400;
 const HEIGHT = 208;
@@ -43,13 +46,13 @@ const NEAR_SHARE = 0.3;
 const FAR_SHARE = 0.06;
 
 const paths = process.argv.slice(2);
-if (paths.length !== 2) {
+if (paths.length !== 3) {
   console.error(
-    'usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg2500_12-31.utm32s.shape.zip>',
+    'usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson>',
   );
   process.exit(1);
 }
-const [admin1, vg2500] = paths.map((path, i) => {
+const [admin1, vg2500, lakeSource] = paths.map((path, i) => {
   const [name, expected] = SOURCES[i];
   const bytes = readFileSync(path);
   const actual = createHash('sha256').update(bytes).digest('hex');
@@ -203,14 +206,34 @@ function zipMember(zip, name) {
 
 // ---------- 2. One topology ----------
 
-const cleaned = await mapshaper.applyCommands(
-  '-i regions.json -clean -o regions.json format=topojson no-quantization',
-  { 'regions.json': JSON.stringify({ type: 'FeatureCollection', features }) },
+/**
+ * The great lakes are water: cut out of the regions, their shore is a coast. Great is 400 km²
+ * and more: Constance (459 km²), the smallest lake Pierre named, is in; a smaller one would be
+ * a speck at the near level. Reservoirs count: the map is today's.
+ */
+const GREAT_LAKE_KM2 = 400;
+const lakes = JSON.parse(lakeSource.toString('utf8')).features.filter(
+  (lake) => geoArea(lake) * 6371 ** 2 >= GREAT_LAKE_KM2,
 );
-const topology = JSON.parse(cleaned['regions.json']);
+console.log(`${lakes.length} great lakes`);
+
+const cleaned = await mapshaper.applyCommands(
+  // Snapped first, at ~110 m, the quantum: a lake shore a few metres off a region's border
+  // would leave slivers that rounding folds onto each other.
+  '-i regions.json lakes.json combine-files snap snap-interval=0.001 ' +
+    '-clip regions target=lakes -erase lakes target=regions -clean snap-interval=0.001 target=regions ' +
+    '-o atlas.json target=regions,lakes format=topojson no-quantization',
+  {
+    'regions.json': JSON.stringify({ type: 'FeatureCollection', features }),
+    'lakes.json': JSON.stringify({ type: 'FeatureCollection', features: lakes }),
+  },
+);
+const topology = JSON.parse(cleaned['atlas.json']);
 const geometries = topology.objects.regions.geometries;
 if (geometries.length !== features.length || geometries.some(({ type }) => !type))
-  throw new Error('mapshaper -clean lost a region');
+  throw new Error(
+    `mapshaper lost a region: ${features.map(({ properties }) => properties.id).filter((id) => !geometries.some(({ type, properties }) => type && properties.id === id))}`,
+  );
 
 // ---------- 3. Projection, simplification, quantization ----------
 
@@ -352,6 +375,12 @@ const atlas = {
         id,
         properties: { country, name },
       })),
+    },
+    lakes: {
+      type: 'GeometryCollection',
+      geometries: topology.objects.lakes.geometries
+        .filter(({ type }) => type)
+        .map(({ type, arcs }) => ({ type, arcs })),
     },
   },
   arcs: deltas(level(FAR_SHARE)),

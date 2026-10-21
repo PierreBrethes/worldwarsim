@@ -29,6 +29,17 @@ sur les formes de l'atlas (`generate-region-types.mjs`) ; `deposits.json` est re
 des régions de l'atlas, chaque gisement dans la cellule de sa région. Seuls les contours lisent
 encore `regions.json` (#217).
 
+**Précisée le 21/10/2026 : les grands lacs sont de l'eau** (décision de Pierre). Les 432 lacs de
+Natural Earth 10m de 400 km² et plus (Constance, 459 km², le plus petit qu'il ait nommé ;
+réservoirs compris, la carte est celle d'aujourd'hui) sont retirés des régions par mapshaper
+(`-clip`, `-erase`), après un aimantage à 0,001° qui évite les liserés entre une rive et une
+frontière. Ils restent dans la topologie, objet `lakes` : leur rive est une côte qu'on dessine
+(`borders` la marque `lake`), une cellule d'eau de la grille qu'on ne traverse pas à pied, mais
+pas une côte où l'on amarre : `region-index.json` ne compte pas une rive de lac comme côte, et
+`isCoastCell` ne retient que la mer ouverte (`openWaterOf`), ce qui retire aussi ses quais à la
+Caspienne, où aucune coque ne pouvait déjà prendre la mer. Coût : +50 Ko gzip au loin, +97 Ko
+au près.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :

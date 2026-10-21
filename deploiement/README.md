@@ -286,14 +286,18 @@ sont liés à la clé publique) : ils devront réactiver la case des Réglages.
 
 ## L'atlas (#213, ADR 0034)
 
-`public/atlas.json` et `public/atlas-near.json` se cuisent depuis deux sources hors du dépôt,
+`public/atlas.json` et `public/atlas-near.json` se cuisent depuis trois sources hors du dépôt,
 épinglées par SHA-256 dans le script (qui dit où les télécharger) :
 
 ```bash
-node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg2500_12-31.utm32s.shape.zip>
+node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> \
+  <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson>
 ```
 
-Natural Earth 10m admin-1 v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE / BKG », dl-de/by-2-0).
+Natural Earth 10m admin-1 et lacs v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE / BKG »,
+dl-de/by-2-0). Puis, dans cet ordre : `generate-grid`, `generate-region-index`,
+`generate-region-grid`, `generate-europe-sheet`, `generate-region-types <dossier des rasters>`,
+`generate-deposits`.
 Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
 capitale, un gisement ou une saison en cours.
 

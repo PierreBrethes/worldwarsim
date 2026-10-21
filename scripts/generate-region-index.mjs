@@ -10,9 +10,10 @@
  * agree on the same coast.
  *
  * **The coast is derived, never judged.** A region touches the sea when one of its arcs has
- * nothing on its other side — `borders` with a predicate that tells land from sea. An enclave
- * (Berlin inside Brandenburg, Vienna inside Lower Austria) is bordered on every side by a
- * region, so no check on the shore is needed to rule it out.
+ * nothing on its other side — `borders` with a predicate that tells land from water — and that
+ * water is not a great lake: a lake shore is no coast a port stands on. An enclave (Berlin
+ * inside Brandenburg, Vienna inside Lower Austria) is bordered on every side by a region, so no
+ * check on the shore is needed to rule it out.
  *
  * **The point is a pole of inaccessibility, un-projected**: the largest shape of the region,
  * holes included, so that it stays inside the shape and outside its enclaves. It is what turns
@@ -26,9 +27,9 @@
  *
  * Usage: node scripts/generate-region-index.mjs
  */
-import { writeFileSync } from 'node:fs';
 import isoCountries from 'i18n-iso-countries';
 import polylabel from 'polylabel';
+import { writeFileSync } from 'node:fs';
 import { atlas, DETAIL, naturalEarth, pairs } from './atlas-base.mjs';
 
 const rounded = (value) => Math.round(value * 1000) / 1000;
@@ -65,8 +66,9 @@ const pointless = Object.keys(country).filter((id) => !Number.isFinite(point[id]
 if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.join(', ')}`);
 
 const coastal = new Set();
-for (const border of atlas.borders((left, right) => (left === null) !== (right === null), DETAIL)) {
-  coastal.add((border.left ?? border.right).id);
+const shore = (left, right) => (left === null) !== (right === null);
+for (const { left, right, lake } of atlas.borders(shore, DETAIL)) {
+  if (!lake) coastal.add((left ?? right).id);
 }
 
 const output = {
