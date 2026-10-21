@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { BillLine, CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
 import { Price } from '@/shell/Price';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { ResourcePlate } from '@/emblems/Plate';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -332,9 +332,7 @@ export function CompassRose({
 function BillText({ line }: { line: BillLine }) {
   return (
     <span className="inline-flex items-center gap-[5px]">
-      <span className="flex" style={{ color: resourceColor(line.resource) }}>
-        <ResourceIcon resource={line.resource} size={11} />
-      </span>
+      <ResourcePlate resource={line.resource} height={16} width={16} onDark />
       {line.text}
     </span>
   );

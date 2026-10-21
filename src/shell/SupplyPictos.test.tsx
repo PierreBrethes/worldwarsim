@@ -1,9 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { fr } from '@/i18n/fr';
 import { SupplyPictos } from './SupplyPictos';
 
 describe('SupplyPictos', () => {
-  it('prints a cartridge and a jerrican, the empty count critical', () => {
+  it('prints the ammunition and fuel plates, the empty count critical', () => {
     const markup = renderToStaticMarkup(
       <SupplyPictos
         supplies={{
@@ -13,9 +14,9 @@ describe('SupplyPictos', () => {
       />,
     );
 
-    expect(markup.match(/<svg/g)).toHaveLength(2);
-    expect(markup).toContain('var(--res-ammunition-paper)');
-    expect(markup).toContain('var(--res-coal-paper)');
+    expect(markup.match(/<img/g)).toHaveLength(2);
+    expect(markup).toContain(`title="${fr.resources.ammunition}"`);
+    expect(markup).toContain(`title="${fr.resources.coal}"`);
     expect(markup.match(/var\(--critical\)/g)).toHaveLength(1);
     expect(markup).toContain('2/6');
   });

@@ -41,7 +41,7 @@ import { projectionKeyOf, recruitRefusalOf, tierLabel, type RecruitRefusal } fro
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { resourceColor } from '@/emblems/ResourceIcon';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
@@ -382,9 +382,7 @@ export function PersonalBoard({
                         className="inline-flex items-center gap-[2px]"
                         style={amount < 0 ? { color: 'var(--critical)' } : undefined}
                       >
-                        <span className="flex" style={{ color: resourceColor(resource, true) }}>
-                          <ResourceIcon resource={resource} size={13} />
-                        </span>
+                        <ResourcePlate resource={resource} height={18} width={18} />
                         {fr.personalBoard.delta(amount)}
                       </span>
                     ))}
