@@ -17,7 +17,10 @@ import { RECESSION, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
 
-const TEXTURE_WIDTH = 2400;
+/** **Six cents texels suffisent à la marbrure** (#199) : une cellule de bruit en couvre près de
+ *  quarante, filtrés ; à 2 400 sans filtre, la feuille pesait 11 Mo de mémoire graphique pour
+ *  des écarts de teinte sous le niveau d'un octet, et se calculait seize fois plus longtemps. */
+const TEXTURE_WIDTH = 600;
 const MARBLING_AMPLITUDE = 0.055;
 
 /**
@@ -59,6 +62,7 @@ function seaTexture(world: World, anisotropy: number): DataTexture {
   }
 
   const texture = new DataTexture(image, width, height);
+  texture.magFilter = texture.minFilter = LinearFilter;
   texture.flipY = true;
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = anisotropy;
