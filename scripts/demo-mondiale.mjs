@@ -30,6 +30,8 @@
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
+ * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
+ * contours côte à côte (#217).
  *
  *     npm run demo:mondiale
  *
@@ -69,6 +71,8 @@ const levels = process.argv.includes('--niveaux');
 const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
+/** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
+const neighbours = process.argv.includes('--voisins');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -312,6 +316,8 @@ if (!bare) {
         }),
       ]);
   }
+  if (neighbours && scene.b !== null)
+    cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
   if (harvest)
     cli([
       'run',
