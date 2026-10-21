@@ -1615,12 +1615,10 @@ function pointTarget(
     regionId: region?.id ?? null,
     country,
     name:
-      region?.name ??
-      (ground === 'lake'
+      /** Un lac se nomme lac, même dans le dessin d'une région qui ne l'a pas évidé. */
+      ground === 'lake'
         ? fr.compass.lake
-        : country === null
-          ? fr.compass.openWater
-          : countryLabel(country)),
+        : (region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country))),
     coastal,
     ground,
   };
