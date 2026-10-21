@@ -56,13 +56,13 @@ const DEPTH_PER_UNIT = 32;
  *  the edge wobbles by ±`EDGE_WOBBLE` on a noise `EDGE_GRAIN` wide, so no region's border shows
  *  through. @a-mesurer */
 const BARE_AT = 0.05;
-const FULL_AT = 0.7;
+const FULL_AT = 0.4;
 const EDGE_WOBBLE = 0.3;
 const EDGE_GRAIN = 1.5;
 /** Even a massif's heart has its clearings, `CLEARING_GRAIN` wide, down to `CLEARING_KEEP` of its
  *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
 const CLEARING_GRAIN = 4;
-const CLEARING_KEEP = 0.3;
+const CLEARING_KEEP = 0.5;
 const ATLAS_CELL = 128;
 const VARIANTS = 4;
 /** One pen for every glyph, in atlas pixels: the stroke must not follow the glyph's size. */
@@ -452,7 +452,7 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   vec2 at = d + 0.5;
   if (any(lessThan(at, vec2(0.0))) || any(greaterThan(at, vec2(1.0)))) return 0.0;
   vec2 atlas = vec2(${VARIANTS}.0, ${DRAWN.length}.0);
-  vec2 glyph = (vec2(floor(fract(h.x * 7.13) * ${VARIANTS}.0), code - 1.0) + at) / atlas;
+  vec2 glyph = (vec2(floor(hash(id + 23.4) * ${VARIANTS}.0), code - 1.0) + at) / atlas;
   vec2 step = 1.0 / (cell * atlas);
   return textureGrad(uAtlas, glyph, dx * step, dy * step).r * uWeight[int(code)];
 }
