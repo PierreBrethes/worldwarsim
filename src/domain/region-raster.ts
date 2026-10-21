@@ -2,13 +2,14 @@ import type { LonLat } from './geo';
 import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo.ts';
 import type { PlanePoint } from './region-crossing';
 import { lonLatAtProjected, projectLonLat } from './routing.ts';
-import type { World } from './world';
+import type { Projection } from './world';
 
 /**
  * **La géographie du serveur, à la maille de la grille de routage.** Les contours admin-1 et les
  * polygones de pays entraient dans le bundle Convex par `import` : 22,6 Mio de tas pour
- * l'ancien `regions.json`, 11,5 pour l'ancien `world.json`, payés par **tout** module qui touche à une règle de
- * carte, et retenus tant que l'isolat vit. C'est ce que la production recyclait en boucle.
+ * l'ancien `regions.json`, 11,5 pour l'ancien `world.json`, payés par **tout** module qui touche
+ * à une règle de carte, et retenus tant que l'isolat vit. C'est ce que la production recyclait
+ * en boucle.
  *
  * Ici la géométrie est cuite hors ligne, une fois, aux cellules mêmes que Dijkstra parcourt :
  * chaque cellule porte la région qui la contient et le pays qui l'héberge. Ce que le raster perd,
@@ -16,9 +17,9 @@ import type { World } from './world';
  * hors tas. **La cellule devient le modèle** — un point est dans la région de sa cellule, et deux
  * points d'une même cellule ne peuvent plus être de deux côtés d'une frontière (ADR 0023).
  *
- * Les deux canaux sont cuits avec les fonctions polygonales elles-mêmes — `regionAtPlanePoint`
- * pour la région, `countryAtPlanePoint` pour l'hôte — de sorte que la bascule ne change aucune
- * règle : à la demi-cellule près, le raster répond ce que le polygone répondait.
+ * Les deux canaux sont cuits sur l'atlas (`regionRaster`, `scripts/atlas-base.mjs`) : la région
+ * d'une cellule est celle qu'`atlas.regionAt` répond en son centre au niveau près, l'hôte est le
+ * pays de cette région. À la demi-cellule près, le raster répond ce que le survol nomme.
  */
 export type RegionRasterAsset = {
   readonly step: number;
@@ -52,8 +53,8 @@ export type RegionRaster = {
    *  y est, ou elle est dans le canal. Les deux ne se recouvrent jamais, ce qui fait de
    *  `cellsOfRegion` une bascule et non un arbitrage. */
   readonly anchorOfRegion: ReadonlyMap<string, number>;
-  readonly sphere: World['sphere'];
-  readonly outline: World['outline'];
+  readonly sphere: Projection['sphere'];
+  readonly outline: Projection['outline'];
 };
 
 /**
@@ -61,7 +62,7 @@ export type RegionRaster = {
  * ils sont déjà dans le bundle pour projeter un point, et deux copies du même cadre pourraient
  * diverger.
  */
-export function decodeRegionRaster(asset: RegionRasterAsset, world: World): RegionRaster {
+export function decodeRegionRaster(asset: RegionRasterAsset, world: Projection): RegionRaster {
   const regions = fill(asset.regionRuns, asset.width * asset.height);
   const countries = fill(asset.hostRuns, asset.width * asset.height);
   return {

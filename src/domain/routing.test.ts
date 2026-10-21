@@ -10,8 +10,8 @@ import {
   buildGrid,
   coastCellsIn,
   computeRoute,
+  type GridWorld,
   groundAt,
-  countryAt,
   isCoastCell,
   isLandCell,
   landComponentCount,
@@ -85,7 +85,7 @@ describe('landMaskOf', () => {
 
 /** Le monde cuit, tel que le serveur le lit : l'atlas (ADR 0034), ce que le jouet ne peut pas
  *  dire — un isthme. */
-const realWorld = async (): Promise<World> => {
+const realWorld = async () => {
   const { readFileSync } = await import('node:fs');
   const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
   return atlasWorld(
@@ -386,7 +386,7 @@ describe('les canaux gravés', () => {
  * Les portes se relisent une par une pour que l'échec dise laquelle.
  */
 describe('les portes maritimes', () => {
-  let world: World | null = null;
+  let world: GridWorld | null = null;
   const worldOf = async () => (world ??= await realWorld());
 
   it('laisse à la terre exactement les morceaux qu’elle avait', async () => {
@@ -418,19 +418,6 @@ describe('les portes maritimes', () => {
     expect(route!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
     expect(Math.min(...route!.points.map(([, lat]) => lat))).toBeGreaterThan(0);
   }, 120000);
-});
-
-/**
- * The one question a lon/lat cannot answer alone, and the reason the rings are on the server at
- * all: a destination owes a rest window to whoever holds the ground it lands on.
- */
-describe('the country under a point', () => {
-  it('codes the land, and answers nothing at sea', async () => {
-    const world = await realWorld();
-    expect(countryAt(world, [25.2, 44.6])).toBe('ROU');
-    expect(countryAt(world, [2.35, 48.86])).toBe('FRA');
-    expect(countryAt(world, [-30, 40])).toBeNull();
-  });
 });
 
 /**

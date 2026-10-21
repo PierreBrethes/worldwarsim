@@ -15,7 +15,7 @@ import {
   truncateRouteSearch,
   KM_PER_UNIT,
 } from '../src/domain/routing';
-import type { World } from '../src/domain/world';
+import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
 import projectionAsset from '../public/projection.json';
 import {
@@ -45,11 +45,7 @@ import {
  * handful of `fill` calls instead, and the first movement of the season still pays for it rather
  * than the import: most mutations never route anything.
  */
-const world = {
-  sphere: projectionAsset.sphere,
-  outline: projectionAsset.outline,
-  countries: [],
-} as unknown as World;
+const projection = projectionAsset as unknown as Projection;
 
 let grid: ReturnType<typeof decodeGrid> | null = null;
 
@@ -67,7 +63,7 @@ export function routeBetween(
   mode: RouteMode,
   landCost?: number,
 ): ComputedRoute | null {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   return computeRoute(grid, from, to, mode, landCost);
 }
 
@@ -90,7 +86,7 @@ export function routeToRegions(
   if (here !== null && regionIds.has(here))
     return { kind: 'standing', regionId: here, point: from };
 
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   const goals = goalCellsForRegions(regions);
   const search = computeRouteToAny(grid, from, new Set(goals.keys()), mode, landCost);
   if (search === null) return null;
@@ -136,7 +132,7 @@ export function routeToRegions(
  * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
  */
 export function coastAtPoint(point: LonLat): boolean {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   return isCoastCell(grid, point);
 }
 
@@ -159,7 +155,7 @@ export function quayOfRegion(regionId: string, point: LonLat): LonLat | null {
 let quays: ReadonlyMap<string, ReadonlyArray<LonLat>> | null = null;
 function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
   if (quays !== null) return quays;
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   const { minX, minY, maxX, maxY } = grid.sphere;
   const found = new Map<string, LonLat[]>();
   for (const { lonLat } of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
@@ -178,7 +174,7 @@ export function landAtPoint(point: LonLat): boolean {
 
 /** Le sol que la visée a lu (`MapEngine.groundAt`), sur la même grille. */
 export function groundAtPoint(point: LonLat): Ground {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   return groundAt(grid, point);
 }
 
@@ -241,7 +237,7 @@ export function routeKmFrom(
    *  d'une mutation parce que son appelant sait toujours jusqu'où il a besoin de voir. */
   maxKm?: number,
 ): ReadonlyMap<string, number> {
-  grid ??= decodeGrid(gridAsset, world);
+  grid ??= decodeGrid(gridAsset, projection);
   const field = routeDistanceKmField(grid, from, mode, maxKm);
   const measured = new Map<string, number>();
   for (const place of places) {

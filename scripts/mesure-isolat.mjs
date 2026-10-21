@@ -5,10 +5,11 @@
  *
  * Le diagnostic du 12/09/2026 a ouvert le chantier : la production recyclait l'isolat en boucle
  * (`TooMuchMemoryCarryOver("~64 MiB", "99 MiB")`) et chaque appel suivant payait un démarrage à
- * froid. Le coupable n'était pas un calcul mais deux `import` — les anciens `regions.json` (22,6 Mio de tas)
- * et `world.json` (11,5), retirés depuis l'atlas (ADR 0034) — payés par tout module touchant une règle de carte, parce qu'un
- * `import` s'évalue au chargement du module et non au premier appel. La géométrie est cuite en
- * raster depuis (ADR 0023) : `convex/messages.ts` est passé de 35,9 Mio à 3,1.
+ * froid. Le coupable n'était pas un calcul mais deux `import` — les anciens `regions.json`
+ * (22,6 Mio de tas) et `world.json` (11,5), retirés depuis l'atlas (ADR 0034) — payés par tout
+ * module touchant une règle de carte, parce qu'un `import` s'évalue au chargement du module et
+ * non au premier appel. La géométrie est cuite en raster depuis (ADR 0023) : `convex/messages.ts`
+ * est passé de 35,9 Mio à 3,1.
  *
  * Il bundle avec **l'esbuild de `node_modules/convex`** — celui-là même que `convex deploy`
  * utilise — pour que les assets JSON soient inlinés en littéraux JS comme en production, et non

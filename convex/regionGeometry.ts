@@ -14,7 +14,7 @@ import {
   type RegionRaster,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
-import type { World } from '../src/domain/world';
+import type { Projection } from '../src/domain/world';
 import rasterAsset from '../public/region-grid.json';
 import projectionAsset from '../public/projection.json';
 
@@ -34,15 +34,11 @@ import projectionAsset from '../public/projection.json';
  * Ce qu'on y perd est nommé : la frontière n'est plus exacte au flottant, elle est exacte à la
  * cellule, et la cellule est le modèle.
  */
-const world = {
-  sphere: projectionAsset.sphere,
-  outline: projectionAsset.outline,
-  countries: [],
-} as unknown as World;
+const projection = projectionAsset as unknown as Projection;
 
 let raster: RegionRaster | null = null;
 const rasterOf = (): RegionRaster =>
-  (raster ??= decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world));
+  (raster ??= decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection));
 
 export const regionAtRoutePoint = (point: LonLat): string | null => regionAt(rasterOf(), point);
 

@@ -22,7 +22,7 @@ import {
   projectLonLat,
 } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
-import type { World } from '../src/domain/world';
+import type { Projection } from '../src/domain/world';
 import atlasAsset from '../public/atlas.json';
 import atlasNearAsset from '../public/atlas-near.json';
 import projectionAsset from '../public/projection.json';
@@ -158,7 +158,8 @@ describe('le travail à l’import des modules de convex/', () => {
 /** Le monde tel que la cuisson le lit : l'atlas (ADR 0034), les pays fusionnés au niveau près.
  *  La référence contre laquelle la grille et les rasters sont vérifiés. */
 const atlas = decodeAtlas(atlasAsset as unknown as AtlasFile, atlasNearAsset as NearFile);
-const worldOf = (): World => atlasWorld(atlas, projectionAsset as unknown as World);
+const projection = projectionAsset as unknown as Projection;
+const worldOf = () => atlasWorld(atlas, projection);
 /** La région de l'atlas sous un lon/lat, au niveau près : ce que le survol nomme là. */
 const atlasRegionAt = (lonLat: LonLat): string | null =>
   atlas.regionAt(
@@ -210,8 +211,7 @@ describe('les contours de public/atlas.json', () => {
  * polygone doivent dire la même chose. On recuit (`node scripts/generate-region-grid.mjs`) ou la CI refuse.
  */
 describe('le raster de géographie cuit', () => {
-  const world = worldOf();
-  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
 
   const centreOf = (cell: number): readonly [number, number] => [
     raster.sphere.minX + ((cell % raster.width) + 0.5) * raster.step,
@@ -235,7 +235,7 @@ describe('le raster de géographie cuit', () => {
    * calcul, elle enverrait les colonnes ailleurs.
    */
   it('partage la maille de la grille de routage, cellule pour cellule', () => {
-    const grid = decodeGrid(gridAsset, world);
+    const grid = decodeGrid(gridAsset, projection);
     expect([raster.width, raster.height, raster.step]).toEqual([
       grid.width,
       grid.height,
@@ -340,7 +340,7 @@ describe('le raster de géographie cuit', () => {
    */
   it('se décode assez vite pour tenir dans le budget d’une query', () => {
     const started = performance.now();
-    decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
+    decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
     const elapsed = performance.now() - started;
 
     console.log(`raster de géographie décodé en ${elapsed.toFixed(1)} ms`);
@@ -435,8 +435,7 @@ describe('les régions nommées en dur', () => {
   });
 
   it('chaque gisement est dans la cellule de sa région', () => {
-    const world = { ...projectionAsset, countries: [] } as unknown as World;
-    const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
+    const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
     expect(
       depositsAsset
         .filter(({ lon, lat, regionId }) => regionAt(raster, [lon, lat]) !== regionId)
@@ -452,7 +451,7 @@ describe('les régions nommées en dur', () => {
  * aucune route navale n'y mène depuis la mer du Nord.
  */
 describe('les lacs de la grille', () => {
-  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
+  const grid = decodeGrid(gridAsset, projection);
   it.each([
     ['la Caspienne', 50.5, 42],
     ['le Nicaragua', -85.4, 11.6],
@@ -481,8 +480,8 @@ describe('les lacs de la grille', () => {
  */
 describe('le point de chaque région', () => {
   const NARROW = ['VAT+00?', 'NRU-4975', 'NRU-4976', 'UMI-5172'];
-  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
-  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, worldOf());
+  const grid = decodeGrid(gridAsset, projection);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
   const points = indexAsset.point as unknown as Readonly<Record<string, LonLat>>;
 
   it('est dans sa région sur l’atlas', () => {
@@ -518,8 +517,8 @@ describe('le point de chaque région', () => {
  * la maille (#221), que l'index dit tels quels.
  */
 describe('le drapeau côtier de l’index', () => {
-  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
-  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, worldOf());
+  const grid = decodeGrid(gridAsset, projection);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
   const coastal = new Set(indexAsset.coastal);
   const ids = Object.keys(indexAsset.point);
   const sample = [

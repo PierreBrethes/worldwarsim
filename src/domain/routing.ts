@@ -1,6 +1,6 @@
 import { distanceKm, type LonLat } from './geo.ts';
 import type { Medium } from './ids';
-import type { ProjectedCountry, World } from './world';
+import type { ProjectedCountry, Projection, World } from './world';
 
 /**
  * Land, naval, air or combined route computation on a grid derived from the projected world
@@ -227,6 +227,12 @@ export type RouteGrid = {
   readonly outline: World['outline'];
 };
 
+/** Ce que la grille lit d'un monde : son cadre, les anneaux de ses terres et ses lacs. */
+export type GridWorld = Projection & {
+  readonly countries: ReadonlyArray<Pick<ProjectedCountry, 'rings'>>;
+  readonly lakes?: ProjectedCountry['rings'];
+};
+
 /**
  * **Les portes se donnent** parce qu'un raster sans elles est une question qu'on pose : une porte
  * de détroit ajoute de l'eau *là où il y en a* et ne peut donc jamais séparer deux terres qui se
@@ -234,7 +240,7 @@ export type RouteGrid = {
  * Malacca, tracée dans les terres, a détaché Kuala Lumpur de la péninsule.
  */
 export function buildGrid(
-  world: World,
+  world: GridWorld,
   step = 0.25,
   gates: typeof SEA_GATES = SEA_GATES,
 ): RouteGrid {
@@ -384,7 +390,7 @@ export function encodeGrid(grid: RouteGrid): GridAsset {
 export const landMaskOf = (grid: RouteGrid): Uint8Array =>
   grid.cells.map((cell) => (cell === LAND ? 1 : 0));
 
-export function decodeGrid(asset: GridAsset, world: Pick<World, 'sphere' | 'outline'>): RouteGrid {
+export function decodeGrid(asset: GridAsset, world: Projection): RouteGrid {
   const cells = new Uint8Array(asset.width * asset.height);
   let at = 0;
   for (let run = 0; run < asset.cells.length; run += 2) {
@@ -927,54 +933,6 @@ export function directRoute(
   };
 }
 
-/**
- * **Which country a point stands in**, straight off the rings the world already carries — as an
- * `adm0_a3`, the code every rule keys on.
- *
- * **Containment, never proximity.** The nearest region's point used to stand in for this, and it
- * answered the wrong country five times out of six along a border: Menton fell to Monaco,
- * Aix-la-Chapelle to Belgium, Saint-Louis to Switzerland. A pole of inaccessibility is not a
- * border, so nothing that keys on a host may be read off a distance to one.
- *
- * **The server does not call it any more** (ADR 0023): it walks every ring of every country, and
- * the rings alone weighed eleven megabytes of isolate heap. The answer is baked per cell into
- * `region-grid.json` — from this very containment, one projection away — and read there. What is
- * left here is the reference the bake is cut from, and the reading the map layer may still want.
- */
-export function countryAt(world: World, lonLat: LonLat): string | null {
-  return countryAtPlanePoint(world.countries, projectLonLat(world.outline, world.sphere, lonLat));
-}
-
-/**
- * **La même containment, sur le plan et sans projeter** — ce dont la cuisson du raster a besoin
- * (`scripts/generate-region-grid.mjs`) : elle interroge des centres de cellule, qui sont déjà des
- * points du plan, et un aller-retour par la lon/lat lui ferait répondre à côté de la question
- * qu'elle pose. L'ordre de la table décide en cas de chevauchement : c'est le **premier** pays
- * qui contient le point, jamais le plus petit — l'inverse de la règle d'enclave des régions.
- */
-export const countryAtPlanePoint = (
-  countries: ReadonlyArray<ProjectedCountry>,
-  point: readonly [x: number, y: number],
-): string | null =>
-  countries.find((country) => ringsContainPoint(country.rings, point))?.adm0 ?? null;
-
-function ringsContainPoint(
-  rings: ProjectedCountry['rings'],
-  [x, y]: readonly [x: number, y: number],
-): boolean {
-  let inside = false;
-  for (const ring of rings) {
-    for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {
-      const a = ring[i]!;
-      const b = ring[previous]!;
-      if (a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) {
-        inside = !inside;
-      }
-    }
-  }
-  return inside;
-}
-
 /* ------------------------------ projection ------------------------------ */
 
 function edgeAtLatitude(
@@ -1059,7 +1017,7 @@ function projectedDistance(grid: RouteGrid, a: LonLat, b: LonLat): number {
 
 /* ------------------------------ construction ----------------------------- */
 
-function sphereEdges(world: World, step: number, height: number): Array<[number, number]> {
+function sphereEdges(world: Projection, step: number, height: number): Array<[number, number]> {
   const edges: Array<[number, number]> = [];
   const byY = [...world.outline].sort((a, b) => a[3] - b[3]);
   let index = 0;
@@ -1077,8 +1035,8 @@ function sphereEdges(world: World, step: number, height: number): Array<[number,
 /** Even-odd scanline fill: countries are disjoint, global parity suffices. */
 /** The cells whose centre lies inside `rings`, even-odd, handed to `paint`. */
 function scanFill(
-  rings: World['countries'][number]['rings'],
-  world: World,
+  rings: ProjectedCountry['rings'],
+  world: Projection,
   step: number,
   width: number,
   height: number,
@@ -1115,7 +1073,7 @@ function scanFill(
 function engravePassage(
   passage: ReadonlyArray<LonLat>,
   value: number,
-  world: World,
+  world: Projection,
   step: number,
   width: number,
   height: number,
