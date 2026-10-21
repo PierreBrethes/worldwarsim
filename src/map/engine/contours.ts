@@ -30,10 +30,13 @@ const MINE_WIDTH = 1.7;
 const DASH_SPEED = 7;
 const DASH_HZ = 10;
 const CURRENT_OPACITY = 0.95;
-/** Un relevé : pâle et immobile (ADR 0033 §3). @a-mesurer */
-const SURVEYED_OPACITY = 0.42;
+/** **Un relevé : pâle, immobile, et pointillé court** (ADR 0033 §3) — son propre motif, pour qu'un
+ *  trait fin se lise encore et ne se confonde jamais avec une région jamais vue ; un plancher de
+ *  largeur, pour que le pointillé ne fonde pas en « fins ». @a-mesurer */
+const SURVEYED = { opacity: 0.8, duty: 0.35, width: 1.6 };
 const INNER = { color: '#7d7466', opacity: 0.55, width: 0.45 };
-/** Over the hatch of a suspended zone, under the hover's contour. */
+/** Over the hatch of a suspended zone, under the hover's contour. The lift alone is two depth steps
+ *  from far away, where the sheet ate whole stretches of the line: the polygon offset holds it. */
 const LIFT = 0.0032;
 
 const VERTEX = `
@@ -48,15 +51,16 @@ void main() {
 }`;
 
 const FRAGMENT = `
-uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uSolid, uTime, uSpeed;
+uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uOwnDuty, uSolid, uTime, uSpeed;
 varying float vArc, vSide;
 void main() {
-  if (uSolid < 0.5 && fract((vArc - uTime * uSpeed) / uPeriod) > uDuty) discard;
+  float duty = uOwnDuty > 0.0 ? uOwnDuty : uDuty;
+  if (uSolid < 0.5 && fract((vArc - uTime * uSpeed) / uPeriod) > duty) discard;
   gl_FragColor = vec4(uColor, (1.0 - smoothstep(0.55, 1.0, abs(vSide))) * uOpacity);
   #include <colorspace_fragment>
 }`;
 
-export type ContourBlock = {
+export type ContourTerritory = {
   readonly ink: string;
   readonly mine: boolean;
   readonly surveyed: boolean;
@@ -64,7 +68,7 @@ export type ContourBlock = {
 };
 
 /**
- * **Qui tient quoi, au contour** (ADR 0033) : un ruban par bloc, à l'encre de son tenant, sur sa
+ * **Qui tient quoi, au contour** (ADR 0033) : un ruban par territoire, à l'encre de son tenant, sur sa
  * frontière extérieure et en retrait chez lui — deux nations voisines tracent donc deux lignes
  * côte à côte. Largeur et tiret se disent en pixels d'écran, et les tirets tournent tous dans le
  * même sens : c'est une couche d'`Ambience`, qui ne fait que pousser `uTime`.
@@ -99,33 +103,37 @@ export class ContourLayer implements AmbientLayer {
     this.shared.uDuty!.value = duty;
   }
 
-  show(regions: ReadonlyArray<DisplayedRegion>, blocks: ReadonlyArray<ContourBlock>): void {
+  show(
+    regions: ReadonlyArray<DisplayedRegion>,
+    territories: ReadonlyArray<ContourTerritory>,
+  ): void {
     this.clear();
-    const blockOf = new Map<string, number>();
-    blocks.forEach(({ regionIds }, index) => {
-      for (const id of regionIds) if (!blockOf.has(id)) blockOf.set(id, index);
+    const territoryOf = new Map<string, number>();
+    territories.forEach(({ regionIds }, index) => {
+      for (const id of regionIds) if (!territoryOf.has(id)) territoryOf.set(id, index);
     });
     const { outlines, inner } = contourLines(regions, (id) => {
-      const index = blockOf.get(id);
+      const index = territoryOf.get(id);
       return index === undefined ? undefined : String(index);
     });
     this.add(inner, { ...INNER, centered: true, solid: true, speed: 0 }, 0);
     for (const [index, lines] of outlines) {
-      const block = blocks[Number(index)]!;
+      const territory = territories[Number(index)]!;
       this.add(
         lines,
         {
-          color: block.ink,
-          opacity: block.surveyed ? SURVEYED_OPACITY : CURRENT_OPACITY,
-          width: block.mine ? MINE_WIDTH : 1,
+          color: territory.ink,
+          opacity: territory.surveyed ? SURVEYED.opacity : CURRENT_OPACITY,
+          duty: territory.surveyed ? SURVEYED.duty : 0,
+          width: territory.mine ? MINE_WIDTH : territory.surveyed ? SURVEYED.width : 1,
           centered: false,
           solid: false,
-          speed: block.surveyed ? 0 : DASH_SPEED,
+          speed: territory.surveyed ? 0 : DASH_SPEED,
         },
-        block.mine ? 2 : 1,
+        territory.mine ? 2 : 1,
       );
     }
-    this.moving = blocks.some(({ surveyed, regionIds }) => !surveyed && regionIds.size > 0);
+    this.moving = territories.some(({ surveyed, regionIds }) => !surveyed && regionIds.size > 0);
   }
 
   /** What a CSS pixel measures on the sheet, at the centre of the view. */
@@ -164,6 +172,8 @@ export class ContourLayer implements AmbientLayer {
       centered: boolean;
       solid: boolean;
       speed: number;
+      /** Its own dash share, `0` for the weight's. */
+      duty?: number;
     },
     order: number,
   ): void {
@@ -174,6 +184,9 @@ export class ContourLayer implements AmbientLayer {
         fragmentShader: FRAGMENT,
         transparent: true,
         depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4,
         uniforms: {
           ...this.shared,
           uColor: { value: new Color(style.color) },
@@ -182,11 +195,13 @@ export class ContourLayer implements AmbientLayer {
           uCentered: { value: style.centered ? 1 : 0 },
           uSolid: { value: style.solid ? 1 : 0 },
           uSpeed: { value: style.speed },
+          uOwnDuty: { value: style.duty ?? 0 },
         },
       }),
     );
     const mesh = new Mesh(this.ribbon(lines), material);
-    mesh.renderOrder = 1 + order;
+    // Over the hatch (0), under the hover's contour (1).
+    mesh.renderOrder = 0.5 + order / 10;
     mesh.frustumCulled = false;
     this.group.add(mesh);
   }

@@ -28,7 +28,7 @@ const east = {
 };
 
 describe('contourLines', () => {
-  it('draws one closed loop round a block, and a thin line between its own regions', () => {
+  it('draws one closed loop round a territory, and a thin line between its own regions', () => {
     const { outlines, inner } = contourLines([west, east], () => 'fr');
     const loops = outlines.get('fr')!;
     expect(loops).toHaveLength(1);
@@ -44,7 +44,7 @@ describe('contourLines', () => {
     expect(inner).toHaveLength(0);
   });
 
-  it('keeps every block turning the same way, whichever way its rings were baked', () => {
+  it('keeps every territory turning the same way, whichever way its rings were baked', () => {
     const reversed = { id: 'E', rings: [[...east.rings[0]!].reverse()] };
     const area = (loop: ReadonlyArray<readonly [number, number]>) =>
       loop.slice(1).reduce((sum, [x, y], i) => sum + loop[i]![0] * y - x * loop[i]![1], 0);
@@ -52,7 +52,7 @@ describe('contourLines', () => {
     expect(Math.sign(area(outlines.get('E')![0]!))).toBe(Math.sign(area(outlines.get('W')![0]!)));
   });
 
-  it('leaves a region out of every block without a line', () => {
+  it('leaves a region out of every territory without a line', () => {
     const { outlines } = contourLines([west, east], (id) => (id === 'W' ? 'fr' : undefined));
     expect([...outlines.keys()]).toEqual(['fr']);
     expect(outlines.get('fr')![0]).toHaveLength(5);

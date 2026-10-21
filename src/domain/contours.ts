@@ -1,5 +1,5 @@
 /**
- * **Le contour d'un territoire** (ADR 0033) : plus d'aplat, chaque bloc de régions connues se lit
+ * **Le contour d'un territoire** (ADR 0033) : plus d'aplat, chaque territoire connu se lit
  * à un trait en tirets sur sa frontière extérieure. Le joueur règle son épaisseur.
  */
 export type ContourWeight = 'thin' | 'thick';
@@ -14,24 +14,24 @@ type Ring = ReadonlyArray<Point>;
 type Side = { readonly region: number; readonly a: Point; readonly b: Point };
 
 /**
- * Les lignes d'un ensemble de régions groupées en blocs (`blockOf`, `undefined` = hors de toute
- * ligne) : chaque bloc rend ses boucles fermées, intérieur **à gauche** de la normale
+ * Les lignes d'un ensemble de régions groupées en territoires (`territoryOf`, `undefined` = hors
+ * de toute ligne) : chaque territoire rend ses boucles fermées, intérieur **à gauche** de la normale
  * `(-dy, dx)` — toutes tournent dans le même sens, donc leurs tirets aussi —, et `inner` les
- * arêtes entre deux régions d'un même bloc.
+ * arêtes entre deux régions d'un même territoire.
  *
  * Une arête se reconnaît à ses deux sommets : `regions.json` cuit les régions voisines sur les
- * mêmes points. Une arête vue d'un seul côté borde la mer ou une région hors bloc.
+ * mêmes points. Une arête vue d'un seul côté borde la mer ou une région hors territoire.
  */
 export function contourLines(
   regions: ReadonlyArray<{ readonly id: string; readonly rings: ReadonlyArray<Ring> }>,
-  blockOf: (regionId: string) => string | undefined,
+  territoryOf: (regionId: string) => string | undefined,
 ): { readonly outlines: ReadonlyMap<string, Point[][]>; readonly inner: Point[][] } {
-  const blocks: string[] = [];
+  const territories: string[] = [];
   const edges = new Map<string, Side[]>();
   for (const { id, rings } of regions) {
-    const block = blockOf(id);
-    if (block === undefined) continue;
-    const region = blocks.push(block) - 1;
+    const territory = territoryOf(id);
+    if (territory === undefined) continue;
+    const region = territories.push(territory) - 1;
     for (const raw of rings) {
       const ring = signedArea(raw) < 0 ? [...raw].reverse() : raw;
       for (let i = 0; i < ring.length; i++) {
@@ -50,20 +50,20 @@ export function contourLines(
   const directed = new Map<string, Side[]>();
   const inner: Point[][] = [];
   for (const sides of edges.values()) {
-    const owners = new Set(sides.map(({ region }) => blocks[region]!));
+    const owners = new Set(sides.map(({ region }) => territories[region]!));
     if (sides.length > 1 && owners.size === 1) {
       if (sides[0]!.region !== sides[1]!.region) inner.push([sides[0]!.a, sides[0]!.b]);
       continue;
     }
     for (const side of sides) {
-      const block = blocks[side.region]!;
-      const kept = directed.get(block);
-      if (kept === undefined) directed.set(block, [side]);
+      const territory = territories[side.region]!;
+      const kept = directed.get(territory);
+      if (kept === undefined) directed.set(territory, [side]);
       else kept.push(side);
     }
   }
   return {
-    outlines: new Map([...directed].map(([block, sides]) => [block, chains(sides)])),
+    outlines: new Map([...directed].map(([territory, sides]) => [territory, chains(sides)])),
     inner,
   };
 }
