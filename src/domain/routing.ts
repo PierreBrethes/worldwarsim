@@ -390,6 +390,10 @@ export function encodeGrid(grid: RouteGrid): GridAsset {
 export const landMaskOf = (grid: RouteGrid): Uint8Array =>
   grid.cells.map((cell) => (cell === LAND ? 1 : 0));
 
+/** The lake cells as 1: water a hull is refused, which the carry veil darkens with the inland. */
+export const lakeMaskOf = (grid: RouteGrid): Uint8Array =>
+  grid.cells.map((cell) => (cell === LAKE ? 1 : 0));
+
 export function decodeGrid(asset: GridAsset, world: Projection): RouteGrid {
   const cells = new Uint8Array(asset.width * asset.height);
   let at = 0;

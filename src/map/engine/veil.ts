@@ -10,7 +10,7 @@ import {
   type Scene,
 } from 'three';
 import type { Forbidden } from '@/domain/drop-order';
-import { landMaskOf, type RouteGrid } from '@/domain/routing';
+import { lakeMaskOf, landMaskOf, type RouteGrid } from '@/domain/routing';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, LAND_STENCIL, SEA_LEVEL, onLand, type WorldFrame } from './frame';
 import { followShare } from './landing';
@@ -73,18 +73,46 @@ function veilMaterial(
   });
 }
 
-/** The land cells whose four neighbours are land too: a hull beaches on the rest. */
-function inlandBytes(grid: RouteGrid): Uint8Array<ArrayBuffer> {
+/**
+ * **Où une coque ne va pas** : `inland`, les cellules de terre dont les quatre voisines sont de la
+ * terre ou un lac — une coque s'échoue sur le reste, et un rivage de lac n'est pas une plage ;
+ * `lakes`, les lacs (`LAKE_TARGET`), débordant d'une cellule sur leur rive pour couvrir l'eau
+ * dessinée jusqu'au trait : le pochoir de la terre rogne ce débord.
+ */
+function hullBarred(grid: RouteGrid): {
+  inland: Uint8Array<ArrayBuffer>;
+  lakes: Uint8Array<ArrayBuffer>;
+} {
   const { width, height } = grid;
   const land = landMaskOf(grid);
-  const bytes = new Uint8Array(land.length);
+  const lake = lakeMaskOf(grid);
+  const inland = new Uint8Array(land.length);
+  const lakes = new Uint8Array(land.length);
   for (let y = 1; y < height - 1; y++)
     for (let x = 1; x < width - 1; x++) {
       const k = y * width + x;
-      if (land[k] && land[k - 1] && land[k + 1] && land[k - width] && land[k + width])
-        bytes[k] = 255;
+      const around = [k - 1, k + 1, k - width, k + width];
+      if (land[k] && around.every((n) => land[n] || lake[n])) inland[k] = 255;
+      if (lake[k] || (land[k] && around.some((n) => lake[n]))) lakes[k] = 255;
     }
-  return bytes;
+  return { inland, lakes };
+}
+
+function maskTexture(bytes: Uint8Array<ArrayBuffer>, grid: RouteGrid): DataTexture {
+  const texture = new DataTexture(bytes, grid.width, grid.height, RedFormat);
+  texture.unpackAlignment = 1;
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** Seulement hors de la terre dessinée : la mer, et les lacs que ses pays laissent en creux. */
+function offLand(material: ShaderMaterial): ShaderMaterial {
+  material.stencilWrite = true;
+  material.stencilRef = LAND_STENCIL;
+  material.stencilFunc = NotEqualStencilFunc;
+  return material;
 }
 
 /**
@@ -97,47 +125,48 @@ function inlandBytes(grid: RouteGrid): Uint8Array<ArrayBuffer> {
 export class CarryVeil {
   private readonly strength = { sea: { value: 0 }, inland: { value: 0 } };
   private readonly mask = { value: new DataTexture(new Uint8Array([0]), 1, 1, RedFormat) };
+  private readonly lakeMask = { value: new DataTexture(new Uint8Array([0]), 1, 1, RedFormat) };
   private readonly board = {
     origin: { value: [0, 0] as [number, number] },
     scale: { value: [0, 0] as [number, number] },
   };
   private readonly sea: Mesh;
   private readonly inland: Mesh;
+  /** Les lacs sous ce qui flotte : de l'eau, donc hors du pochoir de la terre où vit `inland`. */
+  private readonly lakes: Mesh;
   private goal: Forbidden = null;
   private grounded = false;
   private clock = 0;
   motion: MapMotion = 'full';
 
   constructor(scene: Scene, surface: BufferGeometry) {
-    const sea = veilMaterial(this.strength.sea, null, this.board);
-    sea.stencilWrite = true;
-    sea.stencilRef = LAND_STENCIL;
-    sea.stencilFunc = NotEqualStencilFunc;
-    this.sea = new Mesh(surface, sea);
+    this.sea = new Mesh(surface, offLand(veilMaterial(this.strength.sea, null, this.board)));
     this.inland = new Mesh(
       surface,
       onLand(veilMaterial(this.strength.inland, this.mask, this.board)),
     );
-    for (const mesh of [this.sea, this.inland]) {
+    this.lakes = new Mesh(
+      surface,
+      offLand(veilMaterial(this.strength.inland, this.lakeMask, this.board)),
+    );
+    for (const mesh of [this.sea, this.inland, this.lakes]) {
       mesh.position.y = VEIL_LIFT - SEA_LEVEL;
       mesh.renderOrder = VEIL_RANK;
       mesh.visible = false;
       mesh.frustumCulled = false;
     }
-    scene.add(this.sea, this.inland);
+    scene.add(this.sea, this.inland, this.lakes);
   }
 
   /** The inland is read off the routing grid, once: asked for only when a hull is first lifted. */
   ground(grid: RouteGrid, frame: WorldFrame): void {
     if (this.grounded) return;
     this.grounded = true;
-    const texture = new DataTexture(inlandBytes(grid), grid.width, grid.height, RedFormat);
-    texture.unpackAlignment = 1;
-    texture.magFilter = LinearFilter;
-    texture.minFilter = LinearFilter;
-    texture.needsUpdate = true;
+    const { inland, lakes } = hullBarred(grid);
     this.mask.value.dispose();
-    this.mask.value = texture;
+    this.mask.value = maskTexture(inland, grid);
+    this.lakeMask.value.dispose();
+    this.lakeMask.value = maskTexture(lakes, grid);
     this.board.origin.value = [-frame.width / 2, -frame.height / 2];
     this.board.scale.value = [1 / (grid.width * grid.step), 1 / (grid.height * grid.step)];
   }
@@ -171,10 +200,13 @@ export class CarryVeil {
       if (Math.abs(goal - strength.value) <= 0.004) strength.value = goal;
       this[kind].visible = strength.value > 0;
     }
+    this.lakes.visible = this.inland.visible;
   }
 
   dispose(): void {
     this.mask.value.dispose();
-    for (const mesh of [this.sea, this.inland]) (mesh.material as ShaderMaterial).dispose();
+    this.lakeMask.value.dispose();
+    for (const mesh of [this.sea, this.inland, this.lakes])
+      (mesh.material as ShaderMaterial).dispose();
   }
 }
