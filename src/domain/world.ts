@@ -20,6 +20,9 @@ export type World = {
   readonly countries: ReadonlyArray<ProjectedCountry>;
 };
 
+/** What the sheet is drawn in: its box and its outline, `public/projection.json`. */
+export type Projection = Pick<World, 'sphere' | 'outline'>;
+
 /**
  * A region, as anything outside the map layer names it. The id travels with the name because
  * deposits and buildings are indexed by `adm1_code`: admin-1 names repeat from one country to

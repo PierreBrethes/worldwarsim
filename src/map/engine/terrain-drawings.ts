@@ -318,13 +318,35 @@ export function depthsFromCodes(
  *  arcs between two types. */
 type Massifs = ReturnType<Atlas['shapes']>;
 
-function paintTypes(massifs: Massifs, frame: WorldFrame): DataTexture {
+/** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
+ *  that its contours are smooth. */
+export type TypesData = {
+  readonly texels: Uint8Array<ArrayBuffer>;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** A 2D canvas: an `OffscreenCanvas` in the worker, a page's canvas where there is none. */
+export type CanvasOf = (
+  width: number,
+  height: number,
+) => { getContext(id: '2d', options: { willReadFrequently: boolean }): Paint | null };
+type Paint = Pick<
+  CanvasRenderingContext2D,
+  | 'setTransform'
+  | 'fillRect'
+  | 'beginPath'
+  | 'moveTo'
+  | 'lineTo'
+  | 'closePath'
+  | 'fill'
+  | 'getImageData'
+> & { fillStyle: string | CanvasGradient | CanvasPattern };
+
+export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: CanvasOf): TypesData {
   const width = Math.round(frame.width * TYPES_PER_UNIT);
   const height = Math.round(frame.height * TYPES_PER_UNIT);
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  const g = canvasOf(width, height).getContext('2d', { willReadFrequently: true })!;
   const masks = DRAWN.map((type) => {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000';
@@ -353,12 +375,19 @@ function paintTypes(massifs: Massifs, frame: WorldFrame): DataTexture {
   });
   const codes = codesFromMasks(masks, width * height);
   const depths = depthsFromCodes(codes, width, height);
-  // Code in red, read by texel; depth in green, read filtered so that its contours are smooth.
   const texels = new Uint8Array(width * height * 2);
   for (let i = 0; i < codes.length; i++) {
     texels[i * 2] = codes[i]!;
     texels[i * 2 + 1] = Math.min(255, Math.round((depths[i]! / TYPES_PER_UNIT) * DEPTH_PER_UNIT));
   }
+  return { texels, width, height };
+}
+
+/** A page's canvas, where the worker had no `OffscreenCanvas`. */
+export const pageCanvas: CanvasOf = (width, height) =>
+  Object.assign(document.createElement('canvas'), { width, height });
+
+function typesTexture({ texels, width, height }: TypesData): DataTexture {
   const texture = new DataTexture(texels, width, height, RGFormat, UnsignedByteType);
   texture.unpackAlignment = 1;
   texture.generateMipmaps = false;
@@ -503,22 +532,13 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
+export const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
   const type = types.get(region.id) ?? 'plain';
   return terrainCode(type) === 0 ? null : type;
 };
 
-/** The massifs at `detail` triangulated flat, each vertex carrying its type's wash. */
-export function terrainWash(
-  atlas: Atlas,
-  detail: Detail,
-  types: ReadonlyMap<string, RegionType>,
-  frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
-): BufferGeometry {
-  return washGeometry(atlas.shapes(drawnOf(types), detail), frame);
-}
-
-function washGeometry(
+/** The massifs triangulated flat, each vertex carrying its type's wash. */
+export function massifWash(
   massifs: Massifs,
   frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
 ): BufferGeometry {
@@ -548,7 +568,7 @@ export class TerrainDrawings {
   private readonly atlas = paintAtlas();
 
   constructor(
-    private readonly frame: WorldFrame,
+    frame: WorldFrame,
     anisotropy: number,
     /** At the finger the cell is read from nearer. */
     touch: boolean,
@@ -611,27 +631,20 @@ export class TerrainDrawings {
     this.object.visible = false;
   }
 
-  /** Bakes the type map (a cell of 0.2 u is coarser than either level) and the far wash. */
-  display(atlas: Atlas, types: ReadonlyMap<string, RegionType>): void {
-    const massifs = atlas.shapes(drawnOf(types), 'far');
+  /** The type map and both washes, built off the main thread with the near level. */
+  display(types: TypesData, washes: Record<Detail, BufferGeometry>): void {
     this.types?.dispose();
-    this.types = paintTypes(massifs, this.frame);
+    this.types = typesTexture(types);
     this.drawing.material.uniforms.uTypes!.value = this.types;
-    this.washes.far?.dispose();
-    this.washes.far = washGeometry(massifs, this.frame);
+    for (const geometry of Object.values(this.washes)) geometry.dispose();
+    Object.assign(this.washes, washes);
     this.showWash(this.washShown);
     this.object.visible = true;
   }
 
-  /** The near wash, kept to the near coast; drawn once the sheet comes to its level. */
-  showNear(wash: BufferGeometry): void {
-    this.washes.near = wash;
-    this.showWash(this.washShown);
-  }
-
   showWash(detail: Detail): void {
     this.washShown = detail;
-    const geometry = this.washes[detail] ?? this.washes.far;
+    const geometry = this.washes[detail];
     if (geometry !== undefined) this.wash.geometry = geometry;
   }
 

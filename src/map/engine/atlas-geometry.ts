@@ -1,4 +1,9 @@
-import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Float32BufferAttribute,
+  Uint32BufferAttribute,
+} from 'three';
 import { Earcut } from 'three/src/extras/Earcut.js';
 import type { WorldFrame } from './frame';
 
@@ -73,4 +78,39 @@ export function fillGeometry(
   );
   geometry.setIndex(new Uint32BufferAttribute(indices, 1));
   return geometry;
+}
+
+/** A geometry's arrays alone: what a worker builds and hands over without a copy. */
+export type GeometryData = {
+  readonly attributes: Readonly<
+    Record<string, { readonly array: Float32Array; readonly itemSize: number }>
+  >;
+  readonly index: Uint32Array | null;
+};
+
+export const geometryData = (geometry: BufferGeometry): GeometryData => ({
+  attributes: Object.fromEntries(
+    Object.entries(geometry.attributes).map(([name, attribute]) => [
+      name,
+      { array: attribute.array as Float32Array, itemSize: attribute.itemSize },
+    ]),
+  ),
+  index: (geometry.index?.array as Uint32Array | undefined) ?? null,
+});
+
+/** The geometry around the arrays, which it reads in place. */
+export function fromGeometryData({ attributes, index }: GeometryData): BufferGeometry {
+  const geometry = new BufferGeometry();
+  for (const [name, { array, itemSize }] of Object.entries(attributes))
+    geometry.setAttribute(name, new BufferAttribute(array, itemSize));
+  if (index !== null) geometry.setIndex(new BufferAttribute(index, 1));
+  return geometry;
+}
+
+/** Every buffer under a value, each once: the transfer list of a worker's answer. */
+export function buffersOf(value: unknown, found = new Set<ArrayBuffer>()): ArrayBuffer[] {
+  if (ArrayBuffer.isView(value)) found.add(value.buffer as ArrayBuffer);
+  else if (value !== null && typeof value === 'object')
+    for (const child of Object.values(value)) buffersOf(child, found);
+  return [...found];
 }

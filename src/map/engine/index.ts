@@ -82,21 +82,18 @@ import {
   buildCountries,
   coastWidthPx,
   levelAt,
-  sheetLevel,
+  levelOf,
+  sheetData,
   showLevel,
   type CountryMesh,
   type CountrySheet,
   type SheetLevel,
 } from './countries';
 import { buildBoard } from './board';
-import { TerrainDrawings, terrainWash } from './terrain-drawings';
-import {
-  RegionLayer,
-  regionLines,
-  REGIONS_GONE_DISTANCE,
-  TRAME_SCALE,
-  type HeldClaim,
-} from './regions';
+import { TerrainDrawings } from './terrain-drawings';
+import type { NearSheet } from './near-sheet';
+import { fromGeometryData } from './atlas-geometry';
+import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
@@ -374,9 +371,6 @@ export class MapEngine {
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
-  /** The best level of the atlas landed so far: what the regions and the terrain read. */
-  private atlas: Atlas;
-  private regionTypes: ReadonlyMap<string, RegionType> | null = null;
   private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
@@ -632,7 +626,7 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.farLevel = sheetLevel(atlas, 'far', this.frame);
+    this.farLevel = levelOf(sheetData(atlas, 'far', this.frame));
     this.sheet = buildCountries(this.farLevel);
     const { meshes, borders, coast, wash } = this.sheet;
     this.countries = meshes;
@@ -703,7 +697,6 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.atlas = atlas;
     this.regions = new RegionLayer(this.frame, this.touch, this.night.uniforms, atlas);
     this.ambience.add(this.regions.contours);
     this.labels = new LabelLayer(
@@ -1040,13 +1033,18 @@ export class MapEngine {
 
   /** The near level of the atlas, after the board like the regions: drawn from the next frame
    *  close enough (`levelAt`). */
-  displayNearAtlas(atlas: Atlas): void {
+  displayNearAtlas({ atlas, sheet }: { atlas: Atlas; sheet: NearSheet }): void {
     this.invalidate();
-    this.nearLevel = sheetLevel(atlas, 'near', this.frame);
-    this.atlas = atlas;
-    this.regions.showAtlas(atlas, regionLines(atlas, 'near', this.frame));
-    if (this.regionTypes !== null)
-      this.drawings.showNear(terrainWash(atlas, 'near', this.regionTypes, this.frame));
+    this.nearLevel = levelOf(sheet.sheet);
+    this.regions.showAtlas(atlas, {
+      far: fromGeometryData(sheet.lines.far),
+      near: fromGeometryData(sheet.lines.near),
+    });
+    if (sheet.terrain.types !== null)
+      this.drawings.display(sheet.terrain.types, {
+        far: fromGeometryData(sheet.terrain.washes.far),
+        near: fromGeometryData(sheet.terrain.washes.near),
+      });
   }
 
   /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
@@ -1055,11 +1053,7 @@ export class MapEngine {
     points: ReadonlyMap<string, LonLat>,
   ): void {
     this.invalidate();
-    this.regionTypes = types;
     this.regions.display(types, points);
-    this.drawings.display(this.atlas, types);
-    if (this.nearLevel !== null)
-      this.drawings.showNear(terrainWash(this.atlas, 'near', types, this.frame));
     // The anchors land after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.

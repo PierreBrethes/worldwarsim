@@ -1,6 +1,6 @@
 import {
+  BufferAttribute,
   BufferGeometry,
-  Float32BufferAttribute,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -15,7 +15,13 @@ import type { Atlas, Detail } from '@/domain/atlas';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, LAND_STENCIL, RECESSION, type WorldFrame } from './frame';
 import { screenTrame } from './regions';
-import { fillGeometry, lineGeometry } from './atlas-geometry';
+import {
+  fillGeometry,
+  fromGeometryData,
+  geometryData,
+  lineGeometry,
+  type GeometryData,
+} from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
 
 /** A country's sheet, by its Natural Earth `adm0_a3`: what a selection, a target, a label
@@ -116,21 +122,44 @@ export type SheetLevel = {
   readonly wash: BufferGeometry;
 };
 
-export function sheetLevel(atlas: Atlas, detail: Detail, frame: WorldFrame): SheetLevel {
-  const lands = new Map<string, BufferGeometry>();
-  for (const [adm0, shapes] of atlas.shapes((region) => region.country, detail))
-    lands.set(adm0, fillGeometry(shapes, frame, COUNTRY_THICKNESS));
+/** The same level as bare arrays, built off the main thread for the near level. */
+export type SheetData = {
+  readonly lands: ReadonlyArray<readonly [string, GeometryData]>;
+  readonly ink: Float32Array;
+  readonly coast: Float32Array;
+  readonly wash: GeometryData;
+};
+
+export function sheetData(atlas: Atlas, detail: Detail, frame: WorldFrame): SheetData {
+  const lands = [...atlas.shapes((region) => region.country, detail)].map(
+    ([adm0, shapes]) =>
+      [adm0, geometryData(fillGeometry(shapes, frame, COUNTRY_THICKNESS))] as const,
+  );
   const height = COUNTRY_THICKNESS + BORDER_LIFT;
   const between = atlas.borders(
     (a, b) => a !== null && b !== null && a.country !== b.country,
     detail,
   );
-  const ink = new BufferGeometry();
-  ink.setAttribute('position', new Float32BufferAttribute(lineGeometry(between, frame, height), 3));
-  const coast = new LineSegmentsGeometry();
-  coast.setPositions(lineGeometry(coastLines(atlas, detail, frame), frame, height));
   const land = [...atlas.shapes(() => 'land', detail).values()].flat();
-  return { lands, ink, coast, wash: washGeometry(land, frame) };
+  return {
+    lands,
+    ink: lineGeometry(between, frame, height),
+    coast: lineGeometry(coastLines(atlas, detail, frame), frame, height),
+    wash: geometryData(washGeometry(land, frame)),
+  };
+}
+
+export function levelOf(data: SheetData): SheetLevel {
+  const ink = new BufferGeometry();
+  ink.setAttribute('position', new BufferAttribute(data.ink, 3));
+  const coast = new LineSegmentsGeometry();
+  coast.setPositions(data.coast);
+  return {
+    lands: new Map(data.lands.map(([adm0, land]) => [adm0, fromGeometryData(land)])),
+    ink,
+    coast,
+    wash: fromGeometryData(data.wash),
+  };
 }
 
 /**

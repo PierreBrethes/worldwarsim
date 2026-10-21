@@ -220,17 +220,17 @@ export class RegionLayer {
   display(types: ReadonlyMap<string, RegionType>, points: ReadonlyMap<string, LonLat>): void {
     this.types = types;
     this.points = points;
-    this.lineLevels.far ??= regionLines(this.atlas, 'far', this.frame);
     this.showLines(this.linesShown);
     this.rebuild();
   }
 
-  /** The near level landed: the hatches and the hover follow its arcs, and its lines wait for
-   *  `showLines`. */
-  showAtlas(atlas: Atlas, nearLines: BufferGeometry): void {
+  /** The near level landed: the hatches and the hover follow its arcs, and the lines of both
+   *  levels, built with it off the main thread, wait for `showLines`. */
+  showAtlas(atlas: Atlas, lines: Record<Detail, BufferGeometry>): void {
     this.atlas = atlas;
     this.detail = 'near';
-    this.lineLevels.near = nearLines;
+    for (const geometry of Object.values(this.lineLevels)) geometry.dispose();
+    Object.assign(this.lineLevels, lines);
     this.showLines(this.linesShown);
     if (this.types !== null) this.rebuild();
   }
@@ -238,7 +238,7 @@ export class RegionLayer {
   /** The lines at the sheet's level, as soon as that level has them. */
   showLines(detail: Detail): void {
     this.linesShown = detail;
-    const geometry = this.lineLevels[detail] ?? this.lineLevels.far;
+    const geometry = this.lineLevels[detail];
     if (geometry !== undefined && this.types !== null) this.lines.geometry = geometry;
   }
 

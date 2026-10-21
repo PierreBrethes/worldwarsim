@@ -202,7 +202,7 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
 
 const arcIndex = (ref: number) => (ref >= 0 ? ref : ~ref);
 
-function decodeArcs(
+export function decodeArcs(
   arcs: number[][][],
   { scale: [sx, sy], translate: [tx, ty] }: AtlasFile['transform'],
 ): Float32Array[] {
