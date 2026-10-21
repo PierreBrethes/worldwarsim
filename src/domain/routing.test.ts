@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { decodeAtlas } from './atlas';
+import { atlasWorld } from './atlas-world';
 import type { World } from './world';
 import {
   COST_BY_MEDIUM,
@@ -79,30 +81,15 @@ describe('landMaskOf', () => {
   });
 });
 
-/** Le monde cuit, tel que le serveur le lit : ce que le jouet ne peut pas dire — un isthme. */
+/** Le monde cuit, tel que le serveur le lit : l'atlas (ADR 0034), ce que le jouet ne peut pas
+ *  dire — un isthme. */
 const realWorld = async (): Promise<World> => {
   const { readFileSync } = await import('node:fs');
-  const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
-    meta: { sphere: World['sphere']; outline: World['outline'] };
-    countries: Array<{
-      n: string;
-      a: string;
-      c: [number, number];
-      ll: [number, number];
-      p: [number, number][][];
-    }>;
-  };
-  return {
-    sphere: raw.meta.sphere,
-    outline: raw.meta.outline,
-    countries: raw.countries.map((c) => ({
-      name: c.n,
-      adm0: c.a,
-      representativePoint: c.c,
-      lonLat: c.ll,
-      rings: c.p,
-    })),
-  };
+  const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
+  return atlasWorld(
+    decodeAtlas(read('public/atlas.json'), read('public/atlas-near.json')),
+    read('public/projection.json'),
+  );
 };
 
 describe('buildGrid', () => {
@@ -219,28 +206,7 @@ describe('east-west wrapping', () => {
 
 describe('on the real world', () => {
   it('engraves the sea gates: Gibraltar stays open', async () => {
-    const { readFileSync } = await import('node:fs');
-    const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
-      meta: { sphere: World['sphere']; outline: World['outline'] };
-      countries: Array<{
-        n: string;
-        a: string;
-        c: [number, number];
-        ll: [number, number];
-        p: [number, number][][];
-      }>;
-    };
-    const world: World = {
-      sphere: raw.meta.sphere,
-      outline: raw.meta.outline,
-      countries: raw.countries.map((c) => ({
-        name: c.n,
-        adm0: c.a,
-        representativePoint: c.c,
-        lonLat: c.ll,
-        rings: c.p,
-      })),
-    };
+    const world = await realWorld();
     const worldGrid = buildGrid(world);
 
     // Marseille → Casablanca by sea: without the Gibraltar gate, no path exists.

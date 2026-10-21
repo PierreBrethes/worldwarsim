@@ -2440,6 +2440,9 @@ describe('the door of the sea, read on the pile', () => {
   afterEach(() => vi.useRealTimers());
 
   const NORD = 'FRA-5330'; // coastal, facing the Channel
+  /** Dunkerque: the region's own point lies inland since the atlas (ADR 0034) drew its 87-point
+   *  outline, and a quay has to stand on the shore. */
+  const NORD_QUAY = { lon: 2.37, lat: 51.05 };
   const KENT: LonLat = [0.73, 51.21]; // across the water, and only across it
   const DOGGER: LonLat = [2.5, 54.5]; // open sea, hosted by nobody
   const HELIGOLAND: LonLat = [6.5, 54.6]; // another patch of the same water
@@ -2449,7 +2452,7 @@ describe('the door of the sea, read on the pile', () => {
    *  ensemble sur la plage du Kent. Ce que chacun demande ensuite est l'objet des cas d'après. */
   const landAtKent = async (t: ReturnType<typeof boot>, seat: Seat) => {
     await raise(t, seat, 'barracks', NORD);
-    const quay = await raise(t, seat, 'port', NORD);
+    const quay = await raise(t, seat, 'port', NORD, NORD_QUAY);
     const infantry = await form(t, seat, 'infantry', quay);
     const cargo = await form(t, seat, 'cargo', quay);
     const beach = { lon: KENT[0], lat: KENT[1] };
@@ -2476,7 +2479,9 @@ describe('the door of the sea, read on the pile', () => {
     { port = true }: { port?: boolean } = {},
   ) => {
     await raise(t, seat, 'barracks', NORD);
-    const quay = port ? await raise(t, seat, 'port', NORD) : await raise(t, seat, 'depot', NORD);
+    const quay = port
+      ? await raise(t, seat, 'port', NORD, NORD_QUAY)
+      : await raise(t, seat, 'depot', NORD);
     const troopIds: Array<Id<'troops'>> = [];
     for (const role of roles) troopIds.push(await form(t, seat, role, quay));
     return attacking(t, {
@@ -2978,14 +2983,13 @@ describe('the door of the sea, read on the pile', () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const { infantry, cargo, beach } = await landAtKent(t, seat);
-    const [lon, lat] = regionFacts(NORD)!.point;
 
     await expect(
       t.mutation(api.movements.marchTo, {
         ...seat,
         origin: { kind: 'point', point: beach },
         troopIds: [infantry, cargo],
-        point: { lon, lat },
+        point: NORD_QUAY,
       }),
     ).resolves.toBeDefined();
   });

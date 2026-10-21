@@ -159,17 +159,9 @@ console.log(
   `${countries.length} countries, ${points} points, ${(JSON.stringify(output).length / 1024).toFixed(0)} Ko (${detail})`,
 );
 
-/** The routing raster is cut from these very polygons: a new world leaves a stale grid, and the
- *  server reads the grid rather than rebuilding it. One command, the two files. */
-await import('./generate-grid.mjs');
-
-/** And the region raster with it — the host channel is cut from these polygons too, and the
- *  server reads no polygon at all any more (ADR 0023). */
-await import('./generate-region-grid.mjs');
-
-/** The public front page's Europe sheet is a cut of this world: regenerated with it, or the une
- *  would show yesterday's coasts. */
-await import('./generate-europe-sheet.mjs');
+/** The grids, the region index and the Europe sheet are no longer cut from this file: they come
+ *  from the atlas (ADR 0034) — `generate-grid`, `generate-region-index`, `generate-region-grid`
+ *  and `generate-europe-sheet`, in that order, after `generate-atlas`. */
 
 /** The terrain classification reads the regions just baked; the rasters are outside the repo, so
  *  it only runs when `--terrain <dir>` says where they are. */

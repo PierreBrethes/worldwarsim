@@ -2,7 +2,8 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { NATIONS, type BuildingKey, type ResourceKey } from '../src/domain/ids';
-import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
+import { decodeAtlas, type AtlasFile } from '../src/domain/atlas';
+import { atlasWorld } from '../src/domain/atlas-world';
 import {
   cellAt,
   cellsOfRegion,
@@ -10,16 +11,17 @@ import {
   goalCellsOfRegions,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
-import { buildGrid, countryAtPlanePoint, decodeGrid } from '../src/domain/routing';
+import { buildGrid, decodeGrid } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
 import type { World } from '../src/domain/world';
 import atlasAsset from '../public/atlas.json';
+import atlasNearAsset from '../public/atlas-near.json';
+import projectionAsset from '../public/projection.json';
 import depositsAsset from '../public/deposits.json';
 import gridAsset from '../public/grid.json';
 import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
-import worldAsset from '../public/world.json';
 import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
 import { capitalRegionOf } from './regions';
 
@@ -144,20 +146,10 @@ describe('le travail à l’import des modules de convex/', () => {
   }, 120000);
 });
 
-/** Le monde tel que le serveur le montait avant la cuisson — la référence contre laquelle les
- *  deux rasters sont vérifiés, et la seule chose qui lise encore `world.json` ici. */
-const worldOf = (asset: typeof worldAsset): World =>
-  ({
-    sphere: asset.meta.sphere,
-    outline: asset.meta.outline,
-    countries: asset.countries.map((country) => ({
-      name: country.n,
-      adm0: country.a,
-      representativePoint: country.c,
-      lonLat: country.ll,
-      rings: country.p,
-    })),
-  }) as unknown as World;
+/** Le monde tel que la cuisson le lit : l'atlas (ADR 0034), les pays fusionnés au niveau près.
+ *  La référence contre laquelle la grille et les rasters sont vérifiés. */
+const atlas = decodeAtlas(atlasAsset as unknown as AtlasFile, atlasNearAsset as number[][][]);
+const worldOf = (): World => atlasWorld(atlas, projectionAsset as unknown as World);
 
 /**
  * **Le cadre de la projection n'est pas un contour, et c'est l'actif qui doit le dire.** Natural
@@ -182,7 +174,7 @@ describe('les contours de public/regions.json', () => {
         const ys = ring.map(([, y]) => y!);
         const spanX = Math.max(...xs) - Math.min(...xs);
         const spanY = Math.max(...ys) - Math.min(...ys);
-        if (spanX > 400 / 2 && spanY > worldAsset.meta.sphere.maxY / 2)
+        if (spanX > 400 / 2 && spanY > projectionAsset.sphere.maxY / 2)
           frames.push(`${region.id} (${region.n}), anneau ${rank + 1}/${region.p.length}`);
       });
     }
@@ -198,54 +190,16 @@ describe('les contours de public/regions.json', () => {
  * **Le raster de géographie est cuit, et la cuisson ne peut pas mentir** (ADR 0023) — le jumeau
  * du contrôle de la grille, et pour la même raison : `region-grid.json` porte la région admin-1 et
  * le pays hôte de chaque cellule, cuits hors ligne avec les fonctions polygonales elles-mêmes, et
- * le serveur ne lit plus un seul polygone. Un `regions.json` régénéré et un raster resté en place
+ * le serveur ne lit plus un seul polygone. Un atlas régénéré et un raster resté en place
  * laisseraient le jeu répondre sur une géographie périmée, en silence.
  *
  * Un recuit complet coûte quinze secondes : ce qui est vérifié ici est un **échantillon fixe** de
  * deux mille cellules — mille portant une région, mille portant un pays — où le raster et le
- * polygone doivent dire la même chose. On recuit (`node scripts/generate-region-grid.mjs`,
- * chaîné par `generate-world.mjs`) ou la CI refuse.
+ * polygone doivent dire la même chose. On recuit (`node scripts/generate-region-grid.mjs`) ou la CI refuse.
  */
 describe('le raster de géographie cuit', () => {
-  const world = worldOf(worldAsset);
+  const world = worldOf();
   const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
-
-  /** Le même garde-fou que la géométrie du serveur : un anneau dégénéré que Natural Earth
-   *  projette sur tout le cadre n'est pas un contour. */
-  const isProjectionFrame = (ring: ReadonlyArray<readonly [number, number]>): boolean => {
-    const xs = ring.map(([x]) => x);
-    const ys = ring.map(([, y]) => y);
-    return (
-      Math.max(...xs) - Math.min(...xs) > 400 * 0.9 &&
-      Math.max(...ys) - Math.min(...ys) > worldAsset.meta.sphere.maxY * 0.9
-    );
-  };
-
-  const outlines = prepareRegionOutlines(
-    regionsAsset.regions.map((region) => ({
-      id: region.id,
-      rings: (
-        region.p as unknown as ReadonlyArray<ReadonlyArray<readonly [number, number]>>
-      ).filter((ring) => !isProjectionFrame(ring)),
-    })),
-  );
-
-  const boxOf = (country: World['countries'][number]) => {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const ring of country.rings) {
-      for (const [x, y] of ring) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-      }
-    }
-    return [minX, minY, maxX, maxY] as const;
-  };
-  const boxes = new Map(world.countries.map((country) => [country.adm0, boxOf(country)]));
 
   const centreOf = (cell: number): readonly [number, number] => [
     raster.sphere.minX + ((cell % raster.width) + 0.5) * raster.step,
@@ -253,13 +207,14 @@ describe('le raster de géographie cuit', () => {
   ];
 
   /** Un échantillon **régulier** plutôt qu'aléatoire : le même à chaque exécution, donc un échec
-   *  se rejoue. Pris parmi les cellules qui portent quelque chose — un océan d'aplats nuls ne
-   *  dirait rien de la frontière. */
-  const sample = (channel: Uint16Array, count: number): ReadonlyArray<number> => {
-    const filled: number[] = [];
-    for (let cell = 0; cell < channel.length; cell += 1) if (channel[cell] !== 0) filled.push(cell);
-    const stride = Math.floor(filled.length / count);
-    return Array.from({ length: count }, (_, rank) => filled[rank * stride]!);
+   *  se rejoue. `filled` prend les cellules qui portent quelque chose, sinon celles qui ne
+   *  portent rien : la frontière se joue des deux côtés. */
+  const sample = (channel: Uint16Array, count: number, filled = true): ReadonlyArray<number> => {
+    const cells: number[] = [];
+    for (let cell = 0; cell < channel.length; cell += 1)
+      if ((channel[cell] !== 0) === filled) cells.push(cell);
+    const stride = Math.floor(cells.length / count);
+    return Array.from({ length: count }, (_, rank) => cells[rank * stride]!);
   };
 
   /**
@@ -276,30 +231,26 @@ describe('le raster de géographie cuit', () => {
     ]);
   });
 
-  it('rend la région que le polygone rendait, sur mille cellules', () => {
-    for (const cell of sample(raster.regions, 1000)) {
-      const point = centreOf(cell);
+  /** La région d'une cellule est celle que `regionAt` de l'atlas rend au centre : la fonction du
+   *  survol, au niveau près. */
+  const regionOf = (cell: number) => atlas.regionAt(centreOf(cell), 'near')?.id ?? null;
+
+  it('rend la région que regionAt rend, sur deux mille cellules', () => {
+    for (const cell of [...sample(raster.regions, 1000), ...sample(raster.regions, 1000, false)]) {
       expect(
-        regionAtPlanePoint(outlines, point, 400),
-        `cellule ${cell} : public/region-grid.json ne correspond plus à public/regions.json — recuire avec node scripts/generate-region-grid.mjs.`,
+        regionOf(cell),
+        `cellule ${cell} : public/region-grid.json ne correspond plus à public/atlas.json — recuire avec node scripts/generate-region-grid.mjs.`,
       ).toBe(raster.ids[raster.regions[cell]! - 1] ?? null);
     }
   }, 120000);
 
-  it('rend le pays que le polygone rendait, sur mille cellules', () => {
+  it('rend pour pays celui de la région, sur mille cellules', () => {
+    const countryOfRegion = new Map(atlas.regions.map((region) => [region.id, region.country]));
     for (const cell of sample(raster.countries, 1000)) {
-      const point = centreOf(cell);
-      /** Le filtre par boîte n'est pas une approximation : un polygone dont la boîte exclut le
-       *  point ne peut pas le contenir, et l'ordre de la table — qui décide en cas de
-       *  chevauchement — est conservé. */
-      const candidates = world.countries.filter((country) => {
-        const box = boxes.get(country.adm0)!;
-        return point[0] >= box[0] && point[0] <= box[2] && point[1] >= box[1] && point[1] <= box[3];
-      });
       expect(
-        countryAtPlanePoint(candidates, point),
-        `cellule ${cell} : public/region-grid.json ne correspond plus à public/world.json — recuire avec node scripts/generate-region-grid.mjs.`,
-      ).toBe(raster.hosts[raster.countries[cell]! - 1] ?? null);
+        raster.hosts[raster.countries[cell]! - 1],
+        `cellule ${cell} : public/region-grid.json ne correspond plus à public/atlas.json — recuire avec node scripts/generate-region-grid.mjs.`,
+      ).toBe(countryOfRegion.get(regionOf(cell)!));
     }
   }, 120000);
 
@@ -390,12 +341,11 @@ describe('le raster de géographie cuit', () => {
 
 /**
  * **La grille de routage est cuite, et la cuisson ne peut pas mentir.** `buildGrid` reste la
- * référence — elle rasterise les polygones de `world.json` — mais aucune query ne l'appelle :
+ * référence — elle rasterise les pays de l'atlas — mais aucune query ne l'appelle :
  * `public/grid.json` porte les mêmes cellules en plages et `convex/routes.ts` les décode. Les deux
  * chemins doivent rendre la même grille **octet pour octet**, sans quoi un `SEA_GATES` modifié ou
- * un `world.json` regénéré laisserait le serveur router sur une géographie périmée, en silence.
- * C'est le même esprit que le miroir du simulateur : on recuit (`node scripts/generate-grid.mjs`,
- * chaîné par `generate-world.mjs`) ou la CI refuse.
+ * un atlas regénéré laisserait le serveur router sur une géographie périmée, en silence.
+ * C'est le même esprit que le miroir du simulateur : on recuit (`node scripts/generate-grid.mjs`) ou la CI refuse.
  *
  * Et le chrono, parce que c'est tout l'objet de la cuisson : une query a **une seconde**, et la
  * rasterisation à froid, sans JIT, la dépassait — d'où les « Function execution timed out » par
@@ -403,7 +353,7 @@ describe('le raster de géographie cuit', () => {
  */
 describe('la grille de routage cuite', () => {
   it('rend exactement la grille que rasteriserait le monde', () => {
-    const world = worldOf(worldAsset);
+    const world = worldOf();
     const built = buildGrid(world);
     const decoded = decodeGrid(gridAsset, world);
 
@@ -414,13 +364,13 @@ describe('la grille de routage cuite', () => {
     ]);
     expect(
       decoded.cells,
-      `public/grid.json ne correspond plus à public/world.json : recuire avec node scripts/generate-grid.mjs.`,
+      `public/grid.json ne correspond plus à public/atlas.json : recuire avec node scripts/generate-grid.mjs.`,
     ).toEqual(built.cells);
     expect(decoded.edges).toEqual(built.edges);
   }, 120000);
 
   it('se décode assez vite pour tenir dans le budget d’une query', () => {
-    const world = worldOf(worldAsset);
+    const world = worldOf();
     const started = performance.now();
     decodeGrid(gridAsset, world);
     const elapsed = performance.now() - started;
