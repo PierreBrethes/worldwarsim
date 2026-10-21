@@ -145,6 +145,23 @@ describe('la carte de départ de la Blitz', () => {
     }
   });
 
+  /** **Les deux tours les plus réguliers à vol d'oiseau peuvent échouer par la route** : on
+   *  éprouve alors les suivants, plutôt que de refuser la carte. Ici, la route des deux premiers
+   *  ne mène nulle part ; le troisième passe. */
+  it('éprouve un troisième tour quand les deux premiers échouent par la route', () => {
+    const seats = ['A', 'B', 'C'];
+    const pairs = (seats.length * (seats.length - 1)) / 2;
+    const fair = measuring(world);
+    let roads = 0;
+    const measure: BlitzMeasure = (regionId, mode, maxKm) => {
+      if (mode === 'combined' && (roads += 1) <= 2 * pairs) return new Map();
+      return fair(regionId, mode, maxKm);
+    };
+    const sites = planBlitzMap({ seats, candidates: world, rules: RULES, seed: 7, measure });
+    expect(sites).not.toBeNull();
+    expect(roads).toBeGreaterThan(2 * pairs);
+  });
+
   it('ne pose jamais deux bâtiments sur une région, et rejoue la même carte', () => {
     const sites = placed(['A', 'B', 'C', 'D'], 11);
     expect(new Set(sites.map((site) => site.regionId)).size).toBe(sites.length);
