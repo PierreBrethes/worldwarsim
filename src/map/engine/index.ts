@@ -2585,7 +2585,7 @@ const FOG_FAR = 950;
 /** The driven camera's field: every distance threshold was measured through it. */
 const CAMERA_FOV = 42;
 /** The prototype's telephoto, through which the board renders (`eye`). */
-const EYE_FOV = 28;
+const EYE_FOV = 30;
 const halfTan = (fov: number): number => Math.tan((fov * Math.PI) / 360);
 /** How far the eye backs off along the camera's axis to frame the same plane at `EYE_FOV`. */
 const EYE_BACKOFF = halfTan(CAMERA_FOV) / halfTan(EYE_FOV);

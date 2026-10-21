@@ -12,7 +12,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  ACESFilmicToneMapping,
+  NoToneMapping,
   Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -42,7 +42,7 @@ import {
 } from '@/domain/landing';
 import type { MapMotion } from '@/domain/map-motion';
 import { INK_BY_NATION } from '@/domain/nations';
-import { nightAt, sunLightAt } from '@/domain/daylight';
+import { nightAt } from '@/domain/daylight';
 import { KM_PER_UNIT } from '@/domain/routing';
 import type { UnitTier } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
@@ -50,8 +50,8 @@ import { fr } from '@/i18n/fr';
 import { figurineFor, sceneOf, type Figurine } from '@/map/engine/figurines/figurine';
 import { stride } from '@/map/engine/figurines/infantry';
 import { SEA_LEVEL, WorldFrame } from '@/map/engine/frame';
-import { castShadows, Lamp, LAMP_EXPOSURE } from '@/map/engine/lamp';
-import { NightSky } from '@/map/engine/night';
+import { castShadows, Lamp } from '@/map/engine/lamp';
+import { NightSky, type DaySky } from '@/map/engine/night';
 import { ARC_COLORS, PALETTE } from '@/map/engine/palette';
 import {
   MINUTES_PER_1000_KM_ON_LAND,
@@ -172,6 +172,23 @@ function mast(cloth: string, scale: number): { group: Group; cloth: Mesh } {
 }
 
 /**
+ * **L'accueil garde sa lumière d'avant la refonte de la carte** (#195) : Pierre le refera, d'ici là
+ * on n'y touche pas. Une lampe fixe, sans tone mapping, et l'ancien ciel de jour.
+ */
+const LANDING_SUN = {
+  azimuth: Math.atan2(-180, -160) + 2 * Math.PI,
+  elevation: (Math.atan2(320, Math.hypot(180, 160)) * 180) / Math.PI,
+};
+const LANDING_LAMP_COLOR = '#ffe2b8';
+const LANDING_LAMP = 1.25;
+const LANDING_NIGHT_LAMP = 0.9;
+const LANDING_SKY: DaySky = {
+  sky: new Color('#fff3dc'),
+  ground: new Color('#5a4e3a'),
+  intensity: 0.8,
+};
+
+/**
  * **La table de la une** : une scène three.js à part, légère et sans état de partie — la feuille
  * d'Europe gravée, la lampe et la nuit du plateau (`Lamp`, `NightSky`), ses figurines et ses
  * maquettes (`figurineFor`, `BUILDING_MAQUETTES`), et des scènes jouées que le défilement choisit.
@@ -242,11 +259,12 @@ export class LandingTable {
       this.renderer.setPixelRatio(Math.min(narrow ? 1.6 : 2, devicePixelRatio));
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = PCFSoftShadowMap;
-      this.renderer.toneMapping = ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = LAMP_EXPOSURE;
+      this.renderer.toneMapping = NoToneMapping;
       this.scene.background = new Color(PALETTE.desk);
       this.moments = new Moments(this.scene, motion);
       this.lamp = new Lamp(this.scene);
+      this.lamp.point(LANDING_SUN);
+      this.lamp.light.color.set(LANDING_LAMP_COLOR);
 
       const { x0, x1, y0, y1 } = sheet.box;
       const texture = new CanvasTexture(engrave(sheet, narrow ? 2560 : 4096));
@@ -272,7 +290,7 @@ export class LandingTable {
       desk.position.copy(paper.position).setY(-0.07);
       desk.receiveShadow = true;
       this.scene.add(paper, desk);
-      this.night = new NightSky(this.scene, this.frame, this.surface(), null);
+      this.night = new NightSky(this.scene, this.frame, this.surface(), null, LANDING_SKY);
 
       addEventListener('resize', this.resize);
       canvas.addEventListener('pointerdown', this.onDown);
@@ -1272,7 +1290,8 @@ export class LandingTable {
     const dist = this.aimCamera(dt, name, progress);
     const instant = name === 'night' ? nightInstant(progress, this.today) : dayInstant(this.today);
     const looked = this.lonLatOf(new Vector3(this.cam.x, 0, this.cam.z));
-    this.lamp.shine(sunLightAt(instant, looked), this.night.apply(instant, looked, dist));
+    const night = this.night.apply(instant, looked, dist);
+    this.lamp.light.intensity = LANDING_LAMP + (LANDING_NIGHT_LAMP - LANDING_LAMP) * night;
     for (const [city, lonLat] of Object.entries(NIGHT_CITIES))
       this.setPin(
         `city:${city}`,

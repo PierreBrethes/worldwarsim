@@ -26,7 +26,6 @@ const LOW_SUN_DEG = 25;
 const DAY_INTENSITY = 2.5;
 /** La lampe du prototype se tenait vers 52° : plus bas, elle force pour garder la feuille aussi claire. */
 const POC_ELEVATION_DEG = 52;
-const MAX_BOOST = 1.9;
 /** Le crépuscule l'éteint de 30 % au plus, sous `DUSK_DEG`. */
 const TWILIGHT_DIM = 0.3;
 const DUSK_DEG = 20;
@@ -62,10 +61,7 @@ const ZENITH = new Vector3(0, 1, 0);
 
 /** La force de la lampe : celle du prototype, relevée quand le soleil baisse, baissée la nuit. */
 export function lampIntensity(sun: SunLight, night: number): number {
-  const boost = Math.min(
-    MAX_BOOST,
-    Math.sin(POC_ELEVATION_DEG * RAD) / Math.sin(sun.elevation * RAD),
-  );
+  const boost = Math.sin(POC_ELEVATION_DEG * RAD) / Math.sin(sun.elevation * RAD);
   const dusk = MathUtils.clamp((DUSK_DEG - sun.altitude) / DUSK_DEG, 0, 1);
   const day = DAY_INTENSITY * boost * (1 - TWILIGHT_DIM * dusk);
   return MathUtils.lerp(day, NIGHT_INTENSITY, night);
@@ -85,8 +81,16 @@ export class Lamp {
     scene.add(this.light, this.light.target);
   }
 
-  /** Board north is -z, east +x. */
   shine(sun: SunLight, night: number): void {
+    this.point(sun);
+    this.light.color
+      .copy(DAY_COLOR)
+      .lerp(LOW_COLOR, MathUtils.clamp((LOW_SUN_DEG - sun.altitude) / LOW_SUN_DEG, 0, 1));
+    this.light.intensity = lampIntensity(sun, night);
+  }
+
+  /** Turns the lamp toward the sun, without touching its colour or strength. Board north is -z, east +x. */
+  point(sun: Pick<SunLight, 'azimuth' | 'elevation'>): void {
     const elevation = sun.elevation * RAD;
     this.toward
       .set(
@@ -97,10 +101,6 @@ export class Lamp {
       .normalize();
     this.right.crossVectors(ZENITH, this.toward).normalize();
     this.up.crossVectors(this.toward, this.right);
-    this.light.color
-      .copy(DAY_COLOR)
-      .lerp(LOW_COLOR, MathUtils.clamp((LOW_SUN_DEG - sun.altitude) / LOW_SUN_DEG, 0, 1));
-    this.light.intensity = lampIntensity(sun, night);
     this.light.position
       .copy(this.light.target.position)
       .addScaledVector(this.toward, LAMP_DISTANCE);

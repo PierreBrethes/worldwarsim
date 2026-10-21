@@ -52,12 +52,15 @@ const CITIES: ReadonlyArray<LonLat> = [
 ];
 
 const CITY_GOLD = '#ffcf6e';
-// Le ciel du prototype (`carte-refonte`) : faible devant la lampe, pour des ombres marquées.
-const DAY_SKY = new Color('#fff1d6');
-const DAY_GROUND = new Color('#2a1c10');
+export type DaySky = { readonly sky: Color; readonly ground: Color; readonly intensity: number };
+/** Le ciel du prototype (`carte-refonte`) : faible devant la lampe, pour des ombres marquées. */
+const BOARD_DAY_SKY: DaySky = {
+  sky: new Color('#fff1d6'),
+  ground: new Color('#2a1c10'),
+  intensity: 0.55,
+};
 const NIGHT_SKY = new Color('#2f4fa8');
 const NIGHT_GROUND = new Color('#10162c');
-const DAY_SKY_INTENSITY = 0.55;
 const NIGHT_SKY_INTENSITY = 0.45;
 const SHADE_INK = '#0c1430';
 /** How much ink the full night lays over the sheet: the game layer above it must still read. */
@@ -119,7 +122,7 @@ function shadeMaterial(sun: { value: [number, number] }): ShaderMaterial {
 }
 
 export class NightSky {
-  private readonly sky = new HemisphereLight(DAY_SKY, DAY_GROUND, DAY_SKY_INTENSITY);
+  private readonly sky: HemisphereLight;
   private readonly cities: Points<BufferGeometry, PointsMaterial>;
   private readonly sun = { value: [Number.NaN, 0] as [number, number] };
 
@@ -128,7 +131,9 @@ export class NightSky {
     frame: WorldFrame,
     surface: BufferGeometry,
     private readonly sea: SeaLayer | null,
+    private readonly day: DaySky = BOARD_DAY_SKY,
   ) {
+    this.sky = new HemisphereLight(day.sky, day.ground, day.intensity);
     const shade = new Mesh(surface, shadeMaterial(this.sun));
     shade.position.y = SHADE_LIFT - SEA_LEVEL;
     shade.renderOrder = SHADE_RANK;
@@ -168,9 +173,10 @@ export class NightSky {
    */
   apply(epochMs: number, looked: LonLat, distance: number): number {
     const night = nightAt(epochMs, looked) * nearWeight(distance);
-    this.sky.color.lerpColors(DAY_SKY, NIGHT_SKY, night);
-    this.sky.groundColor.lerpColors(DAY_GROUND, NIGHT_GROUND, night);
-    this.sky.intensity = DAY_SKY_INTENSITY + (NIGHT_SKY_INTENSITY - DAY_SKY_INTENSITY) * night;
+    const { day } = this;
+    this.sky.color.lerpColors(day.sky, NIGHT_SKY, night);
+    this.sky.groundColor.lerpColors(day.ground, NIGHT_GROUND, night);
+    this.sky.intensity = day.intensity + (NIGHT_SKY_INTENSITY - day.intensity) * night;
     this.sea?.dim(night);
 
     const sun = subsolarPoint(epochMs);
