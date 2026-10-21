@@ -5,8 +5,8 @@ export type { Nation } from './ids';
 
 /**
  * **The one table of nation inks** (palette des nations, 14/10/2026): the board's grounds, the
- * masts, the telegraph — every colour a nation takes comes from here, stepped by `nationShades`
- * (`map/engine/palette.ts`). Printed inks of a 1940 atlas, eight families apart: France's blue,
+ * masts, the telegraph — every colour a nation takes comes from here; the board draws it as a
+ * dashed contour (ADR 0033). Printed inks of a 1940 atlas, eight families apart: France's blue,
  * the Empire's rose, the Soviet vermilion, a field-grey teal for Germany, the imperial purple of
  * Japan, Italy's olive green, China's ochre-yellow, America's viridian. Neighbours on the board are held
  * apart by test (`palette.test.ts`).
@@ -26,9 +26,6 @@ export const INK_BY_NATION: Readonly<Record<Nation, string>> = {
  * The `world.json` country each playable nation sits on. The table is required because the
  * world is named in English by Natural Earth while nations are game ids: nothing coincides
  * by accident, everything goes through here.
- *
- * **Carrying a nation's name is not owning it.** A country only takes a nation's ink once a
- * player has reserved that nation — see `inkByClaimedCountry`.
  */
 export const COUNTRY_BY_NATION: Readonly<Record<Nation, string>> = {
   france: 'France',
@@ -78,20 +75,6 @@ export const NATION_BY_COUNTRY: ReadonlyMap<string, Nation> = new Map(
 
 export const isNation = (value: unknown): value is Nation =>
   typeof value === 'string' && (NATIONS as ReadonlyArray<string>).includes(value);
-
-/**
- * The countries to ink on the map, from the players actually present. A holder without a
- * nation colors nothing.
- */
-export function inkByClaimedCountry(
-  holders: ReadonlyArray<{ readonly nation: string | null; readonly ink: string }>,
-): Map<string, string> {
-  const inks = new Map<string, string>();
-  for (const { nation, ink } of holders) {
-    if (nation !== null && isNation(nation)) inks.set(COUNTRY_BY_NATION[nation], ink);
-  }
-  return inks;
-}
 
 export function nationInk(nation: string | null): string {
   return nation !== null && isNation(nation) ? INK_BY_NATION[nation] : '#6e6a5e';

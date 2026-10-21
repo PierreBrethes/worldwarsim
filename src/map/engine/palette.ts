@@ -1,5 +1,3 @@
-import { FADED_WASH } from '@/domain/control';
-
 /** Literals, because the engine cannot read CSS. `src/styles/tokens.css` is the source and
  *  `src/styles/colors.test.ts` fails when the two drift. */
 export const PALETTE = {
@@ -30,25 +28,13 @@ export const PALETTE = {
 } as const;
 
 /**
- * **How much ink the sheet carries: a lavis, not a flat** (carte allégée, 13/10/2026). Every
- * held region, and every country held whole, is the seat's ink laid at this load **over the
- * paper** — no longer over the nation's ink laid full, which stacked two dark inks and buried
- * the pieces. The ink keeps its hue (France stays blue), the sheet comes back through it, and
- * the pieces stand out of it as on the prototype (`WWS/prototypes/table-etat-major.html`).
- *
- * It does not follow the zoomed-in fade (Pierre, 31/08): beyond the threshold the region
- * strokes go, the tint stays — who holds what reads without the cut.
- *
- * The survey's wash floor (`FADED_WASH`) multiplies this load, so the gap between fresh and
- * faded — an information, ADR 0020 §5 — keeps its ratio.
- *
- * History: 0.5 → 0.72 on 31/08 when a seat blue read grey over bare sand, and the home sheet
- * was then painted over its nation's ink at full. Back to 0.65 on 13/10, over the paper.
+ * **How much ink a lavis lays over the paper.** The board no longer washes any ground (ADR 0033):
+ * the lavis is left to the landing's table (`routes/-index/table/sheet.ts`) and the pictogram
+ * review, which still paint a nation's sheet.
  */
 export const HELD_OPACITY = 0.65;
-
-/** A region that bears a building: the same pen, a heavier hand. */
-const BUILT_LOAD = 0.8;
+/** An old survey's share of that load, on the landing's table. */
+const SURVEYED_LOAD = 0.35;
 
 const channelsOf = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -71,26 +57,11 @@ export function lavis(
     .join('')}`;
 }
 
-/**
- * The nation's ink laid heavier, for a region that carries a building: denser than the
- * country's lavis, never darker than the ink itself — a built region is a stronger wash, not
- * a black patch that would compete with the building standing on it.
- */
-export const builtInk = (countryInk: string): string => lavis(countryInk, BUILT_LOAD);
-
-/**
- * **One nation, one family** (palette des nations, 14/10/2026). Every ground a nation colours
- * on the board is its ink at a load over the paper — never a second ink. The table is
- * `INK_BY_NATION`; these are its steps. The engine paints `sheet` and `built`; a region fill
- * is the ink laid at `HELD_OPACITY × wash` by the blend, which lands on `sheet` when fresh and
- * on `surveyed` at the floor — where a suspended zone is hatched too (`regions.ts`). A held
- * region and the home sheet are the same step: possession is possession, the cut says where.
- */
+/** A nation's ground on the landing's table: held, and known by an old survey. */
 export function nationShades(ink: string) {
   return {
     sheet: lavis(ink),
-    built: builtInk(ink),
-    surveyed: lavis(ink, HELD_OPACITY * FADED_WASH),
+    surveyed: lavis(ink, HELD_OPACITY * SURVEYED_LOAD),
   };
 }
 

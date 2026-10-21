@@ -253,26 +253,3 @@ export function knownRegions({
   }
   return [...known.values()];
 }
-
-/**
- * **Le délavage d'un relevé** — l'ancienneté se voit en permanence, jamais au survol seul
- * (ADR 0020 §5). Sans ce signal, un joueur qui décide sur une information périmée lira un bug
- * plutôt qu'une règle, et il aura raison de se plaindre.
- *
- * Le résultat est **cranté**, et c'est ce qui le rend utilisable : la teinte est un maillage
- * fusionné par couleur, donc une valeur continue referait la géométrie à chaque minute pour un
- * pixel de différence. Cinq crans se voient et ne coûtent rien.
- *
- * Il ne descend jamais à zéro : un relevé vieux d'une semaine reste une chose qu'on a vue, et
- * l'effacer le rendrait indistinguable d'une région vierge.
- */
-export const FADED_WASH = 0.35;
-
-const WASH_STEPS = 4;
-
-export function surveyWash(ageMs: number, fadedAfterMs: number): number {
-  const aged = Math.min(1, Math.max(0, ageMs / fadedAfterMs));
-  /** Le cran se prend sur l'âge et pas sur la teinte : arrondir la teinte raterait le plancher,
-   *  qui n'est pas un multiple du pas. */
-  return 1 - (Math.round(aged * WASH_STEPS) / WASH_STEPS) * (1 - FADED_WASH);
-}

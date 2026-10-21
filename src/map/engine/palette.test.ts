@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INK_BY_NATION, typeInk, type Nation } from '@/domain/nations';
-import {
-  builtInk,
-  contrastRatio,
-  HELD_OPACITY,
-  lavis,
-  lit,
-  nationShades,
-  PALETTE,
-  PEN_OPACITY,
-  penOn,
-} from './palette';
+import { contrastRatio, lavis, lit, nationShades, PALETTE, PEN_OPACITY, penOn } from './palette';
 
 const channels = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -112,23 +102,14 @@ describe('the shades of one nation', () => {
    * leaves the paper the way its ink does, and nearer that way than any other nation's.
    */
   it.each(inks)('keeps every shade of %s in its own family', (_nation, ink) => {
-    const { sheet, built, surveyed } = nationShades(ink);
-    for (const shade of [sheet, built, surveyed]) {
+    const { sheet, surveyed } = nationShades(ink);
+    for (const shade of [sheet, surveyed]) {
       expect(angleGap(direction(shade), direction(ink))).toBeLessThan(20);
       for (const [, other] of inks.filter(([, candidate]) => candidate !== ink))
         expect(angleGap(direction(shade), direction(ink))).toBeLessThan(
           angleGap(direction(shade), direction(other)),
         );
     }
-  });
-
-  it.each(inks)('tells the built ground of %s from its held ground', (_nation, ink) => {
-    const { sheet, built } = nationShades(ink);
-    expect(deltaE(sheet, built)).toBeGreaterThan(6);
-  });
-
-  it.each(inks)('lays the built ground of %s darker than the held', (_nation, ink) => {
-    expect(lab(builtInk(ink))[0]).toBeLessThan(lab(lavis(ink))[0]);
   });
 
   it.each(inks)('tells a fresh ground of %s from an old survey', (_nation, ink) => {
@@ -144,10 +125,11 @@ describe('the shades of one nation', () => {
 });
 
 describe('the pen over a ground', () => {
-  it.each(inks)('reads on every ground of %s', (_nation, ink) => {
-    const { sheet, built, surveyed } = nationShades(ink);
-    for (const ground of [sheet, built, surveyed])
-      expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
+  /** The board's one ground since ADR 0033: the bare land, under the hover of a held region. */
+  it.each(inks)('reads in the deep of %s on the bare land', (_nation, ink) => {
+    expect(
+      strokeContrast(penOn(PALETTE.neutralLand, ink), PALETTE.neutralLand),
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it('draws in the deep of the nation ink, never a foreign hue, where ink reads', () => {
@@ -157,20 +139,11 @@ describe('the pen over a ground', () => {
     expect(hueDrift(pen, INK_BY_NATION.japan)).toBeLessThan(35);
   });
 
-  /** A region held inside an opponent's country: my ink laid over his lavis. */
-  it.each(NEIGHBOURS)('reads where %s holds ground inside %s', (holder, country) => {
-    const ink = INK_BY_NATION[holder];
-    const ground = lavis(ink, HELD_OPACITY, nationShades(INK_BY_NATION[country]).sheet);
-    expect(strokeContrast(penOn(ground, ink), ground)).toBeGreaterThanOrEqual(3);
-  });
-
   it('draws in plain ink on the bare land', () => {
     expect(penOn(PALETTE.neutralLand, null)).toBe(PALETTE.border);
   });
 
   it('turns to paper on a ground too dark for any ink', () => {
-    expect(penOn(nationShades(INK_BY_NATION.france).built, INK_BY_NATION.france)).toBe(
-      PALETTE.paper,
-    );
+    expect(penOn(lavis(INK_BY_NATION.france, 0.8), INK_BY_NATION.france)).toBe(PALETTE.paper);
   });
 });
