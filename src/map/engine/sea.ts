@@ -299,8 +299,9 @@ export class SeaLayer implements AmbientLayer {
             float roseR = length(roseAt);
             float rosePx = fwidth(roseR);
             float rose = max(seaLine(roseR, 0.84, rosePx), seaLine(roseR, 0.76, rosePx));
-            // Its points and its letter stand within two radii: past them, eight kites for nothing.
-            if (roseR < 2.0 + 2.0 * rosePx) {
+            // Its letter stands within two radii, its north point's antialiased tip within nine
+            // pixels past them: further out, eight kites for nothing.
+            if (roseR < 2.0 + 10.0 * rosePx) {
               for (int k = 0; k < 4; k++) {
                 float turn = float(k) * 1.5708;
                 rose = max(rose, seaRosePoint(roseAt, turn, k == 0 ? 1.15 : 1.0, 0.13, rosePx));
