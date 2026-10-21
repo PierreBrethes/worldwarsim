@@ -13,7 +13,6 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-  type Intersection,
   type Mesh,
   type MeshStandardMaterial,
   type Object3D,
@@ -318,6 +317,8 @@ type Gesture = {
  * that is what keeps three.js on one side and the interface on the other, with a single
  * boundary.
  */
+type Landing = { readonly point: Vector3; readonly country: CountryMesh };
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -385,11 +386,12 @@ export class MapEngine {
   private readonly farLevel: SheetLevel;
   private nearLevel: SheetLevel | null = null;
   private detail: Detail = 'far';
-  /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
+  /** The sea plane, kept apart from the decor: it takes the pieces' shadows. */
   private readonly surface: Mesh;
-  /** Land and water in one list, allocated once: it is walked on every hover of a placement,
-   *  and a fresh array per frame is the kind of garbage a render loop must not make. */
-  private readonly aimable: Object3D[];
+  /** The sheet as a ray meets it, sea and land alike: the land lies 0.004 u above the sea, a
+   *  hair at any tilt, and one plane answers where 250 country sheets cost milliseconds. */
+  private readonly sheetPlane = new Plane(new Vector3(0, 1, 0), -SEA_LEVEL);
+  private readonly countryOf = new Map<string, CountryMesh>();
   private readonly ray = new Raycaster();
   private readonly pointer = new Vector2(-2, -2);
   private readonly aim = new Vector2();
@@ -642,7 +644,7 @@ export class MapEngine {
     this.scene.add(borders);
     this.scene.add(coast);
 
-    this.aimable = [...this.countries, this.surface];
+    for (const mesh of meshes) this.countryOf.set(mesh.userData.adm0, mesh);
 
     if (this.ambience.enabled('sea')) {
       this.ambience.add(
@@ -1013,7 +1015,7 @@ export class MapEngine {
   setDownPiece(clientX: number, clientY: number): void {
     this.invalidate();
     if (this.held === null || !this.castAt(clientX, clientY)) return;
-    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    const ground = this.sheetPoint() ?? undefined;
     if (ground !== undefined) this.standing.setDown(ground);
   }
 
@@ -1385,7 +1387,7 @@ export class MapEngine {
    * would give the land before entering the label, not the one it designates.
    */
   countryAtPoint(clientX: number, clientY: number): string | null {
-    return (this.aimAt(clientX, clientY)?.object as CountryMesh | undefined)?.userData.adm0 ?? null;
+    return this.aimAt(clientX, clientY)?.country.userData.adm0 ?? null;
   }
 
   /**
@@ -1394,8 +1396,8 @@ export class MapEngine {
    * ray that only knew the continents would answer nothing there (ADR 0019 §1).
    */
   pointAt(clientX: number, clientY: number): LonLat | null {
-    const hit = this.aimAt(clientX, clientY, true)?.point;
-    if (hit === undefined) return null;
+    const hit = this.castAt(clientX, clientY) ? this.sheetPoint() : null;
+    if (hit === null) return null;
     return this.frame.lonLatAt(hit.x + this.frame.centerX, hit.z + this.frame.centerY);
   }
 
@@ -1411,7 +1413,7 @@ export class MapEngine {
   }
 
   /**
-   * The region under a lon/lat, by the same pick as the hover — enclave first — so a pile's
+   * The region under a lon/lat, by the same pick as the hover (`Atlas.regionAt`), so a pile's
    * cartouche and the hover card can never name two regions for one spot. `null` until the
    * layer has landed, and wherever no region lies.
    */
@@ -1428,9 +1430,36 @@ export class MapEngine {
     return this.maquettes.under(this.ray)?.id ?? null;
   }
 
-  private aimAt(clientX: number, clientY: number, includeSea = false): Intersection | undefined {
-    if (!this.castAt(clientX, clientY)) return undefined;
-    return this.ray.intersectObjects(includeSea ? this.aimable : this.countries, false)[0];
+  private aimAt(clientX: number, clientY: number): Landing | null {
+    return this.castAt(clientX, clientY) ? this.landUnderRay() : null;
+  }
+
+  /** Where the ray meets the sheet, sea or land, inside the board's outline. */
+  private sheetPoint(): Vector3 | null {
+    const point = this.ray.ray.intersectPlane(this.sheetPlane, new Vector3());
+    if (point === null || Math.abs(point.z) > this.frame.height / 2) return null;
+    const x = point.x + this.frame.centerX;
+    const { westX, eastX } = this.frame.edgeAtLatitude(
+      this.frame.lonLatAt(x, point.z + this.frame.centerY)[1],
+    );
+    return x >= westX && x <= eastX ? point : null;
+  }
+
+  /** The country under the ray: the one of the region there once the regions have landed, the
+   *  far sheets themselves until then. */
+  private landUnderRay(): Landing | null {
+    if (!this.regions.ready) {
+      const hit = this.ray.intersectObjects(this.countries, false)[0];
+      return hit ? { point: hit.point, country: hit.object as CountryMesh } : null;
+    }
+    const point = this.sheetPoint();
+    if (point === null) return null;
+    const region = this.regions.regionAt(
+      point.x + this.frame.centerX,
+      point.z + this.frame.centerY,
+    );
+    const country = region === null ? undefined : this.countryOf.get(region.country);
+    return country === undefined ? null : { point, country };
   }
 
   private castAt(clientX: number, clientY: number): boolean {
@@ -1838,7 +1867,7 @@ export class MapEngine {
   boardInto(clientX: number, clientY: number): void {
     this.invalidate();
     if (!this.castAt(clientX, clientY)) return;
-    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    const ground = this.sheetPoint() ?? undefined;
     if (ground !== undefined) this.standing.boardInto(ground);
   }
 
@@ -2469,11 +2498,8 @@ export class MapEngine {
     const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
     /** **A finger has no hover** (#189): under it, the country is only read for a tap. Cast at
      *  every frame of a pinch, the ray through every coast cost the phone a second in nine. */
-    const hit =
-      onScreen && (!this.fingerOnBoard || this.regionTapped)
-        ? this.ray.intersectObjects(this.countries, false)[0]
-        : undefined;
-    const touched = hit?.object as CountryMesh | undefined;
+    const hit = onScreen && (!this.fingerOnBoard || this.regionTapped) ? this.landUnderRay() : null;
+    const touched = hit?.country;
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
     const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
@@ -2501,10 +2527,7 @@ export class MapEngine {
       this.refreshCursor();
     }
     if (this.held !== null) {
-      const ground =
-        onScreen && !this.fingerOnBoard
-          ? this.ray.intersectObjects(this.aimable, false)[0]?.point
-          : undefined;
+      const ground = onScreen && !this.fingerOnBoard ? this.sheetPoint() : null;
       this.standing.carryTo(ground ?? null);
     }
 
@@ -2520,10 +2543,10 @@ export class MapEngine {
     if (this.placing !== null) {
       const before = this.ghost.spot;
       this.ray.setFromCamera(this.pointer, this.syncEye());
-      const board = onScreen ? this.ray.intersectObjects(this.aimable, false)[0]?.point : undefined;
+      const board = onScreen ? this.sheetPoint() : null;
       this.ghost.aimAt(
-        board === undefined ? null : board.x + this.frame.centerX,
-        board === undefined ? null : board.z + this.frame.centerY,
+        board === null ? null : board.x + this.frame.centerX,
+        board === null ? null : board.z + this.frame.centerY,
       );
       const after = this.ghost.spot;
       if (after !== null && after !== before) {

@@ -327,6 +327,11 @@ export class RegionLayer {
    * than repeated: two literals would drift, and the map would highlight what the right click
    * no longer targets.
    */
+  /** The regions' facts have landed: `regionAt` answers. */
+  get ready(): boolean {
+    return this.types !== null;
+  }
+
   get isActive(): boolean {
     return this.share > VISIBLE_SHARE && this.types !== null;
   }
