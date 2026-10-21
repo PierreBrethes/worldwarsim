@@ -48,6 +48,8 @@ export const terrainCode = (type: RegionType): number => {
 const TYPES_PER_UNIT = 5.12;
 /** The depth's byte: 1/32 u a step, so 8 u at most, far past where a massif is full. */
 const DEPTH_PER_UNIT = 32;
+/** The depth's byte at the land's turn from drawn to plain: below, the plain's side. */
+const DEPTH_ZERO = 128;
 /** A massif is bare up to `BARE_AT` from its edge, full from `FULL_AT`, in units (1 u ≈ 100 km);
  *  the edge wobbles by ±`EDGE_WOBBLE` on a noise `EDGE_GRAIN` wide, so no region's border shows
  *  through. @a-mesurer */
@@ -59,6 +61,8 @@ const EDGE_GRAIN = 1.5;
  *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
 const CLEARING_GRAIN = 4;
 const CLEARING_KEEP = 0.5;
+/** Past this many cells from another code, the four cells around a point share its code. */
+const FAST_CELLS = 3;
 const ATLAS_CELL = 128;
 const VARIANTS = 4;
 /** One pen for every glyph, in atlas pixels: the stroke must not follow the glyph's size. */
@@ -314,7 +318,7 @@ export function depthsFromCodes(
 type Massifs = ReturnType<Atlas['shapes']>;
 
 /** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
- *  that its contours are smooth. */
+ *  that its contours are smooth (`texelsOf`). */
 export type TypesData = {
   readonly texels: Uint8Array<ArrayBuffer>;
   readonly width: number;
@@ -368,14 +372,44 @@ export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: Canvas
     for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
     return mask;
   });
-  const codes = codesFromMasks(masks, width * height);
-  const depths = depthsFromCodes(codes, width, height);
+  return { texels: texelsOf(codesFromMasks(masks, width * height), width, height), width, height };
+}
+
+/** Under half a code step, a code byte still reads as its code. */
+const OTHER_MAX = CODE_STEP / 2 - 1;
+
+/**
+ * Each cell's code, and two depths (#219). The code byte also carries, in whole cells up to
+ * `OTHER_MAX`, how far the nearest cell of another code is: the wash reads one cell rather than
+ * four where it is far enough. The depth is the massif's, all drawn types as one (a forest that
+ * meets a mountain is no edge), signed: from the nearest plain cell inside, from the nearest drawn
+ * one outside, so that its filtered contours cross zero where the land turns plain.
+ */
+export function texelsOf(
+  codes: Uint8Array<ArrayBuffer>,
+  width: number,
+  height: number,
+): Uint8Array<ArrayBuffer> {
+  const other = depthsFromCodes(codes, width, height);
+  const inside = depthsFromCodes(
+    codes.map((code) => (code === 0 ? 0 : 1)),
+    width,
+    height,
+  );
+  const outside = depthsFromCodes(
+    codes.map((code) => (code === 0 ? 1 : 0)),
+    width,
+    height,
+  );
   const texels = new Uint8Array(width * height * 2);
   for (let i = 0; i < codes.length; i++) {
-    texels[i * 2] = codes[i]!;
-    texels[i * 2 + 1] = Math.min(255, Math.round((depths[i]! / TYPES_PER_UNIT) * DEPTH_PER_UNIT));
+    const depth = (inside[i]! - outside[i]!) / TYPES_PER_UNIT;
+    // `depthsFromCodes` leaves the plain at 0: its own distance to another code is `outside`.
+    const away = codes[i] === 0 ? outside[i]! : other[i]!;
+    texels[i * 2] = codes[i]! + Math.min(OTHER_MAX, Math.round(away));
+    texels[i * 2 + 1] = Math.max(0, Math.min(255, Math.round(DEPTH_ZERO + depth * DEPTH_PER_UNIT)));
   }
-  return { texels, width, height };
+  return texels;
 }
 
 /** A page's canvas, where the worker had no `OffscreenCanvas`. */
@@ -448,6 +482,11 @@ float noise(vec2 p) {
              mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
 }
 
+// The massif's depth, in units: below zero on the plain's side.
+float depthAt(vec2 uv) {
+  return (textureLod(uTypes, uv, 0.0).g * 255.0 - ${DEPTH_ZERO.toFixed(1)}) / ${DEPTH_PER_UNIT.toFixed(1)};
+}
+
 // One grid of drawings: every other row shifted by half a cell, each cell asking the type map for
 // the type at its middle. The mountains have a grid of their own (\`mountains\`), the others share
 // one. The derivatives are said outright, since the cell edges cut the ones the hardware would
@@ -465,7 +504,7 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   float code = floor(texelFetch(uTypes, texel, 0).r * 255.0 / ${CODE_STEP.toFixed(1)} + 0.5);
   if (code < 0.5 || code > 5.5 || (code == ${MOUNTAIN_CODE}.0) != mountains) return 0.0;
   // Dense at the massif's heart, thinning out to bare at its wobbled edge.
-  float depth = textureLod(uTypes, uv, 0.0).g * ${(255 / DEPTH_PER_UNIT).toFixed(4)};
+  float depth = depthAt(uv);
   depth += (noise(middle / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
   vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
   float dense = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth);
@@ -484,35 +523,41 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   return textureGrad(uAtlas, glyph, dx * step, dy * step).r * uWeight[int(code)];
 }
 
-// The wash (#219), on the drawings' mask: each type's depth read off the four nearest cells, a cell
-// of another type counting as outside — at least a cell's depth below zero —, so that the depth is
-// signed, smooth across the cells and nil at the massif's edge. The edge's wobble only reaches
-// inwards: a wash never spills onto its neighbour, each fades out on its own side. Premultiplied.
+// The wash (#219), on the drawings' mask: nil where the land turns plain, its wobble reaching
+// out a cell inside only, never spilling onto the plain. Each type takes its share of the four
+// nearest drawn cells, so that two massifs that meet blend over a cell. Premultiplied.
 vec4 wash(vec2 p) {
   ivec2 grid = textureSize(uTypes, 0);
   vec2 at = (p / uWorld + 0.5) * vec2(grid) - 0.5;
+  float red = texelFetch(uTypes, clamp(ivec2(floor(at + 0.5)), ivec2(0), grid - 1), 0).r * 255.0;
+  float only = floor(red / ${CODE_STEP.toFixed(1)} + 0.5);
+  // Three cells from any other code, the four nearest share this one's.
+  bool alone = red - only * ${CODE_STEP.toFixed(1)} >= ${FAST_CELLS.toFixed(1)};
+  if (alone && only < 0.5) return vec4(0.0);
+  float depth = depthAt((at + 0.5) / vec2(grid));
+  float wobble = (noise(p / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
+  if (wobble > 0.0) wobble *= smoothstep(0.0, ${(1 / TYPES_PER_UNIT).toFixed(4)}, depth);
+  float ramp = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth + wobble);
+  if (ramp <= 0.0) return vec4(0.0);
+  if (alone) {
+    int kind = int(only);
+    return vec4(uWashColor[kind], 1.0) * uWashAlpha[kind] * ramp;
+  }
   vec2 f = fract(at);
   ivec2 base = ivec2(floor(at));
-  float code[4], depth[4], weight[4];
+  vec4 sum = vec4(0.0);
+  float drawn = 0.0;
   for (int k = 0; k < 4; k++) {
     ivec2 offset = ivec2(k % 2, k / 2);
-    vec2 texel = texelFetch(uTypes, clamp(base + offset, ivec2(0), grid - 1), 0).rg;
-    code[k] = floor(texel.r * 255.0 / ${CODE_STEP.toFixed(1)} + 0.5);
-    depth[k] = max(texel.g * ${(255 / DEPTH_PER_UNIT).toFixed(4)}, ${(1 / TYPES_PER_UNIT).toFixed(4)});
-    weight[k] = (offset.x == 1 ? f.x : 1.0 - f.x) * (offset.y == 1 ? f.y : 1.0 - f.y);
+    float code = floor(texelFetch(uTypes, clamp(base + offset, ivec2(0), grid - 1), 0).r * 255.0
+      / ${CODE_STEP.toFixed(1)} + 0.5);
+    if (code < 0.5) continue;
+    float weight = (offset.x == 1 ? f.x : 1.0 - f.x) * (offset.y == 1 ? f.y : 1.0 - f.y);
+    int kind = int(code);
+    sum += vec4(uWashColor[kind], 1.0) * uWashAlpha[kind] * weight;
+    drawn += weight;
   }
-  float wobble = min(noise(p / ${EDGE_GRAIN.toFixed(2)}) - 0.5, 0.0) * ${(2 * EDGE_WOBBLE).toFixed(2)};
-  vec4 sum = vec4(0.0);
-  for (int k = 0; k < 4; k++) {
-    if (code[k] < 0.5 || code[k] > 5.5 || (k > 0 && code[k] == code[0]) || (k > 1 && code[k] == code[1])
-        || (k > 2 && code[k] == code[2])) continue;
-    float inward = 0.0;
-    for (int j = 0; j < 4; j++) inward += weight[j] * (code[j] == code[k] ? depth[j] : -depth[j]);
-    int kind = int(code[k]);
-    float alpha = uWashAlpha[kind] * smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, inward + wobble);
-    sum += vec4(uWashColor[kind] * alpha, alpha);
-  }
-  return sum;
+  return drawn > 0.0 ? sum * ramp / drawn : vec4(0.0);
 }
 
 float level(vec2 p, float cell, vec2 dx, vec2 dy) {
