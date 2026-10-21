@@ -1,9 +1,4 @@
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Float32BufferAttribute,
-  Uint32BufferAttribute,
-} from 'three';
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute } from 'three';
 import { Earcut } from 'three/src/extras/Earcut.js';
 import type { WorldFrame } from './frame';
 
@@ -100,40 +95,49 @@ export function fillGeometry(
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute(
-    'normal',
-    new Float32BufferAttribute(
-      new Float32Array(positions.length).map((_, i) => (i % 3 === 1 ? 1 : 0)),
-      3,
-    ),
-  );
-  geometry.setIndex(new Uint32BufferAttribute(indices, 1));
+  // Straight up on every vertex: a normalized byte says 1 exactly, in a quarter of a float's room
+  // (four bytes, not three: a vertex stride off four is copied again by some drivers).
+  const normals = new Int8Array((positions.length / 3) * 4);
+  for (let i = 1; i < normals.length; i += 4) normals[i] = 127;
+  geometry.setAttribute('normal', new BufferAttribute(normals, 4, true));
+  geometry.setIndex(indices);
   return geometry;
 }
 
 /** A geometry's arrays alone: what a worker builds and hands over without a copy. */
 export type GeometryData = {
   readonly attributes: Readonly<
-    Record<string, { readonly array: Float32Array; readonly itemSize: number }>
+    Record<
+      string,
+      {
+        readonly array: Float32Array | Int8Array | Uint8Array;
+        readonly itemSize: number;
+        readonly normalized: boolean;
+      }
+    >
   >;
-  readonly index: Uint32Array | null;
+  readonly index: Uint16Array | Uint32Array | null;
 };
 
 export const geometryData = (geometry: BufferGeometry): GeometryData => ({
   attributes: Object.fromEntries(
     Object.entries(geometry.attributes).map(([name, attribute]) => [
       name,
-      { array: attribute.array as Float32Array, itemSize: attribute.itemSize },
+      {
+        array: attribute.array as Float32Array | Int8Array | Uint8Array,
+        itemSize: attribute.itemSize,
+        normalized: attribute.normalized,
+      },
     ]),
   ),
-  index: (geometry.index?.array as Uint32Array | undefined) ?? null,
+  index: (geometry.index?.array as Uint16Array | Uint32Array | undefined) ?? null,
 });
 
 /** The geometry around the arrays, which it reads in place. */
 export function fromGeometryData({ attributes, index }: GeometryData): BufferGeometry {
   const geometry = new BufferGeometry();
-  for (const [name, { array, itemSize }] of Object.entries(attributes))
-    geometry.setAttribute(name, new BufferAttribute(array, itemSize));
+  for (const [name, { array, itemSize, normalized }] of Object.entries(attributes))
+    geometry.setAttribute(name, new BufferAttribute(array, itemSize, normalized));
   if (index !== null) geometry.setIndex(new BufferAttribute(index, 1));
   return geometry;
 }

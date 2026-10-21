@@ -1,13 +1,12 @@
 import {
   BufferGeometry,
-  Color,
   DoubleSide,
   Float32BufferAttribute,
   Mesh,
   MeshBasicMaterial,
   NotEqualStencilFunc,
   ReplaceStencilOp,
-  Uint32BufferAttribute,
+  Uint8BufferAttribute,
 } from 'three';
 import { PALETTE } from './palette';
 import { RECESSION, SEA_LEVEL, type WorldFrame } from './frame';
@@ -37,7 +36,7 @@ export function washGeometry(
   land: ReadonlyArray<Polygon>,
   frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
 ): BufferGeometry {
-  const ribbon = new Ribbon(new Color(PALETTE.seaInk), SEA_LEVEL + WASH_LIFT);
+  const ribbon = new Ribbon(SEA_LEVEL + WASH_LIFT);
 
   // A pixel takes the ink of the first ribbon over it (the stencil): the longest shores go first,
   // or each islet's ribbon would cut a pale wedge out of the mainland's.
@@ -67,6 +66,10 @@ export function buildCoastalWash(
   const mesh = new Mesh(
     geometry,
     new MeshBasicMaterial({
+      // The ink and its shore opacity are the material's; a vertex says only shore (1) or open
+      // sea (0), in a byte rather than four floats.
+      color: PALETTE.seaInk,
+      opacity: SHORE_OPACITY,
       vertexColors: true,
       transparent: true,
       depthWrite: false,
@@ -92,10 +95,7 @@ class Ribbon {
   private readonly colors: number[] = [];
   private readonly indices: number[] = [];
 
-  constructor(
-    private readonly ink: Color,
-    private readonly altitude: number,
-  ) {}
+  constructor(private readonly altitude: number) {}
 
   /**
    * A ring, closed ribbon. Two regimes at the corner, and that is the whole difficulty: at
@@ -168,8 +168,8 @@ class Ribbon {
   geometry(): BufferGeometry {
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(this.positions, 3));
-    geometry.setAttribute('color', new Float32BufferAttribute(this.colors, 4));
-    geometry.setIndex(new Uint32BufferAttribute(this.indices, 1));
+    geometry.setAttribute('color', new Uint8BufferAttribute(this.colors, 4, true));
+    geometry.setIndex(this.indices);
     return geometry;
   }
 
@@ -201,12 +201,12 @@ class Ribbon {
 
   private shore(point: Point): void {
     this.positions.push(point[0], this.altitude, point[1]);
-    this.colors.push(this.ink.r, this.ink.g, this.ink.b, SHORE_OPACITY);
+    this.colors.push(255, 255, 255, 255);
   }
 
   private sea(point: Point): void {
     this.positions.push(point[0], this.altitude, point[1]);
-    this.colors.push(this.ink.r, this.ink.g, this.ink.b, 0);
+    this.colors.push(255, 255, 255, 0);
   }
 }
 
