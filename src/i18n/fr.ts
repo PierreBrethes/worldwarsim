@@ -1036,7 +1036,7 @@ export const fr = {
     sources: [
       {
         name: 'Natural Earth',
-        use: 'Littoraux (via le paquet world-atlas, ISC), frontières et régions admin-1 de la carte.',
+        use: 'Littoraux, frontières et régions admin-1 de la carte.',
         licence: 'Domaine public.',
         attribution:
           'Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.',

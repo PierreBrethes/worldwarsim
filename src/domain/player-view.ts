@@ -79,7 +79,7 @@ export type ArcView =
       readonly from: LonLat;
       readonly to: LonLat;
       readonly route: ComputedRoute;
-      // `…Country` names the `world.json` country, in English: it is the key that selects the
+      // `…Country` names the country in English: it is the key that selects the
       // country on the map. `…Label` is what gets printed, in French. Both exist because
       // Natural Earth has no translations while the screen is French; mixing them up would
       // put "United Kingdom" back on a card.

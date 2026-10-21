@@ -348,7 +348,7 @@ export function landComponentCount(grid: RouteGrid, canalIsLand = false): number
  * is a handful of `fill` calls.
  *
  * `buildGrid` stays the reference: the bake is checked against it byte for byte in the verifier,
- * so a changed `SEA_GATES` or a regenerated `world.json` breaks the build rather than lying in
+ * so a changed `SEA_GATES` or a regenerated atlas breaks the build rather than lying in
  * production.
  */
 export type GridAsset = {

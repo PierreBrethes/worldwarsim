@@ -1,6 +1,6 @@
 /**
  * Reads the Regierungsbezirke of the BKG's VG2500 (`VG2500_RBZ.shp`, licence dl-de/by-2-0,
- * © GeoBasis-DE / BKG) as lon/lat GeoJSON, for `generate-regions.mjs` and `generate-atlas.mjs` to cut a Land into.
+ * © GeoBasis-DE / BKG) as lon/lat GeoJSON, for `generate-atlas.mjs` to cut a Land into.
  *
  * Natural Earth stops at the sixteen Länder, the coarsest admin-1 of any playable nation —
  * Bavaria alone is twelve French departments, and one building stands per region. The

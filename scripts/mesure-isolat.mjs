@@ -5,8 +5,8 @@
  *
  * Le diagnostic du 12/09/2026 a ouvert le chantier : la production recyclait l'isolat en boucle
  * (`TooMuchMemoryCarryOver("~64 MiB", "99 MiB")`) et chaque appel suivant payait un démarrage à
- * froid. Le coupable n'était pas un calcul mais deux `import` — `regions.json` (22,6 Mio de tas)
- * et `world.json` (11,5) — payés par tout module touchant une règle de carte, parce qu'un
+ * froid. Le coupable n'était pas un calcul mais deux `import` — les anciens `regions.json` (22,6 Mio de tas)
+ * et `world.json` (11,5), retirés depuis l'atlas (ADR 0034) — payés par tout module touchant une règle de carte, parce qu'un
  * `import` s'évalue au chargement du module et non au premier appel. La géométrie est cuite en
  * raster depuis (ADR 0023) : `convex/messages.ts` est passé de 35,9 Mio à 3,1.
  *
@@ -44,11 +44,11 @@ const esbuild = requireDepuisConvex('esbuild');
 const BUDGET_MIO = 10;
 
 /**
- * **Les deux assets que le serveur ne lit plus** (ADR 0023). L'espion est un grep et il suffit :
+ * **Les assets de géométrie que le serveur ne lit plus** (ADR 0023, 0034). L'espion est un grep et il suffit :
  * la seule façon de repasser au-dessus du budget est de réimporter l'un d'eux, et une lecture de
  * polygone qui reviendrait côté serveur serait une frontière de plus que le raster.
  */
-const GEOMETRIE_INTERDITE = ['public/regions.json', 'public/world.json'];
+const GEOMETRIE_INTERDITE = ['public/atlas.json', 'public/atlas-near.json'];
 
 const abs = (relatif) => JSON.stringify(path.join(racine, relatif));
 

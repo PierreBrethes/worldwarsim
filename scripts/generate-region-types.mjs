@@ -5,8 +5,8 @@
  * The rasters live outside the repository; their SHA-256 are checked below. The shapes are the
  * atlas's, at its near level, the interior points those of `region-index.json`.
  *
- * Usage: node scripts/generate-region-types.mjs <terrain-dir> — also chained at the end of
- * generate-world.mjs when given `--terrain <terrain-dir>`.
+ * Usage: node scripts/generate-region-types.mjs <terrain-dir>; it runs after generate-atlas and
+ * generate-region-index.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';

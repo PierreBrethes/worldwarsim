@@ -24,7 +24,7 @@ export const INK_BY_NATION: Readonly<Record<Nation, string>> = {
 };
 
 /**
- * The `world.json` country each playable nation sits on. The table is required because the
+ * The English name of the country each playable nation sits on. The table is required because the
  * world is named in English by Natural Earth while nations are game ids: nothing coincides
  * by accident, everything goes through here.
  */
@@ -39,8 +39,8 @@ export const COUNTRY_BY_NATION: Readonly<Record<Nation, string>> = {
   china: 'China',
 };
 
-/** Where a nation's board opens when nothing of its own calls the eye: the point `world.json`
- *  gave its country, kept here once the client stopped loading the world (ADR 0034). */
+/** Where a nation's board opens when nothing of its own calls the eye: the point the old
+ *  `world.json` gave its country, kept here once the client stopped loading the world (ADR 0034). */
 export const HOME_BY_NATION: Readonly<Record<Nation, LonLat>> = {
   france: [2.58, 46.96],
   uk: [-1.39, 52.7],
@@ -53,10 +53,10 @@ export const HOME_BY_NATION: Readonly<Record<Nation, LonLat>> = {
 };
 
 /**
- * The Natural Earth `adm0_a3` of each nation — the code `regions.json` and `deposits.json`
- * key a region by. `COUNTRY_BY_NATION` above names the same country in English, because
- * `world.json` keys on the name. Two files, two keys, and no way to compare one to the other:
- * that is the bug ADR 0016 was written after.
+ * The Natural Earth `adm0_a3` of each nation — the code the atlas and `deposits.json`
+ * key a region by. `COUNTRY_BY_NATION` above names the same country in English, the key the
+ * old world was read by. Two keys, and no way to compare one to the other: that is the bug
+ * ADR 0016 was written after.
  */
 export const ADM0_BY_NATION: Readonly<Record<Nation, string>> = {
   france: 'FRA',

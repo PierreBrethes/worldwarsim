@@ -7,7 +7,7 @@ import type { World } from './world';
 /**
  * **La géographie du serveur, à la maille de la grille de routage.** Les contours admin-1 et les
  * polygones de pays entraient dans le bundle Convex par `import` : 22,6 Mio de tas pour
- * `regions.json`, 11,5 pour `world.json`, payés par **tout** module qui touche à une règle de
+ * l'ancien `regions.json`, 11,5 pour l'ancien `world.json`, payés par **tout** module qui touche à une règle de
  * carte, et retenus tant que l'isolat vit. C'est ce que la production recyclait en boucle.
  *
  * Ici la géométrie est cuite hors ligne, une fois, aux cellules mêmes que Dijkstra parcourt :

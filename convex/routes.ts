@@ -28,7 +28,7 @@ import {
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
  * calculation lives: a client that computes its own routes also picks its own speeds.
  *
- * **No polygon enters this bundle any more** (ADR 0023): `world.json` weighed 1.27 MB of country
+ * **No polygon enters this bundle any more** (ADR 0023): the old `world.json` weighed 1.27 MB of country
  * rings and 11,5 MiB of isolate heap, for the one question `hostAtPoint` asks. That question is
  * answered off the baked region raster now, on the very cells this grid is made of, and what is
  * left of the world here is its frame — `projection.json`, 4 Ko, enough to project a lon/lat.
@@ -162,9 +162,8 @@ export function landAtPoint(point: LonLat): boolean {
 
 /**
  * **The country hosting a point, as every rule keys it**: an `adm0_a3`, or the empty string on
- * the open sea and nowhere else. One asset, one reading — `world.json` carries the rings and,
- * since `nommer-les-pays`, the code that goes with them, so the containment and the name come
- * out of the same polygon and cannot disagree.
+ * the open sea and nowhere else. One asset, one reading — the region raster carries the region and
+ * its host country on the same cell, so the containment and the code cannot disagree.
  *
  * The empty string used to swallow both "this is the high sea" and "this is a country nobody
  * plays", which made Arabia, Romania and Bolivia one and the same host. They are the ordinary

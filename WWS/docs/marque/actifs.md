@@ -132,14 +132,13 @@ Ce qui manque : un aperçu par partie (décision marque-apercu-2026-10-03 : le m
 
 ## Prototypes
 
-`WWS/prototypes/carte-3d.html` (192 Ko, autonome, three.js depuis un CDN, figé au 11/08) et son [README](../../prototypes/README.md). Données générées par `scripts/generate-world.mjs` (world-atlas 110m, projection Natural Earth 1). Pas maintenu : le moteur réel est `src/map/`. Ce qui manque : rien, c'est une trace.
+`WWS/prototypes/carte-3d.html` (192 Ko, autonome, three.js depuis un CDN, figé au 11/08) et son [README](../../prototypes/README.md). Données générées par l'ancien `scripts/generate-world.mjs` (world-atlas 110m, projection Natural Earth 1). Pas maintenu : le moteur réel est `src/map/`. Ce qui manque : rien, c'est une trace.
 
 ## Données carte
 
 | Fichier (`public/`) | Taille | Produit par |
 |---|---|---|
-| `world.json` | 1,2 Mo | `scripts/generate-world.mjs` (chaîne ensuite `generate-grid.mjs` et `generate-region-grid.mjs`) |
-| `regions.json` | 2,5 Mo | `scripts/generate-regions.mjs` (Natural Earth 10m admin-1, contours intérieurs seulement) |
+| `atlas.json`, `atlas-near.json` | 1,8 Mo, 2,9 Mo | `scripts/generate-atlas.mjs` (Natural Earth 10m admin-1, BKG, lacs ; la seule source géographique, ADR 0034) |
 | `grid.json` | 68 Ko | `scripts/generate-grid.mjs` (1,33 M de cellules cuites en plages, décodées à la première demande de l'isolat) |
 | `region-grid.json`, `projection.json` | 416 Ko, 8 Ko | `scripts/generate-region-grid.mjs` |
 | `region-index.json` | 308 Ko | `scripts/generate-region-index.mjs` (lit aussi `country-names.json`, 8 Ko) |

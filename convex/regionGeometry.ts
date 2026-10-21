@@ -21,7 +21,7 @@ import projectionAsset from '../public/projection.json';
 /**
  * **La géographie du serveur, et elle ne porte plus un seul polygone** (ADR 0023). Les contours
  * admin-1 et les frontières de pays entraient ici par `import` : 22,6 Mio de tas pour
- * `regions.json`, 11,5 pour `world.json` — payés par **tout** module qui touche une règle de
+ * l'ancien `regions.json`, 11,5 pour l'ancien `world.json` — payés par **tout** module qui touche une règle de
  * carte, parce qu'un `import` s'évalue au chargement du module et non au premier appel, et
  * retenus tant que l'isolat vit. La production les recyclait en boucle
  * (`TooMuchMemoryCarryOver`), et chaque appel suivant repartait à froid.

@@ -36,6 +36,9 @@ réservoirs compris, la carte est celle d'aujourd'hui) sont retirés des région
 frontière. Ils restent dans la topologie, objet `lakes` : leur rive est une côte qu'on dessine
 (`borders` la marque `lake`), jamais une côte où l'on amarre (Pierre : « la Caspienne est un lac,
 pas de quais »).
+- **La Caspienne est un lac, sans quai** (décision de Pierre du 21/10 : « la Caspienne est un lac,
+  pas de quais »). Elle est de l'eau pour la carte et un trou pour la terre, jamais une côte où
+  l'on amarre.
 - **La grille** a un type de cellule `LAKE` : les grands lacs et tous les trous de la terre, la
   Caspienne comprise. Aucun mode ne la foule ni ne la navigue, une route qui y vise est refusée.
   Sans lui, un lac à moins d'une cellule de la côte se fondait dans la mer ouverte à 0,25 u
@@ -55,6 +58,16 @@ Coût : +50 Ko gzip au loin, +97 Ko au près.
 **Précisée le 21/10/2026 (#217, lot 4).** Les contours des territoires lisent l'atlas à leur
 tour (`borders`, au niveau de la feuille) : le client ne lit plus `regions.json`. Le contour se
 pose sur la frontière face au vide ou au non-tenu (amendement de l'ADR 0033).
+
+**Précisée le 21/10/2026 (#218, lot 5).** `world.json`, `regions.json`, `generate-world.mjs`,
+`generate-regions.mjs` et les dépendances `world-atlas`, `d3-geo-projection`, `topojson-client`
+et `topojson-server` sont retirés : l'atlas est la seule source. `buildGrid` reste dans
+`src/domain/routing.ts`, non comme code du client mais comme référence de cuisson de `grid.json`
+(`generate-grid.mjs`, octet à octet) ; l'espion de `mesure-isolat.mjs` interdit désormais aux
+modules de `convex/` d'importer l'atlas. `generate-deposits.mjs` lit les régions de l'atlas au
+niveau près : son tirage de nourriture dépend de leur aire et de leur pôle, que l'ancienne
+simplification ne donnait pas, si bien qu'un recuit déplacerait une dizaine de champs ; le
+`deposits.json` livré est resté celui d'avant.
 
 ## Contexte
 
