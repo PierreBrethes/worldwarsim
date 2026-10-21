@@ -15,19 +15,31 @@ describe('the coast', () => {
     return Math.min(Math.abs(x - westX), Math.abs(x - eastX));
   };
 
+  const segmentsOf = (lines: { points: Float32Array }[]) =>
+    lines.flatMap(({ points }) =>
+      Array.from({ length: points.length / 2 - 1 }, (_, i) => points.slice(2 * i, 2 * i + 4)),
+    );
+  const onSeam = ([ax, ay, bx, by]: Float32Array) =>
+    Math.max(offEdge(ax!, ay!), offEdge(bx!, by!)) < 0.01;
+  const nearEdge = ([ax, ay]: Float32Array) => offEdge(ax!, ay!) < 0.5;
+  /** Fiji lies south of the equator, Chukotka north: the sheet's middle is y = 104. */
+  const SHORES = [
+    ['Chukotka', (y: number) => y < 104],
+    ['Fiji', (y: number) => y > 104],
+  ] as const;
+
   /** Chukotka and Fiji are cut at the antimeridian (ADR 0034): the cut has the sea on neither
    *  side, only the sheet's edge, and the boldest ink would underline the edge. */
-  it.each(['far', 'near'] as const)('leaves out the cut at the antimeridian (%s)', (detail) => {
-    const segments: [number, number, number, number][] = [];
-    for (const { points } of coastLines(atlas, detail, frame))
-      for (let i = 2; i < points.length; i += 2)
-        segments.push([points[i - 2]!, points[i - 1]!, points[i]!, points[i + 1]!]);
-    expect(
-      segments.filter(([ax, ay, bx, by]) => Math.max(offEdge(ax, ay), offEdge(bx, by)) < 0.01),
-    ).toEqual([]);
-    // Chukotka keeps its shore up to the cut.
-    const nearEdge = segments.filter(([ax, ay]) => offEdge(ax, ay) < 0.5 && ay < 40);
-    expect(nearEdge.length).toBeGreaterThan(0);
+  describe.each(['far', 'near'] as const)('at the %s level', (detail) => {
+    const coast = segmentsOf(coastLines(atlas, detail, frame));
+    const raw = segmentsOf(atlas.borders((a, b) => !a !== !b, detail));
+
+    it.each(SHORES)('leaves out the cut of %s and keeps its shore up to it', (_, side) => {
+      const there = (segment: Float32Array) => side(segment[1]!) && nearEdge(segment);
+      expect(raw.filter((segment) => there(segment) && onSeam(segment)).length).toBeGreaterThan(0);
+      expect(coast.filter((segment) => there(segment) && onSeam(segment))).toEqual([]);
+      expect(coast.filter(there).length).toBeGreaterThan(0);
+    });
   });
 });
 
