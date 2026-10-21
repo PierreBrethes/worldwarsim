@@ -2520,6 +2520,8 @@ export class MapEngine {
     const sun = sunLightAt(instant, lookedAt);
     const night = nightOfAltitude(sun.altitude);
     this.night.apply(instant, night);
+    this.regions.contours.night = night;
+    this.drawings.night = night;
     // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
     if (whole) this.lamp.shine(sun, night);
     this.lightCountries();

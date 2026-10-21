@@ -232,6 +232,9 @@ const MAX_DOUBLINGS = 3;
 const INK = '#2a2118';
 /** The maquette's own weight (`uDrawAlpha`). @a-mesurer */
 const OPACITY = 0.36;
+/** The ink goes down with the sheet it is laid on: left at its day colour it would be lighter than a
+ *  moonlit page, and vanish. @a-mesurer */
+const NIGHT_INK = 0.25;
 /** Over the washes and the hatch, under the contours and the hover's stroke. */
 const LIFT = 0.0025;
 
@@ -246,7 +249,7 @@ const FRAGMENT = `
 uniform sampler2D uTypes, uAtlas;
 uniform vec2 uWorld;
 uniform vec3 uInk;
-uniform float uOpacity, uMinCellPx, uPixelRatio;
+uniform float uOpacity, uMinCellPx, uPixelRatio, uNight;
 uniform float uKeep[6], uJitter[6];
 varying vec2 vWorld;
 
@@ -292,7 +295,7 @@ void main() {
   ink *= 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${(MAX_DOUBLINGS + 1.5).toFixed(1)}, wanted);
   ink *= uOpacity;
   if (ink < 0.003) discard;
-  gl_FragColor = vec4(uInk, ink);
+  gl_FragColor = vec4(uInk * mix(1.0, ${NIGHT_INK.toFixed(2)}, uNight), ink);
   #include <colorspace_fragment>
 }`;
 
@@ -325,6 +328,7 @@ export class TerrainDrawings {
           uWorld: { value: new Vector2(frame.width, frame.height) },
           uInk: { value: new Color(INK) },
           uOpacity: { value: OPACITY },
+          uNight: { value: 0 },
           uMinCellPx: { value: MIN_CELL_PX },
           uPixelRatio: TRAME_SCALE,
           uKeep: { value: byCode((glyph) => glyph.keep) },
@@ -342,6 +346,11 @@ export class TerrainDrawings {
     this.object.visible = false;
     // Decor: neither picked nor aimed at.
     this.object.raycast = () => {};
+  }
+
+  /** How dark it is where one looks, 0 to 1. */
+  set night(night: number) {
+    this.object.material.uniforms.uNight!.value = night;
   }
 
   /** Bakes the type map of the regions that came. */

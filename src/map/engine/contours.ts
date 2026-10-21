@@ -11,6 +11,7 @@ import { contourLines, DEFAULT_CONTOUR_WEIGHT, type ContourWeight } from '@/doma
 import type { DisplayedRegion } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
+import { MOON_TINT } from './palette';
 
 type Point = readonly [number, number];
 
@@ -50,13 +51,19 @@ void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position + vec3(off.x, 0.0, off.y), 1.0);
 }`;
 
+/**
+ * La nuit, l'encre d'une nation s'éclaircit vers un bleu pâle pour rester lisible sur la lune ;
+ * les fins traits gris, eux, s'assombrissent avec la carte (`uLift`, la maquette).
+ */
 const FRAGMENT = `
-uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uOwnDuty, uSolid, uTime, uSpeed;
+uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uOwnDuty, uSolid, uTime, uSpeed, uNight, uLift;
 varying float vArc, vSide;
 void main() {
   float duty = uOwnDuty > 0.0 ? uOwnDuty : uDuty;
   if (uSolid < 0.5 && fract((vArc - uTime * uSpeed) / uPeriod) > duty) discard;
-  gl_FragColor = vec4(uColor, (1.0 - smoothstep(0.55, 1.0, abs(vSide))) * uOpacity);
+  vec3 moonTint = vec3(${MOON_TINT.map((c) => c.toFixed(2)).join(', ')});
+  vec3 ink = mix(uColor, mix(uColor * moonTint, uColor * 0.55 + vec3(0.2, 0.23, 0.34), uLift), uNight);
+  gl_FragColor = vec4(ink, (1.0 - smoothstep(0.55, 1.0, abs(vSide))) * uOpacity);
   #include <colorspace_fragment>
 }`;
 
@@ -84,6 +91,7 @@ export class ContourLayer implements AmbientLayer {
     uPeriod: { value: 0 },
     uDuty: { value: 0 },
     uTime: { value: 0 },
+    uNight: { value: 0 },
   };
   private moving = false;
 
@@ -93,6 +101,11 @@ export class ContourLayer implements AmbientLayer {
     readonly passive: boolean,
   ) {
     this.weight = DEFAULT_CONTOUR_WEIGHT;
+  }
+
+  /** How dark it is where one looks, 0 to 1: the inks lift to stay legible. */
+  set night(night: number) {
+    this.shared.uNight!.value = night;
   }
 
   set weight(weight: ContourWeight) {
@@ -196,6 +209,7 @@ export class ContourLayer implements AmbientLayer {
           uSolid: { value: style.solid ? 1 : 0 },
           uSpeed: { value: style.speed },
           uOwnDuty: { value: style.duty ?? 0 },
+          uLift: { value: style.centered ? 0 : 1 },
         },
       }),
     );
