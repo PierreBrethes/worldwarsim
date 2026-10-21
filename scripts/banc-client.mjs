@@ -19,7 +19,8 @@
  * build de profilage y ajoute la durée des rendus) ; côté carte, images rendues par seconde,
  * temps JS de la boucle, temps GPU (`EXT_disjoint_timer_query_webgl2`, le GPU du poste et non
  * celui d'un téléphone), appels de dessin, et le temps CPU du processus GPU de Chrome par seconde
- * (composition et commandes GL, hors du thread principal). Une fois par passe, après les gestes de
+ * (composition et commandes GL, hors du thread principal), et le temps de style et de mise en page
+ * du thread principal (`Performance.getMetrics`). Une fois par passe, après les gestes de
  * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, bandes floues. Chaque
  * chiffre est la médiane des passes. Sortie : `banc-client.json` et `banc-client.txt` dans
  * `--sortie`.
@@ -491,6 +492,12 @@ async function play(profileName, pass) {
   page.on('pageerror', (error) => console.log(`[pageerror] ${error.message}`));
   await page.addInitScript(instrument);
   const cdp = await context.newCDPSession(page);
+  // Le coût du style et de la mise en page, que ni React ni la carte ne voient (#199).
+  await cdp.send('Performance.enable');
+  const mainThread = async () =>
+    Object.fromEntries(
+      (await cdp.send('Performance.getMetrics')).metrics.map(({ name, value }) => [name, value]),
+    );
   await page.goto(`${origin}/connexion`);
   await page.getByLabel('nom de guerre').fill(accounts.a.nickname);
   await page.getByLabel('mot de passe').fill(accounts.a.password);
@@ -538,9 +545,12 @@ async function play(profileName, pass) {
       await cdp.send('Profiler.start');
     }
     const gpuBefore = gpu ? cpuTimeMs(gpu) : 0;
+    const threadBefore = await mainThread();
     await act();
     await page.waitForTimeout(settle);
     const gpuAfter = gpu ? cpuTimeMs(gpu) : 0;
+    const threadAfter = await mainThread();
+    const spent = (metric) => round((threadAfter[metric] - threadBefore[metric]) * 1000, 0);
     if (profiled) {
       const { profile } = await cdp.send('Profiler.stop');
       const file = `${out}/${profileName}-${name.replace(/\W+/g, '-')}.cpuprofile`;
@@ -554,6 +564,8 @@ async function play(profileName, pass) {
     });
     results[name] = summarize(raw);
     results[name].gpuProcessMsPerS = round((gpuAfter - gpuBefore) / results[name].seconds, 0);
+    results[name].styleMs = spent('RecalcStyleDuration');
+    results[name].layoutMs = spent('LayoutDuration');
     results[name].distance = round(await page.evaluate(() => window.mapEngine.cameraDistance()));
     if (photos && pass === 0)
       await page.screenshot({
@@ -1048,6 +1060,8 @@ const COLUMNS = [
   ['GPU ms', 6, 'mapGpuMs'],
   ['proc GPU', 8, 'gpuProcessMsPerS'],
   ['appels', 6, 'mapCalls'],
+  ['style', 5, 'styleMs'],
+  ['layout', 6, 'layoutMs'],
 ];
 const table = (gestures) =>
   [
