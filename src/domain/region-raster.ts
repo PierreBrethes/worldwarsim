@@ -187,12 +187,7 @@ function memberOf(raster: RegionRaster, regionId: string): (cell: number) => boo
  * maille près. Le carré de (2·ring+1)² cellules absorbe l'écart entre le polygone et le raster ;
  * une région revendiquée à des centaines de kilomètres n'y entre pas.
  */
-function regionNear(
-  raster: RegionRaster,
-  lonLat: LonLat,
-  regionId: string,
-  ring: number,
-): boolean {
+function regionNear(raster: RegionRaster, lonLat: LonLat, regionId: string, ring: number): boolean {
   const isMember = memberOf(raster, regionId);
   const cell = cellAt(raster, lonLat);
   const column = cell % raster.width;
