@@ -9,6 +9,7 @@ import {
   cellsOfRegion,
   decodeRegionRaster,
   goalCellsOfRegions,
+  regionAt,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
 import { buildGrid, decodeGrid } from '../src/domain/routing';
@@ -410,5 +411,17 @@ describe('les régions nommées en dur', () => {
 
   it('chaque gisement tombe sur une région de l’atlas', () => {
     expect(depositsAsset.filter(({ regionId }) => !inAtlas.has(regionId))).toEqual([]);
+  });
+
+  /** Le point d'un gisement est dans la région qu'il nomme, lue comme le serveur la lit : par la
+   *  cellule de `region-grid.json`, cuite depuis l'atlas. */
+  it('chaque gisement est dans la cellule de sa région', () => {
+    const world = { ...projectionAsset, countries: [] } as unknown as World;
+    const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
+    expect(
+      depositsAsset
+        .filter(({ lon, lat, regionId }) => regionAt(raster, [lon, lat]) !== regionId)
+        .map(({ id }) => id),
+    ).toEqual([]);
   });
 });

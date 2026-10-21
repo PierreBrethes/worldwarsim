@@ -1,16 +1,16 @@
 /**
- * Classifies the regions of `public/regions.json` against the terrain rasters (ETOPO relief,
+ * Classifies the regions of the atlas (ADR 0034) against the terrain rasters (ETOPO relief,
  * Köppen-Geiger climate, Hansen forest cover) and bakes `public/region-types.json`:
  * `{ [type]: regionId[] }`, the plain regions included. Decoration only — no rule reads it.
- * The rasters live outside the repository; their SHA-256 are checked below. The contours are read
- * back from the asset, the interior points from `region-index.json`.
+ * The rasters live outside the repository; their SHA-256 are checked below. The shapes are the
+ * atlas's, at its near level, the interior points those of `region-index.json`.
  *
  * Usage: node scripts/generate-region-types.mjs <terrain-dir> — also chained at the end of
  * generate-world.mjs when given `--terrain <terrain-dir>`.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { projectLonLat } from '../src/domain/routing.ts';
+import { atlas, DETAIL, naturalEarth, pairs, WIDTH } from './atlas-base.mjs';
 import {
   classifyRegions,
   readEsriAscii,
@@ -28,7 +28,6 @@ const SOURCES = {
     'e6b983efa9818b8bf1db10986a7dd07af10c64670a92559298c6342825e34434',
 };
 
-const WIDTH = 400;
 const flag = process.argv.indexOf('--terrain');
 const terrainDir = flag >= 0 ? process.argv[flag + 1] : process.argv[2];
 if (terrainDir === undefined) {
@@ -60,28 +59,15 @@ const rasters = {
 };
 const read = performance.now();
 
-const world = JSON.parse(readFileSync('public/world.json', 'utf8'));
-const regionsAsset = JSON.parse(readFileSync('public/regions.json', 'utf8'));
 const index = JSON.parse(readFileSync('public/region-index.json', 'utf8'));
-const { sphere, outline } = world.meta;
-
-/** The same guard as `generate-region-grid.mjs`: a degenerate islet projected as the whole frame. */
-const isProjectionFrame = (ring) => {
-  const xs = ring.map(([x]) => x);
-  const ys = ring.map(([, y]) => y);
-  return (
-    Math.max(...xs) - Math.min(...xs) > WIDTH * 0.9 &&
-    Math.max(...ys) - Math.min(...ys) > sphere.maxY * 0.9
-  );
-};
-
-const regions = regionsAsset.regions.map((region) => ({
-  id: region.id,
-  rings: region.p.filter((ring) => !isProjectionFrame(ring)),
-  point: index.point[region.id],
+const shapesOf = atlas.shapes((region) => region.id, DETAIL);
+const regions = atlas.regions.map(({ id }) => ({
+  id,
+  rings: (shapesOf.get(id) ?? []).flatMap(({ outer, holes }) => [outer, ...holes].map(pairs)),
+  point: index.point[id],
 }));
 const types = classifyRegions(regions, rasters, {
-  project: (lon, lat) => projectLonLat(outline, sphere, [lon, lat]),
+  project: (lon, lat) => naturalEarth([lon, lat]),
   width: WIDTH,
 });
 const byType = {};
