@@ -60,3 +60,16 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
   un relevé, et son âge se lit au survol, sur la fiche de la région (`GroundPanel`).
 - **L'encre plus foncée des régions bâties** : un bâtiment se voit par sa maquette, pas par son sol.
 - Le trait plein de la Blitz autour de ce qu'on tient.
+
+## Précisée le 21/10/2026 (#197) : les dessins de terrain
+
+- **Toujours visibles, jamais effacés de près** (choix de Pierre, #194) : forêts, montagnes,
+  déserts, toundra, jungle à la plume pâle ; la plaine reste nue. Ceux du survol, posés par
+  `terrain.ts`, disparaissent.
+- **Cuits, pas gravés** : la maquette grave ses dessins dans une feuille de 2560 à 4096 px
+  (~22 Mo à 2560), ce que le monde entier ne tient pas. `terrain-drawings.ts` cuit deux textures
+  d'un octet par pixel (la carte des types, cellules de 0,2 u, et l'atlas des glyphes, en mips) et
+  sème les glyphes au fragment sur une grille décalée, qui double de pas quand elle deviendrait
+  grain : ~2,5 Mo, aucun coût par image côté CPU.
+- **Le type reste décor** : aucune règle de jeu ne le lit (invariant « Données générées »). La
+  fiche au survol le nomme avec son picto (`src/emblems/terrain/`).
