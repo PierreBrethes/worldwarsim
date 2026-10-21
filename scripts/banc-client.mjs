@@ -21,8 +21,9 @@
  * celui d'un téléphone), appels de dessin, et le temps CPU du processus GPU de Chrome par seconde
  * (composition et commandes GL, hors du thread principal), et le temps de style et de mise en page
  * du thread principal (`Performance.getMetrics`). Une fois par passe, après les gestes de
- * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, bandes floues. Chaque
- * chiffre est la médiane des passes. Sortie : `banc-client.json` et `banc-client.txt` dans
+ * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, bandes floues ; après le
+ * zoom à fond, les octets de géométrie du socle par niveau et par couche, et ceux de tous les
+ * tampons WebGL (ceux-là de la première passe). Chaque chiffre est la médiane des passes. Sortie : `banc-client.json` et `banc-client.txt` dans
  * `--sortie`.
  *
  * Le haut de `ps` est imprimé avant de mesurer : un vérifieur ou un autre navigateur à côté
@@ -231,6 +232,27 @@ function instrument() {
     sized.delete(texture);
     return deleteTexture.call(this, texture);
   };
+  /** **Les octets de géométrie** que le GPU tient : chaque `bufferData` de sommets ou d'index, à
+   *  sa taille, rendu par `deleteBuffer`. */
+  const buffers = new Map();
+  const boundBuffer = {};
+  const bindBuffer = GL2.bindBuffer;
+  GL2.bindBuffer = function (target, buffer) {
+    boundBuffer[target] = buffer;
+    return bindBuffer.call(this, target, buffer);
+  };
+  const bufferData = GL2.bufferData;
+  GL2.bufferData = function (target, data, ...rest) {
+    if (boundBuffer[target])
+      buffers.set(boundBuffer[target], typeof data === 'number' ? data : (data?.byteLength ?? 0));
+    return bufferData.call(this, target, data, ...rest);
+  };
+  const deleteBuffer = GL2.deleteBuffer;
+  GL2.deleteBuffer = function (buffer) {
+    buffers.delete(buffer);
+    return deleteBuffer.call(this, buffer);
+  };
+  B.bufferBytes = () => [...buffers.values()].reduce((sum, bytes) => sum + bytes, 0);
   B.textureBytes = () => [...sized.values()].reduce((sum, { bytes }) => sum + bytes, 0);
   /** Les plus lourdes, en Mo, avec leur taille : ce que la mémoire des textures paie d'abord. */
   B.heaviest = () =>
@@ -367,6 +389,45 @@ function mapStatic() {
     geometries: renderer.info.memory.geometries,
     blurBands: bands.map((node) => getComputedStyle(node).backdropFilter),
   };
+}
+
+/**
+ * **La géométrie du socle**, en Mo d'attributs et d'index, à chaque niveau de l'atlas (ADR 0034)
+ * — tenus ensemble une fois le près construit — puis tous les tampons que WebGL garde.
+ */
+function geometryBytes() {
+  const E = window.mapEngine;
+  const seen = new Set();
+  const bytesOf = (geometries) => {
+    let bytes = 0;
+    for (const geometry of geometries)
+      for (const attribute of [...Object.values(geometry.attributes), geometry.index]) {
+        const array = attribute?.isInterleavedBufferAttribute
+          ? attribute.data.array
+          : attribute?.array;
+        if (!array || seen.has(array)) continue;
+        seen.add(array);
+        bytes += array.byteLength;
+      }
+    return bytes / 2 ** 20;
+  };
+  const meshesOf = (group) => group?.children.map((mesh) => mesh.geometry) ?? [];
+  const levels = {};
+  for (const [label, level, detail] of [
+    ['loin', E.farLevel, 'far'],
+    ['près', E.nearLevel, 'near'],
+  ]) {
+    if (!level) continue;
+    levels[label] = {
+      terre: bytesOf(level.lands.values()),
+      encre: bytesOf([level.ink]),
+      côte: bytesOf([level.coast]),
+      lavis: bytesOf([level.wash]),
+      régions: bytesOf(E.regions.lineLevels[detail] ? [E.regions.lineLevels[detail]] : []),
+      contours: bytesOf(meshesOf(E.regions.contours.levels[detail])),
+    };
+  }
+  return { levels, buffersMB: window.__banc.bufferBytes() / 2 ** 20 };
 }
 
 /**
@@ -917,6 +978,8 @@ async function play(profileName, pass) {
   };
   await gesture('zoomer à fond', () => (phone ? pinches(30, 160, 4) : wheel(-120, 80)), 1700);
   await gesture('dézoomer à fond', () => (phone ? pinches(160, 30, 5) : wheel(120, 100)), 1700);
+  // Le près et le loin ont tous deux été dessinés : chacun est sur le GPU.
+  const geometry = await page.evaluate(geometryBytes);
 
   const near = [[2.4, 46.6], 30];
   let layers = null;
@@ -953,7 +1016,7 @@ async function play(profileName, pass) {
     });
 
   await context.close();
-  return { statics, results, layers };
+  return { statics, results, layers, geometry };
 }
 
 const BURST_MS = 150;
@@ -1041,7 +1104,7 @@ function merge(runs) {
       layers[label] = { whole: round(median(wholes), 2), costs };
     }
   }
-  return { statics: runs[0].statics, gestures, layers };
+  return { statics: runs[0].statics, gestures, layers, geometry: runs[0].geometry };
 }
 
 const COLUMNS = [
@@ -1102,6 +1165,17 @@ try {
     report.profiles[name] = { ...merged, runs };
     const s = merged.statics;
     text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures (~${round(s.textureMB)} Mo : ${s.heaviest.join(', ')}), ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
+    const { levels, buffersMB } = merged.geometry;
+    text += `géométrie : ${round(buffersMB)} Mo de tampons WebGL ; ${Object.entries(levels)
+      .map(
+        ([label, layers]) =>
+          `${label} ${round(Object.values(layers).reduce((sum, mb) => sum + mb, 0))} Mo (${Object.entries(
+            layers,
+          )
+            .map(([layer, mb]) => `${layer} ${round(mb)}`)
+            .join(', ')})`,
+      )
+      .join(' ; ')}\n`;
     for (const [label, { whole, costs }] of Object.entries(merged.layers ?? {}))
       text += `couches, ${label} : image entière ${whole} ms GPU ; ${Object.entries(costs)
         .map(([layer, ms]) => `${layer} ${ms ?? '–'}`)
