@@ -682,7 +682,11 @@ export class MapEngine {
       (id) => this.maquettes.drawnAt(id),
     );
 
-    this.drawings = new TerrainDrawings(this.frame, this.renderer.capabilities.getMaxAnisotropy());
+    this.drawings = new TerrainDrawings(
+      this.frame,
+      this.renderer.capabilities.getMaxAnisotropy(),
+      this.touch,
+    );
     this.scene.add(this.drawings.object);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
@@ -2521,7 +2525,7 @@ export class MapEngine {
     const night = nightOfAltitude(sun.altitude);
     this.night.apply(instant, night);
     this.regions.contours.night = night;
-    this.drawings.night = night;
+    this.drawings.darkness = night;
     // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
     if (whole) this.lamp.shine(sun, night);
     this.lightCountries();

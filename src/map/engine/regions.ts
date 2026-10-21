@@ -134,7 +134,7 @@ export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
  * Les deux dimensions à la fois : l'Antarctique couvre légitimement les deux tiers du monde en
  * x, et un dixième en y.
  */
-const spansTheFrame = (
+export const spansTheFrame = (
   ring: ReadonlyArray<readonly [number, number]>,
   frame: WorldFrame,
 ): boolean => {
