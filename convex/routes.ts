@@ -21,9 +21,8 @@ import {
   hostAmongAtRoutePoint,
   hostAtRoutePoint,
   regionAtRoutePoint,
-  regionNearRoutePoint,
+  pointInRouteRegion,
 } from './regionGeometry';
-import { distanceKm } from '../src/domain/geo';
 
 /**
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
@@ -183,25 +182,11 @@ export function hostAtPoint(point: LonLat): string {
   return hostAtRoutePoint(point) ?? '';
 }
 
-/**
- * **Does this point lie in the region the client named?** The region comes from the board's
- * polygons, which the server does not hold: it checks the raster two cells around the point
- * (±55 km, which takes 4597 region poles out of 4600), and for the three regions the raster
- * misses at that ring (UGA-5616, IND-3262, PRT-735), the region's own point within
- * `REGION_POINT_SLACK_KM`. A region claimed hundreds of kilometres away — to colour it, or to
- * hide from a survey — is refused.
- */
-const REGION_RING = 2;
-const REGION_POINT_SLACK_KM = 60;
-
 export function pointInRegion(
   point: LonLat,
   region: { readonly id: string; readonly point: LonLat },
 ): boolean {
-  return (
-    regionNearRoutePoint(point, region.id, REGION_RING) ||
-    distanceKm(point, region.point) <= REGION_POINT_SLACK_KM
-  );
+  return pointInRouteRegion(point, region);
 }
 
 /**

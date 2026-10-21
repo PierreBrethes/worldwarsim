@@ -1,7 +1,7 @@
 import type { LonLat } from './geo';
-import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo';
+import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo.ts';
 import type { PlanePoint } from './region-crossing';
-import { lonLatAtProjected, projectLonLat } from './routing';
+import { lonLatAtProjected, projectLonLat } from './routing.ts';
 import type { World } from './world';
 
 /**
@@ -187,7 +187,7 @@ function memberOf(raster: RegionRaster, regionId: string): (cell: number) => boo
  * maille près. Le carré de (2·ring+1)² cellules absorbe l'écart entre le polygone et le raster ;
  * une région revendiquée à des centaines de kilomètres n'y entre pas.
  */
-export function regionNear(
+function regionNear(
   raster: RegionRaster,
   lonLat: LonLat,
   regionId: string,
@@ -206,6 +206,28 @@ export function regionNear(
     }
   }
   return false;
+}
+
+/**
+ * **Does this point lie in the region named with it?** The region comes from the board's
+ * polygons, which the server does not hold: the raster two cells around the point (±55 km, which
+ * takes 4597 region poles out of 4600), and for the regions the raster misses at that ring, the
+ * region's own point within `REGION_POINT_SLACK_KM`. A region claimed hundreds of kilometres away
+ * — to colour it, or to hide from a survey — is refused. The server reads it before a building
+ * (`convex/routes.ts`), the region index before saying a region is coastal.
+ */
+const REGION_RING = 2;
+const REGION_POINT_SLACK_KM = 60;
+
+export function pointInRegion(
+  raster: RegionRaster,
+  point: LonLat,
+  region: { readonly id: string; readonly point: LonLat },
+): boolean {
+  return (
+    regionNear(raster, point, region.id, REGION_RING) ||
+    distanceKm(point, region.point) <= REGION_POINT_SLACK_KM
+  );
 }
 
 /**
