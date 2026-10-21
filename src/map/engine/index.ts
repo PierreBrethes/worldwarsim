@@ -3,7 +3,6 @@ import {
   Color,
   Fog,
   MOUSE,
-  NoToneMapping,
   PCFSoftShadowMap,
   PerspectiveCamera,
   Raycaster,
@@ -46,25 +45,27 @@ import {
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
-import { flowPaceOf, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
+import type { ContourWeight } from '@/domain/contours';
 import {
-  DEFAULT_CAMERA_LENS,
-  eyeDistanceFactor,
-  LENS_FOV,
-  type CameraLens,
-} from '@/domain/camera-lens';
-import { boardInstant, type DayCycle } from '@/domain/daylight';
+  boardInstant,
+  DEFAULT_DAY_CYCLE,
+  nightOfAltitude,
+  sunLightAt,
+  type DayCycle,
+} from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { boardHoldOf, steepestTiltAt, tiltShiftOf } from './camera-tilt';
-import { castShadows, Lamp } from './lamp';
+import { boardHoldOf, steepestTiltAt } from './camera-tilt';
+import { castShadows, Lamp, LAMP_EXPOSURE } from './lamp';
 import { NightSky } from './night';
+import { Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
@@ -76,9 +77,10 @@ import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
-import { HELD_OPACITY, nationShades, PALETTE } from './palette';
+import { PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
+import { TerrainDrawings } from './terrain-drawings';
 import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
@@ -131,11 +133,6 @@ const SHORE_PROBES = 8;
 /** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
 const SELECTED_LIFT = 0.75;
-
-export type BuiltRegions = {
-  readonly regionIds: ReadonlyArray<string>;
-  readonly ink: string;
-};
 
 /**
  * What picking reports from the acting click — whichever button the player put `act` on
@@ -245,9 +242,12 @@ const DEFAULT_MAX_DISTANCE = 300;
 /** The share of its overshoot a target past the board's edge takes back each frame (#187).
  *  @a-mesurer */
 const BOARD_HOLD_RATE = 0.12;
-/** Development only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
+/** Development and the bench only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
 function forcedInstant(search: string): number | null {
-  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('heure') : null;
+  const raw =
+    import.meta.env.DEV || import.meta.env.VITE_BANC === '1'
+      ? new URLSearchParams(search).get('heure')
+      : null;
   return raw === null ? null : Date.parse(raw);
 }
 
@@ -306,21 +306,23 @@ export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
   /**
-   * **What renders, as opposed to what is driven** (`camera-lens.ts`). The controls, the
-   * distance and every threshold read `camera`; the eye stands on its axis, backed off to frame
-   * the same looked-at plane through its own lens. With the game lens it is the camera's twin.
+   * **What renders, as opposed to what is driven.** The controls, the distance and every
+   * threshold read `camera`; the eye stands on its axis, backed off to frame the same looked-at
+   * plane through the prototype's telephoto (`EYE_FOV`), and the perspective flattens around it.
    */
-  private readonly eye = new PerspectiveCamera(LENS_FOV.game, 1, 0.5, 3000);
-  private lens: CameraLens = DEFAULT_CAMERA_LENS;
+  private readonly eye = new PerspectiveCamera(EYE_FOV, 1, 0.5, 3000);
   private readonly renderer: WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly halos: Halos;
+  /** The night the pieces were last warmed by. */
+  private warmed = 0;
   private readonly theatreFrame: TheatreFrame;
   private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
-  private dayCycle: DayCycle = 'real';
+  private dayCycle: DayCycle = DEFAULT_DAY_CYCLE;
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -350,9 +352,8 @@ export class MapEngine {
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
+  private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
-  private nationInks: ReadonlyMap<string, string> = new Map();
-  private sheets: ReadonlyMap<string, string> = new Map();
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -402,11 +403,11 @@ export class MapEngine {
    * the same thread. So the sweep is done on demand rather than sixty times a second.
    */
   private hoverDirty = true;
-  /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
-  private readonly demand = new FrameDemand(performance.now());
-  private readonly ambience = new Ambience(parseFx(location.search));
   /** Un écran qu'on touche : la carte y dessine moins de pixels et fait couler ses fils moins vite. */
   private readonly touch = matchMedia('(pointer: coarse)').matches;
+  /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
+  private readonly demand = new FrameDemand(performance.now(), this.touch ? FLOW_TOUCH_MS : 0);
+  private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -441,9 +442,6 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
-  /** 0..1, told only when it changes (`watchTiltShift`). */
-  private onTiltShift: (strength: number) => void = () => {};
-  private tiltShift = -1;
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
   /**
@@ -526,9 +524,9 @@ export class MapEngine {
     this.tourInk = new TourInk(this.frame);
 
     this.scene.background = new Color(PALETTE.desk);
-    this.scene.fog = new Fog(PALETTE.desk, FOG_NEAR, FOG_FAR);
+    this.scene.fog = new Fog(PALETTE.desk, FOG_NEAR * EYE_BACKOFF, FOG_FAR * EYE_BACKOFF);
 
-    this.camera = new PerspectiveCamera(LENS_FOV.game, 1, 0.5, 3000);
+    this.camera = new PerspectiveCamera(CAMERA_FOV, 1, 0.5, 3000);
     this.camera.position.set(30, 250, 300);
 
     // The stencil serves the coastal wash, whose ribbons overlap: without it, three opens
@@ -538,6 +536,9 @@ export class MapEngine {
       Math.min(devicePixelRatio, this.touch ? TOUCH_PIXEL_RATIO : DESK_PIXEL_RATIO),
     );
     TRAME_SCALE.value = this.renderer.getPixelRatio();
+    // La lumière du prototype (`carte-refonte`, #195) : couleurs franches sous une lampe forte.
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = LAMP_EXPOSURE;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     // Redrawn on whole frames only (`FrameDemand`): an ambient step moves no piece.
@@ -587,7 +588,9 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
-    this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.lamp, this.sea);
+    this.night = new NightSky(this.scene, this.frame, this.sea, board.surface.geometry);
+    this.halos = new Halos();
+    this.scene.add(this.halos.object);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
     this.veil = new CarryVeil(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
@@ -666,10 +669,8 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, (sheets) => {
-      this.sheets = sheets;
-      this.paintCountries();
-    });
+    this.regions = new RegionLayer(this.frame, this.touch, this.night.uniforms);
+    this.ambience.add(this.regions.contours);
     this.labels = new LabelLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -679,11 +680,17 @@ export class MapEngine {
       (id) => this.maquettes.drawnAt(id),
     );
 
+    this.drawings = new TerrainDrawings(
+      this.frame,
+      this.renderer.capabilities.getMaxAnisotropy(),
+      this.touch,
+      this.night.uniforms,
+    );
+    this.scene.add(this.drawings.object);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
-    this.scene.add(this.regions.built);
+    this.scene.add(this.regions.contours.group);
     this.scene.add(this.regions.hoverOutline);
-    this.scene.add(this.regions.terrain.group);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
     // ribbon's drawn half-width (`Ribbon.raycast`). Without it, a ribbon at its 2 px floor would
@@ -708,15 +715,6 @@ export class MapEngine {
    */
   invalidate(): void {
     this.demand.stir(performance.now());
-  }
-
-  /** **Le flou de bascule se dit dès la prochaine image** (#189) : la valeur déjà calculée avant
-   *  qu'on l'écoute n'était redite qu'au premier changement de pente — au téléphone, jamais tant
-   *  que le joueur n'inclinait pas la carte. */
-  watchTiltShift(listener: (strength: number) => void): void {
-    this.invalidate();
-    this.onTiltShift = listener;
-    this.tiltShift = -1;
   }
 
   /** **Couverte par une feuille, la carte ne dessine plus** (#189) : au téléphone, sous le
@@ -954,6 +952,7 @@ export class MapEngine {
   displayRegions(data: RegionsData): void {
     this.invalidate();
     this.regions.display(data);
+    this.drawings.display(data.regions);
     // The 500 KB land half a second after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.
@@ -1333,42 +1332,7 @@ export class MapEngine {
   }
 
   /**
-   * A country carries a nation's ink because a player reserved it, never because it is
-   * named like it: the map receives the holders' table, it does not deduce it. Everything
-   * absent from it returns to neutral land — resetting the table is enough to undo.
-   */
-  colorNations(inkByCountry: ReadonlyMap<string, string>): void {
-    this.invalidate();
-    this.nationInks = inkByCountry;
-    this.paintCountries();
-  }
-
-  /** A sheet painted whole takes the holder's lavis — over the paper, never over another ink. */
-  private paintCountries(): void {
-    const grounds = new Map<string, string>();
-    for (const mesh of this.countries) {
-      const sheet = this.sheets.get(mesh.userData.adm0);
-      const nation = this.nationInks.get(mesh.userData.name);
-      if (sheet === undefined && nation !== undefined) grounds.set(mesh.userData.adm0, nation);
-      const ink = sheet ?? nation;
-      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : nationShades(ink).sheet);
-      mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
-    }
-    this.regions.setGrounds(grounds);
-  }
-
-  /**
-   * The regions that carry one of the player's buildings, inked denser than his country. The
-   * set may arrive before the regions themselves — the layer keeps it and lays it down when
-   * the 500 KB land.
-   */
-  showBuiltRegions(built: BuiltRegions): void {
-    this.invalidate();
-    this.regions.showBuilt(new Set(built.regionIds), built.ink);
-  }
-
-  /**
-   * **Qui tient quelles régions** (ADR 0020 §1). La teinte reste au loin quand les frontières
+   * **Qui tient quelles régions** (ADR 0033). Le contour reste au loin quand les frontières
    * s'effacent : on lit qui tient quoi sans lire le découpage — voir `RegionLayer.showHeld`.
    */
   showHeldRegions(claims: ReadonlyArray<HeldClaim>): void {
@@ -1399,8 +1363,6 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
-    this.regions.resize(clientWidth, clientHeight);
-    this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
@@ -1435,8 +1397,10 @@ export class MapEngine {
     this.ink.dispose();
     this.parachutes.dispose();
     this.regions.dispose();
+    this.drawings.dispose();
     this.sea?.dispose();
     this.veil.dispose();
+    this.halos.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -1994,24 +1958,11 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
-  setCameraLens(lens: CameraLens): void {
-    this.invalidate();
-    this.lens = lens;
-    this.eye.fov = LENS_FOV[lens];
-    this.eye.updateProjectionMatrix();
-    this.renderer.toneMapping = lens === 'poc' ? ACESFilmicToneMapping : NoToneMapping;
-    this.renderer.toneMappingExposure = lens === 'poc' ? POC_EXPOSURE : 1;
-    const fog = this.scene.fog as Fog;
-    fog.near = FOG_NEAR * eyeDistanceFactor(lens);
-    fog.far = FOG_FAR * eyeDistanceFactor(lens);
-    this.syncEye();
-  }
-
   private syncEye(): PerspectiveCamera {
     const target = this.controls.target;
     this.eye.position
       .subVectors(this.camera.position, target)
-      .multiplyScalar(eyeDistanceFactor(this.lens))
+      .multiplyScalar(EYE_BACKOFF)
       .add(target);
     this.eye.quaternion.copy(this.camera.quaternion);
     this.eye.updateMatrixWorld();
@@ -2021,6 +1972,11 @@ export class MapEngine {
   setDayCycle(cycle: DayCycle): void {
     this.invalidate();
     this.dayCycle = cycle;
+  }
+
+  setContourWeight(weight: ContourWeight): void {
+    this.invalidate();
+    this.regions.contours.weight = weight;
   }
 
   /** **Le cadre d'une Blitz** (B1) : la boîte du théâtre, et le reste délavé ; `null` l'ôte. */
@@ -2048,7 +2004,6 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
-    this.regions.terrain.motion = motion;
   }
 
   /**
@@ -2528,13 +2483,12 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    // La plume trace le terrain survolé tant qu'elle n'a pas fini, le pion porté suit la main : à
-    // chaque image. Un fil qui coule ou un anneau qui bat n'en demande qu'au pas de `flowPace`.
+    // Le pion porté suit la main : à chaque image. Un fil qui coule ou un anneau qui bat n'en
+    // demande qu'au pas de `flowPace`.
     if (
       this.ink.active ||
       this.parachutes.active ||
       this.maquettes.settling ||
-      this.regions.terrain.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
@@ -2555,16 +2509,23 @@ export class MapEngine {
     if (reason === null) return;
     const whole = reason !== 'ambient';
     this.ambience.frame();
-    // The sun crosses a quarter degree a minute: the heartbeat is enough, no frame is ever asked
-    // for the sky alone, and cut motion keeps it — nothing about it is an animation.
+    // The sun crosses a few degrees a minute at most: the heartbeat is enough, no frame is ever
+    // asked for the sky alone, and cut motion keeps it — nothing about it is an animation.
     const distance = this.camera.position.distanceTo(this.controls.target);
     setNearFloor(distance);
     const looked = this.controls.target;
-    this.night.apply(
-      this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle),
-      this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
-      distance,
+    const instant = this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle);
+    const lookedAt = this.frame.lonLatAt(
+      looked.x + this.frame.centerX,
+      looked.z + this.frame.centerY,
     );
+    // The moon lights the pieces and the sheet from where one looks; the band of night
+    // (`NightSky`'s veil) tells who sleeps where, per pixel, at every distance (#198).
+    const sun = sunLightAt(instant, lookedAt);
+    const night = nightOfAltitude(sun.altitude);
+    this.night.apply(instant, night);
+    // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
+    if (whole) this.lamp.shine(sun, night);
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
@@ -2601,17 +2562,23 @@ export class MapEngine {
     this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
-    if (this.lamp.follow(this.controls.target, distance) && whole) {
-      for (const root of [
-        this.standing.group,
-        this.maquettes.group,
-        this.camps.group,
-        this.arcs.group,
-      ])
-        castShadows(root);
-      if (this.replay) castShadows(this.replay.scene.object);
+    const shadowed = this.lamp.follow(this.controls.target, distance);
+    const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
+    if (this.replay) pieces.push(this.replay.scene.object);
+    if (shadowed && whole) for (const root of pieces) castShadows(root);
+    if (whole) {
+      // Warm by the same night as the halos, shadows or not: a piece must not keep a stale glow.
+      if (night > 0 || this.warmed > 0) for (const root of pieces) warmPieces(root, night);
+      this.warmed = night;
+      if (night > 0.004) {
+        this.halos.begin();
+        const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
+        this.standing.lights(lit);
+        this.maquettes.lights(lit);
+        this.halos.end(night);
+      } else this.halos.hide();
     }
-    this.regions.animate(distance, now, this.unitsPerPixel(distance));
+    this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
@@ -2629,14 +2596,6 @@ export class MapEngine {
       this.arcs.headPositions,
       this.camera.position,
     );
-    const tilt =
-      this.ambience.motion === 'off'
-        ? 0
-        : Math.round(tiltShiftOf(this.controls.getPolarAngle(), distance) * 50) / 50;
-    if (tilt !== this.tiltShift) {
-      this.tiltShift = tilt;
-      this.onTiltShift(tilt);
-    }
     this.onLabels(this.outsideReplay(projections, distance));
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(
@@ -2656,8 +2615,13 @@ const DESK_PIXEL_RATIO = 2;
 const TOUCH_PIXEL_RATIO = 1.5;
 const FOG_NEAR = 460;
 const FOG_FAR = 950;
-/** The prototype's exposure under ACES (P:456). */
-const POC_EXPOSURE = 1.05;
+/** The driven camera's field: every distance threshold was measured through it. */
+const CAMERA_FOV = 42;
+/** The prototype's telephoto, through which the board renders (`eye`). */
+const EYE_FOV = 30;
+const halfTan = (fov: number): number => Math.tan((fov * Math.PI) / 360);
+/** How far the eye backs off along the camera's axis to frame the same plane at `EYE_FOV`. */
+const EYE_BACKOFF = halfTan(CAMERA_FOV) / halfTan(EYE_FOV);
 
 /** Une marge au-dessus du plancher : la molette s'arrête rarement pile sur `minDistance`. */
 const ZOOM_FLOOR_SLACK = 1.15;

@@ -6,6 +6,10 @@ retire les doctrines de la [fiche 05](../design/05-doctrines.md) — **§10 et �
 l'[ADR 0027](0027-la-mondiale-au-centre.md)** (17/10/2026) : plus d'emplacements par site, et la
 durée de saison redevient un réglage du salon.
 
+> **Rendu révisé le 21/10/2026 par l'[ADR 0033](0033-la-carte-sans-aplat.md).** La couleur ne se
+> peint plus en aplat (§1) et un relevé n'est plus délavé (§5) : chaque territoire connu a un
+> contour en tirets à l'encre de son tenant, pâle et immobile pour un relevé. La règle ne change pas.
+
 ## Contexte
 
 Constat de Pierre, 31/08 : **il n'y a aucune raison de s'attaquer**. L'audit du 25/08 le disait

@@ -27,7 +27,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0017](0017-format-de-saison-et-socle-place.md) | Format de saison, socle placé, et ce que borne un plafond de stockage | acceptée |
 | [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08, §3 et §5 révisés par 0021 |
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée, §3 et §6 révisés par 0024, §2 révisé par 0025 |
-| [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée, §10 et §11 révisés par 0027 |
+| [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée, §10 et §11 révisés par 0027, rendu (§1, §5) révisé par 0033 |
 | [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09, §2 et §3 révisés par 0024, source des slots révisée par 0030 |
 | [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009, révisée le 12/09 |
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
@@ -40,3 +40,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a ; §2 révisé par 0031 ; §3 : le QG forme l'infanterie en Blitz seulement |
 | [0031](0031-les-niveaux-accelerent.md) | Les niveaux accélèrent, la recherche ouvre des files | acceptée — précise la règle 1, révise 0028 §5 et 0030 §2 |
 | [0032](0032-les-points-moderent.md) | Les points modèrent | acceptée — précise la règle 1 (points stratégiques), révise les règles de Singapour, Bakou et Halifax |
+| [0033](0033-la-carte-sans-aplat.md) | La carte sans aplat : des contours en tirets par nation | acceptée — révise le rendu de 0020 (§1 aplat, §5 délavé) |

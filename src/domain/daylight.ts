@@ -56,20 +56,91 @@ export function nightOfAltitude(altitude: number): number {
 export const nightAt = (epochMs: number, at: LonLat): number =>
   nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
 
-export type DayCycle = 'real' | 'hour';
-export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['real', 'hour'];
-export const DEFAULT_DAY_CYCLE: DayCycle = 'real';
+/** The lamp never lights from lower than this (choix de Pierre, #194) : un soleil rasant noie la
+ *  carte sous les ombres. */
+export const LAMP_FLOOR_DEG = 25;
+
+export type SunLight = {
+  /** Toward the subsolar point, in radians clockwise from north. */
+  readonly azimuth: number;
+  /** The sun's true height where one looks, in degrees. */
+  readonly altitude: number;
+  /** The height the lamp lights from: the altitude, never below `LAMP_FLOOR_DEG`. */
+  readonly elevation: number;
+};
+
+/** **La lampe de la table est le soleil** (#195) : sa direction et sa hauteur là où l'on regarde. */
+export function sunLightAt(epochMs: number, at: LonLat): SunLight {
+  const sun = subsolarPoint(epochMs);
+  const [lon, lat] = at;
+  const phi = lat * RAD;
+  const sunLat = sun[1] * RAD;
+  const dLon = (sun[0] - lon) * RAD;
+  const azimuth = Math.atan2(
+    Math.sin(dLon) * Math.cos(sunLat),
+    Math.cos(phi) * Math.sin(sunLat) - Math.sin(phi) * Math.cos(sunLat) * Math.cos(dLon),
+  );
+  const altitude = sunAltitude(sun, at);
+  return {
+    azimuth: (azimuth + 2 * Math.PI) % (2 * Math.PI),
+    altitude,
+    elevation: Math.max(altitude, LAMP_FLOOR_DEG),
+  };
+}
+
+/**
+ * **La lune est une lampe fixe** (#198) : l'azimut du soleil est singulier à l'antipode du point
+ * subsolaire, et c'est là, de nuit, qu'on regarde — un degré de carte y faisait pivoter les ombres
+ * de 90°, et chaque battement de l'horloge les tournait encore. La nuit, la lampe reste donc au
+ * même endroit, comme dans la maquette (`carte-refonte`).
+ * @a-mesurer posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces
+ */
+export const MOON_AZIMUTH_DEG = 315;
+export const MOON_ELEVATION_DEG = 53;
+
+export type LampDirection = Pick<SunLight, 'azimuth' | 'elevation'>;
+
+const toward = ({ azimuth, elevation }: LampDirection): [number, number, number] => [
+  Math.sin(azimuth) * Math.cos(elevation * RAD),
+  Math.sin(elevation * RAD),
+  Math.cos(azimuth) * Math.cos(elevation * RAD),
+];
+
+/**
+ * Where the lamp stands: the sun by day, the moon by night, and in the twilight the two blended as
+ * directions — never as angles, whose short way round flips when the sun is opposite the moon.
+ * `night` is the dark where one looks (`nightOfAltitude`), 0 to 1.
+ */
+export function lampDirection(sun: SunLight, night: number): LampDirection {
+  const moon = toward({ azimuth: MOON_AZIMUTH_DEG * RAD, elevation: MOON_ELEVATION_DEG });
+  const day = toward(sun);
+  const [x, y, z] = day.map((component, k) => component + (moon[k]! - component) * night) as [
+    number,
+    number,
+    number,
+  ];
+  return {
+    azimuth: (Math.atan2(x, z) + 2 * Math.PI) % (2 * Math.PI),
+    elevation: Math.asin(y / Math.hypot(x, y, z)) / RAD,
+  };
+}
+
+export type DayCycle = 'twoHours' | 'hour' | 'real';
+export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['twoHours', 'hour', 'real'];
+/** Deux heures (#193) : une partie du soir voit passer le jour et la nuit sans qu'ils filent. */
+export const DEFAULT_DAY_CYCLE: DayCycle = 'twoHours';
 export const isDayCycle = (value: unknown): value is DayCycle =>
   DAY_CYCLES.includes(value as DayCycle);
 
 const HOUR_MS = 3_600_000;
+const CYCLE_MS: Record<DayCycle, number> = { twoHours: 2 * HOUR_MS, hour: HOUR_MS, real: DAY_MS };
 
 /**
- * The instant the board's sun is read at. Sped up, a whole day runs in each real hour: the hour of
- * day is the minutes into the real hour, set on the real date, so the declination stays the day's.
- * It only steps back at the hour mark, by the day's drift of the sun (under a degree).
+ * The instant the board's sun is read at. Sped up, a whole day runs in each real cycle: the hour of
+ * day is the time into the real cycle, set on the real date, so the declination stays the day's.
+ * It only steps back at the cycle mark, by the day's drift of the sun (under a degree).
  */
 export function boardInstant(epochMs: number, cycle: DayCycle): number {
-  if (cycle === 'real') return epochMs;
-  return epochMs - (epochMs % DAY_MS) + ((epochMs % HOUR_MS) / HOUR_MS) * DAY_MS;
+  const period = CYCLE_MS[cycle];
+  return epochMs - (epochMs % DAY_MS) + ((epochMs % period) / period) * DAY_MS;
 }

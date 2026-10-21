@@ -1,6 +1,6 @@
 import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
-import { DEFAULT_CAMERA_LENS, isCameraLens, type CameraLens } from '@/domain/camera-lens';
 import { DEFAULT_DAY_CYCLE, isDayCycle, type DayCycle } from '@/domain/daylight';
+import { DEFAULT_CONTOUR_WEIGHT, isContourWeight, type ContourWeight } from '@/domain/contours';
 import {
   DEFAULT_MAP_MOTION_SETTING,
   isMapMotionSetting,
@@ -244,20 +244,20 @@ export const keepDayCycle = (cycle: DayCycle): void => {
   }
 };
 
-const CAMERA_LENS_KEY = 'wws-camera-lens';
+const CONTOUR_WEIGHT_KEY = 'wws-contour-weight';
 
-export function readCameraLens(): CameraLens {
+export function readContourWeight(): ContourWeight {
   try {
-    const kept = localStorage.getItem(CAMERA_LENS_KEY);
-    return isCameraLens(kept) ? kept : DEFAULT_CAMERA_LENS;
+    const kept = localStorage.getItem(CONTOUR_WEIGHT_KEY);
+    return isContourWeight(kept) ? kept : DEFAULT_CONTOUR_WEIGHT;
   } catch {
-    return DEFAULT_CAMERA_LENS;
+    return DEFAULT_CONTOUR_WEIGHT;
   }
 }
 
-export const keepCameraLens = (lens: CameraLens): void => {
+export const keepContourWeight = (weight: ContourWeight): void => {
   try {
-    localStorage.setItem(CAMERA_LENS_KEY, lens);
+    localStorage.setItem(CONTOUR_WEIGHT_KEY, weight);
   } catch {
     // Private mode: the choice lasts the session only.
   }

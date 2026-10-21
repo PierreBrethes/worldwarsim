@@ -105,9 +105,9 @@ brief flux-mouvement).
 
 ## Tampons possibles (récapitulatif, avec source)
 
-- **Région** : *à jour* (couleur franche) / *relevée* (délavée `surveyWash` + « relevé du … »
-  au survol) / *vierge* (aucune couleur, aucune ligne) — `control.held`, ADR 0020 §5.
-  L'ancienneté se voit **en permanence** (le délavage), la date se lit au survol.
+- **Région** : *à jour* (contour en tirets qui tournent) / *relevée* (pointillé pâle et immobile
+  + « relevé du … » au survol) / *vierge* (aucun contour) — `control.held`, ADR 0020 §5 et
+  ADR 0033. La carte dit qu'un relevé en est un ; son âge se lit au survol.
 - **Avant-poste** : *debout* / *désactivé* (+ minutes restantes) — `disabledMinutesLeft` ;
   *métier scellé* — `specializationLocked`. (*Détruit* : ⚠ pas-codé — attend le pillage ;
   l'ancre morte n'est pas servie.)

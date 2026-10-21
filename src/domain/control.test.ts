@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FADED_WASH,
   heldRegions,
   knownRegions,
   surveyStops,
-  surveyWash,
   type ControlledRegion,
   type Survey,
 } from './control';
@@ -281,31 +279,5 @@ describe('what a player knows of a region', () => {
       surveys: [survey('empty', null)],
     });
     expect(known).toEqual([]);
-  });
-});
-
-describe('a survey fades with its age', () => {
-  const DAY = 24 * 3_600_000;
-
-  it('is franche the instant it is taken', () => {
-    expect(surveyWash(0, DAY)).toBe(1);
-  });
-
-  it('never goes below the floor, however old', () => {
-    expect(surveyWash(DAY, DAY)).toBe(FADED_WASH);
-    expect(surveyWash(DAY * 30, DAY)).toBe(FADED_WASH);
-  });
-
-  /** Cranté, sinon la géométrie fusionnée se referait à chaque battement pour un pixel. */
-  it('answers in steps rather than a continuum', () => {
-    const washes = new Set(
-      Array.from({ length: 200 }, (_, step) => surveyWash((step * DAY) / 200, DAY)),
-    );
-    expect(washes.size).toBeLessThanOrEqual(5);
-  });
-
-  it('fades monotonically', () => {
-    expect(surveyWash(DAY / 4, DAY)).toBeGreaterThan(surveyWash(DAY / 2, DAY));
-    expect(surveyWash(DAY / 2, DAY)).toBeGreaterThan(surveyWash(DAY, DAY) - 0.0001);
   });
 });

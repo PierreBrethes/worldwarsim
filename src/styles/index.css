@@ -453,7 +453,8 @@ body {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(120% 90% at 50% 45%, transparent 52%, rgb(8 5 2 / 62%));
+  /* Un léger vignettage, celui du prototype (`carte-refonte`, #195). */
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(10 6 2 / 38%));
 }
 
 .map-grain {

@@ -566,7 +566,7 @@ export function takenCopies<C extends { readonly down: unknown }>(
   );
 }
 
-/** Its own copy of the contact discs: the board's are shared, and this one fades on its own. */
+/** Its own copy of the contact disc: the board's is shared, and this one fades on its own. */
 function carriedShadow(): Carried['shadow'] {
   const object = contactShadow();
   const materials: MeshBasicMaterial[] = [];
@@ -1062,6 +1062,18 @@ export class StandingLayer {
         object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
   }
 
+  /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
+  lights(emit: (at: Vector3, radius: number, near: number) => void): void {
+    for (const { object, extent, ready } of this.dressed.values()) {
+      if (!ready || !object.visible) continue;
+      emit(
+        object.position,
+        Math.max(extent.x, extent.z) * object.scale.x,
+        Math.min(1, object.scale.x / pieceScale.troops),
+      );
+    }
+  }
+
   orient(cameraPosition: Vector3): void {
     for (const { object, at } of this.dressed.values()) {
       if ('beside' in at) {
@@ -1195,9 +1207,7 @@ export class StandingLayer {
     const height = (carried.lift / CARRIED_LIFT) * 1.5;
     carried.shadow.object.scale.setScalar(carried.width * 0.6 * (0.8 + height * 0.3));
     const fade = Math.max(0, 0.42 - height * 0.1) / 0.42;
-    carried.shadow.materials.forEach(
-      (material, k) => (material.opacity = [0.12, 0.06][k]! * fade * 1.5),
-    );
+    for (const material of carried.shadow.materials) material.opacity = fade;
     object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
     object.scale.setScalar(scale * shrink);
   }

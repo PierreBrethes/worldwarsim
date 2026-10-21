@@ -167,7 +167,7 @@ fiche d'un bâtiment, la carte déplacée, zoomée, inclinée, puis 10 s de repo
 (médiane, p95), tâches longues, délai jusqu'à l'image, commits et composants React, images de
 carte par seconde, temps JS et GPU d'une image, appels de dessin, CPU du processus GPU. Médiane
 de 3 passes (`--passes`), dans `banc-client.json` et `banc-client.txt`. `--profil telephone`
-n'en joue qu'un, `--sans-build` reprend le dernier build, `--photos` capture chaque geste, `--cpu
+n'en joue qu'un, `--sans-build` reprend le dernier build, `--photos` capture chaque geste, `--sans-ombres` coupe les ombres de la lampe, pour lire leur coût, `--cpu
 'motif'` enregistre le profil CPU des gestes qui y répondent et en imprime les fonctions les plus
 chères. Il imprime le haut de `ps` d'abord : un vérifieur ou des captures à côté faussent tout.
 

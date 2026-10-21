@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COUNTRY_BY_NATION, NATIONS, inkByClaimedCountry } from './nations';
+import { COUNTRY_BY_NATION, NATIONS } from './nations';
 
 const worldCountries = new Set(
   (
@@ -23,22 +23,5 @@ describe('nations sit on countries that exist', () => {
   it('never lets two nations share a country', () => {
     const countries = NATIONS.map((nation) => COUNTRY_BY_NATION[nation]);
     expect(new Set(countries).size).toBe(countries.length);
-  });
-});
-
-describe('ink follows the player, not the country name', () => {
-  it('only inks nations actually claimed', () => {
-    const inks = inkByClaimedCountry([
-      { nation: 'france', ink: '#3f5a7d' },
-      { nation: 'japan', ink: '#a44a5e' },
-    ]);
-    expect(inks.get('France')).toBe('#3f5a7d');
-    expect(inks.get('Japan')).toBe('#a44a5e');
-    expect(inks.has('Germany')).toBe(false);
-  });
-
-  it('ignores a player without a nation', () => {
-    expect(inkByClaimedCountry([{ nation: null, ink: '#000' }]).size).toBe(0);
-    expect(inkByClaimedCountry([{ nation: 'kaspar', ink: '#000' }]).size).toBe(0);
   });
 });

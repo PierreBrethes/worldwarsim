@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardHoldOf, steepestTiltAt, tiltShiftOf } from './camera-tilt';
+import { boardHoldOf, steepestTiltAt } from './camera-tilt';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -24,22 +24,6 @@ describe('the tilt the table allows', () => {
 
   it('holds past the usual ceiling, where a search area may lift it', () => {
     expect(steepestTiltAt(900)).toBeCloseTo(0.9);
-  });
-});
-
-describe('the tilt-shift blur', () => {
-  it('is nil straight down and full at the most grazing pitch up close', () => {
-    expect(tiltShiftOf(0, 10)).toBe(0);
-    expect(tiltShiftOf(steepestTiltAt(10), 10)).toBeCloseTo(1);
-  });
-
-  it('grows with the lean', () => {
-    expect(tiltShiftOf(0.9, 10)).toBeGreaterThan(tiltShiftOf(0.5, 10));
-  });
-
-  it('is nil at the world view whatever the lean', () => {
-    expect(tiltShiftOf(steepestTiltAt(120), 120)).toBe(0);
-    expect(tiltShiftOf(steepestTiltAt(65), 65)).toBe(0);
   });
 });
 

@@ -17,10 +17,10 @@ import {
   telegraphSoundOn,
 } from '@/data/settings';
 import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
-import { setCameraLens, useCameraLens } from '@/data/cameraLens';
 import { setDayCycle, useDayCycle } from '@/data/dayCycle';
-import { CAMERA_LENSES } from '@/domain/camera-lens';
 import { DAY_CYCLES } from '@/domain/daylight';
+import { setContourWeight, useContourWeight } from '@/data/contourWeight';
+import { CONTOUR_WEIGHTS } from '@/domain/contours';
 import { setPieceScale, usePieceScale } from '@/data/pieceScale';
 import {
   MAX_PIECE_SCALE,
@@ -64,7 +64,7 @@ export function SettingsWindow({
   const mapping = useMouseMapping();
   const mapMotion = useMapMotionSetting();
   const dayCycle = useDayCycle();
-  const cameraLens = useCameraLens();
+  const contourWeight = useContourWeight();
   const pieces = usePieceScale();
   const coarse = useCoarsePointer();
   const conclude = useMutation(api.seasons.conclude);
@@ -276,21 +276,21 @@ export function SettingsWindow({
           <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[13.5px] text-[var(--ink)]">
-                {fr.settingsWindow.cameraLensLabel}
+                {fr.settingsWindow.contourLabel}
               </span>
               <div className="flex gap-[6px]">
-                {CAMERA_LENSES.map((lens) => (
+                {CONTOUR_WEIGHTS.map((weight) => (
                   <Chip
-                    key={lens}
-                    label={fr.settingsWindow.cameraLens[lens]}
-                    marked={cameraLens === lens}
-                    onClick={() => setCameraLens(lens)}
+                    key={weight}
+                    label={fr.settingsWindow.contour[weight]}
+                    marked={contourWeight === weight}
+                    onClick={() => setContourWeight(weight)}
                   />
                 ))}
               </div>
             </div>
             <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
-              {fr.settingsWindow.cameraLensNote}
+              {fr.settingsWindow.contourNote}
             </p>
           </div>
 

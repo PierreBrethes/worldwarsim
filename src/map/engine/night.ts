@@ -5,24 +5,25 @@ import {
   Float32BufferAttribute,
   HemisphereLight,
   Mesh,
+  MultiplyBlending,
   Points,
   PointsMaterial,
   SRGBColorSpace,
   ShaderMaterial,
+  Vector2,
   type Scene,
 } from 'three';
 import {
   DAY_ALTITUDE_DEG,
   NIGHT_ALTITUDE_DEG,
-  nightAt,
   nightOfAltitude,
   subsolarPoint,
   sunAltitude,
 } from '@/domain/daylight';
 import type { LonLat } from '@/domain/geo';
-import { nearWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
-import { LAMP_INTENSITY, type Lamp } from './lamp';
+import { nightUniforms, type NightUniforms } from './night-here';
+import { MOON_TINT } from './palette';
 import type { SeaLayer } from './sea';
 
 /**
@@ -53,15 +54,25 @@ const CITIES: ReadonlyArray<LonLat> = [
 ];
 
 const CITY_GOLD = '#ffcf6e';
-const DAY_SKY = new Color('#fff3dc');
-const DAY_GROUND = new Color('#5a4e3a');
-const NIGHT_SKY = new Color('#2f4fa8');
-const NIGHT_GROUND = new Color('#10162c');
-const DAY_SKY_INTENSITY = 0.8;
-const NIGHT_SKY_INTENSITY = 0.45;
-// La nuit, la lampe reste seule : elle baisse moins que le ciel, donc elle pèse davantage et les
-// ombres se creusent, sans éteindre la feuille sous la couche de jeu.
-const NIGHT_LAMP = 0.9;
+export type DaySky = { readonly sky: Color; readonly ground: Color; readonly intensity: number };
+/** Le ciel du prototype (`carte-refonte`) : faible devant la lampe, pour des ombres marquées. */
+const BOARD_DAY_SKY: DaySky = {
+  sky: new Color('#fff1d6'),
+  ground: new Color('#2a1c10'),
+  intensity: 0.55,
+};
+/** The landing table's night sky, as it was before the map's refonte. */
+const LANDING_NIGHT_SKY: DaySky = {
+  sky: new Color('#2f4fa8'),
+  ground: new Color('#10162c'),
+  intensity: 0.45,
+};
+/** The map's: the maquette's moonlit sky, dim in front of a lamp that is the moon. @a-mesurer */
+const MOON_SKY: DaySky = {
+  sky: new Color('#4a5d8c'),
+  ground: new Color('#0b0e18'),
+  intensity: 0.3,
+};
 const SHADE_INK = '#0c1430';
 /** How much ink the full night lays over the sheet: the game layer above it must still read. */
 const SHADE_DEPTH = 0.5;
@@ -89,10 +100,13 @@ function dotTexture(): CanvasTexture {
 /**
  * **L'ombre de la Terre** : a veil over the whole sheet, land and sea alike, dark where the sun is
  * down. The altitude is worked out per fragment from the board's own `lonLat` — `nightOfAltitude`
- * written in GLSL — so the twilight is a soft band and not a stepped edge.
+ * written in GLSL — so the twilight is a soft band and not a stepped edge. The board's veil
+ * multiplies the sheet by the moon's blue (#198, the maquette's `nightHere`); the landing's lays
+ * ink over it, as before the map's refonte.
  */
-function shadeMaterial(sun: { value: [number, number] }): ShaderMaterial {
+function shadeMaterial(sun: { value: Vector2 }, multiply: boolean): ShaderMaterial {
   const degrees = (value: number) => value.toFixed(1);
+  const [r, g, b] = MOON_TINT;
   return new ShaderMaterial({
     uniforms: { sun, ink: { value: new Color(SHADE_INK) }, depth: { value: SHADE_DEPTH } },
     vertexShader: `
@@ -113,31 +127,44 @@ function shadeMaterial(sun: { value: [number, number] }): ShaderMaterial {
         float sine = sin(here.y) * sin(s.y) + cos(here.y) * cos(s.y) * cos(here.x - s.x);
         float altitude = degrees(asin(clamp(sine, -1.0, 1.0)));
         float night = 1.0 - smoothstep(${degrees(NIGHT_ALTITUDE_DEG)}, ${degrees(DAY_ALTITUDE_DEG)}, altitude);
-        gl_FragColor = vec4(ink, night * depth);
+        ${
+          multiply
+            ? `gl_FragColor = vec4(mix(vec3(1.0), vec3(${r}, ${g}, ${b}), night), 1.0);`
+            : 'gl_FragColor = vec4(ink, night * depth);'
+        }
         #include <colorspace_fragment>
       }`,
     transparent: true,
     depthWrite: false,
+    ...(multiply ? { blending: MultiplyBlending, premultipliedAlpha: true } : {}),
   });
 }
 
+/**
+ * **La nuit du plateau** (#198) : la lampe devient une lune (`Lamp`) et le ciel descend, pour la
+ * carte comme pour les pièces ; les villes s'allument chacune à son crépuscule. L'accueil, lui, garde
+ * sa nuit d'avant la refonte — un voile d'encre et l'ancien ciel — jusqu'à ce que Pierre le refasse.
+ * Le voile des deux est une bande de nuit au pixel : elle dit qui dort et où, de loin comme de près.
+ */
 export class NightSky {
-  // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
-  // la lampe qui fait la profondeur d'une ombre.
-  private readonly sky = new HemisphereLight(DAY_SKY, DAY_GROUND, DAY_SKY_INTENSITY);
+  private readonly sky: HemisphereLight;
   private readonly cities: Points<BufferGeometry, PointsMaterial>;
-  private readonly sun = { value: [Number.NaN, 0] as [number, number] };
+  private readonly sun = { value: new Vector2(Number.NaN, 0) };
+  /** What the inks drawn on the sheet read to know the night under them. */
+  readonly uniforms: NightUniforms;
+  private readonly night: DaySky;
 
   constructor(
     scene: Scene,
     frame: WorldFrame,
-    surface: BufferGeometry,
-    private readonly lamp: Lamp,
     private readonly sea: SeaLayer | null,
+    surface: BufferGeometry,
+    private readonly day: DaySky = BOARD_DAY_SKY,
+    landing = false,
   ) {
-    const shade = new Mesh(surface, shadeMaterial(this.sun));
-    shade.position.y = SHADE_LIFT - SEA_LEVEL;
-    shade.renderOrder = SHADE_RANK;
+    this.sky = new HemisphereLight(day.sky, day.ground, day.intensity);
+    this.night = landing ? LANDING_NIGHT_SKY : MOON_SKY;
+    this.uniforms = nightUniforms(frame, this.sun);
 
     const positions = CITIES.flatMap((city) => frame.projectLonLat(city, 0.3).toArray());
     const geometry = new BufferGeometry();
@@ -164,24 +191,26 @@ export class NightSky {
     );
     this.cities.renderOrder = SHADE_RANK + 1;
     this.cities.material.userData.ownsMap = true;
+    const shade = new Mesh(surface, shadeMaterial(this.sun, !landing));
+    shade.position.y = SHADE_LIFT - SEA_LEVEL;
+    shade.renderOrder = SHADE_RANK;
     scene.add(this.sky, shade, this.cities);
   }
 
   /**
-   * The sheet darkens where it is night; the lights follow the night **at the point looked at**,
-   * and only close in — from orbit both halves are on screen, and the veil alone tells them apart.
+   * Sets the sky for `night`, how far the sky where one looks has gone dark (0 to 1), and lights the cities that are in
+   * their own dusk at `epochMs`.
    */
-  apply(epochMs: number, looked: LonLat, distance: number): void {
-    const night = nightAt(epochMs, looked) * nearWeight(distance);
-    this.sky.color.lerpColors(DAY_SKY, NIGHT_SKY, night);
-    this.sky.groundColor.lerpColors(DAY_GROUND, NIGHT_GROUND, night);
-    this.sky.intensity = DAY_SKY_INTENSITY + (NIGHT_SKY_INTENSITY - DAY_SKY_INTENSITY) * night;
-    this.lamp.light.intensity = LAMP_INTENSITY + (NIGHT_LAMP - LAMP_INTENSITY) * night;
+  apply(epochMs: number, night: number): void {
+    const { day, night: dark } = this;
+    this.sky.color.lerpColors(day.sky, dark.sky, night);
+    this.sky.groundColor.lerpColors(day.ground, dark.ground, night);
+    this.sky.intensity = day.intensity + (dark.intensity - day.intensity) * night;
     this.sea?.dim(night);
 
     const sun = subsolarPoint(epochMs);
-    if (Math.abs(sun[0] - this.sun.value[0]) < SUN_STEP_DEG) return;
-    this.sun.value = [sun[0], sun[1]];
+    if (Math.abs(sun[0] - this.sun.value.x) < SUN_STEP_DEG) return;
+    this.sun.value.set(sun[0], sun[1]);
     const colors = this.cities.geometry.getAttribute('color');
     CITIES.forEach((city, index) => {
       // Les villes ne s'allument qu'au crépuscule passé, pas dès le premier assombrissement.

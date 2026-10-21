@@ -41,10 +41,16 @@ export class FrameDemand {
   /** The stir before the last one: lifting a sheet undoes its own, never another's. */
   private stirredBefore = Number.NEGATIVE_INFINITY;
   private fullAt = Number.NEGATIVE_INFINITY;
+  private drawnAt = Number.NEGATIVE_INFINITY;
   private requested = false;
   private covered = false;
 
-  constructor(now: number) {
+  constructor(
+    now: number,
+    /** **Au doigt, l'ambiance ne dessine pas plus vite qu'un fil qui coule** (`FLOW_TOUCH_MS`) :
+     *  la mer à 12 et le vent à 30 y demandaient 36 images par seconde, carte posée. */
+    private readonly ambientFloor = 0,
+  ) {
     this.stirredAt = now;
   }
 
@@ -87,10 +93,11 @@ export class FrameDemand {
         ? 'stirred'
         : now - this.fullAt >= pace
           ? 'heartbeat'
-          : requested && pace >= HEARTBEAT_MS
+          : requested && pace >= HEARTBEAT_MS && now - this.drawnAt >= this.ambientFloor
             ? 'ambient'
             : null;
     if (reason === 'stirred' || reason === 'heartbeat') this.fullAt = now;
+    if (reason !== null) this.drawnAt = now;
     return reason;
   }
 }

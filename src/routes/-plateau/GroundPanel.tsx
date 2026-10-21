@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { TerrainIcon } from '@/emblems/terrain/TerrainIcon';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
@@ -160,7 +161,8 @@ export function GroundPanel({
     return (
       <GroundCard title={title} marker={marker} heading={hovered.name} onDeselect={onDeselect}>
         <p className={QUIET}>
-          {countryLabel(country)} — {fr.regionTypes[hovered.type]}
+          {countryLabel(country)} — <TerrainIcon type={hovered.type} size={14} />{' '}
+          {fr.regionTypes[hovered.type]}
         </p>
         {held}
         <details>
@@ -184,7 +186,10 @@ export function GroundPanel({
       heading={countryLabel(country)}
       onDeselect={onDeselect}
     >
-      <p className={QUIET}>{fr.board.regionTerrain(fr.regionTypes[hovered.type])}</p>
+      <p className={QUIET}>
+        <TerrainIcon type={hovered.type} size={16} />{' '}
+        {fr.board.regionTerrain(fr.regionTypes[hovered.type])}
+      </p>
       {ground}
       {held}
       {countryLines}

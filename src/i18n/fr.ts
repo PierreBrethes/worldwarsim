@@ -3937,13 +3937,13 @@ export const fr = {
     motionNote:
       'Auto suit le réglage du système. Coupées, les fils ne coulent plus et la carte se redessine au plus juste : le mode batterie.',
     dayCycleLabel: 'Cycle jour et nuit',
-    dayCycle: { real: 'réel', hour: 'accéléré — une heure' },
+    dayCycle: { twoHours: 'deux heures', hour: 'une heure', real: 'réel' },
     dayCycleNote:
-      'Réel : la nuit suit le vrai soleil. Accéléré : une journée entière en soixante minutes, pour juger la lumière sans attendre.',
-    cameraLensLabel: 'Objectif de la caméra',
-    cameraLens: { game: 'jeu', poc: 'prototype' },
-    cameraLensNote:
-      'Essai : le téléobjectif de 28° et les couleurs du prototype. La carte cadre la même chose, la perspective s’aplatit.',
+      'Une journée entière en deux heures ou en une, pour voir passer le jour et la nuit. Réel : la nuit suit le vrai soleil.',
+    contourLabel: 'Contours',
+    contour: { thin: 'fins', thick: 'épais' },
+    contourNote:
+      'Le trait en tirets de chaque territoire connu, à l’encre de sa nation. Le vôtre reste le plus épais.',
     pieceScaleLabel: 'Taille des pièces',
     pieceScaleNote:
       'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',

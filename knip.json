@@ -1,11 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    "src/routes/*.tsx",
-    "src/map/engine/figurines/review.ts",
-    "src/map/engine/pictogram-review.tsx",
-    "scripts/*.mjs"
-  ],
+  "entry": ["src/routes/*.tsx", "src/map/engine/figurines/review.ts", "scripts/*.mjs"],
   "project": ["src/**/*.{ts,tsx,css}", "convex/**/*.ts", "scripts/**/*.mjs"],
   "ignoreDependencies": ["world-atlas"],
   "ignoreExportsUsedInFile": false
