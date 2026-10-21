@@ -15,8 +15,8 @@ terre), leur retrait est une décision à part.
 
 **Précisée le 21/10/2026 (#215, lot 3a).** La terre, la côte, l'encre des pays et le lavis côtier
 du moteur lisent l'atlas par `src/map/engine/atlas-geometry.ts`. Le niveau « loin » sert au
-démarrage ; « près » arrive après le plateau et se dessine sous `REGIONS_GONE_DISTANCE`, sans image
-de plus. La coupe de l'antiméridien prolonge parfois la vraie côte dans le même arc : le moteur en
+démarrage ; « près » arrive après le plateau, prend la main sous une distance de 35 et la rend
+au-dessus de 37 (`NEAR_UNDER`, `FAR_OVER` de `countries.ts`), sans image de plus. La coupe de l'antiméridien prolonge parfois la vraie côte dans le même arc : le moteur en
 retire les segments dont les deux bouts sont à moins de 0,01 u du bord de la feuille, pas l'arc
 entier. Le lavis suit les anneaux de la terre fusionnée, les plus longs d'abord.
 
@@ -66,8 +66,10 @@ et `topojson-server` sont retirés : l'atlas est la seule source. `buildGrid` re
 (`generate-grid.mjs`, octet à octet) ; l'espion de `mesure-isolat.mjs` interdit désormais aux
 modules de `convex/` d'importer l'atlas. `generate-deposits.mjs` lit les régions de l'atlas au
 niveau près : son tirage de nourriture dépend de leur aire et de leur pôle, que l'ancienne
-simplification ne donnait pas : le recuit a déplacé neuf champs de nourriture sur 189 (le fer, le
-charbon et le pétrole n'ont pas bougé).
+simplification ne donnait pas. Contre `main`, le recuit passe de 189 à 190 gisements : dix champs
+de nourriture apparaissent, neuf disparaissent, dix-huit bougent ; `coal-DEU-3487`,
+`iron-FRA-5325` (qui change de région) et `iron-RUS-2379` bougent de 13 à 14 km ; le pétrole n'a
+pas bougé.
 
 ## Contexte
 
