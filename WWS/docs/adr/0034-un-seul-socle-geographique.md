@@ -40,6 +40,10 @@ pas une côte où l'on amarre : `region-index.json` ne compte pas une rive de la
 Caspienne, où aucune coque ne pouvait déjà prendre la mer. Coût : +50 Ko gzip au loin, +97 Ko
 au près.
 
+**Précisée le 21/10/2026 (#217, lot 4).** Les contours des territoires lisent l'atlas à leur
+tour (`borders`, au niveau de la feuille) : le client ne lit plus `regions.json`. Le contour se
+pose sur la frontière face au vide ou au non-tenu (amendement de l'ADR 0033).
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :

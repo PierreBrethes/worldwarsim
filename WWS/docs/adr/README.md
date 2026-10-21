@@ -40,5 +40,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0030](0030-le-qg-batit-la-recherche-transmet.md) | Le QG bâtit, la recherche transmet | acceptée — révise 0028 §5 (slots du QG), décision 44a ; §2 révisé par 0031 ; §3 : le QG forme l'infanterie en Blitz seulement |
 | [0031](0031-les-niveaux-accelerent.md) | Les niveaux accélèrent, la recherche ouvre des files | acceptée — précise la règle 1, révise 0028 §5 et 0030 §2 |
 | [0032](0032-les-points-moderent.md) | Les points modèrent | acceptée — précise la règle 1 (points stratégiques), révise les règles de Singapour, Bakou et Halifax |
-| [0033](0033-la-carte-sans-aplat.md) | La carte sans aplat : des contours en tirets par nation | acceptée — révise le rendu de 0020 (§1 aplat, §5 délavé) |
+| [0033](0033-la-carte-sans-aplat.md) | La carte sans aplat : des contours en tirets par nation | acceptée — révise le rendu de 0020 (§1 aplat, §5 délavé) ; §2 amendé (#217) |
 | [0034](0034-un-seul-socle-geographique.md) | Un seul socle géographique : une topologie à arcs partagés, deux niveaux de détail | acceptée — le moteur et le serveur s'y branchent aux lots 2 à 5 de #209 |
