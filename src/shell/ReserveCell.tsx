@@ -22,7 +22,7 @@ import {
 import { drynessOf, marksOf, sourceOf } from '@/domain/resource-band';
 import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
 import { ResourcePlate } from '@/emblems/Plate';
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { resourceColor } from '@/emblems/resource-color';
 
 /**
  * **Les registres épinglés** (#121), que `Shell` tient et que chaque réserve lit : un toucher sur

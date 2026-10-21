@@ -110,7 +110,7 @@ const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
   },
   /**
    * A drawn stroke again, and for the mirror reason: the five deposits each have their own
-   * silhouette in `ResourceIcon`, and lighting the bascule with one of them — the drop, the
+   * plate in `ResourcePlate`, and lighting the bascule with one of them — the drop, the
    * grain sack — would promise a filter on that resource. The seam under the ground line says
    * *what lies beneath*, which is the category.
    */

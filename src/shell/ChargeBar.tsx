@@ -1,4 +1,4 @@
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { resourceColor } from '@/emblems/resource-color';
 import { SUPPLY_KEYS, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';

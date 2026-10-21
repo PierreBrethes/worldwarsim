@@ -41,7 +41,7 @@ import { projectionKeyOf, recruitRefusalOf, tierLabel, type RecruitRefusal } fro
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { resourceColor } from '@/emblems/resource-color';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';

@@ -7,14 +7,11 @@ import steel from './steel.webp';
 
 /**
  * The illustrated plates of the five resources, cut and normalised by height by
- * `WWS/sprites/optimiser.py --recadrer`. **They do not replace `ResourceIcon`** — the two sets
- * coexist on purpose: an illustration loses its texture at 13 px, so the vector holds the
- * banner and the plate holds the surfaces that have room for it (ADR 0015 art direction,
- * `WWS/sprites/README.md`).
+ * `WWS/sprites/optimiser.py --recadrer`. **They are the only drawing of a resource** (#207): every
+ * surface that shows one goes through `ResourcePlate`.
  *
  * The plates carry their own ink and take no tint: they are objects seen on paper, not
- * silhouettes coloured by a caller — which is exactly why `resourceColor` still exists for the
- * vector and has nothing to say here.
+ * silhouettes coloured by a caller — `resourceColor` only inks gauges and pastilles.
  *
  * The `Record` is complete: a resource added to the domain without a plate stops the
  * compilation, and a missing visual is written `null` explicitly, never by omission.

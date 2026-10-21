@@ -5,11 +5,9 @@ import { objectiveSprite } from './objectives/manifest';
 import { resourcePlate } from './resources/manifest';
 
 /**
- * An illustrated plate, hung in a surface that has room for it. **The plates and the vector
- * icons are two sets, not two versions of one**, and the split is a size: below roughly 20 px
- * an illustration's texture collapses into mush, so the plate holds anything drawn at 20 and
- * above and `ResourceIcon` holds what is drawn smaller — the bill lines at 11 and 12 px.
- * Picking by size rather than by taste is what keeps the choice from drifting.
+ * An illustrated plate. **A resource has one drawing, this one, at every size** (#207): the
+ * reserves, the cost of a card, a bill line and the supply counts all take `ResourcePlate`, and a
+ * smaller or lighter variant is a prop of it, never another drawing.
  *
  * Height is the pinned axis, as at the export (`optimiser.py --recadrer`): the subjects run
  * from a standing drum to a mine car lying wide, so a column pinned by width would go sawtooth
