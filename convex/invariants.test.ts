@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { BuildingKey, ResourceKey } from '../src/domain/ids';
+import { NATIONS, type BuildingKey, type ResourceKey } from '../src/domain/ids';
 import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
 import {
   cellAt,
@@ -13,12 +13,15 @@ import {
 import { buildGrid, countryAtPlanePoint, decodeGrid } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
 import type { World } from '../src/domain/world';
+import atlasAsset from '../public/atlas.json';
+import depositsAsset from '../public/deposits.json';
 import gridAsset from '../public/grid.json';
 import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
 import worldAsset from '../public/world.json';
 import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
+import { capitalRegionOf } from './regions';
 
 /**
  * **Ce que la ligne de départ doit encore payer** (question 51, « le jour où l'on touche
@@ -440,5 +443,22 @@ describe('la grille de routage cuite', () => {
 describe('le fuseau des tests', () => {
   it('est UTC, quel que soit celui du poste', () => {
     expect(new Date(2026, 7, 17, 12).getTimezoneOffset()).toBe(0);
+  });
+});
+
+/**
+ * **Un id écrit en dur survit à l'atlas** (ADR 0034). Les capitales et les gisements nomment une
+ * région par son `adm1_code` : un atlas régénéré sur une autre version de Natural Earth pourrait
+ * en retirer un sans que rien ne casse avant la première saison.
+ */
+describe('les régions nommées en dur', () => {
+  const inAtlas = new Set(atlasAsset.objects.regions.geometries.map(({ id }) => id));
+
+  it.each(NATIONS)('la capitale de %s est une région de l’atlas', (nation) => {
+    expect(inAtlas.has(capitalRegionOf(nation))).toBe(true);
+  });
+
+  it('chaque gisement tombe sur une région de l’atlas', () => {
+    expect(depositsAsset.filter(({ regionId }) => !inAtlas.has(regionId))).toEqual([]);
   });
 });
