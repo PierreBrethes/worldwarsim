@@ -299,16 +299,19 @@ export class SeaLayer implements AmbientLayer {
             float roseR = length(roseAt);
             float rosePx = fwidth(roseR);
             float rose = max(seaLine(roseR, 0.84, rosePx), seaLine(roseR, 0.76, rosePx));
-            for (int k = 0; k < 4; k++) {
-              float turn = float(k) * 1.5708;
-              rose = max(rose, seaRosePoint(roseAt, turn, k == 0 ? 1.15 : 1.0, 0.13, rosePx));
-              rose = max(rose, seaRosePoint(roseAt, turn + 0.7854, 0.55, 0.08, rosePx));
-            }
-            // North is -y on the board: the letter's top faces it, and reads upright from the south.
-            vec2 letterUv = vec2(0.5, 0.5) + vec2(roseAt.x, -(roseAt.y + ${glsl(ROSE_LETTER_AT)}))
-              / ${glsl(ROSE_LETTER_SIZE)};
-            if (all(greaterThan(letterUv, vec2(0.0))) && all(lessThan(letterUv, vec2(1.0)))) {
-              rose = max(rose, texture2D(seaRoseLetter, letterUv).r);
+            // Its points and its letter stand within two radii: past them, eight kites for nothing.
+            if (roseR < 2.0 + 2.0 * rosePx) {
+              for (int k = 0; k < 4; k++) {
+                float turn = float(k) * 1.5708;
+                rose = max(rose, seaRosePoint(roseAt, turn, k == 0 ? 1.15 : 1.0, 0.13, rosePx));
+                rose = max(rose, seaRosePoint(roseAt, turn + 0.7854, 0.55, 0.08, rosePx));
+              }
+              // North is -y on the board: the letter's top faces it, and reads upright from the south.
+              vec2 letterUv = vec2(0.5, 0.5) + vec2(roseAt.x, -(roseAt.y + ${glsl(ROSE_LETTER_AT)}))
+                / ${glsl(ROSE_LETTER_SIZE)};
+              if (all(greaterThan(letterUv, vec2(0.0))) && all(lessThan(letterUv, vec2(1.0)))) {
+                rose = max(rose, texture2D(seaRoseLetter, letterUv).r);
+              }
             }
             seaEngraving = max(seaEngraving, ${glsl(ROSE_OPACITY)} * rose);
           }
