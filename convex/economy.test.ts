@@ -15,6 +15,8 @@ import {
   type ResearchCard,
   type ResourceKey,
 } from '../src/domain/ids';
+import { upgradeHold } from '../src/domain/construction';
+import { fr, upgradeHoldText } from '../src/i18n/fr';
 import { buildingLockOf } from '../src/domain/research';
 import { ledgerOf } from '../src/domain/ledger';
 import type { PlayerView } from '../src/domain/player-view';
@@ -1959,6 +1961,46 @@ describe('the ground a site reaches', () => {
         point: pointIn(ALSO_NEAR),
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+  });
+
+  /** **One rule, both ends**: a building that lost the outpost covering it is refused its raise,
+   *  and the sheet says the server's own sentence before the gesture. */
+  it('refuses to raise a building whose outpost is gone, and the screen says the same', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const outpostId = await plantOutpost(t, seat, EL_TARF, 3);
+    await fill(t, seat, 'steel', 100_000);
+    await fill(t, seat, 'food', 100_000);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: NEAR_EL_TARF,
+      point: pointIn(NEAR_EL_TARF),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => ctx.db.delete(outpostId));
+
+    const view = await t.query(api.view.playerView, seat);
+    const stranded = view.me.buildings.find((building) => building.regionId === NEAR_EL_TARF)!;
+    const hold = upgradeHold(
+      { ...stranded, name: stranded.key },
+      view as unknown as PlayerView,
+      view.loadedAt,
+    );
+    expect(hold).toEqual({ kind: 'outOfReach', outpostLevels: [] });
+
+    const refusal = await t
+      .mutation(api.constructions.start, {
+        ...seat,
+        building: stranded.key,
+        regionId: stranded.regionId,
+        point: { lon: stranded.point[0], lat: stranded.point[1] },
+      })
+      .catch((problem: unknown) => problem);
+    expect(String(refusal)).toContain('OUT_OF_OUTPOST_REACH');
+    expect(upgradeHoldText(hold!)).toBe(
+      fr.errors.OUT_OF_OUTPOST_REACH({ reachKm: 0, hasOutposts: false }),
+    );
   });
 
   /**

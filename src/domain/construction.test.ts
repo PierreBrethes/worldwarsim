@@ -5,6 +5,7 @@ import {
   buildableOn,
   outpostRaiseHold,
   placementOf,
+  raiseRefusalOf,
   depositHolders,
   PLACING_SNAP_KM,
   riseOf,
@@ -182,12 +183,16 @@ describe('what holds a raise back', () => {
     stocks?: Partial<Record<ResourceKey, number>>;
     construction?: PlayerView['me']['construction'];
     queue?: PlayerView['me']['constructionQueue'];
+    hqLevel?: number;
+    outposts?: PlayerView['me']['outposts'];
   }): PlayerView =>
     ({
       me: {
         construction: overrides.construction ?? null,
         constructionQueue: overrides.queue ?? [],
         buildings: [],
+        hqLevel: overrides.hqLevel ?? 1,
+        outposts: overrides.outposts ?? [],
         resources: Object.fromEntries(
           RESOURCES.map((key) => [
             key,
@@ -243,6 +248,21 @@ describe('what holds a raise back', () => {
     });
   });
 
+  it('holds a raise on ground no standing outpost reaches, with the levels of the outposts that stand', () => {
+    const outposts = [
+      { standsAt: null, level: 1, lonLat: [0, 0] },
+      { standsAt: Date.now() + 1e9, level: 3, lonLat: [1, 1] },
+    ] as unknown as PlayerView['me']['outposts'];
+    const hold = upgradeHold(building({ unreached: true }), viewWith({ outposts }), LOADED_AT);
+    expect(hold).toEqual({ kind: 'outOfReach', outpostLevels: [1] });
+  });
+
+  it('holds a raise before the headquarters stands', () => {
+    expect(upgradeHold(building(), viewWith({ hqLevel: 0 }), LOADED_AT)).toEqual({
+      kind: 'hqFirst',
+    });
+  });
+
   /** The whole point of anticipating the refusal: the shortfall is named, never "impossible". */
   it('names the resource that is short, and by how much', () => {
     const hold = upgradeHold(building(), viewWith({ stocks: { coal: 12 } }), LOADED_AT);
@@ -273,6 +293,26 @@ describe('what holds a raise back', () => {
  * **La règle de pose, sous le pointeur** (ADR 0029) : ce que le fantôme dit avant le clic est le
  * refus même de `constructions.start`, lu sur les faits que la vue et la carte portent.
  */
+describe('raiseRefusalOf', () => {
+  const free = { reached: true, hqLevel: 1, queued: false, cappedByHq: false };
+
+  it('lets a reached, queue-free, uncapped raise through', () => {
+    expect(raiseRefusalOf(free)).toBeNull();
+  });
+
+  it('refuses ground nothing reaches, before anything else', () => {
+    expect(raiseRefusalOf({ reached: false, hqLevel: 0, queued: true, cappedByHq: true })).toBe(
+      'OUT_OF_OUTPOST_REACH',
+    );
+  });
+
+  it('refuses until the headquarters stands, then the point already queued, then the ceiling', () => {
+    expect(raiseRefusalOf({ ...free, hqLevel: 0, queued: true })).toBe('HQ_FIRST');
+    expect(raiseRefusalOf({ ...free, queued: true, cappedByHq: true })).toBe('ALREADY_QUEUED_HERE');
+    expect(raiseRefusalOf({ ...free, cappedByHq: true })).toBe('CAPPED_BY_HQ');
+  });
+});
+
 describe('the point aimed at', () => {
   /** The Pas-de-Calais: coal and nothing else in its region, unlike the Moselle and its iron. */
   const COAL = DEPOSIT_POINTS.find((deposit) => deposit.id === 'coal-FRA-5334')!;

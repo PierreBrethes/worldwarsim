@@ -527,6 +527,9 @@ export type Building = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly cappedByHq: boolean;
+  /** **Hors de toute portée** : ni le sol natal ni un avant-poste debout ne couvre son point (un
+   *  avant-poste perdu) — il ne s'élève plus (`raiseRefusalOf`). */
+  readonly unreached?: true;
   /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
   readonly disabled?: true;
   /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */

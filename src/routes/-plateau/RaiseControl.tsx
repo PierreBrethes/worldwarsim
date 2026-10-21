@@ -1,7 +1,7 @@
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { fr } from '@/i18n/fr';
+import { fr, upgradeHoldText } from '@/i18n/fr';
 import { Price } from '@/shell/Price';
 import { handleError } from '@/data/errors';
 import { pledgedWork, upgradeHold, type UpgradeHold } from '@/domain/construction';
@@ -116,6 +116,9 @@ function holdText(hold: UpgradeHold, building: Building, view: PlayerView, now: 
     }
     case 'cappedByHq':
       return fr.economy.cappedByHq;
+    case 'outOfReach':
+    case 'hqFirst':
+      return upgradeHoldText(hold);
     case 'materials':
       return fr.works.lacking(hold.needed - hold.available, fr.resources[hold.resource]);
   }
