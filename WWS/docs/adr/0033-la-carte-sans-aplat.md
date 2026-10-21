@@ -18,13 +18,13 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
 
 1. **Plus aucun aplat de nation.** La feuille garde les couleurs d'une vraie carte : le papier, la
    mer, les dessins de terrain. Qui tient quoi se lit au contour.
-2. **Un contour en tirets par bloc**, à l'encre de la nation (`INK_BY_NATION`), sur la frontière
-   extérieure du bloc. Entre ses propres régions, un trait gris fin et plein. Entre deux nations,
+2. **Un contour en tirets par territoire** — des régions contiguës d'une même encre et d'un même
+   état —, à l'encre de la nation (`INK_BY_NATION`), sur la frontière extérieure du territoire. Entre ses propres régions, un trait gris fin et plein. Entre deux nations,
    deux lignes côte à côte, chacune en retrait chez elle. Le contour du joueur est plus épais que
    les autres.
 3. **Les états** :
-   - un territoire connu par un relevé (`surveyed`) a des tirets pâles et immobiles ; sa date se
-     lit au survol, sur la fiche de la région ;
+   - un territoire connu par un relevé (`surveyed`) a un pointillé court, pâle et immobile ; sa
+     date se lit au survol, sur la fiche de la région ;
    - une région suspendue garde ses hachures (ADR 0020 §7) ;
    - une région occupée prend l'encre de l'occupant (elle est dans sa revendication) ;
    - une région jamais vue n'a pas de contour : seul le grain de crayon de la feuille.
@@ -56,6 +56,7 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
   peinte à son encre.
 - **Le délavé des relevés** (`FADED_WASH`, `surveyWash`), cranté sur l'âge, et leur gravure en
   tailles horizontales : un relevé est pâle et immobile quel que soit son âge, la date est à la
-  fiche. L'ancienneté se voit toujours en permanence (ADR 0020 §5), mais sans degrés.
+  fiche. **La carte ne montre plus l'âge d'un relevé** (ADR 0020 §5) : elle dit seulement qu'il est
+  un relevé, et son âge se lit au survol, sur la fiche de la région (`GroundPanel`).
 - **L'encre plus foncée des régions bâties** : un bâtiment se voit par sa maquette, pas par son sol.
 - Le trait plein de la Blitz autour de ce qu'on tient.
