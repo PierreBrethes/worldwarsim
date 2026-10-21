@@ -27,7 +27,7 @@
  * Le haut de `ps` est imprimé avant de mesurer : un vérifieur ou un autre navigateur à côté
  * fausse tout.
  */
-/* global window, document, requestAnimationFrame, addEventListener, getComputedStyle, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
+/* global window, document, requestAnimationFrame, WebGL2RenderingContext, addEventListener, getComputedStyle, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -164,6 +164,60 @@ function instrument() {
     renders: [],
   };
   window.__banc = B;
+  /** **La mémoire des textures**, estimée : `renderer.info.memory` ne compte que des objets. Chaque
+   *  téléversement de niveau 0 pèse largeur × hauteur × octets du format, une chaîne de mips un
+   *  tiers de plus ; `texStorage2D` donne déjà toute la chaîne. */
+  const GL2 = WebGL2RenderingContext.prototype;
+  const sized = new Map();
+  const bound = {};
+  const perPixel = (gl, format) =>
+    [gl.R8, gl.RED, gl.LUMINANCE, gl.ALPHA, gl.R8UI].includes(format)
+      ? 1
+      : [gl.RG8, gl.RG].includes(format)
+        ? 2
+        : [gl.RGBA16F, gl.RG32F].includes(format)
+          ? 8
+          : gl.RGBA32F === format
+            ? 16
+            : 4;
+  const bindTexture = GL2.bindTexture;
+  GL2.bindTexture = function (target, texture) {
+    bound[target] = texture;
+    return bindTexture.call(this, target, texture);
+  };
+  const texImage2D = GL2.texImage2D;
+  GL2.texImage2D = function (target, level, format, ...rest) {
+    if (level === 0 && bound[target]) {
+      const source = rest.length >= 5 ? null : rest[3];
+      const width = rest.length >= 5 ? rest[0] : (source?.width ?? source?.videoWidth ?? 0);
+      const height = rest.length >= 5 ? rest[1] : (source?.height ?? source?.videoHeight ?? 0);
+      sized.set(bound[target], { bytes: width * height * perPixel(this, format), mips: false });
+    }
+    return texImage2D.call(this, target, level, format, ...rest);
+  };
+  const texStorage2D = GL2.texStorage2D;
+  GL2.texStorage2D = function (target, levels, format, width, height) {
+    if (bound[target]) {
+      const base = width * height * perPixel(this, format);
+      sized.set(bound[target], { bytes: levels > 1 ? (base * 4) / 3 : base, mips: true });
+    }
+    return texStorage2D.call(this, target, levels, format, width, height);
+  };
+  const generateMipmap = GL2.generateMipmap;
+  GL2.generateMipmap = function (target) {
+    const entry = bound[target] && sized.get(bound[target]);
+    if (entry && !entry.mips) {
+      entry.bytes = (entry.bytes * 4) / 3;
+      entry.mips = true;
+    }
+    return generateMipmap.call(this, target);
+  };
+  const deleteTexture = GL2.deleteTexture;
+  GL2.deleteTexture = function (texture) {
+    sized.delete(texture);
+    return deleteTexture.call(this, texture);
+  };
+  B.textureBytes = () => [...sized.values()].reduce((sum, { bytes }) => sum + bytes, 0);
   const tick = (t) => {
     if (B.on) B.frames.push(t);
     requestAnimationFrame(tick);
@@ -288,6 +342,7 @@ function mapStatic() {
     shadowType: renderer.shadowMap.type,
     programs: renderer.info.programs.length,
     textures: renderer.info.memory.textures,
+    textureMB: window.__banc.textureBytes() / 2 ** 20,
     geometries: renderer.info.memory.geometries,
     blurBands: bands.map((node) => getComputedStyle(node).backdropFilter),
   };
@@ -799,7 +854,7 @@ try {
     const merged = merge(runs);
     report.profiles[name] = { ...merged, runs };
     const s = merged.statics;
-    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures, ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
+    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures (~${round(s.textureMB)} Mo), ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
   }
 } finally {
   await browser.close();
