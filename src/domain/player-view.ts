@@ -5,6 +5,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { Ground } from './routing';
 import type { RunningResearch } from './research';
 import type { StrategicPointKey } from './strategic-points';
 import type {
@@ -246,11 +247,14 @@ export type TroopStation =
       readonly country: string;
       /**
        * **La pile est-elle sur l'eau ?** Lu sur la grille de routage, la même cellule que
-       * `onLand` à la visée — et non déduit de `country === ''` : le polygone et la grille se
+       * `ground` à la visée — et non déduit de `country === ''` : le polygone et la grille se
        * contredisent sur toute bande côtière plus étroite qu'une demi-cellule, et une coque posée
        * là était à flot pour la visée et à terre pour le départ, sans quai pour la saison.
        */
       readonly afloat: boolean;
+      /** Terre, mer ou lac, sur la même grille : une pile posée sur un lac n'est pas au large, et
+       *  la rejoindre se refuse comme le lac lui-même (`LAKE_TARGET`). */
+      readonly ground: Ground;
       /**
        * **Le sol sous elle est-il une plage ?** Servi par le serveur comme `country` l'est, et
        * pour la même raison : le client ne tient aucune géométrie, et une seconde lecture de la

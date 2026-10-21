@@ -27,6 +27,7 @@ const station = {
   lonLat: [4.6, 46.6],
   country: 'FRA',
   afloat: false,
+  ground: 'land',
   coastal: false,
 } as const;
 const troop = (id: string, role: TroopView['role']): TroopView => ({

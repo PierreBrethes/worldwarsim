@@ -180,7 +180,7 @@ export type CompassTarget =
       readonly country: string | null;
       readonly name: string;
       readonly headcount: number;
-      readonly onLand: boolean;
+      readonly ground: Ground;
       readonly station: TroopStation | null;
       readonly regionId: string | null;
     };

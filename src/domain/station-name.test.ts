@@ -12,6 +12,7 @@ const point = (
   lonLat: [12.5, 41.9],
   country: 'ITA',
   afloat: false,
+  ground: 'land',
   coastal: false,
   ...override,
 });

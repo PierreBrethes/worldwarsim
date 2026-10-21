@@ -99,7 +99,7 @@ describe('radial menu', () => {
       compassOf(
         {
           kind: 'force',
-          onLand: true,
+          ground: 'land',
           id: 'stack-home',
           country: 'FRA',
           name: '24 INF · 6 BLD',
@@ -116,7 +116,7 @@ describe('radial menu', () => {
     expect(
       labelsOf({
         kind: 'force',
-        onLand: true,
+        ground: 'land',
         id: 'stack-sea',
         country: null,
         name: '12 ESC',
@@ -522,6 +522,7 @@ describe('in aim', () => {
         lonLat: [9, 52] as const,
         country: 'DEU',
         afloat: false,
+        ground: 'land' as const,
         coastal: false,
       },
       ...(anchored ? { anchored: true } : {}),
@@ -550,7 +551,7 @@ describe('in aim', () => {
     const squad = {
       kind: 'force',
       id: 'S1-stack',
-      onLand: true,
+      ground: 'land',
       country: 'DEU',
       name: 'escouade',
       headcount: 1,
@@ -1004,13 +1005,14 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     lonLat: [142.1, 47],
     country: 'RUS',
     afloat: false,
+    ground: 'land',
     coastal: true,
   } as const;
   const origin = { ...beach, lonLat: [142.3, 47] } as const;
   const target = {
     kind: 'force',
     id: 'cargo-stack',
-    onLand: true,
+    ground: 'land',
     country: 'RUS',
     name: 'cargo',
     headcount: 1,
@@ -1065,6 +1067,23 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     expect(compass?.actions[0]).toMatchObject({ key: 'aim', type: 'march', boardsOn: 'transport' });
   });
 
+  /** **Une escadre posée sur un lac** : la rejoindre est viser le lac, et la rose le refuse du
+   *  mot que le serveur rendrait (`LAKE_TARGET`), pas d'un « rejoindre » qu'il refuserait. */
+  it('refuses to join a pile standing on a lake, by the lake', () => {
+    const lake = {
+      ...beach,
+      lonLat: [50.5, 42],
+      afloat: true,
+      ground: 'lake',
+      coastal: false,
+    } as const;
+    const onLake = { ...target, ground: 'lake', station: lake } as const;
+    const seen = at('fighter', 0, { station: lake as TroopStation });
+    const compass = compassOf(onLake, seen, column, origin, 0, ['rifle']);
+    expect(compass?.actions.map((action) => action.label)).not.toContain('rejoindre');
+    expect(compass?.refusal).toBe(fr.errors.LAKE_TARGET());
+  });
+
   it('counts those aboard, not those who only stand there', () => {
     expect(anchor(at('cargo', 12))).toBeUndefined();
     expect(aim(at('cargo', 12), blitz)?.refusal).toContain('il en manque 1');
@@ -1112,12 +1131,19 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
 describe('founding from the map', () => {
   const camp = {
     kind: 'force',
-    onLand: true,
+    ground: 'land',
     id: 'stack-point:12.0000,20.0000',
     country: 'LBY',
     name: '2 INF',
     headcount: 2,
-    station: { kind: 'point', lonLat: [12, 20], country: 'LBY', afloat: false, coastal: false },
+    station: {
+      kind: 'point',
+      lonLat: [12, 20],
+      country: 'LBY',
+      afloat: false,
+      ground: 'land',
+      coastal: false,
+    },
     regionId: 'LBY-001',
   } as const;
 
@@ -1134,6 +1160,7 @@ describe('founding from the map', () => {
             lonLat: [12, 20],
             country: 'LBY',
             afloat: false,
+            ground: 'land',
             coastal: false,
           },
         })),
@@ -1529,6 +1556,7 @@ describe('the bombardment on the rose', () => {
     lonLat: [2.35, 48.85],
     country: 'FRA',
     afloat: false,
+    ground: 'land',
     coastal: false,
   };
   const gunner = (extra: Record<string, unknown> = {}) =>

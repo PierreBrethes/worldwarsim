@@ -83,7 +83,7 @@ import {
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
 import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
-import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
+import { coastAtPoint, GRID_STEP_KM, groundAtPoint, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
@@ -302,6 +302,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         lonLat: point,
         country: hostAtPoint(point),
         afloat: !landAtPoint(point),
+        ground: groundAtPoint(point),
         coastal: coastAtPoint(point),
       };
     }

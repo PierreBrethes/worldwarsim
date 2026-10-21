@@ -428,7 +428,7 @@ function foundHere(
   const refusal = foundingRefusal(
     held.map((troop) => troop.role),
     onMyGround,
-    target.onLand,
+    target.ground === 'land',
   );
   if (refusal !== null) {
     return { action: null, refusal: foundingMotive(refusal, held, target, view) };

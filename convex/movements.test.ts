@@ -2861,7 +2861,7 @@ describe('the door of the sea, read on the pile', () => {
 
   /**
    * **Deux géométries, deux réponses — et une coque échouée entre les deux.** La visée lisait
-   * « à terre » sur la grille de routage (`onLand`) ; le départ lisait « à flot » sur le polygone
+   * « à terre » sur la grille de routage (`ground`) ; le départ lisait « à flot » sur le polygone
    * (`hostAtPoint`). Toute bande côtière plus étroite qu'une demi-cellule est de la terre pour
    * l'un et de la mer pour l'autre : la coque y était envoyée sans refus — la cible n'est pas à
    * terre — puis n'en repartait plus, ni à flot ni sur une plage, un quai réclamé à un point

@@ -8,6 +8,7 @@ const station: MarchStation = {
   lonLat: [2, 48],
   country: '',
   afloat: false,
+  ground: 'land',
   coastal: true,
 };
 

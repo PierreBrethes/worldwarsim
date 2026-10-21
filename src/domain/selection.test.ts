@@ -17,6 +17,7 @@ const at = (lon: number): MarchStation => ({
   lonLat: [lon, 0],
   country: '',
   afloat: false,
+  ground: 'land',
   coastal: false,
 });
 

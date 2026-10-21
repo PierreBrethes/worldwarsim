@@ -1589,7 +1589,7 @@ function BoardContent({
       country: lead.country === '' ? null : lead.country,
       name: fr.compass.fallbackForce,
       headcount: sizeOf(lead).length,
-      onLand: !lead.afloat,
+      ground: lead.ground,
       station: lead,
       regionId: null,
     };

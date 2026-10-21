@@ -1735,7 +1735,7 @@ export function targetOfLabel(
       country,
       name: label.force?.composition ?? fr.compass.fallbackForce,
       headcount: label.force?.headcount ?? 0,
-      onLand: label.anchor.kind === 'ground' && groundAt(label.anchor.lonLat) === 'land',
+      ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
       /** Son adresse : on fonde où l'on se tient, donc c'est le point que la branche plantera. */
       station: label.station,
       regionId: region?.id ?? null,
