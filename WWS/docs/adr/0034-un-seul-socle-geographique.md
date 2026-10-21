@@ -13,6 +13,13 @@ Une région plus petite qu'une cellule n'a pas de cellule : elle est ancrée. Le
 Bab-el-Mandeb ne servent plus à rien sur la côte 10 m ; elles sont gardées (aucune ne coupe de
 terre), leur retrait est une décision à part.
 
+**Précisée le 21/10/2026 (#215, lot 3a).** La terre, la côte, l'encre des pays et le lavis côtier
+du moteur lisent l'atlas par `src/map/engine/atlas-geometry.ts`. Le niveau « loin » sert au
+démarrage ; « près » arrive après le plateau et se dessine sous `REGIONS_GONE_DISTANCE`, sans image
+de plus. La coupe de l'antiméridien prolonge parfois la vraie côte dans le même arc : le moteur en
+retire les segments dont les deux bouts sont à moins de 0,01 u du bord de la feuille, pas l'arc
+entier. Le lavis suit les anneaux de la terre fusionnée, les plus longs d'abord.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :
