@@ -235,9 +235,12 @@ const DEFAULT_MAX_DISTANCE = 300;
 /** The share of its overshoot a target past the board's edge takes back each frame (#187).
  *  @a-mesurer */
 const BOARD_HOLD_RATE = 0.12;
-/** Development only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
+/** Development and the bench only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
 function forcedInstant(search: string): number | null {
-  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('heure') : null;
+  const raw =
+    import.meta.env.DEV || import.meta.env.VITE_BANC === '1'
+      ? new URLSearchParams(search).get('heure')
+      : null;
   return raw === null ? null : Date.parse(raw);
 }
 

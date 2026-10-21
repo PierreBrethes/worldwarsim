@@ -2,7 +2,7 @@
  * **Le banc client** (#189) : ce que coûtent les gestes et la carte, au téléphone puis au bureau.
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
- *       [--sortie dossier] [--sans-build] [--photos] [--cpu motif]
+ *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -51,6 +51,8 @@ const photos = args.includes('--photos');
 const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i');
 /** `--sans-ombres` : la lampe ne porte plus d'ombre, pour lire ce que coûtent les ombres. */
 const shadowless = args.includes('--sans-ombres');
+/** `--heure 2026-10-21T00:00Z` : le soleil tenu à cet instant (nuit, crépuscule), `?heure=` du build de banc. */
+const heure = option('heure', null);
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -369,7 +371,9 @@ async function play(profileName, pass) {
   await page.getByLabel('mot de passe').fill(accounts.a.password);
   await page.getByRole('button', { name: 'entrer' }).click();
   await page.waitForURL('**/accueil', { timeout: 15000 });
-  await page.goto(`${origin}/plateau?season=${accounts.seasonId}`);
+  await page.goto(
+    `${origin}/plateau?season=${accounts.seasonId}${heure === null ? '' : `&heure=${heure}`}`,
+  );
   const understood = page.getByRole('button', { name: /compris/i }).first();
   if (
     await understood.waitFor({ timeout: 8000 }).then(
