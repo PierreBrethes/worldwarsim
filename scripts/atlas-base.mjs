@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { geoNaturalEarth1 } from 'd3-geo';
 import { decodeAtlas } from '../src/domain/atlas.ts';
 import { atlasWorld as landOf } from '../src/domain/atlas-world.ts';
+import { projectLonLat } from '../src/domain/routing.ts';
 
 export const WIDTH = 400;
 export const HEIGHT = 208;
@@ -119,4 +120,70 @@ export function regionRaster() {
     }
   }
   return { width, height, ids, hosts, codeOfRegion, regionCells, hostCells };
+}
+
+/**
+ * `public/region-grid.json` for a set of region points: the region and host runs, and the
+ * anchors of the regions smaller than a cell, read off their points.
+ */
+export function regionGridAsset(points) {
+  const world = frame;
+  const { width, height, ids, hosts, codeOfRegion, regionCells, hostCells } = regionRaster();
+  const runsOf = (cells) => {
+    const runs = [];
+    let value = cells[0];
+    let length = 0;
+    for (const cell of cells) {
+      if (cell === value) {
+        length += 1;
+        continue;
+      }
+      runs.push(value, length);
+      value = cell;
+      length = 1;
+    }
+    runs.push(value, length);
+    return runs;
+  };
+
+  /**
+   * **Le troisième canal : l'ancrage** (ADR 0023). Neuf cent soixante-et-onze régions sont plus
+   * petites qu'une cellule — aucun centre ne tombe dedans, donc aucune cellule ne porte leur code —
+   * et la direction région → cellules s'arrêtait là. Elle est totale désormais : chacune reçoit
+   * **la cellule qui contient son point intérieur**, le pôle d'inaccessibilité que
+   * `generate-region-index.mjs` a déjà calculé et cuit. Rien n'est recalculé ici, et rien n'est
+   * inventé : l'ancrage ne dit pas que la cellule *est* la région, il dit par où l'on y entre.
+   *
+   * **Plusieurs régions ancrent la même cellule** — les quarante-cinq régions maltaises tiennent
+   * dans une seule — et c'est la raison pour laquelle un but est une liste et non une valeur.
+   *
+   * `convex/invariants.test.ts` exige que chaque ancrage cuit soit **exactement** la cellule où
+   * `cellAt` fait tomber le point : même contrat que l'égalité cuisson/calcul de `grid.json`.
+   */
+  const withCells = new Set(regionCells);
+  const anchors = [];
+  for (const id of ids) {
+    if (withCells.has(codeOfRegion.get(id))) continue;
+    const lonLat = points[id];
+    if (lonLat === undefined) throw new Error(`region without an interior point: ${id}`);
+    const [x, y] = projectLonLat(world.outline, world.sphere, lonLat);
+    const column = Math.min(
+      width - 1,
+      Math.max(0, Math.round((x - world.sphere.minX) / STEP - 0.5)),
+    );
+    const row = Math.min(height - 1, Math.max(0, Math.round((y - world.sphere.minY) / STEP - 0.5)));
+    anchors.push(row * width + column, codeOfRegion.get(id));
+  }
+
+  const asset = {
+    step: STEP,
+    width,
+    height,
+    ids,
+    hosts,
+    regionRuns: runsOf(regionCells),
+    hostRuns: runsOf(hostCells),
+    anchors,
+  };
+  return { asset, regionCells, hostCells };
 }
