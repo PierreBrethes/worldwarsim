@@ -10,6 +10,7 @@ import {
   disbandRefusalOf,
   disembarkRefusalOf,
   foundingRefusal,
+  isQuay,
   landCostOf,
   plunderRefusalOf,
   refusalOf,
@@ -671,7 +672,13 @@ export const preview = query({
 
     const { aim, point, name, host } = await aimOf(ctx, player._id, target);
     if (refusalOf(type, aim, column) !== null) return null;
-    const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
+    const route = routeBetween(
+      departure.point,
+      point,
+      routeModeOf(pace),
+      landCostOf(pace),
+      isQuay(aim),
+    );
     if (route === null) return null;
 
     const minutes = await pacedMinutes(ctx, player._id, route, now);

@@ -14,6 +14,7 @@ import {
   routeDistanceKmField,
   truncateRouteSearch,
   KM_PER_UNIT,
+  mooringOf,
 } from '../src/domain/routing';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
@@ -57,14 +58,20 @@ let grid: ReturnType<typeof decodeGrid> | null = null;
  */
 export const GRID_STEP_KM = gridAsset.step * KM_PER_UNIT;
 
+/**
+ * `toQuay`: the destination is a port, and a hull bound for it moors where open water reaches
+ * (`mooringOf`) — the preview, the order and the way home read it alike (#221).
+ */
 export function routeBetween(
   from: LonLat,
   to: LonLat,
   mode: RouteMode,
   landCost?: number,
+  toQuay = false,
 ): ComputedRoute | null {
   grid ??= decodeGrid(gridAsset, projection);
-  return computeRoute(grid, from, to, mode, landCost);
+  const moored = toQuay && (mode === 'naval' || mode === 'combined') ? mooringOf(grid, to) : to;
+  return moored === null ? null : computeRoute(grid, from, moored, mode, landCost);
 }
 
 export function routeToRegions(

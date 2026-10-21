@@ -872,6 +872,18 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
 }
 
 /**
+ * **Where a hull bound for a quay ties up** (#221): the quay itself when the grid's open water
+ * touches it, or else the nearest open-water cell — the very snap a ship's ends take
+ * (`nearestCell`). A port stands on the atlas's coast, which the 25 km mesh fills in an estuary or
+ * a fjord: Hamburg moors at the mouth of the Elbe. `null` when no open water lies within reach.
+ */
+export function mooringOf(grid: RouteGrid, quay: LonLat): LonLat | null {
+  if (!isLandCell(grid, quay) || isCoastCell(grid, quay)) return quay;
+  const cell = nearestCell(grid, projectOnGrid(grid, quay), 'naval');
+  return cell === null ? null : unprojectCell(grid, cell);
+}
+
+/**
  * **Every coast cell of a projected box**, which is a region's box and never a region: the grid
  * knows nothing of admin-1 shapes and does not have to learn them for this. The caller is the
  * one that says which of these cells fall inside its polygons; plunder crossings use their own

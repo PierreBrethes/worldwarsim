@@ -50,7 +50,7 @@ import {
   type TroopAddress,
 } from './forces';
 import { boardingRefusalOf } from '../../src/domain/movement-orders';
-import { carrierIn } from '../../src/domain/troops';
+import { carrierIn, PROJECTION_BY_DOMAIN } from '../../src/domain/troops';
 import { surveyFromPoint } from '../surveys';
 import { seatsOf } from '../seats';
 import { notifyPlayer } from '../notifications';
@@ -558,6 +558,8 @@ type HomeRoad = {
   readonly target: Doc<'movements'>['target'];
   readonly fromBuildingId: Id<'buildings'> | null;
   readonly stranded: TroopAddress;
+  /** Home is a port: a hull moors where open water reaches it (`mooringOf`, #221). */
+  readonly quay: boolean;
 };
 
 type Homeward = { readonly kind: 'stays'; readonly address: TroopAddress } | HomeRoad;
@@ -598,6 +600,7 @@ async function homeFor(
       target: { kind: 'home' },
       fromBuildingId: building._id,
       stranded: asPoint(from),
+      quay: building.key === PROJECTION_BY_DOMAIN.sea,
     };
   }
 
@@ -618,6 +621,7 @@ async function homeFor(
           : { kind: 'outpost', outpostId: anchor.outpostId },
       fromBuildingId: null,
       stranded: null,
+      quay: false,
     };
   }
 
@@ -632,6 +636,7 @@ async function homeFor(
       target: { kind: 'point', point: asPoint(point) },
       fromBuildingId: null,
       stranded: asPoint(from),
+      quay: false,
     };
   }
 
@@ -648,6 +653,7 @@ async function homeFor(
     target: { kind: 'outpost', outpostId: outpost._id },
     fromBuildingId: null,
     stranded: asPoint(from),
+    quay: false,
   };
 }
 
@@ -842,7 +848,7 @@ export async function walkHome(
     /** A column coming home from overseas has a sea to recross; `'land'` would find no route at
      *  all. A return is not an order, so it owes no port. */
     const roles = group.map((troop) => troop.role);
-    const route = routeBetween(from, home.point, routeModeOf(roles), landCostOf(roles));
+    const route = routeBetween(from, home.point, routeModeOf(roles), landCostOf(roles), home.quay);
     /** No road home — a landing whose transports sank, and nothing else. */
     if (route === null) {
       for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: home.stranded });

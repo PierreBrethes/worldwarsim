@@ -4361,4 +4361,41 @@ describe('le quai sur la vraie côte', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await t.run((ctx) => ctx.db.get(cargo)))!.stationedAt).toBe(port);
   });
+
+  /** **Hambourg s'amarre à l'embouchure** : sur l'Elbe, la grille n'a que de la terre sans eau
+   *  ouverte à côté. La coque vise l'eau ouverte la plus proche, à l'aller comme au retour. */
+  it('brings a cargo into a port on the Elbe, moored at the mouth, and sails it out again', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const elbe = { lon: 9.395, lat: 53.83 };
+    const port = await raise(t, seat, 'port', 'DEU-1579', elbe);
+    const offshore = { lon: 2.5, lat: 54.5 };
+    const cargo = await postAt(t, seat, 'cargo', offshore);
+
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin: { kind: 'point', point: offshore },
+      troopIds: [cargo],
+      target: { kind: 'building', buildingId: port },
+      type: 'march',
+    });
+    expect(preview).not.toBeNull();
+    await t.mutation(api.movements.enterGarrison, {
+      ...seat,
+      origin: { kind: 'point', point: offshore },
+      troopIds: [cargo],
+      buildingId: port,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run((ctx) => ctx.db.get(cargo)))!.stationedAt).toBe(port);
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: port },
+      troopIds: [cargo],
+      point: offshore,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run((ctx) => ctx.db.get(cargo)))!.stationedAt).toEqual(offshore);
+  });
 });
