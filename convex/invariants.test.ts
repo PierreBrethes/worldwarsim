@@ -446,6 +446,14 @@ describe('les régions nommées en dur', () => {
 
   /** Le point d'un gisement est dans la région qu'il nomme, lue comme le serveur la lit : par la
    *  cellule de `region-grid.json`, cuite depuis l'atlas. */
+  it('chaque gisement est dans sa région sur l’atlas', () => {
+    expect(
+      depositsAsset
+        .filter(({ lon, lat, regionId }) => atlasRegionAt([lon, lat]) !== regionId)
+        .map(({ id }) => id),
+    ).toEqual([]);
+  });
+
   it('chaque gisement est dans la cellule de sa région', () => {
     const world = { ...projectionAsset, countries: [] } as unknown as World;
     const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
