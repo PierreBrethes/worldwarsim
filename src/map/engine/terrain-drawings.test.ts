@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionType } from '@/domain/ids';
-import { codesFromMasks, terrainCode } from './terrain-drawings';
+import { codesFromMasks, depthsFromCodes, terrainCode } from './terrain-drawings';
 
 describe('terrainCode', () => {
   it('leaves the plain bare and gives each drawn type its own code', () => {
@@ -18,5 +18,27 @@ describe('codesFromMasks', () => {
     const valid = new Set([0, 40, 80]);
     expect([...codes].every((code) => valid.has(code))).toBe(true);
     expect([...codes]).toEqual([40, 40, 80, 80, 0, 0]);
+  });
+});
+
+describe('depthsFromCodes', () => {
+  it('counts each cell from the nearest cell of another code, the grid edge not being one', () => {
+    const codes = [0, 40, 40, 40, 40, 40, 0, 40, 40, 80, 80];
+    expect([...depthsFromCodes(codes, 11, 1)]).toEqual([0, 1, 2, 3, 2, 1, 0, 1, 1, 1, 2]);
+  });
+
+  it('reads a massif whole: what tells two regions of a type apart is gone from the codes', () => {
+    // Two forest regions side by side are one block of 40s: the middle column is deepest.
+    const codes = [
+      0, 0, 0, 0, 0, 0, 40, 40, 40, 0, 0, 40, 40, 40, 0, 0, 40, 40, 40, 0, 0, 0, 0, 0, 0,
+    ];
+    const depths = depthsFromCodes(codes, 5, 5);
+    expect(depths[12]).toBe(2);
+    expect(depths[6]).toBe(1);
+  });
+
+  it('measures a diagonal at its length, not in steps', () => {
+    const codes = [0, 40, 40, 40, 40, 40, 40, 40, 40];
+    expect(depthsFromCodes(codes, 3, 3)[8]).toBeCloseTo(2 * Math.SQRT2, 5);
   });
 });
