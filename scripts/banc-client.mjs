@@ -190,7 +190,7 @@ function instrument() {
   const texImage2D = GL2.texImage2D;
   GL2.texImage2D = function (target, level, format, ...rest) {
     if (level === 0 && bound[target]) {
-      const source = rest.length >= 5 ? null : rest[3];
+      const source = rest.length >= 5 ? null : rest[2];
       const width = rest.length >= 5 ? rest[0] : (source?.width ?? source?.videoWidth ?? 0);
       const height = rest.length >= 5 ? rest[1] : (source?.height ?? source?.videoHeight ?? 0);
       sized.set(bound[target], { bytes: width * height * perPixel(this, format), mips: false });
