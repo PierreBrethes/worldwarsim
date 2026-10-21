@@ -1,4 +1,12 @@
-import { CircleGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, type Object3D } from 'three';
+import {
+  CircleGeometry,
+  Float32BufferAttribute,
+  Group,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  type Object3D,
+} from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
@@ -203,39 +211,41 @@ export function figurineFor(
 
 /**
  * The lamp's shadow falls aside (`lamp.ts`); what sets the piece down right under its feet is
- * this soft disc, kept faint so the two do not double. Two discs rather than a texture, so it
- * builds without a canvas.
+ * this soft disc, the prototype's (`carte-refonte`): darkest at the centre, nothing at the rim.
+ * The fall is in the vertices' alpha, so it builds without a canvas.
  */
-const SHADOW_INNER = new MeshBasicMaterial({
+const SHADOW_RADIUS = 0.48;
+const SHADOW_CORE = 0.62;
+const SHADOW_MATERIAL = new MeshBasicMaterial({
   color: '#1a120a',
+  vertexColors: true,
   transparent: true,
-  opacity: 0.12,
   depthWrite: false,
 });
-const SHADOW_OUTER = new MeshBasicMaterial({
-  color: '#1a120a',
-  transparent: true,
-  opacity: 0.06,
-  depthWrite: false,
-});
-const SHADOW_DISCS = (
-  [
-    [0.32, SHADOW_INNER],
-    [0.48, SHADOW_OUTER],
-  ] as const
-).map(([radius, material]) => [new CircleGeometry(radius, 24), material] as const);
+const SHADOW_DISC = new CircleGeometry(SHADOW_RADIUS, 24);
+// The circle's first vertex is its centre.
+SHADOW_DISC.setAttribute(
+  'color',
+  new Float32BufferAttribute(
+    Array.from({ length: SHADOW_DISC.getAttribute('position').count }, (_, k) => [
+      1,
+      1,
+      1,
+      k === 0 ? SHADOW_CORE : 0,
+    ]).flat(),
+    4,
+  ),
+);
 /** The name a carried copy finds its figurines' discs by: lifted, a disc would read as a base. */
 export const CONTACT = 'contact';
 
 export function contactShadow(): Group {
   const shadow = new Group();
   shadow.name = CONTACT;
-  for (const [geometry, material] of SHADOW_DISCS) {
-    const disc = new Mesh(geometry, material);
-    disc.rotation.x = -Math.PI / 2;
-    disc.position.y = 0.004;
-    disc.userData.ground = true;
-    shadow.add(disc);
-  }
+  const disc = new Mesh(SHADOW_DISC, SHADOW_MATERIAL);
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.004;
+  disc.userData.ground = true;
+  shadow.add(disc);
   return shadow;
 }

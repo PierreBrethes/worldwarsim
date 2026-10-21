@@ -20,7 +20,7 @@
  * temps JS de la boucle, temps GPU (`EXT_disjoint_timer_query_webgl2`, le GPU du poste et non
  * celui d'un téléphone), appels de dessin, et le temps CPU du processus GPU de Chrome par seconde
  * (composition et commandes GL, hors du thread principal). Une fois par passe, après les gestes de
- * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, flou de bascule. Chaque
+ * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, bandes floues. Chaque
  * chiffre est la médiane des passes. Sortie : `banc-client.json` et `banc-client.txt` dans
  * `--sortie`.
  *
@@ -49,6 +49,8 @@ const photos = args.includes('--photos');
 /** `--cpu <motif>` : le profil CPU des gestes dont le nom y répond (première passe), et ses
  *  fonctions les plus coûteuses en temps propre. */
 const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i');
+/** `--sans-ombres` : la lampe ne porte plus d'ombre, pour lire ce que coûtent les ombres. */
+const shadowless = args.includes('--sans-ombres');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -287,7 +289,6 @@ function mapStatic() {
     programs: renderer.info.programs.length,
     textures: renderer.info.memory.textures,
     geometries: renderer.info.memory.geometries,
-    tiltShift: getComputedStyle(renderer.domElement.parentElement).getPropertyValue('--tilt-shift'),
     blurBands: bands.map((node) => getComputedStyle(node).backdropFilter),
   };
 }
@@ -323,6 +324,7 @@ async function play(profileName, pass) {
   )
     await understood.click();
   await page.waitForFunction(() => window.mapEngine !== undefined);
+  if (shadowless) await page.evaluate(() => (window.mapEngine.renderer.shadowMap.enabled = false));
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
   const gpu = gpuProcesses().find((pid) => !foreignGpu.has(pid));
   await page.waitForTimeout(8000);
@@ -797,7 +799,7 @@ try {
     const merged = merge(runs);
     report.profiles[name] = { ...merged, runs };
     const s = merged.statics;
-    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${s.shadowMap}², ${s.programs} programmes, ${s.textures} textures, flou de bascule ${s.tiltShift} (${s.blurBands.length} bandes actives)\n${table(merged.gestures)}\n`;
+    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures, ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
   }
 } finally {
   await browser.close();

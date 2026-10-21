@@ -22,7 +22,6 @@ import {
 import type { LonLat } from '@/domain/geo';
 import { nearWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
-import { LAMP_INTENSITY, type Lamp } from './lamp';
 import type { SeaLayer } from './sea';
 
 /**
@@ -53,15 +52,13 @@ const CITIES: ReadonlyArray<LonLat> = [
 ];
 
 const CITY_GOLD = '#ffcf6e';
-const DAY_SKY = new Color('#fff3dc');
-const DAY_GROUND = new Color('#5a4e3a');
+// Le ciel du prototype (`carte-refonte`) : faible devant la lampe, pour des ombres marquées.
+const DAY_SKY = new Color('#fff1d6');
+const DAY_GROUND = new Color('#2a1c10');
 const NIGHT_SKY = new Color('#2f4fa8');
 const NIGHT_GROUND = new Color('#10162c');
-const DAY_SKY_INTENSITY = 0.8;
+const DAY_SKY_INTENSITY = 0.55;
 const NIGHT_SKY_INTENSITY = 0.45;
-// La nuit, la lampe reste seule : elle baisse moins que le ciel, donc elle pèse davantage et les
-// ombres se creusent, sans éteindre la feuille sous la couche de jeu.
-const NIGHT_LAMP = 0.9;
 const SHADE_INK = '#0c1430';
 /** How much ink the full night lays over the sheet: the game layer above it must still read. */
 const SHADE_DEPTH = 0.5;
@@ -122,8 +119,6 @@ function shadeMaterial(sun: { value: [number, number] }): ShaderMaterial {
 }
 
 export class NightSky {
-  // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
-  // la lampe qui fait la profondeur d'une ombre.
   private readonly sky = new HemisphereLight(DAY_SKY, DAY_GROUND, DAY_SKY_INTENSITY);
   private readonly cities: Points<BufferGeometry, PointsMaterial>;
   private readonly sun = { value: [Number.NaN, 0] as [number, number] };
@@ -132,7 +127,6 @@ export class NightSky {
     scene: Scene,
     frame: WorldFrame,
     surface: BufferGeometry,
-    private readonly lamp: Lamp,
     private readonly sea: SeaLayer | null,
   ) {
     const shade = new Mesh(surface, shadeMaterial(this.sun));
@@ -170,17 +164,17 @@ export class NightSky {
   /**
    * The sheet darkens where it is night; the lights follow the night **at the point looked at**,
    * and only close in — from orbit both halves are on screen, and the veil alone tells them apart.
+   * Says that night, for the lamp.
    */
-  apply(epochMs: number, looked: LonLat, distance: number): void {
+  apply(epochMs: number, looked: LonLat, distance: number): number {
     const night = nightAt(epochMs, looked) * nearWeight(distance);
     this.sky.color.lerpColors(DAY_SKY, NIGHT_SKY, night);
     this.sky.groundColor.lerpColors(DAY_GROUND, NIGHT_GROUND, night);
     this.sky.intensity = DAY_SKY_INTENSITY + (NIGHT_SKY_INTENSITY - DAY_SKY_INTENSITY) * night;
-    this.lamp.light.intensity = LAMP_INTENSITY + (NIGHT_LAMP - LAMP_INTENSITY) * night;
     this.sea?.dim(night);
 
     const sun = subsolarPoint(epochMs);
-    if (Math.abs(sun[0] - this.sun.value[0]) < SUN_STEP_DEG) return;
+    if (Math.abs(sun[0] - this.sun.value[0]) < SUN_STEP_DEG) return night;
     this.sun.value = [sun[0], sun[1]];
     const colors = this.cities.geometry.getAttribute('color');
     CITIES.forEach((city, index) => {
@@ -189,5 +183,6 @@ export class NightSky {
       colors.setW(index, Math.min(1, Math.max(0, (dark - 0.3) / 0.5)));
     });
     colors.needsUpdate = true;
+    return night;
   }
 }

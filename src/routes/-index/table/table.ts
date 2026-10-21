@@ -12,7 +12,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  NoToneMapping,
+  ACESFilmicToneMapping,
   Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -42,7 +42,7 @@ import {
 } from '@/domain/landing';
 import type { MapMotion } from '@/domain/map-motion';
 import { INK_BY_NATION } from '@/domain/nations';
-import { nightAt } from '@/domain/daylight';
+import { nightAt, sunLightAt } from '@/domain/daylight';
 import { KM_PER_UNIT } from '@/domain/routing';
 import type { UnitTier } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
@@ -50,7 +50,7 @@ import { fr } from '@/i18n/fr';
 import { figurineFor, sceneOf, type Figurine } from '@/map/engine/figurines/figurine';
 import { stride } from '@/map/engine/figurines/infantry';
 import { SEA_LEVEL, WorldFrame } from '@/map/engine/frame';
-import { castShadows, Lamp } from '@/map/engine/lamp';
+import { castShadows, Lamp, LAMP_EXPOSURE } from '@/map/engine/lamp';
 import { NightSky } from '@/map/engine/night';
 import { ARC_COLORS, PALETTE } from '@/map/engine/palette';
 import {
@@ -242,7 +242,8 @@ export class LandingTable {
       this.renderer.setPixelRatio(Math.min(narrow ? 1.6 : 2, devicePixelRatio));
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = PCFSoftShadowMap;
-      this.renderer.toneMapping = NoToneMapping;
+      this.renderer.toneMapping = ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = LAMP_EXPOSURE;
       this.scene.background = new Color(PALETTE.desk);
       this.moments = new Moments(this.scene, motion);
       this.lamp = new Lamp(this.scene);
@@ -271,7 +272,7 @@ export class LandingTable {
       desk.position.copy(paper.position).setY(-0.07);
       desk.receiveShadow = true;
       this.scene.add(paper, desk);
-      this.night = new NightSky(this.scene, this.frame, this.surface(), this.lamp, null);
+      this.night = new NightSky(this.scene, this.frame, this.surface(), null);
 
       addEventListener('resize', this.resize);
       canvas.addEventListener('pointerdown', this.onDown);
@@ -1271,7 +1272,7 @@ export class LandingTable {
     const dist = this.aimCamera(dt, name, progress);
     const instant = name === 'night' ? nightInstant(progress, this.today) : dayInstant(this.today);
     const looked = this.lonLatOf(new Vector3(this.cam.x, 0, this.cam.z));
-    this.night.apply(instant, looked, dist);
+    this.lamp.shine(sunLightAt(instant, looked), this.night.apply(instant, looked, dist));
     for (const [city, lonLat] of Object.entries(NIGHT_CITIES))
       this.setPin(
         `city:${city}`,
