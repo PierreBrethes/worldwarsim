@@ -3,6 +3,7 @@ import type { LonLat } from './geo';
 import {
   boardInstant,
   DEFAULT_DAY_CYCLE,
+  fullDayOver,
   LAMP_FLOOR_DEG,
   lampDirection,
   MOON_AZIMUTH_DEG,
@@ -163,5 +164,33 @@ describe('boardInstant', () => {
     const justBefore = Date.UTC(2026, 9, 13, 23, 59, 59);
     expect(boardInstant(justBefore, 'hour')).toBeLessThan(Date.UTC(2026, 9, 14));
     expect(boardInstant(justBefore, 'hour')).toBeGreaterThanOrEqual(Date.UTC(2026, 9, 13));
+  });
+});
+
+describe('fullDayOver', () => {
+  const noon: LonLat = [0, 0];
+  it('holds when every point is in full day, with a degree to spare', () => {
+    expect(
+      fullDayOver(noon, [
+        [2.35, 48.86],
+        [84, 0],
+      ]),
+    ).toBe(true);
+  });
+  it('fails on a point within a degree of the twilight', () => {
+    expect(
+      fullDayOver(noon, [
+        [2.35, 48.86],
+        [85.5, 0],
+      ]),
+    ).toBe(false);
+  });
+  it('fails on a point in the night', () => {
+    expect(
+      fullDayOver(noon, [
+        [2.35, 48.86],
+        [139.69, 35.69],
+      ]),
+    ).toBe(false);
   });
 });

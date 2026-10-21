@@ -53,6 +53,13 @@ export function nightOfAltitude(altitude: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** A degree over full day: what a few samples of a view's edge leave unseen between them. */
+const FULL_DAY_MARGIN_DEG = 1;
+
+/** Whether every point is in full day, a degree to spare: where the night's veil would change nothing. */
+export const fullDayOver = (sun: LonLat, points: ReadonlyArray<LonLat>): boolean =>
+  points.every((at) => sunAltitude(sun, at) >= DAY_ALTITUDE_DEG + FULL_DAY_MARGIN_DEG);
+
 export const nightAt = (epochMs: number, at: LonLat): number =>
   nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
 

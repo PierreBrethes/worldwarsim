@@ -2,7 +2,7 @@
  * **Le banc client** (#189) : ce que coûtent les gestes et la carte, au téléphone puis au bureau.
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
- *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif]
+ *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -19,7 +19,8 @@
  * build de profilage y ajoute la durée des rendus) ; côté carte, images rendues par seconde,
  * temps JS de la boucle, temps GPU (`EXT_disjoint_timer_query_webgl2`, le GPU du poste et non
  * celui d'un téléphone), appels de dessin, et le temps CPU du processus GPU de Chrome par seconde
- * (composition et commandes GL, hors du thread principal). Une fois par passe, après les gestes de
+ * (composition et commandes GL, hors du thread principal), et le temps de style et de mise en page
+ * du thread principal (`Performance.getMetrics`). Une fois par passe, après les gestes de
  * la carte : pixel ratio, tampon, carte d'ombres, programmes, textures, bandes floues. Chaque
  * chiffre est la médiane des passes. Sortie : `banc-client.json` et `banc-client.txt` dans
  * `--sortie`.
@@ -53,6 +54,9 @@ const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i')
 const shadowless = args.includes('--sans-ombres');
 /** `--heure 2026-10-21T00:00Z` : le soleil tenu à cet instant (nuit, crépuscule), `?heure=` du build de banc. */
 const heure = option('heure', null);
+/** `--couches` : le temps GPU d'une image complète, de loin puis de près, chaque couche coupée à
+ *  son tour (#199) ; l'écart à l'image entière est ce que la couche coûte. */
+const layered = args.includes('--couches');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -193,7 +197,11 @@ function instrument() {
       const source = rest.length >= 5 ? null : rest[2];
       const width = rest.length >= 5 ? rest[0] : (source?.width ?? source?.videoWidth ?? 0);
       const height = rest.length >= 5 ? rest[1] : (source?.height ?? source?.videoHeight ?? 0);
-      sized.set(bound[target], { bytes: width * height * perPixel(this, format), mips: false });
+      sized.set(bound[target], {
+        bytes: width * height * perPixel(this, format),
+        mips: false,
+        size: `${width}×${height}`,
+      });
     }
     return texImage2D.call(this, target, level, format, ...rest);
   };
@@ -201,7 +209,11 @@ function instrument() {
   GL2.texStorage2D = function (target, levels, format, width, height) {
     if (bound[target]) {
       const base = width * height * perPixel(this, format);
-      sized.set(bound[target], { bytes: levels > 1 ? (base * 4) / 3 : base, mips: true });
+      sized.set(bound[target], {
+        bytes: levels > 1 ? (base * 4) / 3 : base,
+        mips: true,
+        size: `${width}×${height}`,
+      });
     }
     return texStorage2D.call(this, target, levels, format, width, height);
   };
@@ -220,6 +232,12 @@ function instrument() {
     return deleteTexture.call(this, texture);
   };
   B.textureBytes = () => [...sized.values()].reduce((sum, { bytes }) => sum + bytes, 0);
+  /** Les plus lourdes, en Mo, avec leur taille : ce que la mémoire des textures paie d'abord. */
+  B.heaviest = () =>
+    [...sized.values()]
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 6)
+      .map(({ bytes, size }) => `${size} ${(bytes / 2 ** 20).toFixed(1)}`);
   const tick = (t) => {
     if (B.on) B.frames.push(t);
     requestAnimationFrame(tick);
@@ -345,9 +363,117 @@ function mapStatic() {
     programs: renderer.info.programs.length,
     textures: renderer.info.memory.textures,
     textureMB: window.__banc.textureBytes() / 2 ** 20,
+    heaviest: window.__banc.heaviest(),
     geometries: renderer.info.memory.geometries,
     blurBands: bands.map((node) => getComputedStyle(node).backdropFilter),
   };
+}
+
+/**
+ * **Ce que coûte chaque couche** (#199) : le GPU d'une image complète, médiane d'une seconde et
+ * demie d'images remuées, la carte entière puis chaque couche retirée du rendu (masque de calques
+ * vidé : ni dessinée, ni portée dans les ombres). Les ombres se coupent à la passe, la mer par un
+ * matériau uni à la place du sien.
+ */
+async function layerCosts() {
+  const E = window.mapEngine;
+  const B = window.__banc;
+  const R = E.renderer;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const measure = async () => {
+    B.renders = [];
+    B.on = true;
+    const start = performance.now();
+    while (performance.now() - start < 1500) {
+      E.invalidate();
+      await sleep(100);
+    }
+    B.on = false;
+    await sleep(400);
+    const gpu = B.renders
+      .slice(6)
+      .filter((r) => r.whole && r.gpu !== null)
+      .map((r) => r.gpu)
+      .sort((a, b) => a - b);
+    return gpu.length ? gpu[gpu.length >> 1] : null;
+  };
+  const hide = (roots) => () => {
+    const saved = [];
+    for (const root of roots)
+      root?.traverse((node) => {
+        saved.push([node, node.layers.mask]);
+        node.layers.mask = 0;
+      });
+    return () => {
+      for (const [node, mask] of saved) node.layers.mask = mask;
+    };
+  };
+  const scene = E.scene;
+  const shade = scene.children.find((node) => node.material?.uniforms?.depth !== undefined);
+  const ribbons = E.ambience.layers.map(({ layer }) => layer);
+  const ribbon = (fx) => ribbons.find((l) => l.constructor.name === 'RibbonLayer' && l.fx === fx);
+  const layers = [
+    [
+      'ombres',
+      () => {
+        R.shadowMap.enabled = false;
+        return () => (R.shadowMap.enabled = true);
+      },
+    ],
+    ['voile de nuit', hide([shade])],
+    ['villes', hide([E.night.cities])],
+    ['dessins', hide([E.drawings.drawing])],
+    ['lavis', hide([E.drawings.wash])],
+    ['contours', hide([E.regions.contours.group])],
+    ['régions', hide([E.regions.lines, E.regions.held, E.regions.hoverOutline])],
+    ['halos', hide([E.halos.object])],
+    ['courants', hide([ribbon('sea')?.mesh])],
+    ['vent', hide([ribbon('wind')?.mesh])],
+    ['pièces', hide([E.standing.group, E.maquettes.group, E.camps.group])],
+    ['fils', hide([E.arcs.group, E.ink.group])],
+    ['pays', hide(E.countries)],
+    ['frontières', hide([E.borders, E.coast])],
+    [
+      'mer (shader)',
+      () => {
+        // Le même matériau sans la houle de `SeaLayer.swell` : ce que coûtent écume, rose et marbrure.
+        const material = E.surface.material;
+        const plain = material.clone();
+        plain.onBeforeCompile = () => {};
+        plain.customProgramCacheKey = () => 'banc-plain';
+        E.surface.material = plain;
+        return () => {
+          E.surface.material = material;
+          plain.dispose();
+        };
+      },
+    ],
+  ];
+  // Chaque couche se compare à l'image entière mesurée juste avant elle : la carte d'un
+  // téléphone ralenti dérive d'une seconde à l'autre, une seule image de référence fausserait tout.
+  const wholes = [];
+  const costs = {};
+  for (const [name, cut] of layers) {
+    const whole = await measure();
+    const restore = cut();
+    const without = await measure();
+    restore();
+    wholes.push(whole);
+    costs[name] = whole === null || without === null ? null : whole - without;
+  }
+  const sorted = wholes.filter((w) => w !== null).sort((a, b) => a - b);
+  return { whole: sorted.length ? sorted[sorted.length >> 1] : null, costs };
+}
+
+/** Pose la caméra à `distance` du point regardé (`lonLat`, sinon celui du moment). */
+function frameAt([lonLat, distance]) {
+  const E = window.mapEngine;
+  const target = lonLat === null ? E.controls.target.clone() : E.frame.projectLonLat(lonLat, 0);
+  const away = E.camera.position.clone().sub(E.controls.target).normalize();
+  E.controls.target.copy(target);
+  E.camera.position.copy(target).addScaledVector(away, distance);
+  E.controls.update();
+  E.invalidate();
 }
 
 // --- le parcours --------------------------------------------------------------------------------
@@ -366,6 +492,12 @@ async function play(profileName, pass) {
   page.on('pageerror', (error) => console.log(`[pageerror] ${error.message}`));
   await page.addInitScript(instrument);
   const cdp = await context.newCDPSession(page);
+  // Le coût du style et de la mise en page, que ni React ni la carte ne voient (#199).
+  await cdp.send('Performance.enable');
+  const mainThread = async () =>
+    Object.fromEntries(
+      (await cdp.send('Performance.getMetrics')).metrics.map(({ name, value }) => [name, value]),
+    );
   await page.goto(`${origin}/connexion`);
   await page.getByLabel('nom de guerre').fill(accounts.a.nickname);
   await page.getByLabel('mot de passe').fill(accounts.a.password);
@@ -388,6 +520,15 @@ async function play(profileName, pass) {
   const gpu = gpuProcesses().find((pid) => !foreignGpu.has(pid));
   await page.waitForTimeout(8000);
   const { width, height } = profile.viewport;
+  /** Le cadrage d'arrivée : celui du repos, et le « loin » des couches. */
+  const home = await page.evaluate(() => {
+    const E = window.mapEngine;
+    const t = E.controls.target;
+    return [
+      E.frame.lonLatAt(t.x + E.frame.centerX, t.z + E.frame.centerY),
+      E.camera.position.distanceTo(t),
+    ];
+  });
 
   const results = {};
   const gesture = async (name, act, settle = 1200) => {
@@ -404,9 +545,12 @@ async function play(profileName, pass) {
       await cdp.send('Profiler.start');
     }
     const gpuBefore = gpu ? cpuTimeMs(gpu) : 0;
+    const threadBefore = await mainThread();
     await act();
     await page.waitForTimeout(settle);
     const gpuAfter = gpu ? cpuTimeMs(gpu) : 0;
+    const threadAfter = await mainThread();
+    const spent = (metric) => round((threadAfter[metric] - threadBefore[metric]) * 1000, 0);
     if (profiled) {
       const { profile } = await cdp.send('Profiler.stop');
       const file = `${out}/${profileName}-${name.replace(/\W+/g, '-')}.cpuprofile`;
@@ -420,6 +564,9 @@ async function play(profileName, pass) {
     });
     results[name] = summarize(raw);
     results[name].gpuProcessMsPerS = round((gpuAfter - gpuBefore) / results[name].seconds, 0);
+    results[name].styleMs = spent('RecalcStyleDuration');
+    results[name].layoutMs = spent('LayoutDuration');
+    results[name].distance = round(await page.evaluate(() => window.mapEngine.cameraDistance()));
     if (photos && pass === 0)
       await page.screenshot({
         path: `${out}/photos/${profileName}-${name.replace(/\W+/g, '-')}.png`,
@@ -504,6 +651,12 @@ async function play(profileName, pass) {
       await page.waitForTimeout(600);
     }
     await gesture(`ouvrir ${name}`, () => tap(target()));
+    if (name === 'abaque')
+      await gesture('trier abaque', () =>
+        phone
+          ? page.getByLabel('statistique à classer').selectOption({ index: 2 })
+          : page.locator('thead button').nth(2).click(),
+      );
     if (name === 'journal') {
       const box = await page.evaluate(() => {
         const scrollers = [...document.querySelectorAll('*')].filter((node) => {
@@ -604,23 +757,33 @@ async function play(profileName, pass) {
 
   // La carte : déplacer, zoomer, incliner, d'un point de mer en haut à gauche.
   /** Le point libre de la carte le plus proche : une carte d'interface posée dessus (la colonne
-   *  « en cours » au téléphone) prendrait le geste, et la caméra ne bougerait pas. */
-  const free = ([x, y]) =>
+   *  « en cours » au téléphone) prendrait le geste, et la caméra ne bougerait pas. Libre aussi à
+   *  `±spread` en x, où se posent les doigts d'un pincement : une étiquette ou une pièce sous l'un
+   *  d'eux en ferait une prise, et le pincement ne zoomerait pas (#199). */
+  const free = ([x, y], spread = [0]) =>
     page.evaluate(
-      ([x0, y0]) => {
-        const canvas = window.mapEngine.renderer.domElement;
+      ([x0, y0, offsets]) => {
+        const engine = window.mapEngine;
+        const canvas = engine.renderer.domElement;
+        const open = (x, y) =>
+          document.elementFromPoint(x, y) === canvas &&
+          !(engine.castAt(x, y) && engine.pieceUnder() !== null);
         for (let r = 0; r < 300; r += 10)
           for (let a = 0; a < 16; a++) {
             const x = Math.round(x0 + r * Math.cos((a * Math.PI) / 8));
             const y = Math.round(y0 + r * Math.sin((a * Math.PI) / 8));
-            if (document.elementFromPoint(x, y) === canvas) return [x, y];
+            if (offsets.every((dx) => open(x - dx, y) && open(x + dx, y))) return [x, y];
           }
         return [x0, y0];
       },
-      [x, y],
+      [x, y, spread],
     );
+  const PINCH = [0, 30, 60, 100, 140, 160];
   const sea = await free([Math.round(width * 0.3), Math.round(height * 0.32)]);
-  const centre = await free([Math.round(width / 2), Math.round(height * 0.45)]);
+  const centre = await free(
+    [Math.round(width / 2), Math.round(height * 0.45)],
+    phone ? PINCH : [0],
+  );
   const by = ([x, y], dx, dy) => [x + dx, y + dy];
   if (phone) {
     await gesture(
@@ -722,8 +885,76 @@ async function play(profileName, pass) {
   await page.waitForTimeout(3000);
   const statics = await page.evaluate(mapStatic);
   await gesture('repos 10 s', () => page.waitForTimeout(10000), 0);
+
+  // De bout en bout : du cadrage d'arrivée au plancher, puis jusqu'au plafond (#199), visé au
+  // large de la Bretagne : au plancher, un doigt du pincement posé sur une pièce la prendrait.
+  await page.evaluate(frameAt, [[-6, 46.5], home[1]]);
+  await page.waitForTimeout(2500);
+  // Les étiquettes ont bougé avec les gestes d'avant : le point libre se recherche.
+  const middle = await free(
+    [Math.round(width / 2), Math.round(height * 0.45)],
+    phone ? PINCH : [0],
+  );
+  const pinches = async (from, to, count) => {
+    const [x, y] = middle;
+    for (let k = 0; k < count; k++)
+      await fingers(
+        [
+          [x - from, y],
+          [x + from, y],
+        ],
+        [
+          [x - to, y],
+          [x + to, y],
+        ],
+      );
+  };
+  const wheel = async (dy, count) => {
+    await page.mouse.move(...middle);
+    for (let k = 0; k < count; k++) {
+      await page.mouse.wheel(0, dy);
+      await page.waitForTimeout(40);
+    }
+  };
+  await gesture('zoomer à fond', () => (phone ? pinches(30, 160, 4) : wheel(-120, 80)), 1700);
+  await gesture('dézoomer à fond', () => (phone ? pinches(160, 30, 5) : wheel(120, 100)), 1700);
+
+  const near = [[2.4, 46.6], 30];
+  let layers = null;
+  if (layered) {
+    await page.mouse.move(2, 2).catch(() => {});
+    // Le GPU se mesure sans le CPU ralenti : une boucle qui traîne laisse le GPU baisser sa
+    // fréquence entre deux images, et une couche retirée semblait alors coûter moins que rien.
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    layers = {};
+    for (const [label, framing] of [
+      ['près', near],
+      ['loin', home],
+    ]) {
+      await page.evaluate(frameAt, framing);
+      await page.waitForTimeout(2500);
+      layers[label] = await page.evaluate(layerCosts);
+    }
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
+  }
+  // Une région sous le pointeur, et sa fiche : la France à mi-distance.
+  await page.evaluate(frameAt, near);
+  await page.waitForTimeout(2500);
+  const land = await free([Math.round(width / 2), Math.round(height * 0.45)]);
+  if (phone) {
+    // Le toucher pose la cible du sol (« bâtir ici ») : Échap la lève.
+    await gesture('toucher région', () => page.touchscreen.tap(...land));
+    await page.keyboard.press('Escape');
+  } else
+    await gesture('survol région', async () => {
+      for (let k = 0; k <= 40; k++) {
+        await page.mouse.move(land[0] - 160 + k * 8, land[1] - 40 + k * 2);
+        await page.waitForTimeout(35);
+      }
+    });
+
   await context.close();
-  return { statics, results };
+  return { statics, results, layers };
 }
 
 const BURST_MS = 150;
@@ -800,7 +1031,18 @@ function merge(runs) {
       merged[key] = key === 'topComponents' ? each[0][key] : median(each.map((one) => one[key]));
     gestures[name] = merged;
   }
-  return { statics: runs[0].statics, gestures };
+  let layers = null;
+  if (runs[0].layers) {
+    layers = {};
+    for (const [label, first] of Object.entries(runs[0].layers)) {
+      const wholes = runs.map((run) => run.layers[label].whole);
+      const costs = {};
+      for (const name of Object.keys(first.costs))
+        costs[name] = round(median(runs.map((run) => run.layers[label].costs[name])), 2);
+      layers[label] = { whole: round(median(wholes), 2), costs };
+    }
+  }
+  return { statics: runs[0].statics, gestures, layers };
 }
 
 const COLUMNS = [
@@ -818,6 +1060,8 @@ const COLUMNS = [
   ['GPU ms', 6, 'mapGpuMs'],
   ['proc GPU', 8, 'gpuProcessMsPerS'],
   ['appels', 6, 'mapCalls'],
+  ['style', 5, 'styleMs'],
+  ['layout', 6, 'layoutMs'],
 ];
 const table = (gestures) =>
   [
@@ -858,7 +1102,11 @@ try {
     const merged = merge(runs);
     report.profiles[name] = { ...merged, runs };
     const s = merged.statics;
-    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures (~${round(s.textureMB)} Mo), ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
+    text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures (~${round(s.textureMB)} Mo : ${s.heaviest.join(', ')}), ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
+    for (const [label, { whole, costs }] of Object.entries(merged.layers ?? {}))
+      text += `couches, ${label} : image entière ${whole} ms GPU ; ${Object.entries(costs)
+        .map(([layer, ms]) => `${layer} ${ms ?? '–'}`)
+        .join(', ')}\n`;
   }
 } finally {
   await browser.close();

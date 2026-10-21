@@ -163,11 +163,14 @@ Il construit le front avec `VITE_BANC=1` (React de profilage, noms gardés, mote
 `window.mapEngine`) dans `--sortie` (par défaut `$TMPDIR/banc-client`), le sert sur :4173, puis
 joue le même parcours au téléphone (390×844, ×3, toucher, CPU ralenti ×4) et au bureau
 (1440×900) : chaque surface ouverte puis fermée, le journal défilé, le plateau personnel tiré, la
-fiche d'un bâtiment, la carte déplacée, zoomée, inclinée, puis 10 s de repos. Par geste : images
+fiche d'un bâtiment, la carte déplacée, zoomée, inclinée, 10 s de repos, puis le zoom d'un bout à
+l'autre, l'abaque trié et une région survolée (touchée au téléphone). Par geste : images
 (médiane, p95), tâches longues, délai jusqu'à l'image, commits et composants React, images de
 carte par seconde, temps JS et GPU d'une image, appels de dessin, CPU du processus GPU. Médiane
 de 3 passes (`--passes`), dans `banc-client.json` et `banc-client.txt`. `--profil telephone`
-n'en joue qu'un, `--sans-build` reprend le dernier build, `--photos` capture chaque geste, `--sans-ombres` coupe les ombres de la lampe, pour lire leur coût, `--cpu
+n'en joue qu'un, `--sans-build` reprend le dernier build, `--photos` capture chaque geste, `--sans-ombres` coupe les ombres de la lampe, pour lire leur coût, `--couches` mesure le GPU
+d'une image de près puis de loin, chaque couche de la carte retirée à son tour (ombres, voile de nuit,
+dessins, lavis, contours, mer…), `--heure 2026-10-21T00:00Z` tient le soleil à cet instant, `--cpu
 'motif'` enregistre le profil CPU des gestes qui y répondent et en imprime les fonctions les plus
 chères. Il imprime le haut de `ps` d'abord : un vérifieur ou des captures à côté faussent tout.
 

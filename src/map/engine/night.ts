@@ -149,6 +149,7 @@ function shadeMaterial(sun: { value: Vector2 }, multiply: boolean): ShaderMateri
 export class NightSky {
   private readonly sky: HemisphereLight;
   private readonly cities: Points<BufferGeometry, PointsMaterial>;
+  private readonly shade: Mesh<BufferGeometry, ShaderMaterial>;
   private readonly sun = { value: new Vector2(Number.NaN, 0) };
   /** What the inks drawn on the sheet read to know the night under them. */
   readonly uniforms: NightUniforms;
@@ -191,10 +192,16 @@ export class NightSky {
     );
     this.cities.renderOrder = SHADE_RANK + 1;
     this.cities.material.userData.ownsMap = true;
-    const shade = new Mesh(surface, shadeMaterial(this.sun, !landing));
-    shade.position.y = SHADE_LIFT - SEA_LEVEL;
-    shade.renderOrder = SHADE_RANK;
-    scene.add(this.sky, shade, this.cities);
+    this.shade = new Mesh(surface, shadeMaterial(this.sun, !landing));
+    this.shade.position.y = SHADE_LIFT - SEA_LEVEL;
+    this.shade.renderOrder = SHADE_RANK;
+    scene.add(this.sky, this.shade, this.cities);
+  }
+
+  /** **En plein jour partout à l'écran, pas de voile** (#199) : il y multiplierait la feuille par un
+   *  blanc pur, une passe sur tout l'écran pour une image identique. */
+  veil(on: boolean): void {
+    this.shade.visible = on;
   }
 
   /**

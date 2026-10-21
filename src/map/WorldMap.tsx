@@ -40,6 +40,7 @@ import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { shareUnchanged } from '@/data/shareUnchanged';
 import { useDayCycle } from '@/data/dayCycle';
 import { useContourWeight } from '@/data/contourWeight';
 import { useMapMotion } from '@/data/mapMotion';
@@ -310,6 +311,17 @@ export type PlacingBuilding = {
   readonly refusal: string | null;
 };
 
+/** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
+ *  effects that read it do not run again for nothing. */
+function useShared<T>(value: T): T {
+  const last = useRef(value);
+  const shared = shareUnchanged(last.current, value);
+  useLayoutEffect(() => {
+    last.current = shared;
+  });
+  return shared;
+}
+
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
@@ -320,9 +332,9 @@ export function WorldMap({
   arcs,
   troops,
   journal,
-  labels,
-  standing,
-  camps,
+  labels: servedLabels,
+  standing: servedStanding,
+  camps: servedCamps,
   maquettes,
   held,
   outposts,
@@ -381,7 +393,7 @@ export function WorldMap({
   onTakeDepot,
   onTour,
   cue = null,
-  selectedPiles = NO_PILES,
+  selectedPiles: servedSelection = NO_PILES,
   onLasso,
   onSelectHold,
   selectionBar = null,
@@ -392,6 +404,13 @@ export function WorldMap({
   onReplayStep,
   replayBelow = 0,
 }: Props) {
+  // **Une liste rebâtie mais égale reste la même** (#199) : marquer le journal lu change la vue du
+  // joueur, le plateau rebâtit piles, camps, sélection et étiquettes à l'identique, et chaque effet
+  // qui les lit réveillait la carte une seconde et demie à soixante images.
+  const labels = useShared(servedLabels);
+  const standing = useShared(servedStanding);
+  const camps = useShared(servedCamps);
+  const selectedPiles = useShared(servedSelection);
   const container = useRef<HTMLDivElement>(null);
   const insets = useBoardInsets();
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
