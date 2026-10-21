@@ -73,6 +73,7 @@ import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
+import { TerrainDrawings } from './terrain-drawings';
 import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
@@ -338,6 +339,7 @@ export class MapEngine {
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
+  private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
@@ -663,6 +665,8 @@ export class MapEngine {
       (id) => this.maquettes.drawnAt(id),
     );
 
+    this.drawings = new TerrainDrawings(this.frame, this.renderer.capabilities.getMaxAnisotropy());
+    this.scene.add(this.drawings.object);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.contours.group);
@@ -929,6 +933,7 @@ export class MapEngine {
   displayRegions(data: RegionsData): void {
     this.invalidate();
     this.regions.display(data);
+    this.drawings.display(data.regions);
     // The 500 KB land half a second after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.
@@ -1374,6 +1379,7 @@ export class MapEngine {
     this.ink.dispose();
     this.parachutes.dispose();
     this.regions.dispose();
+    this.drawings.dispose();
     this.sea?.dispose();
     this.veil.dispose();
     this.scene.traverse(disposeNode);
