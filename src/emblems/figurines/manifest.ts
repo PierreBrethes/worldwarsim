@@ -4,6 +4,7 @@ import cnArmor2 from './china/armor-2.glb';
 import cnArtillery from './china/artillery.glb';
 import cnBomber from './china/bomber.glb';
 import cnCargo from './china/cargo.glb';
+import cnCarrier from './china/carrier.glb';
 import cnEscort from './china/escort.glb';
 import cnFighter from './china/fighter.glb';
 import cnInfantry1 from './china/infantry-1.glb';
@@ -36,6 +37,7 @@ import itArmor2 from './italy/armor-2.glb';
 import itArtillery from './italy/artillery.glb';
 import itBomber from './italy/bomber.glb';
 import itCargo from './italy/cargo.glb';
+import itCarrier from './italy/carrier.glb';
 import itEscort from './italy/escort.glb';
 import itFighter from './italy/fighter.glb';
 import itInfantry1 from './italy/infantry-1.glb';
@@ -82,6 +84,7 @@ import suArmor2 from './ussr/armor-2.glb';
 import suArtillery from './ussr/artillery.glb';
 import suBomber from './ussr/bomber.glb';
 import suCargo from './ussr/cargo.glb';
+import suCarrier from './ussr/carrier.glb';
 import suEscort from './ussr/escort.glb';
 import suFighter from './ussr/fighter.glb';
 import suInfantry1 from './ussr/infantry-1.glb';
@@ -149,6 +152,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     airTransport: suAirTransport,
     escort: suEscort,
     cargo: suCargo,
+    carrier: suCarrier,
   },
   germany: {
     infantry: [deInfantry1, deInfantry2],
@@ -171,6 +175,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     airTransport: cnAirTransport,
     escort: cnEscort,
     cargo: cnCargo,
+    carrier: cnCarrier,
   },
   italy: {
     infantry: [itInfantry1, itInfantry2],
@@ -182,6 +187,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     airTransport: itAirTransport,
     escort: itEscort,
     cargo: itCargo,
+    carrier: itCarrier,
   },
   japan: {
     infantry: [jpInfantry1, jpInfantry2],
