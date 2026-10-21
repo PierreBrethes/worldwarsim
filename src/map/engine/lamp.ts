@@ -35,7 +35,8 @@ const NIGHT_INTENSITY = 0.9;
 const MOON_COLOR = new Color('#a9bde6');
 /** Assez loin pour que tout le cadre d'ombre tienne devant elle, à n'importe quel zoom permis. */
 const LAMP_DISTANCE = 300;
-const SHADOW_MAP = 2048;
+/** La carte d'ombres du bureau ; au doigt, le moteur en demande une plus petite (`index.ts`). */
+export const SHADOW_MAP = 2048;
 
 /**
  * **La carte d'ombres ne couvre que ce que la caméra regarde** : un demi-côté en unités de
@@ -76,8 +77,11 @@ export class Lamp {
   private readonly up = new Vector3();
   private readonly aim = new Vector3();
 
-  constructor(scene: Scene) {
-    this.light.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  constructor(
+    scene: Scene,
+    private readonly shadowMap = SHADOW_MAP,
+  ) {
+    this.light.shadow.mapSize.set(shadowMap, shadowMap);
     this.light.shadow.bias = -0.0004;
     this.light.shadow.normalBias = 0.02;
     scene.add(this.light, this.light.target);
@@ -118,7 +122,7 @@ export class Lamp {
 
     // Calé au texel près dans le plan de la lampe : sinon chaque pas de la caméra fait
     // scintiller le bord des ombres.
-    const texel = (2 * reach) / SHADOW_MAP;
+    const texel = (2 * reach) / this.shadowMap;
     this.aim.copy(target);
     for (const axis of [this.right, this.up]) {
       const along = target.dot(axis);
