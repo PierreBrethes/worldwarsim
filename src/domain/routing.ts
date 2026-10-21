@@ -415,8 +415,8 @@ export function computeRoute(
   if (mode === 'land' && !allowed.includes(grid.cells[projectOnGrid(grid, to)]!)) return null;
   if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
 
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
-  const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
+  const goal = nearestCell(grid, projectOnGrid(grid, to), mode);
   if (start === null || goal === null) return null;
 
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
@@ -453,7 +453,7 @@ export function routeDistanceKmField(
 ): Float64Array {
   const allowed = ALLOWED_BY_MODE[mode];
   const kilometres = new Float64Array(grid.cells.length).fill(Number.POSITIVE_INFINITY);
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
   if (start === null) return kilometres;
 
   const heap = new BinaryHeap();
@@ -553,7 +553,7 @@ export function routeDistanceKmAt(
   point: LonLat,
   mode: 'land' | 'combined',
 ): number | null {
-  const cell = nearestCell(grid, projectOnGrid(grid, point), ALLOWED_BY_MODE[mode]);
+  const cell = nearestCell(grid, projectOnGrid(grid, point), mode);
   if (cell === null) return null;
   const kilometres = field[cell]!;
   return Number.isFinite(kilometres) ? kilometres : null;
@@ -594,7 +594,7 @@ export function computeRouteToAny(
   const allowed = ALLOWED_BY_MODE[mode];
   const usableGoals = new Set([...goalCells].filter((cell) => allowed.includes(grid.cells[cell]!)));
   if (usableGoals.size === 0) return null;
-  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  const start = nearestCell(grid, projectOnGrid(grid, from), mode);
   if (start === null) return null;
   const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), mode, landCost);
   return path === null ? null : routeSearchOf(grid, path, mode, landCost);
@@ -1115,12 +1115,59 @@ function engravePassage(
 
 /* -------------------------------- traversal ------------------------------- */
 
+/**
+ * **The water a ship can leave from is the open sea**, never a pond or a fjord narrower than a
+ * cell: the largest water component, gates included. Computed once per grid. Without it
+ * `nearestCell` took the closest water cell, found it cut off from the sea, and the trip had no
+ * path (Murmansk, on the 10m coast).
+ */
+const openWaters = new WeakMap<RouteGrid, Uint8Array>();
+
+function openWaterOf(grid: RouteGrid): Uint8Array {
+  const known = openWaters.get(grid);
+  if (known !== undefined) return known;
+  const component = new Int32Array(grid.cells.length);
+  const around: number[] = [];
+  const stack: number[] = [];
+  let largest = 0;
+  let largestSize = 0;
+  let label = 0;
+  for (let cell = 0; cell < grid.cells.length; cell++) {
+    if (component[cell] !== 0 || !isWaterType(grid.cells[cell]!)) continue;
+    label += 1;
+    let size = 0;
+    component[cell] = label;
+    stack.push(cell);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      size += 1;
+      const count = neighbors(grid, current, around);
+      for (let i = 0; i < count; i++) {
+        const next = around[i]!;
+        if (component[next] !== 0 || !isWaterType(grid.cells[next]!)) continue;
+        component[next] = label;
+        stack.push(next);
+      }
+    }
+    if (size > largestSize) {
+      largestSize = size;
+      largest = label;
+    }
+  }
+  const open = new Uint8Array(grid.cells.length);
+  for (let cell = 0; cell < open.length; cell++) if (component[cell] === largest) open[cell] = 1;
+  openWaters.set(grid, open);
+  return open;
+}
+
 function nearestCell(
   grid: RouteGrid,
   origin: number,
-  allowed: ReadonlyArray<number>,
+  mode: 'land' | 'naval' | 'combined',
   maxRadius = 24,
 ): number | null {
+  const allowed = ALLOWED_BY_MODE[mode];
+  const open = mode === 'land' ? null : openWaterOf(grid);
   const column0 = origin % grid.width;
   const row0 = Math.floor(origin / grid.width);
   for (let radius = 0; radius <= maxRadius; radius++) {
@@ -1134,6 +1181,7 @@ function nearestCell(
         if (row < 0 || column < 0 || row >= grid.height || column >= grid.width) continue;
         const cell = row * grid.width + column;
         if (!allowed.includes(grid.cells[cell]!)) continue;
+        if (open !== null && isWaterType(grid.cells[cell]!) && open[cell] === 0) continue;
         const distance = dr * dr + dc * dc;
         if (distance < bestDistance) {
           bestDistance = distance;

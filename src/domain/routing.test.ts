@@ -205,6 +205,14 @@ describe('east-west wrapping', () => {
 });
 
 describe('on the real world', () => {
+  /** Murmansk's point falls in a fjord narrower than a cell: the ship leaves from the open sea. */
+  it('sails from Murmansk, whose nearest water is cut off from the sea', async () => {
+    const route = computeRoute(buildGrid(await realWorld()), [33.0, 69.05], [-1.1, 50.8], 'naval');
+    expect(route).not.toBeNull();
+    expect(route!.costUnits).toBeGreaterThan(45.32 * 0.99);
+    expect(route!.costUnits).toBeLessThan(45.32 * 1.01);
+  });
+
   it('engraves the sea gates: Gibraltar stays open', async () => {
     const world = await realWorld();
     const worldGrid = buildGrid(world);
