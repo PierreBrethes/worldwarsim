@@ -89,26 +89,33 @@ export function planBlitzMap({
     );
   if (tries.length === 0) return null;
 
-  /** **L'équité se mesure par la route**, mais seulement sur les deux tours les plus réguliers à
-   *  vol d'oiseau : un champ combiné par QG et par tour coûterait des secondes au Pacifique. */
+  /** **L'équité se mesure par la route**, d'abord sur les deux tours les plus réguliers à vol
+   *  d'oiseau : un champ combiné par QG et par tour coûterait des secondes au Pacifique. Les
+   *  suivants ne sont éprouvés que si aucun des deux ne tient, plutôt que de refuser la carte. */
   const flying = (hqs: ReadonlyArray<string>) =>
     evennessOf(hqs, (a, b) => distanceKm(byId.get(a)!.point, byId.get(b)!.point));
-  const shortlist = [...tries].sort((a, b) => flying(b.hqs) - flying(a.hqs)).slice(0, 2);
+  const ranked = [...tries].sort((a, b) => flying(b.hqs) - flying(a.hqs));
   const reachOf = (hqs: ReadonlyArray<string>) =>
     2 *
     Math.max(
       ...hqs.flatMap((a) => hqs.map((b) => distanceKm(byId.get(a)!.point, byId.get(b)!.point))),
     );
-  const byRoad = shortlist.map((attempt) => {
+  const byRoad = (attempt: (typeof ranked)[number]) => {
     const reach = reachOf(attempt.hqs);
     return {
       ...attempt,
       evenness: evennessOf(attempt.hqs, (a, b) => measure(a, 'combined', reach).get(b) ?? 0),
     };
-  });
-  const best = byRoad.reduce((kept, attempt) =>
-    attempt.evenness > kept.evenness ? attempt : kept,
-  );
+  };
+  let best = ranked
+    .slice(0, 2)
+    .map(byRoad)
+    .reduce((kept, attempt) => (attempt.evenness > kept.evenness ? attempt : kept));
+  for (const attempt of ranked.slice(2)) {
+    if (best.evenness >= rules.hqEvenness) break;
+    const measured = byRoad(attempt);
+    if (measured.evenness > best.evenness) best = measured;
+  }
   if (best.evenness < rules.hqEvenness) return null;
 
   const { hqs, sites } = best;
