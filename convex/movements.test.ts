@@ -2735,7 +2735,7 @@ describe('the door of the sea, read on the pile', () => {
       lon: KENT[0],
       lat: KENT[1],
       coastal: true,
-      onLand: true,
+      ground: 'land',
       surveyed: true,
     };
     const quayless: Column = {
@@ -2787,7 +2787,7 @@ describe('the door of the sea, read on the pile', () => {
       lon: KENT[0],
       lat: KENT[1],
       coastal: true,
-      onLand: true,
+      ground: 'land',
       surveyed: true,
     };
     const inland: MovementAim = {
@@ -2795,7 +2795,7 @@ describe('the door of the sea, read on the pile', () => {
       lon: MIDLANDS[0],
       lat: MIDLANDS[1],
       coastal: false,
-      onLand: true,
+      ground: 'land',
       surveyed: true,
     };
     expect(coastAtPoint(KENT)).toBe(true);

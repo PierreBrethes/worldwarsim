@@ -358,7 +358,12 @@ export function build(
      */
     case 'point':
       return target.country === null
-        ? { kicker: fr.compass.openWater, name: target.name, actions: [], refusal: null }
+        ? {
+            kicker: target.ground === 'lake' ? fr.compass.lake : fr.compass.openWater,
+            name: target.name,
+            actions: [],
+            refusal: null,
+          }
         : build({ kind: 'country', country: target.country }, view, null);
   }
 }

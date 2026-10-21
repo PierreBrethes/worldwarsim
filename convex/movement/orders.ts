@@ -33,7 +33,7 @@ import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
 import { regionNameAt } from '../placeNames';
 import { pointOfBuilding, regionFacts } from '../regions';
-import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
+import { coastAtPoint, groundAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
@@ -387,7 +387,7 @@ export async function aimOf(
         lon: point[0],
         lat: point[1],
         coastal: coastAtPoint(point),
-        onLand: landAtPoint(point),
+        ground: groundAtPoint(point),
         surveyed: await surveyedIn(ctx, playerId, regionAtRoutePoint(point)),
       },
       target: { kind: 'point', point: target.point },
@@ -417,7 +417,7 @@ export async function aimOf(
         /** La même grille que la visée a lue, et la même que le départ lira : un camp mouillé
          *  en mer se vise par la mer (18/09). Le `medium` de la ligne dit déjà le premier, il
          *  ne dit pas la côte — une seule géométrie répond aux deux. */
-        onLand: landAtPoint(point),
+        ground: groundAtPoint(point),
         coastal: coastAtPoint(point),
       },
       target: { kind: 'point', point: camp.point },
@@ -438,7 +438,7 @@ export async function aimOf(
         lon: point[0],
         lat: point[1],
         hostCountry: country,
-        onLand: landAtPoint(point),
+        ground: groundAtPoint(point),
         coastal: coastAtPoint(point),
       },
       target: { kind: 'point', point: asPoint(point) },

@@ -128,7 +128,7 @@ export function collectFan(
     kind: 'point',
     lon: target.point[0],
     lat: target.point[1],
-    onLand: target.onLand ?? true,
+    ground: target.ground ?? 'land',
     coastal: target.coastal ?? false,
     /** Un ramassage est une marche : ce qu'on a relevé du sol n'entre pas dans son refus. */
     surveyed: false,

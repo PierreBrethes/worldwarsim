@@ -26,7 +26,7 @@ const march = (type: 'march' | 'attack' = 'march'): CompassAction => ({
   label: type,
   cost: '1 slot · 3 libres',
   consequence: '',
-  aim: { kind: 'point', lon: 1, lat: 1, coastal: false, onLand: true, surveyed: false },
+  aim: { kind: 'point', lon: 1, lat: 1, coastal: false, ground: 'land', surveyed: false },
   type,
 });
 

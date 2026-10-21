@@ -9,6 +9,7 @@ import { onTourRefusalOf } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
+import type { Ground } from './routing';
 import type { BuildingKey, MovementType, ResourceKey, Specialization } from './ids';
 import { type Cost, type PlayerView, type TroopStation } from './player-view';
 
@@ -85,7 +86,7 @@ export type CompassTarget =
        * interroger. Ils sont arrivés avec le large (18/09) : un camp mouillé en mer n'était
        * visable par aucune flotte.
        */
-      readonly onLand?: boolean;
+      readonly ground?: Ground;
       readonly coastal?: boolean;
       readonly name: string;
     }
@@ -99,7 +100,7 @@ export type CompassTarget =
       readonly id: string;
       readonly point: LonLat;
       readonly country: string | null;
-      readonly onLand: boolean;
+      readonly ground: Ground;
       readonly coastal: boolean;
       readonly name: string;
     }
@@ -145,7 +146,7 @@ export type CompassTarget =
        * relevé n'en porte rien. Absents, la marche est jugée sur terre ferme : c'est le cas du
        * dézoom, où la carte n'a pas de cellule à interroger.
        */
-      readonly onLand?: boolean;
+      readonly ground?: Ground;
       readonly coastal?: boolean;
       readonly name?: string;
     }
@@ -161,7 +162,7 @@ export type CompassTarget =
       readonly lon: number;
       readonly lat: number;
       readonly regionId: string | null;
-      readonly onLand: boolean;
+      readonly ground: Ground;
       readonly country: string | null;
       readonly name: string;
       /** Idem : la cellule visée est-elle une côte ? C'est ce qui sépare une plage d'un point
@@ -735,7 +736,7 @@ function aim(
         lon: target.point[0],
         lat: target.point[1],
         hostCountry: target.country ?? '',
-        onLand: target.onLand ?? true,
+        ground: target.ground ?? 'land',
         coastal: target.coastal ?? false,
       },
     ]);
@@ -748,7 +749,7 @@ function aim(
         lon: target.point[0],
         lat: target.point[1],
         hostCountry: target.country ?? '',
-        onLand: target.onLand,
+        ground: target.ground,
         coastal: target.coastal,
       },
     ]);
@@ -814,7 +815,7 @@ function aim(
       lon: target.lon,
       lat: target.lat,
       coastal: target.coastal,
-      onLand: target.onLand,
+      ground: target.ground,
       /** **Ce que le joueur a relevé sous ce sol**, et la seule chose qui ouvre « attaquer »
        *  (ADR 0024 §4). Lu dans sa vue et nulle part ailleurs : demander au plateau dirait qu'il
        *  y a quelque chose là où il croyait viser du vide. */

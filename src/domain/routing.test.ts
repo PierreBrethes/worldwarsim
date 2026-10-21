@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeAtlas } from './atlas';
 import { atlasWorld } from './atlas-world';
 import type { World } from './world';
+import { refusalOf, type Column, type MovementAim } from './movement-orders';
 import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
@@ -9,6 +10,7 @@ import {
   buildGrid,
   coastCellsIn,
   computeRoute,
+  groundAt,
   countryAt,
   isCoastCell,
   isLandCell,
@@ -154,6 +156,42 @@ describe('a coast cell', () => {
     expect(isLandCell(withLagoon, toLonLat(12.5, 25.5))).toBe(false);
     expect(isCoastCell(withLagoon, toLonLat(15.5, 25.5))).toBe(false);
     expect(computeRoute(withLagoon, toLonLat(5.5, 25.5), toLonLat(12.5, 25.5), 'naval')).toBeNull();
+  });
+
+  /** **Une règle, une fonction** (ADR 0015) : la visée et le serveur lisent le même sol, et la
+   *  règle partagée refuse le lac avant la route qui n'existe pas. */
+  it('reads a lake as a lake, so the order is refused before any route is sought', () => {
+    const lagoon = [
+      [10, 22],
+      [15, 22],
+      [15, 28],
+      [10, 28],
+    ] as const;
+    const world = toyWorld();
+    const westland = world.countries[0]!;
+    const withLagoon = buildGrid(
+      {
+        ...world,
+        countries: [{ ...westland, rings: [...westland.rings, lagoon] }],
+        lakes: [lagoon],
+      },
+      1,
+    );
+    const [lon, lat] = toLonLat(12.5, 25.5);
+    expect(groundAt(withLagoon, toLonLat(5.5, 25.5))).toBe('sea');
+    expect(groundAt(withLagoon, toLonLat(20.5, 25.5))).toBe('land');
+    const ground = groundAt(withLagoon, [lon, lat]);
+    expect(ground).toBe('lake');
+    const fleet: Column = {
+      roles: ['cargo'],
+      myRegionIds: new Set(),
+      myOutpostIds: new Set(),
+      departureBuildings: new Set(['port']),
+      afloat: true,
+      coastal: false,
+    };
+    const aim: MovementAim = { kind: 'point', lon, lat, ground, coastal: false, surveyed: false };
+    expect(refusalOf('march', aim, fleet)).toBe('LAKE_TARGET');
   });
 
   it('is not the water off it — a quay stands on the ground', () => {

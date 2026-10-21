@@ -828,8 +828,20 @@ function airRoute(grid: RouteGrid, from: LonLat, to: LonLat): ComputedRoute {
   };
 }
 
+/**
+ * **Le sol d'un point, en trois mots** : la terre qu'on foule, la mer qu'on navigue (un canal en
+ * est), et le lac, qui n'est ni l'un ni l'autre. La visée et le serveur le lisent ici tous deux,
+ * pour que la règle partagée refuse le lac avant la route qui n'y mènerait pas (ADR 0015).
+ */
+export type Ground = 'land' | 'sea' | 'lake';
+
+export function groundAt(grid: RouteGrid, lonLat: LonLat): Ground {
+  const cell = grid.cells[projectOnGrid(grid, lonLat)];
+  return cell === LAND ? 'land' : cell === LAKE ? 'lake' : 'sea';
+}
+
 export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
-  grid.cells[projectOnGrid(grid, lonLat)] === LAND;
+  groundAt(grid, lonLat) === 'land';
 
 /**
  * **A coast, as the routing knows one** — a land cell touching the open sea (`openWaterOf`), and

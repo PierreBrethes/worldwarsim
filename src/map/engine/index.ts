@@ -36,7 +36,8 @@ import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
   coastCellsIn,
   isCoastCell,
-  isLandCell,
+  groundAt,
+  type Ground,
   KM_PER_UNIT,
   type Medium,
   type RouteGrid,
@@ -2255,7 +2256,12 @@ export class MapEngine {
   }
 
   landAt(lonLat: LonLat): boolean {
-    return this.routeGrid !== null && isLandCell(this.routeGrid, lonLat);
+    return this.groundAt(lonLat) === 'land';
+  }
+
+  /** Terre, mer ou lac, sur la grille que le serveur lit avec `groundAtPoint`. */
+  groundAt(lonLat: LonLat): Ground {
+    return this.routeGrid === null ? 'sea' : groundAt(this.routeGrid, lonLat);
   }
 
   /**

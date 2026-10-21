@@ -1,10 +1,11 @@
 import type { LonLat } from '../src/domain/geo';
-import type { ComputedRoute, RouteMode } from '../src/domain/routing';
+import type { ComputedRoute, Ground, RouteMode } from '../src/domain/routing';
 import {
   computeRoute,
   computeRouteToAny,
   decodeGrid,
   isCoastCell,
+  groundAt,
   isLandCell,
   extendRouteSearch,
   routeDistanceKmAt,
@@ -156,8 +157,13 @@ export function coastPointNear(point: LonLat): LonLat | null {
 }
 
 export function landAtPoint(point: LonLat): boolean {
+  return groundAtPoint(point) === 'land';
+}
+
+/** Le sol que la visée a lu (`MapEngine.groundAt`), sur la même grille. */
+export function groundAtPoint(point: LonLat): Ground {
   grid ??= decodeGrid(gridAsset, world);
-  return isLandCell(grid, point);
+  return groundAt(grid, point);
 }
 
 /**

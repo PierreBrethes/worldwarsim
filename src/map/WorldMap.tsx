@@ -22,6 +22,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
 import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
@@ -611,7 +612,10 @@ export function WorldMap({
    * donc pas offrir une plage que la mutation renverrait (ADR 0015).
    */
   const coastAt = useCallback((lonLat: LonLat) => engine.current?.coastAt(lonLat) ?? false, []);
-  const landAt = useCallback((lonLat: LonLat) => engine.current?.landAt(lonLat) ?? false, []);
+  const groundAt = useCallback(
+    (lonLat: LonLat): Ground => engine.current?.groundAt(lonLat) ?? 'sea',
+    [],
+  );
 
   useEffect(() => {
     if (!readyEngine) return;
@@ -634,7 +638,7 @@ export function WorldMap({
           region,
           point,
           point !== null && coastAt(point),
-          point !== null && landAt(point),
+          point === null ? 'sea' : groundAt(point),
         );
         if (aimed === null) {
           setRose(null);
@@ -658,7 +662,7 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, landAt]);
+  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -688,7 +692,7 @@ export function WorldMap({
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
        *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
       const region = map?.regionAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country, region, coastAt, landAt);
+      const target = targetOfLabel(label, country, region, coastAt, groundAt);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
@@ -719,7 +723,7 @@ export function WorldMap({
           id: chased.id,
           point: ground,
           country,
-          onLand: landAt(ground),
+          ground: groundAt(ground),
           coastal: coastAt(ground),
           name: fr.compass.enemyColumn,
         };
@@ -729,10 +733,10 @@ export function WorldMap({
         region,
         ground,
         ground !== null && coastAt(ground),
-        ground !== null && landAt(ground),
+        ground === null ? 'sea' : groundAt(ground),
       );
     },
-    [aiming, coastAt, landAt, blitz, arcs],
+    [aiming, coastAt, groundAt, blitz, arcs],
   );
 
   const onLabelAct = useCallback(
@@ -905,7 +909,7 @@ export function WorldMap({
                 readyEngine.regionAtPoint(clientX, clientY),
                 point,
                 point !== null && coastAt(point),
-                point !== null && landAt(point),
+                point === null ? 'sea' : groundAt(point),
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
@@ -923,7 +927,7 @@ export function WorldMap({
     labelTarget,
     compassOf,
     coastAt,
-    landAt,
+    groundAt,
     chosenOf,
     onDropRefused,
     onCarryEnd,
@@ -958,9 +962,9 @@ export function WorldMap({
       return;
     }
     const region = readyEngine?.regionAtLonLat(label.anchor.lonLat) ?? null;
-    const target = targetOfLabel(label, null, region, coastAt, landAt);
+    const target = targetOfLabel(label, null, region, coastAt, groundAt);
     onHeldCompass(target === null ? null : compassOf(target));
-  }, [readyEngine, holding, labels, compassOf, coastAt, landAt, onHeldCompass]);
+  }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, onHeldCompass]);
 
   /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
    *  là — l'étiquette sous le pointeur ou le sol —, et l'ordre est le premier que la rose y
@@ -976,7 +980,7 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : point === null
             ? null
-            : pointTarget(country, region, point, coastAt(point), landAt(point));
+            : pointTarget(country, region, point, coastAt(point), groundAt(point));
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
       const verb = read.kind === 'orders' ? read.verbs[chosenOf(read.verbs)] : undefined;
@@ -987,7 +991,7 @@ export function WorldMap({
       });
     };
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
-  }, [readyEngine, compassOf, onRestAim, coastAt, landAt, labels, labelTarget, chosenOf]);
+  }, [readyEngine, compassOf, onRestAim, coastAt, groundAt, labels, labelTarget, chosenOf]);
 
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
@@ -1597,7 +1601,7 @@ function pointTarget(
   region: RegionIdentity | null,
   point: LonLat | null,
   coastal: boolean,
-  onLand: boolean,
+  ground: Ground,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -1606,9 +1610,15 @@ function pointTarget(
     lat: point[1],
     regionId: region?.id ?? null,
     country,
-    name: region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country)),
+    name:
+      region?.name ??
+      (ground === 'lake'
+        ? fr.compass.lake
+        : country === null
+          ? fr.compass.openWater
+          : countryLabel(country)),
     coastal,
-    onLand,
+    ground,
   };
 }
 
@@ -1623,7 +1633,7 @@ export function targetOfLabel(
   /** **La côte se lit sur le point du label, jamais sous le curseur** : un mât plein cadre
    *  déborde sa cellule, et une colonne embarquée débarque à l'ancre, pas là où on a cliqué. */
   coastAt: (lonLat: LonLat) => boolean,
-  landAt: (lonLat: LonLat) => boolean,
+  groundAt: (lonLat: LonLat) => Ground,
 ): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null && label.station?.kind === 'outpost') {
     return {
@@ -1668,7 +1678,7 @@ export function targetOfLabel(
       id: label.lootSightingId,
       point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
       current: label.lootCurrent,
-      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
+      ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
       name: lineText(label, 'nature') ?? fr.loot.cardKicker,
     };
@@ -1711,7 +1721,7 @@ export function targetOfLabel(
       country,
       /** Sur le point du mât, jamais sous le curseur : un mât plein cadre déborde sa cellule, et
        *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
-      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
+      ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
       name: fr.camps.marker,
     };
@@ -1723,7 +1733,7 @@ export function targetOfLabel(
       country,
       name: label.force?.composition ?? fr.compass.fallbackForce,
       headcount: label.force?.headcount ?? 0,
-      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
+      onLand: label.anchor.kind === 'ground' && groundAt(label.anchor.lonLat) === 'land',
       /** Son adresse : on fonde où l'on se tient, donc c'est le point que la branche plantera. */
       station: label.station,
       regionId: region?.id ?? null,

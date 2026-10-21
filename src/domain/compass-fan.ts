@@ -135,6 +135,7 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'AIRFIELD_TARGET_REQUIRED',
   'LAND_TARGET_REQUIRED',
   'SEA_TARGET_REQUIRED',
+  'LAKE_TARGET',
   'INFANTRY_ONLY',
   /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
