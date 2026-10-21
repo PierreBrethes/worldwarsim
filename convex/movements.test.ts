@@ -2916,6 +2916,36 @@ describe('the door of the sea, read on the pile', () => {
     ).resolves.toBeDefined();
   });
 
+  /** **Un lac n'est ni la mer ni la terre** (ADR 0034) : la flotte s'y voit refuser le lac, du
+   *  mot que la rose dit avant le geste ; une escadre, elle, le survole et s'y pose. */
+  it('refuses a fleet the Caspian, and lets a squadron fly there', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const caspian = { lon: 50.5, lat: 42 };
+    const quay = await raise(t, seat, 'port', NORD);
+    const cargo = await form(t, seat, 'cargo', quay);
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'building', buildingId: quay },
+        troopIds: [cargo],
+        point: caspian,
+      }),
+    ).rejects.toThrow('LAKE_TARGET');
+
+    /** Une piste à Qazax, assez près pour le plein d'un chasseur. */
+    const field = await raise(t, seat, 'airfield', 'AZE-1684');
+    const fighter = await form(t, seat, 'fighter', field);
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'building', buildingId: field },
+        troopIds: [fighter],
+        point: caspian,
+      }),
+    ).resolves.toBeDefined();
+  });
+
   it('refuses the landed infantry a sea destination in both preview and send', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
