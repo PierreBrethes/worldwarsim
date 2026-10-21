@@ -814,7 +814,8 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
   grid.cells[projectOnGrid(grid, lonLat)] === LAND;
 
 /**
- * **A coast, as the routing knows one** — a land cell touching water, and nothing else. A canal
+ * **A coast, as the routing knows one** — a land cell touching the open sea (`openWaterOf`), and
+ * nothing else: the shore of a lake or of the Caspian is no quay, a hull could not leave it. A canal
  * counts as that water: Colón, Balboa, Port-Saïd and Suez are ports, and a hull sails from them
  * on this very grid. It is the only definition that can hold: a port is put up so that a ship leaves from it, and what a
  * ship knows of geography is this grid. A coastline read off another source would say "coastal"
@@ -826,11 +827,10 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
 export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   const cell = projectOnGrid(grid, lonLat);
   if (grid.cells[cell] !== LAND) return false;
+  const open = openWaterOf(grid);
   const around: number[] = [];
   const count = neighbors(grid, cell, around);
-  for (let i = 0; i < count; i++) {
-    if (isWaterType(grid.cells[around[i]!]!)) return true;
-  }
+  for (let i = 0; i < count; i++) if (open[around[i]!] === 1) return true;
   return false;
 }
 
@@ -854,6 +854,7 @@ export function coastCellsIn(
   const lastRow = Math.min(grid.height - 1, Math.ceil((maxY - grid.sphere.minY) / grid.step));
 
   const found: Array<{ x: number; y: number; lonLat: LonLat }> = [];
+  const open = openWaterOf(grid);
   const around: number[] = [];
   for (let row = firstRow; row <= lastRow; row++) {
     for (let column = firstColumn; column <= lastColumn; column++) {
@@ -861,8 +862,7 @@ export function coastCellsIn(
       if (grid.cells[cell] !== LAND) continue;
       const count = neighbors(grid, cell, around);
       let touchesSea = false;
-      for (let i = 0; i < count && !touchesSea; i++)
-        touchesSea = isWaterType(grid.cells[around[i]!]!);
+      for (let i = 0; i < count && !touchesSea; i++) touchesSea = open[around[i]!] === 1;
       if (!touchesSea) continue;
       found.push({
         x: grid.sphere.minX + (column + 0.5) * grid.step,

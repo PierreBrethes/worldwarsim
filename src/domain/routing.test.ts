@@ -113,6 +113,25 @@ describe('a coast cell', () => {
     expect(isCoastCell(grid, toLonLat(20.5, 25.5))).toBe(false);
   });
 
+  /** A lake is water a hull cannot sail away on: no quay on its shore, Constance's included. */
+  it('is not the shore of a lake', () => {
+    const world = toyWorld();
+    const lake = [
+      [15, 23],
+      [20, 23],
+      [20, 27],
+      [15, 27],
+    ] as const;
+    const westland = world.countries[0]!;
+    const withLake = buildGrid(
+      { ...world, countries: [{ ...westland, rings: [...westland.rings, lake] }] },
+      1,
+    );
+    expect(withLake.cells[25 * withLake.width + 17]).toBe(2);
+    expect(isCoastCell(withLake, toLonLat(14.5, 25.5))).toBe(false);
+    expect(coastCellsIn(withLake, [12, 23, 23, 26])).toEqual([]);
+  });
+
   it('is not the water off it — a quay stands on the ground', () => {
     expect(isCoastCell(grid, toLonLat(35.5, 25.5))).toBe(false);
   });
