@@ -20,6 +20,7 @@ import frFighter from './france/fighter.glb';
 import frInfantry1 from './france/infantry-1.glb';
 import frInfantry2 from './france/infantry-2.glb';
 import frLandTransport from './france/landTransport.glb';
+import deAirTransport from './germany/airTransport.glb';
 import deArmor1 from './germany/armor-1.glb';
 import deArmor2 from './germany/armor-2.glb';
 import deArtillery from './germany/artillery.glb';
@@ -43,6 +44,7 @@ import itFighter from './italy/fighter.glb';
 import itInfantry1 from './italy/infantry-1.glb';
 import itInfantry2 from './italy/infantry-2.glb';
 import itLandTransport from './italy/landTransport.glb';
+import jpAirTransport from './japan/airTransport.glb';
 import jpArmor1 from './japan/armor-1.glb';
 import jpArmor2 from './japan/armor-2.glb';
 import jpArtillery from './japan/artillery.glb';
@@ -161,6 +163,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     landTransport: deLandTransport,
     fighter: deFighter,
     bomber: deBomber,
+    airTransport: deAirTransport,
     escort: deEscort,
     cargo: deCargo,
     carrier: deCarrier,
@@ -196,6 +199,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     landTransport: jpLandTransport,
     fighter: jpFighter,
     bomber: jpBomber,
+    airTransport: jpAirTransport,
     escort: jpEscort,
     cargo: jpCargo,
     carrier: jpCarrier,
