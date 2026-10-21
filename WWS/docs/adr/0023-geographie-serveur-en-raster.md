@@ -3,6 +3,22 @@
 **Statut :** acceptée (12/09/2026) — **précise l'[ADR 0012](0012-trajets-multimodaux-sur-grille.md)**,
 dont elle étend la grille à deux questions qu'elle ne portait pas.
 
+**Amendée le 21/10/2026 (#221, décision de Pierre) : la côte d'un port revient côté serveur.** À
+0,25 u la grille ne dessine pas Malte, et la tolérance de `pointInRegion` rendait côtières 755
+régions de l'intérieur (Florence, Konya). Le serveur porte donc une géométrie de l'atlas, une
+seule : la côte de mer ouverte de chaque région (ni lac, ni Caspienne, ni couture de
+l'antiméridien), cuite par `scripts/generate-coast.mjs` en `public/coast.json` — 1 830 régions,
+134 490 points, `Int32` en base64, 1,5 Mo (522 Ko gzip) — et décodée à la première pose de port
+(`convex/coast.ts`, module à part : +3,6 Mio de tas et +0,9 hors tas, 8,7 Mio pour le module le
+plus lourd). Un port se pose à 2 km au plus de la côte de **sa** région (`onRegionCoast`,
+`src/domain/coast.ts`), lue par le serveur et par le fantôme ; 13 µs par appel en moyenne, 0,34 ms
+au pire (`CAN-634`). Le reste lit toujours la grille : l'embarquement, le débarquement, la visée
+d'une coque, l'hôte, la couleur. Et la pose lit son sol : l'eau de la grille ne porte qu'un port.
+L'espion de `mesure-isolat.mjs` interdit toujours l'atlas ; `coast.json` n'en est pas.
+Ce qu'on abandonne : « le serveur ne lit plus un seul polygone ». Ce que ça coûte : 5 % des points
+de cette côte tombent sur une terre de la grille qu'aucune eau ouverte ne borde (estuaires,
+fjords) ; un port y est accepté, une coque en repart, mais une route de mer n'y revient pas.
+
 ## Contexte
 
 La production recyclait l'isolat Convex en boucle — `TooMuchMemoryCarryOver("~64 MiB", "99 MiB")`

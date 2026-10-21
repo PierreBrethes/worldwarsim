@@ -71,6 +71,11 @@ de nourriture apparaissent, neuf disparaissent, dix-huit bougent ; `coal-DEU-348
 `iron-FRA-5325` (qui change de région) et `iron-RUS-2379` bougent de 13 à 14 km ; le pétrole n'a
 pas bougé.
 
+**Précisée le 21/10/2026 (#221).** `coastal` ne dit plus ce que la grille accepte mais la côte
+de mer ouverte de l'atlas (`public/coast.json`, `generate-coast.mjs`, à lancer avant
+`generate-region-index`) : 1 830 régions au lieu de 2 384. Florence, Cuneo et Konya ne sont plus
+côtières, Malte, Singapour et les Bermudes le sont, et un port s'y pose (ADR 0023 amendée).
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :
