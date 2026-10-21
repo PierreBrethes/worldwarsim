@@ -1,4 +1,5 @@
-import { BufferGeometry, Path, Shape, ShapeGeometry, Vector2 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
+import { Earcut } from 'three/src/extras/Earcut.js';
 import type { WorldFrame } from './frame';
 
 /**
@@ -28,7 +29,10 @@ export function lineGeometry(
   return out;
 }
 
-/** Polygons, holes included, triangulated flat on the sheet at `height`. */
+/**
+ * Polygons, holes included, triangulated flat on the sheet at `height`. Earcut on the flat rings,
+ * without `Shape`: a `Vector2` per point and the curve walk doubled the time of the near level.
+ */
 export function fillGeometry(
   polygons: ReadonlyArray<{
     readonly outer: Float32Array;
@@ -37,19 +41,36 @@ export function fillGeometry(
   frame: Sheet,
   height: number,
 ): BufferGeometry {
-  // Drawn in the (x, y) plane, then laid down: y = -z before the turn, so z = y - centerY after.
-  const vectors = (ring: Float32Array) =>
-    Array.from(
-      { length: ring.length / 2 },
-      (_, i) => new Vector2(ring[2 * i]! - frame.centerX, -(ring[2 * i + 1]! - frame.centerY)),
-    );
-  const shapes = polygons.map(({ outer, holes }) => {
-    const shape = new Shape(vectors(outer));
-    shape.holes = holes.map((hole) => new Path(vectors(hole)));
-    return shape;
-  });
-  const geometry = new ShapeGeometry(shapes);
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, height, 0);
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const { outer, holes } of polygons) {
+    const flat = new Float32Array(holes.reduce((sum, hole) => sum + hole.length, outer.length));
+    const holeStarts: number[] = [];
+    flat.set(outer);
+    let at = outer.length;
+    for (const hole of holes) {
+      holeStarts.push(at / 2);
+      flat.set(hole, at);
+      at += hole.length;
+    }
+    const base = positions.length / 3;
+    for (let i = 0; i < flat.length; i += 2)
+      positions.push(flat[i]! - frame.centerX, height, flat[i + 1]! - frame.centerY);
+    // Earcut winds every triangle one way in (x, y); laid down as (x, z), that way faces the
+    // ground, so each triangle is turned over.
+    const triangles = Earcut.triangulate(flat as unknown as number[], holeStarts, 2);
+    for (let t = 0; t < triangles.length; t += 3)
+      indices.push(base + triangles[t]!, base + triangles[t + 2]!, base + triangles[t + 1]!);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    'normal',
+    new Float32BufferAttribute(
+      new Float32Array(positions.length).map((_, i) => (i % 3 === 1 ? 1 : 0)),
+      3,
+    ),
+  );
+  geometry.setIndex(new Uint32BufferAttribute(indices, 1));
   return geometry;
 }
