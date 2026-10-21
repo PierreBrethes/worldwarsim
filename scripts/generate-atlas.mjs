@@ -325,14 +325,14 @@ function level(share) {
       for (const [a, k] of pair) restore(a, sources[a][k] + 1, sources[a][k + 1]);
     if (restored) continue;
     if (crossings.length === 0) {
+      // A region with no area at a level is one `regionAt` never answers and no cell carries.
+      if (flat.length > 0)
+        throw new Error(
+          `${label}: regions without an area: ${flat.map((region) => geometries[region].properties.id).join(', ')}`,
+        );
       const points = arcs.reduce((sum, arc) => sum + arc.length, 0);
       const folds = dropped.flat().filter(Boolean).length;
-      console.log(
-        `${label}: ${points} points, ${pass} repair passes, ${folds} folds, ${flat.length} regions without a shape` +
-          (flat.length
-            ? ` (${flat.map((region) => geometries[region].properties.id).join(', ')})`
-            : ''),
-      );
+      console.log(`${label}: ${points} points, ${pass} repair passes, ${folds} folds`);
       return arcs;
     }
     for (const [s, t] of crossings) {
