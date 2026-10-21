@@ -230,6 +230,7 @@ export class RegionLayer {
     for (const geometry of Object.values(this.lineLevels)) geometry.dispose();
     Object.assign(this.lineLevels, lines);
     if (this.types !== null) this.rebuild();
+    this.contours.addLevel(atlas, 'near');
     this.showLines(this.linesShown);
   }
 
@@ -238,7 +239,7 @@ export class RegionLayer {
     this.linesShown = detail;
     const geometry = this.lineLevels[detail];
     if (geometry !== undefined && this.types !== null) this.lines.geometry = geometry;
-    this.contours.level(this.atlas, detail);
+    this.contours.level(detail);
   }
 
   /**
@@ -270,13 +271,13 @@ export class RegionLayer {
         })),
       ),
       this.atlas,
-      this.linesShown,
+      this.detail === 'near' ? ['far', 'near'] : ['far'],
     );
     this.rebuildHeld();
   }
 
   /** The hatches follow the data: new regions, everything redone. The contours need only the
-   *  atlas, and follow its level (`showLines`). */
+   *  atlas: built at both levels (`showHeld`, `showAtlas`), they switch with `showLines`. */
   rebuild(): void {
     this.hoveredRegion = null;
     this.rebuildHeld();
