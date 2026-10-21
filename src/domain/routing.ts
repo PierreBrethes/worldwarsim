@@ -367,7 +367,7 @@ export function encodeGrid(grid: RouteGrid): GridAsset {
 export const landMaskOf = (grid: RouteGrid): Uint8Array =>
   grid.cells.map((cell) => (cell === LAND ? 1 : 0));
 
-export function decodeGrid(asset: GridAsset, world: World): RouteGrid {
+export function decodeGrid(asset: GridAsset, world: Pick<World, 'sphere' | 'outline'>): RouteGrid {
   const cells = new Uint8Array(asset.width * asset.height);
   let at = 0;
   for (let run = 0; run < asset.cells.length; run += 2) {

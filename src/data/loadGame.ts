@@ -1,5 +1,4 @@
 import type { Atlas } from '@/domain/atlas';
-import { loadWorld, type World } from '@/domain/world';
 import { loadAtlas } from './atlas';
 import { convexClient } from './convexClient';
 import { readSeat, type Seat } from './session';
@@ -11,22 +10,10 @@ import { readSeat, type Seat } from './session';
  * once over the subscription, cost a second round trip to serve a value that was replaced
  * immediately.
  */
-export type GameEntry =
-  { state: 'active'; world: World; atlas: Atlas; seat: Seat } | { state: 'none' };
-
-let worldInFlight: Promise<World> | null = null;
+export type GameEntry = { state: 'active'; atlas: Atlas; seat: Seat } | { state: 'none' };
 
 export async function loadGame(): Promise<GameEntry> {
   const seat = readSeat();
   if (!seat || !convexClient) return { state: 'none' };
-
-  // The world is a static asset, identical for every season: fetched once for the lifetime
-  // of the tab, and shared by every visit to the board. A failure is forgotten, or the error
-  // screen's retry would only ever replay it.
-  worldInFlight ??= loadWorld().catch((error: unknown) => {
-    worldInFlight = null;
-    throw error;
-  });
-  const [world, atlas] = await Promise.all([worldInFlight, loadAtlas()]);
-  return { state: 'active', world, atlas, seat };
+  return { state: 'active', atlas: await loadAtlas(), seat };
 }

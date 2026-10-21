@@ -1,6 +1,10 @@
 import { EqualStencilFunc, type Material, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { OutlineSample, Projection } from '@/domain/world';
+import projectionAsset from '../../../public/projection.json';
+
+/** The sheet's box and outline, the server's own (`convex/routes.ts`): 4 KB, bundled. */
+export const PROJECTION = projectionAsset as unknown as Projection;
 
 export const COUNTRY_THICKNESS = 0.08;
 /**

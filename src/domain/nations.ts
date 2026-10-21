@@ -1,3 +1,4 @@
+import type { LonLat } from './geo';
 import { NATIONS, type Nation } from './ids';
 
 export { NATIONS } from './ids';
@@ -36,6 +37,19 @@ export const COUNTRY_BY_NATION: Readonly<Record<Nation, string>> = {
   japan: 'Japan',
   italy: 'Italy',
   china: 'China',
+};
+
+/** Where a nation's board opens when nothing of its own calls the eye: the point `world.json`
+ *  gave its country, kept here once the client stopped loading the world (ADR 0034). */
+export const HOME_BY_NATION: Readonly<Record<Nation, LonLat>> = {
+  france: [2.58, 46.96],
+  uk: [-1.39, 52.7],
+  usa: [-101.43, 39.23],
+  ussr: [95.07, 61.14],
+  germany: [9.57, 51.07],
+  japan: [131.01, 30.83],
+  italy: [10.64, 45.07],
+  china: [106.98, 34.14],
 };
 
 /**

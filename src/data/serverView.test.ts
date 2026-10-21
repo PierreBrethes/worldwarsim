@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { World } from '@/domain/world';
 import { adaptServerView, type ServerView } from './serverView';
 
 const NOW = 1_700_000_000_000;
 const MINUTE = 60_000;
-
-const world = { countries: [{ name: 'France', lonLat: [2, 46] }] } as unknown as World;
 
 const thread = {
   from: { lon: 0, lat: 0 },
@@ -80,16 +77,16 @@ describe('adaptServerView', () => {
    *  étiquettes et la rose ne recalculent pas leurs marches à chaque réponse. */
   it('keeps every arc identical when an answer only moves the clock', () => {
     vi.useFakeTimers({ now: NOW });
-    const first = adaptServerView(world, answer(NOW));
+    const first = adaptServerView(answer(NOW));
     vi.setSystemTime(NOW + MINUTE);
-    const second = adaptServerView(world, answer(NOW + MINUTE), first);
+    const second = adaptServerView(answer(NOW + MINUTE), first);
     expect(second.arcs).toBe(first.arcs);
     expect(second.loadedAt).toBe(NOW + MINUTE);
   });
 
   it('freezes a sighting into its last known position at the server hour past its watch', () => {
-    const watched = adaptServerView(world, answer(NOW)).arcs[1];
-    const lost = adaptServerView(world, answer(NOW + 11 * MINUTE)).arcs[1];
+    const watched = adaptServerView(answer(NOW)).arcs[1];
+    const lost = adaptServerView(answer(NOW + 11 * MINUTE)).arcs[1];
     expect(watched).toMatchObject({ state: 'enemyDetected', seenTo: NOW + 10 * MINUTE });
     expect(lost).toMatchObject({ state: 'lastKnown', lastSeenAt: NOW + 10 * MINUTE });
     expect(lost).not.toHaveProperty('arrivesAt');

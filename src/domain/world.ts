@@ -188,34 +188,3 @@ async function fetchRegions(url: string): Promise<ReadonlyArray<DisplayedRegion>
     rings: region.p,
   }));
 }
-
-type RawWorld = {
-  meta: {
-    sphere: { minX: number; maxX: number; minY: number; maxY: number };
-    outline: OutlineSample[];
-  };
-  countries: Array<{
-    n: string;
-    a: string;
-    c: [number, number];
-    ll: [number, number];
-    p: [number, number][][];
-  }>;
-};
-
-export async function loadWorld(url = '/world.json'): Promise<World> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`world not found: ${url}`);
-  const raw = (await response.json()) as RawWorld;
-  return {
-    sphere: raw.meta.sphere,
-    outline: raw.meta.outline,
-    countries: raw.countries.map((c) => ({
-      name: c.n,
-      adm0: c.a,
-      representativePoint: c.c,
-      lonLat: c.ll,
-      rings: c.p,
-    })),
-  };
-}

@@ -47,7 +47,7 @@ import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
-import { type HoveredRegion, type World } from '@/domain/world';
+import { type HoveredRegion } from '@/domain/world';
 import {
   compassOf,
   type Compass,
@@ -264,7 +264,7 @@ export const Route = createFileRoute('/plateau')({
     });
     throw redirect({ to: '/plateau', search: rest, replace: true });
   },
-  // The loader only fetches the world and the seat; the view comes from the subscription,
+  // The loader only fetches the atlas and the seat; the view comes from the subscription,
   // so the errors that used to surface here now surface at render — see `BoardError`.
   loader: loadGame,
   pendingComponent: Loading,
@@ -290,7 +290,7 @@ function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
 function Board() {
   const entry = Route.useLoaderData();
   if (entry.state === 'none') return <NoGame />;
-  return <LiveBoard world={entry.world} atlas={entry.atlas} seat={entry.seat} />;
+  return <LiveBoard atlas={entry.atlas} seat={entry.seat} />;
 }
 
 function NoGame() {
@@ -317,7 +317,7 @@ function NoGame() {
   );
 }
 
-function LiveBoard({ world, atlas, seat }: { world: World; atlas: Atlas; seat: Seat }) {
+function LiveBoard({ atlas, seat }: { atlas: Atlas; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
@@ -326,9 +326,9 @@ function LiveBoard({ world, atlas, seat }: { world: World; atlas: Atlas; seat: S
   const previousView = useRef<PlayerView | null>(null);
   const view = useMemo(() => {
     if (server === undefined) return null;
-    previousView.current = adaptServerView(world, server, previousView.current);
+    previousView.current = adaptServerView(server, previousView.current);
     return previousView.current;
-  }, [world, server]);
+  }, [server]);
   if (view === null) return <Loading />;
   return (
     <>
@@ -340,22 +340,12 @@ function LiveBoard({ world, atlas, seat }: { world: World; atlas: Atlas; seat: S
           {fr.board.linkLost}
         </div>
       )}
-      <BoardContent world={world} atlas={atlas} view={view} seat={seat} />
+      <BoardContent atlas={atlas} view={view} seat={seat} />
     </>
   );
 }
 
-function BoardContent({
-  world,
-  atlas,
-  view,
-  seat,
-}: {
-  world: World;
-  atlas: Atlas;
-  view: PlayerView;
-  seat: Seat;
-}) {
+function BoardContent({ atlas, view, seat }: { atlas: Atlas; view: PlayerView; seat: Seat }) {
   const { country, windows = [], building: focused, report } = Route.useSearch();
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
@@ -2256,7 +2246,6 @@ function BoardContent({
               {tokens.chip}
               <WorldMap
                 blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
-                world={world}
                 atlas={atlas}
                 arcs={view.arcs}
                 troops={view.me.troops}

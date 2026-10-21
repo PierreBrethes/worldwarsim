@@ -10,7 +10,7 @@ import {
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain/routing';
-import type { World } from '@/domain/world';
+import type { Projection } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
 import { distanceToLand } from './coast-distance';
 import { RECESSION, type WorldFrame } from './frame';
@@ -29,7 +29,7 @@ const MARBLING_AMPLITUDE = 0.055;
  * isobaths — pixelates at zoom; the geometric wash borders the coasts in its place
  * (see `coastal-wash.ts`), and the surf reads a distance field, which interpolates cleanly.
  */
-function seaTexture(world: World, anisotropy: number): DataTexture {
+function seaTexture(world: Projection, anisotropy: number): DataTexture {
   const width = TEXTURE_WIDTH;
   const height = Math.round(
     (width * (world.sphere.maxY - world.sphere.minY)) / (world.sphere.maxX - world.sphere.minX),
@@ -70,7 +70,7 @@ function seaTexture(world: World, anisotropy: number): DataTexture {
   return texture;
 }
 
-export function seaMaterial(world: World, anisotropy: number): MeshStandardMaterial {
+export function seaMaterial(world: Projection, anisotropy: number): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
     map: seaTexture(world, anisotropy),
     roughness: 0.98,
@@ -164,10 +164,9 @@ export class SeaLayer implements AmbientLayer {
     this.paper.value.set(PALETTE.foam).multiplyScalar(1 - 0.6 * night);
   }
 
-  /** Hands back the routing grid it decoded, so the engine does not build it a second time. */
-  async shore(frame: WorldFrame, world: World): Promise<RouteGrid | null> {
-    const shore = await loadShore(world);
-    if (shore === null || this.disposed) return null;
+  /** The surf along the coast of the routing grid the engine loaded (`loadShore`). */
+  shore(frame: WorldFrame, shore: Shore): void {
+    if (this.disposed) return;
     const { grid } = shore;
     this.coast.value.dispose();
     this.coast.value = coastTexture(shore.bytes, grid.width, grid.height);
@@ -181,7 +180,6 @@ export class SeaLayer implements AmbientLayer {
       this.roseLetter.value.dispose();
       this.roseLetter.value = letter;
     }
-    return grid;
   }
 
   /** The regions' fade, threshold for threshold: the surf belongs to the close view. */
@@ -354,14 +352,14 @@ let shoreField: Promise<Shore | null> | null = null;
 
 /** One download and one transform per page, whatever the engines: a remounted board reuses them.
  *  Without the grid there is simply no surf — the sea is not worth an error. */
-function loadShore(world: World, url = '/grid.json'): Promise<Shore | null> {
+export function loadShore(projection: Projection, url = '/grid.json'): Promise<Shore | null> {
   shoreField ??= fetch(url)
     .then((response) => {
       if (!response.ok) throw new Error(`grid not found: ${url}`);
       return response.json() as Promise<GridAsset>;
     })
     .then((asset): Shore => {
-      const grid = decodeGrid(asset, world);
+      const grid = decodeGrid(asset, projection);
       const distance = distanceToLand(landMaskOf(grid), grid.width, grid.height);
       return { grid, bytes: coastBytes(distance, grid.width) };
     })

@@ -21,7 +21,6 @@ import {
   loadRegionTypes,
   type HoveredRegion,
   type RegionIdentity,
-  type World,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
 import type { Atlas } from '@/domain/atlas';
@@ -95,7 +94,6 @@ import {
 } from './engine';
 
 type Props = {
-  world: World;
   /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
   atlas: Atlas;
   arcs: ReadonlyArray<ArcView>;
@@ -342,7 +340,6 @@ const NO_PILES: ReadonlyArray<string> = [];
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
-  world,
   atlas,
   arcs,
   troops,
@@ -455,7 +452,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (!container.current) return;
-    const instance = new MapEngine(container.current, world, atlas);
+    const instance = new MapEngine(container.current, atlas);
     engine.current = instance;
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
@@ -498,7 +495,7 @@ export function WorldMap({
       engine.current = null;
       setReadyEngine(null);
     };
-  }, [world, atlas]);
+  }, [atlas]);
 
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
