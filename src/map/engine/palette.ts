@@ -86,11 +86,11 @@ export function contrastRatio(first: string, second: string): number {
 export const PEN_DEPTH = 0.75;
 
 /** The hover's contour is laid at this, thin enough to read as a pen stroke and not as a second
- *  border; the pictograms land fuller. */
+ *  border. */
 export const PEN_OPACITY = 0.85;
 
 /**
- * The pen that draws on the bare land — terrain pictograms and the hover's contour: the **deep**
+ * The pen of the hover's contour on the bare land: the **deep**
  * of the holder's ink, or plain ink where nobody holds. The land is never washed any more
  * (ADR 0033), so the pen has only that one ground to read on.
  */

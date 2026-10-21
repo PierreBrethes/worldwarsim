@@ -42,31 +42,6 @@ const REACH_FADE_MS = 600;
 export const penEase = (share: number): number =>
   share < 0.5 ? 4 * share ** 3 : 1 - (-2 * share + 2) ** 3 / 2;
 
-/** The polylines up to a share of their total length, the last one cut mid-segment. */
-export function inkedStrands(
-  strands: ReadonlyArray<ReadonlyArray<Vector3>>,
-  share: number,
-): ReadonlyArray<ReadonlyArray<Vector3>> {
-  const lengthOf = (line: ReadonlyArray<Vector3>) =>
-    line.slice(1).reduce((sum, point, i) => sum + point.distanceTo(line[i]!), 0);
-  let left = share * strands.reduce((sum, line) => sum + lengthOf(line), 0);
-  const inked: Vector3[][] = [];
-  for (const line of strands) {
-    const part: Vector3[] = [];
-    for (let i = 0; i < line.length && left > 0; i++) {
-      if (i === 0) {
-        part.push(line[0]!);
-        continue;
-      }
-      const step = line[i]!.distanceTo(line[i - 1]!);
-      part.push(left >= step ? line[i]! : line[i - 1]!.clone().lerp(line[i]!, left / step));
-      left -= step;
-    }
-    if (part.length > 1) inked.push(part);
-  }
-  return inked;
-}
-
 /** A pen stroke is a ribbon drawn up to `end`: the thread's own band, revealed as it goes. */
 type PenStroke = {
   readonly ribbons: ReadonlyArray<Ribbon>;

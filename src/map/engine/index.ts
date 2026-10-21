@@ -671,7 +671,6 @@ export class MapEngine {
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.contours.group);
     this.scene.add(this.regions.hoverOutline);
-    this.scene.add(this.regions.terrain.group);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
     // ribbon's drawn half-width (`Ribbon.raycast`). Without it, a ribbon at its 2 px floor would
@@ -1344,7 +1343,6 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
-    this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
@@ -1985,7 +1983,6 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
-    this.regions.terrain.motion = motion;
   }
 
   /**
@@ -2465,13 +2462,12 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    // La plume trace le terrain survolé tant qu'elle n'a pas fini, le pion porté suit la main : à
-    // chaque image. Un fil qui coule ou un anneau qui bat n'en demande qu'au pas de `flowPace`.
+    // Le pion porté suit la main : à chaque image. Un fil qui coule ou un anneau qui bat n'en
+    // demande qu'au pas de `flowPace`.
     if (
       this.ink.active ||
       this.parachutes.active ||
       this.maquettes.settling ||
-      this.regions.terrain.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading
@@ -2551,7 +2547,7 @@ export class MapEngine {
         castShadows(root);
       if (this.replay) castShadows(this.replay.scene.object);
     }
-    this.regions.animate(distance, now, this.unitsPerPixel(distance));
+    this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE

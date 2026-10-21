@@ -17,7 +17,6 @@ import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
-import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
 
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
@@ -44,8 +43,6 @@ const SUSPENDED_LIFT = 0.00025;
 const SUSPENDED_OPACITY = 0.5;
 const HOVER_LIFT = 0.0035;
 const ANCHOR_LIFT = 0.001;
-/** Over the fills, under the hover contour that frames them. */
-const SKETCH_LIFT = 0.003;
 
 /**
  * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert.
@@ -164,8 +161,6 @@ export type PreparedRegion = {
   readonly area: number;
 };
 
-const SKETCH_CACHE_SIZE = 32;
-
 /**
  * The admin-1 borders (regions, states, departments) of `regions.json` — inner segments
  * only, coasts and country borders being drawn already. The layer only exists up close: far
@@ -179,7 +174,6 @@ export class RegionLayer {
   /** **Qui tient quoi, au contour** (ADR 0033). */
   readonly contours: ContourLayer;
   readonly hoverOutline: LineSegments;
-  readonly terrain = new TerrainSketches();
   private readonly lineMaterial: LineDashedMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
@@ -191,9 +185,6 @@ export class RegionLayer {
   /** L'encre du tenant, par région : le survol la lit pour teinter le contour d'une région tenue
    *  à sa couleur plutôt qu'à celle de son terrain. */
   private heldByRegion = new Map<string, { readonly ink: string; readonly state: HeldState }>();
-  /** A big region costs 100+ ms to sketch (the Nunavut), and the pointer crosses it again and
-   *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
-  private readonly strandsCache = new Map<string, PenStrands>();
   private share = 0;
 
   constructor(
@@ -273,22 +264,14 @@ export class RegionLayer {
         claim.regions.map(({ id, state }) => [id, { ink: claim.ink, state }] as const),
       ),
     );
-    this.forgetSketches();
+    this.hoveredRegion = null;
     this.rebuildHeld();
   }
 
   /** The hatches and contours follow the data: new regions, everything redone. */
   rebuild(): void {
-    this.forgetSketches();
-    this.rebuildHeld();
-  }
-
-  /** The pen takes the holder's ink: when the holdings change, the drawing on screen and the
-   *  cached ones are stale, and the next hover redoes it. */
-  private forgetSketches(): void {
-    this.strandsCache.clear();
-    this.terrain.clear();
     this.hoveredRegion = null;
+    this.rebuildHeld();
   }
 
   /** Refait entier : un diff par région coûterait plus cher que ces quelques fusions. */
@@ -394,7 +377,7 @@ export class RegionLayer {
   }
 
   /** Fade driven by camera→target distance; invisible, the layer costs nothing. */
-  animate(cameraDistance: number, now: number, unitsPerPixel: number): void {
+  animate(cameraDistance: number, unitsPerPixel: number): void {
     this.share = Math.min(
       1,
       Math.max(
@@ -410,7 +393,6 @@ export class RegionLayer {
     this.hoverMaterial.opacity = zoomFade(this.share) * PEN_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
-    this.terrain.animate(now, this.share);
   }
 
   dispose(): void {
@@ -426,7 +408,6 @@ export class RegionLayer {
     this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
     this.hoverMaterial.dispose();
-    this.terrain.dispose();
     this.lines.removeFromParent();
     this.hoverOutline.removeFromParent();
   }
@@ -439,12 +420,6 @@ export class RegionLayer {
     this.hoverOutline.geometry.dispose();
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     const pen = penOf(held?.ink ?? null);
-    this.terrain.show(
-      region?.id ?? null,
-      () => (prepared ? this.penStrandsOf(prepared) : []),
-      performance.now(),
-      pen,
-    );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
       this.hoverOutline.visible = false;
@@ -471,29 +446,6 @@ export class RegionLayer {
 
     this.hoverOutline.geometry = geometry;
     this.hoverOutline.visible = true;
-  }
-
-  private penStrandsOf(prepared: PreparedRegion): PenStrands {
-    const { region, box, area } = prepared;
-    const cached = this.strandsCache.get(region.id);
-    if (cached !== undefined) return cached;
-    const strands = sketchRegion({
-      type: region.type,
-      seed: seed(region.id),
-      box,
-      area,
-      center: interiorPoint(prepared),
-      covers: (x, y) => contains(prepared, x, y),
-    }).map(({ delay, strokes }) => ({
-      delay,
-      strands: strokes.map((stroke) =>
-        stroke.map(([x, y]) => this.frame.toWorld(x, y, COUNTRY_THICKNESS + SKETCH_LIFT)),
-      ),
-    }));
-    if (this.strandsCache.size >= SKETCH_CACHE_SIZE)
-      this.strandsCache.delete(this.strandsCache.keys().next().value!);
-    this.strandsCache.set(region.id, strands);
-    return strands;
   }
 
   /** The region's rings as a flat fill, laid on the sheet like the highlight was. */
@@ -552,6 +504,21 @@ export function prepare(region: DisplayedRegion): PreparedRegion {
     Math.max(...ringBoxes.map(([, , , maxY]) => maxY)),
   ];
   return { region, box, ringBoxes, area: Math.abs(area / 2) };
+}
+
+/** A stable number from a name, so an interior point never wanders between two reloads. */
+function seed(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return hash;
+}
+
+/** Share of the layer's fade over which the hover's stroke reaches full opacity: a translucent
+ *  stroke takes the ground's colour, so the fade is a hair. */
+const ZOOM_FADE_BAND = 0.08;
+
+function zoomFade(layerFade: number): number {
+  return Math.min(1, Math.max(0, layerFade / ZOOM_FADE_BAND));
 }
 
 function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
