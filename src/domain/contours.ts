@@ -29,10 +29,12 @@ export function contourLines(
   detail: Detail,
 ): { readonly outlines: ReadonlyMap<string, ContourLine[]>; readonly inner: Float32Array[] } {
   const of = (region: AtlasRegion | null) => (region === null ? undefined : territoryOf(region.id));
-  const pieces = new Map<string, Float32Array[]>();
+  /** Per territory, the arcs facing another territory (`inset`) and those facing the void. */
+  const pieces = new Map<string, { inset: Float32Array[]; open: Float32Array[] }>();
   const add = (territory: string, inset: boolean, points: Float32Array) => {
-    const key = `${inset ? 1 : 0}${territory}`;
-    (pieces.get(key) ?? pieces.set(key, []).get(key)!).push(points);
+    const kept =
+      pieces.get(territory) ?? pieces.set(territory, { inset: [], open: [] }).get(territory)!;
+    (inset ? kept.inset : kept.open).push(points);
   };
   const inner: Float32Array[] = [];
   const borders = atlas.borders(
@@ -50,11 +52,11 @@ export function contourLines(
     if (r !== undefined) add(r, inset, reversed(points));
   }
   const outlines = new Map<string, ContourLine[]>();
-  for (const [key, list] of pieces) {
-    const territory = key.slice(1);
-    const lines = outlines.get(territory) ?? outlines.set(territory, []).get(territory)!;
-    for (const points of chained(list)) lines.push({ points, inset: key[0] === '1' });
-  }
+  for (const [territory, { inset, open }] of pieces)
+    outlines.set(territory, [
+      ...chained(open).map((points) => ({ points, inset: false })),
+      ...chained(inset).map((points) => ({ points, inset: true })),
+    ]);
   return { outlines, inner };
 }
 
