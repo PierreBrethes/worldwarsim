@@ -127,9 +127,10 @@ export const loadCoastalRegions = (): Promise<ReadonlySet<string>> =>
 
 /**
  * The terrain of each region, baked offline into its own asset (`generate-region-types.mjs`).
- * Decoration only, no rule may read it: a missing file reads as an empty map, and a region it
- * does not name as a plain (`?? 'plain'` where it is read). A key the client does not know
- * would tint and sow with `undefined`: it is left out, so it falls back to plain too.
+ * Decoration only, no rule may read it: a missing file reads as an empty map, asked for again on
+ * the next mount, and a region it does not name as a plain (`?? 'plain'` where it is read). A key
+ * the client does not know would tint and sow with `undefined`: it is left out, so it falls back
+ * to plain too.
  */
 const REGION_TYPES: ReadonlyArray<RegionType> = [
   'plain',
@@ -147,7 +148,7 @@ export function loadRegionTypes(
 ): Promise<ReadonlyMap<string, RegionType>> {
   regionTypes ??= fetch(url)
     .then(async (response) => {
-      if (!response.ok) return new Map<string, RegionType>();
+      if (!response.ok) throw new Error(`region types not found: ${url}`);
       const byType = (await response.json()) as Partial<Record<RegionType, string[]>>;
       return new Map(
         REGION_TYPES.flatMap((type) => (byType[type] ?? []).map((id) => [id, type] as const)),

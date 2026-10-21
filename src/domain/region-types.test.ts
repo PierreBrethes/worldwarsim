@@ -44,3 +44,15 @@ it('reads no type when the file is a 404', async () => {
   const { loadRegionTypes } = await import('./world');
   expect((await loadRegionTypes('/t')).size).toBe(0);
 });
+
+it('asks again after a 404, rather than keeping an empty table', async () => {
+  let answers = 0;
+  vi.stubGlobal('fetch', async () =>
+    answers++ === 0
+      ? { ok: false, json: async () => ({}) }
+      : { ok: true, json: async () => ({ forest: ['A'] }) },
+  );
+  const { loadRegionTypes } = await import('./world');
+  expect((await loadRegionTypes('/t')).size).toBe(0);
+  expect([...(await loadRegionTypes('/t'))]).toEqual([['A', 'forest']]);
+});
