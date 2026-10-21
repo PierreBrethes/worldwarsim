@@ -55,10 +55,10 @@ describe('coastWidthPx', () => {
 });
 
 describe('levelAt', () => {
-  it('comes near under 25 and goes far again over 27, holding between', () => {
-    expect(levelAt('far', 26)).toBe('far');
-    expect(levelAt('far', 24)).toBe('near');
-    expect(levelAt('near', 26)).toBe('near');
-    expect(levelAt('near', 28)).toBe('far');
+  it('comes near under 35 and goes far again over 37, holding between', () => {
+    expect(levelAt('far', 36)).toBe('far');
+    expect(levelAt('far', 34)).toBe('near');
+    expect(levelAt('near', 36)).toBe('near');
+    expect(levelAt('near', 38)).toBe('far');
   });
 });

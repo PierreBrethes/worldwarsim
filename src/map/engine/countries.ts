@@ -98,11 +98,12 @@ const COAST_OPACITY = 0.92;
 /**
  * **Le niveau « près » quand l'écran peut le lire** (ADR 0034) : « loin » garde 6 % des points,
  * un écart moyen d'un kilomètre ; avec 42° de champ sur 900 px, un pixel vaut 0,00085 u par unité
- * de distance, soit 2 km à 25. Plus loin, « près » dessinerait quatre fois plus de côte pour rien.
- * Deux seuils, pour qu'un zoom arrêté entre les deux ne batte pas d'un niveau à l'autre.
+ * de distance, soit 2 km à 25. Le calcul ne voit pas les facettes : à 26, « loin » casse en angles
+ * les Féroé, les Shetland et les fjords. « Près » prend donc la main dès 35. Deux seuils, pour
+ * qu'un zoom arrêté entre les deux ne batte pas d'un niveau à l'autre. @a-mesurer
  */
-const NEAR_UNDER = 25;
-const FAR_OVER = 27;
+const NEAR_UNDER = 35;
+const FAR_OVER = 37;
 
 export const levelAt = (current: Detail, distance: number): Detail =>
   current === 'near'
