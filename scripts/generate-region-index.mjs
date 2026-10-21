@@ -31,7 +31,7 @@ import isoCountries from 'i18n-iso-countries';
 import polylabel from 'polylabel';
 import { atlas, DETAIL, naturalEarth, pairs } from './atlas-base.mjs';
 
-const rounded = (value) => Math.round(value * 100) / 100;
+const rounded = (value) => Math.round(value * 1000) / 1000;
 
 const areaOf = (flat) => {
   let twice = 0;
@@ -54,7 +54,7 @@ for (const region of atlas.regions) {
   const largest = shapes.reduce((a, b) => (areaOf(a.outer) >= areaOf(b.outer) ? a : b), shapes[0]);
   if (largest === undefined) continue;
   const [lon, lat] = naturalEarth.invert(
-    polylabel([largest.outer, ...largest.holes].map(pairs), 0.5),
+    polylabel([largest.outer, ...largest.holes].map(pairs), 0.005),
   );
   point[region.id] = [rounded(lon), rounded(lat)];
 }

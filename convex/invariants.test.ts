@@ -12,7 +12,7 @@ import {
   regionAt,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
-import { buildGrid, decodeGrid } from '../src/domain/routing';
+import { buildGrid, decodeGrid, projectLonLat } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
 import type { World } from '../src/domain/world';
 import atlasAsset from '../public/atlas.json';
@@ -151,6 +151,12 @@ describe('le travail à l’import des modules de convex/', () => {
  *  La référence contre laquelle la grille et les rasters sont vérifiés. */
 const atlas = decodeAtlas(atlasAsset as unknown as AtlasFile, atlasNearAsset as NearFile);
 const worldOf = (): World => atlasWorld(atlas, projectionAsset as unknown as World);
+/** La région de l'atlas sous un lon/lat, au niveau près : ce que le survol nomme là. */
+const atlasRegionAt = (lonLat: LonLat): string | null =>
+  atlas.regionAt(
+    projectLonLat(projectionAsset.outline as never, projectionAsset.sphere, lonLat),
+    'near',
+  )?.id ?? null;
 
 /**
  * **Le cadre de la projection n'est pas un contour, et c'est l'actif qui doit le dire.** Natural
@@ -263,6 +269,31 @@ describe('le raster de géographie cuit', () => {
    * un retour chargé sans destination, des heures après sa cause.
    */
   const points = indexAsset.point as unknown as Readonly<Record<string, LonLat | undefined>>;
+
+  /** Le point d'une région est là où le serveur pose ce qui s'y bâtit et où la carte l'ancre :
+   *  il est dans la région, jamais en mer ni chez le voisin. Sauf une région plus étroite que
+   *  quatre fois l'arrondi de `projection.json` (0,01 u, ~1 km), que le serveur ne sait pas
+   *  viser : le Vatican, des districts de Nauru, un îlot américain. */
+  it('pose le point de chaque région dans sa région', () => {
+    const narrow = new Set(
+      [...atlas.shapes(({ id }) => id, 'near')]
+        .filter(([, shapes]) =>
+          shapes.every(({ outer }) => {
+            const xs = outer.filter((_, i) => i % 2 === 0);
+            const ys = outer.filter((_, i) => i % 2 === 1);
+            return (
+              Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) < 0.04
+            );
+          }),
+        )
+        .map(([id]) => id),
+    );
+    expect(
+      Object.entries(points)
+        .filter(([id, point]) => !narrow.has(id) && atlasRegionAt(point!) !== id)
+        .map(([id]) => id),
+    ).toEqual([]);
+  });
 
   it('ancre exactement les régions qu’aucune cellule ne porte', () => {
     const inChannel = new Set(raster.regions);
