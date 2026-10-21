@@ -8,10 +8,10 @@
  * 2. One topology with shared arcs, cleaned by mapshaper: no gap, no overlap between regions.
  * 3. Each arc projected in Natural Earth 1 over 400 × 208 u, then weighted by Visvalingam on
  *    the sheet. Two levels keep the same arcs and objects: near (30 % of the points) and far
- *    (6 %), quantized at 0.001 u (~110 m). Where simplifying arcs one by one pushes two shores
- *    across each other, the points between them come back until nothing crosses.
- * 4. The `regionId` diff against `public/regions.json` is printed: an id that moves orphans a
- *    capital, a deposit or a saved season.
+ *    (6 %), quantized at 0.001 u (~110 m). Each level is repaired until no arc crosses
+ *    another and every region keeps a shape (`level`).
+ * 4. The `regionId` diff against the atlas being replaced is printed: an id that moves orphans
+ *    a capital, a deposit or a saved season.
  *
  * Usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson>
  *   <vg2500_12-31.utm32s.shape.zip>
@@ -22,7 +22,7 @@
  *   aktuell/vg2500_12-31.utm32s.shape.zip
  */
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync, inflateRawSync } from 'node:zlib';
 import { geoNaturalEarth1 } from 'd3-geo';
 import mapshaper from 'mapshaper';
@@ -36,6 +36,8 @@ const SOURCES = [
 ];
 const WIDTH = 400;
 const HEIGHT = 208;
+/** Points per map unit, ~110 m. At 0.002 u the far level saves 31 Ko gzip, and the Vatican
+ *  no longer has a shape. */
 const QUANTUM = 1000;
 const NEAR_SHARE = 0.3;
 const FAR_SHARE = 0.06;
@@ -254,48 +256,93 @@ function quantized(keep) {
   return { arcs, sources };
 }
 
+const polygonsOf = ({ type, arcs }) => (type === 'Polygon' ? [arcs] : arcs);
+const ringOf = (arcs, refs) =>
+  refs.flatMap((ref) => (ref >= 0 ? arcs[ref] : arcs[~ref].toReversed()));
+/** The outer ring a region keeps whole when simplification would flatten all of them. */
+const largestRing = geometries.map((geometry) =>
+  polygonsOf(geometry)
+    .map(([outer]) => outer)
+    .reduce((a, b) =>
+      Math.abs(ringArea(ringOf(weighted, a))) >= Math.abs(ringArea(ringOf(weighted, b))) ? a : b,
+    ),
+);
+const flattened = (arcs) =>
+  geometries.flatMap((geometry, region) =>
+    polygonsOf(geometry).some(([outer]) => ringArea(ringOf(arcs, outer)) !== 0) ? [] : [region],
+  );
+
 /**
- * Where simplifying arcs one by one pushes two shores across each other, the points between
- * them come back. Once nothing is left to bring back, rounding to the quantum has folded two
- * arcs onto each other by their junction: the inner point of each fold goes.
+ * Three repairs, until none has anything left to do:
+ * - a region whose every ring simplification flattened gets its largest ring back whole;
+ * - where simplifying arcs one by one pushes two shores across each other, the points between
+ *   them come back;
+ * - once nothing is left to bring back, rounding to the quantum has folded two arcs onto each
+ *   other, or the source itself crosses (a few Maldivian islets): of the inner points of each
+ *   crossing pair, the one nearest the other segment goes — the point of the fold.
  */
 function level(share) {
   const minimum = weights[Math.floor((weights.length - 1) * share)];
   const keep = weighted.map((arc) => arc.map((point) => point[2] >= minimum));
   const dropped = weighted.map((arc) => arc.map(() => false));
+  const label = `${share * 100} %`;
   for (let pass = 0; pass < 50; pass++) {
     const { arcs, sources } = quantized(keep);
+    const flat = flattened(arcs);
     const crossings = findCrossings(arcs);
+    let restored = false;
+    const restore = (a, from, to) => {
+      for (let i = from; i < to; i++)
+        if (!keep[a][i] && !dropped[a][i]) keep[a][i] = restored = true;
+    };
+    for (const region of flat)
+      for (const ref of largestRing[region])
+        restore(arcIndex(ref), 0, weighted[arcIndex(ref)].length);
+    for (const pair of crossings)
+      for (const [a, k] of pair) restore(a, sources[a][k] + 1, sources[a][k + 1]);
+    if (restored) continue;
     if (crossings.length === 0) {
       const points = arcs.reduce((sum, arc) => sum + arc.length, 0);
       const folds = dropped.flat().filter(Boolean).length;
-      console.log(`${share * 100} %: ${points} points, ${pass} repair passes, ${folds} folds`);
+      console.log(
+        `${label}: ${points} points, ${pass} repair passes, ${folds} folds, ${flat.length} regions without a shape` +
+          (flat.length
+            ? ` (${flat.map((region) => geometries[region].properties.id).join(', ')})`
+            : ''),
+      );
       return arcs;
     }
-    let restored = false;
-    for (const [a, k] of crossings)
-      for (let i = sources[a][k] + 1; i < sources[a][k + 1]; i++)
-        if (!keep[a][i] && !dropped[a][i]) keep[a][i] = restored = true;
-    if (restored) continue;
-    for (const [a, k] of crossings) {
-      const inner = k > 0 ? sources[a][k] : sources[a][k + 1];
-      if (inner === weighted[a].length - 1)
-        throw new Error(`${share * 100} %: arc ${a} crosses with no inner point`);
-      keep[a][inner] = false;
-      dropped[a][inner] = true;
+    for (const [s, t] of crossings) {
+      const [nearest] = [
+        [s, t],
+        [t, s],
+      ]
+        .flatMap(([[a, k], [b, j]]) =>
+          [k, k + 1]
+            .filter((v) => v > 0 && v < arcs[a].length - 1)
+            .map((v) => [[a, v], distanceToSegment(arcs[a][v], arcs[b][j], arcs[b][j + 1])]),
+        )
+        .sort((x, y) => x[1] - y[1])
+        .map(([point]) => point);
+      if (!nearest) throw new Error(`${label}: arcs ${s} and ${t} cross with no inner point`);
+      const [a, v] = nearest;
+      keep[a][sources[a][v]] = false;
+      dropped[a][sources[a][v]] = true;
     }
   }
-  throw new Error(`${share * 100} %: arcs still cross after 50 repair passes`);
+  throw new Error(`${label}: arcs still cross after 50 repair passes`);
 }
 
+const arcIndex = (ref) => (ref >= 0 ? ref : ~ref);
 const deltas = (arcs) =>
   arcs.map((arc) =>
     arc.map(([x, y], i) => (i === 0 ? [x, y] : [x - arc[i - 1][0], y - arc[i - 1][1]])),
   );
+const transform = { scale: [1 / QUANTUM, 1 / QUANTUM], translate: [0, 0] };
 
 const atlas = {
   type: 'Topology',
-  transform: { scale: [1 / QUANTUM, 1 / QUANTUM], translate: [0, 0] },
+  transform,
   objects: {
     regions: {
       type: 'GeometryCollection',
@@ -309,13 +356,23 @@ const atlas = {
   },
   arcs: deltas(level(FAR_SHARE)),
 };
-const near = deltas(level(NEAR_SHARE));
+const near = { transform, arcs: deltas(level(NEAR_SHARE)) };
 
 // ---------- 4. Outputs and the id diff ----------
 
 const ids = atlas.objects.regions.geometries.map(({ id }) => id);
 const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
 if (duplicates.length > 0) throw new Error(`duplicate region ids: ${duplicates.join(', ')}`);
+
+// The ids are compared with the atlas being replaced; the first bake compares with regions.json.
+const previous = existsSync('public/atlas.json')
+  ? JSON.parse(readFileSync('public/atlas.json', 'utf8')).objects.regions.geometries.map(
+      ({ id, properties }) => [id, properties],
+    )
+  : JSON.parse(readFileSync('public/regions.json', 'utf8')).regions.map(({ id, country, n }) => [
+      id,
+      { country, name: n },
+    ]);
 
 for (const [file, content] of [
   ['public/atlas.json', JSON.stringify(atlas)],
@@ -326,12 +383,7 @@ for (const [file, content] of [
   console.log(`${file}: ${kb(content.length)}, ${kb(gzipSync(content).length)} gzip`);
 }
 
-const before = new Map(
-  JSON.parse(readFileSync('public/regions.json', 'utf8')).regions.map((region) => [
-    region.id,
-    region,
-  ]),
-);
+const before = new Map(previous);
 const after = new Map(
   atlas.objects.regions.geometries.map(({ id, properties }) => [id, properties]),
 );
@@ -340,10 +392,10 @@ const added = [...after.keys()].filter((id) => !before.has(id));
 const renamed = [...after]
   .filter(
     ([id, { country, name }]) =>
-      before.has(id) && (before.get(id).n !== name || before.get(id).country !== country),
+      before.has(id) && (before.get(id).name !== name || before.get(id).country !== country),
   )
-  .map(([id, { name }]) => `${id} ${before.get(id).n} → ${name}`);
-console.log(`regionId against regions.json: ${before.size} before, ${after.size} after`);
+  .map(([id, { name }]) => `${id} ${before.get(id).name} → ${name}`);
+console.log(`regionId: ${before.size} before, ${after.size} after`);
 console.log(`  ${gone.length} gone${gone.length ? `: ${gone.join(', ')}` : ''}`);
 console.log(`  ${added.length} new${added.length ? `: ${added.join(', ')}` : ''}`);
 console.log(`  ${renamed.length} renamed${renamed.length ? `: ${renamed.join(', ')}` : ''}`);

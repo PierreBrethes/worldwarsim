@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { decodeAtlas, findCrossings, type AtlasFile, type AtlasRegion } from './atlas';
+import {
+  decodeAtlas,
+  findCrossings,
+  type AtlasFile,
+  type AtlasRegion,
+  type NearFile,
+} from './atlas';
 
 /**
  * Two regions of X side by side, A holding a lake, and an islet C of Y:
@@ -62,7 +68,10 @@ const FILE: AtlasFile = {
   arcs: deltas(ABSOLUTE),
 };
 /** The near level: the same arcs, A's outer edge with one more point. */
-const NEAR = deltas(ABSOLUTE.map((arc, i) => (i === 1 ? [[4, 4], [2, 4], ...arc.slice(1)] : arc)));
+const NEAR = {
+  transform: FILE.transform,
+  arcs: deltas(ABSOLUTE.map((arc, i) => (i === 1 ? [[4, 4], [2, 4], ...arc.slice(1)] : arc))),
+};
 
 const area = (ring: Float32Array) => {
   let sum = 0;
@@ -140,6 +149,12 @@ describe('decodeAtlas', () => {
     ]);
   });
 
+  /** Half-open, as the ray crosses an edge: a point on a line belongs to what lies east of it. */
+  it('settles a point lying on a border or a coast', () => {
+    const at = (x: number, y: number) => idOf(atlas.regionAt([x, y], 'far'));
+    expect([at(4, 2), at(0, 2), at(8, 2)]).toEqual(['B', 'A', null]);
+  });
+
   it('refuses the near level when its arcs were not given', () => {
     expect(() => decodeAtlas(FILE).borders(() => true, 'near')).toThrow();
   });
@@ -167,7 +182,7 @@ describe('findCrossings', () => {
     expect(findCrossings(ABSOLUTE)).toEqual([]);
   });
 
-  it('names both segments of a crossing', () => {
+  it('pairs the two segments of a crossing', () => {
     const crossing = [
       [
         [0, 0],
@@ -181,8 +196,10 @@ describe('findCrossings', () => {
       ],
     ];
     expect(findCrossings(crossing)).toEqual([
-      [0, 0],
-      [1, 1],
+      [
+        [0, 0],
+        [1, 1],
+      ],
     ]);
   });
 
@@ -197,7 +214,7 @@ describe('findCrossings', () => {
         [2, 0],
       ],
     ];
-    expect(findCrossings(touching)).toHaveLength(2);
+    expect(findCrossings(touching)).toHaveLength(1);
   });
 
   it('counts two segments folded on each other from a shared end', () => {
@@ -211,14 +228,14 @@ describe('findCrossings', () => {
         [2, 0],
       ],
     ];
-    expect(findCrossings(folded)).toHaveLength(2);
+    expect(findCrossings(folded)).toHaveLength(1);
   });
 });
 
 describe('public/atlas.json', () => {
   const baked = (name: string) => JSON.parse(readFileSync(`public/${name}`, 'utf8'));
   const file = baked('atlas.json') as AtlasFile;
-  const nearArcs = baked('atlas-near.json') as number[][][];
+  const near = baked('atlas-near.json') as NearFile;
   const absolute = (arcs: number[][][]) =>
     arcs.map((arc) => {
       let [x, y] = [0, 0];
@@ -226,7 +243,13 @@ describe('public/atlas.json', () => {
     });
 
   it('carries the near arcs one for one', () => {
-    expect(nearArcs).toHaveLength(file.arcs.length);
+    expect(near.arcs).toHaveLength(file.arcs.length);
+  });
+
+  it.each(['far', 'near'] as const)('gives every region a shape at the %s level', (detail) => {
+    const shaped = decodeAtlas(file, near).shapes((region) => region.id, detail);
+    const shapeless = file.objects.regions.geometries.filter(({ id }) => !shaped.has(id));
+    expect(shapeless.map(({ id }) => id)).toEqual([]);
   });
 
   it('gives each side of an arc to one region at most: no region overlaps another', () => {
@@ -244,7 +267,7 @@ describe('public/atlas.json', () => {
 
   it.each([
     ['far', file.arcs],
-    ['near', nearArcs],
+    ['near', near.arcs],
   ])('crosses no arc with another at the %s level, straits and fjords included', (_, arcs) => {
     expect(findCrossings(absolute(arcs))).toEqual([]);
   });
@@ -255,7 +278,7 @@ describe('public/atlas.json', () => {
    * never finished dividing.
    */
   it('leaves no gap between regions', () => {
-    const land = decodeAtlas(file, nearArcs)
+    const land = decodeAtlas(file, near)
       .shapes(() => 'land', 'near')
       .get('land')!;
     const holes = land.flatMap(({ holes }) => holes).map((hole) => area(hole));

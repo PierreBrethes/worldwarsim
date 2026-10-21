@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { NATIONS, type BuildingKey, type ResourceKey } from '../src/domain/ids';
-import { decodeAtlas, type AtlasFile } from '../src/domain/atlas';
+import { decodeAtlas, type AtlasFile, type NearFile } from '../src/domain/atlas';
 import { atlasWorld } from '../src/domain/atlas-world';
 import {
   cellAt,
@@ -148,7 +148,7 @@ describe('le travail à l’import des modules de convex/', () => {
 
 /** Le monde tel que la cuisson le lit : l'atlas (ADR 0034), les pays fusionnés au niveau près.
  *  La référence contre laquelle la grille et les rasters sont vérifiés. */
-const atlas = decodeAtlas(atlasAsset as unknown as AtlasFile, atlasNearAsset as number[][][]);
+const atlas = decodeAtlas(atlasAsset as unknown as AtlasFile, atlasNearAsset as NearFile);
 const worldOf = (): World => atlasWorld(atlas, projectionAsset as unknown as World);
 
 /**

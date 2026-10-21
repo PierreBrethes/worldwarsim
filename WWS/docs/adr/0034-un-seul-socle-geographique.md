@@ -9,8 +9,7 @@ fichiers sont livrés ; le moteur, le serveur et les grilles s'y branchent aux l
 cet ordre, après `generate-atlas` ; `generate-world` ne les enchaîne plus. La maille reste de
 0,25 u. La région d'une cellule est celle de `regionAt` au centre (le test l'échantillonne),
 son hôte le pays de cette région ; la côte d'une région est un arc dont l'autre côté est la mer.
-Une région que la simplification réduit à un point n'a pas de cellule : elle est ancrée, comme
-toute région plus petite qu'une cellule. Les quatre portes de Calais, Gibraltar, Ormuz et
+Une région plus petite qu'une cellule n'a pas de cellule : elle est ancrée. Les quatre portes de Calais, Gibraltar, Ormuz et
 Bab-el-Mandeb ne servent plus à rien sur la côte 10 m ; elles sont gardées (aucune ne coupe de
 terre), leur retrait est une décision à part.
 
@@ -39,11 +38,18 @@ recoud ses traits par des cartes d'arêtes à clés texte (`splitOutlines`, `con
 3. **Une projection, puis la simplification.** Chaque arc est projeté en Natural Earth 1
    (400 × 208 u), puis pesé par Visvalingam sur la feuille. Deux niveaux gardent les mêmes arcs et
    les mêmes objets : **près** (30 % des points) et **loin** (6 %). Quantification au millième
-   d'unité (~110 m). Là où deux rives se croisent après simplification, les points entre elles
-   reviennent ; là où l'arrondi replie deux arcs l'un sur l'autre à leur jonction, le point du
-   pli s'en va. Aucun arc n'en croise un autre, à aucun niveau.
+   d'unité (~110 m). Chaque niveau se répare jusqu'à ce que rien ne reste à réparer :
+   - une région dont la simplification aplatit tous les anneaux retrouve entier le plus grand
+     (les Maldives, le Vatican, Macao) : **chaque région a une forme, aux deux niveaux** ;
+   - là où deux rives se croisent, les points entre elles reviennent ;
+   - là où il n'y a plus rien à rendre, l'arrondi a replié deux arcs l'un sur l'autre (ou la
+     source se croise, quelques îlots des Maldives) : le point du pli s'en va.
+
+   Aucun arc n'en croise un autre, à aucun niveau. Un quantum de 0,002 u au loin gagnerait
+   31 Ko gzip, mais le Vatican n'y a plus de forme.
 4. **Deux fichiers** : `public/atlas.json` (TopoJSON, objets et arcs « loin »), lu au démarrage ;
-   `public/atlas-near.json` (arcs « près », dans le même ordre), lu après le plateau.
+   `public/atlas-near.json` (arcs « près », dans le même ordre, avec leur quantum), lu après le
+   plateau.
 5. **Un module pur**, `src/domain/atlas.ts`, lit les deux : `decodeAtlas`, puis
    `borders(differ, detail)` (les arcs dont un prédicat sépare les deux côtés), `shapes(key,
    detail)` (les régions d'une même clé fusionnées, trous compris) et `regionAt`. Chaque couche
@@ -57,10 +63,11 @@ recoud ses traits par des cartes d'arêtes à clés texte (`splitOutlines`, `con
 
 - Écart à NE 10m brut, près : 0,22 km en moyenne (1,6 au pire) sur France–Allemagne, 0,39 km
   (5,6) sur la côte bretonne. Loin : 1,05 (6,0) et 3,3 (28), le niveau d'aujourd'hui.
-- Poids : `atlas.json` 493 Ko gzip, `atlas-near.json` 864 Ko gzip, contre 1 083 Ko pour
+- Poids : `atlas.json` 501 Ko gzip, `atlas-near.json` 865 Ko gzip, contre 1 083 Ko pour
   `world.json` et `regions.json` aujourd'hui. Décodage et tracés : 12 ms au démarrage, 34 ms avec
   le près, une fusion de pays en 13 à 18 ms (Node, M-series).
-- Les tests de données tiennent : aucun côté d'arc à deux régions, aucun arc croisé, et la terre
+- Les tests de données tiennent : chaque région a une forme, aucun côté d'arc n'a deux régions,
+  aucun arc n'est croisé, et la terre
   n'a que deux trous, tous deux dans la source (la Caspienne, et le champ de glace de Patagonie
   que le Chili et l'Argentine n'ont jamais partagé).
 - Lots suivants (#209) : les grilles du serveur cuites depuis l'atlas, maille de 0,25 u

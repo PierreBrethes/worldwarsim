@@ -294,7 +294,7 @@ node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg250
 ```
 
 Natural Earth 10m admin-1 v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE / BKG », dl-de/by-2-0).
-Le script affiche le diff des `regionId` contre `regions.json` : un id qui disparaît orpheline une
+Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
 capitale, un gisement ou une saison en cours.
 
 ## Médias

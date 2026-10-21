@@ -43,10 +43,14 @@ export type Atlas = {
   ): Border[];
   /** The regions sharing a key merged into polygons; a `null` key leaves a region out. */
   shapes(key: (region: AtlasRegion) => string | null, detail: Detail): Map<string, Shape[]>;
+  /** A point on a line goes to what lies east of it: a border to the eastern region. */
   regionAt(point: readonly [number, number], detail: Detail): AtlasRegion | null;
 };
 
-export function decodeAtlas(file: AtlasFile, nearArcs?: number[][][]): Atlas {
+/** `public/atlas-near.json`: the near arcs, in the atlas's order, with their quantum. */
+export type NearFile = Pick<AtlasFile, 'transform' | 'arcs'>;
+
+export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
   const geometries = file.objects.regions.geometries;
   const regions = geometries.map(({ id, properties }) => ({
     id,
@@ -58,7 +62,7 @@ export function decodeAtlas(file: AtlasFile, nearArcs?: number[][][]): Atlas {
   );
   const decoded: Record<Detail, Float32Array[] | undefined> = {
     far: decodeArcs(file.arcs, file.transform),
-    near: nearArcs && decodeArcs(nearArcs, file.transform),
+    near: near && decodeArcs(near.arcs, near.transform),
   };
   const arcsOf = (detail: Detail) => {
     const arcs = decoded[detail];
@@ -264,13 +268,13 @@ function boxOf(rings: Float32Array[]): Float64Array {
 }
 
 /**
- * The segments of `arcs` (absolute integer points) that touch another one anywhere but at a
- * shared end, as `[arc, segment]`. Simplifying each arc alone can push a strait's two shores
+ * The pairs of segments of `arcs` (absolute integer points) that touch anywhere but at a shared
+ * end, each segment as `[arc, index]`. Simplifying each arc alone can push a strait's two shores
  * across each other; the generator restores points until this comes back empty.
  */
 export function findCrossings(
   arcs: ReadonlyArray<ReadonlyArray<ArrayLike<number>>>,
-): [number, number][] {
+): [[number, number], [number, number]][] {
   const CELL = 512;
   const segments: [number, number][] = [];
   const cells = new Map<string, number[]>();
@@ -296,7 +300,7 @@ export function findCrossings(
     }
   });
   const ends = ([a, i]: [number, number]) => [arcs[a]![i]!, arcs[a]![i + 1]!] as const;
-  const crossing = new Set<number>();
+  const crossing: [number, number][] = [];
   const tested = new Set<number>();
   for (const ids of cells.values())
     for (let m = 0; m < ids.length; m++)
@@ -305,12 +309,11 @@ export function findCrossings(
         const pair = s * segments.length + t;
         if (tested.has(pair)) continue;
         tested.add(pair);
-        if (segmentsConflict(...ends(segments[s]!), ...ends(segments[t]!))) {
-          crossing.add(s);
-          crossing.add(t);
-        }
+        if (segmentsConflict(...ends(segments[s]!), ...ends(segments[t]!))) crossing.push([s, t]);
       }
-  return [...crossing].sort((a, b) => a - b).map((id) => segments[id]!);
+  return crossing
+    .sort(([a, b], [c, d]) => a - c || b - d)
+    .map(([s, t]) => [segments[s]!, segments[t]!]);
 }
 
 type Point = ArrayLike<number>;

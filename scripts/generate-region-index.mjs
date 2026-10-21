@@ -44,16 +44,6 @@ const areaOf = (flat) => {
 
 const shapesOf = atlas.shapes((region) => region.id, DETAIL);
 
-/** A rock the simplification folded to a single point has no shape left, and still an arc: the
- *  point is where that arc sits. */
-const onlyPoint = new Map();
-for (const { points, left, right } of atlas.borders(() => true, DETAIL)) {
-  for (const region of [left, right]) {
-    if (region !== null && !onlyPoint.has(region.id))
-      onlyPoint.set(region.id, [points[0], points[1]]);
-  }
-}
-
 const name = {};
 const country = {};
 const point = {};
@@ -62,10 +52,9 @@ for (const region of atlas.regions) {
   country[region.id] = region.country;
   const shapes = shapesOf.get(region.id) ?? [];
   const largest = shapes.reduce((a, b) => (areaOf(a.outer) >= areaOf(b.outer) ? a : b), shapes[0]);
+  if (largest === undefined) continue;
   const [lon, lat] = naturalEarth.invert(
-    largest === undefined
-      ? onlyPoint.get(region.id)
-      : polylabel([largest.outer, ...largest.holes].map(pairs), 0.5),
+    polylabel([largest.outer, ...largest.holes].map(pairs), 0.5),
   );
   point[region.id] = [rounded(lon), rounded(lat)];
 }
