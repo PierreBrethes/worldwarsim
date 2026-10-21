@@ -65,6 +65,7 @@ import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp, LAMP_EXPOSURE } from './lamp';
 import { NightSky } from './night';
+import { Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
@@ -315,6 +316,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly halos: Halos;
   private readonly theatreFrame: TheatreFrame;
   private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
@@ -585,6 +587,8 @@ export class MapEngine {
     }
     this.surface = board.surface;
     this.night = new NightSky(this.scene, this.frame, this.sea);
+    this.halos = new Halos();
+    this.scene.add(this.halos.object);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
     this.veil = new CarryVeil(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
@@ -1393,6 +1397,7 @@ export class MapEngine {
     this.drawings.dispose();
     this.sea?.dispose();
     this.veil.dispose();
+    this.halos.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -2559,9 +2564,21 @@ export class MapEngine {
         this.maquettes.group,
         this.camps.group,
         this.arcs.group,
-      ])
+      ]) {
         castShadows(root);
-      if (this.replay) castShadows(this.replay.scene.object);
+        warmPieces(root, night);
+      }
+      if (this.replay) {
+        castShadows(this.replay.scene.object);
+        warmPieces(this.replay.scene.object, night);
+      }
+    }
+    if (whole) {
+      this.halos.begin();
+      const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
+      this.standing.lights(lit);
+      this.maquettes.lights(lit);
+      this.halos.end(night);
     }
     this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);

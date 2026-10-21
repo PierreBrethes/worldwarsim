@@ -1062,6 +1062,18 @@ export class StandingLayer {
         object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
   }
 
+  /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
+  lights(emit: (at: Vector3, radius: number, near: number) => void): void {
+    for (const { object, extent, ready } of this.dressed.values()) {
+      if (!ready || !object.visible) continue;
+      emit(
+        object.position,
+        Math.max(extent.x, extent.z) * object.scale.x,
+        Math.min(1, object.scale.x / pieceScale.troops),
+      );
+    }
+  }
+
   orient(cameraPosition: Vector3): void {
     for (const { object, at } of this.dressed.values()) {
       if ('beside' in at) {
