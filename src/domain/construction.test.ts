@@ -365,6 +365,7 @@ describe('the point aimed at', () => {
     lonLat,
     region: FRANCE,
     coastal: false,
+    onLand: true,
     ...extra,
   });
 
@@ -379,6 +380,13 @@ describe('the point aimed at', () => {
     expect(refusalOf(view({}), 'barracks', aim(PARIS, { region: null }))).toEqual({
       code: 'NO_GROUND',
     });
+  });
+
+  it('says a barracks aimed at the water is refused there, before the click', () => {
+    expect(refusalOf(view({}), 'barracks', aim(PARIS, { onLand: false }))).toEqual({
+      code: 'NOT_ON_LAND',
+    });
+    expect(refusalOf(view({}), 'port', aim(PARIS, { onLand: false, coastal: true }))).toBeNull();
   });
 
   it('refuses a point abroad no outpost reaches', () => {

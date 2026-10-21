@@ -252,14 +252,15 @@ export const PLACING_SNAP_KM = 60;
 
 /**
  * **The point under the pointer**, as the board reads it: where (`lonLat`, already snapped), on
- * whose ground (the region the map's polygons put it in, and its country), and whether a ship can
- * sail from it (`isCoastCell`, the server's own reading). `region` is `null` at sea, or while the
- * region layer has not landed.
+ * whose ground (the region the map's polygons put it in, and its country), whether it lies on that
+ * region's open-sea coast (`onRegionCoast`) and on land (`groundAt`) — the server's own readings.
+ * `region` is `null` at sea far from any coast, or while the region layer has not landed.
  */
 export type Aim = {
   readonly lonLat: LonLat;
   readonly region: { readonly id: string; readonly name: string; readonly country: string } | null;
   readonly coastal: boolean;
+  readonly onLand: boolean;
 };
 
 /** What the ghost says before the click: `null` refusal is a point the server takes. */
@@ -346,6 +347,7 @@ export function aimVerdict(
   const around = aroundOf(view);
   const spot = {
     reached: siteOfPoint(aim.lonLat, aim.region.country === home, reaches) !== null,
+    onLand: aim.onLand,
     deposit:
       deposit === null
         ? null

@@ -42,7 +42,8 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { coastAtPoint, pointInRegion } from './routes';
+import { landAtPoint, pointInRegion } from './routes';
+import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, isReached, sitesOf } from './sites';
@@ -668,7 +669,7 @@ async function refusalFor(
     const lockedBy = buildingLockOf(building, player.researched ?? []);
     const refusal = placementRefusal(
       building,
-      await spotAt(ctx, player, building, lonLat, reached, buildings, pledged),
+      await spotAt(ctx, player, building, lonLat, regionId, reached, buildings, pledged),
       hqLevel,
       lockedBy,
     );
@@ -734,6 +735,7 @@ async function spotAt(
   player: Doc<'players'>,
   key: BuildingKey,
   lonLat: LonLat,
+  regionId: string,
   reached: boolean,
   buildings: ReadonlyArray<Doc<'buildings'>>,
   pledged: ReadonlyArray<Doc<'constructions'>>,
@@ -756,6 +758,7 @@ async function spotAt(
   ];
   return {
     reached,
+    onLand: landAtPoint(lonLat),
     deposit:
       deposit === null
         ? null
@@ -763,7 +766,7 @@ async function spotAt(
             key: deposit.deposit,
             taken: known.some((held) => exploitsAt(held.key, held.lonLat, deposit)),
           },
-    coastal: coastAtPoint(lonLat),
+    coastal: isOnRegionCoast(lonLat, regionId),
     nearest: nearestBuilding(lonLat, aroundOf(buildings, pledged)),
     already:
       buildings.some((held) => held.key === key && held.capturedAt === undefined) ||
@@ -842,6 +845,7 @@ function placementRefusalOf(
 ): Refusal {
   switch (refusal) {
     case 'UNKNOWN_BUILDING':
+    case 'NOT_ON_LAND':
     case 'NOT_COASTAL':
     case 'DEPOSIT_TAKEN':
       return { code: refusal };

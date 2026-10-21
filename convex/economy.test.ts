@@ -63,9 +63,13 @@ const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
 const RUHR = 'DEU-1572'; // German
 
-/** A shore cell of the Pas-de-Calais, as `isCoastCell` reads the routing grid — land with the
- *  Channel beside it, and French ground (`hostAtPoint`). */
-const CALAIS_SHORE = { lon: 2.31, lat: 50.63 };
+/** Calais harbour, 800 m from the Pas-de-Calais's open-sea coast (#221) — a sea cell of the
+ *  routing grid, as the real shore often is. The old point, forty kilometres inland, took a quay
+ *  off the grid's coarse coast. */
+const CALAIS_SHORE = { lon: 1.85, lat: 50.97 };
+/** The Channel off Calais, still claimed for the Pas-de-Calais (`pointInRegion`): water, and
+ *  3,7 km from the coast. */
+const OFF_CALAIS = { lon: 1.8, lat: 51.0 };
 /** The same, on the other side of the Channel: a legal coast, the wrong country. */
 const ENGLISH_SHORE = { lon: -1.95, lat: 50.85 };
 const MOSELLE_POINT = pointIn(MOSELLE);
@@ -537,6 +541,22 @@ describe('placement', () => {
         regionId: PAS_DE_CALAIS,
         point: CALAIS_SHORE,
       });
+    });
+
+    /** **La pose lit le sol** (#221) : l'eau ne porte qu'un port, et un port à quai de la côte. */
+    it('refuses a barracks on the water, and a port off the coast', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      const order = (building: 'barracks' | 'port') =>
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building,
+          regionId: PAS_DE_CALAIS,
+          point: OFF_CALAIS,
+        });
+      await expect(order('barracks')).rejects.toThrow('NOT_ON_LAND');
+      await expect(order('port')).rejects.toThrow('NOT_COASTAL');
     });
 
     it('refuses a point that does not lie in the country of its region', async () => {

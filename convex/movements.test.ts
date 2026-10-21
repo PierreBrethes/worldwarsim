@@ -4332,3 +4332,33 @@ describe('rester en mer', () => {
     expect(drowned[0]).toMatchObject({ men: nominalStrength('infantry', 1), machines: 0 });
   });
 });
+
+/**
+ * **Un navire rejoint le quai** (#221) : le port se pose sur la vraie côte, et sur le front de
+ * mer de Calais la grille de routage n'a que de l'eau. La coque y entre quand même : sa route
+ * vise la cellule de mer du quai, comme pour tout port posé sur l'eau.
+ */
+describe('le quai sur la vraie côte', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('brings a cargo back from the open sea to a port standing on Calais harbour', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const port = await raise(t, seat, 'port', 'FRA-5334', { lon: 1.85, lat: 50.97 });
+    const offshore = { lon: 2.5, lat: 54.5 };
+    const cargo = await postAt(t, seat, 'cargo', offshore);
+
+    await t.mutation(api.movements.enterGarrison, {
+      ...seat,
+      origin: { kind: 'point', point: offshore },
+      troopIds: [cargo],
+      buildingId: port,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run((ctx) => ctx.db.get(cargo)))!.stationedAt).toBe(port);
+  });
+});

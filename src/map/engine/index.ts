@@ -34,14 +34,13 @@ import type { LonLat } from '@/domain/geo';
 import type { RegionType } from '@/domain/ids';
 import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
-  coastCellsIn,
-  isCoastCell,
-  groundAt,
-  type Ground,
-  KM_PER_UNIT,
-  type Medium,
-  type RouteGrid,
-} from '@/domain/routing';
+  decodeCoast,
+  nearestCoast,
+  onRegionCoast,
+  COAST_REACH_KM,
+  type Coast,
+} from '@/domain/coast';
+import { isCoastCell, groundAt, type Ground, type Medium, type RouteGrid } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
@@ -154,18 +153,20 @@ const SELECTED_LIFT = 0.75;
  */
 /**
  * **What the held building leaps onto** (ADR 0029): nothing (it stands under the pointer), the
- * nearest quay of the routing grid, or the nearest of a list of points — the free deposits.
+ * open-sea coast of the region under the pointer (#221), or the nearest of a list of points — the
+ * free deposits.
  */
 export type PlacingMagnet =
   | { readonly kind: 'free' }
   | { readonly kind: 'coast' }
   | { readonly kind: 'points'; readonly points: ReadonlyArray<LonLat> };
 
-/** The point the ghost holds, with what the board knows of it: whose region, and a coast. */
+/** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
 export type PlacingSpot = {
   readonly lonLat: LonLat;
   readonly region: RegionIdentity | null;
   readonly coastal: boolean;
+  readonly onLand: boolean;
 };
 
 export type MapActClick = {
@@ -2197,10 +2198,10 @@ export class MapEngine {
 
   /**
    * **The board is holding a building, and the next left click puts it down** (ADR 0029). The
-   * ghost follows the pointer anywhere; its magnet, when it has one, makes it leap onto a quay of
-   * the routing grid (`isCoastCell`, the very function the server refuses with) or onto one of a
-   * list of points — the free deposits. What the point is worth is not decided here: the board
-   * reads it off `onPlacingAim`, through the placement rule.
+   * ghost follows the pointer anywhere; its magnet, when it has one, makes it leap onto the
+   * open-sea coast of the region under the pointer (`nearestCoast`, the file the server refuses
+   * with) or onto one of a list of points — the free deposits. What the point is worth is not
+   * decided here: the board reads it off `onPlacingAim`, through the placement rule.
    */
   setPlacing(
     placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null,
@@ -2214,26 +2215,58 @@ export class MapEngine {
       this.refreshCursor();
       return;
     }
+    if (placing.magnet.kind === 'coast') this.loadCoast();
     this.ghost.arm(placing.sprite, (pointer) => this.snapFor(placing.magnet, pointer));
     this.hoverDirty = true;
     this.refreshCursor();
   }
 
+  /**
+   * **Dans sa région** (#221) : au-dessus d'une région, le fantôme ne saute que sur sa côte — une
+   * région de l'intérieur n'en a pas, et il reste sous le pointeur ; au large, sur la côte la
+   * plus proche, de qui qu'elle soit.
+   */
   private snapFor(magnet: PlacingMagnet, pointer: LonLat): LonLat {
     if (magnet.kind === 'free') return pointer;
     if (magnet.kind === 'points') return snapTo(pointer, magnet.points);
-    const at = this.frame.projectLonLat(pointer);
-    const [x, y] = [at.x + this.frame.centerX, at.z + this.frame.centerY];
-    const reach = PLACING_SNAP_KM / KM_PER_UNIT;
-    const quays = coastCellsIn(this.routeGrid, [x - reach, y - reach, x + reach, y + reach]);
-    return snapTo(
-      pointer,
-      quays.map((quay) => quay.lonLat),
-    );
+    if (this.coast === null) return pointer;
+    const region = this.regionAtLonLat(pointer)?.id ?? null;
+    return nearestCoast(this.coast, pointer, PLACING_SNAP_KM, region)?.lonLat ?? pointer;
   }
 
+  /** Un point posé sur le trait de côte tombe parfois hors du dessin de sa région : la côte la
+   *  plus proche la nomme alors. */
   private placingSpotAt(lonLat: LonLat): PlacingSpot {
-    return { lonLat, region: this.regionAtLonLat(lonLat), coastal: this.coastAt(lonLat) };
+    const shore = () => {
+      const regionId = this.coast && nearestCoast(this.coast, lonLat, COAST_REACH_KM)?.regionId;
+      return regionId ? this.regions.identityOf(regionId) : null;
+    };
+    const region = this.regionAtLonLat(lonLat) ?? shore();
+    return {
+      lonLat,
+      region,
+      coastal:
+        this.coast !== null && region !== null && onRegionCoast(this.coast, lonLat, region.id),
+      onLand: this.landAt(lonLat),
+    };
+  }
+
+  private coast: Coast | null = null;
+  private coastLoading = false;
+
+  /** La côte de mer ouverte (`public/coast.json`, 0,5 Mo gzip), lue au premier port tenu. */
+  private loadCoast(): void {
+    if (this.coast !== null || this.coastLoading) return;
+    this.coastLoading = true;
+    fetch('/coast.json')
+      .then((response) => response.json())
+      .then((asset) => {
+        this.coast = decodeCoast(asset, PROJECTION);
+        this.hoverDirty = true;
+        this.invalidate();
+      })
+      .catch(() => {})
+      .finally(() => (this.coastLoading = false));
   }
 
   /**
