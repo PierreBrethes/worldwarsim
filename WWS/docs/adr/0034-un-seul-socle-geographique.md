@@ -34,11 +34,21 @@ Natural Earth 10m de 400 km² et plus (Constance, 459 km², le plus petit qu'il 
 réservoirs compris, la carte est celle d'aujourd'hui) sont retirés des régions par mapshaper
 (`-clip`, `-erase`), après un aimantage à 0,001° qui évite les liserés entre une rive et une
 frontière. Ils restent dans la topologie, objet `lakes` : leur rive est une côte qu'on dessine
-(`borders` la marque `lake`), une cellule d'eau de la grille qu'on ne traverse pas à pied, mais
-pas une côte où l'on amarre : `region-index.json` ne compte pas une rive de lac comme côte, et
-`isCoastCell` ne retient que la mer ouverte (`openWaterOf`), ce qui retire aussi ses quais à la
-Caspienne, où aucune coque ne pouvait déjà prendre la mer. Coût : +50 Ko gzip au loin, +97 Ko
-au près.
+(`borders` la marque `lake`), jamais une côte où l'on amarre (Pierre : « la Caspienne est un lac,
+pas de quais »).
+- **La grille** a un type de cellule `LAKE` : les grands lacs et tous les trous de la terre, la
+  Caspienne comprise. Aucun mode ne la foule ni ne la navigue, une route qui y vise est refusée.
+  Sans lui, un lac à moins d'une cellule de la côte se fondait dans la mer ouverte à 0,25 u
+  (Nicaragua, IJsselmeer, Sivash). Un quai (`isCoastCell`) borde la mer ouverte (`openWaterOf`).
+- **`coastal` se lit sur la grille** : une région est côtière quand l'une de ses cellules de
+  `region-grid.json` (sa cellule d'ancrage si elle n'en a pas) est un quai. La fiche dit
+  « côtière » exactement là où le port est accepté : 403 régions perdent ce mot (îles plus
+  petites qu'une cellule, Malte, Singapour, la Caspienne, des estuaires trop fins pour la
+  maille), 143 le gagnent (des cellules qui touchent une côte étroite à 28 km près).
+- **Le point d'une région qui a de la terre est sur l'une de ses cellules de terre**, et dans sa
+  région : sinon une force posée là serait lue à flot.
+
+Coût : +50 Ko gzip au loin, +97 Ko au près.
 
 **Précisée le 21/10/2026 (#217, lot 4).** Les contours des territoires lisent l'atlas à leur
 tour (`borders`, au niveau de la feuille) : le client ne lit plus `regions.json`. Le contour se

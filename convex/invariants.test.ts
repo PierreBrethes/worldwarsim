@@ -277,31 +277,6 @@ describe('le raster de géographie cuit', () => {
    */
   const points = indexAsset.point as unknown as Readonly<Record<string, LonLat | undefined>>;
 
-  /** Le point d'une région est là où le serveur pose ce qui s'y bâtit et où la carte l'ancre :
-   *  il est dans la région, jamais en mer ni chez le voisin. Sauf une région plus étroite que
-   *  quatre fois l'arrondi de `projection.json` (0,01 u, ~1 km), que le serveur ne sait pas
-   *  viser : le Vatican, des districts de Nauru, un îlot américain. */
-  it('pose le point de chaque région dans sa région', () => {
-    const narrow = new Set(
-      [...atlas.shapes(({ id }) => id, 'near')]
-        .filter(([, shapes]) =>
-          shapes.every(({ outer }) => {
-            const xs = outer.filter((_, i) => i % 2 === 0);
-            const ys = outer.filter((_, i) => i % 2 === 1);
-            return (
-              Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) < 0.04
-            );
-          }),
-        )
-        .map(([id]) => id),
-    );
-    expect(
-      Object.entries(points)
-        .filter(([id, point]) => !narrow.has(id) && atlasRegionAt(point!) !== id)
-        .map(([id]) => id),
-    ).toEqual([]);
-  });
-
   it('ancre exactement les régions qu’aucune cellule ne porte', () => {
     const inChannel = new Set(raster.regions);
     const withoutCells = raster.ids.filter((_, rank) => !inChannel.has(rank + 1));
@@ -496,5 +471,43 @@ describe('les lacs de la grille', () => {
 
   it('n’a aucun quai sur une rive de lac : San Carlos, au bord du Nicaragua', () => {
     expect(isCoastCell(grid, [-84.78, 11.12])).toBe(false);
+  });
+});
+
+/**
+ * **Le point d'une région qui a de la terre est sur sa terre** : dans sa région sur l'atlas, et
+ * sur une de ses cellules de terre de `region-grid.json`. Posé sur une cellule d'eau, une force
+ * y serait lue à flot (`view.ts`, `upkeep.ts`) — Kalangala et Mayuge, au bord du lac Victoria.
+ * Les exceptions sont des régions plus étroites que l'arrondi du point (0,001°) : le Vatican, deux
+ * districts de Nauru, l'île Howland.
+ */
+describe('le point de chaque région', () => {
+  const NARROW = ['VAT+00?', 'NRU-4975', 'NRU-4976', 'UMI-5172'];
+  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, worldOf());
+  const points = indexAsset.point as unknown as Readonly<Record<string, LonLat>>;
+
+  it('est dans sa région sur l’atlas', () => {
+    expect(
+      Object.entries(points)
+        .filter(([id, point]) => !NARROW.includes(id) && atlasRegionAt(point) !== id)
+        .map(([id]) => id),
+    ).toEqual([]);
+  });
+
+  it('est sur une de ses cellules de terre quand elle en a', () => {
+    const landOf = new Map<number, Set<number>>();
+    raster.regions.forEach((code, cell) => {
+      if (code !== 0 && grid.cells[cell] === 1)
+        (landOf.get(code) ?? landOf.set(code, new Set()).get(code)!).add(cell);
+    });
+    expect(
+      Object.entries(points)
+        .filter(([id, point]) => {
+          const land = landOf.get(raster.codeOfRegion.get(id)!);
+          return land !== undefined && !land.has(cellAt(raster, point));
+        })
+        .map(([id]) => id),
+    ).toEqual([]);
   });
 });
