@@ -88,9 +88,11 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   appelle `engine.invalidate()` dans un effet dont les dépendances sont tout ce qui fait naître
   ou change un nœud (chaque `invalidate()` coûte 1,5 s d'images). Toute animation suit le réglage
   `actives / réduites / coupées` (`src/domain/map-motion.ts`).
-- **Données générées.** `world.json`, `regions.json`, `region-types.json`, `grid.json` sortent de
-  `scripts/generate-*.mjs`, jamais retouchés à la main. `buildGrid` ne tourne jamais dans une
-  query : la grille est cuite. Aucune règle de jeu ne lit `RegionType` sans ADR. Les districts
+- **Données générées.** L'atlas (`atlas.json`, `atlas-near.json`, ADR 0034) est la seule source
+  géographique : `scripts/generate-atlas.mjs` le cuit depuis des sources hors du dépôt, épinglées
+  par SHA-256. Le reste de `public/*.json` en sort par `scripts/generate-*.mjs` (ordre de la chaîne
+  dans `deploiement/README.md`), sauf `engraved-map.json`, figé sans générateur. Rien n'y est
+  retouché à la main. `buildGrid` ne tourne jamais dans une query : la grille est cuite. Aucune règle de jeu ne lit `RegionType` sans ADR. Les districts
   allemands (BKG) doivent l'attribution « © GeoBasis-DE / BKG », sans page de crédits à ce jour.
 - **Figurines GLB.** Textures en WebP avant commit
   (`npx @gltf-transform/cli webp <in.glb> <out.glb> --quality 90`, hors du dépôt) ; ni meshopt ni
