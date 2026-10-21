@@ -109,6 +109,12 @@ const SEA = 2;
  * Suez en 1940 — là où un détroit naturel reste de la mer et rien d'autre.
  */
 const CANAL = 3;
+/**
+ * **Un lac est de l'eau qu'on ne navigue pas** (ADR 0034) : ni terre qu'on foule, ni mer d'où
+ * une coque part. Un lac à moins d'une cellule de la côte se fondait dans la mer ouverte à cette
+ * maille — le Nicaragua, l'IJsselmeer devenaient des ports.
+ */
+const LAKE = 4;
 
 /** Ce que la recherche a le droit de fouler, par mode. Un canal est des deux côtés. */
 const ALLOWED_BY_MODE: Readonly<Record<'land' | 'naval' | 'combined', ReadonlyArray<number>>> = {
@@ -246,7 +252,18 @@ export function buildGrid(
     }
   }
 
-  fillLand(world, step, width, height, cells);
+  scanFill(
+    world.countries.flatMap((country) => country.rings),
+    world,
+    step,
+    width,
+    height,
+    (cell) => (cells[cell] = LAND),
+  );
+  for (const lake of world.lakes ?? [])
+    scanFill([lake], world, step, width, height, (cell) => {
+      if (cells[cell] === SEA) cells[cell] = LAKE;
+    });
 
   for (const gate of gates) {
     engravePassage(
@@ -413,6 +430,7 @@ export function computeRoute(
   // with another shore: the arrival records the point the player actually chose.
   const allowed = ALLOWED_BY_MODE[mode];
   if (mode === 'land' && !allowed.includes(grid.cells[projectOnGrid(grid, to)]!)) return null;
+  if (grid.cells[projectOnGrid(grid, to)] === LAKE) return null;
   if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
 
   const start = nearestCell(grid, projectOnGrid(grid, from), mode);
@@ -1045,30 +1063,30 @@ function sphereEdges(world: World, step: number, height: number): Array<[number,
 }
 
 /** Even-odd scanline fill: countries are disjoint, global parity suffices. */
-function fillLand(
+/** The cells whose centre lies inside `rings`, even-odd, handed to `paint`. */
+function scanFill(
+  rings: World['countries'][number]['rings'],
   world: World,
   step: number,
   width: number,
   height: number,
-  cells: Uint8Array,
+  paint: (cell: number) => void,
 ): void {
   const crossingsByRow: number[][] = Array.from({ length: height }, () => []);
-  for (const country of world.countries) {
-    for (const ring of country.rings) {
-      for (let i = 0; i < ring.length; i++) {
-        const [ax, ay] = ring[i]!;
-        const [bx, by] = ring[(i + 1) % ring.length]!;
-        if (ay === by) continue;
-        const rowMin = Math.max(0, Math.ceil((Math.min(ay, by) - world.sphere.minY) / step - 0.5));
-        const rowMax = Math.min(
-          height - 1,
-          Math.floor((Math.max(ay, by) - world.sphere.minY) / step - 0.5),
-        );
-        for (let row = rowMin; row <= rowMax; row++) {
-          const y = world.sphere.minY + (row + 0.5) * step;
-          if (y < Math.min(ay, by) || y >= Math.max(ay, by)) continue;
-          crossingsByRow[row]!.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
-        }
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i++) {
+      const [ax, ay] = ring[i]!;
+      const [bx, by] = ring[(i + 1) % ring.length]!;
+      if (ay === by) continue;
+      const rowMin = Math.max(0, Math.ceil((Math.min(ay, by) - world.sphere.minY) / step - 0.5));
+      const rowMax = Math.min(
+        height - 1,
+        Math.floor((Math.max(ay, by) - world.sphere.minY) / step - 0.5),
+      );
+      for (let row = rowMin; row <= rowMax; row++) {
+        const y = world.sphere.minY + (row + 0.5) * step;
+        if (y < Math.min(ay, by) || y >= Math.max(ay, by)) continue;
+        crossingsByRow[row]!.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
       }
     }
   }
@@ -1077,9 +1095,7 @@ function fillLand(
     for (let i = 0; i + 1 < xs.length; i += 2) {
       const start = Math.max(0, Math.ceil((xs[i]! - world.sphere.minX) / step - 0.5));
       const end = Math.min(width - 1, Math.floor((xs[i + 1]! - world.sphere.minX) / step - 0.5));
-      for (let column = start; column <= end; column++) {
-        cells[row * width + column] = LAND;
-      }
+      for (let column = start; column <= end; column++) paint(row * width + column);
     }
   }
 }

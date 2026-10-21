@@ -12,7 +12,14 @@ import {
   regionAt,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
-import { buildGrid, decodeGrid, projectLonLat } from '../src/domain/routing';
+import {
+  buildGrid,
+  computeRoute,
+  decodeGrid,
+  isCoastCell,
+  isLandCell,
+  projectLonLat,
+} from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
 import type { World } from '../src/domain/world';
 import atlasAsset from '../public/atlas.json';
@@ -462,5 +469,32 @@ describe('les régions nommées en dur', () => {
         .filter(({ lon, lat, regionId }) => regionAt(raster, [lon, lat]) !== regionId)
         .map(({ id }) => id),
     ).toEqual([]);
+  });
+});
+
+/**
+ * **Un lac n'est pas la mer** (Pierre, 21/10 : « la Caspienne est un lac, pas de quais »). À la
+ * maille de 0,25 u, un lac à moins d'une cellule de la côte se fondait dans la mer ouverte : le
+ * Nicaragua, l'IJsselmeer recevaient des navires et des quais. Ses cellules sont de lac, et
+ * aucune route navale n'y mène depuis la mer du Nord.
+ */
+describe('les lacs de la grille', () => {
+  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
+  it.each([
+    ['la Caspienne', 50.5, 42],
+    ['le Nicaragua', -85.4, 11.6],
+    ["l'IJsselmeer", 5.35, 52.75],
+    ['la Mirim', -52.9, -32.6],
+    ['le Sivash', 34.9, 45.8],
+    ["l'Iliamna", -155, 59.6],
+    ['le Victoria', 33, -1],
+    ['le Supérieur', -87.5, 47.7],
+  ])('%s n’est ni terre ni mer navigable', (_, lon, lat) => {
+    expect(isLandCell(grid, [lon, lat])).toBe(false);
+    expect(computeRoute(grid, [3, 54], [lon, lat], 'naval')).toBeNull();
+  });
+
+  it('n’a aucun quai sur une rive de lac : San Carlos, au bord du Nicaragua', () => {
+    expect(isCoastCell(grid, [-84.78, 11.12])).toBe(false);
   });
 });

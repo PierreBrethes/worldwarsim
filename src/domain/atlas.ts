@@ -49,6 +49,8 @@ type Shape = { readonly outer: Float32Array; readonly holes: readonly Float32Arr
 
 export type Atlas = {
   readonly regions: readonly AtlasRegion[];
+  /** The outer ring of each great lake. */
+  lakes(detail: Detail): Float32Array[];
   /** The arcs whose two sides `differ` tells apart, each once. */
   borders(
     differ: (left: AtlasRegion | null, right: AtlasRegion | null) => boolean,
@@ -151,6 +153,12 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
 
   return {
     regions,
+    lakes(detail) {
+      return (file.objects.lakes?.geometries ?? [])
+        .flatMap((lake) => (lake.type === 'Polygon' ? [lake.arcs] : lake.arcs))
+        .map(([outer]) => ringPoints(arcsOf(detail), outer!))
+        .filter(hasArea);
+    },
     borders(differ, detail) {
       const arcs = arcsOf(detail);
       const out: Border[] = [];

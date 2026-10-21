@@ -117,6 +117,10 @@ describe('decodeAtlas', () => {
     expect(shores.map(({ lake }) => lake)).toEqual([false, false, false, true]);
   });
 
+  it('draws each lake as a ring', () => {
+    expect(atlas.lakes('far').map(area)).toEqual([1]);
+  });
+
   it('puts the left region on the left hand of the line', () => {
     const [shared] = atlas.borders((left, right) => !!left && !!right, 'far');
     expect([idOf(shared!.left), idOf(shared!.right)]).toEqual(['A', 'B']);

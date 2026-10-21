@@ -18,6 +18,8 @@ export type World = {
   readonly sphere: { minX: number; maxX: number; minY: number; maxY: number };
   readonly outline: ReadonlyArray<OutlineSample>;
   readonly countries: ReadonlyArray<ProjectedCountry>;
+  /** Water no hull sails: the great lakes and the Caspian, each ring on its own. */
+  readonly lakes?: ProjectedCountry['rings'];
 };
 
 /** What the sheet is drawn in: its box and its outline, `public/projection.json`. */

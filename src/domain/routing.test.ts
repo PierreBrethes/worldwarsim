@@ -132,6 +132,30 @@ describe('a coast cell', () => {
     expect(coastCellsIn(withLake, [12, 23, 23, 26])).toEqual([]);
   });
 
+  /** A lagoon on the shore, cut out of the land as the atlas cuts it, would join the sea at this
+   *  mesh: its cells are lake, never sea. */
+  it('is not the shore of a lake that touches the sea', () => {
+    const lagoon = [
+      [10, 22],
+      [15, 22],
+      [15, 28],
+      [10, 28],
+    ] as const;
+    const world = toyWorld();
+    const westland = world.countries[0]!;
+    const withLagoon = buildGrid(
+      {
+        ...world,
+        countries: [{ ...westland, rings: [...westland.rings, lagoon] }],
+        lakes: [lagoon],
+      },
+      1,
+    );
+    expect(isLandCell(withLagoon, toLonLat(12.5, 25.5))).toBe(false);
+    expect(isCoastCell(withLagoon, toLonLat(15.5, 25.5))).toBe(false);
+    expect(computeRoute(withLagoon, toLonLat(5.5, 25.5), toLonLat(12.5, 25.5), 'naval')).toBeNull();
+  });
+
   it('is not the water off it — a quay stands on the ground', () => {
     expect(isCoastCell(grid, toLonLat(35.5, 25.5))).toBe(false);
   });
