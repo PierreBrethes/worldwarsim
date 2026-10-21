@@ -298,6 +298,10 @@ Natural Earth 10m admin-1 et lacs v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE
 dl-de/by-2-0). Puis, dans cet ordre : `generate-grid`, `generate-region-index`,
 `generate-region-grid`, `generate-europe-sheet`, `generate-region-types <dossier des rasters>`,
 `generate-deposits`.
+**Déployer le socle de l'atlas vide la base** (ADR 0034), en pré-production comme en
+production : le sol, les points des régions, les gisements et la côte changent sous une saison
+en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions déployées ensuite.
+
 Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
 capitale, un gisement ou une saison en cours.
 

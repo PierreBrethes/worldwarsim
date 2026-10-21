@@ -133,6 +133,9 @@ recoud ses traits par des cartes d'arêtes à clés texte (`splitOutlines`, `con
   terrain ; contour centré (ADR 0033) ; puis le code mort.
 - Les arcs le long de l'antiméridien (Tchoukotka, Fidji) n'ont personne de l'autre côté : un
   prédicat « terre contre mer » les compte comme côte. Le moteur les écarte au lot 3.
+- **Une saison en cours ne survit pas au socle** : le sol (terre, mer, lac), les points des
+  régions, les gisements et la côte changent sous elle. On vide la base avant de le déployer, en
+  pré-production comme en production ; il n'y a pas de migration.
 
 ## Ce qu'on abandonne
 
