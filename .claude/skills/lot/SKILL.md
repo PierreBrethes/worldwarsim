@@ -48,6 +48,8 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`. Des timeouts
   dans `convex/` qui changent d'un passage à l'autre viennent de la charge : relance ces
   fichiers seuls.
+- **Attendre un processus** : attends son pid (`while kill -0 <pid>; do sleep 5; done`).
+  `pgrep -f <motif>` dans une boucle trouve la boucle elle-même et ne rend jamais la main.
 
 ## 4. Voir son rendu
 

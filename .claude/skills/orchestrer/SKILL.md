@@ -43,7 +43,8 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
 3. **Agents** (définis dans `.claude/agents/`) :
    - un agent `dev` par issue ;
    - **un seul agent qui écrit à la fois** dans le checkout ;
-   - `enqueteur`, `relecteur` et `designer` tournent en parallèle.
+   - `enqueteur`, `relecteur` et `designer` tournent en parallèle ;
+   - la consigne d'un agent porte l'issue, ce qui a changé sur la branche, les décisions de Pierre, ce qui est propre au lot et la règle d'arrêt. Ce que disent déjà sa définition et le skill `lot` ne s'y recopie pas : vérifieur unique, fichiers de Pierre, commits locaux, format du rapport.
 4. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
 5. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
 6. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`), puis fusion par toi. Exception : un lot qui exige de vider la pré-prod attend que Pierre l'ait vidée.

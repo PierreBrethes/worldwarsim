@@ -19,9 +19,10 @@ Fini quand tu as la plage, l'issue et la liste des fichiers touchés (`git diff 
 
 ## 2. Lancer `code-review`
 
-Sur un lot de plus de dix fichiers, charge le skill `code-review` sur la plage : il rend les
-axes Standards et Spec. Garde ses findings pour l'étape 4. Sur un lot plus petit, la grille
-suffit.
+Sur un lot de plus de dix fichiers, passe les axes de `code-review` sur la plage : Standards
+(`CONVENTIONS.md`) et Spec (l'issue). Tu n'as pas d'outil pour lancer ses deux sous-agents :
+passe ces axes toi-même, puis garde leurs findings pour l'étape 4. Sur un lot plus petit, la
+grille suffit.
 
 ## 3. Passer la grille du jeu
 
