@@ -999,6 +999,48 @@ async function play(profileName, pass) {
     }
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
   }
+  // **Le port tenu** (#221) : la première prise télécharge la côte (`/coast.json`) et la décode,
+  // puis le fantôme suit le pointeur au large de Calais — l'aimant à chaque pas.
+  await page.evaluate(frameAt, [[1.6, 50.9], 12]);
+  await page.waitForTimeout(2500);
+  // Une fiche ouverte par les gestes d'avant tient la place du plateau, au téléphone.
+  for (let k = 0; k < 3; k++) {
+    if (!(await button(/^fermer$/i).isVisible())) break;
+    await close();
+    await page.waitForTimeout(800);
+  }
+  if (phone) await tap(button(/déplier le plateau personnel/));
+  else await button(/^Plateau personnel$/).click();
+  await page.waitForTimeout(800);
+  await gesture(
+    'prendre un port',
+    () => page.getByText('Port', { exact: true }).first().click(),
+    2500,
+  );
+  const coastFile = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .filter((entry) => entry.name.endsWith('/coast.json'))
+      .map((entry) => ({
+        ms: Math.round(entry.duration),
+        ko: Math.round(entry.encodedBodySize / 1024),
+      }))
+      .at(0),
+  );
+  if (coastFile)
+    console.log(`${profileName} : /coast.json en ${coastFile.ms} ms, ${coastFile.ko} Ko`);
+  const shore = await free([Math.round(width / 2), Math.round(height * 0.35)]);
+  await gesture('aimant du port', async () => {
+    for (let k = 0; k <= 40; k++) {
+      await page.mouse.move(shore[0] - 160 + k * 8, shore[1] - 40 + k * 2);
+      await page.waitForTimeout(35);
+    }
+  });
+  await page.keyboard.press('Escape');
+  await (phone ? button(/replier le plateau personnel/) : button(/^Plateau personnel$/))
+    .click({ timeout: 3000 })
+    .catch(() => {});
+
   // Une région sous le pointeur, et sa fiche : la France à mi-distance.
   await page.evaluate(frameAt, near);
   await page.waitForTimeout(2500);
