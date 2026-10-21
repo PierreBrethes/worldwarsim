@@ -88,6 +88,42 @@ export function sunLightAt(epochMs: number, at: LonLat): SunLight {
   };
 }
 
+/**
+ * **La lune est une lampe fixe** (#198) : l'azimut du soleil est singulier à l'antipode du point
+ * subsolaire, et c'est là, de nuit, qu'on regarde — un degré de carte y faisait pivoter les ombres
+ * de 90°, et chaque battement de l'horloge les tournait encore. La nuit, la lampe reste donc au
+ * même endroit, comme dans la maquette (`carte-refonte`). @a-mesurer
+ */
+export const MOON_AZIMUTH_DEG = 315;
+export const MOON_ELEVATION_DEG = 53;
+
+export type LampDirection = Pick<SunLight, 'azimuth' | 'elevation'>;
+
+const toward = ({ azimuth, elevation }: LampDirection): [number, number, number] => [
+  Math.sin(azimuth) * Math.cos(elevation * RAD),
+  Math.sin(elevation * RAD),
+  Math.cos(azimuth) * Math.cos(elevation * RAD),
+];
+
+/**
+ * Where the lamp stands: the sun by day, the moon by night, and in the twilight the two blended as
+ * directions — never as angles, whose short way round flips when the sun is opposite the moon.
+ * `night` is the dark where one looks (`nightOfAltitude`), 0 to 1.
+ */
+export function lampDirection(sun: SunLight, night: number): LampDirection {
+  const moon = toward({ azimuth: MOON_AZIMUTH_DEG * RAD, elevation: MOON_ELEVATION_DEG });
+  const day = toward(sun);
+  const [x, y, z] = day.map((component, k) => component + (moon[k]! - component) * night) as [
+    number,
+    number,
+    number,
+  ];
+  return {
+    azimuth: (Math.atan2(x, z) + 2 * Math.PI) % (2 * Math.PI),
+    elevation: Math.asin(y / Math.hypot(x, y, z)) / RAD,
+  };
+}
+
 export type DayCycle = 'twoHours' | 'hour' | 'real';
 export const DAY_CYCLES: ReadonlyArray<DayCycle> = ['twoHours', 'hour', 'real'];
 /** Deux heures (#193) : une partie du soir voit passer le jour et la nuit sans qu'ils filent. */

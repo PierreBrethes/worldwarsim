@@ -47,7 +47,7 @@ import { KM_PER_UNIT } from '@/domain/routing';
 import type { UnitTier } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
 import { fr } from '@/i18n/fr';
-import { figurineFor, sceneOf, type Figurine } from '@/map/engine/figurines/figurine';
+import { figurineFor, nearWeight, sceneOf, type Figurine } from '@/map/engine/figurines/figurine';
 import { stride } from '@/map/engine/figurines/infantry';
 import { SEA_LEVEL, WorldFrame } from '@/map/engine/frame';
 import { castShadows, Lamp } from '@/map/engine/lamp';
@@ -290,7 +290,7 @@ export class LandingTable {
       desk.position.copy(paper.position).setY(-0.07);
       desk.receiveShadow = true;
       this.scene.add(paper, desk);
-      this.night = new NightSky(this.scene, this.frame, this.surface(), null, LANDING_SKY);
+      this.night = new NightSky(this.scene, this.frame, null, LANDING_SKY, this.surface());
 
       addEventListener('resize', this.resize);
       canvas.addEventListener('pointerdown', this.onDown);
@@ -1290,7 +1290,9 @@ export class LandingTable {
     const dist = this.aimCamera(dt, name, progress);
     const instant = name === 'night' ? nightInstant(progress, this.today) : dayInstant(this.today);
     const looked = this.lonLatOf(new Vector3(this.cam.x, 0, this.cam.z));
-    const night = this.night.apply(instant, looked, dist);
+    // From orbit both halves of the world are on screen: the veil tells them apart, the sky waits.
+    const night = nightAt(instant, looked) * nearWeight(dist);
+    this.night.apply(instant, night);
     this.lamp.light.intensity = LANDING_LAMP + (LANDING_NIGHT_LAMP - LANDING_LAMP) * night;
     for (const [city, lonLat] of Object.entries(NIGHT_CITIES))
       this.setPin(

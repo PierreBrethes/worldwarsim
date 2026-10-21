@@ -50,7 +50,13 @@ import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
-import { boardInstant, DEFAULT_DAY_CYCLE, sunLightAt, type DayCycle } from '@/domain/daylight';
+import {
+  boardInstant,
+  DEFAULT_DAY_CYCLE,
+  nightOfAltitude,
+  sunLightAt,
+  type DayCycle,
+} from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
 import type { PieceScale } from '@/domain/piece-scale';
@@ -578,14 +584,16 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
-    this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.sea);
+    this.night = new NightSky(this.scene, this.frame, this.sea);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
     this.veil = new CarryVeil(this.scene, board.surface.geometry);
     this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.scene.add(buildCoastalWash(world, this.frame));
+    const wash = buildCoastalWash(world, this.frame);
+    this.night.dim(wash.material);
+    this.scene.add(wash);
 
     const { meshes, borders, coast } = buildCountries(world, this.frame);
     this.countries = meshes;
@@ -595,6 +603,8 @@ export class MapEngine {
       mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
+    this.night.dim(borders.material);
+    this.night.dim(coast.material);
     this.scene.add(borders);
     this.scene.add(coast);
 
@@ -2501,9 +2511,12 @@ export class MapEngine {
       looked.x + this.frame.centerX,
       looked.z + this.frame.centerY,
     );
-    const night = this.night.apply(instant, lookedAt, distance);
+    // The moon lights the whole board and its pieces alike, from where one looks (#198).
+    const sun = sunLightAt(instant, lookedAt);
+    const night = nightOfAltitude(sun.altitude);
+    this.night.apply(instant, night);
     // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
-    if (whole) this.lamp.shine(sunLightAt(instant, lookedAt), night);
+    if (whole) this.lamp.shine(sun, night);
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear

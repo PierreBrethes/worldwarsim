@@ -110,3 +110,11 @@ export const ARC_COLORS = {
   lastKnown: { trace: '#6e6a5e', progress: '#6e6a5e' },
   seaControl: { trace: '#3e6b7a', progress: '#5a8fa0' },
 } as const;
+
+/**
+ * Le bleu dont la maquette (`carte-refonte`) multiplie la lumière finale la nuit, en valeurs
+ * linéaires. Une lumière diffuse se plie dans les couleurs des lampes : la lune et le ciel le
+ * portent (`lamp.ts`, `night.ts`), les encres sans lumière le lisent (`contours.ts`).
+ * @a-mesurer
+ */
+export const MOON_TINT = [0.4, 0.5, 0.84] as const;
