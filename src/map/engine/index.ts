@@ -323,7 +323,7 @@ export class MapEngine {
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
-  /** A piece or a layer came in since the programs were last compiled ahead (`warmPrograms`). */
+  /** A figurine or a maquette landed since the programs were last compiled ahead (`warmPrograms`). */
   private programsStale = true;
   /** The screen's edge cast on the board (`fullDayInView`). */
   private readonly sight = new Ray();
@@ -760,8 +760,9 @@ export class MapEngine {
    * **Les programmes se compilent au repos, pas au premier rapproché** (#199). De loin la lampe ne
    * porte pas d'ombre et les pièces ne se dessinent pas : le premier zoom compilait d'un coup une
    * quarantaine de programmes — pièces, et tout ce qui reçoit l'ombre —, une demi-seconde figée
-   * au banc du téléphone. Au battement qui suit l'arrivée d'une pièce, chaque couche du plateau se compile
-   * à son tour, lampe portante, sans rien dessiner ; restent les programmes de la carte d'ombres.
+   * au banc du téléphone. Au battement qui suit l'arrivée d'une pièce, de loin, chaque couche du
+   * plateau se compile à son tour, lampe portante, sans rien dessiner ; restent les programmes de
+   * la carte d'ombres.
    */
   private warmPrograms(): void {
     this.programsStale = false;
@@ -773,9 +774,11 @@ export class MapEngine {
       const light = this.lamp.light;
       const cast = light.castShadow;
       light.castShadow = true;
-      const ready = this.renderer.compileAsync(root, this.eye, this.scene);
+      // `compile` and not `compileAsync`: the latter polls each material until its program is
+      // ready, and throws from a timer when a pile is taken away meanwhile.
+      this.renderer.compile(root, this.eye, this.scene);
       light.castShadow = cast;
-      void ready.then(next, next);
+      setTimeout(next, 0);
     };
     next();
   }
@@ -839,7 +842,6 @@ export class MapEngine {
 
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
     this.invalidate();
-    this.programsStale = true;
     this.arcs.troops = troops;
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
@@ -850,7 +852,6 @@ export class MapEngine {
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
   displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
-    this.programsStale = true;
     this.standing.display(piles);
   }
 
@@ -860,7 +861,6 @@ export class MapEngine {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
-    this.programsStale = true;
     const runways = this.maquettes.runwaysKey();
     if (runways === this.runways) return;
     this.runways = runways;
@@ -999,7 +999,6 @@ export class MapEngine {
   /** The enemy's surveyed camps, annotated in ink up close (F2, ADR 0026 §4 révisé). */
   displayCamps(camps: ReadonlyArray<SurveyedCamp>): void {
     this.invalidate();
-    this.programsStale = true;
     this.camps.display(camps);
   }
 
@@ -2574,7 +2573,9 @@ export class MapEngine {
       document.hidden ? Number.POSITIVE_INFINITY : flowing ? flowPace : HEARTBEAT_MS,
     );
     if (reason === null) return;
-    if (reason === 'heartbeat' && this.programsStale) this.warmPrograms();
+    // Close in, the lamp already casts and each frame compiles what it draws.
+    if (reason === 'heartbeat' && this.programsStale && !this.lamp.light.castShadow)
+      this.warmPrograms();
     const whole = reason !== 'ambient';
     this.ambience.frame();
     // The sun crosses a few degrees a minute at most: the heartbeat is enough, no frame is ever
