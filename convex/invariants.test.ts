@@ -18,6 +18,7 @@ import {
   decodeGrid,
   isCoastCell,
   isLandCell,
+  lonLatAtProjected,
   projectLonLat,
 } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
@@ -31,7 +32,8 @@ import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
 import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
-import { capitalRegionOf } from './regions';
+import { capitalRegionOf, regionFacts } from './regions';
+import { coastAtPoint, pointInRegion } from './routes';
 
 /**
  * **Ce que la ligne de départ doit encore payer** (question 51, « le jour où l'on touche
@@ -509,5 +511,61 @@ describe('le point de chaque région', () => {
         })
         .map(([id]) => id),
     ).toEqual([]);
+  });
+});
+
+/**
+ * **« Côtière » dit ce que le serveur accepte** : une région de l'index est côtière exactement
+ * quand un point quelque part prend un quai pour elle — `coastAtPoint` et `pointInRegion`, les
+ * deux contrôles d'un port. Le point est cherché sur les cellules de côte à portée de la région,
+ * en 5 × 5 points par cellule. Malte n'a pas de port et Saint-Marin en a un : défauts anciens de
+ * la maille (#221), que l'index dit tels quels.
+ */
+describe('le drapeau côtier de l’index', () => {
+  const grid = decodeGrid(gridAsset, projectionAsset as unknown as World);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, worldOf());
+  const coastal = new Set(indexAsset.coastal);
+  const ids = Object.keys(indexAsset.point);
+  const sample = [
+    ...['SGP-4871', 'HKG-5153', 'IRL-5575', 'GBR-2023', 'NOR-921', 'MLT-5949', 'SMR-4884'],
+    ...['ITA-5441', 'EGY-1533', 'AZE-1689', 'RUS-2417', 'FRA-5333', 'DEU-1578', 'CHE-3426'],
+    ...ids.filter((_, rank) => rank % 60 === 0),
+  ];
+  const OFFSETS = [-0.49, -0.245, 0, 0.245, 0.49];
+
+  const acceptsAQuay = (id: string): boolean => {
+    const facts = regionFacts(id)!;
+    const near = new Set<number>();
+    const add = (cell: number, reach: number) => {
+      const [column, row] = [cell % raster.width, Math.floor(cell / raster.width)];
+      for (let dy = -reach; dy <= reach; dy++)
+        for (let dx = -reach; dx <= reach; dx++) {
+          const r = row + dy;
+          if (r >= 0 && r < raster.height)
+            near.add(r * raster.width + ((column + dx + raster.width) % raster.width));
+        }
+    };
+    for (const cell of cellsOfRegion(raster, id)) add(cell, 2);
+    add(cellAt(raster, facts.point), 6);
+    for (const cell of near) {
+      const [cx, cy] = [
+        raster.sphere.minX + ((cell % raster.width) + 0.5) * raster.step,
+        raster.sphere.minY + (Math.floor(cell / raster.width) + 0.5) * raster.step,
+      ];
+      for (const dx of OFFSETS)
+        for (const dy of OFFSETS) {
+          const lonLat = lonLatAtProjected(raster.outline, raster.sphere, [
+            cx + dx * raster.step,
+            cy + dy * raster.step,
+          ]);
+          if (coastAtPoint(lonLat) && pointInRegion(lonLat, facts)) return true;
+        }
+    }
+    return false;
+  };
+
+  it('concorde avec le serveur sur un échantillon de régions', () => {
+    expect(grid.width).toBe(raster.width);
+    expect(sample.filter((id) => acceptsAQuay(id) !== coastal.has(id))).toEqual([]);
   });
 });

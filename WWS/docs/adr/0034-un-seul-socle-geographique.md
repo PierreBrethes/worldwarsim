@@ -40,11 +40,13 @@ pas de quais »).
   Caspienne comprise. Aucun mode ne la foule ni ne la navigue, une route qui y vise est refusée.
   Sans lui, un lac à moins d'une cellule de la côte se fondait dans la mer ouverte à 0,25 u
   (Nicaragua, IJsselmeer, Sivash). Un quai (`isCoastCell`) borde la mer ouverte (`openWaterOf`).
-- **`coastal` se lit sur la grille** : une région est côtière quand l'une de ses cellules de
-  `region-grid.json` (sa cellule d'ancrage si elle n'en a pas) est un quai. La fiche dit
-  « côtière » exactement là où le port est accepté : 403 régions perdent ce mot (îles plus
-  petites qu'une cellule, Malte, Singapour, la Caspienne, des estuaires trop fins pour la
-  maille), 143 le gagnent (des cellules qui touchent une côte étroite à 28 km près).
+- **`coastal` dit ce que le serveur accepte** : une région est côtière quand un point prend un
+  quai pour elle, `coastAtPoint` et `pointInRegion` (sortie dans `src/domain/region-raster.ts`,
+  la même fonction pour le serveur et pour `generate-region-index.mjs`). La fiche dit
+  « côtière » exactement là où le port est accepté. La tolérance de `pointInRegion` (deux
+  cellules, ou 60 km du point de la région) rend côtières bien des régions intérieures (Cuneo,
+  Florence, Konya) ; Malte reste sans port faute de cellule de terre. Ces défauts de maille sont
+  ceux de `main`, suivis dans #221.
 - **Le point d'une région qui a de la terre est sur l'une de ses cellules de terre**, et dans sa
   région : sinon une force posée là serait lue à flot.
 
