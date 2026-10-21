@@ -41,6 +41,7 @@ import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useDayCycle } from '@/data/dayCycle';
+import { useContourWeight } from '@/data/contourWeight';
 import { useMapMotion } from '@/data/mapMotion';
 import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
@@ -71,7 +72,6 @@ const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {
   DETACH_MS,
   MapEngine,
-  type BuiltRegions,
   type CarryTarget,
   type HeldClaim,
   type PieceClick,
@@ -98,9 +98,8 @@ type Props = {
   camps: ReadonlyArray<SurveyedCamp>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
-  inkByCountry: ReadonlyMap<string, string>;
   /**
-   * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
+   * **Qui tient quelles régions, et de quelle encre** (ADR 0033) — servi par `control.held`,
    * jamais recalculé ici : la carte dessine ce qu'on lui tend.
    */
   held: ReadonlyArray<HeldClaim>;
@@ -113,11 +112,6 @@ type Props = {
    * cut was never cut.
    */
   cut?: { readonly unlinked: ReadonlyArray<string>; readonly producing: ReadonlySet<string> };
-  /**
-   * What the player has built, and his ink to lay it in. Opposing buildings are absent from
-   * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
-   */
-  built: BuiltRegions;
   selectedCountry: string | null;
   playerNation: string | null;
   /** The categories whose off-frame entities fold to the screen edge. */
@@ -330,11 +324,9 @@ export function WorldMap({
   standing,
   camps,
   maquettes,
-  inkByCountry,
   held,
   outposts,
   cut = NO_CUT,
-  built,
   selectedCountry,
   playerNation,
   indicators,
@@ -417,6 +409,7 @@ export function WorldMap({
   const mapping = useMouseMapping();
   const motion = useMapMotion();
   const dayCycle = useDayCycle();
+  const contourWeight = useContourWeight();
   const pieces = usePieceScale();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
@@ -992,6 +985,10 @@ export function WorldMap({
   }, [readyEngine, dayCycle]);
 
   useEffect(() => {
+    readyEngine?.setContourWeight(contourWeight);
+  }, [readyEngine, contourWeight]);
+
+  useEffect(() => {
     readyEngine?.setEdgeInsets(insets);
   }, [readyEngine, insets]);
 
@@ -1254,16 +1251,8 @@ export function WorldMap({
   }, [arcs, journal]);
 
   useEffect(() => {
-    engine.current?.colorNations(inkByCountry);
-  }, [inkByCountry]);
-
-  useEffect(() => {
     engine.current?.showHeldRegions(held);
   }, [held]);
-
-  useEffect(() => {
-    engine.current?.showBuiltRegions(built);
-  }, [built]);
 
   useEffect(() => {
     engine.current?.select(selectedCountry);

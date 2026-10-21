@@ -11,6 +11,8 @@ export type AmbientLayer = {
   readonly fx: Fx;
   /** Steps per second, `AMBIENT_HZ` when absent: the sea swells at 12, the wind flows at 30. */
   readonly hz?: number;
+  /** Steps with the frames the map draws anyway and never asks for one: the contours at the finger. */
+  readonly passive?: boolean;
   /** True when it has nothing to animate: its beat asks for no frame — a smoke without a worn pile in sight. */
   idle?(): boolean;
   frame(time: number, motion: MapMotion): void;
@@ -44,7 +46,7 @@ export class Ambience {
       if (step === paced.step) continue;
       paced.step = step;
       paced.time = ambientTime(step, paced.layer.hz);
-      stepped = true;
+      if (!paced.layer.passive) stepped = true;
     }
     return stepped;
   }

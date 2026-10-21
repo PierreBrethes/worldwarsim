@@ -3940,6 +3940,10 @@ export const fr = {
     dayCycle: { twoHours: 'deux heures', hour: 'une heure', real: 'réel' },
     dayCycleNote:
       'Une journée entière en deux heures ou en une, pour voir passer le jour et la nuit. Réel : la nuit suit le vrai soleil.',
+    contourLabel: 'Contours',
+    contour: { thin: 'fins', thick: 'épais' },
+    contourNote:
+      'Le trait en tirets de chaque territoire connu, à l’encre de sa nation. Le vôtre reste le plus épais.',
     pieceScaleLabel: 'Taille des pièces',
     pieceScaleNote:
       'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',

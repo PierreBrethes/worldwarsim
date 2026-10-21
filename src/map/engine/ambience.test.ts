@@ -53,6 +53,16 @@ describe('Ambience', () => {
     expect(ambience.advance(1110)).toBe(false);
   });
 
+  it('steps a passive layer with the frames drawn anyway, never asking for one', () => {
+    const times: number[] = [];
+    const ambience = new Ambience(new Set(['contours']));
+    ambience.add({ fx: 'contours', hz: 10, passive: true, frame: (t) => times.push(t) });
+    expect(ambience.advance(1000)).toBe(false);
+    expect(ambience.advance(1250)).toBe(false);
+    ambience.frame();
+    expect(times).toEqual([1.2]);
+  });
+
   it('drops layers whose effect is switched off', () => {
     const ambience = new Ambience(new Set());
     ambience.add(layer);

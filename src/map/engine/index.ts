@@ -49,6 +49,7 @@ import { flowPaceOf, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
+import type { ContourWeight } from '@/domain/contours';
 import { boardInstant, DEFAULT_DAY_CYCLE, sunLightAt, type DayCycle } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
@@ -69,7 +70,7 @@ import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
-import { HELD_OPACITY, nationShades, PALETTE } from './palette';
+import { PALETTE } from './palette';
 import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
@@ -124,11 +125,6 @@ const SHORE_PROBES = 8;
 /** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
 const SELECTED_LIFT = 0.75;
-
-export type BuiltRegions = {
-  readonly regionIds: ReadonlyArray<string>;
-  readonly ink: string;
-};
 
 /**
  * What picking reports from the acting click — whichever button the player put `act` on
@@ -343,8 +339,6 @@ export class MapEngine {
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly countries: CountryMesh[];
-  private nationInks: ReadonlyMap<string, string> = new Map();
-  private sheets: ReadonlyMap<string, string> = new Map();
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -658,10 +652,8 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, (sheets) => {
-      this.sheets = sheets;
-      this.paintCountries();
-    });
+    this.regions = new RegionLayer(this.frame, this.touch);
+    this.ambience.add(this.regions.contours);
     this.labels = new LabelLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -673,7 +665,7 @@ export class MapEngine {
 
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
-    this.scene.add(this.regions.built);
+    this.scene.add(this.regions.contours.group);
     this.scene.add(this.regions.hoverOutline);
     this.scene.add(this.regions.terrain.group);
 
@@ -1316,42 +1308,7 @@ export class MapEngine {
   }
 
   /**
-   * A country carries a nation's ink because a player reserved it, never because it is
-   * named like it: the map receives the holders' table, it does not deduce it. Everything
-   * absent from it returns to neutral land — resetting the table is enough to undo.
-   */
-  colorNations(inkByCountry: ReadonlyMap<string, string>): void {
-    this.invalidate();
-    this.nationInks = inkByCountry;
-    this.paintCountries();
-  }
-
-  /** A sheet painted whole takes the holder's lavis — over the paper, never over another ink. */
-  private paintCountries(): void {
-    const grounds = new Map<string, string>();
-    for (const mesh of this.countries) {
-      const sheet = this.sheets.get(mesh.userData.adm0);
-      const nation = this.nationInks.get(mesh.userData.name);
-      if (sheet === undefined && nation !== undefined) grounds.set(mesh.userData.adm0, nation);
-      const ink = sheet ?? nation;
-      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : nationShades(ink).sheet);
-      mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
-    }
-    this.regions.setGrounds(grounds);
-  }
-
-  /**
-   * The regions that carry one of the player's buildings, inked denser than his country. The
-   * set may arrive before the regions themselves — the layer keeps it and lays it down when
-   * the 500 KB land.
-   */
-  showBuiltRegions(built: BuiltRegions): void {
-    this.invalidate();
-    this.regions.showBuilt(new Set(built.regionIds), built.ink);
-  }
-
-  /**
-   * **Qui tient quelles régions** (ADR 0020 §1). La teinte reste au loin quand les frontières
+   * **Qui tient quelles régions** (ADR 0033). Le contour reste au loin quand les frontières
    * s'effacent : on lit qui tient quoi sans lire le découpage — voir `RegionLayer.showHeld`.
    */
   showHeldRegions(claims: ReadonlyArray<HeldClaim>): void {
@@ -1382,7 +1339,6 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
-    this.regions.resize(clientWidth, clientHeight);
     this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
@@ -1991,6 +1947,11 @@ export class MapEngine {
   setDayCycle(cycle: DayCycle): void {
     this.invalidate();
     this.dayCycle = cycle;
+  }
+
+  setContourWeight(weight: ContourWeight): void {
+    this.invalidate();
+    this.regions.contours.weight = weight;
   }
 
   /** **Le cadre d'une Blitz** (B1) : la boîte du théâtre, et le reste délavé ; `null` l'ôte. */

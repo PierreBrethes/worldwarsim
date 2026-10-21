@@ -42,7 +42,7 @@ import {
 } from '@/domain/labels';
 import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { inkByClaimedCountry, nationInk } from '@/domain/nations';
+import { nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
@@ -1330,14 +1330,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', close);
   }, [windows.length, column, placing]);
 
-  const inkByCountry = useMemo(
-    () => (blitz ? new Map<string, string>() : inkByClaimedCountry([view.me, ...view.opponents])),
-    [blitz, view.me, view.opponents],
-  );
-
   const { held, knownRegionById, suspendedUntilByRegion, surveyClock } = useHeldRegions(
     seat,
-    blitz,
+    view.me.ink,
   );
   const cut = useMemo(
     () => ({
@@ -1360,14 +1355,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         standsAt,
       })),
     [view.me.outposts],
-  );
-
-  const built = useMemo(
-    () => ({
-      regionIds: view.me.buildings.map(({ regionId }) => regionId),
-      ink: view.me.ink,
-    }),
-    [view.me.buildings, view.me.ink],
   );
 
   // Every building stands at the point written at its placement (ADR 0029), and so does the
@@ -2262,11 +2249,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 standing={standing}
                 camps={camps}
                 maquettes={maquettes}
-                inkByCountry={inkByCountry}
                 held={held}
                 outposts={reachedOutposts}
                 cut={cut}
-                built={built}
                 selectedCountry={country ?? null}
                 playerNation={view.me.nation}
                 indicators={toggles}

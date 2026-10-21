@@ -9,25 +9,13 @@ import {
   MeshStandardMaterial,
   Shape,
   ShapeGeometry,
-  Vector2,
   Vector3,
 } from 'three';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
-import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import {
-  HELD_OPACITY,
-  lavis,
-  nationShades,
-  PALETTE,
-  PEN_DEPTH,
-  PEN_OPACITY,
-  penOn,
-} from './palette';
-import { splitOutlines } from './countries';
+import { PALETTE, PEN_OPACITY, penOn } from './palette';
+import { ContourLayer } from './contours';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
 
@@ -46,37 +34,30 @@ const GAP_PX = 2;
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
 
-/** Stacking flush with the slab: fill under the strokes, strokes under the hover and the borders. */
+/** Stacking flush with the slab: hatch under the strokes, strokes under the hover and the borders. */
 const STROKE_LIFT = 0.003;
-/** Under everything else the layer draws: possession is the ground the rest is laid on, and a
- *  region that carries a building must still show the denser built ink over its holder's. */
-const HELD_LIFT = 0.0005;
-const OUTLINE_LIFT = STROKE_LIFT;
-const OUTLINE_PX = 2;
-/** **La hachure passe sous la couleur pleine** (ADR 0020 §7) : une région disputée revenue au
- *  voisin pendant la désactivation est pleine chez lui et suspendue chez moi, les deux à la fois,
- *  et c'est la possession réelle qui doit se lire par-dessus le souvenir. */
+/** **La hachure passe sous le contour** (ADR 0020 §7) : une région disputée revenue au voisin
+ *  pendant la désactivation est à lui et suspendue chez moi, les deux à la fois, et c'est la
+ *  possession réelle qui doit se lire par-dessus le souvenir. */
 const SUSPENDED_LIFT = 0.00025;
-const BUILT_LIFT = 0.001;
+/** The maquette's hatch (#194). @a-mesurer */
+const SUSPENDED_OPACITY = 0.5;
 const HOVER_LIFT = 0.0035;
 const ANCHOR_LIFT = 0.001;
 /** Over the fills, under the hover contour that frames them. */
 const SKETCH_LIFT = 0.003;
 
 /**
- * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
- * une fois datée. `wash` est la franchise de la teinte : 1 pour une région à jour, décroissant
- * avec l'âge du relevé (`surveyWash`). L'ancienneté se voit donc en permanence et pas au survol
- * seul (ADR 0020 §5) — sans ce signal, une décision prise sur un relevé périmé se lit comme un
- * bug.
+ * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert.
+ * Un relevé se lit en permanence, à son contour pâle et immobile (ADR 0033 §3) : sans ce signal,
+ * une décision prise sur un relevé périmé se lit comme un bug.
  */
 export type HeldClaim = {
   readonly ink: string;
-  /** The up-to-date holding is traced in a solid pen contour, so a lone territory never reads as a lake. */
-  readonly outlined?: boolean;
+  /** The player's own: his contour is the thicker. */
+  readonly mine: boolean;
   readonly regions: ReadonlyArray<{
     readonly id: string;
-    readonly wash: number;
     /**
      * Les trois états que sert `control.held`, tels quels. `suspended` est **le souvenir d'une
      * couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
@@ -147,29 +128,6 @@ export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
   );
 
 /**
- * **Un relevé est gravé, il n'est pas imprimé** (`table-etat-major.md`) : la couleur du tenant vu
- * ce jour-là, en tailles horizontales serrées sur un fond plus pâle de la même encre. Le fond
- * garde la teinte lisible au loin — c'est le score, il doit se lire sans zoom —, les tailles la
- * distinguent de l'encre fraîche d'une région à jour, au même délavage. Horizontales, pour ne
- * jamais se confondre avec la hachure oblique d'une zone suspendue.
- */
-const ENGRAVE_PERIOD = 4;
-const ENGRAVE_WIDTH = 1.7;
-const ENGRAVE_EDGE = 0.6;
-const ENGRAVE_GROUND = 0.45;
-
-const engrave = (material: MeshStandardMaterial): MeshStandardMaterial =>
-  screenTrame(
-    material,
-    `float cut = 1.0 - smoothstep(
-      ${(ENGRAVE_WIDTH - ENGRAVE_EDGE).toFixed(2)},
-      ${(ENGRAVE_WIDTH + ENGRAVE_EDGE).toFixed(2)},
-      mod(trame.y, ${ENGRAVE_PERIOD.toFixed(1)})
-    );
-    gl_FragColor.a *= mix(${ENGRAVE_GROUND.toFixed(2)}, 1.0, cut);`,
-  );
-
-/**
  * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
  * en loin un îlot dégénéré sur tout le cadre, et un `regions.json` cuit avant le filtre du
  * 09/09 a posé ce cadre en troisième anneau du Maryland : dès qu'une encre lui arrivait, la
@@ -216,40 +174,34 @@ const SKETCH_CACHE_SIZE = 32;
  */
 export class RegionLayer {
   readonly lines: LineSegments;
-  /** **Qui tient quoi** (ADR 0020 §1) — un maillage par encre, jamais un seul teinté au sommet :
-   *  huit joueurs au plus, donc huit matériaux, et la couleur d'un joueur reste une valeur qu'on
-   *  lit dans un débogueur plutôt qu'un attribut de géométrie. */
+  /** **Les zones suspendues** (ADR 0020 §7), hachurées : un maillage par encre. */
   readonly held = new Group();
-  readonly built: Mesh;
+  /** **Qui tient quoi, au contour** (ADR 0033). */
+  readonly contours: ContourLayer;
   readonly hoverOutline: LineSegments;
   readonly terrain = new TerrainSketches();
   private readonly lineMaterial: LineDashedMaterial;
-  private readonly builtMaterial: MeshStandardMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
   private claims: ReadonlyArray<HeldClaim> = [];
-  /** Ce que le dernier `showHeld` a effectivement posé. La liste arrive à chaque battement
-   *  d'horloge pour que le délavage vieillisse, et refondre huit maillages par seconde pour un
-   *  cran qui n'a pas bougé serait le seul coût de tout ce système. */
+  /** Ce que le dernier `showHeld` a effectivement posé : la vue renvoie la même liste à chaque
+   *  battement, et refaire les rubans pour rien serait le seul coût de tout ce système. */
   private laid = '';
   /** L'encre du tenant, par région : le survol la lit pour teinter le contour d'une région tenue
    *  à sa couleur plutôt qu'à celle de son terrain. */
-  private heldByRegion = new Map<
-    string,
-    { readonly ink: string; readonly wash: number; readonly state: HeldState }
-  >();
+  private heldByRegion = new Map<string, { readonly ink: string; readonly state: HeldState }>();
   /** A big region costs 100+ ms to sketch (the Nunavut), and the pointer crosses it again and
    *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
   private readonly strandsCache = new Map<string, PenStrands>();
-  private builtIds: ReadonlySet<string> = new Set();
   private share = 0;
 
   constructor(
     private readonly frame: WorldFrame,
-    /** The countries painted whole on their own sheet, adm0 → ink — see `wholeSheets`. */
-    private readonly onSheets: (sheets: ReadonlyMap<string, string>) => void = () => {},
+    /** At the finger: the dashes step only with the frames the map draws anyway. */
+    touch: boolean,
   ) {
+    this.contours = new ContourLayer(frame, touch);
     this.lineMaterial = new LineDashedMaterial({
       color: PALETTE.border,
       transparent: true,
@@ -257,22 +209,6 @@ export class RegionLayer {
     });
     this.lines = new LineSegments(new BufferGeometry(), this.lineMaterial);
     this.lines.visible = false;
-
-    // The same material as the country slab, light included: an unlit fill would read as a
-    // sticker rather than as ink laid on that very ground.
-    this.builtMaterial = onLand(
-      new MeshStandardMaterial({
-        color: PALETTE.neutralLand,
-        roughness: 0.97,
-        metalness: 0,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      }),
-    );
-    this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
-    this.built.receiveShadow = true;
-    this.built.visible = false;
 
     this.hoverMaterial = onLand(
       new LineBasicMaterial({
@@ -322,20 +258,11 @@ export class RegionLayer {
   /**
    * **Qui tient quelles régions, et de quelle encre.** La liste arrive calculée (`control.held`,
    * règle dans `domain/control.ts`) : la carte dessine ce qu'on lui tend, et une seconde lecture
-   * ici colorerait un sol que le serveur ne donne à personne.
+   * ici tracerait un sol que le serveur ne donne à personne.
    *
    * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
-   * quand les 500 Ko atterrissent, comme pour les bâtiments.
+   * quand les 500 Ko atterrissent.
    */
-  /** The countries not laid on the bare paper, by `adm0`, with the nation ink their lavis is
-   *  made of: the pen reads its ground from there. */
-  private grounds: ReadonlyMap<string, string> = new Map();
-  private builtNationInk: string | null = null;
-
-  setGrounds(grounds: ReadonlyMap<string, string>): void {
-    this.grounds = grounds;
-  }
-
   showHeld(claims: ReadonlyArray<HeldClaim>): void {
     const signature = JSON.stringify(claims);
     if (signature === this.laid) return;
@@ -343,37 +270,17 @@ export class RegionLayer {
     this.claims = claims;
     this.heldByRegion = new Map(
       claims.flatMap((claim) =>
-        claim.regions.map(({ id, wash, state }) => [id, { ink: claim.ink, wash, state }] as const),
+        claim.regions.map(({ id, state }) => [id, { ink: claim.ink, state }] as const),
       ),
     );
     this.forgetSketches();
     this.rebuildHeld();
   }
 
-  /**
-   * The regions that carry a building, and the ink of the nation that raised them. **Only the
-   * player's own ever arrive here**: `PlayerView` holds no opposing building, so no ownership
-   * test guards this call — the fog is a property of the served data, not of the rendering
-   * (ADR 0005).
-   */
-  showBuilt(regionIds: ReadonlySet<string>, ink: string): void {
-    this.builtMaterial.color.set(nationShades(ink).built);
-    this.builtNationInk = ink;
-    /** La liste est refaite à chaque battement de la vue : sans ce garde, un pas de colonne
-     *  retriangulait le sol bâti **et toute la couleur tenue**, qui n'avait pas bougé. */
-    if (sameIds(regionIds, this.builtIds)) return;
-    this.builtIds = regionIds;
-    /** A region that becomes built changes the ground under the pen: the contour and the drawing
-     *  on screen were inked for the old one. */
-    this.forgetSketches();
-    this.fill(this.built, this.builtIds, BUILT_LIFT);
-  }
-
-  /** The fills and the pen's strands follow the data: new regions, everything redone. */
+  /** The hatches and contours follow the data: new regions, everything redone. */
   rebuild(): void {
     this.forgetSketches();
     this.rebuildHeld();
-    this.fill(this.built, this.builtIds, BUILT_LIFT);
   }
 
   /** The pen's ground is the painted one: when it changes, the drawing on screen and the cached
@@ -384,9 +291,7 @@ export class RegionLayer {
     this.hoveredRegion = null;
   }
 
-  /** Un maillage par tenant **et par cran de délavage**, refait entier : un diff par région
-   *  coûterait plus cher que ces quelques fusions, et les crans sont ce qui garde leur nombre
-   *  borné — huit encres, cinq franchises, jamais une teinte par région. */
+  /** Refait entier : un diff par région coûterait plus cher que ces quelques fusions. */
   private rebuildHeld(): void {
     for (const child of this.held.children) {
       const mesh = child as Mesh;
@@ -394,113 +299,43 @@ export class RegionLayer {
       (mesh.material as MeshStandardMaterial).dispose();
     }
     this.held.clear();
-    this.outlineMaterials.clear();
-    const sheets = wholeSheets(
-      this.claims,
-      this.prepared.map(({ region }) => region),
+    const regions = this.prepared.map(({ region }) => region);
+    this.contours.show(
+      regions,
+      this.claims.flatMap(({ ink, mine, regions: held }) =>
+        (['current', 'surveyed'] as const).map((state) => ({
+          ink,
+          mine,
+          surveyed: state === 'surveyed',
+          regionIds: new Set(held.filter((region) => region.state === state).map(({ id }) => id)),
+        })),
+      ),
     );
-    this.onSheets(sheets);
     for (const claim of this.claims) {
-      /** La clef porte la franchise **et** la trame : deux régions de même encre ne partagent un
-       *  maillage que si elles se peignent de la même façon. */
-      const byWash = new Map<string, { wash: number; state: HeldState; ids: Set<string> }>();
-      for (const region of claim.regions) {
-        const key = `${region.wash}/${region.state}`;
-        const kept = byWash.get(key) ?? {
-          wash: region.wash,
-          state: region.state,
-          ids: new Set<string>(),
-        };
-        kept.ids.add(region.id);
-        byWash.set(key, kept);
-      }
-      for (const { wash, state, ids } of byWash.values()) {
-        const lift = state === 'suspended' ? SUSPENDED_LIFT : HELD_LIFT;
-        const parts = this.prepared
-          .filter(({ region }) => ids.has(region.id) && !sheets.has(region.country))
-          .map(({ region }) => this.fillOf(region, lift));
-        if (parts.length === 0) continue;
-        const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
-        if (parts.length > 1) parts.forEach((part) => part.dispose());
-        const material = onLand(
-          new MeshStandardMaterial({
-            color: claim.ink,
-            roughness: 0.97,
-            metalness: 0,
-            transparent: true,
-            opacity: HELD_OPACITY * wash,
-            depthWrite: false,
-          }),
-        );
-        const fill = new Mesh(
-          geometry,
-          state === 'suspended'
-            ? hatch(material)
-            : state === 'surveyed'
-              ? engrave(material)
-              : material,
-        );
-        // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
-        fill.receiveShadow = true;
-        this.held.add(fill);
-      }
-      if (claim.outlined === true) {
-        const current = new Set(
-          claim.regions.filter(({ state }) => state === 'current').map(({ id }) => id),
-        );
-        if (current.size > 0) this.held.add(this.holdOutline(claim.ink, current));
-      }
+      const suspended = new Set(
+        claim.regions.filter(({ state }) => state === 'suspended').map(({ id }) => id),
+      );
+      const parts = regions
+        .filter(({ id }) => suspended.has(id))
+        .map((region) => this.fillOf(region, SUSPENDED_LIFT));
+      if (parts.length === 0) continue;
+      const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
+      if (parts.length > 1) parts.forEach((part) => part.dispose());
+      const material = onLand(
+        new MeshStandardMaterial({
+          color: claim.ink,
+          roughness: 0.97,
+          metalness: 0,
+          transparent: true,
+          opacity: SUSPENDED_OPACITY,
+          depthWrite: false,
+        }),
+      );
+      const fill = new Mesh(geometry, hatch(material));
+      // L'encre est sur la feuille : l'ombre d'une pièce la couvre comme le papier dessous.
+      fill.receiveShadow = true;
+      this.held.add(fill);
     }
-  }
-
-  private readonly outlineMaterials = new Set<LineMaterial>();
-  private readonly screen = new Vector2(1, 1);
-
-  resize(width: number, height: number): void {
-    this.screen.set(width, height);
-    for (const material of this.outlineMaterials) material.resolution.copy(this.screen);
-  }
-
-  private holdOutline(ink: string, ids: ReadonlySet<string>): LineSegments2 {
-    const rings = this.prepared.flatMap(({ region }) => (ids.has(region.id) ? [region.rings] : []));
-    const points = splitOutlines(rings).coast.flatMap(([from, to]) => [
-      ...this.frame.toWorld(from[0], from[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
-      ...this.frame.toWorld(to[0], to[1], COUNTRY_THICKNESS + OUTLINE_LIFT).toArray(),
-    ]);
-    const geometry = new LineSegmentsGeometry();
-    geometry.setPositions(points);
-    const material = onLand(
-      new LineMaterial({
-        color: lavis('#000000', PEN_DEPTH, ink),
-        linewidth: OUTLINE_PX,
-        transparent: true,
-        depthWrite: false,
-      }),
-    );
-    material.resolution.copy(this.screen);
-    this.outlineMaterials.add(material);
-    const outline = new LineSegments2(geometry, material);
-    outline.renderOrder = 1;
-    return outline;
-  }
-
-  private fill(mesh: Mesh, ids: ReadonlySet<string>, lift: number): void {
-    mesh.geometry.dispose();
-    const parts = this.prepared
-      .filter(({ region }) => ids.has(region.id))
-      .map(({ region }) => this.fillOf(region, lift));
-    if (parts.length === 0) {
-      mesh.geometry = new BufferGeometry();
-      mesh.visible = false;
-      return;
-    }
-    if (parts.length === 1) {
-      mesh.geometry = parts[0]!;
-    } else {
-      mesh.geometry = mergeGeometries(parts, false)!;
-      parts.forEach((part) => part.dispose());
-    }
-    mesh.visible = this.share > VISIBLE_SHARE;
   }
 
   /**
@@ -571,8 +406,7 @@ export class RegionLayer {
     this.lineMaterial.dashSize = DASH_PX * unitsPerPixel;
     this.lineMaterial.gapSize = GAP_PX * unitsPerPixel;
     this.lines.visible = this.share > 0.01;
-    this.builtMaterial.opacity = this.share;
-    this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
+    this.contours.animate(unitsPerPixel);
     this.hoverMaterial.opacity = zoomFade(this.share) * PEN_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
@@ -587,43 +421,24 @@ export class RegionLayer {
     }
     this.held.clear();
     this.held.removeFromParent();
+    this.contours.dispose();
     this.lines.geometry.dispose();
-    this.built.geometry.dispose();
     this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
-    this.builtMaterial.dispose();
     this.hoverMaterial.dispose();
     this.terrain.dispose();
     this.lines.removeFromParent();
-    this.built.removeFromParent();
     this.hoverOutline.removeFromParent();
   }
 
-  /**
-   * **The hover takes the outline, never the fill.** The three signals of the zoomed-in map
-   * each hold their own channel: the nation fills with its ink, a region that carries a
-   * building fills with that same ink laid heavier, and the hover draws a contour on top. A
-   * hover that filled would erase the "built" reading at the exact moment the player points
-   * at it.
-   */
+  /** **The hover takes the outline, never the fill**: the paper stays the paper under the pen. */
   private changeHighlight(prepared: PreparedRegion | null): void {
     const region = prepared?.region ?? null;
     if (region === this.hoveredRegion) return;
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
-    /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
-    const painted = held === undefined || held.state === 'suspended' ? null : held;
-    const underInk = (region && this.grounds.get(region.country)) ?? null;
-    const under = underInk === null ? PALETTE.neutralLand : lavis(underInk);
-    const built = region !== null && this.builtIds.has(region.id) ? this.builtNationInk : null;
-    const [ground, groundInk] =
-      built !== null
-        ? [nationShades(built).built, built]
-        : painted !== null
-          ? [lavis(painted.ink, HELD_OPACITY * painted.wash, under), painted.ink]
-          : [under, underInk];
-    const pen = penOn(ground, groundInk);
+    const pen = penOn(PALETTE.neutralLand, held?.ink ?? null);
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
@@ -712,32 +527,6 @@ export class RegionLayer {
   }
 }
 
-/**
- * **Un pays tenu tout entier se peint sur sa propre feuille** : les régions sont du 10m
- * simplifié, les pays du 50m, et leurs contours ne coïncident pas — à quelques kilomètres près,
- * qui font au rapproché un liseré d'aplat sur la mer et une frange d'encre nationale sur la côte.
- * Le pays dont chaque région est à jour sous une même encre (son propre sol, toujours) n'a donc
- * pas d'aplat : c'est la feuille qui prend la couleur, au trait exact de la côte. Ce qui est tenu
- * en partie, relevé ou suspendu reste aux régions.
- */
-export function wholeSheets(
-  claims: ReadonlyArray<HeldClaim>,
-  regions: ReadonlyArray<DisplayedRegion>,
-): ReadonlyMap<string, string> {
-  // A hatch drawn on the region too would land over the sheet, when it goes under the full colour.
-  const inkOf = new Map<string, string | null>();
-  for (const claim of claims)
-    for (const { id, state } of claim.regions)
-      inkOf.set(id, state === 'current' && !inkOf.has(id) ? claim.ink : null);
-  const sheets = new Map<string, string | null>();
-  for (const { id, country } of regions) {
-    const ink = inkOf.get(id) ?? null;
-    const sheet = sheets.get(country);
-    sheets.set(country, sheet === undefined || sheet === ink ? ink : null);
-  }
-  return new Map([...sheets].filter((entry): entry is [string, string] => entry[1] !== null));
-}
-
 export function prepare(region: DisplayedRegion): PreparedRegion {
   let area = 0;
   const ringBoxes = region.rings.map((ring): Box => {
@@ -799,10 +588,4 @@ export function contains({ region, ringBoxes }: PreparedRegion, x: number, y: nu
     }
   }
   return inside;
-}
-
-function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
-  if (left.size !== right.size) return false;
-  for (const id of left) if (!right.has(id)) return false;
-  return true;
 }

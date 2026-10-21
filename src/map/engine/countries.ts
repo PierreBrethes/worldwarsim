@@ -24,7 +24,7 @@ import { screenTrame } from './regions';
  * a label. Picking answers with the second, colouring reads the first.
  */
 export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
-  userData: { name: string; adm0: string; pencil: { value: number } };
+  userData: { name: string; adm0: string };
 };
 
 /**
@@ -37,15 +37,15 @@ const BORDER_LIFT = 0.004;
 /**
  * **Ce qu'on n'a jamais relevé est au crayon** (`table-etat-major.md`, ADR 0020 §5) : un grain de
  * graphite et un trait oblique à peine posé, en pixels d'écran comme la hachure des zones
- * suspendues. Il porte sur tout le sol et c'est l'encre des régions connues qui le couvre : la
- * région vierge est simplement celle où rien n'est venu par-dessus, sans liste à tenir.
+ * suspendues. Il porte sur tout le sol, sans liste à tenir : depuis qu'aucun aplat ne le couvre
+ * (ADR 0033), c'est le contour qui distingue une région connue d'une région vierge.
  * Couleur déjà encodée en sRGB à ce point du programme, d'où un graphite écrit en clair.
  */
 const PENCIL = `
   float tooth = fract(sin(dot(floor(trame), vec2(12.9898, 78.233))) * 43758.5453);
   float stroke = 1.0 - smoothstep(0.5, 1.3, mod(trame.x - trame.y, 7.0));
   float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead * pencil);`;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
 
 /**
  * **Une feuille, pas une dalle** (table d'état-major, 13/10/2026) : le pays est un aplat posé sur
@@ -174,16 +174,8 @@ export function buildCountries(
       }),
       PENCIL,
     );
-    /** The pencil's share: a sheet painted whole is ink laid over it, as a region fill was. */
-    const pencil = { value: 1 };
-    const compile = material.onBeforeCompile;
-    material.onBeforeCompile = (shader, renderer) => {
-      compile(shader, renderer);
-      shader.uniforms.pencil = pencil;
-      shader.fragmentShader = `uniform float pencil;\n${shader.fragmentShader}`;
-    };
     const mesh = new Mesh(flatRings(country, frame), material) as CountryMesh;
-    mesh.userData = { name: country.name, adm0: country.adm0, pencil };
+    mesh.userData = { name: country.name, adm0: country.adm0 };
     meshes.push(mesh);
   }
 
