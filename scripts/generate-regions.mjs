@@ -280,7 +280,17 @@ const innerLinesOf = (pieces) => {
   return paths;
 };
 
-const districtTopology = presimplify(topology({ districts: germanDistricts(districtSource) }, 1e6));
+const districtTopology = presimplify(
+  topology(
+    {
+      districts: germanDistricts(
+        readFileSync(districtSource),
+        readFileSync(districtSource.replace(/\.shp$/i, '.dbf')),
+      ),
+    },
+    1e6,
+  ),
+);
 const districtsByLand = new Map();
 for (const district of feature(
   simplify(districtTopology, minimumWeight),
