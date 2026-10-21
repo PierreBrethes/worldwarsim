@@ -7,13 +7,16 @@ import {
   ShaderMaterial,
   type IUniform,
 } from 'three';
-import { contourLines, DEFAULT_CONTOUR_WEIGHT, type ContourWeight } from '@/domain/contours';
-import type { DisplayedRegion } from '@/domain/world';
+import type { Atlas, Detail } from '@/domain/atlas';
+import {
+  contourLines,
+  DEFAULT_CONTOUR_WEIGHT,
+  type ContourLine,
+  type ContourWeight,
+} from '@/domain/contours';
 import type { AmbientLayer } from './ambience';
-import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
-
-type Point = readonly [number, number];
 
 /**
  * **Les deux jeux de la maquette** (`WWS/prototypes/carte-refonte/main.js`, #194), en pixels
@@ -36,18 +39,21 @@ const CURRENT_OPACITY = 0.95;
  *  largeur, pour que le pointillé ne fonde pas en « fins ». @a-mesurer */
 const SURVEYED = { opacity: 0.8, duty: 0.35, width: 1.6 };
 const INNER = { color: '#7d7466', opacity: 0.55, width: 0.45 };
-/** Over the hatch of a suspended zone, under the hover's contour. The lift alone is two depth steps
- *  from far away, where the sheet ate whole stretches of the line: the polygon offset holds it. */
-const LIFT = 0.0032;
+/** Over the hatch of a suspended zone, and over the coast and the ink (`BORDER_LIFT`, 0.004), which
+ *  the line now lies on wherever the other side is not a territory (#217); the hover's contour
+ *  still comes after it (render order), the contour writing no depth. The lift alone is two depth
+ *  steps from far away, where the sheet ate whole stretches of the line: the polygon offset holds
+ *  it. */
+const LIFT = 0.0045;
 
 const VERTEX = `
-attribute vec2 aNormal; attribute float aSide, aArc;
-uniform float uPx, uHalf, uGap, uWidth, uCentered;
+attribute vec2 aNormal; attribute float aSide, aArc, aInset;
+uniform float uPx, uHalf, uGap, uWidth;
 varying float vArc, vSide;
 varying vec2 vWorld;
 void main() {
   float stroke = uHalf * uWidth;
-  vec2 off = aNormal * ((uCentered > 0.5 ? 0.0 : stroke + uGap) + aSide * stroke) * uPx;
+  vec2 off = aNormal * (aInset * (stroke + uGap) + aSide * stroke) * uPx;
   vArc = aArc / uPx; vSide = aSide;
   vWorld = position.xz + off;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position + vec3(off.x, 0.0, off.y), 1.0);
@@ -80,8 +86,8 @@ export type ContourTerritory = {
 
 /**
  * **Qui tient quoi, au contour** (ADR 0033) : un ruban par territoire, à l'encre de son tenant, sur sa
- * frontière extérieure et en retrait chez lui — deux nations voisines tracent donc deux lignes
- * côte à côte. Largeur et tiret se disent en pixels d'écran, et les tirets tournent tous dans le
+ * frontière extérieure — posé dessus face au vide, en retrait chez lui face à un autre territoire,
+ * où deux nations voisines tracent donc deux lignes côte à côte. Largeur et tiret se disent en pixels d'écran, et les tirets tournent tous dans le
  * même sens : c'est une couche d'`Ambience`, qui ne fait que pousser `uTime`.
  */
 export class ContourLayer implements AmbientLayer {
@@ -97,6 +103,8 @@ export class ContourLayer implements AmbientLayer {
     uTime: { value: 0 },
   };
   private moving = false;
+  private territories: ReadonlyArray<ContourTerritory> = [];
+  private drawn: { atlas: Atlas; detail: Detail } | null = null;
 
   constructor(
     private readonly world: WorldFrame,
@@ -116,20 +124,35 @@ export class ContourLayer implements AmbientLayer {
     this.shared.uDuty!.value = duty;
   }
 
-  show(
-    regions: ReadonlyArray<DisplayedRegion>,
-    territories: ReadonlyArray<ContourTerritory>,
-  ): void {
+  show(territories: ReadonlyArray<ContourTerritory>, atlas: Atlas, detail: Detail): void {
+    this.territories = territories;
+    this.drawn = null;
+    this.level(atlas, detail);
+  }
+
+  /** The same territories on the arcs of another level: the coast and the ink switched too. */
+  level(atlas: Atlas, detail: Detail): void {
+    if (this.drawn?.atlas === atlas && this.drawn.detail === detail) return;
+    this.drawn = { atlas, detail };
     this.clear();
+    const territories = this.territories;
     const territoryOf = new Map<string, number>();
     territories.forEach(({ regionIds }, index) => {
       for (const id of regionIds) if (!territoryOf.has(id)) territoryOf.set(id, index);
     });
-    const { outlines, inner } = contourLines(regions, (id) => {
-      const index = territoryOf.get(id);
-      return index === undefined ? undefined : String(index);
-    });
-    this.add(inner, { ...INNER, centered: true, solid: true, speed: 0 }, 0);
+    const { outlines, inner } = contourLines(
+      atlas,
+      (id) => {
+        const index = territoryOf.get(id);
+        return index === undefined ? undefined : String(index);
+      },
+      detail,
+    );
+    this.add(
+      inner.map((points) => ({ points, inset: false })),
+      { ...INNER, lift: 0, solid: true, speed: 0 },
+      0,
+    );
     for (const [index, lines] of outlines) {
       const territory = territories[Number(index)]!;
       this.add(
@@ -139,7 +162,7 @@ export class ContourLayer implements AmbientLayer {
           opacity: territory.surveyed ? SURVEYED.opacity : CURRENT_OPACITY,
           duty: territory.surveyed ? SURVEYED.duty : 0,
           width: territory.mine ? MINE_WIDTH : territory.surveyed ? SURVEYED.width : 1,
-          centered: false,
+          lift: 1,
           solid: false,
           speed: territory.surveyed ? 0 : DASH_SPEED,
         },
@@ -177,12 +200,13 @@ export class ContourLayer implements AmbientLayer {
   }
 
   private add(
-    lines: ReadonlyArray<ReadonlyArray<Point>>,
+    lines: ReadonlyArray<ContourLine>,
     style: {
       color: string;
       opacity: number;
       width: number;
-      centered: boolean;
+      /** How far the ink pales towards the moon's blue at night: `0` for the grey lines. */
+      lift: number;
       solid: boolean;
       speed: number;
       /** Its own dash share, `0` for the weight's. */
@@ -191,28 +215,27 @@ export class ContourLayer implements AmbientLayer {
     order: number,
   ): void {
     if (lines.length === 0) return;
-    const material = onLand(
-      new ShaderMaterial({
-        vertexShader: VERTEX,
-        fragmentShader: FRAGMENT,
-        transparent: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -4,
-        uniforms: {
-          ...this.shared,
-          uColor: { value: new Color(style.color) },
-          uOpacity: { value: style.opacity },
-          uWidth: { value: style.width },
-          uCentered: { value: style.centered ? 1 : 0 },
-          uSolid: { value: style.solid ? 1 : 0 },
-          uSpeed: { value: style.speed },
-          uOwnDuty: { value: style.duty ?? 0 },
-          uLift: { value: style.centered ? 0 : 1 },
-        },
-      }),
-    );
+    // Not clipped to the land (`onLand`): the line lies on the coast, on the atlas's own arcs, and
+    // half of it would be cut off over the sea.
+    const material = new ShaderMaterial({
+      vertexShader: VERTEX,
+      fragmentShader: FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4,
+      uniforms: {
+        ...this.shared,
+        uColor: { value: new Color(style.color) },
+        uOpacity: { value: style.opacity },
+        uWidth: { value: style.width },
+        uSolid: { value: style.solid ? 1 : 0 },
+        uSpeed: { value: style.speed },
+        uOwnDuty: { value: style.duty ?? 0 },
+        uLift: { value: style.lift },
+      },
+    });
     const mesh = new Mesh(this.ribbon(lines), material);
     // Over the hatch (0), under the hover's contour (1).
     mesh.renderOrder = 0.5 + order / 10;
@@ -221,16 +244,18 @@ export class ContourLayer implements AmbientLayer {
   }
 
   /** Two vertices per point, pushed apart in the shader along the mitred normal. */
-  private ribbon(lines: ReadonlyArray<ReadonlyArray<Point>>): BufferGeometry {
+  private ribbon(lines: ReadonlyArray<ContourLine>): BufferGeometry {
     const position: number[] = [];
     const normal: number[] = [];
     const side: number[] = [];
     const arc: number[] = [];
+    const inset: number[] = [];
     const index: number[] = [];
     const height = COUNTRY_THICKNESS + LIFT;
-    for (const points of lines) {
-      const n = points.length;
+    for (const { points: flat, inset: setBack } of lines) {
+      const n = flat.length / 2;
       if (n < 2) continue;
+      const points = Array.from({ length: n }, (_, i) => [flat[2 * i]!, flat[2 * i + 1]!] as const);
       const closed = points[0]![0] === points[n - 1]![0] && points[0]![1] === points[n - 1]![1];
       const normals: Array<readonly [number, number]> = [];
       for (let i = 0; i < n - 1; i++) {
@@ -258,6 +283,7 @@ export class ContourLayer implements AmbientLayer {
           normal.push(mx * k, mz * k);
           side.push(s);
           arc.push(along);
+          inset.push(setBack ? 1 : 0);
         }
         if (i < n - 1) {
           const v = base + i * 2;
@@ -270,6 +296,7 @@ export class ContourLayer implements AmbientLayer {
     geometry.setAttribute('aNormal', new Float32BufferAttribute(normal, 2));
     geometry.setAttribute('aSide', new Float32BufferAttribute(side, 1));
     geometry.setAttribute('aArc', new Float32BufferAttribute(arc, 1));
+    geometry.setAttribute('aInset', new Float32BufferAttribute(inset, 1));
     geometry.setIndex(index);
     return geometry;
   }

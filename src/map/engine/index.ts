@@ -32,7 +32,7 @@ import {
 import type { Atlas, Detail } from '@/domain/atlas';
 import type { LonLat } from '@/domain/geo';
 import type { RegionType } from '@/domain/ids';
-import type { DisplayedRegion, HoveredRegion, RegionIdentity } from '@/domain/world';
+import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
   coastCellsIn,
   isCoastCell,
@@ -1056,12 +1056,6 @@ export class MapEngine {
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
     this.hoverDirty = true;
-  }
-
-  /** The rings of `regions.json`, which only the contours still read (#217). */
-  displayContourRegions(regions: ReadonlyArray<DisplayedRegion>): void {
-    this.invalidate();
-    this.regions.showContourRegions(regions);
   }
 
   setPlayerNation(nation: string | null): void {

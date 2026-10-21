@@ -12,7 +12,7 @@ import {
 import type { Atlas, Detail } from '@/domain/atlas';
 import type { LonLat } from '@/domain/geo';
 import type { RegionType } from '@/domain/ids';
-import type { DisplayedRegion, HoveredRegion, RegionIdentity } from '@/domain/world';
+import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import { fillGeometry, lineGeometry } from './atlas-geometry';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
@@ -175,8 +175,6 @@ export class RegionLayer {
   /** `null` until the regions' facts land (`display`): no hover, no anchor before. */
   private types: ReadonlyMap<string, RegionType> | null = null;
   private points: ReadonlyMap<string, LonLat> = new Map();
-  /** What the contours still read (#217). */
-  private contourRegions: ReadonlyArray<DisplayedRegion> = [];
   private hoveredRegion: RegionIdentity | null = null;
   private claims: ReadonlyArray<HeldClaim> = [];
   /** Ce que le dernier `showHeld` a effectivement posé : la vue renvoie la même liste à chaque
@@ -231,20 +229,16 @@ export class RegionLayer {
     this.detail = 'near';
     for (const geometry of Object.values(this.lineLevels)) geometry.dispose();
     Object.assign(this.lineLevels, lines);
-    this.showLines(this.linesShown);
     if (this.types !== null) this.rebuild();
+    this.showLines(this.linesShown);
   }
 
-  /** The lines at the sheet's level, as soon as that level has them. */
+  /** The lines and the contours at the sheet's level, as soon as that level has them. */
   showLines(detail: Detail): void {
     this.linesShown = detail;
     const geometry = this.lineLevels[detail];
     if (geometry !== undefined && this.types !== null) this.lines.geometry = geometry;
-  }
-
-  showContourRegions(regions: ReadonlyArray<DisplayedRegion>): void {
-    this.contourRegions = regions;
-    this.rebuildHeld();
+    this.contours.level(this.atlas, detail);
   }
 
   /**
@@ -266,10 +260,23 @@ export class RegionLayer {
       ),
     );
     this.hoveredRegion = null;
+    this.contours.show(
+      claims.flatMap(({ ink, mine, regions: held }) =>
+        (['current', 'surveyed'] as const).map((state) => ({
+          ink,
+          mine,
+          surveyed: state === 'surveyed',
+          regionIds: new Set(held.filter((region) => region.state === state).map(({ id }) => id)),
+        })),
+      ),
+      this.atlas,
+      this.linesShown,
+    );
     this.rebuildHeld();
   }
 
-  /** The hatches and contours follow the data: new regions, everything redone. */
+  /** The hatches follow the data: new regions, everything redone. The contours need only the
+   *  atlas, and follow its level (`showLines`). */
   rebuild(): void {
     this.hoveredRegion = null;
     this.rebuildHeld();
@@ -283,17 +290,6 @@ export class RegionLayer {
       (mesh.material as MeshStandardMaterial).dispose();
     }
     this.held.clear();
-    this.contours.show(
-      this.contourRegions,
-      this.claims.flatMap(({ ink, mine, regions: held }) =>
-        (['current', 'surveyed'] as const).map((state) => ({
-          ink,
-          mine,
-          surveyed: state === 'surveyed',
-          regionIds: new Set(held.filter((region) => region.state === state).map(({ id }) => id)),
-        })),
-      ),
-    );
     for (const claim of this.claims) {
       const suspended = new Set(
         claim.regions.filter(({ state }) => state === 'suspended').map(({ id }) => id),

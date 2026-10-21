@@ -1,3 +1,5 @@
+import type { Atlas, AtlasRegion, Detail } from './atlas';
+
 /**
  * **Le contour d'un territoire** (ADR 0033) : plus d'aplat, chaque territoire connu se lit
  * à un trait en tirets sur sa frontière extérieure. Le joueur règle son épaisseur.
@@ -9,97 +11,81 @@ export const DEFAULT_CONTOUR_WEIGHT: ContourWeight = 'thin';
 export const isContourWeight = (value: unknown): value is ContourWeight =>
   CONTOUR_WEIGHTS.includes(value as ContourWeight);
 
-type Point = readonly [number, number];
-type Ring = ReadonlyArray<Point>;
-type Side = { readonly region: number; readonly a: Point; readonly b: Point };
+/** One run of a territory's contour; `inset`, it faces another territory and stands back at home. */
+export type ContourLine = { readonly points: Float32Array; readonly inset: boolean };
 
 /**
- * Les lignes d'un ensemble de régions groupées en territoires (`territoryOf`, `undefined` = hors
- * de toute ligne) : chaque territoire rend ses boucles fermées, intérieur **à gauche** de la normale
- * `(-dy, dx)` — toutes tournent dans le même sens, donc leurs tirets aussi —, et `inner` les
- * arêtes entre deux régions d'un même territoire.
- *
- * Une arête se reconnaît à ses deux sommets : `regions.json` cuit les régions voisines sur les
- * mêmes points. Une arête vue d'un seul côté borde la mer ou une région hors territoire.
+ * Les lignes des territoires (`territoryOf`, `undefined` = hors de toute ligne), lues sur les arcs
+ * de l'atlas au niveau `detail` : la côte, l'encre et le contour suivent les mêmes points. Chaque
+ * territoire rend ses lignes intérieur **à gauche** — tous ses tirets tournent dans le même
+ * sens. Face à la mer, à un lac ou à une région non tenue, la ligne est posée sur la frontière
+ * même ; face à un autre territoire, `inset` : les deux lignes restent côte à côte, chacune en
+ * retrait chez elle (ADR 0033, amendé le 21/10). `inner` : les arcs entre deux régions d'un même
+ * territoire.
  */
 export function contourLines(
-  regions: ReadonlyArray<{ readonly id: string; readonly rings: ReadonlyArray<Ring> }>,
+  atlas: Pick<Atlas, 'borders'>,
   territoryOf: (regionId: string) => string | undefined,
-): { readonly outlines: ReadonlyMap<string, Point[][]>; readonly inner: Point[][] } {
-  const territories: string[] = [];
-  const edges = new Map<string, Side[]>();
-  for (const { id, rings } of regions) {
-    const territory = territoryOf(id);
-    if (territory === undefined) continue;
-    const region = territories.push(territory) - 1;
-    for (const raw of rings) {
-      const ring = signedArea(raw) < 0 ? [...raw].reverse() : raw;
-      for (let i = 0; i < ring.length; i++) {
-        const a = ring[i]!;
-        const b = ring[(i + 1) % ring.length]!;
-        const ka = `${a[0]},${a[1]}`;
-        const kb = `${b[0]},${b[1]}`;
-        if (ka === kb) continue;
-        const key = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
-        const sides = edges.get(key) ?? [];
-        sides.push({ region, a, b });
-        edges.set(key, sides);
-      }
-    }
-  }
-  const directed = new Map<string, Side[]>();
-  const inner: Point[][] = [];
-  for (const sides of edges.values()) {
-    const owners = new Set(sides.map(({ region }) => territories[region]!));
-    if (sides.length > 1 && owners.size === 1) {
-      if (sides[0]!.region !== sides[1]!.region) inner.push([sides[0]!.a, sides[0]!.b]);
+  detail: Detail,
+): { readonly outlines: ReadonlyMap<string, ContourLine[]>; readonly inner: Float32Array[] } {
+  const of = (region: AtlasRegion | null) => (region === null ? undefined : territoryOf(region.id));
+  const pieces = new Map<string, Float32Array[]>();
+  const add = (territory: string, inset: boolean, points: Float32Array) => {
+    const key = `${inset ? 1 : 0}${territory}`;
+    (pieces.get(key) ?? pieces.set(key, []).get(key)!).push(points);
+  };
+  const inner: Float32Array[] = [];
+  const borders = atlas.borders(
+    (left, right) => (of(left) ?? of(right)) !== undefined && left?.id !== right?.id,
+    detail,
+  );
+  for (const { points, left, right } of borders) {
+    const [l, r] = [of(left), of(right)];
+    if (l === r) {
+      inner.push(points);
       continue;
     }
-    for (const side of sides) {
-      const territory = territories[side.region]!;
-      const kept = directed.get(territory);
-      if (kept === undefined) directed.set(territory, [side]);
-      else kept.push(side);
-    }
+    const inset = l !== undefined && r !== undefined;
+    if (l !== undefined) add(l, inset, points);
+    if (r !== undefined) add(r, inset, reversed(points));
   }
-  return {
-    outlines: new Map([...directed].map(([territory, sides]) => [territory, chains(sides)])),
-    inner,
-  };
+  const outlines = new Map<string, ContourLine[]>();
+  for (const [key, list] of pieces) {
+    const territory = key.slice(1);
+    const lines = outlines.get(territory) ?? outlines.set(territory, []).get(territory)!;
+    for (const points of chained(list)) lines.push({ points, inset: key[0] === '1' });
+  }
+  return { outlines, inner };
 }
 
-function signedArea(ring: Ring): number {
-  let area = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const [ax, ay] = ring[i]!;
-    const [bx, by] = ring[(i + 1) % ring.length]!;
-    area += ax * by - bx * ay;
-  }
-  return area;
+function reversed(points: Float32Array): Float32Array {
+  const out = new Float32Array(points.length);
+  for (let i = 0; i < points.length; i += 2)
+    out.set([points[i]!, points[i + 1]!], points.length - 2 - i);
+  return out;
 }
 
-/** The directed edges chained into lines, so a dash runs on along the border and does not restart
- *  at every vertex. */
-function chains(sides: ReadonlyArray<Side>): Point[][] {
-  const from = new Map<string, Side[]>();
-  for (const side of sides) {
-    const key = `${side.a[0]},${side.a[1]}`;
-    const kept = from.get(key);
-    if (kept === undefined) from.set(key, [side]);
-    else kept.push(side);
+/** The arcs laid end to end where one starts at another's end, so a dash runs on along the border
+ *  and does not restart at every node of the atlas. */
+function chained(pieces: Float32Array[]): Float32Array[] {
+  const at = (points: Float32Array, i: number) => `${points[i]},${points[i + 1]}`;
+  const from = new Map<string, Float32Array[]>();
+  for (const piece of pieces) {
+    const key = at(piece, 0);
+    (from.get(key) ?? from.set(key, []).get(key)!).push(piece);
   }
-  const used = new Set<Side>();
-  const lines: Point[][] = [];
-  for (const first of sides) {
+  const used = new Set<Float32Array>();
+  const lines: Float32Array[] = [];
+  for (const first of pieces) {
     if (used.has(first)) continue;
-    const line: Point[] = [first.a];
-    let side: Side | undefined = first;
-    while (side !== undefined && !used.has(side)) {
-      used.add(side);
-      line.push(side.b);
-      side = from.get(`${side.b[0]},${side.b[1]}`)?.find((next) => !used.has(next));
+    const chain: number[] = [];
+    let piece: Float32Array | undefined = first;
+    while (piece !== undefined) {
+      used.add(piece);
+      for (let i = chain.length === 0 ? 0 : 2; i < piece.length; i++) chain.push(piece[i]!);
+      piece = from.get(at(piece, piece.length - 2))?.find((next) => !used.has(next));
     }
-    lines.push(line);
+    lines.push(Float32Array.from(chain));
   }
   return lines;
 }

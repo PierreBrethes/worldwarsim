@@ -17,7 +17,6 @@ import {
 import { countryLabel, fr } from '@/i18n/fr';
 import {
   loadRegionIndex,
-  loadRegions,
   loadRegionTypes,
   type HoveredRegion,
   type RegionIdentity,
@@ -472,11 +471,6 @@ export function WorldMap({
             if (abandoned) return;
             instance.displayRegions(types, point);
             regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
-          })
-          .catch(() => {});
-        loadRegions()
-          .then((regions) => {
-            if (!abandoned) instance.displayContourRegions(regions);
           })
           .catch(() => {});
         loadNearAtlas()
