@@ -2272,8 +2272,8 @@ export class MapEngine {
   /**
    * **Cette cellule est-elle une côte ?** La même lecture que le serveur refuse avec
    * (`coastAtPoint`), sur la même grille : ce que la visée offre au clic droit et ce que la
-   * mutation accepte sortent d'une seule fonction (ADR 0015). La grille se bâtit à la première
-   * question et se garde ensuite, comme pour la pose d'un port.
+   * mutation accepte sortent d'une seule fonction (ADR 0015). Un port ne la lit plus : il se
+   * pose sur la côte de l'atlas (#221).
    */
   coastAt(lonLat: LonLat): boolean {
     return isCoastCell(this.routeGrid, lonLat);

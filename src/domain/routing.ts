@@ -855,14 +855,11 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
 
 /**
  * **A coast, as the routing knows one** — a land cell touching the open sea (`openWaterOf`), and
- * nothing else: the shore of a lake or of the Caspian is no quay, a hull could not leave it. A canal
- * counts as that water: Colón, Balboa, Port-Saïd and Suez are ports, and a hull sails from them
- * on this very grid. It is the only definition that can hold: a port is put up so that a ship leaves from it, and what a
- * ship knows of geography is this grid. A coastline read off another source would say "coastal"
- * where Dijkstra finds no water, and the first cargo formed there would leave by road.
- *
- * Both ends read it — the client magnets its ghost onto it, the server refuses whatever is not
- * on it. One function, so never two answers to one click.
+ * nothing else: the shore of a lake or of the Caspian is no beach, a hull could not leave it. A
+ * canal counts as that water: a hull sails from Colón, Balboa, Port-Saïd and Suez on this very
+ * grid. What a hull asks of a shore — to leave it, to land on it — is asked here, by the fan and
+ * by the server alike. A port is not: it goes up on the atlas's open-sea coast
+ * (`src/domain/coast.ts`, #221), which the 25 km mesh cannot draw around Malta.
  */
 export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   const cell = projectOnGrid(grid, lonLat);

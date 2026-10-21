@@ -124,12 +124,10 @@ export function routeToRegions(
 }
 
 /**
- * **Is this a coast the routing can sail from?** The very grid a movement is computed on
- * answers, so a port accepted here is a port a cargo leaves from without a land leg. A port
- * refused here would have been a quay Dijkstra never found water beside.
- *
- * It is the client's own reading too (`isCoastCell`): the ghost snaps onto the cells this
- * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
+ * **Is this a coast a hull can sail from?** The very grid a movement is computed on answers:
+ * the departure, the posting and the aim of a hull read it, and the fan reads the same function
+ * (`isCoastCell`). A port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`,
+ * #221).
  */
 export function coastAtPoint(point: LonLat): boolean {
   grid ??= decodeGrid(gridAsset, projection);
