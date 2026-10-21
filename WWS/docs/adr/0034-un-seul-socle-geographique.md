@@ -66,8 +66,8 @@ et `topojson-server` sont retirés : l'atlas est la seule source. `buildGrid` re
 (`generate-grid.mjs`, octet à octet) ; l'espion de `mesure-isolat.mjs` interdit désormais aux
 modules de `convex/` d'importer l'atlas. `generate-deposits.mjs` lit les régions de l'atlas au
 niveau près : son tirage de nourriture dépend de leur aire et de leur pôle, que l'ancienne
-simplification ne donnait pas, si bien qu'un recuit déplacerait une dizaine de champs ; le
-`deposits.json` livré est resté celui d'avant.
+simplification ne donnait pas : le recuit a déplacé neuf champs de nourriture sur 189 (le fer, le
+charbon et le pétrole n'ont pas bougé).
 
 ## Contexte
 
