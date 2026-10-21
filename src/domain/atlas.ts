@@ -8,7 +8,7 @@
  * `Float32Array` of x, y pairs; a ring does not repeat its first point.
  */
 
-type Detail = 'near' | 'far';
+export type Detail = 'near' | 'far';
 
 export type AtlasRegion = { readonly id: string; readonly country: string; readonly name: string };
 

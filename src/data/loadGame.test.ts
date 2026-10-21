@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { loadWorld } = vi.hoisted(() => ({ loadWorld: vi.fn() }));
 vi.mock('@/domain/world', () => ({ loadWorld }));
+vi.mock('./atlas', () => ({ loadAtlas: () => Promise.resolve({}) }));
 vi.mock('./convexClient', () => ({ convexClient: {} }));
 vi.mock('./session', () => ({ readSeat: () => ({ token: 'token', seasonId: 'season' }) }));
 

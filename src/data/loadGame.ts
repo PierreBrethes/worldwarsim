@@ -1,4 +1,6 @@
+import type { Atlas } from '@/domain/atlas';
 import { loadWorld, type World } from '@/domain/world';
+import { loadAtlas } from './atlas';
 import { convexClient } from './convexClient';
 import { readSeat, type Seat } from './session';
 
@@ -9,7 +11,8 @@ import { readSeat, type Seat } from './session';
  * once over the subscription, cost a second round trip to serve a value that was replaced
  * immediately.
  */
-export type GameEntry = { state: 'active'; world: World; seat: Seat } | { state: 'none' };
+export type GameEntry =
+  { state: 'active'; world: World; atlas: Atlas; seat: Seat } | { state: 'none' };
 
 let worldInFlight: Promise<World> | null = null;
 
@@ -24,5 +27,6 @@ export async function loadGame(): Promise<GameEntry> {
     worldInFlight = null;
     throw error;
   });
-  return { state: 'active', world: await worldInFlight, seat };
+  const [world, atlas] = await Promise.all([worldInFlight, loadAtlas()]);
+  return { state: 'active', world, atlas, seat };
 }

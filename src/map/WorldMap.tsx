@@ -17,6 +17,8 @@ import {
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type HoveredRegion, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import type { Atlas } from '@/domain/atlas';
+import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
@@ -87,6 +89,8 @@ import {
 
 type Props = {
   world: World;
+  /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
+  atlas: Atlas;
   arcs: ReadonlyArray<ArcView>;
   /** My troops: a movement's wear is read on them, the arc does not carry strength. */
   troops: ReadonlyArray<TroopView>;
@@ -332,6 +336,7 @@ const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
   world,
+  atlas,
   arcs,
   troops,
   journal,
@@ -443,7 +448,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (!container.current) return;
-    const instance = new MapEngine(container.current, world);
+    const instance = new MapEngine(container.current, world, atlas);
     engine.current = instance;
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
@@ -465,6 +470,11 @@ export function WorldMap({
             regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
           })
           .catch(() => {});
+        loadNearAtlas()
+          .then((near) => {
+            if (!abandoned) instance.displayNearAtlas(near);
+          })
+          .catch(() => {});
       });
     });
 
@@ -476,7 +486,7 @@ export function WorldMap({
       engine.current = null;
       setReadyEngine(null);
     };
-  }, [world]);
+  }, [world, atlas]);
 
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;

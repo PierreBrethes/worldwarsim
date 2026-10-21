@@ -46,6 +46,7 @@ import { nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
+import type { Atlas } from '@/domain/atlas';
 import { type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
@@ -289,7 +290,7 @@ function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
 function Board() {
   const entry = Route.useLoaderData();
   if (entry.state === 'none') return <NoGame />;
-  return <LiveBoard world={entry.world} seat={entry.seat} />;
+  return <LiveBoard world={entry.world} atlas={entry.atlas} seat={entry.seat} />;
 }
 
 function NoGame() {
@@ -316,7 +317,7 @@ function NoGame() {
   );
 }
 
-function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
+function LiveBoard({ world, atlas, seat }: { world: World; atlas: Atlas; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
@@ -339,12 +340,22 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
           {fr.board.linkLost}
         </div>
       )}
-      <BoardContent world={world} view={view} seat={seat} />
+      <BoardContent world={world} atlas={atlas} view={view} seat={seat} />
     </>
   );
 }
 
-function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {
+function BoardContent({
+  world,
+  atlas,
+  view,
+  seat,
+}: {
+  world: World;
+  atlas: Atlas;
+  view: PlayerView;
+  seat: Seat;
+}) {
   const { country, windows = [], building: focused, report } = Route.useSearch();
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
@@ -2246,6 +2257,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <WorldMap
                 blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
                 world={world}
+                atlas={atlas}
                 arcs={view.arcs}
                 troops={view.me.troops}
                 journal={view.journal}

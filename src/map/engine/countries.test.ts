@@ -1,51 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { COAST_FLOOR_PX, coastWidthPx, splitOutlines } from './countries';
+import { readFileSync } from 'node:fs';
+import { decodeAtlas } from '@/domain/atlas';
+import type { World } from '@/domain/world';
+import projection from '../../../public/projection.json';
+import { COAST_FLOOR_PX, coastLines, coastWidthPx } from './countries';
+import { WorldFrame } from './frame';
 
-type Ring = ReadonlyArray<readonly [number, number]>;
+describe('the coast', () => {
+  const read = (name: string) => JSON.parse(readFileSync(`public/${name}`, 'utf8'));
+  const atlas = decodeAtlas(read('atlas.json'), read('atlas-near.json'));
+  const frame = new WorldFrame({ ...projection, countries: [] } as unknown as World);
+  const offEdge = (x: number, y: number) => {
+    const { westX, eastX } = frame.edgeAtLatitude(frame.lonLatAt(x, y)[1]);
+    return Math.min(Math.abs(x - westX), Math.abs(x - eastX));
+  };
 
-describe('splitOutlines', () => {
-  const left: Ring = [
-    [0, 0],
-    [1, 0],
-    [1, 1],
-    [0, 1],
-  ];
-  const right: Ring = [
-    [1, 0],
-    [2, 0],
-    [2, 1],
-    [1, 1],
-  ];
-
-  it('an edge two countries share is a border, drawn once; the rest is coast', () => {
-    const { coast, borders } = splitOutlines([[left], [right]]);
-    expect(borders).toEqual([
-      [
-        [1, 0],
-        [1, 1],
-      ],
-    ]);
-    expect(coast).toHaveLength(6);
-  });
-
-  it('the cut at the antimeridian, along the edge of the sheet, is no coast', () => {
-    const sheet = [
-      [-10, 0, 10, 0],
-      [10, 0, 10, 1],
-    ] as const;
-    const { coast, borders } = splitOutlines([[left]], sheet);
-    expect(borders).toHaveLength(0);
-    expect(coast).toHaveLength(3);
-    expect(coast).not.toContainEqual([
-      [0, 0],
-      [0, 1],
-    ]);
-  });
-
-  it('a lone island is all coast', () => {
-    const { coast, borders } = splitOutlines([[left]]);
-    expect(borders).toHaveLength(0);
-    expect(coast).toHaveLength(4);
+  /** Chukotka and Fiji are cut at the antimeridian (ADR 0034): the cut has the sea on neither
+   *  side, only the sheet's edge, and the boldest ink would underline the edge. */
+  it.each(['far', 'near'] as const)('leaves out the cut at the antimeridian (%s)', (detail) => {
+    const segments: [number, number, number, number][] = [];
+    for (const { points } of coastLines(atlas, detail, frame))
+      for (let i = 2; i < points.length; i += 2)
+        segments.push([points[i - 2]!, points[i - 1]!, points[i]!, points[i + 1]!]);
+    expect(
+      segments.filter(([ax, ay, bx, by]) => Math.max(offEdge(ax, ay), offEdge(bx, by)) < 0.01),
+    ).toEqual([]);
+    // Chukotka keeps its shore up to the cut.
+    const nearEdge = segments.filter(([ax, ay]) => offEdge(ax, ay) < 0.5 && ay < 40);
+    expect(nearEdge.length).toBeGreaterThan(0);
   });
 });
 

@@ -9,7 +9,6 @@ import {
   ReplaceStencilOp,
   Uint32BufferAttribute,
 } from 'three';
-import type { World } from '@/domain/world';
 import { PALETTE } from './palette';
 import { RECESSION, SEA_LEVEL, type WorldFrame } from './frame';
 
@@ -23,34 +22,50 @@ const MITER_LIMIT = 1.8;
 
 type Point = readonly [x: number, z: number];
 
+type Polygon = { readonly outer: Float32Array; readonly holes: readonly Float32Array[] };
+
 /**
  * The wash brushed along a shoreline: an ink that starts at the coast stroke and fades
  * seaward. Geometric, not baked — which is what keeps it crisp at the tightest zoom, where
  * a band of texels pixelates.
  *
- * The ribbon follows the whole outline, coast or not: a segment running along a land border
- * passes under the neighboring country, whose sheet lies above the sea. Detecting coasts
- * would cost a neighborhood pass for a result depth already provides.
+ * It follows the land's own rings, merged across every border (ADR 0034): the coast the stroke
+ * draws, the antimeridian's cut aside, which runs off the sheet. A lake is a hole: its wash turns
+ * inward, onto the water.
  */
-export function buildCoastalWash(
-  world: World,
-  frame: WorldFrame,
-): Mesh<BufferGeometry, MeshBasicMaterial> {
+export function washGeometry(
+  land: ReadonlyArray<Polygon>,
+  frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
+): BufferGeometry {
   const ribbon = new Ribbon(new Color(PALETTE.seaInk), SEA_LEVEL + WASH_LIFT);
 
-  for (const country of world.countries) {
-    for (const ring of country.rings) {
-      const trace = ring.map(([px, py]) => [px - frame.centerX, py - frame.centerY] as const);
-      const kept = coarsen(trace);
-      const outline = kept.map((index) => trace[index]!);
-      if (outline.length < 3) continue;
-      ribbon.ring(outline, orientation(outline));
-      ribbon.bays(trace, kept);
-    }
+  // A pixel takes the ink of the first ribbon over it (the stencil): the longest shores go first,
+  // or each islet's ribbon would cut a pale wedge out of the mainland's.
+  const rings = land
+    .flatMap(({ outer, holes }) => [
+      { ring: outer, lake: false },
+      ...holes.map((ring) => ({ ring, lake: true })),
+    ])
+    .sort((a, b) => b.ring.length - a.ring.length);
+  for (const { ring, lake } of rings) {
+    const trace = Array.from(
+      { length: ring.length / 2 },
+      (_, i) => [ring[2 * i]! - frame.centerX, ring[2 * i + 1]! - frame.centerY] as const,
+    );
+    const kept = coarsen(trace);
+    const outline = kept.map((index) => trace[index]!);
+    if (outline.length < 3) continue;
+    ribbon.ring(outline, lake ? -orientation(outline) : orientation(outline));
+    ribbon.bays(trace, kept);
   }
+  return ribbon.geometry();
+}
 
+export function buildCoastalWash(
+  geometry: BufferGeometry,
+): Mesh<BufferGeometry, MeshBasicMaterial> {
   const mesh = new Mesh(
-    ribbon.geometry(),
+    geometry,
     new MeshBasicMaterial({
       vertexColors: true,
       transparent: true,

@@ -13,16 +13,12 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-  type BufferGeometry,
   type Intersection,
-  type LineBasicMaterial,
-  type LineSegments,
   type Mesh,
   type MeshStandardMaterial,
   type Object3D,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { isTyping } from '@/map/typing';
 import {
   CLASSIC_MAPPING,
@@ -34,6 +30,7 @@ import {
   type MouseMapping,
   type MouseRole,
 } from '@/domain/mouse-mapping';
+import type { Atlas } from '@/domain/atlas';
 import type { LonLat } from '@/domain/geo';
 import type { HoveredRegion, RegionIdentity, RegionsData, World } from '@/domain/world';
 import {
@@ -80,9 +77,16 @@ import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
-import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
-import { buildCountries, coastWidthPx, type CountryMesh } from './countries';
+import {
+  buildCountries,
+  coastWidthPx,
+  sheetLevel,
+  showLevel,
+  type CountryMesh,
+  type CountrySheet,
+  type SheetLevel,
+} from './countries';
 import { buildBoard } from './board';
 import { TerrainDrawings } from './terrain-drawings';
 import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
@@ -363,10 +367,14 @@ export class MapEngine {
   private readonly regions: RegionLayer;
   private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
+  /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
+   *  and the eye comes under `REGIONS_GONE_DISTANCE` (ADR 0034). */
+  private readonly sheet: CountrySheet;
+  private readonly farLevel: SheetLevel;
+  private nearLevel: SheetLevel | null = null;
+  private level: SheetLevel;
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
-  private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
-  private readonly coast: LineSegments2;
   /** Land and water in one list, allocated once: it is walked on every hover of a placement,
    *  and a fresh array per frame is the kind of garbage a render loop must not make. */
   private readonly aimable: Object3D[];
@@ -528,6 +536,7 @@ export class MapEngine {
     /** Kept for the one thing that is asked of the world after the board is built: the routing
      *  raster, rasterised on the first placement and never before (`snapFor`). */
     private readonly world: World,
+    atlas: Atlas,
   ) {
     this.frame = new WorldFrame(world);
     this.tourInk = new TourInk(this.frame);
@@ -609,12 +618,11 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.scene.add(buildCoastalWash(world, this.frame));
-
-    const { meshes, borders, coast } = buildCountries(world, this.frame);
+    this.farLevel = this.level = sheetLevel(atlas, 'far', this.frame);
+    this.sheet = buildCountries(this.farLevel);
+    const { meshes, borders, coast, wash } = this.sheet;
     this.countries = meshes;
-    this.borders = borders;
-    this.coast = coast;
+    this.scene.add(wash);
     for (const mesh of meshes) {
       mesh.receiveShadow = true;
       this.scene.add(mesh);
@@ -1013,6 +1021,13 @@ export class MapEngine {
   setEdgeInsets(insets: EdgeInsets): void {
     this.invalidate();
     this.labels.edgeInsets = insets;
+  }
+
+  /** The near level of the atlas, after the board like the regions: drawn from the next frame
+   *  under `REGIONS_GONE_DISTANCE`. */
+  displayNearAtlas(atlas: Atlas): void {
+    this.invalidate();
+    this.nearLevel = sheetLevel(atlas, 'near', this.frame);
   }
 
   displayRegions(data: RegionsData): void {
@@ -1432,7 +1447,7 @@ export class MapEngine {
     this.eye.aspect = this.camera.aspect;
     this.eye.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
-    this.coast.material.resolution.set(clientWidth, clientHeight);
+    this.sheet.coast.material.resolution.set(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
@@ -2661,11 +2676,16 @@ export class MapEngine {
     }
     this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
-    this.borders.material.opacity =
+    this.sheet.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
         : 0.62;
-    this.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
+    this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
+    // Under the regions' fade, a kilometre is a pixel or more: above it, the far level is finer
+    // than the screen.
+    const level =
+      this.nearLevel !== null && distance < REGIONS_GONE_DISTANCE ? this.nearLevel : this.farLevel;
+    if (level !== this.level) showLevel(this.sheet, (this.level = level));
 
     this.renderer.render(this.scene, this.eye);
     // The ambience only steps shader uniforms: the labels stand where the last whole frame put them.
