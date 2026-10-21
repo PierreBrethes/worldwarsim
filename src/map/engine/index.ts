@@ -45,7 +45,7 @@ import {
 } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
-import { flowPaceOf, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import { setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -388,11 +388,11 @@ export class MapEngine {
    * the same thread. So the sweep is done on demand rather than sixty times a second.
    */
   private hoverDirty = true;
-  /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
-  private readonly demand = new FrameDemand(performance.now());
-  private readonly ambience = new Ambience(parseFx(location.search));
   /** Un écran qu'on touche : la carte y dessine moins de pixels et fait couler ses fils moins vite. */
   private readonly touch = matchMedia('(pointer: coarse)').matches;
+  /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
+  private readonly demand = new FrameDemand(performance.now(), this.touch ? FLOW_TOUCH_MS : 0);
+  private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a

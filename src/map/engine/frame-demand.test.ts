@@ -64,6 +64,22 @@ describe('FrameDemand', () => {
     expect(whole).toBeLessThanOrEqual(10);
   });
 
+  it('holds the ambience at the finger to the pace of a flowing thread', () => {
+    const ambientFrames = (floor: number): number => {
+      const demand = new FrameDemand(0, floor);
+      demand.due(SETTLE_MS);
+      let count = 0;
+      for (let now = SETTLE_MS + 16; now <= SETTLE_MS + 10_000; now += 16) {
+        demand.request();
+        if (demand.due(now) === 'ambient') count += 1;
+      }
+      return count;
+    };
+    expect(ambientFrames(FLOW_TOUCH_MS)).toBeLessThanOrEqual(10 * 15);
+    expect(ambientFrames(FLOW_TOUCH_MS)).toBeGreaterThanOrEqual(10 * 10);
+    expect(ambientFrames(0)).toBeGreaterThan(10 * 50);
+  });
+
   it('paces a flowing thread: ten whole frames a second reduced, thirty active, none when hidden', () => {
     const wholeFrames = (pace: number): number => {
       const demand = new FrameDemand(0);
