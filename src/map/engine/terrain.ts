@@ -508,7 +508,7 @@ export class TerrainSketches {
     return this.busy;
   }
 
-  /** `pen` is the ink the ground under the drawing calls for (`penOn`). */
+  /** `pen` is the ink of the holder, deepened (`penOf`). */
   show(
     regionId: string | null,
     sketch: () => PenStrands,

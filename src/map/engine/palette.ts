@@ -81,45 +81,21 @@ export function contrastRatio(first: string, second: string): number {
   return (light! + 0.05) / (dark! + 0.05);
 }
 
-/** How far the pen's ink goes toward the black: dark enough to read on the nation's own wash,
- *  enough of the nation left that the drawing stays in its family. */
+/** How far the pen's ink goes toward the black: dark enough to read on the land, enough of the
+ *  nation left that the drawing stays in its family. */
 export const PEN_DEPTH = 0.75;
 
 /** The hover's contour is laid at this, thin enough to read as a pen stroke and not as a second
- *  border; the pictograms land fuller. The pen is chosen for its contrast as it lands. */
+ *  border; the pictograms land fuller. */
 export const PEN_OPACITY = 0.85;
 
-/** What the warm lamp leaves of a lit ground's light, measured on screenshots of the board (the
- *  sand and France's sheet both render at about this share of their luminance) — to measure
- *  again when `lamp.ts` changes. The pen is a line, unlit. */
-const LAMP_SHARE = 0.45;
-
-/** A ground as the board renders it under the lamp, in sRGB. */
-export function lit(ground: string): string {
-  return `#${channelsOf(ground)
-    .map((channel) => {
-      const value = linear(channel) * LAMP_SHARE;
-      const encoded = value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055;
-      return Math.round(encoded * 255)
-        .toString(16)
-        .padStart(2, '0');
-    })
-    .join('')}`;
-}
-
 /**
- * The pen that draws over a painted ground — terrain pictograms and the hover's contour. It
- * takes the **deep** of the ink that painted the ground (plain ink on bare land), or the paper
- * when the paper reads better on the ground as lit: the hover says the terrain with the
- * drawing, never by changing the nation's colour.
- * The night does not change it: it is chosen on the ground by day, and the veil darkens the
- * ground under an unlit stroke — the paper gains, the deep ink loses, deliberately left so.
+ * The pen that draws on the bare land — terrain pictograms and the hover's contour: the **deep**
+ * of the holder's ink, or plain ink where nobody holds. The land is never washed any more
+ * (ADR 0033), so the pen has only that one ground to read on.
  */
-export function penOn(ground: string, ink: string | null): string {
-  const deep = ink === null ? PALETTE.border : lavis('#000000', PEN_DEPTH, ink);
-  const seen = lit(ground);
-  const stroke = (pen: string) => contrastRatio(lavis(pen, PEN_OPACITY, seen), seen);
-  return stroke(deep) >= stroke(PALETTE.paper) ? deep : PALETTE.paper;
+export function penOf(ink: string | null): string {
+  return ink === null ? PALETTE.border : lavis('#000000', PEN_DEPTH, ink);
 }
 
 /**

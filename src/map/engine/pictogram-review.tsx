@@ -2,22 +2,17 @@ import { createRoot } from 'react-dom/client';
 import type { RegionType } from '@/domain/ids';
 import { fr } from '@/i18n/fr';
 import '@/styles/index.css';
-import { INK_BY_NATION } from '@/domain/nations';
-import { lit, nationShades, PALETTE, penOn } from './palette';
+import { PALETTE } from './palette';
 import { mulberry } from '@/domain/mulberry';
 import { terrainCluster } from './terrain';
 
 /**
  * **The dev review page** (`/pictograms.html`): every terrain drawing and every deposit mark,
- * large (several variants of each, seeds 1 to 12) and at the size the board gives them, on the bare sheet and on a dark held ground —
+ * large (several variants of each, seeds 1 to 12) and at the size the board gives them, on the bare sheet —
  * where a drawing is judged before it reaches the map. Never shipped.
  */
 const TYPES = Object.keys(fr.regionTypes) as ReadonlyArray<RegionType>;
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
-/** France's home sheet as the lamp renders it, and the pen the board draws on it. */
-const FRANCE = INK_BY_NATION.france;
-const DARK_GROUND = lit(nationShades(FRANCE).sheet);
-const DARK_PEN = penOn(nationShades(FRANCE).sheet, FRANCE);
 
 function Cluster({ type, seed, scale }: { type: RegionType; seed: number; scale: number }) {
   const strokes = terrainCluster(type, mulberry(seed));
@@ -116,11 +111,6 @@ function Review() {
               ))}
             </Sheet>
             <Sheet ground={PALETTE.neutralLand} ink={PALETTE.border}>
-              {SEEDS.map((seed) => (
-                <Cluster key={seed} type={type} seed={seed} scale={1} />
-              ))}
-            </Sheet>
-            <Sheet ground={DARK_GROUND} ink={DARK_PEN}>
               {SEEDS.map((seed) => (
                 <Cluster key={seed} type={type} seed={seed} scale={1} />
               ))}

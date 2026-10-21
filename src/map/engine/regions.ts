@@ -14,7 +14,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { PALETTE, PEN_OPACITY, penOn } from './palette';
+import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { seed, sketchRegion, TerrainSketches, zoomFade, type PenStrands } from './terrain';
@@ -283,8 +283,8 @@ export class RegionLayer {
     this.rebuildHeld();
   }
 
-  /** The pen's ground is the painted one: when it changes, the drawing on screen and the cached
-   *  ones are stale, and the next hover redoes it. */
+  /** The pen takes the holder's ink: when the holdings change, the drawing on screen and the
+   *  cached ones are stale, and the next hover redoes it. */
   private forgetSketches(): void {
     this.strandsCache.clear();
     this.terrain.clear();
@@ -438,7 +438,7 @@ export class RegionLayer {
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
-    const pen = penOn(PALETTE.neutralLand, held?.ink ?? null);
+    const pen = penOf(held?.ink ?? null);
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),
