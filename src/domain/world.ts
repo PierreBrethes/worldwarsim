@@ -38,11 +38,6 @@ export type RegionIdentity = {
  *  demande, et `regionAtPoint` reste une identité. */
 export type HoveredRegion = RegionIdentity & { readonly type: RegionType };
 
-/** A region of `regions.json`, as the contours still read it (#217). */
-export type DisplayedRegion = RegionIdentity & {
-  readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
-};
-
 /**
  * **Un gisement est un point** (ADR 0029 §3), visible de tous, et il porte une seule
  * exploitation. **La géologie est publique** (décision 65a du 01/09) : ce que le sol tient est
@@ -159,33 +154,4 @@ export function loadRegionTypes(
       return new Map<string, RegionType>();
     });
   return regionTypes;
-}
-
-/**
- * The admin-1 rings of `regions.json`, which only the contours still read (#217, ADR 0033): a
- * separate file, 2.6 MB, fetched and parsed once for the lifetime of the tab. A failure is
- * forgotten, so the next mount tries afresh.
- */
-let regions: Promise<ReadonlyArray<DisplayedRegion>> | null = null;
-
-export function loadRegions(url = '/regions.json'): Promise<ReadonlyArray<DisplayedRegion>> {
-  regions ??= fetchRegions(url).catch((error: unknown) => {
-    regions = null;
-    throw error;
-  });
-  return regions;
-}
-
-async function fetchRegions(url: string): Promise<ReadonlyArray<DisplayedRegion>> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`regions not found: ${url}`);
-  const raw = (await response.json()) as {
-    regions: Array<{ id: string; country: string; n: string; p: [number, number][][] }>;
-  };
-  return raw.regions.map((region) => ({
-    id: region.id,
-    country: region.country,
-    name: region.n,
-    rings: region.p,
-  }));
 }
