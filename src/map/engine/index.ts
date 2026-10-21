@@ -67,7 +67,7 @@ import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
-import { castShadows, Lamp, LAMP_EXPOSURE } from './lamp';
+import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
@@ -583,7 +583,7 @@ export class MapEngine {
     // many trackpads have no third button and that path must stay open.
     this.applyMapping();
 
-    this.lamp = new Lamp(this.scene);
+    this.lamp = new Lamp(this.scene, this.touch ? TOUCH_SHADOW_MAP : SHADOW_MAP);
 
     this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
     const board = buildBoard(
@@ -2693,6 +2693,10 @@ const DESK_PIXEL_RATIO = 2;
  *  trait de côte et les courbes de niveau s'adoucissent à peine. @a-mesurer : le gain réel se lit
  *  au GPU d'un vrai téléphone, que le banc n'a pas. */
 const TOUCH_PIXEL_RATIO = 1.5;
+/** **Au doigt, une carte d'ombres de 1024** (#199, choix de Pierre du 21/10) : 24 Mo de moins
+ *  (couleur et profondeur) pour une ombre portée un peu plus pâle et plus floue, sur un écran
+ *  qu'on tient à bout de bras. @a-mesurer */
+const TOUCH_SHADOW_MAP = 1024;
 const FOG_NEAR = 460;
 const FOG_FAR = 950;
 /** The driven camera's field: every distance threshold was measured through it. */
