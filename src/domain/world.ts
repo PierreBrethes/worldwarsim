@@ -20,8 +20,6 @@ export type World = {
   readonly countries: ReadonlyArray<ProjectedCountry>;
 };
 
-type RegionLine = ReadonlyArray<readonly [x: number, y: number]>;
-
 /**
  * A region, as anything outside the map layer names it. The id travels with the name because
  * deposits and buildings are indexed by `adm1_code`: admin-1 names repeat from one country to
@@ -37,14 +35,9 @@ export type RegionIdentity = {
  *  demande, et `regionAtPoint` reste une identité. */
 export type HoveredRegion = RegionIdentity & { readonly type: RegionType };
 
+/** A region of `regions.json`, as the contours still read it (#217). */
 export type DisplayedRegion = RegionIdentity & {
-  readonly type: RegionType;
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
-};
-
-export type RegionsData = {
-  readonly lines: ReadonlyArray<RegionLine>;
-  readonly regions: ReadonlyArray<DisplayedRegion>;
 };
 
 /**
@@ -90,52 +83,51 @@ export const depositAt = (lonLat: LonLat): DepositPoint | null =>
   DEPOSIT_POINTS.find((point) => distanceKm(point.lonLat, lonLat) <= DEPOSIT_MATCH_KM) ?? null;
 
 /**
- * **La côte est publique elle aussi, mais elle ne se bundle pas** : elle vit dans
- * `region-index.json`, 312 ko pour quatre faits dont un seul intéresse un écran. Elle se lit au
- * zoom où les régions se dessinent, et celles-ci pèsent déjà dix fois plus — un fetch de plus,
- * après le plateau, plutôt qu'un index entier dans le bundle de démarrage.
+ * **Le point et la côte de chaque région** vivent dans `region-index.json` (312 ko), que le
+ * serveur importe et que le client lit après le plateau, au zoom où les régions se dessinent :
+ * un fetch de plus plutôt qu'un index entier dans le bundle de démarrage. Le point est celui où
+ * tout ce qui est posé sur la région se tient (`convex/regions.ts`) ; la carte y ancre ses
+ * bâtiments et leurs étiquettes, si bien qu'aucun des deux côtés n'en calcule un autre.
  *
- * Un échec est muet et non mémorisé : la ligne « côtière » manque, rien d'autre ne bouge.
+ * Un échec est muet et non mémorisé : la ligne « côtière » et les ancres manquent, rien d'autre
+ * ne bouge.
  */
-let coastal: Promise<ReadonlySet<string>> | null = null;
+type RegionIndex = {
+  readonly coastal: ReadonlySet<string>;
+  readonly point: ReadonlyMap<string, LonLat>;
+};
 
-export function loadCoastalRegions(url = '/region-index.json'): Promise<ReadonlySet<string>> {
-  coastal ??= fetch(url)
+let regionIndex: Promise<RegionIndex> | null = null;
+
+export function loadRegionIndex(url = '/region-index.json'): Promise<RegionIndex> {
+  regionIndex ??= fetch(url)
     .then((response) => {
       if (!response.ok) throw new Error(`region index not found: ${url}`);
-      return response.json() as Promise<{ coastal: ReadonlyArray<string> }>;
+      return response.json() as Promise<{
+        coastal: ReadonlyArray<string>;
+        point: Record<string, LonLat>;
+      }>;
     })
-    .then((raw): ReadonlySet<string> => new Set(raw.coastal))
-    .catch((): ReadonlySet<string> => {
-      coastal = null;
-      return new Set();
+    .then((raw): RegionIndex => ({
+      coastal: new Set(raw.coastal),
+      point: new Map(Object.entries(raw.point)),
+    }))
+    .catch((): RegionIndex => {
+      regionIndex = null;
+      return { coastal: new Set(), point: new Map() };
     });
-  return coastal;
+  return regionIndex;
 }
+
+export const loadCoastalRegions = (): Promise<ReadonlySet<string>> =>
+  loadRegionIndex().then(({ coastal }) => coastal);
 
 /**
- * The admin-1 regions are a separate file: several times the weight of the world, purely
- * decorative, and invisible until you zoom in — the board must not wait for them.
- *
- * Fetched and parsed once for the lifetime of the tab, like the world: every return to the board
- * mounts a new engine, and each one used to pull and parse the 2.6 MB again. A failure is
- * forgotten, so the next mount tries afresh.
+ * The terrain of each region, baked offline into its own asset (`generate-region-types.mjs`).
+ * Decoration only, no rule may read it: a missing file reads as an empty map, and a region it
+ * does not name as a plain (`?? 'plain'` where it is read). A key the client does not know
+ * would tint and sow with `undefined`: it is left out, so it falls back to plain too.
  */
-let regions: Promise<RegionsData> | null = null;
-
-export function loadRegions(
-  url = '/regions.json',
-  typesUrl = '/region-types.json',
-): Promise<RegionsData> {
-  regions ??= fetchRegions(url, typesUrl).catch((error: unknown) => {
-    regions = null;
-    throw error;
-  });
-  return regions;
-}
-
-/** The type is baked offline into its own asset (`generate-region-types.mjs`). A missing file or
- *  region reads as a plain: decoration only, no rule may read it. */
 const REGION_TYPES: ReadonlyArray<RegionType> = [
   'plain',
   'forest',
@@ -145,37 +137,53 @@ const REGION_TYPES: ReadonlyArray<RegionType> = [
   'tundra',
 ];
 
-async function fetchRegionTypes(url: string): Promise<ReadonlyMap<string, RegionType>> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return new Map();
-    const byType = (await response.json()) as Partial<Record<RegionType, string[]>>;
-    // A key the client does not know would tint and sow with `undefined`: it falls back to plain.
-    return new Map(
-      REGION_TYPES.flatMap((type) => (byType[type] ?? []).map((id) => [id, type] as const)),
-    );
-  } catch {
-    return new Map();
-  }
+let regionTypes: Promise<ReadonlyMap<string, RegionType>> | null = null;
+
+export function loadRegionTypes(
+  url = '/region-types.json',
+): Promise<ReadonlyMap<string, RegionType>> {
+  regionTypes ??= fetch(url)
+    .then(async (response) => {
+      if (!response.ok) return new Map<string, RegionType>();
+      const byType = (await response.json()) as Partial<Record<RegionType, string[]>>;
+      return new Map(
+        REGION_TYPES.flatMap((type) => (byType[type] ?? []).map((id) => [id, type] as const)),
+      );
+    })
+    .catch(() => {
+      regionTypes = null;
+      return new Map<string, RegionType>();
+    });
+  return regionTypes;
 }
 
-async function fetchRegions(url: string, typesUrl: string): Promise<RegionsData> {
-  const [response, types] = await Promise.all([fetch(url), fetchRegionTypes(typesUrl)]);
+/**
+ * The admin-1 rings of `regions.json`, which only the contours still read (#217, ADR 0033): a
+ * separate file, 2.6 MB, fetched and parsed once for the lifetime of the tab. A failure is
+ * forgotten, so the next mount tries afresh.
+ */
+let regions: Promise<ReadonlyArray<DisplayedRegion>> | null = null;
+
+export function loadRegions(url = '/regions.json'): Promise<ReadonlyArray<DisplayedRegion>> {
+  regions ??= fetchRegions(url).catch((error: unknown) => {
+    regions = null;
+    throw error;
+  });
+  return regions;
+}
+
+async function fetchRegions(url: string): Promise<ReadonlyArray<DisplayedRegion>> {
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`regions not found: ${url}`);
   const raw = (await response.json()) as {
-    lines: RegionLine[];
     regions: Array<{ id: string; country: string; n: string; p: [number, number][][] }>;
   };
-  return {
-    lines: raw.lines,
-    regions: raw.regions.map((region) => ({
-      id: region.id,
-      country: region.country,
-      name: region.n,
-      type: types.get(region.id) ?? 'plain',
-      rings: region.p,
-    })),
-  };
+  return raw.regions.map((region) => ({
+    id: region.id,
+    country: region.country,
+    name: region.n,
+    rings: region.p,
+  }));
 }
 
 type RawWorld = {

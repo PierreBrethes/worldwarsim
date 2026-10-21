@@ -30,9 +30,10 @@ import {
   type MouseMapping,
   type MouseRole,
 } from '@/domain/mouse-mapping';
-import type { Atlas } from '@/domain/atlas';
+import type { Atlas, Detail } from '@/domain/atlas';
 import type { LonLat } from '@/domain/geo';
-import type { HoveredRegion, RegionIdentity, RegionsData, World } from '@/domain/world';
+import type { RegionType } from '@/domain/ids';
+import type { DisplayedRegion, HoveredRegion, RegionIdentity, World } from '@/domain/world';
 import {
   buildGrid,
   coastCellsIn,
@@ -365,6 +366,10 @@ export class MapEngine {
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
+  /** The best level of the atlas landed so far: what the regions and the terrain read. */
+  private atlas: Atlas;
+  private atlasDetail: Detail = 'far';
+  private regionTypes: ReadonlyMap<string, RegionType> | null = null;
   private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
@@ -689,7 +694,8 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, this.touch, this.night.uniforms);
+    this.atlas = atlas;
+    this.regions = new RegionLayer(this.frame, this.touch, this.night.uniforms, atlas);
     this.ambience.add(this.regions.contours);
     this.labels = new LabelLayer(
       this.frame,
@@ -1028,13 +1034,22 @@ export class MapEngine {
   displayNearAtlas(atlas: Atlas): void {
     this.invalidate();
     this.nearLevel = sheetLevel(atlas, 'near', this.frame);
+    this.atlas = atlas;
+    this.atlasDetail = 'near';
+    this.regions.showAtlas(atlas, 'near');
+    if (this.regionTypes !== null) this.drawings.display(atlas, 'near', this.regionTypes);
   }
 
-  displayRegions(data: RegionsData): void {
+  /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
+  displayRegions(
+    types: ReadonlyMap<string, RegionType>,
+    points: ReadonlyMap<string, LonLat>,
+  ): void {
     this.invalidate();
-    this.regions.display(data);
-    this.drawings.display(data.regions);
-    // The 500 KB land half a second after the board, so the buildings are asked for before
+    this.regionTypes = types;
+    this.regions.display(types, points);
+    this.drawings.display(this.atlas, this.atlasDetail, types);
+    // The anchors land after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.
     this.labels.rebuild();
@@ -1042,6 +1057,12 @@ export class MapEngine {
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
     this.hoverDirty = true;
+  }
+
+  /** The rings of `regions.json`, which only the contours still read (#217). */
+  displayContourRegions(regions: ReadonlyArray<DisplayedRegion>): void {
+    this.invalidate();
+    this.regions.showContourRegions(regions);
   }
 
   setPlayerNation(nation: string | null): void {

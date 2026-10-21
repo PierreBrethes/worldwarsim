@@ -7,13 +7,13 @@ import {
   LineSegments,
   Mesh,
   MeshStandardMaterial,
-  Shape,
-  ShapeGeometry,
   Vector3,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { mulberry } from '@/domain/mulberry';
-import { type DisplayedRegion, type RegionsData } from '@/domain/world';
+import type { Atlas, Detail } from '@/domain/atlas';
+import type { LonLat } from '@/domain/geo';
+import type { RegionType } from '@/domain/ids';
+import type { DisplayedRegion, HoveredRegion, RegionIdentity } from '@/domain/world';
+import { fillGeometry, lineGeometry } from './atlas-geometry';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
 import type { NightUniforms } from './night-here';
@@ -126,47 +126,10 @@ export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
   );
 
 /**
- * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
- * en loin un îlot dégénéré sur tout le cadre, et un `regions.json` cuit avant le filtre du
- * 09/09 a posé ce cadre en troisième anneau du Maryland : dès qu'une encre lui arrivait, la
- * carte remplissait la sphère entière, mer comprise. L'actif est vérifié à la cuisson
- * (`convex/invariants.test.ts`) ; ceci est le cran d'arrêt du dessin.
- *
- * Les deux dimensions à la fois : l'Antarctique couvre légitimement les deux tiers du monde en
- * x, et un dixième en y.
- */
-export const spansTheFrame = (
-  ring: ReadonlyArray<readonly [number, number]>,
-  frame: WorldFrame,
-): boolean => {
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const [x, y] of ring) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-  return maxX - minX > frame.width / 2 && maxY - minY > frame.height / 2;
-};
-
-type Box = readonly [minX: number, minY: number, maxX: number, maxY: number];
-
-export type PreparedRegion = {
-  readonly region: DisplayedRegion;
-  readonly box: Box;
-  /** One box per ring, same order: `contains` skips a ring the point cannot cross. */
-  readonly ringBoxes: ReadonlyArray<Box>;
-  readonly area: number;
-};
-
-/**
- * The admin-1 borders (regions, states, departments) of `regions.json` — inner segments
- * only, coasts and country borders being drawn already. The layer only exists up close: far
- * out it fades before becoming noise. Once visible, it answers hover — point in region,
- * smallest first (an enclave beats its envelope).
+ * The admin-1 borders (regions, states, departments), read off the atlas (ADR 0034): the arcs
+ * between two regions of one country, coasts and country borders being drawn already. The layer
+ * only exists up close: far out it fades before becoming noise. Once visible, it answers hover by
+ * `regionAt` on the same arcs, so the outline it draws is the one the coast and the ink follow.
  */
 export class RegionLayer {
   readonly lines: LineSegments;
@@ -177,8 +140,14 @@ export class RegionLayer {
   readonly hoverOutline: LineSegments;
   private readonly lineMaterial: LineDashedMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
-  private prepared: PreparedRegion[] = [];
-  private hoveredRegion: DisplayedRegion | null = null;
+  /** The level the layer reads: far at first, near once it has landed (`showAtlas`). */
+  private detail: Detail = 'far';
+  /** `null` until the regions' facts land (`display`): no hover, no anchor before. */
+  private types: ReadonlyMap<string, RegionType> | null = null;
+  private points: ReadonlyMap<string, LonLat> = new Map();
+  /** What the contours still read (#217). */
+  private contourRegions: ReadonlyArray<DisplayedRegion> = [];
+  private hoveredRegion: RegionIdentity | null = null;
   private claims: ReadonlyArray<HeldClaim> = [];
   /** Ce que le dernier `showHeld` a effectivement posé : la vue renvoie la même liste à chaque
    *  battement, et refaire les rubans pour rien serait le seul coût de tout ce système. */
@@ -193,6 +162,7 @@ export class RegionLayer {
     /** At the finger: the dashes step only with the frames the map draws anyway. */
     touch: boolean,
     night: NightUniforms,
+    private atlas: Atlas,
   ) {
     this.contours = new ContourLayer(frame, touch, night);
     this.lineMaterial = new LineDashedMaterial({
@@ -216,36 +186,55 @@ export class RegionLayer {
     this.hoverOutline.visible = false;
   }
 
-  display(data: RegionsData): void {
-    const points: number[] = [];
+  /** The regions' terrain and the point each one is anchored at (`region-index.json`). */
+  display(types: ReadonlyMap<string, RegionType>, points: ReadonlyMap<string, LonLat>): void {
+    this.types = types;
+    this.points = points;
+    this.drawLines();
+    this.rebuild();
+  }
+
+  /** The near level landed: the lines, the hatches and the hover follow its arcs. */
+  showAtlas(atlas: Atlas, detail: Detail): void {
+    this.atlas = atlas;
+    this.detail = detail;
+    if (this.types === null) return;
+    this.drawLines();
+    this.rebuild();
+  }
+
+  showContourRegions(regions: ReadonlyArray<DisplayedRegion>): void {
+    this.contourRegions = regions;
+    this.rebuildHeld();
+  }
+
+  private drawLines(): void {
+    const lines = this.atlas.borders(
+      (a, b) => a !== null && b !== null && a.country === b.country && a.id !== b.id,
+      this.detail,
+    );
     // Along each line and not per segment: a dash restarting at every vertex would stutter.
     const distances: number[] = [];
-    for (const line of data.lines) {
+    for (const { points } of lines) {
       let along = 0;
-      for (let i = 0; i < line.length - 1; i++) {
-        const [ax, ay] = line[i]!;
-        const [bx, by] = line[i + 1]!;
-        const next = along + Math.hypot(bx - ax, by - ay);
+      for (let i = 2; i < points.length; i += 2) {
+        const next =
+          along + Math.hypot(points[i]! - points[i - 2]!, points[i + 1]! - points[i - 1]!);
         distances.push(along, next);
         along = next;
-        points.push(
-          ax - this.frame.centerX,
-          COUNTRY_THICKNESS + STROKE_LIFT,
-          ay - this.frame.centerY,
-          bx - this.frame.centerX,
-          COUNTRY_THICKNESS + STROKE_LIFT,
-          by - this.frame.centerY,
-        );
       }
     }
     this.lines.geometry.dispose();
     const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    geometry.setAttribute(
+      'position',
+      new Float32BufferAttribute(
+        lineGeometry(lines, this.frame, COUNTRY_THICKNESS + STROKE_LIFT),
+        3,
+      ),
+    );
     geometry.setAttribute('lineDistance', new Float32BufferAttribute(distances, 1));
     this.lines.geometry = geometry;
-
-    this.prepared = data.regions.map(prepare);
-    this.rebuild();
   }
 
   /**
@@ -254,7 +243,7 @@ export class RegionLayer {
    * ici tracerait un sol que le serveur ne donne à personne.
    *
    * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
-   * quand les 500 Ko atterrissent.
+   * quand les régions atterrissent.
    */
   showHeld(claims: ReadonlyArray<HeldClaim>): void {
     const signature = JSON.stringify(claims);
@@ -284,9 +273,8 @@ export class RegionLayer {
       (mesh.material as MeshStandardMaterial).dispose();
     }
     this.held.clear();
-    const regions = this.prepared.map(({ region }) => region);
     this.contours.show(
-      regions,
+      this.contourRegions,
       this.claims.flatMap(({ ink, mine, regions: held }) =>
         (['current', 'surveyed'] as const).map((state) => ({
           ink,
@@ -300,12 +288,12 @@ export class RegionLayer {
       const suspended = new Set(
         claim.regions.filter(({ state }) => state === 'suspended').map(({ id }) => id),
       );
-      const parts = regions
-        .filter(({ id }) => suspended.has(id))
-        .map((region) => this.fillOf(region, SUSPENDED_LIFT));
-      if (parts.length === 0) continue;
-      const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
-      if (parts.length > 1) parts.forEach((part) => part.dispose());
+      if (suspended.size === 0 || this.types === null) continue;
+      const shapes = this.atlas
+        .shapes((region) => (suspended.has(region.id) ? 'suspended' : null), this.detail)
+        .get('suspended');
+      if (shapes === undefined) continue;
+      const geometry = fillGeometry(shapes, this.frame, COUNTRY_THICKNESS + SUSPENDED_LIFT);
       const material = onLand(
         new MeshStandardMaterial({
           color: claim.ink,
@@ -330,7 +318,7 @@ export class RegionLayer {
    * no longer targets.
    */
   get isActive(): boolean {
-    return this.share > VISIBLE_SHARE && this.prepared.length > 0;
+    return this.share > VISIBLE_SHARE && this.types !== null;
   }
 
   /** The fade the whole zoomed-in layer shares — the buildings hang on this one, not on a twin. */
@@ -338,40 +326,25 @@ export class RegionLayer {
     return this.share;
   }
 
-  /**
-   * Where a building stands on its region. The ring's centroid, unless the shape is hollow
-   * enough to push it outside — a bay, a horseshoe valley — in which case an interior point
-   * is drawn from the name, so the same building never wanders between two reloads.
-   */
+  /** Where a building stands on its region: the point the server places it at
+   *  (`region-index.json`), never one of the map's own. */
   anchorOf(regionId: string): Vector3 | null {
-    const prepared = this.prepared.find(({ region }) => region.id === regionId);
-    if (prepared === undefined) return null;
-    const [x, y] = interiorPoint(prepared);
-    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + ANCHOR_LIFT);
+    const point = this.points.get(regionId);
+    return point === undefined
+      ? null
+      : this.frame.projectLonLat(point, COUNTRY_THICKNESS + ANCHOR_LIFT);
   }
 
-  /** The point is in projected coordinates (those of `world.json`), not world coordinates. */
-  regionAt(projectedX: number, projectedY: number): DisplayedRegion | null {
-    return this.pick(projectedX, projectedY)?.region ?? null;
+  /** The point is in projected coordinates (those of the atlas), not world coordinates. */
+  regionAt(projectedX: number, projectedY: number): RegionIdentity | null {
+    if (this.types === null) return null;
+    return this.atlas.regionAt([projectedX, projectedY], this.detail);
   }
 
-  hover(projectedX: number, projectedY: number): DisplayedRegion | null {
-    const kept = this.pick(projectedX, projectedY);
-    this.changeHighlight(kept);
-    return kept?.region ?? null;
-  }
-
-  /** Point in region, smallest first: an enclave beats the envelope that contains it. */
-  private pick(projectedX: number, projectedY: number): PreparedRegion | null {
-    let kept: PreparedRegion | null = null;
-    for (const candidate of this.prepared) {
-      const [minX, minY, maxX, maxY] = candidate.box;
-      if (projectedX < minX || projectedX > maxX || projectedY < minY || projectedY > maxY)
-        continue;
-      if (kept !== null && candidate.area >= kept.area) continue;
-      if (contains(candidate, projectedX, projectedY)) kept = candidate;
-    }
-    return kept;
+  hover(projectedX: number, projectedY: number): HoveredRegion | null {
+    const region = this.regionAt(projectedX, projectedY);
+    this.changeHighlight(region);
+    return region && { ...region, type: this.types?.get(region.id) ?? 'plain' };
   }
 
   clearHover(): void {
@@ -415,14 +388,11 @@ export class RegionLayer {
   }
 
   /** **The hover takes the outline, never the fill**: the paper stays the paper under the pen. */
-  private changeHighlight(prepared: PreparedRegion | null): void {
-    const region = prepared?.region ?? null;
-    if (region === this.hoveredRegion) return;
+  private changeHighlight(region: RegionIdentity | null): void {
+    if (region?.id === this.hoveredRegion?.id) return;
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
-    const held = region === null ? undefined : this.heldByRegion.get(region.id);
-    const pen = penOf(held?.ink ?? null);
-    if (prepared === null || region === null) {
+    if (region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
       this.hoverOutline.visible = false;
       return;
@@ -430,89 +400,23 @@ export class RegionLayer {
 
     /** **The hover keeps the holder's family** (palette des nations): the contour is the pen of
      *  the ground it frames, and the terrain is told by the drawing, never by a tint. */
-    this.hoverMaterial.color.set(pen);
+    this.hoverMaterial.color.set(penOf(this.heldByRegion.get(region.id)?.ink ?? null));
 
-    const points: number[] = [];
-    for (const ring of region.rings) {
-      for (let i = 0; i < ring.length; i++) {
-        const [ax, ay] = ring[i]!;
-        const [bx, by] = ring[(i + 1) % ring.length]!;
-        points.push(
-          ...this.frame.toWorld(ax, ay, COUNTRY_THICKNESS + HOVER_LIFT).toArray(),
-          ...this.frame.toWorld(bx, by, COUNTRY_THICKNESS + HOVER_LIFT).toArray(),
-        );
-      }
-    }
+    const outline = this.atlas.borders(
+      (a, b) => (a?.id === region.id) !== (b?.id === region.id),
+      this.detail,
+    );
     const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-
+    geometry.setAttribute(
+      'position',
+      new Float32BufferAttribute(
+        lineGeometry(outline, this.frame, COUNTRY_THICKNESS + HOVER_LIFT),
+        3,
+      ),
+    );
     this.hoverOutline.geometry = geometry;
     this.hoverOutline.visible = true;
   }
-
-  /** The region's rings as a flat fill, laid on the sheet like the highlight was. */
-  private fillOf(region: DisplayedRegion, lift: number): BufferGeometry {
-    const geometries = region.rings
-      .filter((ring) => {
-        if (!spansTheFrame(ring, this.frame)) return true;
-        console.warn(`${region.id} (${region.name}) : anneau à l’échelle du cadre, non rempli`);
-        return false;
-      })
-      .map((ring) => {
-        const shape = new Shape();
-        ring.forEach(([x, y], index) => {
-          const px = x - this.frame.centerX;
-          const py = -(y - this.frame.centerY);
-          if (index === 0) shape.moveTo(px, py);
-          else shape.lineTo(px, py);
-        });
-        return new ShapeGeometry(shape);
-      });
-    const geometry =
-      geometries.length === 0
-        ? new ShapeGeometry(new Shape())
-        : geometries.length > 1
-          ? mergeGeometries(geometries, false)!
-          : geometries[0]!;
-    if (geometries.length > 1) geometries.forEach((part) => part.dispose());
-    geometry.rotateX(-Math.PI / 2);
-    geometry.translate(0, COUNTRY_THICKNESS + lift, 0);
-    return geometry;
-  }
-}
-
-export function prepare(region: DisplayedRegion): PreparedRegion {
-  let area = 0;
-  const ringBoxes = region.rings.map((ring): Box => {
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    for (let i = 0; i < ring.length; i++) {
-      const [x, y] = ring[i]!;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-      const [nextX, nextY] = ring[(i + 1) % ring.length]!;
-      area += x * nextY - nextX * y;
-    }
-    return [minX, minY, maxX, maxY];
-  });
-  const box: Box = [
-    Math.min(...ringBoxes.map(([minX]) => minX)),
-    Math.min(...ringBoxes.map(([, minY]) => minY)),
-    Math.max(...ringBoxes.map(([, , maxX]) => maxX)),
-    Math.max(...ringBoxes.map(([, , , maxY]) => maxY)),
-  ];
-  return { region, box, ringBoxes, area: Math.abs(area / 2) };
-}
-
-/** A stable number from a name, so an interior point never wanders between two reloads. */
-function seed(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return hash;
 }
 
 /** Share of the layer's fade over which the hover's stroke reaches full opacity: a translucent
@@ -521,40 +425,4 @@ const ZOOM_FADE_BAND = 0.08;
 
 function zoomFade(layerFade: number): number {
   return Math.min(1, Math.max(0, layerFade / ZOOM_FADE_BAND));
-}
-
-function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
-  const ring = prepared.region.rings.reduce((widest, candidate) =>
-    candidate.length > widest.length ? candidate : widest,
-  );
-  const sum = ring.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0] as [number, number]);
-  const centroid = [sum[0] / ring.length, sum[1] / ring.length] as const;
-  if (contains(prepared, centroid[0], centroid[1])) return centroid;
-
-  const [minX, minY, maxX, maxY] = prepared.box;
-  const random = mulberry(seed(prepared.region.name));
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const x = minX + random() * (maxX - minX);
-    const y = minY + random() * (maxY - minY);
-    if (contains(prepared, x, y)) return [x, y];
-  }
-  return centroid;
-}
-
-/** A ring whose box misses the point crosses the ray an even number of times, or not at all:
- *  skipping it is exact, and it is what keeps an archipelago from costing every ring. */
-export function contains({ region, ringBoxes }: PreparedRegion, x: number, y: number): boolean {
-  let inside = false;
-  for (const [index, ring] of region.rings.entries()) {
-    const [minX, minY, maxX, maxY] = ringBoxes[index]!;
-    if (y < minY || y > maxY || x < minX || x > maxX) continue;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i]!;
-      const [xj, yj] = ring[j]!;
-      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-        inside = !inside;
-      }
-    }
-  }
-  return inside;
 }

@@ -20,6 +20,15 @@ de plus. La coupe de l'antiméridien prolonge parfois la vraie côte dans le mê
 retire les segments dont les deux bouts sont à moins de 0,01 u du bord de la feuille, pas l'arc
 entier. Le lavis suit les anneaux de la terre fusionnée, les plus longs d'abord.
 
+**Précisée le 21/10/2026 (#216, lot 3b).** Les traits gris (deux régions d'un même pays), le
+survol, la sélection et les hachures de suspension lisent l'atlas, au niveau « près » dès qu'il
+est là : la couche n'est visible que sous `REGIONS_GONE_DISTANCE`. Une région s'ancre au point de
+`region-index.json`, celui où le serveur pose ce qui s'y bâtit. Le terrain lit `shapes(type)` :
+un massif est une forme, et son bord les arcs entre deux types. `region-types.json` est classé
+sur les formes de l'atlas (`generate-region-types.mjs`) ; `deposits.json` est recuit sur la grille
+des régions de l'atlas, chaque gisement dans la cellule de sa région. Seuls les contours lisent
+encore `regions.json` (#217).
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :

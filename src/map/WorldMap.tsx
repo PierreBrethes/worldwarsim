@@ -15,7 +15,14 @@ import {
   type RefObject,
 } from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
-import { loadRegions, type HoveredRegion, type RegionIdentity, type World } from '@/domain/world';
+import {
+  loadRegionIndex,
+  loadRegions,
+  loadRegionTypes,
+  type HoveredRegion,
+  type RegionIdentity,
+  type World,
+} from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
 import type { Atlas } from '@/domain/atlas';
 import { loadNearAtlas } from '@/data/atlas';
@@ -457,17 +464,22 @@ export function WorldMap({
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
 
-    // The board does not wait for these 500 KB, and their failure is mute — but the possession
-    // colour hangs on them too since ADR 0020: no regions, no ground to ink.
+    // The board does not wait for the regions' facts, and their failure is mute — but the
+    // possession colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
-    // Two frames on: the sea and the countries are drawn before the 2.6 MB are asked for.
+    // Two frames on: the sea and the countries are drawn before anything else is asked for.
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
-        loadRegions()
-          .then((data) => {
+        Promise.all([loadRegionTypes(), loadRegionIndex()])
+          .then(([types, { point }]) => {
             if (abandoned) return;
-            instance.displayRegions(data);
+            instance.displayRegions(types, point);
             regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
+          })
+          .catch(() => {});
+        loadRegions()
+          .then((regions) => {
+            if (!abandoned) instance.displayContourRegions(regions);
           })
           .catch(() => {});
         loadNearAtlas()

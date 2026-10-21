@@ -11,16 +11,17 @@ import {
   PlaneGeometry,
   RedFormat,
   RGFormat,
-  ShapeUtils,
   ShaderMaterial,
   UnsignedByteType,
   Vector2,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Atlas, Detail } from '@/domain/atlas';
 import type { RegionType } from '@/domain/ids';
-import type { DisplayedRegion } from '@/domain/world';
+import { fillGeometry } from './atlas-geometry';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
-import { spansTheFrame, TRAME_SCALE } from './regions';
+import { TRAME_SCALE } from './regions';
 
 /**
  * **Les dessins généraux de terrain** (#197, maquette `WWS/prototypes/carte-refonte/sheet.js`) :
@@ -313,7 +314,11 @@ export function depthsFromCodes(
   return depths;
 }
 
-function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame): DataTexture {
+/** The regions of each drawn type merged (`Atlas.shapes`): a massif is one shape, its edge the
+ *  arcs between two types. */
+type Massifs = ReturnType<Atlas['shapes']>;
+
+function paintTypes(massifs: Massifs, frame: WorldFrame): DataTexture {
   const width = Math.round(frame.width * TYPES_PER_UNIT);
   const height = Math.round(frame.height * TYPES_PER_UNIT);
   const canvas = document.createElement('canvas');
@@ -333,15 +338,14 @@ function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame):
       (frame.height / 2 - frame.centerY) * TYPES_PER_UNIT,
     );
     g.fillStyle = '#fff';
-    for (const region of regions) {
-      if (region.type !== type) continue;
-      for (const ring of region.rings) {
-        g.beginPath();
-        ring.forEach(([x, y], index) => (index === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
+    g.beginPath();
+    for (const { outer, holes } of massifs.get(type) ?? [])
+      for (const ring of [outer, ...holes]) {
+        g.moveTo(ring[0]!, ring[1]!);
+        for (let i = 2; i < ring.length; i += 2) g.lineTo(ring[i]!, ring[i + 1]!);
         g.closePath();
-        g.fill();
       }
-    }
+    g.fill('evenodd');
     const pixels = g.getImageData(0, 0, width, height).data;
     const mask = new Uint8Array(width * height);
     for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
@@ -381,7 +385,7 @@ const NIGHT_INK = 0.25;
 /** Over the washes and the hatch, under the contours and the hover's stroke. */
 const LIFT = 0.0025;
 /** The terrain's wash, under the drawings: the maquette's `TINT` (`sheet.js`), by type. Laid from
- *  the regions' own outlines, not from the type map, whose cells would make stairs of its edges.
+ *  the massifs' own outlines, not from the type map, whose cells would make stairs of its edges.
  *  @a-mesurer */
 const WASH: Record<DrawnType, { color: string; alpha: number }> = {
   forest: { color: 'rgb(110,128,70)', alpha: 0.16 },
@@ -499,33 +503,22 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-/** The regions of the drawn types, triangulated flat, each vertex carrying its type's wash. */
-function washGeometry(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame): BufferGeometry {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const index: number[] = [];
+/** The massifs triangulated flat, each vertex carrying its type's wash. */
+function washGeometry(massifs: Massifs, frame: WorldFrame): BufferGeometry {
   const color = new Color();
-  for (const region of regions) {
-    if (terrainCode(region.type) === 0) continue;
-    const { color: css, alpha } = WASH[region.type as DrawnType];
+  const parts = [...massifs].map(([type, shapes]) => {
+    const geometry = fillGeometry(shapes, frame, COUNTRY_THICKNESS + WASH_LIFT);
+    const { color: css, alpha } = WASH[type as DrawnType];
     color.set(css);
-    for (const ring of region.rings) {
-      if (spansTheFrame(ring, frame)) continue;
-      const contour = ring.map(([x, y]) => new Vector2(x - frame.centerX, y - frame.centerY));
-      const base = positions.length / 3;
-      for (const point of contour) {
-        positions.push(point.x, COUNTRY_THICKNESS + WASH_LIFT, point.y);
-        colors.push(color.r, color.g, color.b, alpha);
-      }
-      for (const [a, b, c] of ShapeUtils.triangulateShape(contour, []))
-        index.push(base + a!, base + b!, base + c!);
-    }
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('wash', new Float32BufferAttribute(colors, 4));
-  geometry.setIndex(index);
-  return geometry;
+    const wash = new Float32Array(geometry.getAttribute('position').count * 4);
+    for (let i = 0; i < wash.length; i += 4) wash.set([color.r, color.g, color.b, alpha], i);
+    geometry.setAttribute('wash', new Float32BufferAttribute(wash, 4));
+    return geometry;
+  });
+  if (parts.length === 0) return new BufferGeometry();
+  const merged = mergeGeometries(parts, false)!;
+  parts.forEach((part) => part.dispose());
+  return merged;
 }
 
 export class TerrainDrawings {
@@ -599,13 +592,22 @@ export class TerrainDrawings {
     this.object.visible = false;
   }
 
-  /** Bakes the type map and the wash of the regions that came. */
-  display(regions: ReadonlyArray<DisplayedRegion>): void {
-    this.types?.dispose();
-    this.types = paintTypes(regions, this.frame);
-    this.drawing.material.uniforms.uTypes!.value = this.types;
+  /**
+   * Bakes the type map once (a cell of 0.2 u is coarser than either level), and the wash at
+   * `detail`: again when the near level lands, so that it keeps to the coast.
+   */
+  display(atlas: Atlas, detail: Detail, types: ReadonlyMap<string, RegionType>): void {
+    const drawn = (region: { id: string }) => {
+      const type = types.get(region.id) ?? 'plain';
+      return terrainCode(type) === 0 ? null : type;
+    };
+    const massifs = atlas.shapes(drawn, detail);
+    if (this.types === null) {
+      this.types = paintTypes(massifs, this.frame);
+      this.drawing.material.uniforms.uTypes!.value = this.types;
+    }
     this.wash.geometry.dispose();
-    this.wash.geometry = washGeometry(regions, this.frame);
+    this.wash.geometry = washGeometry(massifs, this.frame);
     this.object.visible = true;
   }
 
