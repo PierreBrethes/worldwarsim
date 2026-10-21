@@ -803,7 +803,7 @@ function Rail({
         role="group"
         aria-label={label}
         onPointerDown={(event) => pressRail(event, rail.current, NO_PICK, motion)}
-        className={`flex h-full touch-pan-x snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
+        className={`flex h-full touch-pan-x touch-pan-y snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
           narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pr-[30px] pb-[10px] pl-[2px]'
         }`}
       >
@@ -888,6 +888,7 @@ function TileFrame({
   locked,
   lit,
   grip,
+  lifts = true,
   picture,
   meta,
   price,
@@ -898,6 +899,9 @@ function TileFrame({
   locked: boolean;
   lit: boolean;
   grip: Grip;
+  /** A tile that lifts keeps the finger's upward gesture for itself (`touch-pan-x`); one that
+   *  does not lets the column scroll under it. */
+  lifts?: boolean;
   picture: ReactNode;
   meta: string;
   price: ReactNode;
@@ -910,7 +914,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
-      className={`grid shrink-0 touch-pan-x snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
@@ -1132,6 +1136,7 @@ function SiteBand({
                   locked={card.refusal !== null}
                   lit={false}
                   grip={grip(observing ? null : () => form(card), { lifts: false })}
+                  lifts={false}
                   picture={
                     <UnitSprite
                       nation={view.me.nation}
