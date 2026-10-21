@@ -5,6 +5,8 @@ import {
   MOUSE,
   PCFSoftShadowMap,
   PerspectiveCamera,
+  Plane,
+  Ray,
   Raycaster,
   Scene,
   TOUCH,
@@ -53,7 +55,9 @@ import type { ContourWeight } from '@/domain/contours';
 import {
   boardInstant,
   DEFAULT_DAY_CYCLE,
+  fullDayOver,
   nightOfAltitude,
+  subsolarPoint,
   sunLightAt,
   type DayCycle,
 } from '@/domain/daylight';
@@ -321,6 +325,9 @@ export class MapEngine {
   private warmed = 0;
   /** A piece or a layer came in since the programs were last compiled ahead (`warmPrograms`). */
   private programsStale = true;
+  /** The screen's edge cast on the board (`fullDayInView`). */
+  private readonly sight = new Ray();
+  private readonly onGround = new Vector3();
   private readonly theatreFrame: TheatreFrame;
   private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
@@ -720,6 +727,27 @@ export class MapEngine {
    */
   invalidate(): void {
     this.demand.stir(performance.now());
+  }
+
+  /**
+   * Whether the board is in full day all along the screen's edge — so all over the screen, its
+   * night being lowest on its edge: only close in, where the screen holds far less than the
+   * night's half of the globe. Not when the horizon is in sight.
+   */
+  private fullDayInView(sun: LonLat): boolean {
+    const points: LonLat[] = [];
+    for (const [x, y] of SCREEN_EDGE) {
+      this.sight.origin.setFromMatrixPosition(this.eye.matrixWorld);
+      this.sight.direction.set(x, y, 0.5).unproject(this.eye).sub(this.sight.origin).normalize();
+      if (this.sight.intersectPlane(BOARD_PLANE, this.onGround) === null) return false;
+      points.push(
+        this.frame.lonLatAt(
+          this.onGround.x + this.frame.centerX,
+          this.onGround.z + this.frame.centerY,
+        ),
+      );
+    }
+    return fullDayOver(sun, points);
   }
 
   /** A figurine or a maquette landed in the scene: drawn at the next frame, compiled ahead at rest. */
@@ -2564,6 +2592,10 @@ export class MapEngine {
     const sun = sunLightAt(instant, lookedAt);
     const night = nightOfAltitude(sun.altitude);
     this.night.apply(instant, night);
+    if (whole)
+      this.night.veil(
+        distance > REGIONS_GONE_DISTANCE || !this.fullDayInView(subsolarPoint(instant)),
+      );
     // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
     if (whole) this.lamp.shine(sun, night);
     this.lightCountries();
@@ -2645,6 +2677,13 @@ export class MapEngine {
     );
   };
 }
+
+/** The screen's edge, eight points a side, in device coordinates (`fullDayInView`). */
+const SCREEN_EDGE: ReadonlyArray<readonly [number, number]> = Array.from(
+  { length: 8 },
+  (_, k) => -1 + k / 4,
+).flatMap((t) => [[t, -1] as const, [1, t] as const, [-t, 1] as const, [-1, -t] as const]);
+const BOARD_PLANE = new Plane(new Vector3(0, 1, 0), 0);
 
 const DESK_PIXEL_RATIO = 2;
 /** **Au doigt, un pixel et demi par point** (#189) : un téléphone à 3 dessinait la carte en
