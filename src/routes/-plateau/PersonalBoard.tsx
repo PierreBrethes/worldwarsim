@@ -1446,8 +1446,11 @@ function useHand({
 
   const take = (key: BuildingKey, { element, pointerId, x, y }: Grab): void => {
     gesture.current?.cancel();
-    if (pointerId !== null && element.hasPointerCapture(pointerId))
-      element.releasePointerCapture(pointerId);
+    // A finger's capture is implicit, on what it touched — the plate's image inside the tile —
+    // and kept the moves from the map: the ghost never moved (#205).
+    if (pointerId !== null)
+      for (const node of [element, ...element.querySelectorAll('*')])
+        if (node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId);
     const origin = element.getBoundingClientRect();
     const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
     const from = pointerId === null ? home : { x, y };

@@ -40,14 +40,18 @@ body {
    fenêtre, une feuille, un dock, la rose. Une liste défile toujours (`pan-x pan-y`). Le canevas
    garde son `none` — celui qu'`OrbitControls` pose, et redit ici. Ailleurs (connexion, accueil,
    salon) le pincement reste au joueur : le zoom d'accessibilité n'est retiré nulle part, d'où
-   l'absence de `user-scalable=no` au viewport. */
-.on-board,
-.on-board * {
-  touch-action: pan-x pan-y;
-}
+   l'absence de `user-scalable=no` au viewport. Dans la couche `base` : un utilitaire
+   (`touch-pan-x` d'une tuile, `touch-none` d'un bac) dit un geste et passe devant — hors couche,
+   ce défaut l'écrasait, et le doigt qui levait une tuile faisait défiler le plateau (#205). */
+@layer base {
+  .on-board,
+  .on-board * {
+    touch-action: pan-x pan-y;
+  }
 
-.on-board canvas {
-  touch-action: none;
+  .on-board canvas {
+    touch-action: none;
+  }
 }
 
 /* **Les marges de l'iPhone** (`viewport-fit=cover`) : l'encoche en haut, la barre d'accueil en
