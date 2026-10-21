@@ -17,9 +17,7 @@ import {
   telegraphSoundOn,
 } from '@/data/settings';
 import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
-import { setCameraLens, useCameraLens } from '@/data/cameraLens';
 import { setDayCycle, useDayCycle } from '@/data/dayCycle';
-import { CAMERA_LENSES } from '@/domain/camera-lens';
 import { DAY_CYCLES } from '@/domain/daylight';
 import { setPieceScale, usePieceScale } from '@/data/pieceScale';
 import {
@@ -64,7 +62,6 @@ export function SettingsWindow({
   const mapping = useMouseMapping();
   const mapMotion = useMapMotionSetting();
   const dayCycle = useDayCycle();
-  const cameraLens = useCameraLens();
   const pieces = usePieceScale();
   const coarse = useCoarsePointer();
   const conclude = useMutation(api.seasons.conclude);
@@ -270,27 +267,6 @@ export function SettingsWindow({
             </div>
             <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
               {fr.settingsWindow.dayCycleNote}
-            </p>
-          </div>
-
-          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-[13.5px] text-[var(--ink)]">
-                {fr.settingsWindow.cameraLensLabel}
-              </span>
-              <div className="flex gap-[6px]">
-                {CAMERA_LENSES.map((lens) => (
-                  <Chip
-                    key={lens}
-                    label={fr.settingsWindow.cameraLens[lens]}
-                    marked={cameraLens === lens}
-                    onClick={() => setCameraLens(lens)}
-                  />
-                ))}
-              </div>
-            </div>
-            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
-              {fr.settingsWindow.cameraLensNote}
             </p>
           </div>
 

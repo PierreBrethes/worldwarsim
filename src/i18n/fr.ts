@@ -3940,10 +3940,6 @@ export const fr = {
     dayCycle: { twoHours: 'deux heures', hour: 'une heure', real: 'réel' },
     dayCycleNote:
       'Une journée entière en deux heures ou en une, pour voir passer le jour et la nuit. Réel : la nuit suit le vrai soleil.',
-    cameraLensLabel: 'Objectif de la caméra',
-    cameraLens: { game: 'jeu', poc: 'prototype' },
-    cameraLensNote:
-      'Essai : le téléobjectif de 28° et les couleurs du prototype. La carte cadre la même chose, la perspective s’aplatit.',
     pieceScaleLabel: 'Taille des pièces',
     pieceScaleNote:
       'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',
