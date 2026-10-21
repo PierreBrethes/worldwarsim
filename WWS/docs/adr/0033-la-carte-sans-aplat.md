@@ -73,3 +73,23 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
   grain : ~2,5 Mo, aucun coût par image côté CPU.
 - **Le type reste décor** : aucune règle de jeu ne le lit (invariant « Données générées »). La
   fiche au survol le nomme avec son picto (`src/emblems/terrain/`).
+
+## Précisée le 21/10/2026 (#198) : la nuit éteint carte et pièces, un halo à chacune
+
+- **Une lune, pas un voile.** Le voile d'encre qui ne couvrait que la feuille disparaît : dans la
+  bande de nuit (`boardInstant`), la lampe devient une lune faible et froide, et le ciel descend à
+  0,3, pour la carte comme pour les pièces. La nuit se lit là où l'on regarde, à toute distance :
+  de loin, la carte n'a plus de terminateur, seules les villes allumées (`night.ts`) disent quel
+  côté du monde est dans le noir. L'accueil garde son voile (il est à refaire).
+- **La lune est fixe.** L'azimut du soleil est singulier à l'antipode du point subsolaire, là où il
+  fait nuit : les ombres y pivotaient de 90° pour un degré de carte et tournaient d'un battement à
+  l'autre. La nuit, la lampe prend une direction fixe (`lampDirection`, `src/domain/daylight.ts`) ;
+  au crépuscule, les deux directions se mêlent comme des vecteurs, jamais comme des angles.
+- **Un halo chaud et léger autour de chaque pièce et de chaque bâtiment visible**, le même pour tous,
+  toujours allumé la nuit, sans réglage (choix de Pierre, #194) : sans lui, les pièces sont presque
+  noires. Un disque additif à plat par pièce, tous d'un seul `InstancedMesh` (`halo.ts`), et la
+  pièce se réchauffe de la même lueur par son émission. Il ne scintille jamais, quel que soit le
+  réglage d'animation : il suit le battement du soleil et ne demande aucune image à lui seul.
+- **Les encres s'éclaircissent la nuit** (contours, #196) pour rester lisibles ; les fins traits
+  gris s'assombrissent avec la carte. Les dessins de terrain (#197) restent visibles, sous la même
+  lumière que la feuille.

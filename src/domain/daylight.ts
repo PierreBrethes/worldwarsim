@@ -92,7 +92,8 @@ export function sunLightAt(epochMs: number, at: LonLat): SunLight {
  * **La lune est une lampe fixe** (#198) : l'azimut du soleil est singulier à l'antipode du point
  * subsolaire, et c'est là, de nuit, qu'on regarde — un degré de carte y faisait pivoter les ombres
  * de 90°, et chaque battement de l'horloge les tournait encore. La nuit, la lampe reste donc au
- * même endroit, comme dans la maquette (`carte-refonte`). @a-mesurer
+ * même endroit, comme dans la maquette (`carte-refonte`).
+ * @a-mesurer posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces
  */
 export const MOON_AZIMUTH_DEG = 315;
 export const MOON_ELEVATION_DEG = 53;
